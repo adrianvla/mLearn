@@ -101,6 +101,15 @@
           "Description": "Utiliser un passage LLM séparé pour détecter et corriger les erreurs au lieu de l'agent de conversation.",
           "Title": "Agent correcteur"
         },
+        "Speech": {
+          "Title": "Voix",
+          "Label": "Voix (expérimental)",
+          "Description": "Activer la synthèse vocale pour les réponses IA et la reconnaissance vocale en entrée"
+        },
+        "AutoSpeak": {
+          "Label": "Lecture auto des réponses",
+          "Description": "Lire automatiquement les réponses du tuteur IA"
+        },
         "Title": "Paramètres IA"
       },
       "SetupRequired": "Les fonctions IA nécessitent une configuration. Ouverture des paramètres..."
@@ -246,7 +255,11 @@
       "SigningIn": "Connexion...",
       "TestConnection": "Tester la connexion",
       "Title": "Connexion",
-      "Unreachable": "Injoignable"
+      "Unreachable": "Injoignable",
+      "ICEServers": "WebRTC ICE Servers",
+      "ICEServersLabel": "STUN / TURN servers",
+      "ICEServersDescription": "Used for Watch Together peer connections.",
+      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
     },
     "ConversationAgent": {
       "Agents": {
@@ -746,8 +759,9 @@
         "Complete": "Synchronisation terminée !",
         "ConnectedSyncing": "Connecté ! Synchronisation...",
         "Error": {
+          "AuthRequired": "Veuillez vous connecter pour synchroniser les cartes",
           "CameraAccess": "Accès à la caméra refusé",
-          "Connection": "Échec de l'établissement de la connexion",
+          "Connection": "Échec du démarrage de la connexion",
           "LoadLibraries": "Échec du chargement des bibliothèques requises : {error}"
         },
         "EstablishingConnection": "Établissement de la connexion...",
@@ -755,7 +769,6 @@
         "LoadingLibraries": "Chargement des bibliothèques...",
         "PointCamera": "Dirigez la caméra vers le code QR...",
         "QRHint": "Scannez le code QR dans l'application mobile mLearn pour synchroniser",
-        "ScanInstructions": "Entrez {numChunks} dans l'application mLearn, puis scannez ce code QR",
         "ScanQRInstead": "Scanner le QR",
         "ShowQRInstead": "Afficher le QR",
         "SyncedSuccessfully": "Cartes synchronisées !",
@@ -879,6 +892,8 @@
       "Cards": {
         "AITutor": {
           "Description": "Entraînez-vous avec un partenaire de conversation IA",
+          "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
+          "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
           "Title": "Tuteur IA"
         },
         "Flashcards": {
@@ -922,7 +937,7 @@
         "ContinueLearning": "Continuer l'apprentissage",
         "LearningLanguage": "J'apprends le {language}",
         "Title": "mLearn",
-        "TitleDescription": "Apprenez les langues par immersion"
+        "TitleDescription": "Sélectionnez une option ci-dessous pour commencer"
       }
     },
     "Installer": {
@@ -932,7 +947,9 @@
       "Buttons": {
         "Continue": "Continuer",
         "Installing": "Installation...",
-        "StartInstallation": "Démarrer l'installation"
+        "StartInstallation": "Démarrer l'installation",
+        "CancelInstall": "Cancel Installation",
+        "CancelRestart": "Cancel Restart"
       },
       "Components": {
         "ExplainAi": {
@@ -1016,7 +1033,8 @@
       "en": "English",
       "fr": "Français",
       "ja": "日本語",
-      "ru": "Русский"
+      "ru": "Русский",
+      "zh": "中文"
     },
     "MediaStats": {
       "AllWordsKnown": "Tous les mots sont connus !",
@@ -1265,7 +1283,8 @@
         "KnowledgePriority": "Priorité de connaissance",
         "LiveTranslator": "Traducteur de mots en direct",
         "Behaviour": "Comportement",
-        "WordKnowledge": "Connaissance des mots"
+        "WordKnowledge": "Connaissance des mots",
+        "LanguageProficiency": "Niveau de langue d'apprentissage"
       },
       "Keybind": {
         "PressKey": "Appuyez sur une touche...",
@@ -1342,6 +1361,31 @@
           "error": "Erreur"
         }
       },
+      "Shiritori": {
+        "Title": "Shiritori",
+        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
+        "Turn": {
+          "User": "Your turn — say a word starting with \"{kana}\"",
+          "UserFirst": "Your turn — say any Japanese noun",
+          "Computer": "Computer's turn",
+          "ComputerThinking": "Computer is thinking..."
+        },
+        "Error": {
+          "Empty": "Please enter a word.",
+          "Duplicate": "You cannot use a word twice.",
+          "NotFound": "That word was not found in the dictionary.",
+          "WrongStart": "That word must start with \"{kana}\".",
+          "EndsWithN": "Word ends in ん — you lose!",
+          "NoReading": "Could not determine the reading of that word."
+        },
+        "GameOver": {
+          "UserWins": "You win!",
+          "ComputerWins": "Computer wins!",
+          "PlayAgain": "Play Again"
+        },
+        "Submit": "Submit",
+        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+      },
       "KnowledgePriority": {
         "Description": "Configurer comment la connaissance des mots est déterminée à partir de multiples sources",
         "ResolutionMode": {
@@ -1373,10 +1417,6 @@
           "Title": "Lecture"
         },
         "LlmIntegration": {
-          "AutoSpeak": {
-            "Description": "Lire automatiquement les réponses du tuteur IA",
-            "Label": "Lecture auto des réponses"
-          },
           "Enable": {
             "Description": "Utiliser l'IA pour expliquer les mots et la grammaire",
             "Label": "Activer les explications LLM"
@@ -1404,10 +1444,6 @@
               "Label": "Délai du survol comptabilisé"
             },
             "Label": "Suivi passif des mots"
-          },
-          "Speech": {
-            "Description": "Activer la synthèse vocale pour les réponses IA et la reconnaissance vocale en entrée",
-            "Label": "Voix (expérimental)"
           },
           "Title": "Intégration LLM"
         },
@@ -1593,11 +1629,6 @@
           "MaxNewCards": {
             "Description": "Limite des cartes créées automatiquement",
             "Label": "Max. nouvelles par jour"
-          },
-          "PreparedExamLevel": {
-            "Description": "Niveau cible pour les cartes auto-créées",
-            "Label": "Niveau d'examen cible",
-            "NoTarget": "Pas de cible"
           },
           "StaleLearningDays": {
             "Label": "Seuil d'apprentissage périmé (jours)",
@@ -1805,14 +1836,62 @@
         "About": "À propos",
         "Appearance": "Apparence",
         "Behaviour": "Comportement",
+        "Components": "Composants",
         "Connection": "Connexion",
         "General": "Général",
         "Plugins": "Plugins",
         "Reader": "Lecteur",
         "SRS": "SRS",
         "Statistics": "Statistiques",
-        "VideoPlayer": "Lecteur vidéo"
+        "VideoPlayer": "Lecteur vidéo",
+        "BrowserExtension": "Extension navigateur"
+      },
+      "Behaviour": {
+        "LearningLanguageLevel": {
+          "Label": "Niveau de langue d'apprentissage",
+          "Description": "Lorsqu'il est défini, les cartes suggérées au-dessus de ce niveau et les cartes sans niveau ne seront pas enregistrées. Affecte également la difficulté de Word Sync.",
+          "NoLimit": "Aucune limite"
+        }
       }
+    },
+    "BrowserExtension": {
+      "Title": "Extension navigateur",
+      "Description": "Installez l'extension navigateur mLearn pour synchroniser la lecture vidéo avec l'application.",
+      "DetectedBrowsers": "Navigateurs détectés",
+      "Detecting": "Détection des navigateurs...",
+      "DetectError": "Échec de la détection des navigateurs. Veuillez réessayer.",
+      "NoBrowsers": "Aucun navigateur détecté",
+      "NoBrowsersHint": "Ajoutez un chemin de navigateur personnalisé ci-dessous si votre navigateur n'est pas détecté automatiquement.",
+      "Install": "Installer",
+      "Installing": "Installation en cours...",
+      "Installed": "Installé",
+      "InstalledAt": "Installé à",
+      "InstallFailed": "L'installation a échoué",
+      "Retry": "Réessayer",
+      "ManualTitle": "Installation manuelle",
+      "ManualChrome": "Ouvrez les extensions Chrome (chrome://extensions/), activez le mode développeur, cliquez sur Charger l'extension non empaquetée et sélectionnez le dossier extension/dist/.",
+      "ManualFirefox": "Ouvrez about:debugging, cliquez sur Ce Firefox, puis sur Charger un module complémentaire temporaire et sélectionnez le fichier extension/dist/manifest.json.",
+      "ManualUnknown": "Veuillez consulter la documentation de votre navigateur pour charger des extensions non empaquetées.",
+      "CustomPath": "Chemin de navigateur personnalisé",
+      "CustomPathLabel": "Type de navigateur",
+      "CustomPathHint": "Sélectionnez le fichier exécutable principal ou le bundle d'application du navigateur (par ex., Chrome.app, chrome.exe, firefox.exe). Ne sélectionnez pas le dossier Extensions.",
+      "Browse": "Parcourir",
+      "Uninstall": "Désinstaller",
+      "UninstallFailed": "Échec de la désinstallation",
+      "ConnectionStatus": "Connexion de l'extension",
+      "ExtensionStatus": "Statut",
+      "Connected": "Connecté",
+      "Disconnected": "Déconnecté",
+      "OpenExtensionFolder": "Ouvrir le dossier de l'extension",
+      "OpenExtensionFolderSuccess": "Extension folder opened",
+      "OpenExtensionFolderFailed": "Failed to open extension folder",
+      "CopyExtensionPath": "Copier le chemin",
+      "ExtensionPathCopied": "Chemin copié dans le presse-papiers",
+      "ManualInstallHint": "L'installation automatique a échoué. Vous pouvez installer l'extension manuellement:",
+      "Step1": "Ouvrez la page des extensions de votre navigateur (chrome://extensions/ ou about:addons)",
+      "Step2": "Activez le mode développeur (Chrome) ou ouvrez l'icône d'engrenage (Firefox)",
+      "Step3": "Cliquez sur 'Charger l'extension non empaquetée' (Chrome) ou 'Charger un module complémentaire temporaire' (Firefox)",
+      "Step4": "Sélectionnez le dossier d'extension qui a été ouvert"
     },
     "Statistics": {
       "Actions": {
@@ -1854,6 +1933,8 @@
           "Young": "Récent (<21j)"
         },
         "NewLearned": "Nouveaux appris",
+        "OutsideLevels": "Mots hors niveaux",
+        "OutsideLevelsTotal": "Total",
         "Overdue": "En retard",
         "RetentionRate": "Taux de rétention",
         "ReviewActivity": "Activité de révision (30 derniers jours)",
@@ -1877,6 +1958,10 @@
         "TimeWatched": "Temps visionné",
         "Today": "Aujourd'hui",
         "TodaysSession": "Session du jour",
+        "TotalSessionTime": "Temps total de session",
+        "FlashcardTime": "Cartes",
+        "VideoTime": "Vidéo",
+        "ReadingTime": "Lecture",
         "TotalCards": "Total des cartes",
         "TotalImmersion": "Immersion totale",
         "TotalReviews": "Total des révisions",
@@ -1911,7 +1996,11 @@
       "Controls": {
         "Mute": "Couper le son",
         "PlaybackSpeed": "Vitesse de lecture",
-        "Unmute": "Activer le son"
+        "Unmute": "Activer le son",
+        "SubtitleNone": "Aucun",
+        "SubtitleExternal": "Sous-titres fournis par l'utilisateur",
+        "SubtitleTrack": "Piste de sous-titres",
+        "AudioTrack": "Piste audio"
       },
       "CopySubtitle": "Copier le sous-titre",
       "SyncSubtitles": "Synchroniser les sous-titres",
@@ -1935,6 +2024,28 @@
         }
       },
       "VideoClipFailed": "Le clip vidéo a échoué, utilisation de la capture d'écran",
+      "SubtitleExtractionFailed": "Impossible d'extraire les sous-titres de cette vidéo. Essayez de charger un fichier de sous-titres externe.",
+      "SubtitleTracksDetected": "Pistes de sous-titres détectées. L'extraction automatique n'est pas disponible pour les fichiers volumineux. Chargez un fichier de sous-titres externe ou extrayez-les avec ffmpeg.",
+      "WatchTogether": "Regarder ensemble"
+    },
+    "Overlay": {
+      "Close": "Fermer l'overlay",
+      "ControlsAria": "Contrôles de l'overlay",
+      "DecreaseOffset": "Diminuer le décalage des sous-titres de 100ms",
+      "DisableAutoPosition": "Désactiver le positionnement automatique",
+      "DragToMove": "Glisser pour déplacer",
+      "DragToResize": "Glisser pour redimensionner",
+      "DropSubtitle": "Glissez et déposez un fichier de sous-titres ici",
+      "EnableAutoPosition": "Activer le positionnement automatique",
+      "IncreaseOffset": "Augmenter le décalage des sous-titres de 100ms",
+      "LoadSubtitles": "Charger les sous-titres",
+      "OffsetTooltip": "Décalage temporel des sous-titres",
+      "SyncActive": "Sync active",
+      "SyncInactive": "Sync inactive",
+      "ToggleSubtitles": "Activer/désactiver les sous-titres",
+      "ToggleWordSidebar": "Afficher/masquer la barre de mots",
+      "OpenConversationAgent": "Ouvrir le tuteur conversationnel IA",
+      "ToggleLiveTranslator": "Activer/désactiver le traducteur de mots",
       "WatchTogether": "Regarder ensemble"
     },
     "WatchTogether": {
@@ -1981,7 +2092,27 @@
         "SignInRequiredMessage": "Connectez-vous avec votre compte mLearn Cloud pour utiliser les codes de salle.",
         "SignInModalTitle": "Connexion pour Regarder ensemble",
         "SignInHint": "Entrez vos identifiants mLearn Cloud",
-        "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous"
+        "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous",
+        "PeerJoinedSingular": "Un participant a rejoint votre salle",
+        "PeerJoinedPlural": "{count} participants ont rejoint votre salle",
+        "AnticipatingPing": "Anticipation du ping..."
+      },
+      "Extension": {
+        "HeadlessMode": "Mode sans tête",
+        "Enable": "Activer",
+        "Disable": "Désactiver",
+        "Subtitles": "Sous-titres",
+        "LoadSubtitleFile": "Charger un fichier de sous-titres",
+        "SyncOffset": "Décalage de synchronisation",
+        "SignInRequired": "Connectez-vous pour utiliser Watch Together",
+        "SignIn": "Se connecter",
+        "Host": "Héberger",
+        "Join": "Rejoindre",
+        "CreateRoom": "Créer une salle",
+        "RoomCodePlaceholder": "Entrez le code de la salle",
+        "RoomCode": "Code de la salle",
+        "Peers": "Participants",
+        "LeaveRoom": "Quitter la salle"
       },
       "Media": {
         "DistributeTitle": "Distribuer le média",
@@ -1999,7 +2130,9 @@
         "ReceivePrompt": "Un pair souhaite vous envoyer un fichier média. Voulez-vous le recevoir ?",
         "Receiving": "Réception du média...",
         "ReceiveComplete": "Média reçu avec succès.",
-        "LoadMedia": "Charger le média"
+        "LoadMedia": "Charger le média",
+        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
+        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
       }
     },
     "WordDbEditor": {
@@ -2152,6 +2285,70 @@
         "Learning": "Marqué comme en apprentissage",
         "Known": "Marqué comme connu"
       }
+    },
+    "Menu": {
+      "About": "À propos de mLearn",
+      "BrowserExtension": {
+        "Title": "Extension de navigateur",
+        "InstallExtension": "Installer l'extension...",
+        "OpenOverlayWindow": "Ouvrir la fenêtre de superposition"
+      },
+      "Cancel": "Annuler",
+      "CollatePages": "Regrouper les pages",
+      "CopyPhrase": "Copier la phrase",
+      "CopySubtitle": "Copier le sous-titre",
+      "Create": "Créer",
+      "Edit": "Modifier",
+      "EditWordKnowledgeDatabase": "Modifier la base de données de mots",
+      "Explain": "Expliquer",
+      "File": "Fichier",
+      "Flashcards": "Cartes mémoire",
+      "ForceRecreateFlashcards": "Forcer la recréation des cartes pour aujourd'hui",
+      "Help": "Aide",
+      "HideReading": "Masquer la lecture",
+      "OpenDevTools": "Ouvrir les DevTools",
+      "OpenLiveWordTranslator": "Ouvrir le traducteur de mots en direct",
+      "OpenSyncingWindow": "Ouvrir la fenêtre de synchronisation",
+      "RecreateFlashcards": {
+        "Title": "Recréer les cartes",
+        "Message": "Cela créera de nouvelles cartes à partir de vos candidats suivis. Continuer?",
+        "Cancel": "Annuler",
+        "Create": "Créer"
+      },
+      "ReviewFlashcards": "Réviser les cartes",
+      "Settings": "Paramètres",
+      "ShowKanjiGrid": "Afficher la grille des kanji",
+      "ShowLearningStatistics": "Afficher les statistiques d'apprentissage",
+      "ShowReading": "Afficher la lecture",
+      "Statistics": "Statistiques",
+      "StopWatchTogether": "Arrêter Watch Together",
+      "SyncSubtitles": "Synchroniser les sous-titres avec la vidéo",
+      "SyncWithMe": "Synchroniser avec moi",
+      "UncollatePages": "Désactiver le regroupement des pages",
+      "Video": "Vidéo",
+      "View": "Affichage",
+      "WatchTogether": "Watch Together",
+      "Window": "Fenêtre"
+    },
+    "ComponentsTab": {
+      "Description": "Gérez les composants installés. Activez ou désactivez les modules et réinstallez pour appliquer les modifications.",
+      "Reinstall": "Réinstaller les composants",
+      "RestartNote": "L'application redémarrera après la fin de l'installation."
+    },
+    "Diagnostics": {
+      "Title": "mLearn Diagnostics",
+      "RunAllTests": "Run All Tests",
+      "RunAgain": "Run Again",
+      "Running": "Running…",
+      "ExportJson": "Export JSON",
+      "ErrorTitle": "Diagnostics failed",
+      "ReportSavedTo": "Report saved to:",
+      "FilterAll": "All",
+      "FilterPass": "Pass",
+      "FilterFail": "Fail",
+      "FilterSkip": "Skip",
+      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
+      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
     }
   }
 }

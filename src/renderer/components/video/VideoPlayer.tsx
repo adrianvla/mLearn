@@ -15,6 +15,12 @@ import { LiveWordTranslator } from '../subtitle/LiveWordTranslator';
 import { VideoControls } from './VideoControls';
 import './VideoPlayer.css';
 
+export interface DetectedTrack {
+  index: number;
+  label: string;
+  language: string | null;
+}
+
 export interface VideoPlayerProps {
   /** Video source URL */
   src?: string;
@@ -42,6 +48,14 @@ export interface VideoPlayerProps {
   showWordSidebar?: boolean;
   /** Toggle word sidebar visibility */
   onToggleWordSidebar?: () => void;
+  /** Audio tracks detected via ffmpeg (for formats Chromium doesn't expose) */
+  detectedAudioTracks?: DetectedTrack[];
+  /** Subtitle tracks detected via ffmpeg (for formats Chromium doesn't expose) */
+  detectedSubtitleTracks?: DetectedTrack[];
+  /** Currently active detected subtitle track index */
+  activeDetectedSubtitleTrack?: number | null;
+  /** Callback when user selects a detected subtitle track */
+  onSelectDetectedSubtitleTrack?: (index: number | null) => void;
   /** Additional CSS class */
   class?: string;
   /** Additional inline styles */
@@ -50,7 +64,9 @@ export interface VideoPlayerProps {
 
 export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   const { settings } = useSettings();
-  const video = useVideo();
+  const video = useVideo({
+    getFullscreenContainer: () => containerRef ?? null,
+  });
   const subtitles = props.subtitles;
 
   // Cursor visibility with 2s timeout - matches legacy behavior
@@ -123,8 +139,8 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
     props.onTimeUpdate?.(time);
   });
 
-  // Enable keyboard shortcuts
-  useVideoKeyboard(video);
+  // Enable keyboard shortcuts (scoped to player container)
+  useVideoKeyboard(video, { getScope: () => containerRef ?? null });
 
   // Enable touch gestures on mobile
   useVideoTouch(video, () => containerRef);
@@ -173,6 +189,11 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             isControlsVisible={controlsVisible()}
             showWordSidebar={props.showWordSidebar}
             onToggleWordSidebar={props.onToggleWordSidebar}
+            hasExternalSubtitles={Boolean(props.subtitleContent)}
+            detectedAudioTracks={props.detectedAudioTracks}
+            detectedSubtitleTracks={props.detectedSubtitleTracks}
+            activeDetectedSubtitleTrack={props.activeDetectedSubtitleTrack}
+            onSelectDetectedSubtitleTrack={props.onSelectDetectedSubtitleTrack}
         />
       </div>
   );

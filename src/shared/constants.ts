@@ -135,6 +135,7 @@ export const IPC_CHANNELS = {
   INSTALLER_AWAITING_CHOICE: 'installer-awaiting-choice',
   INSTALLER_NETWORK_ERROR: 'installer-network-error',
   PIP_PROGRESS: 'pip-progress',
+  CANCEL_INSTALL: 'cancel-install',
   
   // UI
   SHOW_SETTINGS: 'show-settings',
@@ -150,7 +151,35 @@ export const IPC_CHANNELS = {
   WATCH_TOGETHER_REQUEST: 'watch-together-request',
   WATCH_TOGETHER_SEND: 'watch-together-send',
   IS_WATCHING_TOGETHER: 'is-watching-together',
-  
+
+  OVERLAY_VIDEO_STATE: 'overlay-video-state',
+  OVERLAY_REQUEST_SYNC: 'overlay-request-sync',
+  OVERLAY_LAUNCH: 'overlay-launch',
+  OVERLAY_GEOMETRY: 'overlay-geometry',
+  OVERLAY_SET_IGNORE_MOUSE_EVENTS: 'overlay-set-ignore-mouse-events',
+  OVERLAY_SUBTITLE_TRACKS: 'overlay-subtitle-tracks',
+  OVERLAY_COMMAND: 'overlay-command',
+  OVERLAY_MOVE_BY: 'overlay-move-by',
+  OVERLAY_RESIZE_BY: 'overlay-resize-by',
+  OVERLAY_GET_BOUNDS: 'overlay-get-bounds',
+  OVERLAY_SET_AUTO_POSITION: 'overlay-set-auto-position',
+  OVERLAY_AUTO_POSITION_CHANGED: 'overlay-auto-position-changed',
+  OVERLAY_SET_GEOMETRY_LOCKED: 'overlay-set-geometry-locked',
+  OVERLAY_TEXT_MODE_LOOKUP: 'overlay-text-mode-lookup',
+  OVERLAY_TEXT_MODE_CONNECTED: 'overlay-text-mode-connected',
+  OVERLAY_SAVE_SITE_STATE: 'overlay-save-site-state',
+  OVERLAY_LOAD_SITE_STATE: 'overlay-load-site-state',
+  OVERLAY_CLEAR_SITE_STATE: 'overlay-clear-site-state',
+  OVERLAY_SET_BOUNDS: 'overlay-set-bounds',
+  OVERLAY_ACTIVE_URL_CHANGED: 'overlay-active-url-changed',
+  OVERLAY_CLOSE_HOVER: 'overlay-close-hover',
+
+  DETECT_BROWSERS: 'detect-browsers',
+  INSTALL_EXTENSION: 'install-extension',
+  UNINSTALL_EXTENSION: 'uninstall-extension',
+  IS_EXTENSION_INSTALLED: 'is-extension-installed',
+  OPEN_EXTENSION_FOLDER: 'open-extension-folder',
+
   // Updates from tethered clients
   UPDATE_PILLS: 'update-pills',
   UPDATE_WORD_APPEARANCE: 'update-word-appearance',
@@ -180,6 +209,7 @@ export const IPC_CHANNELS = {
   SELECT_SUBTITLE_FILE: 'select-subtitle-file',
   SELECT_BOOK_FOLDER: 'select-book-folder',
   SELECT_PDF_FILE: 'select-pdf-file',
+  SELECT_BROWSER_FILE: 'select-browser-file',
   GET_LOCAL_MEDIA_URL: 'get-local-media-url',
 
   // Media stats
@@ -260,6 +290,8 @@ export const IPC_CHANNELS = {
   FLASHCARD_VIDEO_DELETE: 'flashcard-video-delete',
 
   READ_MEDIA_FILE: 'read-media-file',
+  READ_MEDIA_FILE_CHUNK: 'read-media-file-chunk',
+  GET_FILE_SIZE: 'get-file-size',
 
   // Flashcard TTS audio files
   FLASHCARD_TTS_GET: 'flashcard-tts-get',
@@ -301,6 +333,8 @@ export const WINDOW_TYPES = {
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',
   WORD_SYNC: 'word-sync',
+  OVERLAY: 'overlay',
+  DIAGNOSTICS: 'diagnostics',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

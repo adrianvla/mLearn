@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -202,6 +202,7 @@ const mLearnIPC = {
 
   // ========== Installation ==========
   startInstall: (options: InstallOptions) => ipcRenderer.send(IPC_CHANNELS.START_INSTALL, options),
+  cancelInstall: () => ipcRenderer.send(IPC_CHANNELS.CANCEL_INSTALL),
   requestInstallerState: () => ipcRenderer.send(IPC_CHANNELS.INSTALLER_STATE_REQUEST),
   onPythonSuccess: (callback: (success: boolean) => void) =>
     ipcOn(IPC_CHANNELS.SUCCESSFUL_INSTALL, (_event, success) => callback(success)),
@@ -236,6 +237,49 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.WATCH_TOGETHER, () => callback()),
   onWatchTogetherRequest: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, (_event, message) => callback(message)),
+
+  // ========== Overlay ==========
+  sendOverlayVideoState: (state: OverlayVideoState) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, state),
+  onOverlayVideoState: (callback: (state: OverlayVideoState) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_VIDEO_STATE, (_event, state) => callback(state)),
+  requestOverlaySync: () => ipcRenderer.send(IPC_CHANNELS.OVERLAY_REQUEST_SYNC),
+  onOverlayRequestSync: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_REQUEST_SYNC, () => callback()),
+  launchOverlay: () => ipcRenderer.send(IPC_CHANNELS.OVERLAY_LAUNCH),
+  onOverlayLaunch: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_LAUNCH, () => callback()),
+  onOverlayGeometry: (callback: (geometry: OverlayGeometry) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_GEOMETRY, (_event, geometry) => callback(geometry)),
+  setOverlayIgnoreMouseEvents: (ignore: boolean) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS, ignore),
+  sendOverlayCommand: (cmd: OverlayCommand) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_COMMAND, cmd),
+  sendOverlaySubtitleTracks: (tracks: OverlaySubtitleTracks) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, tracks),
+  onOverlaySubtitleTracks: (callback: (tracks: OverlaySubtitleTracks) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, (_event, tracks) => callback(tracks)),
+  overlayMoveBy: (delta: { x: number; y: number }) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_MOVE_BY, delta),
+  overlayResizeBy: (delta: { width: number; height: number }) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_RESIZE_BY, delta),
+  overlayGetBounds: (): Promise<{ x: number; y: number; width: number; height: number } | null> => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GET_BOUNDS),
+        overlaySetAutoPosition: (enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, enabled),
+        overlaySetGeometryLocked: (locked: boolean) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SET_GEOMETRY_LOCKED, locked),
+  onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_AUTO_POSITION_CHANGED, (_event, enabled) => callback(enabled)),
+  sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number }) =>
+    ipcRenderer.send(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, payload),
+  onOverlayTextModeLookup: (callback: (payload: { word: string; x: number; y: number }) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, (_event, payload) => callback(payload)),
+  onOverlayTextModeConnected: (callback: (connected: boolean) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_TEXT_MODE_CONNECTED, (_event, connected) => callback(connected)),
+  overlaySaveSiteState: (payload: { url: string; state: Record<string, unknown> }) =>
+    ipcRenderer.send(IPC_CHANNELS.OVERLAY_SAVE_SITE_STATE, payload),
+  overlayLoadSiteState: (url: string): Promise<Record<string, unknown> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_LOAD_SITE_STATE, url),
+  overlayClearSiteState: (url: string) =>
+    ipcRenderer.send(IPC_CHANNELS.OVERLAY_CLEAR_SITE_STATE, url),
+  overlaySetBounds: (bounds: { x: number; y: number; width: number; height: number }): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_BOUNDS, bounds),
+  onOverlayActiveUrlChanged: (callback: (url: string) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_ACTIVE_URL_CHANGED, (_event, url) => callback(url)),
+  onOverlayCloseHover: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_CLOSE_HOVER, () => callback()),
 
   // ========== Tethered Updates ==========
   onUpdatePills: (callback: (data: string) => void) =>
@@ -276,9 +320,15 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_BOOK_FOLDER),
   selectPdfFile: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_PDF_FILE),
+  selectBrowserFile: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SELECT_BROWSER_FILE),
   readMediaFile: (filePath: string): Promise<ArrayBuffer | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE, filePath),
-    
+  readMediaFileChunk: (filePath: string, offset: number, length: number): Promise<ArrayBuffer | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE_CHUNK, filePath, offset, length),
+  getFileSize: (filePath: string): Promise<number | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_FILE_SIZE, filePath),
+
   /**
    * Get filesystem path for a File object.
    * Required for Electron v32+ where File.path was removed.
@@ -411,6 +461,18 @@ const mLearnIPC = {
   dataImport: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC_CHANNELS.DATA_IMPORT),
 
+  // ========== Browser Detection ==========
+  detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>): Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DETECT_BROWSERS, customPaths),
+  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_EXTENSION, browser),
+  uninstallExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.UNINSTALL_EXTENSION, browser),
+  isExtensionInstalled: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ installed: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.IS_EXTENSION_INSTALLED, browser),
+  openExtensionFolder: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTENSION_FOLDER),
+
   // ========== KV Store ==========
   kvGet: (key: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.KV_GET, key),
@@ -422,6 +484,16 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.KV_GET_ALL),
   kvSetBatch: (entries: Record<string, string>): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.KV_SET_BATCH, entries),
+
+  // ========== Diagnostics ==========
+  runDiagnostics: (): Promise<import('../shared/diagnostics/types').DiagnosticsReport> =>
+    ipcRenderer.invoke('diagnostics-run-all'),
+  onDiagnosticsProgress: (callback: (progress: import('../shared/diagnostics/types').DiagnosticsProgressEvent) => void) =>
+    ipcOn('diagnostics-progress', (_event, progress) => callback(progress)),
+  onDiagnosticsComplete: (callback: (report: import('../shared/diagnostics/types').DiagnosticsReport) => void) =>
+    ipcOn('diagnostics-complete', (_event, report) => callback(report)),
+  saveDiagnosticsReport: (reportJson: string): Promise<string> =>
+    ipcRenderer.invoke('diagnostics-save-report', reportJson),
 };
 
 const mLearnInternal = {

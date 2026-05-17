@@ -1,12 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   splitTextIntoChunks,
-  splitForQR,
   toUniqueIdentifier,
   mergeFlashcards,
-  ChunkCollector,
-  sendChunkedWithBackpressure,
 } from './flashcardSyncService';
 import type { FlashcardStore, Flashcard } from './flashcardSyncService';
 
@@ -45,6 +42,8 @@ function makeEmptyStore(): FlashcardStore {
     grammarKnowledge: {},
     dailyStats: {},
     version: 4,
+    suggestedFlashcards: {},
+    wordSyncSeen: {},
     meta: {
       newCardsToday: 0,
       reviewsToday: 0,
@@ -114,40 +113,6 @@ describe('splitTextIntoChunks', () => {
 
   it('throws RangeError when chunk size is not a number', () => {
     expect(() => splitTextIntoChunks('abc', 'ten' as unknown as number)).toThrow(RangeError);
-  });
-});
-
-describe('splitForQR', () => {
-  it('splits a short string into approximately QR_CHUNK_SIZE=60 char chunks', () => {
-    const data = 'x'.repeat(180);
-    const chunks = splitForQR(data);
-    expect(chunks.length).toBe(3);
-    chunks.forEach(c => expect(c.length).toBeLessThanOrEqual(60));
-  });
-
-  it('reassembled chunks equal original data', () => {
-    const data = 'a'.repeat(200);
-    const chunks = splitForQR(data);
-    expect(chunks.join('')).toBe(data);
-  });
-
-  it('returns single chunk when data is shorter than QR_CHUNK_SIZE', () => {
-    const data = 'short';
-    const chunks = splitForQR(data);
-    expect(chunks.length).toBe(1);
-    expect(chunks[0]).toBe(data);
-  });
-
-  it('handles empty string', () => {
-    const chunks = splitForQR('');
-    expect(chunks).toEqual([]);
-  });
-
-  it('handles data of exactly QR_CHUNK_SIZE characters', () => {
-    const data = 'z'.repeat(60);
-    const chunks = splitForQR(data);
-    expect(chunks.length).toBe(1);
-    expect(chunks[0]).toBe(data);
   });
 });
 
@@ -415,199 +380,4 @@ describe('mergeFlashcards', () => {
   });
 });
 
-describe('ChunkCollector', () => {
-  it('isComplete returns false before any chunks are added', () => {
-    const collector = new ChunkCollector();
-    expect(collector.isComplete()).toBe(false);
-  });
 
-  it('isComplete returns true when all chunks are added', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'part0', 2);
-    expect(collector.isComplete()).toBe(false);
-    collector.addChunk(1, 'part1', 2);
-    expect(collector.isComplete()).toBe(true);
-  });
-
-  it('addChunk returns true when collection becomes complete', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'a', 2);
-    const done = collector.addChunk(1, 'b', 2);
-    expect(done).toBe(true);
-  });
-
-  it('addChunk returns false when collection is not yet complete', () => {
-    const collector = new ChunkCollector();
-    const done = collector.addChunk(0, 'a', 3);
-    expect(done).toBe(false);
-  });
-
-  it('getProgress returns current and total chunk counts', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'x', 3);
-    collector.addChunk(2, 'z', 3);
-    const progress = collector.getProgress();
-    expect(progress.current).toBe(2);
-    expect(progress.total).toBe(3);
-  });
-
-  it('getProgress returns {current:0, total:0} before any chunks', () => {
-    const collector = new ChunkCollector();
-    const progress = collector.getProgress();
-    expect(progress.current).toBe(0);
-    expect(progress.total).toBe(0);
-  });
-
-  it('assemble returns chunks joined in index order', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(1, 'World', 3);
-    collector.addChunk(0, 'Hello ', 3);
-    collector.addChunk(2, '!', 3);
-    expect(collector.assemble()).toBe('Hello World!');
-  });
-
-  it('assemble throws when a chunk is missing', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'part0', 3);
-    collector.addChunk(2, 'part2', 3);
-    expect(() => collector.assemble()).toThrow('Missing chunk 1');
-  });
-
-  it('reset clears all chunks and totalChunks', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'data', 2);
-    collector.addChunk(1, 'more', 2);
-    collector.reset();
-    expect(collector.isComplete()).toBe(false);
-    const progress = collector.getProgress();
-    expect(progress.current).toBe(0);
-    expect(progress.total).toBe(0);
-  });
-
-  it('can be reused after reset', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'first', 1);
-    expect(collector.isComplete()).toBe(true);
-    collector.reset();
-    collector.addChunk(0, 'second', 1);
-    expect(collector.assemble()).toBe('second');
-  });
-
-  it('single chunk collection assembles correctly', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'all-in-one', 1);
-    expect(collector.isComplete()).toBe(true);
-    expect(collector.assemble()).toBe('all-in-one');
-  });
-
-  it('handles large number of chunks', () => {
-    const collector = new ChunkCollector();
-    const total = 100;
-    for (let i = 0; i < total; i++) {
-      collector.addChunk(i, String(i).padStart(3, '0'), total);
-    }
-    expect(collector.isComplete()).toBe(true);
-    const assembled = collector.assemble();
-    expect(assembled).toBe(Array.from({ length: total }, (_, i) => String(i).padStart(3, '0')).join(''));
-  });
-});
-
-describe('sendChunkedWithBackpressure', () => {
-  function makeMockPeer() {
-    const sentMessages: string[] = [];
-    const channel = { bufferedAmount: 0 } as unknown as RTCDataChannel;
-    const peer = {
-      send: vi.fn((data: string | ArrayBuffer) => {
-        sentMessages.push(data as string);
-      }),
-      signal: vi.fn(),
-      destroy: vi.fn(),
-      on: vi.fn(),
-      connected: true,
-      _channel: channel,
-    } as unknown as SimplePeerInstance;
-    return { peer, sentMessages, channel };
-  }
-
-  it('sends multiple chunks for payload larger than CHUNK_SIZE (16000 chars)', async () => {
-    const { peer, sentMessages } = makeMockPeer();
-    const payload = 'a'.repeat(32001);
-
-    await sendChunkedWithBackpressure(peer, 'sync', payload);
-
-    expect(sentMessages).toHaveLength(3);
-    const msg0 = JSON.parse(sentMessages[0]);
-    expect(msg0.type).toBe('sync-chunk');
-    expect(msg0.data[0]).toBe(0);
-    expect(msg0.data[2]).toBe(3);
-
-    const msg1 = JSON.parse(sentMessages[1]);
-    expect(msg1.data[0]).toBe(1);
-  });
-
-  it('sends a single chunk when payload is shorter than CHUNK_SIZE', async () => {
-    const { peer, sentMessages } = makeMockPeer();
-    await sendChunkedWithBackpressure(peer, 'flashcard', 'hello');
-
-    expect(sentMessages).toHaveLength(1);
-    const msg = JSON.parse(sentMessages[0]);
-    expect(msg.type).toBe('flashcard-chunk');
-    expect(msg.data[0]).toBe(0);
-    expect(msg.data[1]).toBe('hello');
-    expect(msg.data[2]).toBe(1);
-  });
-
-  it('reassembled chunks equal the original payload', async () => {
-    const { peer, sentMessages } = makeMockPeer();
-    const payload = 'x'.repeat(40000);
-
-    await sendChunkedWithBackpressure(peer, 'msg', payload);
-
-    const assembled = sentMessages
-      .map(m => (JSON.parse(m).data as [number, string, number])[1])
-      .join('');
-    expect(assembled).toBe(payload);
-  });
-
-  it('skips buffer drain when channel bufferedAmount is within threshold', async () => {
-    const sentMessages: string[] = [];
-    const channel = {
-      get bufferedAmount() { return 0; },
-    } as unknown as RTCDataChannel;
-    const peer = {
-      send: vi.fn((data: string | ArrayBuffer) => {
-        sentMessages.push(data as string);
-      }),
-      signal: vi.fn(),
-      destroy: vi.fn(),
-      on: vi.fn(),
-      connected: true,
-      _channel: channel,
-    } as unknown as SimplePeerInstance;
-
-    await sendChunkedWithBackpressure(peer, 'data', 'a'.repeat(32001));
-
-    expect(sentMessages.length).toBeGreaterThan(0);
-  });
-
-  it('sends all chunks when no _channel is present on peer', async () => {
-    const sentMessages: string[] = [];
-    const peer = {
-      send: vi.fn((data: string | ArrayBuffer) => { sentMessages.push(data as string); }),
-      signal: vi.fn(),
-      destroy: vi.fn(),
-      on: vi.fn(),
-      connected: true,
-    } as unknown as SimplePeerInstance;
-
-    await sendChunkedWithBackpressure(peer, 'type', 'abc');
-
-    expect(sentMessages).toHaveLength(1);
-  });
-
-  it('sends no messages for empty payload', async () => {
-    const { peer, sentMessages } = makeMockPeer();
-    await sendChunkedWithBackpressure(peer, 'test', '');
-    expect(sentMessages).toHaveLength(0);
-  });
-});

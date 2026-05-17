@@ -1,0 +1,240 @@
+/**
+ * OverlayControls Component Styles
+ * Styled to match VideoControls for a consistent player experience.
+ */
+
+.overlay-controls-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-overlay);
+  pointer-events: none;
+  --bg: var(--bg-opaque);
+  --panel-bg: var(--bg-opaque);
+}
+
+.overlay-controls-container.interactive {
+  pointer-events: auto;
+}
+
+/* Trigger strip — invisible hot zone that reveals the bar */
+.overlay-controls-trigger {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  pointer-events: auto;
+  z-index: 1;
+  opacity: 0;
+}
+
+/* The actual control bar */
+.overlay-controls-bar {
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity var(--transition-slow), transform var(--transition-slow);
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+  cursor: grab;
+}
+
+.overlay-controls-bar.visible {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.overlay-controls-bar.dimmed {
+  opacity: 0.5;
+}
+
+.overlay-controls-bar.visible:not(.dimmed) {
+  opacity: 1;
+}
+
+.overlay-controls-bar .panel {
+  backdrop-filter: var(--backdrop-filter);
+}
+
+/* Progress bar */
+.overlay-progress-bar {
+  height: 6px;
+  background-color: var(--bg);
+  cursor: pointer;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  transition: height var(--transition-slow);
+}
+
+.overlay-progress-bar:hover {
+  height: 12px;
+}
+
+.overlay-progress-fill {
+  background: var(--text-secondary);
+  transition: background var(--transition-slow), border-radius var(--transition-slow);
+}
+
+.overlay-progress-fill.dragging {
+  background: var(--text-primary);
+}
+
+/* Inner controls row */
+.overlay-controls-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Left / Right / Center sections */
+.overlay-controls-left,
+.overlay-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  -webkit-app-region: no-drag;
+}
+
+.overlay-controls-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+/* Volume control */
+.overlay-volume-control {
+  display: flex;
+  align-items: center;
+}
+
+.overlay-volume-slider {
+  width: 80px;
+  accent-color: var(--color-primary);
+}
+
+/* Time display */
+.overlay-time-display {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-left: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* Buffering indicator */
+.overlay-buffering-indicator {
+  opacity: 0.7;
+  font-style: italic;
+  margin-left: var(--spacing-1);
+}
+
+/* Playback speed select */
+.overlay-speed-select {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-xs);
+  min-width: 3.5rem;
+}
+
+.overlay-speed-select:hover {
+  color: var(--text-primary);
+}
+
+.overlay-speed-select:focus {
+  outline: none;
+}
+
+.overlay-speed-select option {
+  background: var(--bg-intense);
+  color: var(--text-primary);
+}
+
+/* Subtitle offset control */
+.overlay-offset-control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.overlay-offset-input {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+  min-width: 48px;
+  text-align: center;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: color var(--transition-normal), background-color var(--transition-normal);
+}
+
+.overlay-offset-input:hover {
+  color: var(--text-primary);
+}
+
+.overlay-offset-input:focus {
+  color: var(--text-primary);
+  background-color: var(--bg-intense);
+}
+
+/* Sync indicator */
+.overlay-sync-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--overlay-sync-indicator-default);
+  transition: background-color var(--transition-slow);
+  box-shadow: var(--shadow-special);
+}
+
+.overlay-sync-indicator.sync-connected {
+  background-color: var(--color-success);
+}
+
+.overlay-sync-indicator.sync-disconnected {
+  background-color: var(--color-error);
+}
+
+/* Inactive button state */
+.overlay-controls-bar .btn-icon.btn-ghost.inactive {
+  color: var(--text-secondary);
+}
+
+.overlay-controls-bar .btn-icon.btn-ghost.inactive:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.overlay-controls-bar button,
+.overlay-controls-bar .btn-icon {
+  cursor: default;
+}
+
+/* Resize handle */
+.overlay-resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-normal), background-color var(--transition-normal);
+}
+
+.overlay-resize-handle:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-intense);
+}

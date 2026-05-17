@@ -6,8 +6,8 @@
 .log-console {
   display: flex;
   flex-direction: column;
-  background: var(--log-console-bg);
-  border: 1px solid var(--log-console-border);
+  background: var(--bg-nt-primary);
+  border: 1px solid var(--border-color-intense);
   border-radius: var(--radius-md);
   overflow: hidden;
   font-family: var(--font-family-mono);
@@ -18,15 +18,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  background: var(--log-console-header-bg);
-  border-bottom: 1px solid var(--log-console-border);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg-nt-secondary);
+  border-bottom: 1px solid var(--border-color-intense);
 }
 
 .log-console__title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--log-console-title);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;
@@ -34,25 +34,25 @@
 
 .log-console__actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
 }
 
 .log-console__action-btn {
   background: transparent;
   border: none;
-  color: var(--log-console-action);
+  color: var(--text-tertiary);
   cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
+  padding: var(--spacing-1);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all var(--transition-normal);
 }
 
 .log-console__action-btn:hover {
-  color: var(--log-console-action-hover);
-  background: var(--log-console-action-hover-bg);
+  color: var(--text-primary);
+  background: var(--bg-intense);
 }
 
 /* Content */
@@ -60,7 +60,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0.75rem;
+  padding: var(--spacing-3);
   min-height: 100px;
   max-height: 300px;
 }
@@ -69,11 +69,11 @@
 .log-console__entry {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.25rem 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  border-bottom: 1px solid var(--log-console-entry-border);
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) 0;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .log-console__entry:last-child {
@@ -83,72 +83,72 @@
 /* Timestamp */
 .log-console__timestamp {
   flex-shrink: 0;
-  color: var(--log-console-timestamp);
-  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
 }
 
 /* Message */
 .log-console__message {
   flex: 1;
-  color: var(--log-console-message);
+  color: var(--text-primary);
   word-break: break-word;
   white-space: pre-wrap;
 }
 
 /* Log level variants */
 .log-console__entry--info .log-console__message {
-  color: var(--log-console-info);
+  color: var(--color-info);
 }
 
 .log-console__entry--success .log-console__message {
-  color: var(--log-console-success);
+  color: var(--color-success);
 }
 
 .log-console__entry--warning .log-console__message {
-  color: var(--log-console-warning);
+  color: var(--color-warning);
 }
 
 .log-console__entry--error .log-console__message {
-  color: var(--log-console-error);
+  color: var(--color-error);
 }
 
 .log-console__entry--debug .log-console__message {
-  color: var(--log-console-debug);
+  color: var(--text-secondary);
 }
 
 /* Level indicator */
 .log-console__level {
   flex-shrink: 0;
-  font-size: 0.625rem;
-  font-weight: 600;
+  font-size: var(--font-size-xxs);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  padding: 0.125rem 0.25rem;
-  border-radius: 3px;
+  padding: 2px var(--spacing-1);
+  border-radius: var(--radius-sm);
 }
 
 .log-console__entry--info .log-console__level {
-  background: var(--log-console-info-bg);
-  color: var(--log-console-info);
+  background: var(--bg-info-hover);
+  color: var(--color-info);
 }
 
 .log-console__entry--success .log-console__level {
-  background: var(--log-console-success-bg);
-  color: var(--log-console-success);
+  background: var(--bg-success-hover);
+  color: var(--color-success);
 }
 
 .log-console__entry--warning .log-console__level {
-  background: var(--log-console-warning-bg);
-  color: var(--log-console-warning);
+  background: var(--bg-warning-hover);
+  color: var(--color-warning);
 }
 
 .log-console__entry--error .log-console__level {
-  background: var(--log-console-error-bg);
-  color: var(--log-console-error);
+  background: var(--bg-danger-hover);
+  color: var(--color-error);
 }
 
 .log-console__entry--debug .log-console__level {
-  background: var(--log-console-debug-bg);
-  color: var(--log-console-debug);
+  background: var(--bg-intense);
+  color: var(--text-secondary);
 }
 
 /* Empty state */
@@ -158,13 +158,13 @@
   justify-content: center;
   height: 100%;
   min-height: 80px;
-  color: var(--log-console-empty);
-  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
 }
 
 /* Scrollbar */
 .log-console__content::-webkit-scrollbar {
-  width: 6px;
+  width: var(--scrollbar-width);
 }
 
 .log-console__content::-webkit-scrollbar-track {
@@ -172,12 +172,12 @@
 }
 
 .log-console__content::-webkit-scrollbar-thumb {
-  background: var(--log-console-scrollbar);
-  border-radius: 3px;
+  background: var(--text-tertiary);
+  border-radius: var(--radius-sm);
 }
 
 .log-console__content::-webkit-scrollbar-thumb:hover {
-  background: var(--log-console-scrollbar-hover);
+  background: var(--text-secondary);
 }
 
 /* Size variants */
@@ -194,12 +194,12 @@
 /* Auto-scroll indicator */
 .log-console__auto-scroll {
   position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  font-size: 0.625rem;
-  color: var(--log-console-empty);
-  background: var(--log-console-header-bg);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  bottom: var(--spacing-2);
+  right: var(--spacing-2);
+  font-size: var(--font-size-xxs);
+  color: var(--text-tertiary);
+  background: var(--bg-nt-secondary);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
   pointer-events: none;
 }

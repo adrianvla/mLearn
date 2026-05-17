@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 
-const getWordsLearnedInAppMock = vi.fn((): Record<string, number> => ({}));
 const getFreqLevelNamesMock = vi.fn((): Record<string, string> => ({}));
 const localizationMock = vi.fn((key: string) => key);
 
@@ -21,10 +20,18 @@ vi.mock('../../context', () => ({
   useLocalization: () => ({
     t: localizationMock,
   }),
-}));
-
-vi.mock('../../services/statsService', () => ({
-  getWordsLearnedInApp: getWordsLearnedInAppMock,
+  useSettings: () => ({
+    settings: { language: 'ja' },
+  }),
+  useFlashcards: () => ({
+    store: {
+      wordKnowledge: {},
+      flashcards: {},
+      ignoredWords: {},
+    },
+    isWordKnownByText: () => false,
+    isWordLearningByText: () => false,
+  }),
 }));
 
 vi.mock('../../components/common', () => ({
@@ -49,7 +56,6 @@ describe('KanjiGridContent', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
 
-    getWordsLearnedInAppMock.mockReturnValue({ '日本語': 0 });
     localizationMock.mockImplementation((key: string) => {
       switch (key) {
         case 'mlearn.KanjiGrid.Title':

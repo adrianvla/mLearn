@@ -98,9 +98,9 @@ describe('useIsTethered', () => {
     expect(useIsTethered()).toBe(true);
   });
 
-  it('defaults to true when no API', () => {
+  it('defaults to false when no API', () => {
     setWindowMlearn(undefined);
-    expect(useIsTethered()).toBe(true);
+    expect(useIsTethered()).toBe(false);
   });
 });
 
@@ -512,9 +512,9 @@ describe('useIPC without API', () => {
     setWindowMlearn(undefined);
   });
 
-  it('isTethered defaults to true', () => {
+  it('isTethered defaults to false when no API is present', () => {
     const { isTethered } = useIPC();
-    expect(isTethered).toBe(true);
+    expect(isTethered).toBe(false);
   });
 
   it('minimize is a no-op', () => {

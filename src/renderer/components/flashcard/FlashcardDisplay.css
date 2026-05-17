@@ -122,7 +122,6 @@
   position: absolute !important;
   top: var(--spacing-2);
   left: var(--spacing-2);
-  font-size: var(--font-size-xs);
   z-index: var(--z-foreground);
 }
 

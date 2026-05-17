@@ -35,7 +35,7 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     flashcards_add_picture: false,
     maxNewCardsPerDay: 20,
     proportionOfExamCards: 0,
-    preparedExam: 0,
+    learningLanguageLevel: 0,
     createUnseenCards: false,
     flashcardLLMExamples: false,
     newDayHour: 4,

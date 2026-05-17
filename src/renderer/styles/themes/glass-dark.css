@@ -63,7 +63,6 @@ body.theme-glass-dark {
   --overlay-bg-soft: rgba(0, 0, 0, 0.4);
   -webkit-text-stroke: 1px var(--bg);
 
-
   /*define a new variable*/
   --glass-spacing: 8px;
 }

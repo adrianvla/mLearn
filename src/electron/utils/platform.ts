@@ -31,6 +31,13 @@ export function getAppPath(): string {
   return path.join(__dirname, '..', '..');
 }
 
+export function getExtensionDistDir(): string {
+  if (isPackaged) {
+    return path.join(getResourcePath(), 'extension', 'dist');
+  }
+  return path.join(__dirname, '..', '..', '..', 'extension', 'dist');
+}
+
 export function getBundledDistElectronPath(...segments: string[]): string {
   if (isPackaged) {
     return path.join(getAppPath(), 'dist-electron', ...segments);

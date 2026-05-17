@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const ipcOnHandlers = new Map<string, (...args: unknown[]) => void>();
+const ipcHandleHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
 const mockMenuInstance = { popup: vi.fn() };
 
@@ -125,7 +126,9 @@ vi.mock('electron', () => ({
     on: vi.fn((channel: string, handler: (...args: unknown[]) => void) => {
       ipcOnHandlers.set(channel, handler);
     }),
-    handle: vi.fn(),
+    handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
+      ipcHandleHandlers.set(channel, handler);
+    }),
     removeHandler: vi.fn(),
   },
   Menu: {
@@ -134,6 +137,9 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showMessageBox: vi.fn(() => Promise.resolve({ response: 1 })),
+  },
+  screen: {
+    getPrimaryDisplay: vi.fn(() => ({ workAreaSize: { width: 1920, height: 1080 } })),
   },
   shell: {
     openExternal: vi.fn(),
@@ -163,10 +169,70 @@ vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({ devMode: false })),
 }));
 
+vi.mock('./localization', () => ({
+  getCurrentLocaleData: vi.fn(() => ({
+    locale: 'en',
+    strings: {
+      mlearn: {
+        Menu: {
+          About: 'About mLearn',
+          BrowserExtension: {
+            Title: 'Browser Extension',
+            InstallExtension: 'Install Extension...',
+            OpenOverlayWindow: 'Open Overlay Window',
+          },
+          Cancel: 'Cancel',
+          CollatePages: 'Collate Pages',
+          CopyPhrase: 'Copy Phrase',
+          CopySubtitle: 'Copy Subtitle',
+          Create: 'Create',
+          Edit: 'Edit',
+          EditWordKnowledgeDatabase: 'Edit word knowledge database',
+          Explain: 'Explain',
+          File: 'File',
+          Flashcards: 'Flashcards',
+          ForceRecreateFlashcards: 'Force recreate new flashcards for today',
+          Help: 'Help',
+          HideReading: 'Hide Reading',
+          OpenDevTools: 'Open DevTools',
+          OpenLiveWordTranslator: 'Open Live Word Translator',
+          OpenSyncingWindow: 'Open Syncing Window',
+          RecreateFlashcards: {
+            Title: 'Recreate Flashcards',
+            Message: 'This will create new flashcards from your tracked word candidates. Continue?',
+            Cancel: 'Cancel',
+            Create: 'Create',
+          },
+          ReviewFlashcards: 'Review Flashcards',
+          Settings: 'Settings',
+          ShowKanjiGrid: 'Show Kanji grid',
+          ShowLearningStatistics: 'Show learning statistics',
+          ShowReading: 'Show Reading',
+          Statistics: 'Statistics',
+          StopWatchTogether: 'Stop Watch Together',
+          SyncSubtitles: 'Sync Subtitles with Video',
+          SyncWithMe: 'Sync with me',
+          UncollatePages: 'Uncollate Pages',
+          Video: 'Video',
+          View: 'View',
+          WatchTogether: 'Watch Together',
+          Window: 'Window',
+        },
+      },
+    },
+  })),
+}));
+
 function fireOn(channel: string, event: Record<string, unknown>, ...args: unknown[]) {
   const handler = ipcOnHandlers.get(channel);
   if (!handler) throw new Error(`No ipcMain.on handler registered for "${channel}"`);
   handler(event, ...args);
+}
+
+async function fireHandle(channel: string, event: Record<string, unknown>, ...args: unknown[]) {
+  const handler = ipcHandleHandlers.get(channel);
+  if (!handler) throw new Error(`No ipcMain.handle handler registered for "${channel}"`);
+  return handler(event, ...args);
 }
 
 function makeSenderEvent() {
@@ -178,6 +244,7 @@ describe('windowManager', () => {
   beforeEach(() => {
     vi.resetModules();
     ipcOnHandlers.clear();
+    ipcHandleHandlers.clear();
     createdWindows.length = 0;
     mockMenuInstance.popup.mockReset();
     mockFromWebContents.mockReset();
@@ -369,7 +436,7 @@ describe('windowManager', () => {
       const { setupWindowIPC } = await import('./windowManager');
       setupWindowIPC();
       const { IPC_CHANNELS } = await import('../../shared/constants');
-      const expectedChannels = [
+      const expectedOnChannels = [
         IPC_CHANNELS.TRAFFIC_LIGHTS,
         IPC_CHANNELS.CHANGE_WINDOW_SIZE,
         IPC_CHANNELS.MAKE_PIP,
@@ -381,9 +448,23 @@ describe('windowManager', () => {
         IPC_CHANNELS.CLOSE_WINDOW,
         IPC_CHANNELS.GET_VERSION,
         IPC_CHANNELS.FLASHCARD_CONNECT_OPEN,
+        IPC_CHANNELS.OVERLAY_VIDEO_STATE,
+        IPC_CHANNELS.OVERLAY_REQUEST_SYNC,
+        IPC_CHANNELS.OVERLAY_LAUNCH,
+        IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS,
+        IPC_CHANNELS.OVERLAY_COMMAND,
       ];
-      for (const ch of expectedChannels) {
-        expect(ipcOnHandlers.has(ch), `Missing handler for "${ch}"`).toBe(true);
+      for (const ch of expectedOnChannels) {
+        expect(ipcOnHandlers.has(ch), `Missing ipcMain.on handler for "${ch}"`).toBe(true);
+      }
+      const expectedHandleChannels = [
+        IPC_CHANNELS.OVERLAY_MOVE_BY,
+        IPC_CHANNELS.OVERLAY_RESIZE_BY,
+        IPC_CHANNELS.OVERLAY_GET_BOUNDS,
+        IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION,
+      ];
+      for (const ch of expectedHandleChannels) {
+        expect(ipcHandleHandlers.has(ch), `Missing ipcMain.handle handler for "${ch}"`).toBe(true);
       }
     });
 
@@ -755,6 +836,105 @@ describe('windowManager', () => {
       expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/connect-qr.html');
       delete process.env.NODE_ENV;
     });
+
+    it('OVERLAY_MOVE_BY: moves the overlay window by the provided delta', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 100, y: 200, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_MOVE_BY, {}, { x: 10, y: -20 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 110,
+        y: 180,
+        width: 400,
+        height: 200,
+      });
+    });
+
+    it('OVERLAY_RESIZE_BY: resizes the overlay window by the provided delta', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 100, y: 200, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_RESIZE_BY, {}, { width: 50, height: 30 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 100,
+        y: 200,
+        width: 450,
+        height: 230,
+      });
+    });
+
+    it('OVERLAY_RESIZE_BY: enforces minimum dimensions', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 100, y: 200, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_RESIZE_BY, {}, { width: -300, height: -150 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 100,
+        y: 200,
+        width: 200,
+        height: 100,
+      });
+    });
+
+    it('OVERLAY_GET_BOUNDS: returns current overlay bounds', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 50, y: 100, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      const result = await fireHandle(IPC_CHANNELS.OVERLAY_GET_BOUNDS, {});
+
+      expect(result).toEqual({ x: 50, y: 100, width: 400, height: 200 });
+    });
+
+    it('OVERLAY_SET_AUTO_POSITION: toggles auto-position and notifies overlay', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, {}, false);
+
+      expect(overlayWin.webContents.send).toHaveBeenCalledWith(
+        IPC_CHANNELS.OVERLAY_AUTO_POSITION_CHANGED,
+        false,
+      );
+    });
+
+    it('updateOverlayGeometry: applies manual delta corrections when auto-position is enabled', async () => {
+      const { launchOverlayWindow, updateOverlayGeometry, setOverlayAutoPositionEnabled } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 0, y: 0, width: 400, height: 200 });
+      setOverlayAutoPositionEnabled(true);
+
+      updateOverlayGeometry({ x: 100, y: 100, width: 400, height: 200 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 100,
+        y: 100,
+        width: 400,
+        height: 200,
+      });
+    });
   });
 
   describe('setupAppMenu via createMainWindow', () => {
@@ -782,15 +962,6 @@ describe('windowManager', () => {
       const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const viewMenu = (template as Array<{ label?: string }>).find(item => item.label === 'View');
       expect(viewMenu).toBeDefined();
-    });
-
-    it('includes a Connect menu in the app menu template', async () => {
-      const { createMainWindow } = await import('./windowManager');
-      createMainWindow();
-      const { Menu } = await import('electron');
-      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const connectMenu = (template as Array<{ label?: string }>).find(item => item.label === 'Connect');
-      expect(connectMenu).toBeDefined();
     });
   });
 });

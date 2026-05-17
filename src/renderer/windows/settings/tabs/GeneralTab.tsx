@@ -176,7 +176,7 @@ export const GeneralTab: Component = () => {
         >
           <Select
             class="setting-select"
-            value={settings.uiLanguage || 'en'}
+            value={settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage}
             onChange={(e) => {
               const lang = e.currentTarget.value;
               updateSettings({ uiLanguage: lang });
@@ -235,6 +235,17 @@ export const GeneralTab: Component = () => {
             disabled={import.meta.env.DEV}
           />
         </SettingRow>
+
+        {(settings.devMode || import.meta.env.DEV) && (
+          <SettingRow
+            label="Diagnostics"
+            description="Run a comprehensive test of all features and integrations."
+          >
+            <Btn size="sm" onClick={() => getBridge().window.openWindow({ type: 'diagnostics', options: { width: 900, height: 700 } })}>
+              Run Diagnostics
+            </Btn>
+          </SettingRow>
+        )}
 
         <SettingRow
           label={t('mlearn.Settings.Performance.LowBatteryMode.Label')}

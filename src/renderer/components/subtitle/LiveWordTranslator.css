@@ -22,6 +22,11 @@
     top var(--transition-normal);
 }
 
+/* Completely hidden when explicitly closed via X or settings */
+.live-word-translator.hidden {
+  display: none;
+}
+
 /* Idle state — only fades background/header, cards remain visible */
 .live-word-translator.idle .panel-header {
   opacity: 0;

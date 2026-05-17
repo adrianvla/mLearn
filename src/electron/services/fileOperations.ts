@@ -120,14 +120,71 @@ export function setupFileOperationsIPC(): void {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
+  ipcMain.handle(IPC_CHANNELS.SELECT_BROWSER_FILE, async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog({
+      ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
+      properties: ['openFile'],
+    } as Electron.OpenDialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+
   ipcMain.handle(IPC_CHANNELS.READ_MEDIA_FILE, async (_event, filePath: string) => {
     try {
+      log.info('READ_MEDIA_FILE: input=', filePath);
       const resolved = path.resolve(filePath);
-      if (!path.isAbsolute(resolved)) return null;
+      log.info('READ_MEDIA_FILE: resolved=', resolved, 'isAbsolute=', path.isAbsolute(resolved));
       const data = await fs.readFile(resolved);
+      log.info('READ_MEDIA_FILE: read', data.byteLength, 'bytes');
       return data.buffer;
     } catch (e) {
-      log.error('READ_MEDIA_FILE failed', e);
+      log.error('READ_MEDIA_FILE failed for path:', filePath, 'resolved:', (e as NodeJS.ErrnoException)?.path || 'N/A', 'error:', (e as Error).message);
+      return null;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.READ_MEDIA_FILE_CHUNK, async (_event, filePath: string, offset: number, length: number) => {
+    try {
+      log.info('READ_MEDIA_FILE_CHUNK: input=', filePath, 'offset=', offset, 'length=', length);
+      const resolved = path.resolve(filePath);
+      if (!path.isAbsolute(resolved)) {
+        log.warn('READ_MEDIA_FILE_CHUNK: not an absolute path');
+        return null;
+      }
+      const stat = await fs.stat(resolved);
+      const actualLength = Math.min(length, stat.size - offset);
+      if (actualLength <= 0) {
+        log.warn('READ_MEDIA_FILE_CHUNK: offset past end of file');
+        return null;
+      }
+      const buffer = Buffer.alloc(actualLength);
+      const fd = await fs.open(resolved, 'r');
+      try {
+        await fd.read(buffer, 0, actualLength, offset);
+      } finally {
+        await fd.close();
+      }
+      log.info('READ_MEDIA_FILE_CHUNK: read', buffer.byteLength, 'bytes');
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    } catch (e) {
+      log.error('READ_MEDIA_FILE_CHUNK failed:', (e as Error).message);
+      return null;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.GET_FILE_SIZE, async (_event, filePath: string) => {
+    try {
+      log.info('GET_FILE_SIZE: input=', filePath);
+      const resolved = path.resolve(filePath);
+      if (!path.isAbsolute(resolved)) {
+        log.warn('GET_FILE_SIZE: not an absolute path');
+        return null;
+      }
+      const stat = await fs.stat(resolved);
+      log.info('GET_FILE_SIZE: size=', stat.size);
+      return stat.size;
+    } catch (e) {
+      log.error('GET_FILE_SIZE failed:', (e as Error).message);
       return null;
     }
   });

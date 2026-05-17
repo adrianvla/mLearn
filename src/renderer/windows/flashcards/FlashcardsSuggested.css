@@ -112,11 +112,20 @@
   color: var(--text-secondary);
 }
 
-.flashcards-suggested-grid {
+.flashcards-suggested-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-4) var(--spacing-6);
+}
+
+.flashcards-suggested-virtual-container {
+  position: relative;
+  width: 100%;
+}
+
+.flashcards-suggested-grid-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--spacing-4);
-  padding: var(--spacing-6);
 }
 
 .flashcards-suggested-card {

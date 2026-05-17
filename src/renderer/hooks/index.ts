@@ -27,3 +27,6 @@ export { useCursorVisibility } from './useCursorVisibility';
 
 // Collaboration
 export { useWatchTogether } from './useWatchTogether';
+
+export { createVirtualizer } from './useVirtualizer';
+export type { VirtualItem, VirtualizerOptions, Virtualizer } from './useVirtualizer';

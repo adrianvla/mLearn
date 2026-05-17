@@ -9,6 +9,7 @@ import { useServer, useLowPowerGate } from '../context';
 import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
 import { withCloudAuth } from '../services/cloudSessionManager';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useOCR");
@@ -418,7 +419,7 @@ export function useOCR() {
     }
 
     try {
-      const turbo = settings.ocrTurboMode ?? true;
+      const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
 
       if (isCloudOCR()) {
         // Prepare the blob, then send via CloudOCRAdapter
@@ -492,7 +493,8 @@ export function useOCR() {
     }
 
     ctx.drawImage(video, 0, 0);
-    return recognizeCanvas(canvas);
+    // Use inputToBlobForOCR to respect max area limits (prevents 4K crash)
+    return recognize(canvas);
   };
 
   // Capture screenshot and perform OCR (Electron only)

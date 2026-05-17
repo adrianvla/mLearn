@@ -5,7 +5,7 @@
  */
 
 import { Component, createSignal, onCleanup } from 'solid-js';
-import type { Token } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import './OcrOverlay.css';
@@ -61,7 +61,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     const lookupWord = props.token.actual_word ?? props.token.surface ?? props.token.word;
     flashcardCtx.trackWordHovered(getCanonicalForm(lookupWord), props.token.reading);
 
-    const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
+    const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     
     switch (triggerMode) {
       case 'hover':
@@ -90,7 +90,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   
   const handleMouseMove = (e: MouseEvent) => {
     // In key-hover mode with key held, behave like normal hover
-    const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
+    const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     if (triggerMode === 'key-hover' && isKeyHeld() && isMouseOver()) {
       props.onWordEnter?.(props.token, e);
     }
@@ -109,10 +109,10 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   
   // Key event handlers for key-hover mode
   const handleKeyDown = (e: KeyboardEvent) => {
-    const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
+    const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     if (triggerMode !== 'key-hover') return;
     
-    const keybind = settings.readerWordHoverKey ?? 'shift';
+    const keybind = settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!;
     if (matchesKeybind(e, keybind) && !isKeyHeld()) {
       setIsKeyHeld(true);
       if (isMouseOver()) {
@@ -122,10 +122,10 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   };
   
   const handleKeyUp = (e: KeyboardEvent) => {
-    const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
+    const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     if (triggerMode !== 'key-hover') return;
     
-    const keybind = settings.readerWordHoverKey ?? 'shift';
+    const keybind = settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!;
     if (matchesKeybind(e, keybind)) {
       setIsKeyHeld(false);
       if (isMouseOver()) {

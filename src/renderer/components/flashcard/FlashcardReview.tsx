@@ -56,6 +56,24 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
 
+  // Study time tracking per card
+  let cardShownAt = 0;
+
+  const getElapsedTime = (): number => {
+    if (cardShownAt === 0) return 0;
+    return Date.now() - cardShownAt;
+  };
+
+  // Reset timer whenever a new card is shown
+  createEffect(on(
+    () => currentCard()?.id,
+    (cardId) => {
+      if (cardId) {
+        cardShownAt = Date.now();
+      }
+    }
+  ));
+
   // TTS integration
   const { settings, updateSetting } = useSettings();
   const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
@@ -193,10 +211,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const card = currentCard();
     if (!card) return;
 
+    const elapsed = getElapsedTime();
+    cardShownAt = 0;
+
     stopTts();
     batch(() => {
       setShowAnswer(false);
-      const completed = answerCard(quality, card.id);
+      const completed = answerCard(quality, card.id, elapsed);
       if (completed) {
         setCardsAnswered(prev => prev + 1);
       }
@@ -214,6 +235,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleBury = () => {
     const card = currentCard();
     if (!card) return;
+    cardShownAt = 0;
     batch(() => {
       setShowAnswer(false);
       buryCard(card.id);
@@ -223,6 +245,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleRemove = async () => {
     const card = currentCard();
     if (!card) return;
+    cardShownAt = 0;
     setShowAnswer(false);
     await removeFlashcard(card.id, true);
   };

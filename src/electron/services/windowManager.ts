@@ -3,19 +3,19 @@
  * Handles creation and management of all application windows
  */
 
-import { BrowserWindow, app, ipcMain, Menu, dialog, shell, clipboard } from 'electron';
+import { BrowserWindow, app, ipcMain, Menu, dialog, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { IPC_CHANNELS, WindowType, PROXY_SERVER_PORT } from '../../shared/constants';
+import { IPC_CHANNELS, WindowType } from '../../shared/constants';
 import type { WindowSize, OpenWindowPayload } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
-import { getLogger } from '../../shared/utils/logger';
-
-const log = getLogger('electron.windowManager');
+import { getCurrentLocaleData } from './localization';
+import { queueCommand } from './webServer';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
+let overlayWindow: BrowserWindow | null = null;
 let currentWindow: BrowserWindow | null = null;
 const childWindows: Map<string, BrowserWindow> = new Map();
 
@@ -43,6 +43,157 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function getCurrentWindow(): BrowserWindow | null {
   return currentWindow;
+}
+
+export function getOverlayWindow(): BrowserWindow | null {
+  return overlayWindow;
+}
+
+export function setOverlayIgnoreMouseEvents(ignore: boolean): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  win.setIgnoreMouseEvents(ignore, { forward: true });
+}
+
+// Overlay manual positioning state
+interface OverlayManualDelta {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+let overlayManualDelta: OverlayManualDelta = { x: 0, y: 0, width: 0, height: 0 };
+let overlayAutoPositionEnabled = true;
+let geometryUpdateLocked = false;
+
+export function getOverlayAutoPositionEnabled(): boolean {
+  return overlayAutoPositionEnabled;
+}
+
+export function setOverlayAutoPositionEnabled(enabled: boolean): void {
+  overlayAutoPositionEnabled = enabled;
+  const win = getOverlayWindow();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(IPC_CHANNELS.OVERLAY_AUTO_POSITION_CHANGED, enabled);
+  }
+}
+
+export function resetOverlayManualDelta(): void {
+  overlayManualDelta = { x: 0, y: 0, width: 0, height: 0 };
+}
+
+export function getOverlayBounds(): { x: number; y: number; width: number; height: number } | null {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return null;
+  const bounds = win.getBounds();
+  return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+}
+
+export function setOverlayBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  win.setBounds({
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+    width: Math.max(200, Math.round(bounds.width)),
+    height: Math.max(100, Math.round(bounds.height)),
+  });
+}
+
+export function moveOverlayBy(deltaX: number, deltaY: number): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  const bounds = win.getBounds();
+  if (overlayAutoPositionEnabled) {
+    overlayManualDelta.x += deltaX;
+    overlayManualDelta.y += deltaY;
+  }
+  win.setBounds({
+    x: Math.round(bounds.x + deltaX),
+    y: Math.round(bounds.y + deltaY),
+    width: bounds.width,
+    height: bounds.height,
+  });
+}
+
+export function resizeOverlayBy(deltaWidth: number, deltaHeight: number): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  const bounds = win.getBounds();
+  if (overlayAutoPositionEnabled) {
+    overlayManualDelta.width += deltaWidth;
+    overlayManualDelta.height += deltaHeight;
+  }
+  win.setBounds({
+    x: bounds.x,
+    y: bounds.y,
+    width: Math.max(200, Math.round(bounds.width + deltaWidth)),
+    height: Math.max(100, Math.round(bounds.height + deltaHeight)),
+  });
+}
+
+let lastGeometryUpdateTime = 0;
+const GEOMETRY_UPDATE_MIN_INTERVAL_MS = 250;
+
+export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
+  if (geometryUpdateLocked) return;
+
+  if (
+    !Number.isFinite(geometry.x) ||
+    !Number.isFinite(geometry.y) ||
+    !Number.isFinite(geometry.width) ||
+    !Number.isFinite(geometry.height)
+  ) {
+    console.warn('updateOverlayGeometry: received non-finite geometry values', geometry);
+    return;
+  }
+
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+
+  const corrected = overlayAutoPositionEnabled
+    ? {
+        x: Math.round(geometry.x + overlayManualDelta.x),
+        y: Math.round(geometry.y + overlayManualDelta.y),
+        width: Math.max(200, Math.round(geometry.width + overlayManualDelta.width)),
+        height: Math.max(100, Math.round(geometry.height + overlayManualDelta.height)),
+      }
+    : {
+        x: Math.round(geometry.x),
+        y: Math.round(geometry.y),
+        width: Math.max(200, Math.round(geometry.width)),
+        height: Math.max(100, Math.round(geometry.height)),
+      };
+
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+  if (
+    corrected.x > screenWidth ||
+    corrected.y > screenHeight ||
+    corrected.x + corrected.width < 0 ||
+    corrected.y + corrected.height < 0
+  ) {
+    console.warn('updateOverlayGeometry: corrected geometry is off-screen', corrected);
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lastGeometryUpdateTime < GEOMETRY_UPDATE_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  const currentBounds = win.getBounds();
+  const hasSignificantChange =
+    Math.abs(corrected.x - currentBounds.x) >= 2 ||
+    Math.abs(corrected.y - currentBounds.y) >= 2 ||
+    Math.abs(corrected.width - currentBounds.width) >= 2 ||
+    Math.abs(corrected.height - currentBounds.height) >= 2;
+
+  if (!hasSignificantChange) {
+    return;
+  }
+
+  lastGeometryUpdateTime = now;
+  win.setBounds(corrected);
 }
 
 // Get preload script path
@@ -168,6 +319,44 @@ export function createWelcomeWindow(): BrowserWindow {
   return welcomeWindow;
 }
 
+// Create diagnostics window
+export function createDiagnosticsWindow(): BrowserWindow {
+  const existing = childWindows.get('diagnostics' as WindowType);
+  if (existing && !existing.isDestroyed()) {
+    existing.focus();
+    return existing;
+  }
+
+  const window = new BrowserWindow({
+    width: 900,
+    height: 700,
+    webPreferences: {
+      preload: getPreloadPath(),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+    frame: false,
+    backgroundColor: '#000000',
+    ...(isMac ? { titleBarStyle: 'hidden' } : {}),
+  });
+
+  childWindows.set('diagnostics' as WindowType, window);
+
+  const isDev = process.env.NODE_ENV === 'development';
+  if (isDev) {
+    window.loadURL('http://localhost:3000/src/html/diagnostics.html');
+  } else {
+    window.loadFile(getWindowHtmlPath('diagnostics'));
+  }
+
+  window.on('closed', () => {
+    childWindows.delete('diagnostics' as WindowType);
+  });
+
+  return window;
+}
+
 // Create a generic child window
 export function createChildWindow(
   type: WindowType,
@@ -180,7 +369,7 @@ export function createChildWindow(
     return existingWindow;
   }
 
-  const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> = isMac
+  const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> = isMac && options.frame !== false
     ? { titleBarStyle: 'hidden' }
     : {};
 
@@ -298,27 +487,27 @@ function showVideoContextMenu(
   const canExplainPhrase = options?.canExplainPhrase ?? false;
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: 'Sync Subtitles with Video',
+      label: getLocalizedString('mlearn.Menu.SyncSubtitles'),
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'sync-subs'),
     },
     {
-      label: 'Open Live Word Translator',
+      label: getLocalizedString('mlearn.Menu.OpenLiveWordTranslator'),
       click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_ASIDE),
     },
     { type: 'separator' },
     {
-      label: 'Copy Subtitle',
+      label: getLocalizedString('mlearn.Menu.CopySubtitle'),
       enabled: hasContextPhrase,
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
     },
     {
-      label: 'Explain',
+      label: getLocalizedString('mlearn.Menu.Explain'),
       enabled: canExplainPhrase,
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'explain-phrase'),
     },
     { type: 'separator' },
     {
-      label: isWT ? 'Stop Watch Together' : 'Watch Together',
+      label: isWT ? getLocalizedString('mlearn.Menu.StopWatchTogether') : getLocalizedString('mlearn.Menu.WatchTogether'),
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
     },
   ];
@@ -339,23 +528,23 @@ interface ReaderContextMenuOptions {
 function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: options.furiganaHiderEnabled ? 'Show Reading' : 'Hide Reading',
+      label: options.furiganaHiderEnabled ? getLocalizedString('mlearn.Menu.ShowReading') : getLocalizedString('mlearn.Menu.HideReading'),
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-furigana'),
     },
     { type: 'separator' },
     {
-      label: 'Copy Phrase',
+      label: getLocalizedString('mlearn.Menu.CopyPhrase'),
       enabled: options.hasContextPhrase,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'copy-phrase'),
     },
     {
-      label: 'Explain',
+      label: getLocalizedString('mlearn.Menu.Explain'),
       enabled: options.canExplainPhrase ?? false,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'explain-phrase'),
     },
     { type: 'separator' },
     {
-      label: options.collatePagesEnabled ? 'Uncollate Pages' : 'Collate Pages',
+      label: options.collatePagesEnabled ? getLocalizedString('mlearn.Menu.UncollatePages') : getLocalizedString('mlearn.Menu.CollatePages'),
       enabled: options.isDoublePageMode ?? false,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-collate-pages'),
     },
@@ -365,19 +554,61 @@ function showReaderContextMenu(sender: Electron.WebContents, options: ReaderCont
   menu.popup({ window: BrowserWindow.fromWebContents(sender) || undefined });
 }
 
+function getLocalizedString(path: string): string {
+  const { strings } = getCurrentLocaleData();
+  const keys = path.split('.');
+  let current: unknown = strings;
+
+  for (const key of keys) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return path;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+
+  return typeof current === 'string' ? current : path;
+}
+
+export function launchOverlayWindow(): void {
+  const existing = childWindows.get('overlay');
+  if (existing && !existing.isDestroyed()) {
+    existing.focus();
+    return;
+  }
+  const win = createChildWindow('overlay' as WindowType, {
+    width: 400,
+    height: 200,
+    transparent: true,
+    backgroundColor: undefined,
+    alwaysOnTop: true,
+    frame: false,
+    skipTaskbar: true,
+    resizable: true,
+  });
+
+  if (isMac) {
+    win.setAlwaysOnTop(true, 'screen-saver');
+  } else {
+    win.setAlwaysOnTop(true);
+  }
+
+  overlayWindow = win;
+  win.on('closed', () => {
+    overlayWindow = null;
+  });
+}
+
 // Setup application menu
 function setupAppMenu(): void {
   const settings = loadSettings();
-  const appPath = getAppPath();
-  
   const appMenu: Electron.MenuItemConstructorOptions[] = [
     {
-      label: 'About mLearn',
+      label: getLocalizedString('mlearn.Menu.About'),
       click: () => openSettingsWindow('about'),
     },
     { type: 'separator' },
     {
-      label: 'Settings',
+      label: getLocalizedString('mlearn.Menu.Settings'),
       click: () => openSettingsWindow('general'),
     },
     { type: 'separator' },
@@ -398,7 +629,7 @@ function setupAppMenu(): void {
     
     // File menu
     {
-      label: 'File',
+      label: getLocalizedString('mlearn.Menu.File'),
       submenu: [
         isMac ? { role: 'close' as const } : { role: 'quit' as const },
         ...(!isMac ? appMenu : []),
@@ -407,10 +638,10 @@ function setupAppMenu(): void {
     
     // Edit menu
     {
-      label: 'Edit',
+      label: getLocalizedString('mlearn.Menu.Edit'),
       submenu: [
         {
-          label: 'Settings',
+          label: getLocalizedString('mlearn.Menu.Settings'),
           click: () => openSettingsWindow('general'),
         },
         { role: 'undo' },
@@ -433,23 +664,23 @@ function setupAppMenu(): void {
     
     // View menu
     {
-      label: 'View',
+      label: getLocalizedString('mlearn.Menu.View'),
       submenu: [
         {
-          label: 'Open Live Word Translator',
+          label: getLocalizedString('mlearn.Menu.OpenLiveWordTranslator'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_ASIDE),
         },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...((settings.devMode || !isPackaged) ? [
-          { label: 'Open DevTools', role: 'toggleDevTools' as const },
+          { label: getLocalizedString('mlearn.Menu.OpenDevTools'), role: 'toggleDevTools' as const },
         ] : []),
       ],
     },
     
     // Window menu
     {
-      label: 'Window',
+      label: getLocalizedString('mlearn.Menu.Window'),
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },
@@ -466,90 +697,44 @@ function setupAppMenu(): void {
     
     // Video menu
     {
-      label: 'Video',
+      label: getLocalizedString('mlearn.Menu.Video'),
       submenu: [
         {
-          label: 'Sync Subtitles with Video',
+          label: getLocalizedString('mlearn.Menu.SyncSubtitles'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'sync-subs'),
         },
         {
-          label: 'Copy Subtitle',
+          label: getLocalizedString('mlearn.Menu.CopySubtitle'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
         },
         { type: 'separator' },
         {
-          label: 'Watch Together',
+          label: getLocalizedString('mlearn.Menu.WatchTogether'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
         },
       ],
     },
-    
-    // Connect menu
-    {
-      label: 'Connect',
-      submenu: [
-        {
-          label: 'Copy Page Injector Script',
-          click: () => {
-            try {
-              // Try multiple candidate paths for the injector script
-              const candidatePaths = [
-                path.join(appPath, 'scripts', 'injector.js'),
-                path.join(__dirname, '..', '..', '..', 'scripts', 'injector.js'),
-                path.join(__dirname, '..', '..', 'scripts', 'injector.js'),
-              ];
-              
-              let scriptPath: string | null = null;
-              for (const p of candidatePaths) {
-                if (fs.existsSync(p)) {
-                  scriptPath = p;
-                  break;
-                }
-              }
-              
-              if (!scriptPath) {
-                throw new Error('Injector script not found');
-              }
-              
-              let text = fs.readFileSync(scriptPath, 'utf-8');
-              text = text.replace(/ISMLEARNTETHERED_TO_REPLACE/g, 'true');
-              clipboard.writeText(text);
-              dialog.showMessageBox({
-                type: 'info',
-                title: 'Copied!',
-                message: 'Copied! See Help menu for usage instructions.',
-              });
-            } catch (e) {
-              log.error('Failed to copy injector script:', e);
-            }
-          },
-        },
-        {
-          label: 'Install UserScript',
-          click: () => {
-            shell.openExternal(`http://127.0.0.1:${PROXY_SERVER_PORT}/mLearn.user.js`);
-          },
-        },
-      ],
-    },
-    
+
     // Flashcards menu
     {
-      label: 'Flashcards',
+      label: getLocalizedString('mlearn.Menu.Flashcards'),
       submenu: [
         {
-          label: 'Review Flashcards',
+          label: getLocalizedString('mlearn.Menu.ReviewFlashcards'),
           click: () => createChildWindow('flashcards' as WindowType, { width: 800, height: 600 }),
         },
         {
-          label: 'Force recreate new flashcards for today',
+          label: getLocalizedString('mlearn.Menu.ForceRecreateFlashcards'),
           click: async () => {
             if (!mainWindow) return;
             const { response } = await dialog.showMessageBox(mainWindow, {
               type: 'question',
-              title: 'Recreate Flashcards',
-              message: 'This will create new flashcards from your tracked word candidates. Continue?',
-              buttons: ['Cancel', 'Create'],
+              title: getLocalizedString('mlearn.Menu.RecreateFlashcards.Title'),
+              message: getLocalizedString('mlearn.Menu.RecreateFlashcards.Message'),
+              buttons: [
+                getLocalizedString('mlearn.Menu.RecreateFlashcards.Cancel'),
+                getLocalizedString('mlearn.Menu.RecreateFlashcards.Create'),
+              ],
               defaultId: 1,
               cancelId: 0,
             });
@@ -559,31 +744,45 @@ function setupAppMenu(): void {
           },
         },
         {
-          label: 'Open Syncing Window',
+          label: getLocalizedString('mlearn.Menu.OpenSyncingWindow'),
           click: () => createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 }),
         },
       ],
     },
     
-    // Statistics menu
     {
-      label: 'Statistics',
+      label: getLocalizedString('mlearn.Menu.BrowserExtension.Title'),
       submenu: [
         {
-          label: 'Show learning statistics',
+          label: getLocalizedString('mlearn.Menu.BrowserExtension.InstallExtension'),
+          click: () => openSettingsWindow('browser-extension'),
+        },
+        {
+          label: getLocalizedString('mlearn.Menu.BrowserExtension.OpenOverlayWindow'),
+          click: () => launchOverlayWindow(),
+        },
+      ],
+    },
+
+    // Statistics menu
+    {
+      label: getLocalizedString('mlearn.Menu.Statistics'),
+      submenu: [
+        {
+          label: getLocalizedString('mlearn.Menu.ShowLearningStatistics'),
           click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
         },
         {
-          label: 'Show Kanji grid',
+          label: getLocalizedString('mlearn.Menu.ShowKanjiGrid'),
           click: () => createChildWindow('kanji-grid' as WindowType, { width: 1200, height: 800 }),
         },
         {
-          label: 'Edit word knowledge database',
+          label: getLocalizedString('mlearn.Menu.EditWordKnowledgeDatabase'),
           click: () => createChildWindow('word-db-editor' as WindowType, { width: 1300, height: 800 }),
         },
         { type: 'separator' },
         {
-          label: 'Sync with me',
+          label: getLocalizedString('mlearn.Menu.SyncWithMe'),
           click: () => createChildWindow('word-sync' as WindowType, { width: 600, height: 500 }),
         },
       ],
@@ -591,21 +790,10 @@ function setupAppMenu(): void {
     
     // Help menu
     {
-      label: 'Help',
+      label: getLocalizedString('mlearn.Menu.Help'),
       submenu: [
         {
-          label: 'About Online Browser Mode',
-          click: () => {
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'Help - Online Browser Mode',
-              message: 'Online Browser Mode allows you to use mLearn in a browser with a video.\n\nRight-click on a video, click "Inspect Element", go to Console, and paste the injector script from the Connect menu.',
-            });
-          },
-        },
-        { type: 'separator' },
-        {
-          label: 'About mLearn',
+          label: getLocalizedString('mlearn.Menu.About'),
           click: () => openSettingsWindow('about'),
         },
       ],
@@ -676,5 +864,81 @@ export function setupWindowIPC(): void {
   // Flashcard syncing window
   ipcMain.on(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => {
     createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 });
+  });
+
+  ipcMain.on(IPC_CHANNELS.OVERLAY_LAUNCH, () => {
+    launchOverlayWindow();
+  });
+
+  // Forward overlay video state to overlay window
+  ipcMain.on(IPC_CHANNELS.OVERLAY_VIDEO_STATE, (_event, state: unknown) => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, state);
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, (_event, tracks: unknown) => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, tracks);
+    }
+  });
+
+  // Forward overlay sync request to main window
+  ipcMain.on(IPC_CHANNELS.OVERLAY_REQUEST_SYNC, () => {
+    const target = mainWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_REQUEST_SYNC);
+    }
+  });
+
+  // Set overlay ignore mouse events (click-through)
+  ipcMain.on(IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS, (_event, ignore: boolean) => {
+    setOverlayIgnoreMouseEvents(ignore);
+  });
+
+  // Queue overlay commands to be forwarded to the browser extension
+  ipcMain.on(IPC_CHANNELS.OVERLAY_COMMAND, (_event, cmd: { command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume'; time?: number; rate?: number; volume?: number }) => {
+    queueCommand(cmd);
+  });
+
+  // Move overlay window by delta (manual drag)
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_MOVE_BY, (_event, delta: { x: number; y: number }) => {
+    moveOverlayBy(delta.x, delta.y);
+  });
+
+  // Resize overlay window by delta (manual resize)
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_RESIZE_BY, (_event, delta: { width: number; height: number }) => {
+    resizeOverlayBy(delta.width, delta.height);
+  });
+
+  // Get overlay window bounds
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_GET_BOUNDS, () => {
+    return getOverlayBounds();
+  });
+
+  // Set overlay auto-position enabled
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, (_event, enabled: boolean) => {
+    setOverlayAutoPositionEnabled(enabled);
+  });
+
+  ipcMain.on(IPC_CHANNELS.OVERLAY_SET_GEOMETRY_LOCKED, (_event, locked: boolean) => {
+    geometryUpdateLocked = locked;
+  });
+
+  // Forward text mode word lookup to overlay window (from extension/web server)
+  ipcMain.on(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, (_event, payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, payload);
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.OVERLAY_CLOSE_HOVER, () => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_CLOSE_HOVER);
+    }
   });
 }

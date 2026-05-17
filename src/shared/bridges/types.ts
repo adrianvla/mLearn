@@ -108,10 +108,13 @@ export interface FileBridge {
   readDirectoryImages: (directoryPath: string) => Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }>;
   readPdfFile: (filePath: string) => Promise<{ data: ArrayBuffer }>;
   readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
+  readMediaFileChunk: (filePath: string, offset: number, length: number) => Promise<ArrayBuffer | null>;
+  getFileSize: (filePath: string) => Promise<number | null>;
   selectVideoFile: () => Promise<string | null>;
   selectSubtitleFile: () => Promise<string | null>;
   selectBookFolder: () => Promise<string | null>;
   selectPdfFile: () => Promise<string | null>;
+  selectBrowserFile: () => Promise<string | null>;
   getLocalMediaUrl: (filePath: string) => Promise<string | null>;
   getPathForFile: (file: File) => string;
   writeToClipboard: (text: string) => void;
@@ -161,6 +164,7 @@ export interface ServerBridge {
 
 export interface InstallerBridge {
   startInstall: (options: InstallOptions) => void;
+  cancelInstall: () => void;
   requestInstallerState: () => void;
   onPythonSuccess: (callback: (success: boolean) => void) => () => void;
   onInstallStarted: (callback: (options: InstallOptions) => void) => () => void;
@@ -244,6 +248,35 @@ export interface WatchTogetherBridge {
   onWatchTogetherRequest: (callback: (data: unknown) => void) => () => void;
 }
 
+export interface OverlayBridge {
+  sendOverlayVideoState: (state: import('../types').OverlayVideoState) => void;
+  onOverlayVideoState: (callback: (state: import('../types').OverlayVideoState) => void) => () => void;
+  requestOverlaySync: () => void;
+  onOverlayRequestSync: (callback: () => void) => () => void;
+  launchOverlay: () => void;
+  onOverlayLaunch: (callback: () => void) => () => void;
+  onOverlayGeometry: (callback: (geometry: import('../types').OverlayGeometry) => void) => () => void;
+  setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
+  sendOverlayCommand: (cmd: import('../types').OverlayCommand) => void;
+  sendOverlaySubtitleTracks: (tracks: import('../types').OverlaySubtitleTracks) => void;
+  onOverlaySubtitleTracks: (callback: (tracks: import('../types').OverlaySubtitleTracks) => void) => () => void;
+  overlayMoveBy: (delta: import('../types').OverlayDelta) => Promise<void>;
+  overlayResizeBy: (delta: import('../types').OverlaySizeDelta) => Promise<void>;
+  overlayGetBounds: () => Promise<import('../types').OverlayBounds | null>;
+  overlaySetAutoPosition: (enabled: boolean) => Promise<void>;
+  overlaySetGeometryLocked: (locked: boolean) => void;
+  onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) => () => void;
+  sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => void;
+  onOverlayTextModeLookup: (callback: (payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => void) => () => void;
+  onOverlayTextModeConnected: (callback: (connected: boolean) => void) => () => void;
+  overlaySaveSiteState: (payload: { url: string; state: Record<string, unknown> }) => void;
+  overlayLoadSiteState: (url: string) => Promise<Record<string, unknown> | null>;
+  overlayClearSiteState: (url: string) => void;
+  overlaySetBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<void>;
+  onOverlayActiveUrlChanged: (callback: (url: string) => void) => () => void;
+  onOverlayCloseHover: (callback: () => void) => () => void;
+}
+
 export interface CrossWindowBridge {
   onUpdatePills: (callback: (data: unknown) => void) => () => void;
   onUpdateWordAppearance: (callback: (data: unknown) => void) => () => void;
@@ -280,6 +313,34 @@ export interface DataBridge {
   dataImport: () => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface BrowserInfo {
+  name: string;
+  type: 'chrome' | 'firefox' | 'unknown';
+  path: string;
+  profilePath?: string;
+  isInstalled: boolean;
+}
+
+export interface CustomBrowserPath {
+  path: string;
+  type: 'chrome' | 'firefox';
+}
+
+export interface BrowserBridge {
+  detectBrowsers: (customPaths?: CustomBrowserPath[]) => Promise<BrowserInfo[]>;
+  installExtension: (browser: BrowserInfo) => Promise<{ success: boolean; path?: string; error?: string; extensionPath?: string }>;
+  uninstallExtension: (browser: BrowserInfo) => Promise<{ success: boolean; error?: string }>;
+  isExtensionInstalled: (browser: BrowserInfo) => Promise<{ installed: boolean }>;
+  openExtensionFolder: () => Promise<boolean>;
+}
+
+export interface DiagnosticsBridge {
+  runDiagnostics: () => Promise<import('../diagnostics/types').DiagnosticsReport>;
+  onDiagnosticsProgress: (callback: (progress: import('../diagnostics/types').DiagnosticsProgressEvent) => void) => () => void;
+  onDiagnosticsComplete: (callback: (report: import('../diagnostics/types').DiagnosticsReport) => void) => () => void;
+  saveDiagnosticsReport: (reportJson: string) => Promise<string>;
+}
+
 export interface KVStoreBridge {
   kvGet: (key: string) => Promise<string | null>;
   kvSet: (key: string, value: string) => Promise<void>;
@@ -306,10 +367,13 @@ export interface PlatformBridge {
   voice: VoiceBridge;
   mediaStats: MediaStatsBridge;
   watchTogether: WatchTogetherBridge;
+  overlay: OverlayBridge;
   crossWindow: CrossWindowBridge;
   license: LicenseBridge;
   migration: MigrationBridge;
   generic: GenericIPCBridge;
   data: DataBridge;
   kvStore: KVStoreBridge;
+  browser: BrowserBridge;
+  diagnostics: DiagnosticsBridge;
 }

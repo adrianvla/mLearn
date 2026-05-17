@@ -10,6 +10,7 @@
 
 import { protocol, app } from 'electron';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { getPluginsDir } from './pluginManager';
 import { getLogger } from '../../shared/utils/logger';
@@ -25,7 +26,7 @@ const MIME_TYPES: Record<string, string> = {
   '.webm': 'video/webm',
   '.mkv': 'video/x-matroska',
   '.avi': 'video/x-msvideo',
-  '.mov': 'video/quicktime',
+  '.mov': 'video/mp4',
   '.m4v': 'video/mp4',
   '.ogv': 'video/ogg',
   '.mp3': 'audio/mpeg',
@@ -107,6 +108,16 @@ function isPathAllowed(resolvedPath: string): boolean {
     }
   }
 
+  // On macOS, sandboxed apps return the container path for app.getPath('home').
+  // Also allow the real user home directory so user files work correctly.
+  if (process.platform === 'darwin') {
+    try {
+      userDirs.push(os.homedir());
+    } catch {
+      /* empty */
+    }
+  }
+
   for (const base of userDirs) {
     if (resolvedPath === base) return true;
     if (resolvedPath.startsWith(base + path.sep)) return true;
@@ -137,7 +148,12 @@ function isPathAllowed(resolvedPath: string): boolean {
 
 export function setupLocalMediaProtocol(): void {
   protocol.handle(SCHEME, async (request) => {
-    let filePath = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
+    // Use the URL API to reliably extract the pathname regardless of how
+    // Chromium parsed the host portion (standard schemes may treat the first
+    // path segment as host when no explicit host is present).
+    const url = new URL(request.url);
+    let filePath = decodeURIComponent(url.pathname);
+    log.info('local-media request:', request.url, 'decoded path:', filePath);
 
     // On Windows, paths may start with / before drive letter — strip it
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
@@ -254,5 +270,7 @@ export function setupPluginUiProtocol(): void {
  * Convert a filesystem path to a `local-media://` URL for use in the renderer.
  */
 export function toLocalMediaUrl(filePath: string): string {
-  return `${SCHEME}://${filePath}`;
+  const normalized = filePath.replace(/\\/g, '/');
+  const encoded = normalized.split('/').map(encodeURIComponent).join('/');
+  return `${SCHEME}://localhost${encoded.startsWith('/') ? encoded : '/' + encoded}`;
 }

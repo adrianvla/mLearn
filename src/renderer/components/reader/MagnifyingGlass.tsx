@@ -11,6 +11,7 @@
 import { Component, createSignal, createEffect, onCleanup } from 'solid-js';
 import { useSettings } from '../../context';
 import { Badge } from '../common';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './MagnifyingGlass.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -33,9 +34,9 @@ export const MagnifyingGlass: Component<MagnifyingGlassProps> = (props) => {
     const [mouseY, setMouseY] = createSignal(0);
 
     // Current zoom level (animated) - starts at default
-    const [currentZoom, setCurrentZoom] = createSignal(settings.readerMagnifierZoom ?? 2);
+    const [currentZoom, setCurrentZoom] = createSignal(settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!);
     // Target zoom level (for smooth animation)
-    const [targetZoom, setTargetZoom] = createSignal(settings.readerMagnifierZoom ?? 2);
+    const [targetZoom, setTargetZoom] = createSignal(settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!);
 
     // Visibility state for fade animation
     const [isVisible, setIsVisible] = createSignal(false);
@@ -46,8 +47,8 @@ export const MagnifyingGlass: Component<MagnifyingGlassProps> = (props) => {
     let animationFrameId: number | null = null;
 
     // Get settings with defaults
-    const defaultZoom = () => settings.readerMagnifierZoom ?? 2;
-    const lensSize = () => settings.readerMagnifierSize ?? 200;
+    const defaultZoom = () => settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!;
+    const lensSize = () => settings.readerMagnifierSize ?? DEFAULT_SETTINGS.readerMagnifierSize!;
     const minZoom = 1.5;
     const maxZoom = 6;
 

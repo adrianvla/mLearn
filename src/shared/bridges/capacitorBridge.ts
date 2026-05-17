@@ -21,12 +21,15 @@ import type {
   VoiceBridge,
   MediaStatsBridge,
   WatchTogetherBridge,
+  OverlayBridge,
   CrossWindowBridge,
   LicenseBridge,
   MigrationBridge,
   GenericIPCBridge,
   DataBridge,
   KVStoreBridge,
+  BrowserBridge,
+  DiagnosticsBridge,
 } from './types';
 import type {
   PluginBusEnvelope,
@@ -801,6 +804,14 @@ const fileBridge: FileBridge = {
     return null;
   },
 
+  async readMediaFileChunk(_filePath: string, _offset: number, _length: number) {
+    return null;
+  },
+
+  async getFileSize(_filePath: string) {
+    return null;
+  },
+
   async selectVideoFile() {
     // Use HTML file input for video selection
     return new Promise((resolve) => {
@@ -857,6 +868,18 @@ const fileBridge: FileBridge = {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.pdf';
+      input.onchange = () => {
+        const file = input.files?.[0];
+        resolve(file ? URL.createObjectURL(file) : null);
+      };
+      input.click();
+    });
+  },
+
+  async selectBrowserFile() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
       input.onchange = () => {
         const file = input.files?.[0];
         resolve(file ? URL.createObjectURL(file) : null);
@@ -1071,6 +1094,7 @@ const serverBridge: ServerBridge = {
 
 const installerBridge: InstallerBridge = {
   startInstall: noop,
+  cancelInstall: noop,
   requestInstallerState: noop,
   onPythonSuccess: noopCleanup,
   onInstallStarted: noopCleanup,
@@ -1183,7 +1207,7 @@ const llmBridge: LLMBridge = {
     const { signal } = ollamaAbortController;
 
     const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-    const ollamaUrl = settings.ollamaUrl || 'http://localhost:11434';
+    const ollamaUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
 
     fetch(`${ollamaUrl}/api/chat`, {
       method: 'POST',
@@ -1245,7 +1269,7 @@ const llmBridge: LLMBridge = {
   async ollamaListModels(): Promise<unknown[]> {
     try {
       const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-      const res = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/tags`);
+      const res = await fetch(`${settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl}/api/tags`);
       const data = await res.json();
       return data.models || [];
     } catch (e) {
@@ -1257,7 +1281,7 @@ const llmBridge: LLMBridge = {
   async ollamaCheck(): Promise<boolean> {
     try {
       const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-      const res = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/tags`);
+      const res = await fetch(`${settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl}/api/tags`);
       return res.ok;
     } catch (e) {
       log.error("error", e);
@@ -1282,7 +1306,8 @@ const speechBridge: SpeechBridge = {
 
       const recognition = new (SpeechRecognition as new () => Record<string, unknown>)() as {
         lang: string; continuous: boolean; interimResults: boolean;
-        onresult: (event: Event) => void; start: () => void;
+        onresult: (event: Event) => void; onerror: (event: Event) => void; onend: () => void; onnomatch: () => void;
+        start: () => void; stop: () => void;
       };
       recognition.lang = language;
       recognition.continuous = true;
@@ -1295,6 +1320,20 @@ const speechBridge: SpeechBridge = {
           transcript: result[0].transcript,
           isFinal: result.isFinal,
         });
+      };
+
+      recognition.onerror = (event: Event) => {
+        const e = event as unknown as { error: string; message: string };
+        log.error('[CapacitorBridge] SpeechRecognition error:', e.error, e.message);
+        emitter.emit('stt-result', { transcript: '', isFinal: true, error: e.error });
+      };
+
+      recognition.onnomatch = () => {
+        emitter.emit('stt-result', { transcript: '', isFinal: true });
+      };
+
+      recognition.onend = () => {
+        (window as unknown as Record<string, unknown>).__mlearnSpeechRecognition = undefined;
       };
 
       recognition.start();
@@ -1317,6 +1356,10 @@ const speechBridge: SpeechBridge = {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language;
     utterance.onend = () => emitter.emit('tts-status', { speaking: false, progress: 1 });
+    utterance.onerror = (event) => {
+      log.error('[CapacitorBridge] SpeechSynthesis error:', event);
+      emitter.emit('tts-status', { speaking: false, progress: 0, error: String(event) });
+    };
     emitter.emit('tts-status', { speaking: true, progress: 0 });
     speechSynthesis.speak(utterance);
   },
@@ -1421,6 +1464,39 @@ const watchTogetherBridge: WatchTogetherBridge = {
 };
 
 // ============================================================================
+// Overlay Bridge (not supported on mobile)
+// ============================================================================
+
+const overlayBridge: OverlayBridge = {
+  sendOverlayVideoState: noop,
+  onOverlayVideoState: noopCleanup,
+  requestOverlaySync: noop,
+  onOverlayRequestSync: noopCleanup,
+  launchOverlay: noop,
+  onOverlayLaunch: noopCleanup,
+  onOverlayGeometry: noopCleanup,
+  setOverlayIgnoreMouseEvents: noop,
+  sendOverlayCommand: noop,
+  sendOverlaySubtitleTracks: noop,
+  onOverlaySubtitleTracks: noopCleanup,
+  overlayMoveBy: async () => {},
+  overlayResizeBy: async () => {},
+  overlayGetBounds: async () => null,
+  overlaySetAutoPosition: async () => {},
+  overlaySetGeometryLocked: noop,
+  onOverlayAutoPositionChanged: noopCleanup,
+  sendOverlayTextModeLookup: noop,
+  onOverlayTextModeLookup: noopCleanup,
+  onOverlayTextModeConnected: noopCleanup,
+  overlaySaveSiteState: noop,
+  overlayLoadSiteState: async () => null,
+  overlayClearSiteState: noop,
+  overlaySetBounds: async () => {},
+  onOverlayActiveUrlChanged: noopCleanup,
+  onOverlayCloseHover: noopCleanup,
+};
+
+// ============================================================================
 // Cross-Window Bridge (no-ops on single-window mobile)
 // ============================================================================
 
@@ -1493,6 +1569,31 @@ const genericBridge: GenericIPCBridge = {
 // ============================================================================
 // Data Export/Import Bridge (JSON-based on mobile)
 // ============================================================================
+
+const browserBridge: BrowserBridge = {
+  async detectBrowsers() {
+    return [];
+  },
+  async installExtension() {
+    return { success: false, error: 'Browser extensions are not supported on mobile' };
+  },
+  async uninstallExtension() {
+    return { success: false, error: 'Browser extensions are not supported on mobile' };
+  },
+  async isExtensionInstalled() {
+    return { installed: false };
+  },
+  async openExtensionFolder() {
+    return false;
+  },
+};
+
+const diagnosticsBridge: DiagnosticsBridge = {
+  runDiagnostics: async () => ({ timestamp: new Date().toISOString(), appVersion: '0.0.0', platform: 'capacitor', suites: [], summary: { passed: 0, failed: 0, skipped: 0, total: 0, durationMs: 0 } }),
+  onDiagnosticsProgress: () => () => {},
+  onDiagnosticsComplete: () => () => {},
+  saveDiagnosticsReport: async () => '',
+};
 
 const dataBridge: DataBridge = {
   async dataExport() {
@@ -1626,11 +1727,14 @@ export function createCapacitorBridge(): PlatformBridge {
     voice: voiceBridge,
     mediaStats: mediaStatsBridge,
     watchTogether: watchTogetherBridge,
+    overlay: overlayBridge,
     crossWindow: crossWindowBridge,
     license: licenseBridge,
     migration: migrationBridge,
     generic: genericBridge,
     data: dataBridge,
     kvStore: kvStoreBridge,
+    browser: browserBridge,
+    diagnostics: diagnosticsBridge,
   };
 }

@@ -92,6 +92,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
+  table-layout: fixed;
 }
 
 .stats-level-table th {
@@ -103,6 +104,21 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.stats-level-table th:nth-child(1) {
+  width: 30%;
+}
+
+.stats-level-table th:nth-child(2),
+.stats-level-table th:nth-child(3),
+.stats-level-table th:nth-child(4),
+.stats-level-table th:nth-child(5) {
+  width: 14%;
+}
+
+.stats-level-table th:nth-child(6) {
+  width: 14%;
 }
 
 .stats-level-table td {

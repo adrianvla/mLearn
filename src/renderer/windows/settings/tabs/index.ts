@@ -14,3 +14,5 @@ export { ConnectionTab } from './ConnectionTab';
 export { PluginsTab } from './PluginsTab';
 export { AboutTab } from './AboutTab';
 export { VideoPlayerTab } from './VideoPlayerTab';
+export { BrowserExtensionTab } from './BrowserExtensionTab';
+export { ComponentsTab } from './ComponentsTab';

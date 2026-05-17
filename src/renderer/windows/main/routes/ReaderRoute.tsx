@@ -15,6 +15,7 @@ import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useTokenizer,
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext } from '../../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
@@ -783,7 +784,7 @@ export const ReaderRoute: Component = () => {
     try {
       const imageBlob = page.blob ?? await (await fetch(page.src)).blob();
 
-      const turbo = settings.ocrTurboMode ?? true;
+      const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode;
       const prepared = await prepareBlobForOCR(imageBlob, turbo);
 
       let result: OcrResult;
@@ -818,7 +819,7 @@ export const ReaderRoute: Component = () => {
         const formData = new FormData();
         formData.append('file', prepared.blob, 'image.png');
         formData.append('turbo', turbo ? '1' : '0');
-        formData.append('ram_saver', (settings.ocrRamSaver ?? false) ? '1' : '0');
+        formData.append('ram_saver', (settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver) ? '1' : '0');
         if (settings.devMode) {
           formData.append('dev_mode', '1');
           // Dev-mode PaddleOCR downscale: compute max dimensions from scale percentage
@@ -1200,7 +1201,7 @@ export const ReaderRoute: Component = () => {
 
   // Furigana hider state comes from settings
   // Access it via settings context so changes propagate to OcrOverlay
-  const furiganaHiderEnabled = () => settings.readerFuriganaHider ?? false;
+  const furiganaHiderEnabled = () => settings.readerFuriganaHider ?? DEFAULT_SETTINGS.readerFuriganaHider!;
 
   // Listen to reader context menu commands
   onMount(() => {
@@ -1230,7 +1231,7 @@ export const ReaderRoute: Component = () => {
           }
           break;
         case 'toggle-collate-pages':
-          updateSettings({ readerCollatePages: !(settings.readerCollatePages ?? false) });
+          updateSettings({ readerCollatePages: !(settings.readerCollatePages ?? DEFAULT_SETTINGS.readerCollatePages) });
           break;
       }
     });
@@ -1250,7 +1251,7 @@ export const ReaderRoute: Component = () => {
       furiganaHiderEnabled: furiganaHiderEnabled(),
       hasContextPhrase,
       canExplainPhrase: settings.llmEnabled && hasContextPhrase,
-      collatePagesEnabled: settings.readerCollatePages ?? false,
+      collatePagesEnabled: settings.readerCollatePages ?? DEFAULT_SETTINGS.readerCollatePages,
       isDoublePageMode: pageMode() === 'double',
     });
   };
@@ -1269,7 +1270,7 @@ export const ReaderRoute: Component = () => {
       furiganaHiderEnabled: furiganaHiderEnabled(),
       hasContextPhrase: false, // No phrase to copy when clicking on image
       canExplainPhrase: false,
-      collatePagesEnabled: settings.readerCollatePages ?? false,
+      collatePagesEnabled: settings.readerCollatePages ?? DEFAULT_SETTINGS.readerCollatePages,
       isDoublePageMode: pageMode() === 'double',
     });
   };

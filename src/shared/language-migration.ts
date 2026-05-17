@@ -7,6 +7,7 @@
  */
 
 import type { Settings, FlashcardStore, Flashcard } from './types';
+import { DEFAULT_SETTINGS } from './types';
 import type { LanguageCode } from './language-abstraction';
 import {
   migrateFlashcardToLanguageMetadata,
@@ -31,7 +32,7 @@ export function migrateSettingsToLanguageMetadata(settings: Settings): Settings 
   const registry = createDefaultLanguageMetadataRegistry();
   
   // Infer current language from settings
-  const currentLanguage = (settings.language || 'ja') as LanguageCode;
+  const currentLanguage = (settings.language || DEFAULT_SETTINGS.language) as LanguageCode;
   
   // Add current language settings to registry
   registry.languageSettings[currentLanguage] = {

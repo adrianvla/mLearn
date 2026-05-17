@@ -1,5 +1,20 @@
 import { createRoot } from 'solid-js';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useWatchTogether } from './useWatchTogether';
+
+const mockShowToast = vi.fn();
+const mockUpdateToast = vi.fn();
+
+vi.mock('../components/common/Feedback/Toast', () => ({
+  showToast: (...args: unknown[]) => mockShowToast(...args),
+  updateToast: (...args: unknown[]) => mockUpdateToast(...args),
+}));
+
+vi.mock('../context', () => ({
+  useLocalization: () => ({
+    t: (key: string) => key,
+  }),
+}));
 
 const mockWatchTogetherSend = vi.fn();
 const mockIsWatchingTogether = vi.fn();
@@ -492,6 +507,21 @@ describe('useWatchTogether', () => {
         expect(hook.sendPause).toBeTypeOf('function');
         expect(hook.sendSync).toBeTypeOf('function');
         expect(hook.sendSubtitles).toBeTypeOf('function');
+        dispose();
+      });
+    });
+  });
+
+  describe('peer count and toast notifications', () => {
+    beforeEach(() => {
+      mockShowToast.mockClear();
+      mockUpdateToast.mockClear();
+    });
+
+    it('tracks peer count from room state', () => {
+      createRoot((dispose) => {
+        const hook = createHook();
+        expect(hook.peerCount()).toBe(0);
         dispose();
       });
     });

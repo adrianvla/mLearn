@@ -5,6 +5,7 @@
  */
 
 import { Component, createSignal, For, Show, onMount, createEffect, createMemo, on } from 'solid-js';
+import { createVirtualizer } from '../../hooks/useVirtualizer';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import {
   loadWordsFromStorage,
@@ -488,6 +489,29 @@ export const WordDbEditorContent: Component = () => {
     return !!getEntryKnowledge(word).ankiMatch;
   };
 
+  let entriesListRef: HTMLDivElement | undefined;
+  const ROW_HEIGHT = 56;
+
+  const virtualizer = createMemo(() => {
+    const entries = filteredEntries();
+    return createVirtualizer({
+      count: entries.length,
+      getScrollElement: () => entriesListRef,
+      estimateSize: () => ROW_HEIGHT,
+      overscan: 5,
+      measureDynamic: true,
+    });
+  });
+
+  let measureTimer: ReturnType<typeof setTimeout> | undefined;
+  createEffect(() => {
+    virtualizer().getVirtualItems();
+    if (measureTimer) clearTimeout(measureTimer);
+    measureTimer = setTimeout(() => {
+      virtualizer().measure();
+    }, 80);
+  });
+
   return (
       <div class="word-db-editor">
         {/* Loading indicator while initializing or waiting for word frequency data */}
@@ -521,31 +545,51 @@ export const WordDbEditorContent: Component = () => {
           />
 
           {/* Entries List */}
-          <div class="entries-list">
+          <div class="entries-list" ref={entriesListRef}>
             <Show when={!isLoading() && filteredEntries().length === 0 && (browseMode() === 'ignored' || hasLoadedWords())}>
               <div class="empty-state">
                 <p>{browseMode() === 'ignored' ? t('mlearn.WordDbEditor.EmptyIgnoredState') : t('mlearn.WordDbEditor.EmptyState')}</p>
               </div>
             </Show>
 
-            <For each={filteredEntries()}>
-              {(entry) => (
-                  <WordEntryRow
-                      entry={entry}
-                      levelNames={levelNames()}
-                      onStatusChange={handleStatusChange}
-                      onAddFlashcard={handleAddFlashcard}
-                      onRemoveFlashcard={handleRemoveFlashcard}
-                      onUnignore={handleUnignore}
-                      onEditFlashcard={handleEditFlashcard}
-                      onEdit={handleEdit}
-                      onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
-                      onAnkiPreview={ankiEnabled() ? handleAnkiPreview : undefined}
-                      ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}
-                      isInAnki={isEntryInAnki(entry.word)}
-                  />
-              )}
-            </For>
+            <Show when={filteredEntries().length > 0}>
+              <div style={{ position: 'relative', width: '100%', height: `${virtualizer().getTotalSize()}px` }}>
+                <For each={virtualizer().getVirtualItems()}>
+                  {(item) => {
+                    const entry = filteredEntries()[item.index];
+                    return (
+                      <div
+                        class="virtual-row"
+                        data-index={item.index}
+                        ref={(el) => virtualizer().measureElement(el)}
+                        style={{
+                          position: 'absolute',
+                          top: '0',
+                          left: '0',
+                          width: '100%',
+                          transform: `translateY(${item.start}px)`,
+                        }}
+                      >
+                        <WordEntryRow
+                            entry={entry}
+                            levelNames={levelNames()}
+                            onStatusChange={handleStatusChange}
+                            onAddFlashcard={handleAddFlashcard}
+                            onRemoveFlashcard={handleRemoveFlashcard}
+                            onUnignore={handleUnignore}
+                            onEditFlashcard={handleEditFlashcard}
+                            onEdit={handleEdit}
+                            onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
+                            onAnkiPreview={ankiEnabled() ? handleAnkiPreview : undefined}
+                            ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}
+                            isInAnki={isEntryInAnki(entry.word)}
+                        />
+                      </div>
+                    );
+                  }}
+                </For>
+              </div>
+            </Show>
           </div>
 
           {/* Loading Overlay */}

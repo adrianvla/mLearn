@@ -33,6 +33,7 @@
   transform: translate(-50%, -50%);
   filter: drop-shadow(0px 0px 10px var(--frequency-star-glow)) drop-shadow(1px 1px 0px var(--frequency-star-shadow));
   z-index: -1;
+  --shadow-size: 10px;
 }
 
 /* Small size variant */
@@ -59,37 +60,37 @@
 
 /* Level-based star colors */
 .frequency[data-level="7"] .star::before {
-  filter: hue-rotate(57deg) saturate(0%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  filter: hue-rotate(57deg) saturate(0%) brightness(170%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
 }
 
 .frequency[data-level="6"] .star::before {
-  filter: hue-rotate(57deg) saturate(200%) brightness(500%) drop-shadow(0px 0px 10px currentColor);
+  filter: hue-rotate(57deg) saturate(200%) brightness(500%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
 }
 
 .frequency[data-level="5"] .star::before {
-  filter: hue-rotate(273deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  filter: hue-rotate(273deg) saturate(200%) brightness(170%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
 }
 
 .frequency[data-level="4"] .star::before {
-  filter: hue-rotate(60deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  filter: hue-rotate(60deg) saturate(200%) brightness(170%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
 }
 
 .frequency[data-level="3"] .star::before {
-  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%) drop-shadow(0px 0px 10px currentColor);
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
 }
 
 .frequency[data-level="2"] .star::before {
-  filter: hue-rotate(214deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
 }
 
 .frequency[data-level="1"] .star::before {
-  filter: hue-rotate(350deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
 }
 

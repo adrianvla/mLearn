@@ -43,11 +43,10 @@
 
 .col.tracker {
   flex: 1.5;
-  min-width: 150px;
+  min-width: 400px;
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  flex-wrap: wrap;
 }
 
 .col.status {
@@ -60,6 +59,14 @@
   flex: 1;
   overflow-y: auto;
   padding: 0.5rem 0;
+}
+
+.virtual-row {
+  z-index: 1;
+}
+
+.virtual-row:hover {
+  z-index: 10;
 }
 
 /* Status pills in word DB */

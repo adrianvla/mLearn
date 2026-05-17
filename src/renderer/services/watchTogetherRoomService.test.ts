@@ -25,6 +25,7 @@ class MockWebSocket {
   public readonly url: string;
   public readonly protocols: string[];
   public readyState = MockWebSocket.CONNECTING;
+  public sentMessages: string[] = [];
   public close = vi.fn(() => {
     this.readyState = MockWebSocket.CLOSED;
   });
@@ -48,6 +49,10 @@ class MockWebSocket {
       callback(event);
     }
   }
+
+  send(data: string): void {
+    this.sentMessages.push(data);
+  }
 }
 
 const mockFetch = vi.fn<typeof fetch>();
@@ -66,6 +71,7 @@ function createSessionResponse(roomOverrides: Partial<WatchTogetherRoomState> = 
         playbackRate: 1,
         stateVersion: 1,
         status: 'active' as const,
+        peerCount: 0,
         lastUsedAt: '2026-04-01T12:00:00.000Z',
         createdAt: '2026-04-01T12:00:00.000Z',
         updatedAt: '2026-04-01T12:00:00.000Z',
@@ -183,7 +189,7 @@ describe('watchTogetherRoomService', () => {
     const session = createSessionResponse().data as WatchTogetherRoomSession['actions'] extends never ? never : WatchTogetherRoomSession;
     const onRoom = vi.fn();
 
-    const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
     const socket = MockWebSocket.instances[0];
 
     expect(socket.url).toBe('wss://cloud.example.com/api/watch-together/rooms/room-1/socket');
@@ -204,8 +210,94 @@ describe('watchTogetherRoomService', () => {
     }));
 
     socket.readyState = MockWebSocket.OPEN;
-    unsubscribe();
+    subscription.unsubscribe();
     expect(socket.close).toHaveBeenCalled();
+  });
+
+  it('sends ping periodically after socket opens', () => {
+    vi.useFakeTimers();
+    const session = createSessionResponse().data as WatchTogetherRoomSession['actions'] extends never ? never : WatchTogetherRoomSession;
+    const onRoom = vi.fn();
+
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
+    const socket = MockWebSocket.instances[0];
+
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual([]);
+
+    socket.readyState = MockWebSocket.OPEN;
+    socket.emit('open', {});
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual(['ping']);
+
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual(['ping', 'ping']);
+
+    subscription.unsubscribe();
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual(['ping', 'ping']);
+
+    vi.useRealTimers();
+  });
+
+  it('forwards peer-joined events to the peer event callback', () => {
+    const session = createSessionResponse().data as WatchTogetherRoomSession['actions'] extends never ? never : WatchTogetherRoomSession;
+    const onRoom = vi.fn();
+    const onPeerEvent = vi.fn();
+
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom, onPeerEvent);
+    const socket = MockWebSocket.instances[0];
+
+    socket.emit('message', {
+      data: JSON.stringify({
+        type: 'peer-joined',
+        room: {
+          ...createSessionResponse({ peerCount: 2 }).data.room,
+        },
+        peerId: 'peer-1',
+      }),
+    });
+
+    expect(onRoom).toHaveBeenCalledWith(expect.objectContaining({
+      peerCount: 2,
+    }));
+    expect(onPeerEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'joined',
+      peerId: 'peer-1',
+    }));
+
+    socket.readyState = MockWebSocket.OPEN;
+    subscription.unsubscribe();
+  });
+
+  it('forwards peer-left events to the peer event callback', () => {
+    const session = createSessionResponse().data as WatchTogetherRoomSession['actions'] extends never ? never : WatchTogetherRoomSession;
+    const onRoom = vi.fn();
+    const onPeerEvent = vi.fn();
+
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom, onPeerEvent);
+    const socket = MockWebSocket.instances[0];
+
+    socket.emit('message', {
+      data: JSON.stringify({
+        type: 'peer-left',
+        room: {
+          ...createSessionResponse({ peerCount: 1 }).data.room,
+        },
+        peerId: 'peer-1',
+      }),
+    });
+
+    expect(onRoom).toHaveBeenCalledWith(expect.objectContaining({
+      peerCount: 1,
+    }));
+    expect(onPeerEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'left',
+      peerId: 'peer-1',
+    }));
+
+    socket.readyState = MockWebSocket.OPEN;
+    subscription.unsubscribe();
   });
 
   it('allows local and transient room sources when hosting a watch-together room', () => {

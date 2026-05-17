@@ -1,15 +1,20 @@
 import { Component, Match, Show, Switch, createEffect, createMemo, createResource, createSignal } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { getBridge } from '../../shared/bridges';
-import type { PluginHostContext } from '../../shared/plugins/types';
+import { getBackend } from '../../shared/backends';
+import type { PluginHostContext, PluginComponentLibraryRef } from '../../shared/plugins/types';
+import type { TranslationResponse } from '../../shared/types';
 import { PluginErrorBoundary } from './PluginErrorBoundary';
 import { SchemaRenderer } from './SchemaRenderer';
+import { pluginComponentLibrary } from './pluginComponents';
 
 type PluginHostApi = {
   kvGet: (key: string) => Promise<string | null>;
   kvSet: (key: string, value: string) => Promise<void>;
   kvRemove: (key: string) => Promise<void>;
   closeWindow: () => void;
+  components: PluginComponentLibraryRef;
+  translate: (word: string) => Promise<TranslationResponse>;
 };
 
 type PluginComponentProps = {
@@ -41,6 +46,8 @@ const host = createMemo<PluginHostApi>(() => ({
     kvSet: (key, value) => bridge.plugins.pluginKVSet(props.hostContext.pluginId, key, value),
     kvRemove: (key) => bridge.plugins.pluginKVRemove(props.hostContext.pluginId, key),
     closeWindow: () => bridge.window.closeWindow(),
+    components: pluginComponentLibrary as unknown as PluginComponentLibraryRef,
+    translate: (word: string) => getBackend().translate(word),
   }));
 
   const componentUrl = createMemo(() => {
