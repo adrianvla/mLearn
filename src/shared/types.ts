@@ -393,6 +393,7 @@ export interface Settings {
   eulaAccepted: boolean;
   eulaAcceptedVersion: string;
   eulaAcceptedAt: number;
+  eulaAcceptedHash: string;
   cloudTosAccepted: boolean;
   cloudTosAcceptedAt: number;
   cloudPrivacyAccepted: boolean;
@@ -540,6 +541,7 @@ export const DEFAULT_SETTINGS: Settings = {
   eulaAccepted: false,
   eulaAcceptedVersion: '',
   eulaAcceptedAt: 0,
+  eulaAcceptedHash: '',
   cloudTosAccepted: false,
   cloudTosAcceptedAt: 0,
   cloudPrivacyAccepted: false,

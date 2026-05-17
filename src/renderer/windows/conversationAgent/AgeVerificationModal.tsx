@@ -20,29 +20,29 @@ export const AgeVerificationModal: Component<AgeVerificationModalProps> = (props
     <div class="avm-overlay">
       <div class="avm-card">
         <div class="avm-content">
-          <h2 class="avm-title">{t('mlearn.ConversationAgent.Disclaimer.Title')}</h2>
+          <h2 class="avm-title">{t('mlearn.ConversationAgent.AgeVerification.Title')}</h2>
 
           <div class="avm-section">
             <p class="avm-text avm-warning">
-              {t('mlearn.ConversationAgent.Disclaimer.AIWarning')}
+              {t('mlearn.ConversationAgent.AgeVerification.AIWarning')}
             </p>
           </div>
 
           <div class="avm-section">
             <p class="avm-text avm-safety">
-              {t('mlearn.ConversationAgent.Disclaimer.SafetyNotice')}
+              {t('mlearn.ConversationAgent.AgeVerification.SafetyNotice')}
             </p>
           </div>
 
           <div class="avm-section">
             <p class="avm-text">
-              {t('mlearn.ConversationAgent.Disclaimer.AgeVerificationText')}
+              {t('mlearn.ConversationAgent.AgeVerification.AgeVerificationText')}
             </p>
           </div>
 
           <div class="avm-section">
             <p class="avm-text avm-certify">
-              {t('mlearn.ConversationAgent.Disclaimer.Certification')}
+              {t('mlearn.ConversationAgent.AgeVerification.Certification')}
             </p>
           </div>
         </div>
@@ -54,7 +54,7 @@ export const AgeVerificationModal: Component<AgeVerificationModalProps> = (props
             onClick={props.onAccept}
             class="avm-continue-btn"
           >
-            {t('mlearn.ConversationAgent.Disclaimer.ContinueButton')}
+            {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
           </Btn>
         </div>
       </div>

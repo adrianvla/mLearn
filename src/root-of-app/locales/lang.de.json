@@ -333,11 +333,25 @@
         "AssistantFiltered": "Eine potenziell unsichere Assistentenantwort wurde ersetzt.",
         "AssistantReplacement": "Ich muss hier vorsichtig antworten. Wenn es um ein reales Selbstgefährdungsrisiko oder eine unmittelbare Gefahr geht, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiterhin vorsichtig.",
         "GetHelp": "Wenn das ein reales Risiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region.",
-        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
+        "LockoutMessage": "Dieser Chat wurde aus Sicherheitsgründen gesperrt. Löschen Sie den Chat, um eine neue Konversation zu starten.",
         "SensitiveNotice": "Sensibler selbstverletzungsbezogener Inhalt erkannt.",
         "UrgentNotice": "Mögliches unmittelbares Selbstgefährdungsrisiko erkannt.",
         "UserConcernResponse": "Ich muss darauf vorsichtig reagieren. Wenn das ein reales Selbstgefährdungsrisiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiter vorsichtig.",
         "UserUrgentResponse": "Ich nehme das ernst. Wenn es um unmittelbare Gefahr oder Selbstgefährdungsrisiko geht, kontaktiere jetzt sofort den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, ob du gerade in unmittelbarer Gefahr bist, und ich antworte vorsichtig."
+      },
+      "AgeVerification": {
+        "Title": "KI-Sprachlehrer — Altersverifikation",
+        "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
+        "SafetyNotice": "🛡️ Sicherheitsprüfung ist ON (verbraucht zusätzliche Rechenleistung pro Nachricht). Bei Erkennung schädlicher Inhalte wird der Chat sofort beendet. Einstellungen → KI-Sicherheit zum Deaktivieren.",
+        "AgeVerificationText": "Der KI-Sprachlehrer ist für Sprachbildung konzipiert. Er wird jedoch von großen Sprachmodellen angetrieben, die probabilistischen Text generieren. Trotz systemweiter Sicherheitsanweisungen können Ausgaben gelegentlich ungenaue, unangemessene oder unerwartete Inhalte enthalten. Aufgrund von Datenschutz- und Haftungsrahmen für Cloud-KI-Dienste müssen Sie 18 Jahre oder älter sein, um den Cloud-KI-Sprachlehrer zu nutzen. Für den Unterrichtsgebrauch durch Schüler unter 18 Jahren muss Ihre Institution den gesamten Software-Stack selbst hosten.",
+        "Certification": "Indem Sie fortfahren, bestätigen Sie, dass Sie 18 Jahre oder älter sind und die EULA akzeptieren.",
+        "ContinueButton": "Weiter zum Chat"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
+        "SafetyNotice": "🛡️ Sicherheitsprüfung ist {status} (verbraucht zusätzliche Rechenleistung).",
+        "SettingsLink": "Einstellungen",
+        "TerminationNotice": "Bei Erkennung schädlicher Inhalte wird der Chat beendet."
       },
       "Commands": {
         "NewTopic": "Neues Thema",

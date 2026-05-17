@@ -333,11 +333,39 @@
         "AssistantFiltered": "安全でない可能性のあるアシスタントの返答を置き換えました。",
         "AssistantReplacement": "ここでは慎重に返答する必要があります。現実の自傷リスクや差し迫った危険に関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、何が起きているのかを話してください。引き続き慎重に返答します。",
         "GetHelp": "現実の危険がある場合は、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。",
-        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
-        "SensitiveNotice": "自傷に関連する可能性のある内容を検出しました。",
+        "LockoutMessage": "この会話は安全上の理由からロックされています。新しい会話を始めるにはチャットをクリアしてください。",
+        "SensitiveNotice": "差し迫った自傷リスクの可能性を検出しました。",
         "UrgentNotice": "差し迫った自傷リスクの可能性を検出しました。",
         "UserConcernResponse": "これには慎重に対応する必要があります。現実の自傷リスクに関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、何が起きているのかを話してください。引き続き慎重に返答します。",
         "UserUrgentResponse": "これは深刻に受け止めています。差し迫った危険や自傷のリスクに関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、今すぐ危険な状態かどうかを話してください。慎重に返答します。"
+      },
+      "AgeVerification": {
+        "Title": "AI会話エージェント — 年齢確認",
+        "AIWarning": "⚠️ AIが生成する回答は不正確または不適切な場合があります。このエージェントは人間ではなく、専門的な助言を提供できません。",
+        "SafetyNotice": "🛡️ 安全スクリーニングはONです（メッセージごとに追加の計算リソースを使用します）。有害なコンテンツが検出された場合、チャットは直ちに終了されます。設定 → AI安全で無効化できます。",
+        "AgeVerificationText": "AIチューターは言語教育用に設計されています。ただし、確率的なテキストを生成する大規模言語モデルによって動作しています。システムレベルの安全指示があっても、出力には時々不正確、不適切、または予期しないコンテンツが含まれる場合があります。クラウドAIサービスのデータ保護および責任枠組みにより、クラウドAIチューターを使用するには18歳以上である必要があります。18歳未満の生徒による教室使用の場合、所属機関はソフトウェアスタック全体を自己ホストする必要があります。",
+        "Certification": "続行することで、あなたは18歳以上であり、EULAに同意することを証明します。",
+        "ContinueButton": "チャットを続ける"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AIが生成する回答は不正確または不適切な場合があります。このエージェントは人間ではなく、専門的な助言を提供できません。",
+        "SafetyNotice": "🛡️ 安全スクリーニングは{status}です（追加の計算リソースを使用します）。",
+        "SettingsLink": "設定",
+        "TerminationNotice": "有害なコンテンツが検出された場合、チャットは終了されます。"
+      },
+      "AgeVerification": {
+        "Title": "AI Conversation Agent — Age Verification",
+        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
+        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
+        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
+        "ContinueButton": "Continue to Chat"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
+        "SettingsLink": "Settings",
+        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
       },
       "Commands": {
         "NewTopic": "新しいトピック",

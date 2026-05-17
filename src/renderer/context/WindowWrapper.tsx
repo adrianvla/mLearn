@@ -21,6 +21,7 @@ import { consumePendingFlashcardMigration, setMigrationListenerReady } from './m
 import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
 import { isElectron } from '../../shared/platform';
+import { getBridge } from '../../shared/bridges';
 import { installRendererLogSink } from '../utils/installLogSink';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -190,12 +191,47 @@ const GlobalCloudReLoginModal: Component = () => {
 };
 
 
+async function computeSha256(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 const GlobalEulaModal: Component = () => {
-  const { settings, isLoading } = useSettings();
+  const { settings, updateSettings, isLoading } = useSettings();
+  const [eulaContent, setEulaContent] = createSignal('');
+  const [currentHash, setCurrentHash] = createSignal('');
+  const [needsAcceptance, setNeedsAcceptance] = createSignal(false);
+
+  onMount(() => {
+    const bridge = getBridge();
+    const cleanup = bridge.server.onLegalDocumentReceive(async (content) => {
+      setEulaContent(content);
+      const hash = await computeSha256(content);
+      setCurrentHash(hash);
+      const storedHash = settings.eulaAcceptedHash;
+      if (!storedHash || storedHash !== hash) {
+        setNeedsAcceptance(true);
+      }
+    });
+    bridge.server.getLegalDocument('EULA');
+    onCleanup(() => cleanup());
+  });
+
+  const handleAccept = () => {
+    updateSettings({
+      eulaAccepted: true,
+      eulaAcceptedVersion: '1.0',
+      eulaAcceptedAt: Date.now(),
+      eulaAcceptedHash: currentHash(),
+    });
+  };
 
   return (
-    <Show when={!settings.eulaAccepted && !isLoading()}>
-      <EulaModal onAccept={() => {}} />
+    <Show when={needsAcceptance() && !isLoading()}>
+      <EulaModal content={eulaContent()} onAccept={handleAccept} />
     </Show>
   );
 };
