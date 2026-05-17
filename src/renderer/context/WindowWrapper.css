@@ -16,10 +16,13 @@
   align-items: center;
   justify-content: center;
   /*background: var(--bg-opaque);*/
-  background:black;
-  /*color: var(--text-primary);*/
-  color:white;
+  background:#000; /*DO NOT REMOVE. Since CSS Variables' themes get loaded later, the user will get flash banged by a light theme. DO NOT TOUCH THIS, THIS MUST BE HARDCODED*/
+  color: var(--text-primary);
   transition: opacity 0.3s ease;
+}
+
+.window-loading-overlay.transparent-bg {
+  background: transparent;
 }
 
 .window-loading-overlay.fade-out {

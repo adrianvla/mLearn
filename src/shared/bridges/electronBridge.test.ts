@@ -163,6 +163,15 @@ function createMockIPC() {
     kvRemove: vi.fn(),
     kvGetAll: vi.fn(),
     kvSetBatch: vi.fn(),
+    detectBrowsers: vi.fn(),
+    installExtension: vi.fn(),
+    uninstallExtension: vi.fn(),
+    isExtensionInstalled: vi.fn(),
+    openExtensionFolder: vi.fn(),
+    runDiagnostics: vi.fn(),
+    onDiagnosticsProgress: vi.fn(),
+    onDiagnosticsComplete: vi.fn(),
+    saveDiagnosticsReport: vi.fn(),
   };
 }
 
@@ -184,7 +193,7 @@ afterEach(() => {
 import { createElectronBridge } from './electronBridge';
 
 describe('createElectronBridge', () => {
-  it('returns an object with all 18 sub-bridge keys', () => {
+  it('returns an object with all 20 sub-bridge keys', () => {
     const bridge = createElectronBridge();
     expect(bridge).toHaveProperty('settings');
     expect(bridge).toHaveProperty('flashcards');
@@ -204,6 +213,8 @@ describe('createElectronBridge', () => {
     expect(bridge).toHaveProperty('generic');
     expect(bridge).toHaveProperty('data');
     expect(bridge).toHaveProperty('kvStore');
+    expect(bridge).toHaveProperty('browser');
+    expect(bridge).toHaveProperty('diagnostics');
   });
 });
 
@@ -1314,5 +1325,51 @@ describe('kvStoreBridge', () => {
     const bridge = createElectronBridge();
     bridge.kvStore.kvSetBatch({ a: '1', b: '2' });
     expect(mockIPC.kvSetBatch).toHaveBeenCalledWith({ a: '1', b: '2' });
+  });
+});
+
+describe('browserBridge', () => {
+  it('detectBrowsers passes customPaths to ipc.detectBrowsers and returns result', () => {
+    mockIPC.detectBrowsers.mockResolvedValue([{ name: 'Chrome', type: 'chrome', path: '/usr/bin/chrome', isInstalled: true }]);
+    const bridge = createElectronBridge();
+    const customPaths = [{ path: '/custom/chrome', type: 'chrome' as const }];
+    const result = bridge.browser.detectBrowsers(customPaths);
+    expect(mockIPC.detectBrowsers).toHaveBeenCalledWith(customPaths);
+    expect(result).toEqual(mockIPC.detectBrowsers.mock.results[0].value);
+  });
+
+  it('installExtension passes browser to ipc.installExtension and returns result', () => {
+    mockIPC.installExtension.mockResolvedValue({ success: true, path: '/ext/path' });
+    const bridge = createElectronBridge();
+    const browser = { name: 'Chrome', type: 'chrome' as const, path: '/usr/bin/chrome', isInstalled: true };
+    const result = bridge.browser.installExtension(browser);
+    expect(mockIPC.installExtension).toHaveBeenCalledWith(browser);
+    expect(result).toEqual(mockIPC.installExtension.mock.results[0].value);
+  });
+
+  it('uninstallExtension passes browser to ipc.uninstallExtension and returns result', () => {
+    mockIPC.uninstallExtension.mockResolvedValue({ success: true });
+    const bridge = createElectronBridge();
+    const browser = { name: 'Chrome', type: 'chrome' as const, path: '/usr/bin/chrome', isInstalled: true };
+    const result = bridge.browser.uninstallExtension(browser);
+    expect(mockIPC.uninstallExtension).toHaveBeenCalledWith(browser);
+    expect(result).toEqual(mockIPC.uninstallExtension.mock.results[0].value);
+  });
+
+  it('isExtensionInstalled passes browser to ipc.isExtensionInstalled and returns result', () => {
+    mockIPC.isExtensionInstalled.mockResolvedValue({ installed: true });
+    const bridge = createElectronBridge();
+    const browser = { name: 'Chrome', type: 'chrome' as const, path: '/usr/bin/chrome', isInstalled: true };
+    const result = bridge.browser.isExtensionInstalled(browser);
+    expect(mockIPC.isExtensionInstalled).toHaveBeenCalledWith(browser);
+    expect(result).toEqual(mockIPC.isExtensionInstalled.mock.results[0].value);
+  });
+
+  it('openExtensionFolder delegates to ipc.openExtensionFolder and returns result', () => {
+    mockIPC.openExtensionFolder.mockResolvedValue(true);
+    const bridge = createElectronBridge();
+    const result = bridge.browser.openExtensionFolder();
+    expect(mockIPC.openExtensionFolder).toHaveBeenCalledOnce();
+    expect(result).toEqual(mockIPC.openExtensionFolder.mock.results[0].value);
   });
 });

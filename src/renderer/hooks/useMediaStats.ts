@@ -43,18 +43,24 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   const [isActive, setIsActive] = createSignal(false);
 
   let saveInterval: ReturnType<typeof setInterval> | null = null;
-  let sessionStart = Date.now();
+  // Use a signal-like ref for session start that persists across setMedia calls
+  // but we track it per-media to avoid rapid-switch corruption
+  const sessionStartRef = { current: 0 };
   const ipcCleanups: Array<() => void> = [];
 
   // Save stats to disk
-  const saveStats = () => {
+  const saveStats = async () => {
     const hash = mediaHash();
     if (!hash) return;
     const current = stats();
-    getBridge().mediaStats.saveMediaStats(hash, {
-      ...current,
-      lastAccessed: Date.now(),
-    });
+    try {
+      await getBridge().mediaStats.saveMediaStats(hash, {
+        ...current,
+        lastAccessed: Date.now(),
+      });
+    } catch (e) {
+      // Silently ignore save errors; will retry on next interval
+    }
   };
 
   // Load existing stats from disk
@@ -73,13 +79,14 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   const endSession = () => {
     if (!isActive()) return;
     const endTime = Date.now();
-    const duration = endTime - sessionStart;
+    const duration = endTime - sessionStartRef.current;
+
     setStats((prev) => {
       const session: MediaSession = {
         date: new Date().toISOString().split('T')[0],
         duration,
         wordsLearned: Object.keys(prev.wordsEncountered).length,
-        startTime: sessionStart,
+        startTime: sessionStartRef.current,
         endTime,
       };
       return {
@@ -88,7 +95,8 @@ export function useMediaStats(options: UseMediaStatsOptions) {
         totalTimeSpent: prev.totalTimeSpent + duration,
       };
     });
-    saveStats();
+    // Use void to avoid unhandled promise warning; errors handled internally
+    void saveStats();
   };
 
   /** Set or change the media identity. Saves previous media, loads new one. */
@@ -109,7 +117,7 @@ export function useMediaStats(options: UseMediaStatsOptions) {
       mediaName: name,
     });
     setIsActive(true);
-    sessionStart = Date.now();
+    sessionStartRef.current = Date.now();
 
     // Load saved stats
     loadStats(hash);
@@ -224,14 +232,22 @@ export function useMediaStats(options: UseMediaStatsOptions) {
     recordWordHover(word, ease);
   };
 
+  // Emergency save handler for page unload / app close
+  const handleBeforeUnload = () => {
+    if (isActive()) {
+      endSession();
+    }
+  };
+
   onMount(() => {
     // Auto-save every 30 seconds
     saveInterval = setInterval(() => {
-      if (isActive()) saveStats();
+      if (isActive()) void saveStats();
     }, 30_000);
 
     window.addEventListener('mlearn:word-seen', handleWordSeenEvent);
     window.addEventListener('mlearn:word-hovered', handleWordHoveredEvent);
+    window.addEventListener('beforeunload', handleBeforeUnload);
   });
 
   onCleanup(() => {
@@ -241,6 +257,7 @@ export function useMediaStats(options: UseMediaStatsOptions) {
     ipcCleanups.length = 0;
     window.removeEventListener('mlearn:word-seen', handleWordSeenEvent);
     window.removeEventListener('mlearn:word-hovered', handleWordHoveredEvent);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
   });
 
   return {

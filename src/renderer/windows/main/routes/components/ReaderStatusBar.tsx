@@ -7,6 +7,7 @@ import { Component, Accessor, createMemo, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../../../../context';
 import { StatusBar, formatKeybindDisplay, RangeInput, BatteryLowIcon } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
+import { DEFAULT_SETTINGS } from '../../../../../shared/types';
 import type { OcrProcessingTimes } from '../../../../components/reader';
 import './ReaderStatusBar.css';
 
@@ -70,16 +71,16 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
     return statuses.length > 0 ? statuses.join(' | ') : t('mlearn.Reader.StatusBar.Ready');
   });
 
-  const currentTriggerMode = () => settings.readerWordHoverTrigger ?? 'hover';
-  const currentKey = () => settings.readerWordHoverKey ?? 'shift';
+  const currentTriggerMode = () => settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger!;
+  const currentKey = () => settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!;
 
   const handleTriggerModeChange = (e: Event) => {
     const value = (e.target as HTMLSelectElement).value as WordHoverTriggerMode;
     updateSettings({ readerWordHoverTrigger: value });
   };
 
-  const isTurbo = () => settings.ocrTurboMode ?? true;
-  const isFuriganaDetection = () => settings.ocrFuriganaDetection ?? true;
+  const isTurbo = () => settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode;
+  const isFuriganaDetection = () => settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection;
   const hasFurigana = () => currentLangData()?.hasFurigana ?? false;
 
   const toggleTurbo = () => {
@@ -205,7 +206,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
         </div>
 
         <span class="statusbar-hint">
-          {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? 'z', t)})}
+          {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? DEFAULT_SETTINGS.readerMagnifierHotkey!, t)})}
         </span>
 
         <Show when={isLowPowerActive()}>

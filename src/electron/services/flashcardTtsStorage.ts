@@ -179,29 +179,25 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
   });
 }
 
-/**
- * Generate TTS audio via the mLearn cloud TTS service.
- * Uses the BFF Worker's /api/tts/stream endpoint to get audio.
- */
 async function generateViaCloud(text: string, language: string, outputPath: string, authToken: string, apiUrl?: string): Promise<boolean> {
   try {
     const baseUrl = (apiUrl || DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
     const https = require('https');
-    const urlObj = new URL(`${baseUrl}/api/tts/stream`);
-    const body = JSON.stringify({ text, language, provider: 'moss-realtime' });
 
-    // Step 1: Get stream URL from BFF
-    const streamInfo = await new Promise<{ streamUrl: string }>((resolve, reject) => {
-      const proto = urlObj.protocol === 'https:' ? https : http;
+    const jobUrl = new URL(`${baseUrl}/api/tts/jobs`);
+    const jobBody = JSON.stringify({ text, language, provider: 'qwen3' });
+
+    const jobInfo = await new Promise<{ jobId: string }>((resolve, reject) => {
+      const proto = jobUrl.protocol === 'https:' ? https : http;
       const req = proto.request(
         {
-          hostname: urlObj.hostname,
-          port: urlObj.port,
-          path: urlObj.pathname,
+          hostname: jobUrl.hostname,
+          port: jobUrl.port,
+          path: jobUrl.pathname,
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(body),
+            'Content-Length': Buffer.byteLength(jobBody),
             'Authorization': `Bearer ${authToken}`,
           },
           timeout: 30000,
@@ -209,7 +205,7 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
         (res: http.IncomingMessage) => {
           if (res.statusCode !== 200) {
             res.resume();
-            reject(new Error(`Cloud TTS stream setup failed: ${res.statusCode}`));
+            reject(new Error(`Cloud TTS job creation failed: ${res.statusCode}`));
             return;
           }
           const chunks: Buffer[] = [];
@@ -217,12 +213,12 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
           res.on('end', () => {
             try {
               const data = JSON.parse(Buffer.concat(chunks).toString());
-              const streamUrl = data.actions?.stream_url;
-              if (!streamUrl) {
-                reject(new Error('Cloud TTS: missing stream_url'));
+              const jobId = data.jobId;
+              if (!jobId) {
+                reject(new Error('Cloud TTS: missing jobId'));
                 return;
               }
-              resolve({ streamUrl });
+              resolve({ jobId });
             } catch (e) {
               log.error("error", e);
               reject(e);
@@ -232,27 +228,129 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
         },
       );
       req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS setup timeout')); });
-      req.write(body);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS job creation timeout')); });
+      req.write(jobBody);
       req.end();
     });
 
-    // Step 2: Fetch audio from stream URL
-    const streamUrlObj = new URL(streamInfo.streamUrl);
-    const audioData = await new Promise<Buffer>((resolve, reject) => {
-      const proto = streamUrlObj.protocol === 'https:' ? https : http;
+    const statusUrl = new URL(`${baseUrl}/api/jobs/${jobInfo.jobId}`);
+    const maxPolls = 60;
+    const pollIntervalMs = 2000;
+    let jobStatus = 'pending';
+
+    for (let poll = 0; poll < maxPolls; poll++) {
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+
+      const status = await new Promise<{ status: string; error?: string }>((resolve, reject) => {
+        const proto = statusUrl.protocol === 'https:' ? https : http;
+        const req = proto.request(
+          {
+            hostname: statusUrl.hostname,
+            port: statusUrl.port,
+            path: statusUrl.pathname,
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+            },
+            timeout: 10000,
+          },
+          (res: http.IncomingMessage) => {
+            if (res.statusCode !== 200) {
+              res.resume();
+              reject(new Error(`Job status check failed: ${res.statusCode}`));
+              return;
+            }
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => {
+              try {
+                const data = JSON.parse(Buffer.concat(chunks).toString());
+                resolve({ status: data.job?.status || 'unknown', error: data.job?.error });
+              } catch (e) {
+                log.error("error", e);
+                reject(e);
+              }
+            });
+            res.on('error', reject);
+          },
+        );
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Job status timeout')); });
+        req.end();
+      });
+
+      jobStatus = status.status;
+      if (jobStatus === 'completed') break;
+      if (jobStatus === 'failed') {
+        log.error(`[FlashcardTTS] Cloud job failed: ${status.error || 'Unknown error'}`);
+        return false;
+      }
+    }
+
+    if (jobStatus !== 'completed') {
+      log.error('[FlashcardTTS] Cloud job timed out waiting for completion');
+      return false;
+    }
+
+    const resultUrl = new URL(`${baseUrl}/api/jobs/${jobInfo.jobId}/result`);
+    const downloadInfo = await new Promise<{ downloadUrl: string }>((resolve, reject) => {
+      const proto = resultUrl.protocol === 'https:' ? https : http;
       const req = proto.request(
         {
-          hostname: streamUrlObj.hostname,
-          port: streamUrlObj.port,
-          path: streamUrlObj.pathname + streamUrlObj.search,
+          hostname: resultUrl.hostname,
+          port: resultUrl.port,
+          path: resultUrl.pathname,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+          timeout: 10000,
+        },
+        (res: http.IncomingMessage) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            reject(new Error(`Download URL request failed: ${res.statusCode}`));
+            return;
+          }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => {
+            try {
+              const data = JSON.parse(Buffer.concat(chunks).toString());
+              const downloadUrl = data.downloadUrl;
+              if (!downloadUrl) {
+                reject(new Error('Cloud TTS: missing downloadUrl'));
+                return;
+              }
+              resolve({ downloadUrl });
+            } catch (e) {
+              log.error("error", e);
+              reject(e);
+            }
+          });
+          res.on('error', reject);
+        },
+      );
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Download URL timeout')); });
+      req.end();
+    });
+
+    const audioUrl = new URL(downloadInfo.downloadUrl);
+    const audioData = await new Promise<Buffer>((resolve, reject) => {
+      const proto = audioUrl.protocol === 'https:' ? https : http;
+      const req = proto.request(
+        {
+          hostname: audioUrl.hostname,
+          port: audioUrl.port,
+          path: audioUrl.pathname + audioUrl.search,
           method: 'GET',
           timeout: 60000,
         },
         (res: http.IncomingMessage) => {
           if (res.statusCode !== 200) {
             res.resume();
-            reject(new Error(`Cloud TTS audio fetch failed: ${res.statusCode}`));
+            reject(new Error(`Cloud TTS audio download failed: ${res.statusCode}`));
             return;
           }
           const chunks: Buffer[] = [];
@@ -262,7 +360,7 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
         },
       );
       req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS audio timeout')); });
+      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS audio download timeout')); });
       req.end();
     });
 

@@ -29,10 +29,32 @@ who_contain: dict = {}
 getCardCache: dict = {}
 
 
+def _get_cache_path(filename: str) -> str:
+    return os.path.join(config.USER_DATA_PATH, filename)
+
+
+def _migrate_cache_from_respath() -> None:
+    old_json = os.path.join(config.RESPATH, "anki-cache.json")
+    new_json = _get_cache_path("anki-cache.json")
+
+    if os.path.exists(new_json) or not os.path.exists(old_json):
+        return
+
+    log.info("Migrating anki-cache.json from RESPATH to USER_DATA_PATH")
+    try:
+        os.replace(old_json, new_json)
+        log.info("Migration complete")
+    except Exception as e:
+        log.error(f"Cache migration failed: {e}", exc_info=True)
+
+
 def get_all_cards_CACHE() -> bool:
     global all_cards, cards_per_id, words_ids, who_contain
-    json_path = os.path.join(config.RESPATH, "anki-cache.json")
-    pkl_path = os.path.join(config.RESPATH, "anki-cache.pkl")
+
+    _migrate_cache_from_respath()
+
+    json_path = _get_cache_path("anki-cache.json")
+    pkl_path = _get_cache_path("anki-cache.pkl")
 
     # Migration: if only .pkl exists, convert it to .json then rename it to .pkl.bak
     if not os.path.exists(json_path) and os.path.exists(pkl_path):
@@ -176,7 +198,6 @@ def get_all_cards() -> bool:
     if len(all_cards) == 0:
         log.error("No valid cards found, maybe you have selected the wrong deck?")
         log.error("ANKI_ERROR no_valid_cards")
-        sys.exit(-1)
         return False
 
     for card in all_cards:
@@ -206,9 +227,7 @@ def get_all_cards() -> bool:
     log.info("Loaded who_contain")
 
     # Save cache
-    with open(
-        os.path.join(config.RESPATH, "anki-cache.json"), "w", encoding="utf-8"
-    ) as f:
+    with open(_get_cache_path("anki-cache.json"), "w", encoding="utf-8") as f:
         json.dump(
             {
                 "all_cards": all_cards,

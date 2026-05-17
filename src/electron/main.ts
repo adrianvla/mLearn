@@ -15,7 +15,9 @@ import { setupFlashcardVideoIPC, registerFlashcardVideoScheme, setupFlashcardVid
 import { setupSettingsIPC } from './services/settings';
 import { setupLoggingService } from './services/loggingService';
 import { setupLocalizationIPC } from './services/localization';
-import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
+import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnosticsWindow } from './services/windowManager';
+import { initOverlaySiteState, registerOverlaySiteStateIPC } from './services/overlaySiteState';
+import { getExtensionDistDir } from './utils/platform';
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
@@ -27,8 +29,11 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
+import { setupBrowserDetectionIPC } from './services/browserDetection';
+import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
 import { setupPluginIPC } from './services/pluginIPC';
+import { setupDiagnosticsIPC } from './services/diagnostics';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
@@ -79,6 +84,15 @@ function parseLookupDeepLink(rawUrl: string): string | null {
   } catch (e) {
     log.error('parseLookupDeepLink failed', e);
     return null;
+  }
+}
+
+function isDiagnosticsDeepLink(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.protocol === 'mlearn:' && parsed.hostname === 'diagnostics';
+  } catch {
+    return false;
   }
 }
 
@@ -140,6 +154,11 @@ function handlePossibleDeepLinkValue(value: string): void {
   const lookupWord = parseLookupDeepLink(value);
   if (lookupWord) {
     dispatchLookupDeepLink(lookupWord);
+    return;
+  }
+  if (isDiagnosticsDeepLink(value)) {
+    createDiagnosticsWindow();
+    return;
   }
 }
 
@@ -204,6 +223,42 @@ function setupBaseIPC(): void {
     await shell.openExternal(url);
     return true;
   });
+
+  ipcMain.handle(IPC_CHANNELS.OPEN_EXTENSION_FOLDER, async () => {
+    const extensionDir = getExtensionDistDir();
+    log.info(`Opening extension folder: ${extensionDir}`);
+
+    try {
+      const fs = await import('fs');
+      const stats = await fs.promises.stat(extensionDir);
+      if (!stats.isDirectory()) {
+        log.error(`Extension path is not a directory: ${extensionDir}`);
+        return false;
+      }
+    } catch (e) {
+      log.error(`Extension folder does not exist: ${extensionDir}`, e);
+      return false;
+    }
+
+    try {
+      const result = await shell.openPath(extensionDir);
+      if (result !== '') {
+        log.warn(`shell.openPath returned error: ${result}`);
+        const platform = process.platform;
+        if (platform === 'darwin') {
+          await promisify(exec)(`open "${extensionDir}"`);
+        } else if (platform === 'win32') {
+          await promisify(exec)(`explorer "${extensionDir}"`);
+        } else {
+          await promisify(exec)(`xdg-open "${extensionDir}"`);
+        }
+      }
+      return true;
+    } catch (e) {
+      log.error('Failed to open extension folder:', e);
+      return false;
+    }
+  });
 }
 
 // Track whether IPC handlers have been registered
@@ -223,6 +278,8 @@ function setupAllIPC(): void {
   setupFlashcardTtsIPC();
   setupFlashcardVideoIPC();
   setupWindowIPC();
+  registerOverlaySiteStateIPC();
+  initOverlaySiteState();
   setupPluginUiProtocol();
   setupPythonBackendIPC();
   setupFileOperationsIPC();
@@ -235,12 +292,23 @@ function setupAllIPC(): void {
   setupVoiceIPC();
   setupDataExportImportIPC();
   setupKVStoreIPC();
+  setupBrowserDetectionIPC();
+  setupExtensionInstallerIPC();
   setupPluginIPC();
+  setupDiagnosticsIPC();
   setupKillHandlers();
 }
 
 // Create windows and start services
 async function createAppWindows(): Promise<void> {
+  // Check for diagnostics mode
+  const isDiagnosticsMode = process.argv.includes('--diagnostics');
+  if (isDiagnosticsMode) {
+    createDiagnosticsWindow();
+    startWebServer();
+    return;
+  }
+
   // Start Python backend
   const pythonFound = await findPython();
   
@@ -278,7 +346,7 @@ async function initialize(): Promise<void> {
   // Create windows and start services
   await createAppWindows();
 
-  if (!app.isDefaultProtocolClient('mlearn')) {
+  if (app.isPackaged && !app.isDefaultProtocolClient('mlearn')) {
     if (process.defaultApp && process.argv.length >= 2) {
       app.setAsDefaultProtocolClient('mlearn', process.execPath, [path.resolve(process.argv[1])]);
     } else {

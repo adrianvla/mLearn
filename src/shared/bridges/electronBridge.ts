@@ -22,12 +22,15 @@ import type {
   VoiceBridge,
   MediaStatsBridge,
   WatchTogetherBridge,
+  OverlayBridge,
   CrossWindowBridge,
   LicenseBridge,
   MigrationBridge,
   GenericIPCBridge,
   DataBridge,
   KVStoreBridge,
+  BrowserBridge,
+  DiagnosticsBridge,
 } from './types';
 
 function getIPC(): MLearnIPC {
@@ -99,10 +102,13 @@ const fileBridge: FileBridge = {
   readDirectoryImages: (dir) => getIPC().readDirectoryImages(dir),
   readPdfFile: (path) => getIPC().readPdfFile(path),
   readMediaFile: (path) => getIPC().readMediaFile(path),
+  readMediaFileChunk: (path, offset, length) => getIPC().readMediaFileChunk(path, offset, length),
+  getFileSize: (path) => getIPC().getFileSize(path),
   selectVideoFile: () => getIPC().selectVideoFile(),
   selectSubtitleFile: () => getIPC().selectSubtitleFile(),
   selectBookFolder: () => getIPC().selectBookFolder(),
   selectPdfFile: () => getIPC().selectPdfFile(),
+  selectBrowserFile: () => getIPC().selectBrowserFile(),
   getLocalMediaUrl: (path) => getIPC().getLocalMediaUrl(path),
   getPathForFile: (file) => getIPC().getPathForFile(file),
   writeToClipboard: (text) => getIPC().writeToClipboard(text),
@@ -152,6 +158,7 @@ const serverBridge: ServerBridge = {
 
 const installerBridge: InstallerBridge = {
   startInstall: (opts) => getIPC().startInstall(opts),
+  cancelInstall: () => getIPC().cancelInstall(),
   requestInstallerState: () => getIPC().requestInstallerState(),
   onPythonSuccess: (cb) => getIPC().onPythonSuccess(cb),
   onInstallStarted: (cb) => getIPC().onInstallStarted(cb),
@@ -233,6 +240,35 @@ const watchTogetherBridge: WatchTogetherBridge = {
   onWatchTogetherRequest: (cb) => getIPC().onWatchTogetherRequest(cb),
 };
 
+const overlayBridge: OverlayBridge = {
+  sendOverlayVideoState: (state) => getIPC().sendOverlayVideoState(state),
+  onOverlayVideoState: (cb) => getIPC().onOverlayVideoState(cb),
+  requestOverlaySync: () => getIPC().requestOverlaySync(),
+  onOverlayRequestSync: (cb) => getIPC().onOverlayRequestSync(cb),
+  launchOverlay: () => getIPC().launchOverlay(),
+  onOverlayLaunch: (cb) => getIPC().onOverlayLaunch(cb),
+  onOverlayGeometry: (cb) => getIPC().onOverlayGeometry(cb),
+  setOverlayIgnoreMouseEvents: (ignore) => getIPC().setOverlayIgnoreMouseEvents(ignore),
+  sendOverlayCommand: (cmd) => getIPC().sendOverlayCommand(cmd),
+  sendOverlaySubtitleTracks: (tracks) => getIPC().sendOverlaySubtitleTracks(tracks),
+  onOverlaySubtitleTracks: (cb) => getIPC().onOverlaySubtitleTracks(cb),
+  overlayMoveBy: (delta) => getIPC().overlayMoveBy(delta),
+  overlayResizeBy: (delta) => getIPC().overlayResizeBy(delta),
+  overlayGetBounds: () => getIPC().overlayGetBounds(),
+  overlaySetAutoPosition: (enabled) => getIPC().overlaySetAutoPosition(enabled),
+  overlaySetGeometryLocked: (locked) => getIPC().overlaySetGeometryLocked(locked),
+  onOverlayAutoPositionChanged: (cb) => getIPC().onOverlayAutoPositionChanged(cb),
+  sendOverlayTextModeLookup: (payload) => getIPC().sendOverlayTextModeLookup(payload),
+  onOverlayTextModeLookup: (cb) => getIPC().onOverlayTextModeLookup(cb),
+  onOverlayTextModeConnected: (cb) => getIPC().onOverlayTextModeConnected(cb),
+  overlaySaveSiteState: (payload) => getIPC().overlaySaveSiteState(payload),
+  overlayLoadSiteState: (url) => getIPC().overlayLoadSiteState(url),
+  overlayClearSiteState: (url) => getIPC().overlayClearSiteState(url),
+  overlaySetBounds: (bounds) => getIPC().overlaySetBounds(bounds),
+  onOverlayActiveUrlChanged: (cb) => getIPC().onOverlayActiveUrlChanged(cb),
+  onOverlayCloseHover: (cb) => getIPC().onOverlayCloseHover(cb),
+};
+
 const crossWindowBridge: CrossWindowBridge = {
   onUpdatePills: (cb) => getIPC().onUpdatePills(cb),
   onUpdateWordAppearance: (cb) => getIPC().onUpdateWordAppearance(cb),
@@ -277,6 +313,21 @@ const kvStoreBridge: KVStoreBridge = {
   kvSetBatch: (entries) => getIPC().kvSetBatch(entries),
 };
 
+const browserBridge: BrowserBridge = {
+  detectBrowsers: (customPaths) => getIPC().detectBrowsers(customPaths),
+  installExtension: (browser) => getIPC().installExtension(browser),
+  uninstallExtension: (browser) => getIPC().uninstallExtension(browser),
+  isExtensionInstalled: (browser) => getIPC().isExtensionInstalled(browser),
+  openExtensionFolder: () => getIPC().openExtensionFolder(),
+};
+
+const diagnosticsBridge: DiagnosticsBridge = {
+  runDiagnostics: () => getIPC().runDiagnostics(),
+  onDiagnosticsProgress: (cb) => getIPC().onDiagnosticsProgress(cb),
+  onDiagnosticsComplete: (cb) => getIPC().onDiagnosticsComplete(cb),
+  saveDiagnosticsReport: (reportJson) => getIPC().saveDiagnosticsReport(reportJson),
+};
+
 export function createElectronBridge(): PlatformBridge {
   return {
     settings: settingsBridge,
@@ -292,11 +343,14 @@ export function createElectronBridge(): PlatformBridge {
     voice: voiceBridge,
     mediaStats: mediaStatsBridge,
     watchTogether: watchTogetherBridge,
+    overlay: overlayBridge,
     crossWindow: crossWindowBridge,
     license: licenseBridge,
     migration: migrationBridge,
     generic: genericBridge,
     data: dataBridge,
     kvStore: kvStoreBridge,
+    browser: browserBridge,
+    diagnostics: diagnosticsBridge,
   };
 }

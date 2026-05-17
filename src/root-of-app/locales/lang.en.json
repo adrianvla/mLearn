@@ -101,6 +101,15 @@
           "Description": "Use a separate LLM pass to detect and correct mistakes instead of the conversation agent.",
           "Title": "Checker Agent"
         },
+        "Speech": {
+          "Title": "Speech",
+          "Label": "Speech (Experimental)",
+          "Description": "Enable text-to-speech for AI responses and speech-to-text input"
+        },
+        "AutoSpeak": {
+          "Label": "Auto-speak Responses",
+          "Description": "Automatically read AI tutor responses aloud"
+        },
         "Title": "AI Configuration"
       },
       "SetupRequired": "AI features require setup. Opening settings..."
@@ -246,7 +255,11 @@
       "SigningIn": "Signing in...",
       "TestConnection": "Test Connection",
       "Title": "Connection",
-      "Unreachable": "Unreachable"
+      "Unreachable": "Unreachable",
+      "ICEServers": "WebRTC ICE Servers",
+      "ICEServersLabel": "STUN / TURN servers",
+      "ICEServersDescription": "Used for Watch Together peer connections.",
+      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
     },
     "ConversationAgent": {
       "Agents": {
@@ -746,6 +759,7 @@
         "Complete": "Sync complete!",
         "ConnectedSyncing": "Connected! Syncing...",
         "Error": {
+          "AuthRequired": "Please sign in to sync flashcards",
           "CameraAccess": "Camera access denied",
           "Connection": "Failed to start connection",
           "LoadLibraries": "Failed to load required libraries: {error}"
@@ -755,7 +769,6 @@
         "LoadingLibraries": "Loading libraries...",
         "PointCamera": "Point camera at QR code...",
         "QRHint": "Scan with mLearn mobile app to sync flashcards",
-        "ScanInstructions": "Enter {numChunks} in mLearn app, then scan this QR code",
         "ScanQRInstead": "Scan QR Instead",
         "ShowQRInstead": "Show QR Instead",
         "SyncedSuccessfully": "Flashcards synced successfully!",
@@ -879,6 +892,8 @@
       "Cards": {
         "AITutor": {
           "Description": "Practice with an AI conversation partner",
+          "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
+          "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
           "Title": "AI Tutor"
         },
         "Flashcards": {
@@ -922,7 +937,7 @@
         "ContinueLearning": "Continue Learning",
         "LearningLanguage": "Learning {language}",
         "Title": "mLearn",
-        "TitleDescription": "Learn languages through immersion"
+        "TitleDescription": "Select an option below to begin"
       }
     },
     "Installer": {
@@ -930,6 +945,8 @@
         "NetworkError": "Network error occurred. Please check your connection and try again."
       },
       "Buttons": {
+        "CancelInstall": "Cancel Installation",
+        "CancelRestart": "Cancel Restart",
         "Continue": "Continue",
         "Installing": "Installing...",
         "StartInstallation": "Start Installation"
@@ -952,7 +969,7 @@
         "ChooseComponents": "Choose the components you want to install, then click Install.",
         "ClickToBegin": "Click Install to begin.",
         "DownloadNote": "All downloads are handled automatically. A stable connection is recommended.",
-        "ForgetSomething": "If you forget to install something, delete mLearn and restart the installer again.",
+        "ForgetSomething": "Components cannot be added after installation. Select everything you need now.",
         "LanguageUnlocks": "Language selection unlocks after setup finishes."
       },
       "Status": {
@@ -1016,7 +1033,8 @@
       "en": "English",
       "fr": "Français",
       "ja": "日本語",
-      "ru": "Русский"
+      "ru": "Русский",
+      "zh": "中文"
     },
     "MediaStats": {
       "AllWordsKnown": "All words are known!",
@@ -1265,7 +1283,8 @@
         "WordStatus": "Word Status",
         "KnowledgePriority": "Knowledge Priority",
         "Behaviour": "Behaviour",
-        "WordKnowledge": "Word Knowledge"
+        "WordKnowledge": "Word Knowledge",
+        "LanguageProficiency": "Language Proficiency"
       },
       "Keybind": {
         "PressKey": "Press a key...",
@@ -1301,6 +1320,13 @@
         "LearningLanguage": {
           "Description": "Select the language you are learning",
           "Label": "Learning Language"
+        }
+      },
+      "Behaviour": {
+        "LearningLanguageLevel": {
+          "Label": "Learning Language Level",
+          "Description": "When set, suggested flashcards above this level and cards without a level will not be saved. Also affects Word Sync difficulty.",
+          "NoLimit": "No limit"
         }
       },
       "Performance": {
@@ -1342,6 +1368,31 @@
           "error": "Error"
         }
       },
+      "Shiritori": {
+        "Title": "Shiritori",
+        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
+        "Turn": {
+          "User": "Your turn — say a word starting with \"{kana}\"",
+          "UserFirst": "Your turn — say any Japanese noun",
+          "Computer": "Computer's turn",
+          "ComputerThinking": "Computer is thinking..."
+        },
+        "Error": {
+          "Empty": "Please enter a word.",
+          "Duplicate": "You cannot use a word twice.",
+          "NotFound": "That word was not found in the dictionary.",
+          "WrongStart": "That word must start with \"{kana}\".",
+          "EndsWithN": "Word ends in ん — you lose!",
+          "NoReading": "Could not determine the reading of that word."
+        },
+        "GameOver": {
+          "UserWins": "You win!",
+          "ComputerWins": "Computer wins!",
+          "PlayAgain": "Play Again"
+        },
+        "Submit": "Submit",
+        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+      },
       "KnowledgePriority": {
         "Description": "Configure how word knowledge is determined from multiple sources",
         "ResolutionMode": {
@@ -1373,10 +1424,6 @@
           "Title": "Reading"
         },
         "LlmIntegration": {
-          "AutoSpeak": {
-            "Description": "Automatically read AI tutor responses aloud",
-            "Label": "Auto-speak Responses"
-          },
           "Enable": {
             "Description": "Use AI to explain words and grammar",
             "Label": "Enable LLM Explanations"
@@ -1404,10 +1451,6 @@
               "Label": "Counted Hover Delay"
             },
             "Label": "Passive Word Tracking"
-          },
-          "Speech": {
-            "Description": "Enable text-to-speech for AI responses and speech-to-text input",
-            "Label": "Speech (Experimental)"
           },
           "Title": "LLM Integration"
         },
@@ -1593,11 +1636,6 @@
           "MaxNewCards": {
             "Description": "Limit for auto-created flashcards",
             "Label": "Max New Cards Per Day"
-          },
-          "PreparedExamLevel": {
-            "Description": "Target proficiency level for auto-created cards",
-            "Label": "Target Exam Level",
-            "NoTarget": "No target"
           },
           "StaleLearningDays": {
             "Label": "Stale Learning Threshold (days)",
@@ -1805,14 +1843,55 @@
         "About": "About",
         "Appearance": "Appearance",
         "Behaviour": "Behaviour",
+        "Components": "Components",
         "Connection": "Connection",
         "General": "General",
         "Plugins": "Plugins",
         "Reader": "Reader",
         "SRS": "SRS",
         "Statistics": "Statistics",
-        "VideoPlayer": "Video Player"
+        "VideoPlayer": "Video Player",
+        "BrowserExtension": "Browser Extension"
       }
+    },
+    "BrowserExtension": {
+      "Title": "Browser Extension",
+      "Description": "Install the mLearn browser extension to sync video playback with the app.",
+      "DetectedBrowsers": "Detected Browsers",
+      "Detecting": "Detecting browsers...",
+      "DetectError": "Failed to detect browsers. Please try again.",
+      "NoBrowsers": "No browsers detected",
+      "NoBrowsersHint": "Add a custom browser path below if your browser is not detected automatically.",
+      "Install": "Install",
+      "Installing": "Installing...",
+      "Installed": "Installed",
+      "InstalledAt": "Installed at",
+      "InstallFailed": "Installation failed",
+      "Retry": "Retry",
+      "ManualTitle": "Manual Installation",
+      "ManualChrome": "Open Chrome Extensions (chrome://extensions/), enable Developer mode, click Load unpacked, and select the extension/dist/ folder.",
+      "ManualFirefox": "Open about:debugging, click This Firefox, then click Load Temporary Add-on and select the extension/dist/manifest.json file.",
+      "ManualUnknown": "Please refer to your browser's documentation for loading unpacked extensions.",
+      "CustomPath": "Custom Browser Path",
+      "CustomPathLabel": "Browser type",
+      "CustomPathHint": "Select the browser's main executable or app bundle (e.g., Chrome.app, chrome.exe, firefox.exe). Do not select the Extensions folder.",
+      "Browse": "Browse",
+      "Uninstall": "Uninstall",
+      "UninstallFailed": "Uninstall failed",
+      "ConnectionStatus": "Extension Connection",
+      "ExtensionStatus": "Status",
+      "Connected": "Connected",
+      "Disconnected": "Disconnected",
+      "OpenExtensionFolder": "Open Extension Folder",
+      "OpenExtensionFolderSuccess": "Extension folder opened",
+      "OpenExtensionFolderFailed": "Failed to open extension folder",
+      "CopyExtensionPath": "Copy Path",
+      "ExtensionPathCopied": "Path copied to clipboard",
+      "ManualInstallHint": "Automatic installation failed. You can install the extension manually:",
+      "Step1": "Open your browser's extensions page (chrome://extensions/ or about:addons)",
+      "Step2": "Enable Developer mode (Chrome) or open the gear icon (Firefox)",
+      "Step3": "Click 'Load unpacked' (Chrome) or 'Load Temporary Add-on' (Firefox)",
+      "Step4": "Select the extension folder that was opened"
     },
     "Statistics": {
       "Actions": {
@@ -1854,6 +1933,8 @@
           "Young": "Young (<21d)"
         },
         "NewLearned": "New Learned",
+        "OutsideLevels": "Words Outside Levels",
+        "OutsideLevelsTotal": "Total",
         "Overdue": "Overdue",
         "RetentionRate": "Retention Rate",
         "ReviewActivity": "Review Activity (Last 30 Days)",
@@ -1877,6 +1958,10 @@
         "TimeWatched": "Time Watched",
         "Today": "Today",
         "TodaysSession": "Today's Session",
+        "TotalSessionTime": "Total Session Time",
+        "FlashcardTime": "Flashcards",
+        "VideoTime": "Video",
+        "ReadingTime": "Reading",
         "TotalCards": "Total Cards",
         "TotalImmersion": "Total Immersion",
         "TotalReviews": "Total Reviews",
@@ -1911,7 +1996,11 @@
       "Controls": {
         "Mute": "Mute",
         "PlaybackSpeed": "Playback speed",
-        "Unmute": "Unmute"
+        "Unmute": "Unmute",
+        "SubtitleNone": "None",
+        "SubtitleExternal": "User-provided subtitles",
+        "SubtitleTrack": "Subtitle track",
+        "AudioTrack": "Audio track"
       },
       "CopySubtitle": "Copy subtitle",
       "SyncSubtitles": "Sync subtitles",
@@ -1935,6 +2024,28 @@
         }
       },
       "VideoClipFailed": "Video clip failed, using screenshot instead",
+      "SubtitleExtractionFailed": "Could not extract subtitles from this video. Try loading an external subtitle file instead.",
+      "SubtitleTracksDetected": "Subtitle tracks detected. Auto-extraction not available for large files. Load an external subtitle file or extract them with ffmpeg.",
+      "WatchTogether": "Watch together"
+    },
+    "Overlay": {
+      "Close": "Close overlay",
+      "ControlsAria": "Overlay controls",
+      "DecreaseOffset": "Decrease subtitle offset by 100ms",
+      "DisableAutoPosition": "Disable auto-position",
+      "DragToMove": "Drag to move overlay",
+      "DragToResize": "Drag to resize overlay",
+      "DropSubtitle": "Drag and drop a subtitle file here",
+      "EnableAutoPosition": "Enable auto-position",
+      "IncreaseOffset": "Increase subtitle offset by 100ms",
+      "LoadSubtitles": "Load subtitles",
+      "OffsetTooltip": "Subtitle timing offset",
+      "SyncActive": "Sync active",
+      "SyncInactive": "Sync inactive",
+      "ToggleSubtitles": "Toggle subtitles",
+      "ToggleWordSidebar": "Toggle word sidebar",
+      "OpenConversationAgent": "Open AI conversation tutor",
+      "ToggleLiveTranslator": "Toggle live word translator",
       "WatchTogether": "Watch together"
     },
     "WatchTogether": {
@@ -1981,7 +2092,27 @@
         "SignInRequiredMessage": "Sign in with your mLearn Cloud account to use room codes.",
         "SignInModalTitle": "Sign In for Watch Together",
         "SignInHint": "Enter your mLearn Cloud credentials",
-        "SignInCodeHint": "If you received a device code, enter it below"
+        "SignInCodeHint": "If you received a device code, enter it below",
+        "PeerJoinedSingular": "A peer joined your room",
+        "PeerJoinedPlural": "{count} peers joined your room",
+        "AnticipatingPing": "Anticipating ping..."
+      },
+      "Extension": {
+        "HeadlessMode": "Headless Mode",
+        "Enable": "Enable",
+        "Disable": "Disable",
+        "Subtitles": "Subtitles",
+        "LoadSubtitleFile": "Load Subtitle File",
+        "SyncOffset": "Sync Offset",
+        "SignInRequired": "Sign in to use Watch Together",
+        "SignIn": "Sign In",
+        "Host": "Host",
+        "Join": "Join",
+        "CreateRoom": "Create Room",
+        "RoomCodePlaceholder": "Enter room code",
+        "RoomCode": "Room Code",
+        "Peers": "Peers",
+        "LeaveRoom": "Leave Room"
       },
       "Media": {
         "DistributeTitle": "Distribute Media",
@@ -1999,7 +2130,9 @@
         "ReceivePrompt": "A peer wants to send you a media file. Do you want to receive it?",
         "Receiving": "Receiving media...",
         "ReceiveComplete": "Media received successfully.",
-        "LoadMedia": "Load Media"
+        "LoadMedia": "Load Media",
+        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
+        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
       }
     },
     "WordDbEditor": {
@@ -2152,6 +2285,70 @@
         "Learning": "Marked as learning",
         "Known": "Marked as known"
       }
+    },
+    "Menu": {
+      "About": "About mLearn",
+      "BrowserExtension": {
+        "Title": "Browser Extension",
+        "InstallExtension": "Install Extension...",
+        "OpenOverlayWindow": "Open Overlay Window"
+      },
+      "Cancel": "Cancel",
+      "CollatePages": "Collate Pages",
+      "CopyPhrase": "Copy Phrase",
+      "CopySubtitle": "Copy Subtitle",
+      "Create": "Create",
+      "Edit": "Edit",
+      "EditWordKnowledgeDatabase": "Edit word knowledge database",
+      "Explain": "Explain",
+      "File": "File",
+      "Flashcards": "Flashcards",
+      "ForceRecreateFlashcards": "Force recreate new flashcards for today",
+      "Help": "Help",
+      "HideReading": "Hide Reading",
+      "OpenDevTools": "Open DevTools",
+      "OpenLiveWordTranslator": "Open Live Word Translator",
+      "OpenSyncingWindow": "Open Syncing Window",
+      "RecreateFlashcards": {
+        "Title": "Recreate Flashcards",
+        "Message": "This will create new flashcards from your tracked word candidates. Continue?",
+        "Cancel": "Cancel",
+        "Create": "Create"
+      },
+      "ReviewFlashcards": "Review Flashcards",
+      "Settings": "Settings",
+      "ShowKanjiGrid": "Show Kanji grid",
+      "ShowLearningStatistics": "Show learning statistics",
+      "ShowReading": "Show Reading",
+      "Statistics": "Statistics",
+      "StopWatchTogether": "Stop Watch Together",
+      "SyncSubtitles": "Sync Subtitles with Video",
+      "SyncWithMe": "Sync with me",
+      "UncollatePages": "Uncollate Pages",
+      "Video": "Video",
+      "View": "View",
+      "WatchTogether": "Watch Together",
+      "Window": "Window"
+    },
+    "ComponentsTab": {
+      "Description": "Manage installed components. Toggle modules on or off and reinstall to apply changes.",
+      "Reinstall": "Reinstall Components",
+      "RestartNote": "The app will restart after installation completes."
+    },
+    "Diagnostics": {
+      "Title": "mLearn Diagnostics",
+      "RunAllTests": "Run All Tests",
+      "RunAgain": "Run Again",
+      "Running": "Running…",
+      "ExportJson": "Export JSON",
+      "ErrorTitle": "Diagnostics failed",
+      "ReportSavedTo": "Report saved to:",
+      "FilterAll": "All",
+      "FilterPass": "Pass",
+      "FilterFail": "Fail",
+      "FilterSkip": "Skip",
+      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
+      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
     }
   }
 }

@@ -2,8 +2,8 @@
  * Behaviour Settings Tab
  */
 
-import { Component, Show, createMemo } from 'solid-js';
-import { useSettings, useLocalization } from '../../../context';
+import { Component, Show, For, createMemo } from 'solid-js';
+import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, SortableList, Input } from '../../../components/common';
 import type { SortableListItem } from '../../../components/common';
 import { PASSIVE_HOVER_FAIL_ACTIONS, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
@@ -13,6 +13,7 @@ import '../SettingsForm.css';
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { getFreqLevelNames, getLanguageFeatures } = useLanguage();
 
   const sourceLabel = (src: KnowledgeSource) =>
     t(`mlearn.Settings.KnowledgePriority.Source.${src[0].toUpperCase() + src.slice(1)}`);
@@ -52,6 +53,13 @@ export const BehaviourTab: Component = () => {
     }
     updateSettings({ knowledgeSourceOrder: merged });
   };
+
+  const freqLevels = createMemo(() => {
+    const names = getFreqLevelNames();
+    return Object.entries(names).sort((a, b) => Number(b[0]) - Number(a[0]));
+  });
+
+  const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
 
   return (
     <TabContent
@@ -337,6 +345,31 @@ export const BehaviourTab: Component = () => {
           </Show>
         </Show>
       </SettingGroup>
+
+      <Show when={hasFreqLevels()}>
+        <SettingGroup title={t('mlearn.Settings.Groups.LanguageProficiency')}>
+          <SettingRow
+            label={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Label')}
+            description={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Description')}
+          >
+            <Select
+              class="setting-select"
+              value={settings.learningLanguageLevel != null ? String(settings.learningLanguageLevel) : ''}
+              onChange={(e) => {
+                const val = e.currentTarget.value;
+                updateSettings({ learningLanguageLevel: val ? parseInt(val) : null });
+              }}
+            >
+              <option value="">{t('mlearn.Settings.Behaviour.LearningLanguageLevel.NoLimit')}</option>
+              <For each={freqLevels()}>
+                {([level, name]) => (
+                  <option value={level}>{name}</option>
+                )}
+              </For>
+            </Select>
+          </SettingRow>
+        </SettingGroup>
+      </Show>
 
       <SettingGroup title={t('mlearn.Settings.Groups.KnowledgePriority')}>
         <SettingRow

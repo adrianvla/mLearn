@@ -4,7 +4,7 @@
  * Reduces duplication and ensures consistent styling
  */
 
-import { Component, JSX, splitProps } from 'solid-js';
+import { Component, JSX, Show, splitProps } from 'solid-js';
 
 export interface IconProps extends JSX.SvgSVGAttributes<SVGSVGElement> {
   /** Size in pixels (applies to both width and height) */
@@ -364,6 +364,192 @@ export const AnkiIcon: Component<IconProps> = (props) => {
   );
 };
 
+// ============ Overlay Control Icons ============
+
+export interface VolumeLevelIconProps extends IconProps {
+  level: 'high' | 'low' | 'muted';
+}
+
+/** Volume icon with dynamic level indicator (high/low/muted) */
+export const VolumeLevelIcon: Component<VolumeLevelIconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color', 'level']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      {...svgProps}
+    >
+      <path d="M11 5L6 9H2v6h4l5 4V5z" />
+      <Show when={local.level === 'high'}>
+        <path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
+      </Show>
+      <Show when={local.level === 'low'}>
+        <path d="M15.54 8.46a5 5 0 010 7.07" />
+      </Show>
+      <Show when={local.level === 'muted'}>
+        <line x1="23" y1="9" x2="17" y2="15" />
+        <line x1="17" y1="9" x2="23" y2="15" />
+      </Show>
+    </svg>
+  );
+};
+
+/** Subtitle/CC icon */
+export const SubtitleIcon: Component<IconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      {...svgProps}
+    >
+      <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
+      <line x1="6" y1="14" x2="18" y2="14" />
+      <line x1="6" y1="18" x2="14" y2="18" />
+    </svg>
+  );
+};
+
+/** Drag handle icon (6-dot grid pattern) */
+export const DragIcon: Component<IconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color']);
+  return (
+    <svg
+      width={local.size ?? 16}
+      height={local.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      {...svgProps}
+    >
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="19" r="1" />
+    </svg>
+  );
+};
+
+/** Resize handle icon (diagonal arrows) */
+export const ResizeIcon: Component<IconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color']);
+  return (
+    <svg
+      width={local.size ?? 16}
+      height={local.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      {...svgProps}
+    >
+      <polyline points="15 3 21 3 21 9" />
+      <polyline points="9 21 3 21 3 15" />
+      <line x1="21" y1="3" x2="14" y2="10" />
+      <line x1="3" y1="21" x2="10" y2="14" />
+    </svg>
+  );
+};
+
+export interface AutoPositionIconProps extends IconProps {
+  enabled: boolean;
+}
+
+/** Auto-position toggle icon */
+export const AutoPositionIcon: Component<AutoPositionIconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color', 'enabled']);
+  return (
+    <svg
+      width={local.size ?? 16}
+      height={local.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      {...svgProps}
+    >
+      <Show when={local.enabled} fallback={<>
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+      </>}>
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+        <path d="M15 8l3 3-3 3" />
+      </Show>
+    </svg>
+  );
+};
+
+/** People group / Users icon – two people, for watch together */
+export const PeopleGroupIcon: Component<IconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      {...svgProps}
+    >
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+};
+
+export interface TranslateIconProps extends IconProps {
+  active?: boolean;
+}
+
+/** Translate / Language icon – for live word translator toggle */
+export const TranslateIcon: Component<TranslateIconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color', 'active']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      {...svgProps}
+    >
+      <Show when={local.active}>
+        <path d="M10 5H20V14H13V20H5V13H10Z" fill="currentColor" opacity="0.25" />
+      </Show>
+      <path d="M4 4L5 5" />
+      <path d="M3 7H9" />
+      <path d="M6 7L3 12" />
+      <path d="M6 7L9 12" />
+      <path d="M10 5H20" />
+      <path d="M20 5V14" />
+      <path d="M5 13V20" />
+      <path d="M5 20H13" />
+      <path d="M14 20L17 12L20 20" />
+      <path d="M15.5 16.5H18.5" />
+    </svg>
+  );
+};
+
 export default {
   CloseIcon,
   CrossIcon,
@@ -415,4 +601,9 @@ export default {
   VolumeOffIcon,
   StealthIcon,
   AnkiIcon,
+  VolumeLevelIcon,
+  SubtitleIcon,
+  DragIcon,
+  ResizeIcon,
+  AutoPositionIcon,
 };

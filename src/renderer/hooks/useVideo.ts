@@ -9,6 +9,22 @@ import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useVideo");
 
+export interface VideoTrack {
+  id: string;
+  label: string;
+  language: string;
+  kind: string;
+  enabled: boolean;
+}
+
+export interface TextTrack {
+  id: string;
+  label: string;
+  language: string;
+  kind: string;
+  mode: string;
+}
+
 export interface VideoState {
   currentTime: number;
   duration: number;
@@ -19,10 +35,19 @@ export interface VideoState {
   isLoaded: boolean;
   isPiP: boolean;
   isFullscreen: boolean;
+  isBuffering: boolean;
+  audioTracks: VideoTrack[];
+  textTracks: TextTrack[];
 }
 
-export function useVideo() {
+export interface UseVideoOptions {
+  /** Container element to use for fullscreen (defaults to video parent) */
+  getFullscreenContainer?: () => HTMLElement | null;
+}
+
+export function useVideo(options: UseVideoOptions = {}) {
   let videoRef: HTMLVideoElement | null = null;
+  let objectUrlRef: string | null = null;
 
   const [state, setState] = createStore<VideoState>({
     currentTime: 0,
@@ -34,6 +59,9 @@ export function useVideo() {
     isLoaded: false,
     isPiP: false,
     isFullscreen: false,
+    isBuffering: false,
+    audioTracks: [],
+    textTracks: [],
   });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
@@ -53,10 +81,31 @@ export function useVideo() {
     element.addEventListener('pause', handlePause);
     element.addEventListener('volumechange', handleVolumeChange);
     element.addEventListener('loadeddata', handleLoaded);
+    element.addEventListener('loadeddata', handleLoadedData);
+    element.addEventListener('loadedmetadata', handleLoadedMetadata);
     element.addEventListener('enterpictureinpicture', handlePiPEnter);
     element.addEventListener('leavepictureinpicture', handlePiPLeave);
+    element.addEventListener('ratechange', handleRateChange);
+    element.addEventListener('waiting', handleWaiting);
+    element.addEventListener('stalled', handleStalled);
+    element.addEventListener('canplay', handleCanPlay);
+    element.addEventListener('playing', handlePlaying);
+    element.addEventListener('progress', handleProgress);
+    element.addEventListener('error', handleError);
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    const audioTracks = (element as unknown as { audioTracks?: EventTarget }).audioTracks;
+    if (audioTracks) {
+      audioTracks.addEventListener('change', handleAudioTrackChange);
+      audioTracks.addEventListener('addtrack', handleAddTrack);
+      audioTracks.addEventListener('removetrack', handleRemoveTrack);
+    }
+    if (element.textTracks) {
+      element.textTracks.addEventListener('change', handleTextTrackChange);
+      element.textTracks.addEventListener('addtrack', handleAddTrack);
+      element.textTracks.addEventListener('removetrack', handleRemoveTrack);
+    }
   };
 
   // Detach from video element
@@ -69,10 +118,30 @@ export function useVideo() {
     videoRef.removeEventListener('pause', handlePause);
     videoRef.removeEventListener('volumechange', handleVolumeChange);
     videoRef.removeEventListener('loadeddata', handleLoaded);
+    videoRef.removeEventListener('loadeddata', handleLoadedData);
     videoRef.removeEventListener('enterpictureinpicture', handlePiPEnter);
     videoRef.removeEventListener('leavepictureinpicture', handlePiPLeave);
+    videoRef.removeEventListener('ratechange', handleRateChange);
+    videoRef.removeEventListener('waiting', handleWaiting);
+    videoRef.removeEventListener('stalled', handleStalled);
+    videoRef.removeEventListener('canplay', handleCanPlay);
+    videoRef.removeEventListener('playing', handlePlaying);
+    videoRef.removeEventListener('progress', handleProgress);
+    videoRef.removeEventListener('error', handleError);
 
     document.removeEventListener('fullscreenchange', handleFullscreenChange);
+
+    const audioTracks = (videoRef as unknown as { audioTracks?: EventTarget }).audioTracks;
+    if (audioTracks) {
+      audioTracks.removeEventListener('change', handleAudioTrackChange);
+      audioTracks.removeEventListener('addtrack', handleAddTrack);
+      audioTracks.removeEventListener('removetrack', handleRemoveTrack);
+    }
+    if (videoRef.textTracks) {
+      videoRef.textTracks.removeEventListener('change', handleTextTrackChange);
+      videoRef.textTracks.removeEventListener('addtrack', handleAddTrack);
+      videoRef.textTracks.removeEventListener('removetrack', handleRemoveTrack);
+    }
 
     videoRef = null;
   };
@@ -117,6 +186,131 @@ export function useVideo() {
 
   const handleFullscreenChange = () => {
     setState('isFullscreen', !!document.fullscreenElement);
+  };
+
+  const handleRateChange = () => {
+    if (!videoRef) return;
+    setState('playbackRate', videoRef!.playbackRate);
+  };
+
+  const handleWaiting = () => {
+    setState('isBuffering', true);
+  };
+
+  const handleStalled = () => {
+    setState('isBuffering', true);
+  };
+
+  const handleCanPlay = () => {
+    setState('isBuffering', false);
+  };
+
+  const handlePlaying = () => {
+    setState('isBuffering', false);
+  };
+
+  const handleProgress = () => {
+    // Progress event fires as data is downloaded; if we're playing, we're not buffering
+    if (videoRef && !videoRef.paused) {
+      setState('isBuffering', false);
+    }
+  };
+
+  const handleError = () => {
+    if (!videoRef) return;
+    const err = videoRef.error;
+    log.error('Video element error:', err?.code, err?.message);
+  };
+
+  const readAudioTracks = (): VideoTrack[] => {
+    if (!videoRef) return [];
+    const tracks = (videoRef as unknown as { audioTracks?: { length: number; [index: number]: { label: string; language: string; kind: string; enabled: boolean } } }).audioTracks;
+    if (!tracks) return [];
+    const result: VideoTrack[] = [];
+    for (let i = 0; i < tracks.length; i++) {
+      const track = tracks[i];
+      result.push({
+        id: String(i),
+        label: track.label || track.language || `Track ${i + 1}`,
+        language: track.language || '',
+        kind: track.kind || '',
+        enabled: track.enabled,
+      });
+    }
+    return result;
+  };
+
+  const readTextTracks = (): TextTrack[] => {
+    if (!videoRef) return [];
+    const tracks = videoRef.textTracks;
+    if (!tracks) return [];
+    return Array.from(tracks).map((track, index) => ({
+      id: String(index),
+      label: track.label || track.language || `Track ${index + 1}`,
+      language: track.language || '',
+      kind: track.kind || '',
+      mode: track.mode,
+    }));
+  };
+
+  const refreshTracks = () => {
+    if (!videoRef) return;
+    const audio = readAudioTracks();
+    const text = readTextTracks();
+    setState('audioTracks', audio);
+    setState('textTracks', text);
+    if (audio.length > 0 || text.length > 0) {
+      log.info('Tracks detected — audio:', audio.length, 'text:', text.length);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    refreshTracks();
+  };
+
+  const handleLoadedData = () => {
+    refreshTracks();
+  };
+
+  const handleAudioTrackChange = () => {
+    setState('audioTracks', readAudioTracks());
+  };
+
+  const handleTextTrackChange = () => {
+    setState('textTracks', readTextTracks());
+  };
+
+  const handleAddTrack = () => {
+    refreshTracks();
+  };
+
+  const handleRemoveTrack = () => {
+    refreshTracks();
+  };
+
+  const setAudioTrack = (index: number) => {
+    const tracks = (videoRef as unknown as { audioTracks?: { length: number; [index: number]: { enabled: boolean } } }).audioTracks;
+    if (!tracks) return;
+    for (let i = 0; i < tracks.length; i++) {
+      tracks[i].enabled = i === index;
+    }
+    setState('audioTracks', readAudioTracks());
+  };
+
+  const setTextTrack = (index: number) => {
+    if (!videoRef?.textTracks) return;
+    for (let i = 0; i < videoRef.textTracks.length; i++) {
+      videoRef.textTracks[i].mode = i === index ? 'showing' : 'hidden';
+    }
+    setState('textTracks', readTextTracks());
+  };
+
+  const disableTextTracks = () => {
+    if (!videoRef?.textTracks) return;
+    for (let i = 0; i < videoRef.textTracks.length; i++) {
+      videoRef.textTracks[i].mode = 'hidden';
+    }
+    setState('textTracks', readTextTracks());
   };
 
   // Control methods
@@ -186,8 +380,11 @@ export function useVideo() {
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-      } else if (videoRef?.parentElement) {
-        await videoRef.parentElement.requestFullscreen();
+      } else {
+        const container = options.getFullscreenContainer?.() ?? videoRef?.parentElement;
+        if (container) {
+          await container.requestFullscreen();
+        }
       }
     } catch (e) {
       log.error('Fullscreen toggle failed:', e);
@@ -195,21 +392,28 @@ export function useVideo() {
   };
 
   const loadVideo = (src: string) => {
+    // Revoke previous object URL if any
+    if (objectUrlRef) {
+      URL.revokeObjectURL(objectUrlRef);
+      objectUrlRef = null;
+    }
+
+    log.info('useVideo.loadVideo: src=', src);
     setVideoSrc(src);
-    setState({ isLoaded: false, currentTime: 0, duration: 0 });
+    setState({ isLoaded: false, currentTime: 0, duration: 0, isBuffering: false, audioTracks: [], textTracks: [] });
 
     if (videoRef) {
       videoRef.src = src;
       videoRef.load();
+    } else {
+      log.warn('useVideo.loadVideo: videoRef is null, cannot set src');
     }
   };
 
   const loadVideoFile = (file: File) => {
     const url = URL.createObjectURL(file);
+    objectUrlRef = url;
     loadVideo(url);
-    
-    // Clean up object URL when new video is loaded
-    onCleanup(() => URL.revokeObjectURL(url));
   };
 
   // Formatted time helpers
@@ -237,38 +441,46 @@ export function useVideo() {
   // Cleanup on unmount
   onCleanup(() => {
     detachVideo();
+    if (objectUrlRef) {
+      URL.revokeObjectURL(objectUrlRef);
+      objectUrlRef = null;
+    }
   });
 
   return {
     state,
     videoSrc,
-    
+
     // Attach/detach
     attachVideo,
     detachVideo,
-    
+
     // Playback controls
     play,
     pause,
     togglePlay,
     seek,
     seekRelative,
-    
+
     // Volume
     setVolume,
     toggleMute,
-    
+
     // Speed
     setPlaybackRate,
-    
+
     // Display modes
     togglePiP,
     toggleFullscreen,
-    
+
+    setAudioTrack,
+    setTextTrack,
+    disableTextTracks,
+
     // Loading
     loadVideo,
     loadVideoFile,
-    
+
     // Formatted values
     formatTime,
     formattedCurrentTime,
@@ -278,10 +490,15 @@ export function useVideo() {
 }
 
 // Keyboard shortcuts hook
-export function useVideoKeyboard(video: ReturnType<typeof useVideo>) {
+export function useVideoKeyboard(video: ReturnType<typeof useVideo>, _options: { getScope?: () => HTMLElement | null } = {}) {
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Skip if focused on input
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+    // Skip if focused on an interactive text element
+    const target = e.target as HTMLElement;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target.isContentEditable
+    ) {
       return;
     }
 
@@ -331,9 +548,9 @@ export function useVideoKeyboard(video: ReturnType<typeof useVideo>) {
     }
   };
 
-  document.addEventListener('keydown', handleKeyDown);
-  
+  document.addEventListener('keydown', handleKeyDown as EventListener);
+
   onCleanup(() => {
-    document.removeEventListener('keydown', handleKeyDown);
+    document.removeEventListener('keydown', handleKeyDown as EventListener);
   });
 }

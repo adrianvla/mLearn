@@ -18,6 +18,9 @@ const mockRemovePluginFromRegistry = vi.fn();
 const mockUninstallPlugin = vi.fn();
 
 vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+  },
   BrowserWindow: {
     getAllWindows: vi.fn(() => []),
   },
@@ -195,7 +198,7 @@ describe('pluginIPC pluginOpenWindow', () => {
       {
         pluginId: 'demo.plugin',
         pluginName: 'Demo Plugin',
-        initialContext: { word: 'neko' },
+        initialContext: { word: 'neko', __mlearnLanguage: 'ja' },
         ui: {
           type: 'schema',
           schema: {

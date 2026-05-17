@@ -63,6 +63,7 @@ import { createConversationAgent } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, ConversationSafetyFlag, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
 import { getConversationErrorMessage } from './errorUtils';
@@ -1264,8 +1265,8 @@ export const ConversationContent: Component = () => {
   };
 
   // Hover trigger mode controls (same as ReaderStatusBar)
-  const currentTriggerMode = () => settings.readerWordHoverTrigger ?? 'hover';
-  const currentKey = () => settings.readerWordHoverKey ?? 'shift';
+  const currentTriggerMode = () => settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger!;
+  const currentKey = () => settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!;
 
   const getHoverTriggerLabel = (mode: WordHoverTriggerMode): string => {
     switch (mode) {

@@ -6,10 +6,21 @@
  */
 
 import { Component, createMemo, onMount, onCleanup, createSignal, Show, For } from 'solid-js';
-import { useFlashcards } from '../../context';
+import { useFlashcards, useSettings } from '../../context';
 import { useLocalization } from '../../context';
 import { formatDurationHM } from '../../utils/timeFormatting';
+import {
+  computeStateDistribution,
+  computeEaseDistribution,
+  computeIntervalDistribution,
+  computeMaturityBreakdown,
+  computeRetentionStats,
+  computeAverageEase,
+  computeDailyActivity,
+  computeDueCounts,
+} from '../../services/flashcardStats';
 import { Card, StatCard, BookIcon, CalendarIcon, StarIcon, BreakdownRow } from '../common';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './FlashcardStats.css';
 
 // ============================================================================
@@ -242,9 +253,9 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   const {
     store,
     getAllCards,
-    queueCounts,
     updateMeta,
   } = useFlashcards();
+  const { settings } = useSettings();
   const { t } = useLocalization();
 
   // Canvas refs
@@ -257,134 +268,15 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   // ---- Computed Data ----
 
   const cards = createMemo(() => getAllCards());
-  const counts = createMemo(() => queueCounts());
-  const activeCards = createMemo(() => cards().filter(c => !c.suspended));
+  const dueCounts = createMemo(() => computeDueCounts(cards(), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!));
 
-  // Card state distribution
-  const stateDistribution = createMemo(() => {
-    const all = cards();
-    return {
-      new: all.filter(c => c.state === 'new' && !c.suspended).length,
-      learning: all.filter(c => (c.state === 'learning' || c.state === 'relearning') && !c.suspended).length,
-      review: all.filter(c => c.state === 'review' && !c.suspended).length,
-      suspended: all.filter(c => c.suspended).length,
-    };
-  });
-
-  // Ease factor distribution (buckets)
-  const easeDistribution = createMemo(() => {
-    const reviewed = activeCards().filter(c => c.state === 'review' || c.state === 'relearning');
-    const buckets: Record<string, number> = {
-      '1.3-1.5': 0, '1.5-1.8': 0, '1.8-2.1': 0, '2.1-2.5': 0, '2.5-3.0': 0, '3.0+': 0
-    };
-    for (const card of reviewed) {
-      const e = card.ease;
-      if (e < 1.5) buckets['1.3-1.5']++;
-      else if (e < 1.8) buckets['1.5-1.8']++;
-      else if (e < 2.1) buckets['1.8-2.1']++;
-      else if (e < 2.5) buckets['2.1-2.5']++;
-      else if (e < 3.0) buckets['2.5-3.0']++;
-      else buckets['3.0+']++;
-    }
-    return buckets;
-  });
-
-  // Interval distribution
-  const intervalDistribution = createMemo(() => {
-    const reviewed = activeCards().filter(c => c.state === 'review');
-    const DAY = 24 * 60 * 60 * 1000;
-    const buckets = [
-      { label: '<1d', max: DAY, count: 0 },
-      { label: '1-3d', max: 3 * DAY, count: 0 },
-      { label: '3-7d', max: 7 * DAY, count: 0 },
-      { label: '1-2w', max: 14 * DAY, count: 0 },
-      { label: '2w-1m', max: 30 * DAY, count: 0 },
-      { label: '1-3m', max: 90 * DAY, count: 0 },
-      { label: '3-6m', max: 180 * DAY, count: 0 },
-      { label: '6m+', max: Infinity, count: 0 },
-    ];
-    for (const card of reviewed) {
-      for (const bucket of buckets) {
-        if (card.interval < bucket.max) {
-          bucket.count++;
-          break;
-        }
-      }
-    }
-    return buckets;
-  });
-
-  // Maturity breakdown (young vs mature)
-  const maturityBreakdown = createMemo(() => {
-    const reviewed = activeCards().filter(c => c.state === 'review');
-    const MATURE_THRESHOLD = 21 * 24 * 60 * 60 * 1000; // 21 days
-    const mature = reviewed.filter(c => c.interval >= MATURE_THRESHOLD).length;
-    const young = reviewed.length - mature;
-    return { young, mature, total: reviewed.length };
-  });
-
-  // Retention rate (from daily stats)
-  const retentionStats = createMemo(() => {
-    const daily = store.dailyStats;
-    const keys = Object.keys(daily).sort().slice(-30); // last 30 days
-    let totalReviews = 0;
-    let totalLapses = 0;
-    let totalTime = 0;
-    let totalNew = 0;
-    let totalGraduated = 0;
-
-    for (const key of keys) {
-      const d = daily[key];
-      totalReviews += d.reviewCardsStudied;
-      totalLapses += d.lapses;
-      totalTime += d.timeSpent;
-      totalNew += d.newCardsStudied;
-      totalGraduated += d.graduated;
-    }
-
-    const retention = totalReviews > 0 ? ((totalReviews - totalLapses) / totalReviews) * 100 : 0;
-    const avgTimePerDay = keys.length > 0 ? totalTime / keys.length : 0;
-
-    return {
-      retention: Math.round(retention * 10) / 10,
-      totalReviews,
-      totalLapses,
-      totalNew,
-      totalGraduated,
-      avgTimePerDay,
-      daysStudied: keys.filter(k => daily[k].reviewCardsStudied + daily[k].newCardsStudied > 0).length,
-      totalDays: keys.length,
-    };
-  });
-
-  // Average ease
-  const averageEase = createMemo(() => {
-    const reviewed = activeCards().filter(c => c.state === 'review' || c.state === 'relearning');
-    if (reviewed.length === 0) return 0;
-    const sum = reviewed.reduce((s, c) => s + c.ease, 0);
-    return Math.round((sum / reviewed.length) * 100) / 100;
-  });
-
-  // Daily activity (last 30 days bar chart)
-  const dailyActivity = createMemo(() => {
-    const daily = store.dailyStats;
-    const result: { date: string; total: number; newCards: number; reviews: number }[] = [];
-    const now = new Date();
-
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().split('T')[0];
-      const stats = daily[key];
-      result.push({
-        date: key,
-        total: stats ? stats.newCardsStudied + stats.reviewCardsStudied : 0,
-        newCards: stats?.newCardsStudied ?? 0,
-        reviews: stats?.reviewCardsStudied ?? 0,
-      });
-    }
-    return result;
-  });
+  const stateDistribution = createMemo(() => computeStateDistribution(cards()));
+  const easeDistribution = createMemo(() => computeEaseDistribution(cards()));
+  const intervalDistribution = createMemo(() => computeIntervalDistribution(cards()));
+  const maturityBreakdown = createMemo(() => computeMaturityBreakdown(cards()));
+  const retentionStats = createMemo(() => computeRetentionStats(store.dailyStats));
+  const averageEase = createMemo(() => computeAverageEase(cards()));
+  const dailyActivity = createMemo(() => computeDailyActivity(store.dailyStats));
 
   // Format milliseconds to readable time
   const formatTime = (ms: number): string => formatDurationHM(ms, t);
@@ -430,10 +322,9 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
     // Ease distribution bar chart
     if (easeChartRef) {
       const dist = easeDistribution();
-      const entries = Object.entries(dist);
-      drawBarChart(easeChartRef, entries.map(([label, value]) => ({
-        label,
-        value,
+      drawBarChart(easeChartRef, dist.map(b => ({
+        label: b.label,
+        value: b.count,
         color: colors.ease,
       })), { showLabels: true });
     }
@@ -546,7 +437,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
         <Card>
           <StatCard
             label={t('mlearn.Flashcards.Statistics.DueToday')}
-            value={counts().total}
+            value={dueCounts().total}
             icon={<CalendarIcon />}
             color="warning"
             size="lg"

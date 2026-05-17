@@ -26,6 +26,7 @@ import { createPluginBusStore } from './pluginBus';
 import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
 import { openManagedChildWindow } from './windowManager';
 import { getLogger } from '../../shared/utils/logger';
+import { loadSettings } from './settings';
 
 const log = getLogger('electron.pluginIPC');
 
@@ -175,11 +176,16 @@ function buildPluginHostContext(
     };
   }
 
+  const settings = loadSettings();
+
   return {
     pluginId: manifest.id,
     pluginName: manifest.name,
     ui,
-    initialContext: payload.context,
+    initialContext: {
+      ...payload.context,
+      __mlearnLanguage: settings.language,
+    },
   };
 }
 

@@ -5,7 +5,7 @@
  */
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
-import type { Token, DictionaryEntry, TranslationEntry, PitchData } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry, type PitchData } from '../../../shared/types';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
@@ -274,10 +274,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     void props.dictionaryEntries;
     
     if (!visible || !subtitleHoverRef) return;
+
+    console.log('[WordHover] createEffect (1) triggering position calc, pos=', props.position.x, props.position.y, 'inner=', window.innerWidth, 'x', window.innerHeight);
     
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
+      console.log('[WordHover] createEffect (1) RAF callback: dims=', width, 'x', height, 'newPos=', newPos, 'inner=', window.innerWidth, 'x', window.innerHeight);
       setComputedPosition(newPos);
     });
   });
@@ -286,9 +289,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const visible = isShown();
     if (!visible || !subtitleHoverRef) return;
 
-    const ro = new ResizeObserver(() => {
+    console.log('[WordHover] createEffect (2 - ResizeObserver) mounted, inner=', window.innerWidth, 'x', window.innerHeight);
+
+    const ro = new ResizeObserver((entries) => {
+      console.log('[WordHover] 🔄 ResizeObserver fired, contentRect=', entries[0]?.contentRect, 'inner=', window.innerWidth, 'x', window.innerHeight);
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
+      console.log('[WordHover] resize: newPos=', newPos);
       setComputedPosition(newPos);
     });
 
@@ -297,6 +304,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
+      console.log('[WordHover] createEffect (2) RAF: dims=', width, 'x', height, 'newPos=', newPos, 'inner=', window.innerWidth, 'x', window.innerHeight);
       setComputedPosition(newPos);
     });
 
@@ -371,7 +379,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
         // If video mode, clip and save the video segment
         if (isVideoMode && props.videoSrc && props.subtitleStart != null && props.subtitleEnd != null) {
-          const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
+          const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
           const start = Math.max(0, props.subtitleStart - margin);
           const end = props.subtitleEnd + margin;
           const videoData = await clipVideo(props.videoSrc, start, end);

@@ -102,6 +102,7 @@ sendLogRecord: (record: unknown) => void;
   
   // Python Installer
   startInstall: (options: InstallOptions) => void;
+  cancelInstall: () => void;
   requestInstallerState: () => void;
   onPythonSuccess: (callback: (success: boolean) => void) => () => void;
   onInstallStarted: (callback: (options: InstallOptions) => void) => () => void;
@@ -129,7 +130,35 @@ sendLogRecord: (record: unknown) => void;
   watchTogetherSend: (message: unknown) => void;
   onWatchTogetherLaunch: (callback: (data: unknown) => void) => () => void;
   onWatchTogetherRequest: (callback: (data: unknown) => void) => () => void;
-  
+
+  // Overlay
+  sendOverlayVideoState: (state: import('./types').OverlayVideoState) => void;
+  onOverlayVideoState: (callback: (state: import('./types').OverlayVideoState) => void) => () => void;
+  requestOverlaySync: () => void;
+  onOverlayRequestSync: (callback: () => void) => () => void;
+  launchOverlay: () => void;
+  onOverlayLaunch: (callback: () => void) => () => void;
+  onOverlayGeometry: (callback: (geometry: import('./types').OverlayGeometry) => void) => () => void;
+  setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
+  sendOverlayCommand: (cmd: import('./types').OverlayCommand) => void;
+  sendOverlaySubtitleTracks: (tracks: import('./types').OverlaySubtitleTracks) => void;
+  onOverlaySubtitleTracks: (callback: (tracks: import('./types').OverlaySubtitleTracks) => void) => () => void;
+  overlayMoveBy: (delta: { x: number; y: number }) => Promise<void>;
+  overlayResizeBy: (delta: { width: number; height: number }) => Promise<void>;
+  overlayGetBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
+  overlaySetAutoPosition: (enabled: boolean) => Promise<void>;
+  overlaySetGeometryLocked: (locked: boolean) => void;
+  onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) => () => void;
+  sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => void;
+  onOverlayTextModeLookup: (callback: (payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => void) => () => void;
+  onOverlayTextModeConnected: (callback: (connected: boolean) => void) => () => void;
+  overlaySaveSiteState: (payload: { url: string; state: Record<string, unknown> }) => void;
+  overlayLoadSiteState: (url: string) => Promise<Record<string, unknown> | null>;
+  overlayClearSiteState: (url: string) => void;
+  overlaySetBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<void>;
+  onOverlayActiveUrlChanged: (callback: (url: string) => void) => () => void;
+  onOverlayCloseHover: (callback: () => void) => () => void;
+
   // Pill/Word Updates (cross-window sync)
   onUpdatePills: (callback: (data: unknown) => void) => () => void;
   onUpdateWordAppearance: (callback: (data: unknown) => void) => () => void;
@@ -163,7 +192,10 @@ sendLogRecord: (record: unknown) => void;
   selectSubtitleFile: () => Promise<string | null>;
   selectBookFolder: () => Promise<string | null>;
   selectPdfFile: () => Promise<string | null>;
+  selectBrowserFile: () => Promise<string | null>;
   readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
+  readMediaFileChunk: (filePath: string, offset: number, length: number) => Promise<ArrayBuffer | null>;
+  getFileSize: (filePath: string) => Promise<number | null>;
   /**
    * Convert a local file path to a local-media:// URL for secure media playback.
    * Use this for video/audio files to bypass Electron's file:// restrictions.
@@ -255,11 +287,24 @@ sendLogRecord: (record: unknown) => void;
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
   dataImport: () => Promise<{ success: boolean; error?: string }>;
 
+  // Browser Detection & Extension Installation
+  detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>) => Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>>;
+  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; path?: string; error?: string; extensionPath?: string }>;
+  uninstallExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; error?: string }>;
+  isExtensionInstalled: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ installed: boolean }>;
+  openExtensionFolder: () => Promise<boolean>;
+
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
   getWindowContext: (windowType: string) => void;
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
+
+  // Diagnostics
+  runDiagnostics: () => Promise<import('./diagnostics/types').DiagnosticsReport>;
+  onDiagnosticsProgress: (callback: (progress: import('./diagnostics/types').DiagnosticsProgressEvent) => void) => () => void;
+  onDiagnosticsComplete: (callback: (report: import('./diagnostics/types').DiagnosticsReport) => void) => () => void;
+  saveDiagnosticsReport: (reportJson: string) => Promise<string>;
 }
 
 export interface MLearnInternal {

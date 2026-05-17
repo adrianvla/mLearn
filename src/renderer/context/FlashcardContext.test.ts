@@ -199,6 +199,7 @@ type FlashcardCtx = {
   isWordKnown: (wordHash: string) => boolean;
   isWordKnownByText: (word: string) => boolean;
   trackGrammarEncountered: (pattern: string, level?: number) => void;
+  setWordBankStatus: (word: string, status: 'unknown' | 'learning' | 'known', bank: string, options?: { reading?: string; content?: Partial<Record<string, unknown>> & { front: string; back: string } }) => Promise<void>;
   trackGrammarFailed: (pattern: string, level?: number) => void;
   getGrammarKnowledge: (pattern: string) => { pattern: string; ease: number; timesEncountered: number; timesFailed: number; lastSeen: number; level: number; language: string } | undefined;
   startSession: () => void;
@@ -207,6 +208,10 @@ type FlashcardCtx = {
   nukeAllFlashcards: () => void;
   pendingFlashcardChoice: () => unknown;
   resolvePendingFlashcardChoice: (target: 'srs' | 'anki' | 'cancel') => void;
+  captureSuggestedFlashcard: (params: { word: string; reading?: string; pos?: string; level?: number | null; language?: string; contextPhrase?: string; contextHtml?: string; imageUrl?: string; videoUrl?: string; source?: string; sourceMediaHash?: string }) => Promise<void>;
+  getSuggestedFlashcardsSync: () => Array<{ id: string; word: string; reading?: string; pos?: string; level?: number | null; language: string; contextPhrase?: string; contextHtml?: string; imageUrl?: string; videoUrl?: string; source?: string; sourceMediaHash?: string; createdAt: number; lastSeen: number; count: number }>;
+  removeSuggestedFlashcard: (id: string) => void;
+  removeSuggestedFlashcards: (ids: string[]) => void;
 };
 
 // ── Mount helper ─────────────────────────────────────────────────────
@@ -240,6 +245,8 @@ function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
     ignoredWords: {},
     wordKnowledge: {},
     grammarKnowledge: {},
+    suggestedFlashcards: {},
+    wordSyncSeen: {},
     meta: {
       newCardsToday: 0,
       reviewsToday: 0,
@@ -1036,6 +1043,154 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('setWordBankStatus manual bank adds to knownUntracked', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'known', 'manual');
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    expect(ctx.store.knownUntracked[lk]).toBe(true);
+    dispose();
+  });
+
+  it('setWordBankStatus manual bank removes from knownUntracked', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({ knownUntracked: { [lk]: true } }));
+
+    await ctx.setWordBankStatus('学校', 'unknown', 'manual');
+    expect(ctx.store.knownUntracked[lk]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus passive bank sets ease for known', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'known', 'passive');
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(DEFAULT_SETTINGS.srsKnownEase);
+    dispose();
+  });
+
+  it('setWordBankStatus passive bank removes entry for unknown', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja' },
+      },
+    }));
+
+    await ctx.setWordBankStatus('学校', 'unknown', 'passive');
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus ignored bank ignores word', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'known', 'ignored');
+    expect(ctx.isWordIgnoredSync('学校')).toBe(true);
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank removes cards for unknown', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    const cardId = 'c1';
+    flashcardsCb(makeEmptyStore({
+      flashcards: {
+        [cardId]: {
+          id: cardId,
+          content: { type: 'word', front: '学校', back: 'school' },
+          state: 'review',
+          ease: 2.5,
+          interval: 0,
+          dueDate: 0,
+          reviews: 0,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 0,
+          lastUpdated: 1,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk]: [cardId] },
+    }));
+
+    await ctx.setWordBankStatus('学校', 'unknown', 'flashcard');
+    expect(ctx.store.flashcards[cardId]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank updates existing card state', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    const cardId = 'c1';
+    flashcardsCb(makeEmptyStore({
+      flashcards: {
+        [cardId]: {
+          id: cardId,
+          content: { type: 'word', front: '学校', back: 'school' },
+          state: 'new',
+          ease: 2.5,
+          interval: 0,
+          dueDate: 0,
+          reviews: 0,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 0,
+          lastUpdated: 1,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk]: [cardId] },
+    }));
+
+    await ctx.setWordBankStatus('学校', 'known', 'flashcard');
+    expect(ctx.store.flashcards[cardId]?.state).toBe('review');
+    expect(ctx.store.flashcards[cardId]?.ease).toBe(DEFAULT_SETTINGS.srsKnownEase);
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank creates card when content provided', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'learning', 'flashcard', {
+      content: { type: 'word', front: '学校', back: 'school' },
+    });
+    expect(Object.keys(ctx.store.flashcards)).toHaveLength(1);
+    const card = Object.values(ctx.store.flashcards)[0];
+    expect(card?.state).toBe('learning');
+    expect(card?.ease).toBe(DEFAULT_SETTINGS.srsLearningEase);
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank throws when no card and no content', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await expect(ctx.setWordBankStatus('学校', 'known', 'flashcard')).rejects.toThrow('no content was provided');
+    dispose();
+  });
+
   it('trackWordSeen does nothing when passiveEaseEnabled is false', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -1483,6 +1638,222 @@ describe('FlashcardProvider', () => {
     expect(id).toBe('');
 
     mockSettings.use_anki = prevAnki;
+    dispose();
+  });
+
+  // ─── Priority 2: Suggested flashcard level filtering ──────────────
+  it('captureSuggestedFlashcard saves suggestion when no level is set', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevel = null;
+
+    await ctx.captureSuggestedFlashcard({ word: '単語', level: 3 });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('単語');
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard skips words above user level', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevel = 3;
+
+    await ctx.captureSuggestedFlashcard({ word: '難単語', level: 2 });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard saves words at or below user level', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevel = 3;
+
+    await ctx.captureSuggestedFlashcard({ word: '易単語1', level: 3 });
+    await ctx.captureSuggestedFlashcard({ word: '易単語2', level: 5 });
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+    expect(suggestions).toHaveLength(2);
+    expect(suggestions.map(s => s.word)).toContain('易単語1');
+    expect(suggestions.map(s => s.word)).toContain('易単語2');
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard skips words without level when user level is set', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevel = 3;
+
+    await ctx.captureSuggestedFlashcard({ word: '無レベル' });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('getSuggestedFlashcardsSync filters existing suggestions by level', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash1': { id: 's1', word: 'N1単語', level: 1, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash2': { id: 's2', word: 'N2単語', level: 2, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+        'ja:hash3': { id: 's3', word: 'N3単語', level: 3, language: 'ja', createdAt: 3, lastSeen: 3, count: 1 },
+        'ja:hash4': { id: 's4', word: '無レベル', level: null, language: 'ja', createdAt: 4, lastSeen: 4, count: 1 },
+      },
+    }));
+    mockSettings.learningLanguageLevel = 3;
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].word).toBe('N3単語');
+    dispose();
+  });
+
+  it('getSuggestedFlashcardsSync returns all when no level is set', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash1': { id: 's1', word: 'N1単語', level: 1, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash2': { id: 's2', word: 'N3単語', level: 3, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+      },
+    }));
+    mockSettings.learningLanguageLevel = null;
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+    expect(suggestions).toHaveLength(2);
+    dispose();
+  });
+
+  // ─── Priority 2: Known-word filtering ─────────────────────────────
+  it('captureSuggestedFlashcard skips words with SRS review-state flashcards', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = await SRS.hashWord('既知単語');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      flashcards: {
+        'fc-1': {
+          id: 'fc-1',
+          content: { type: 'word', front: '既知単語', back: 'known' },
+          state: 'review',
+          ease: 2.5,
+          interval: 86400000,
+          dueDate: Date.now(),
+          reviews: 5,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: Date.now(),
+          lastReviewed: Date.now(),
+          lastUpdated: Date.now(),
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk]: ['fc-1'] },
+    }));
+
+    await ctx.captureSuggestedFlashcard({ word: '既知単語', level: 5 });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard skips words with high passive knowledge ease', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('passive既知');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 4.5,
+          lastSeen: Date.now(),
+          timesSeen: 100,
+          timesHovered: 0,
+          word: 'passive既知',
+          language: 'ja',
+        },
+      },
+    }));
+
+    await ctx.captureSuggestedFlashcard({ word: 'passive既知', level: 5 });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard skips words marked as knownUntracked', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = await SRS.hashWord('手動既知');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      knownUntracked: { [lk]: true },
+    }));
+
+    await ctx.captureSuggestedFlashcard({ word: '手動既知', level: 5 });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('getSuggestedFlashcardsSync filters out suggestions for now-known words', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('後付既知');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        [lk]: { id: 's-known', word: '後付既知', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash2': { id: 's-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+      },
+      wordKnowledge: {
+        [lk]: {
+          ease: 4.5,
+          lastSeen: Date.now(),
+          timesSeen: 100,
+          timesHovered: 0,
+          word: '後付既知',
+          language: 'ja',
+        },
+      },
+    }));
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].word).toBe('未知単語');
+    dispose();
+  });
+
+  // ─── Priority 2: Batched suggested flashcard removal ──────────────
+  it('removeSuggestedFlashcards deletes multiple suggestions in one batch', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash2': { id: 's2', word: '単語2', level: 4, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+        'ja:hash3': { id: 's3', word: '単語3', level: 3, language: 'ja', createdAt: 3, lastSeen: 3, count: 1 },
+      },
+    }));
+
+    ctx.removeSuggestedFlashcards(['s1', 's3']);
+
+    const remaining = ctx.getSuggestedFlashcardsSync();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].word).toBe('単語2');
+    dispose();
+  });
+
+  it('removeSuggestedFlashcards is no-op for empty array', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+      },
+    }));
+
+    ctx.removeSuggestedFlashcards([]);
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
     dispose();
   });
 });

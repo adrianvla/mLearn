@@ -105,7 +105,7 @@ const MigrationHandler: ParentComponent = (props) => {
  * Prevents light theme flash before settings/theme are applied.
  * Uses pure CSS spinner to avoid component dependencies.
  */
-const WindowLoadingScreen: Component = () => {
+const WindowLoadingScreen: Component<{ transparent?: boolean }> = (props) => {
   const { isLoading } = useSettings();
   const [visible, setVisible] = createSignal(true);
   const [fadeOut, setFadeOut] = createSignal(false);
@@ -120,7 +120,7 @@ const WindowLoadingScreen: Component = () => {
 
   return (
       <Show when={visible()}>
-      <div class={`window-loading-overlay ${fadeOut() ? 'fade-out' : ''}`}>
+      <div class={`window-loading-overlay ${fadeOut() ? 'fade-out' : ''} ${props.transparent ? 'transparent-bg' : ''}`}>
         <svg width="40" height="40" viewBox="0 0 48 48" aria-label="Loading">
           <title>Loading</title>
           <rect x="2" y="2" width="44" height="44" fill="none" stroke="currentColor" stroke-opacity="0.1" stroke-width="8"/>
@@ -196,14 +196,14 @@ const GlobalCloudReLoginModal: Component = () => {
  * IMPORTANT: MigrationHandler is placed BEFORE FlashcardProvider so that
  * the migration event listener is registered before flashcards are loaded
  */
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; transparent?: boolean }> = (props) => {
   return (
     <ServerProvider>
       <LocalizationProvider>
         <ServerStatusObserver />
         <ResponsiveProvider>
           <SettingsProvider>
-            <WindowLoadingScreen />
+            <WindowLoadingScreen transparent={props.transparent} />
             {/*<DevToastTester />*/}
             <LowPowerGateProvider>
             <LanguageProviderBridge>

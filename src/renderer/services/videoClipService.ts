@@ -42,7 +42,7 @@ async function loadCoreURLs() {
   return { coreURL, wasmURL };
 }
 
-async function getFFmpeg(): Promise<FFmpeg> {
+export async function getFFmpeg(): Promise<FFmpeg> {
   if (ffmpegInstance?.loaded) return ffmpegInstance;
 
   if (!loadPromise) {
@@ -62,15 +62,31 @@ async function getFFmpeg(): Promise<FFmpeg> {
   return ffmpegInstance!;
 }
 
-async function fetchVideoData(videoUrl: string): Promise<Uint8Array | null> {
-  log.info('[VideoClip] fetchVideoData: url=', videoUrl);
+export async function fetchVideoData(videoUrl: string, maxBytes?: number): Promise<Uint8Array | null> {
+  log.info('[VideoClip] fetchVideoData: url=', videoUrl, 'maxBytes=', maxBytes);
   if (videoUrl.startsWith(LOCAL_MEDIA_SCHEME)) {
-    let filePath = videoUrl.slice(LOCAL_MEDIA_SCHEME.length);
+    const afterScheme = videoUrl.slice(LOCAL_MEDIA_SCHEME.length);
+    let filePath: string;
+    if (afterScheme.startsWith('localhost')) {
+      filePath = afterScheme.slice('localhost'.length);
+    } else {
+      filePath = afterScheme;
+    }
+    filePath = decodeURIComponent(filePath);
     log.info('[VideoClip] fetchVideoData: detected local-media scheme, raw path=', filePath);
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);
       log.info('[VideoClip] fetchVideoData: Windows path corrected to=', filePath);
     }
+
+    if (maxBytes != null && maxBytes > 0) {
+      log.info('[VideoClip] fetchVideoData: calling readMediaFileChunk with maxBytes=', maxBytes);
+      const buffer = await getBridge().files.readMediaFileChunk(filePath, 0, maxBytes);
+      log.info('[VideoClip] fetchVideoData: readMediaFileChunk result=', buffer == null ? 'null' : `ArrayBuffer(${buffer.byteLength})`);
+      if (!buffer) return null;
+      return new Uint8Array(buffer);
+    }
+
     log.info('[VideoClip] fetchVideoData: calling readMediaFile with path=', filePath);
     const buffer = await getBridge().files.readMediaFile(filePath);
     log.info('[VideoClip] fetchVideoData: readMediaFile result=', buffer == null ? 'null' : `ArrayBuffer(${buffer.byteLength})`);

@@ -22,6 +22,8 @@ const SWIPE_MIN_PX = 50;
 export function useVideoTouch(video: VideoTouchTarget, containerRef: () => HTMLElement | undefined) {
   if (!isMobile()) return;
 
+  let tapTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   onMount(() => {
     const el = containerRef();
     if (!el) return;
@@ -79,11 +81,17 @@ export function useVideoTouch(video: VideoTouchTarget, containerRef: () => HTMLE
           video.togglePlay();
         }
         lastTapTime = 0;
+        // Cancel pending single-tap timeout
+        if (tapTimeoutId) {
+          clearTimeout(tapTimeoutId);
+          tapTimeoutId = null;
+        }
       } else {
         // Single tap — handled after a delay to distinguish from double tap
         lastTapTime = now;
         lastTapX = tapX;
-        setTimeout(() => {
+        tapTimeoutId = setTimeout(() => {
+          tapTimeoutId = null;
           if (lastTapTime === now) {
             video.togglePlay();
           }
@@ -99,6 +107,10 @@ export function useVideoTouch(video: VideoTouchTarget, containerRef: () => HTMLE
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchmove', handleTouchMove);
       el.removeEventListener('touchend', handleTouchEnd);
+      if (tapTimeoutId) {
+        clearTimeout(tapTimeoutId);
+        tapTimeoutId = null;
+      }
     });
   });
 }

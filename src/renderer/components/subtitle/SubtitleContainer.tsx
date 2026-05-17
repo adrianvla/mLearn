@@ -4,7 +4,7 @@
  */
 
 import { Component, JSX, Show, For, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
-import type { Token, DictionaryEntry, TranslationResponse } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationResponse } from '../../../shared/types';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
@@ -215,7 +215,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
   // Get subtitle theme class
   const getSubtitleThemeClass = () => {
-    const theme = settings.subtitleTheme || 'shadow';
+    const theme = settings.subtitleTheme || DEFAULT_SETTINGS.subtitleTheme;
     return `theme-${theme}`;
   };
 
@@ -239,8 +239,12 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Container class with theme and visibility state
   const getContainerClass = () => {
     const classes = ['subtitles', getSubtitleThemeClass()];
-    if (!shouldShow()) {
+    const show = shouldShow();
+    const content = hasContent();
+    console.log('[SubtitleContainer] shouldShow=', show, 'hasContent=', content, 'tokens=', props.tokens.length, 'originalText=', !!props.originalText, 'isLoading=', props.isLoading, 'showSubtitles=', settings.showSubtitles, 'class=', classes.join(' '));
+    if (!show) {
       classes.push('not-shown');
+      console.log('[SubtitleContainer] APPLYING not-shown because shouldShow=false');
     }
     if (settings.blur_known_subtitles && allWordsKnown()) {
       classes.push('subtitle-line-blur');
@@ -392,7 +396,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           <Show when={settings.showTranslation && props.translation}>
             <div
               style={{
-                'font-size': `${(settings.subtitle_font_size || 24) * 0.75}px`,
+                'font-size': `${(settings.subtitle_font_size || DEFAULT_SETTINGS.subtitle_font_size) * 0.75}px`,
                 color: 'var(--text-secondary)',
                 'text-align': 'center',
                 'margin-top': '0.5rem',

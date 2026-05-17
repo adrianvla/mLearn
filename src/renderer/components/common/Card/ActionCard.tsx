@@ -37,9 +37,11 @@ export const ActionCard: Component<ActionCardProps> = (props) => {
 
   return (
     <button
+      type="button"
       class={`action-card ${props.primary ? 'primary' : ''} ${props.disabled ? 'disabled' : ''} ${props.class || ''}`}
       onClick={handleClick}
-      disabled={props.disabled}
+      aria-disabled={props.disabled || undefined}
+      tabindex={props.disabled ? -1 : 0}
     >
       <span class="action-icon">
         {typeof props.icon === 'string' ? props.icon : props.icon}

@@ -9,6 +9,61 @@ import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, W
 export type WindowType = ConstWindowType;
 
 // ============================================================================
+// Overlay Types
+// ============================================================================
+
+export interface OverlayVideoState {
+  currentTime: number;
+  isPlaying: boolean;
+  duration: number;
+  playbackRate: number;
+  volume?: number;
+  muted?: boolean;
+  isWaiting?: boolean;
+  isFullscreen?: boolean;
+  url?: string;
+  title?: string;
+}
+
+export interface OverlayGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isFullscreen?: boolean;
+}
+
+export interface OverlayCommand {
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume';
+  time?: number;
+  rate?: number;
+  volume?: number;
+}
+
+export interface OverlaySubtitleTracks {
+  tracks: Array<{ kind: string; src: string; srclang: string; label: string }>;
+  textTracks: Array<{ language: string; text: string }>;
+  url: string;
+}
+
+export interface OverlayBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface OverlayDelta {
+  x: number;
+  y: number;
+}
+
+export interface OverlaySizeDelta {
+  width: number;
+  height: number;
+}
+
+// ============================================================================
 // Settings Types
 // ============================================================================
 
@@ -39,6 +94,12 @@ export const CUSTOMIZABLE_CSS_VARS = [
   'border-color',
   'border-color-intense',
 ] as const;
+
+export interface IceServerConfig {
+  urls: string;
+  username?: string;
+  credential?: string;
+}
 
 export interface Settings {
   // Knowledge thresholds
@@ -115,7 +176,6 @@ export interface Settings {
   flashcards_add_picture: boolean;
   maxNewCardsPerDay: number;
   proportionOfExamCards: number;
-  preparedExam: number;
   /** Days after which a "learning" word is re-shown in Word Sync (default 30) */
   wordSyncStaleLearningDays: number;
   createUnseenCards: boolean;
@@ -138,6 +198,12 @@ export interface Settings {
    * Suggested Flashcards tab.
    */
   autoSuggestFlashcards: boolean;
+  /**
+   * Learning language level for the current language. When set, suggested flashcards
+   * above this level (harder) and cards without a level are not captured.
+   * Uses the language's raw_level scale (e.g., 2 = JLPT N2, 5 = JLPT N5).
+   */
+  learningLanguageLevel: number | null;
 
   // API URLs
   getCardUrl: string;
@@ -187,6 +253,8 @@ export interface Settings {
   showSubtitles?: boolean; // Toggle subtitle visibility
   showTranslation?: boolean; // Show translation line
   videoFit?: 'contain' | 'cover' | 'fill'; // Video object fit
+  overlayAutoPosition?: boolean; // Enable automatic overlay positioning from browser extension
+  overlayTextMode?: boolean;
 
   // Subtitle processing
   removeParentheses?: boolean; // Remove content in parentheses from subtitles
@@ -203,6 +271,7 @@ export interface Settings {
   // Feature flags
   llmEnabled: boolean;
   ocrEnabled: boolean;
+  voiceEnabled: boolean;
   devMode: boolean;
 
   /** Low battery mode: intercepts local neural network calls (LLM, TTS, OCR) with a user prompt */
@@ -318,6 +387,12 @@ export interface Settings {
   /** Whether to use a separate checker agent for correcting mistakes */
   agentSplitChecker: boolean;
 
+  /** List of browser paths that have the mLearn browser extension installed */
+  installedBrowserExtensions: string[];
+
+  // WebRTC ICE servers for flashcard sync peer connections
+  iceServers: IceServerConfig[];
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -378,16 +453,18 @@ export const DEFAULT_SETTINGS: Settings = {
   openAside: true,
   llmEnabled: true,
   ocrEnabled: true,
+  voiceEnabled: true,
   subsOffsetTime: 0,
   immediateFetch: false,
   subtitleTheme: 'shadow',
   subtitle_font_size: 40,
   subtitle_font_weight: 400,
+  overlayAutoPosition: true,
+  overlayTextMode: false,
   showPitchAccent: true,
   timeWatched: 0,
   maxNewCardsPerDay: 10,
   proportionOfExamCards: 0.5,
-  preparedExam: 3,
   wordSyncStaleLearningDays: 30,
   createUnseenCards: true,
   flashcardLLMExamples: false,
@@ -397,6 +474,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardMediaType: 'image',
   flashcardVideoMargin: 300,
   autoSuggestFlashcards: true,
+  learningLanguageLevel: 3,
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,
@@ -404,7 +482,7 @@ export const DEFAULT_SETTINGS: Settings = {
   liveTranslatorIncludeKnown: false,
   blurKnownWords: false,
   ocrRamSaver: false,
-  ocrTurboMode: true,
+  ocrTurboMode: false,
   ocrFuriganaDetection: true,
   ocrFuriganaWidthRatio: 1.5,
   ocrFuriganaNeighborWindowMultiplier: 2.4,
@@ -454,6 +532,11 @@ export const DEFAULT_SETTINGS: Settings = {
   agentMemoryEnabled: true,
   agentMemoryShared: true,
   agentSplitChecker: true,
+  installedBrowserExtensions: [],
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
 };
 
 // ============================================================================

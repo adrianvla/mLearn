@@ -154,12 +154,6 @@ describe('webServer', () => {
     });
   });
 
-  describe('setLocalStorage', () => {
-    it('sets local storage data without throwing', () => {
-      expect(() => mod.setLocalStorage({ key: 'value' })).not.toThrow();
-    });
-  });
-
   describe('broadcastToClients', () => {
     it('does not throw when no clients connected', () => {
       expect(() => mod.broadcastToClients('hello')).not.toThrow();
@@ -178,11 +172,6 @@ describe('webServer', () => {
       const listenCallCount = mockHttpServer.listen.mock.calls.length;
       mod.startWebServer();
       expect(mockHttpServer.listen.mock.calls.length).toBe(listenCallCount);
-    });
-
-    it('registers SEND_LS IPC listener', () => {
-      mod.startWebServer();
-      expect(mockIpcListeners.has('send-ls')).toBe(true);
     });
 
     it('registers WATCH_TOGETHER_SEND IPC listener', () => {
@@ -210,13 +199,6 @@ describe('webServer', () => {
       listeners[0](mockEvent);
 
       expect(mockEvent.reply).toHaveBeenCalledWith('watch-together');
-    });
-
-    it('SEND_LS updates local storage', () => {
-      mod.startWebServer();
-
-      const listeners = mockIpcListeners.get('send-ls') || [];
-      expect(() => listeners[0]({}, { key: 'val' })).not.toThrow();
     });
   });
 

@@ -2,9 +2,9 @@
  * About Tab
  */
 
-import { Component, createSignal, onMount, onCleanup } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { TabContent, Btn } from '../../../components/common';
-import { useLocalization } from '../../../context';
+import { useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import './AboutTab.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
@@ -12,6 +12,7 @@ import AppLogo from "@renderer/components/common/Misc/AppLogo";
 export const AboutTab: Component = () => {
   const [version, setVersion] = createSignal('1.0.0');
   const { t } = useLocalization();
+  const { settings } = useSettings();
 
   onMount(() => {
     const bridge = getBridge();
@@ -29,6 +30,13 @@ export const AboutTab: Component = () => {
   const openLicenses = () => {
     getBridge().window.openWindow({
       type: 'licenses',
+      options: { width: 900, height: 700 },
+    });
+  };
+
+  const openDiagnostics = () => {
+    getBridge().window.openWindow({
+      type: 'diagnostics',
       options: { width: 900, height: 700 },
     });
   };
@@ -55,6 +63,11 @@ export const AboutTab: Component = () => {
         <Btn variant="ghost" onClick={openLicenses}>
           {t('mlearn.About.Licenses')}
         </Btn>
+        <Show when={settings.devMode}>
+          <Btn variant="ghost" onClick={openDiagnostics}>
+            Run Diagnostics
+          </Btn>
+        </Show>
       </div>
 
       <div class="about-shortcuts">

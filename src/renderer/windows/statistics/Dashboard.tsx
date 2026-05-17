@@ -12,11 +12,16 @@ import type { PieSegment, BarChartDataPoint } from './charts';
 import type { MediaStats } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 
+import { initTimeWatched } from '../../services/statsService';
+import { computeWordLevelStats } from '../../utils/wordLevelStats';
 import {
-  initTimeWatched,
-  getWordsLearnedInAppStats,
-  getWordsLearnedInApp,
-} from '../../services/statsService';
+  computeStateDistribution,
+  computeMaturityBreakdown,
+  computeIntervalDistribution,
+  computeRetentionStats,
+  computeStreaks,
+  getTodayStats,
+} from '../../services/flashcardStats';
 import './Dashboard.css';
 
 /** Merge overlapping [start,end] intervals and return total non-overlapping duration. */
@@ -42,7 +47,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 export const Dashboard: Component = () => {
   const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { wordFrequency, getFreqLevelNames, getFrequency, getLanguageFeatures } = useLanguage();
+  const { wordFrequency, getFreqLevelNames, getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
 
   initTimeWatched(settings);
@@ -104,73 +109,28 @@ export const Dashboard: Component = () => {
 
   const cardStats = createMemo(() => {
     const all = cards();
-    const total = all.length;
+    const stateDist = computeStateDistribution(all);
+    const maturity = computeMaturityBreakdown(all);
+    const intervals = computeIntervalDistribution(all);
+    const retention = computeRetentionStats(store.dailyStats);
 
-    let newCards = 0;
-    let learning = 0;
-    let relearning = 0;
-    let review = 0;
-    let suspended = 0;
-    let totalReviews = 0;
-    let totalLapses = 0;
-    let matureCount = 0;
-    let youngCount = 0;
-    let overdueCount = 0;
-
-    const intervalBuckets = new Map<string, number>([
-      ['< 1d', 0], ['1–7d', 0], ['1–4w', 0], ['1–6m', 0], ['> 6m', 0],
-    ]);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (const card of all) {
-      if (card.suspended) { suspended++; continue; }
-      if (card.buried) continue;
-      if (card.state === 'new') newCards++;
-      else if (card.state === 'learning') learning++;
-      else if (card.state === 'relearning') relearning++;
-      else if (card.state === 'review') review++;
-
-      totalReviews += card.reviews;
-      totalLapses += card.lapses;
-
-      if (card.state === 'review') {
-        const days = card.interval / (1000 * 60 * 60 * 24);
-        if (days >= 21) matureCount++;
-        else youngCount++;
-
-        if (days < 1) intervalBuckets.set('< 1d', (intervalBuckets.get('< 1d') ?? 0) + 1);
-        else if (days <= 7) intervalBuckets.set('1–7d', (intervalBuckets.get('1–7d') ?? 0) + 1);
-        else if (days <= 28) intervalBuckets.set('1–4w', (intervalBuckets.get('1–4w') ?? 0) + 1);
-        else if (days <= 180) intervalBuckets.set('1–6m', (intervalBuckets.get('1–6m') ?? 0) + 1);
-        else intervalBuckets.set('> 6m', (intervalBuckets.get('> 6m') ?? 0) + 1);
-      }
-
-      if (card.dueDate && card.state !== 'new') {
-        const due = new Date(card.dueDate);
-        due.setHours(0, 0, 0, 0);
-        if (due.getTime() < today.getTime()) overdueCount++;
-      }
+    const intervalBuckets: Record<string, number> = {};
+    for (const b of intervals) {
+      intervalBuckets[b.label] = b.count;
     }
 
-    const retentionRate = totalReviews > 0
-      ? ((totalReviews - totalLapses) / totalReviews) * 100
-      : 100;
-
     return {
-      total,
-      newCards,
-      learning: learning + relearning,
-      review,
-      suspended,
-      retentionRate,
-      totalReviews,
-      totalLapses,
-      matureCount,
-      youngCount,
-      overdueCount,
-      intervalBuckets: Object.fromEntries(intervalBuckets),
+      total: stateDist.total,
+      newCards: stateDist.new,
+      learning: stateDist.learning,
+      review: stateDist.review,
+      suspended: stateDist.suspended,
+      retentionRate: retention.retention,
+      totalReviews: retention.totalReviews,
+      totalLapses: retention.totalLapses,
+      matureCount: maturity.mature,
+      youngCount: maturity.young,
+      intervalBuckets,
     };
   });
 
@@ -182,55 +142,26 @@ export const Dashboard: Component = () => {
 
     const reviewHeatmap: Record<string, number> = {};
     const lapsesHeatmap: Record<string, number> = {};
-    let totalStudyTime = 0;
-    let streakCurrent = 0;
-    let streakMax = 0;
-    let totalDaysStudied = 0;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Current streak
-    const streakDate = new Date(today);
-    let counting = true;
-    while (counting) {
-      const key = streakDate.toISOString().slice(0, 10);
-      const dayStat = ds[key];
-      if (dayStat && (dayStat.newCardsStudied + dayStat.reviewCardsStudied) > 0) {
-        streakCurrent++;
-        streakDate.setDate(streakDate.getDate() - 1);
-      } else {
-        counting = false;
-      }
-    }
 
     for (const [date, stat] of entries) {
       const totalReviews = stat.newCardsStudied + stat.reviewCardsStudied;
       reviewHeatmap[date] = totalReviews;
       if (stat.lapses > 0) lapsesHeatmap[date] = stat.lapses;
-      totalStudyTime += stat.timeSpent;
-      if (totalReviews > 0) totalDaysStudied++;
-
-      // Max streak
-      let s = 0;
-      const d = new Date(date);
-      for (;;) {
-        const k = d.toISOString().slice(0, 10);
-        const st = ds[k];
-        if (st && (st.newCardsStudied + st.reviewCardsStudied) > 0) {
-          s++;
-          d.setDate(d.getDate() + 1);
-        } else break;
-      }
-      if (s > streakMax) streakMax = s;
     }
+
+    const retention = computeRetentionStats(ds);
+    const streaks = computeStreaks(ds);
+    const todayStats = getTodayStats(ds);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     // Last 30 days bar chart
     const last30: BarChartDataPoint[] = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const stat = ds[key];
       const dayLabel = i === 0
         ? t('mlearn.Statistics.Dashboard.Today')
@@ -247,27 +178,52 @@ export const Dashboard: Component = () => {
       });
     }
 
-    const todayKey = today.toISOString().slice(0, 10);
-    const todayStat = ds[todayKey];
-
     return {
       reviewHeatmap,
       lapsesHeatmap,
-      totalStudyTime,
-      streakCurrent,
-      streakMax,
-      totalDaysStudied,
+      totalStudyTime: retention.totalTime,
+      streakCurrent: streaks.current,
+      streakMax: streaks.max,
+      totalDaysStudied: retention.daysStudied,
       last30,
-      todayReviews: todayStat?.reviewCardsStudied ?? 0,
-      todayNew: todayStat?.newCardsStudied ?? 0,
-      todayLapses: todayStat?.lapses ?? 0,
-      todayTime: todayStat?.timeSpent ?? 0,
-      todayGraduated: todayStat?.graduated ?? 0,
+      todayReviews: todayStats.reviews,
+      todayNew: todayStats.newCards,
+      todayLapses: todayStats.lapses,
+      todayTime: todayStats.timeSpent,
+      todayGraduated: todayStats.graduated,
     };
   });
 
-  // ── Word stats ──
-  const wordStats = createMemo(() => getWordsLearnedInAppStats());
+  const wordStats = createMemo(() =>
+    computeWordLevelStats(
+      store,
+      wordFrequency,
+      settings.language,
+      settings.known_ease_threshold,
+      settings.srsLearningThreshold,
+      getFreqLevelNames(),
+    ),
+  );
+
+  const todaySessionStats = createMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    let videoTime = 0;
+    let readTime = 0;
+
+    for (const ms of mediaStatsList()) {
+      for (const session of ms.sessions) {
+        if (session.date === today) {
+          if (ms.mediaType === 'video') videoTime += session.duration;
+          else if (ms.mediaType === 'book') readTime += session.duration;
+        }
+      }
+    }
+
+    const flashcardTime = dailyStatsData().todayTime;
+    const total = flashcardTime + videoTime + readTime;
+
+    return { videoTime, readTime, flashcardTime, total };
+  });
 
   // ── Word acquisition (encounters until status change) ──
   const wordAcquisitionStats = createMemo(() => {
@@ -323,9 +279,9 @@ export const Dashboard: Component = () => {
   ]);
 
   const wordStatusPie = createMemo((): PieSegment[] => [
-    { label: t('mlearn.Statistics.Legend.Learned'), value: wordStats().learned, color: 'var(--color-success)' },
-    { label: t('mlearn.Statistics.Legend.Learning'), value: wordStats().learning, color: 'var(--color-warning)' },
-    { label: t('mlearn.Statistics.Legend.Viewed'), value: wordStats().unknown, color: 'var(--text-tertiary)' },
+    { label: t('mlearn.Statistics.Legend.Learned'), value: wordStats().allEncountered.known, color: 'var(--color-success)' },
+    { label: t('mlearn.Statistics.Legend.Learning'), value: wordStats().allEncountered.learning, color: 'var(--color-warning)' },
+    { label: t('mlearn.Statistics.Legend.Viewed'), value: wordStats().allEncountered.unknown, color: 'var(--text-tertiary)' },
   ]);
 
   // ── Helpers ──
@@ -343,54 +299,12 @@ export const Dashboard: Component = () => {
     return `${m}m`;
   };
 
-  // ── Level breakdown (with total words per level from frequency data) ──
-
   const levelBreakdown = createMemo(() => {
     if (!getLanguageFeatures().supportsFrequencyLevels) return [];
-    const names = getFreqLevelNames();
-    const entries = Object.entries(names).map(([k, v]) => ({ level: parseInt(k), name: v }));
-    entries.sort((a, b) => b.level - a.level);
-    if (entries.length === 0) return [];
-
-    // Count total words per level from frequency dictionary
-    const totalPerLevel = new Map<number, number>();
-    for (const entry of entries) {
-      totalPerLevel.set(entry.level, 0);
-    }
-    for (const freqEntry of Object.values(wordFrequency)) {
-      const cur = totalPerLevel.get(freqEntry.raw_level);
-      if (cur !== undefined) totalPerLevel.set(freqEntry.raw_level, cur + 1);
-    }
-
-    // Count user progress per level
-    const words = getWordsLearnedInApp();
-    const buckets = new Map<number, { learned: number; learning: number; viewed: number }>();
-    for (const entry of entries) {
-      buckets.set(entry.level, { learned: 0, learning: 0, viewed: 0 });
-    }
-    for (const [word, status] of Object.entries(words)) {
-      const freq = getFrequency(word);
-      if (!freq) continue;
-      const bucket = buckets.get(freq.raw_level);
-      if (!bucket) continue;
-      if (status === 2) bucket.learned++;
-      else if (status === 1) bucket.learning++;
-      else bucket.viewed++;
-    }
-
-    return entries.map(e => {
-      const b = buckets.get(e.level) ?? { learned: 0, learning: 0, viewed: 0 };
-      const total = totalPerLevel.get(e.level) ?? 0;
-      const encountered = b.learned + b.learning + b.viewed;
-      return {
-        name: e.name || `${t('mlearn.Statistics.LevelColumn')} ${e.level}`,
-        ...b,
-        total,
-        encountered,
-        coveragePct: total > 0 ? Math.round((b.learned / total) * 100) : 0,
-      };
-    });
+    return wordStats().byLevel;
   });
+
+  const outsideLevels = createMemo(() => wordStats().outsideLevels);
 
   // ── Heatmap color scales ──
   const reviewColorScale = [
@@ -435,7 +349,29 @@ export const Dashboard: Component = () => {
           <StatCard label={t('mlearn.Statistics.Dashboard.NewLearned')} value={dailyStatsData().todayNew} size="sm" color="success" />
           <StatCard label={t('mlearn.Statistics.Dashboard.Lapses')} value={dailyStatsData().todayLapses} size="sm" color={dailyStatsData().todayLapses > 0 ? 'error' : 'default'} />
           <StatCard label={t('mlearn.Statistics.Dashboard.Graduated')} value={dailyStatsData().todayGraduated} size="sm" color="success" />
-          <StatCard label={t('mlearn.Statistics.Dashboard.StudyTime')} value={formatDuration(dailyStatsData().todayTime)} size="sm" />
+        </div>
+        <div class="session-time-breakdown">
+          <div class="session-time-total">
+            <span class="session-time-label">{t('mlearn.Statistics.Dashboard.TotalSessionTime')}</span>
+            <span class="session-time-value">{formatDuration(todaySessionStats().total)}</span>
+          </div>
+          <div class="session-time-grid">
+            <div class="session-time-item">
+              <span class="session-time-dot" style={{ background: 'var(--color-primary)' }} />
+              <span class="session-time-label-sm">{t('mlearn.Statistics.Dashboard.FlashcardTime')}</span>
+              <span class="session-time-value-sm">{formatDuration(todaySessionStats().flashcardTime)}</span>
+            </div>
+            <div class="session-time-item">
+              <span class="session-time-dot" style={{ background: 'var(--color-success)' }} />
+              <span class="session-time-label-sm">{t('mlearn.Statistics.Dashboard.VideoTime')}</span>
+              <span class="session-time-value-sm">{formatDuration(todaySessionStats().videoTime)}</span>
+            </div>
+            <div class="session-time-item">
+              <span class="session-time-dot" style={{ background: 'var(--color-info)' }} />
+              <span class="session-time-label-sm">{t('mlearn.Statistics.Dashboard.ReadingTime')}</span>
+              <span class="session-time-value-sm">{formatDuration(todaySessionStats().readTime)}</span>
+            </div>
+          </div>
         </div>
       </Panel>
 
@@ -513,25 +449,37 @@ export const Dashboard: Component = () => {
                 {(row) => (
                   <tr>
                     <td>{row.name}</td>
-                    <td class="level-num">{row.learned}</td>
+                    <td class="level-num">{row.known}</td>
                     <td class="level-num">{row.learning}</td>
-                    <td class="level-num">{row.viewed}</td>
-                    <td class="level-num">{row.total}</td>
+                    <td class="level-num">{row.unknown}</td>
+                    <td class="level-num">{row.totalDictionaryWords}</td>
                     <td class="level-coverage-cell">
                       <div class="level-coverage-bar">
-                        <Show when={row.total > 0}>
-                          <div class="level-coverage-fill level-coverage-learned" style={{ width: `${(row.learned / row.total) * 100}%` }} />
-                          <div class="level-coverage-fill level-coverage-learning" style={{ width: `${(row.learning / row.total) * 100}%` }} />
-                          <div class="level-coverage-fill level-coverage-viewed" style={{ width: `${(row.viewed / row.total) * 100}%` }} />
+                        <Show when={row.totalDictionaryWords > 0}>
+                          <div class="level-coverage-fill level-coverage-learned" style={{ width: `${(row.known / row.totalDictionaryWords) * 100}%` }} />
+                          <div class="level-coverage-fill level-coverage-learning" style={{ width: `${(row.learning / row.totalDictionaryWords) * 100}%` }} />
+                          <div class="level-coverage-fill level-coverage-viewed" style={{ width: `${(row.unknown / row.totalDictionaryWords) * 100}%` }} />
                         </Show>
                       </div>
-                      <span class="level-coverage-pct">{row.coveragePct}%</span>
+                      <span class="level-coverage-pct">{row.knownPct}%</span>
                     </td>
                   </tr>
                 )}
               </For>
             </tbody>
           </table>
+        </Panel>
+      </Show>
+
+      <Show when={outsideLevels().total > 0}>
+        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.OutsideLevels')}</h3>
+          <div class="dashboard-stats-row compact">
+            <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={outsideLevels().known} size="sm" color="success" />
+            <StatCard label={t('mlearn.Statistics.Legend.Learning')} value={outsideLevels().learning} size="sm" color="warning" />
+            <StatCard label={t('mlearn.Statistics.Legend.Viewed')} value={outsideLevels().unknown} size="sm" />
+            <StatCard label={t('mlearn.Statistics.Dashboard.OutsideLevelsTotal')} value={outsideLevels().total} size="sm" />
+          </div>
         </Panel>
       </Show>
 
@@ -559,14 +507,14 @@ export const Dashboard: Component = () => {
           />
         </Panel>
 
-        <Show when={wordStats().total > 0}>
+        <Show when={wordStats().allEncountered.total > 0}>
           <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
             <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.WordKnowledge')}</h3>
             <PieChart
               segments={wordStatusPie()}
               size={160}
               thickness={24}
-              centerValue={wordStats().total}
+              centerValue={wordStats().allEncountered.total}
               centerLabel={t('mlearn.Statistics.Dashboard.CenterLabel.Words')}
             />
           </Panel>

@@ -16,6 +16,7 @@ import {
 } from '../../components/common';
 import type { SelectOption } from '../../components/common';
 import type { OllamaModel } from '../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './ConnectionTab.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -25,7 +26,7 @@ export const ConnectionTab: Component = () => {
   const { settings, updateSetting } = useSettings();
   const { t } = useLocalization();
 
-  const [serverUrl, setServerUrl] = createSignal(settings.ollamaUrl || 'http://localhost:11434');
+  const [serverUrl, setServerUrl] = createSignal(settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl);
   const [model, setModel] = createSignal(settings.ollamaModel || 'llama3.2');
   const [testStatus, setTestStatus] = createSignal<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [availableModels, setAvailableModels] = createSignal<OllamaModel[]>([]);
@@ -33,7 +34,7 @@ export const ConnectionTab: Component = () => {
   const [saveStatus, setSaveStatus] = createSignal<'idle' | 'saved'>('idle');
 
   onMount(() => {
-    setServerUrl(settings.ollamaUrl || 'http://localhost:11434');
+    setServerUrl(settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl);
     setModel(settings.ollamaModel || 'llama3.2');
   });
 

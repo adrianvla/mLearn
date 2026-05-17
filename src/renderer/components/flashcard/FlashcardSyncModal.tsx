@@ -1,18 +1,15 @@
-/**
- * FlashcardSyncModal Component
- * Handles QR-code based peer-to-peer flashcard syncing
- */
-
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
 import { Modal, Btn, ProgressBar, Spinner, CheckIcon, CrossIcon } from '../../components/common';
-import { useFlashcards, useLocalization } from '../../context';
+import { useFlashcards, useLocalization, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
-  splitForQR,
   mergeFlashcards,
-  ChunkCollector,
-  sendChunkedWithBackpressure,
+  createSyncRoom,
+  SyncSocketClient,
+  splitTextIntoChunks,
+  stripMediaUrls,
   type FlashcardStore,
+  type SyncSocketMessage,
 } from '../../services/flashcardSyncService';
 import './FlashcardSyncModal.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -34,49 +31,39 @@ interface QRCodeRenderer {
   ) => Promise<void>;
 }
 
-interface JsQrCode {
-  data: string;
-}
-
-type JsQrScanner = (data: Uint8ClampedArray, width: number, height: number) => JsQrCode | null;
-
-let SimplePeerConstructor: Window['SimplePeer'] | null = null;
 let QRCodeLib: QRCodeRenderer | null = null;
-let jsQR: JsQrScanner | null = null;
 
 export interface FlashcardSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SyncPhase = 'init' | 'showing-qr' | 'scanning' | 'connecting' | 'syncing' | 'complete' | 'error';
+type SyncPhase = 'init' | 'showing-qr' | 'connecting' | 'syncing' | 'complete' | 'error';
+type SyncRole = 'sender' | 'receiver' | null;
 
 export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) => {
   const { store } = useFlashcards();
   const { t } = useLocalization();
+  const { settings } = useSettings();
   
   const [phase, setPhase] = createSignal<SyncPhase>('init');
   const [statusText, setStatusText] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
-  const [qrChunks, setQrChunks] = createSignal<string[]>([]);
-  const [currentQrIndex, setCurrentQrIndex] = createSignal(0);
-  const [numberOfChunks, setNumberOfChunks] = createSignal(30);
   const [progress, setProgress] = createSignal(0);
+  const [role, setRole] = createSignal<SyncRole>(null);
   
-  let peer: SimplePeerInstance | null = null;
+  let socketClient: SyncSocketClient | null = null;
   let qrCodeEl: HTMLDivElement | undefined;
-  let videoEl: HTMLVideoElement | undefined;
-  let canvasEl: HTMLCanvasElement | undefined;
-  let qrIntervalId: number | null = null;
-  let videoStream: MediaStream | null = null;
-  let scanAnimationId: number | null = null;
-  
-  const chunkCollector = new ChunkCollector();
+
+  let chunksToSend: string[] = [];
+  let receivedChunks: Record<number, string> = {};
+  let totalChunksExpected = 0;
+  let ackedChunkCount = 0;
+  let syncCompleted = false;
 
   const getThemeColor = (variableName: string): string =>
     getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
 
-  // Load libraries when modal opens
   createEffect(async () => {
     if (!props.isOpen) return;
     
@@ -84,32 +71,12 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       setPhase('init');
       setStatusText(t('mlearn.Flashcards.Sync.LoadingLibraries'));
       
-      // Load SimplePeer from pre-bundled browser-compatible version
-      // The npm version has issues with Vite's externalization of Node.js modules
-      if (!SimplePeerConstructor) {
-        // Import the browser-bundled version that doesn't depend on Node.js streams/events
-        // @ts-ignore - Dynamic import of bundled JS file
-        await import('../../services/simplepeer.min.js');
-        SimplePeerConstructor = window.SimplePeer;
-        if (!SimplePeerConstructor) {
-          throw new Error('SimplePeer failed to load');
-        }
-      }
-      
-      // Load QRCode library
       if (!QRCodeLib) {
         const module = await import('qrcode');
         QRCodeLib = (module.default || module) as QRCodeRenderer;
       }
       
-      // Load jsQR for scanning
-      if (!jsQR) {
-        const module = await import('jsqr');
-        jsQR = (module.default || module) as JsQrScanner;
-      }
-      
-      // Start connection
-      await startConnection();
+      await startAsSender();
     } catch (e) {
       log.error('Failed to load sync libraries:', e);
       setError(t('mlearn.Flashcards.Sync.Error.LoadLibraries', { error: e instanceof Error ? e.message : String(e) }));
@@ -117,276 +84,241 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     }
   });
 
-  // Cleanup on close
   onCleanup(() => {
     cleanup();
   });
 
   const cleanup = () => {
-    if (qrIntervalId !== null) {
-      clearInterval(qrIntervalId);
-      qrIntervalId = null;
+    if (socketClient) {
+      socketClient.disconnect();
+      socketClient = null;
     }
-    if (scanAnimationId !== null) {
-      cancelAnimationFrame(scanAnimationId);
-      scanAnimationId = null;
-    }
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
-      videoStream = null;
-    }
-    if (peer) {
-      try {
-        peer.destroy();
-      } catch (e) {
-        log.error('Error destroying peer:', e);
-      }
-      peer = null;
-    }
-    chunkCollector.reset();
+    chunksToSend = [];
+    receivedChunks = {};
+    totalChunksExpected = 0;
+    ackedChunkCount = 0;
+    syncCompleted = false;
   };
 
-  const startConnection = async () => {
+  const getAccessToken = (): string | null => {
+    const token = settings.cloudAuthAccessToken?.trim();
+    if (!token) {
+      return null;
+    }
+    return token;
+  };
+
+  const startAsSender = async () => {
     try {
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        setError(t('mlearn.Flashcards.Sync.Error.AuthRequired'));
+        setPhase('error');
+        return;
+      }
+
       cleanup();
+      setRole('sender');
       setPhase('showing-qr');
       setStatusText(t('mlearn.Flashcards.Sync.GeneratingCode'));
       
-      // Create peer as initiator
-      if (!SimplePeerConstructor) {
-        throw new Error('SimplePeer is not available');
-      }
+      const response = await createSyncRoom(accessToken);
+      const room = response.data;
+      
+      log.info('Created sync room:', room.roomId);
 
-      peer = new SimplePeerConstructor({ initiator: true, trickle: false });
+      displayRoomQR(room.roomId, room.roomCode);
+      setStatusText(t('mlearn.Flashcards.Sync.QRHint'));
       
-      peer.on('signal', (data: unknown) => {
-        const signalStr = JSON.stringify(data);
-        log.info('Generated signal data:', signalStr.length, 'bytes');
-        
-        // Calculate number of chunks
-        const numChunks = Math.ceil(signalStr.length / 60);
-        setNumberOfChunks(numChunks);
-        
-        // Split signal into QR-friendly chunks
-        const chunks = splitForQR(signalStr);
-        setQrChunks(chunks);
-        
-        // Start displaying QR codes
-        startQRDisplay();
-        setStatusText(t('mlearn.Flashcards.Sync.ScanInstructions', { numChunks }));
-      });
-      
-      peer.on('connect', () => {
-        log.info('Peer connected!');
-        setPhase('syncing');
-        setStatusText(t('mlearn.Flashcards.Sync.ConnectedSyncing'));
-        stopScanning();
-        
-        // Send our flashcards
-        sendFlashcards();
-      });
-      
-      peer.on('data', (data) => {
-        handleIncomingData(data);
-      });
-      
-      peer.on('error', (err: Error) => {
-        log.error('Peer error:', err);
-        setError(err.message);
-        setPhase('error');
-      });
-      
+      socketClient = new SyncSocketClient(room.roomId, 'sender', accessToken);
+      setupSocketHandlers();
+      await socketClient.connect();
     } catch (e) {
-      log.error('Connection error:', e);
-      setError(t('mlearn.Flashcards.Sync.Error.Connection'));
+      log.error('Sync connection failed:', e);
+      setError(e instanceof Error ? e.message : t('mlearn.Flashcards.Sync.Error.Connection'));
       setPhase('error');
     }
   };
 
-  const startQRDisplay = () => {
-    if (qrIntervalId !== null) {
-      clearInterval(qrIntervalId);
-    }
+  const setupSocketHandlers = () => {
+    if (!socketClient) return;
     
-    const displayQR = async () => {
-      const chunks = qrChunks();
-      if (chunks.length === 0 || !qrCodeEl) return;
-      
-      const index = currentQrIndex();
-      const chunkData = JSON.stringify([index, chunks[index]]);
-      
-      // Clear and render QR code
-      qrCodeEl.innerHTML = '';
-      
-      try {
-        if (!QRCodeLib) {
-          return;
+    socketClient.onOpen(() => {
+      log.info('Socket connected as', role());
+    });
+    
+    socketClient.onMessage((msg: SyncSocketMessage) => {
+      handleSocketMessage(msg);
+    });
+    
+    socketClient.onClose(() => {
+      log.info('Socket closed');
+    });
+    
+    socketClient.onError((err: string) => {
+      log.error('Socket error:', err);
+      setError(err);
+      setPhase('error');
+    });
+  };
+
+  const handleSocketMessage = async (msg: SyncSocketMessage) => {
+    const currentRole = role();
+    
+    switch (msg.type) {
+      case 'peer_connected': {
+        if (currentRole === 'sender' && !msg.message) {
+          setPhase('syncing');
+          setStatusText(t('mlearn.Flashcards.Sync.ConnectedSyncing'));
+          await sendOffer();
         }
-
-        const canvas = document.createElement('canvas');
-        await QRCodeLib.toCanvas(canvas, chunkData, {
-          width: 300,
-          margin: 1,
-          color: {
-            dark: getThemeColor('--sync-qr-code-dark'),
-            light: getThemeColor('--sync-qr-code-bg'),
-          },
-        });
-        qrCodeEl.appendChild(canvas);
-      } catch (e) {
-        log.error('QR render error:', e);
+        break;
       }
       
-      // Cycle to next chunk
-      setCurrentQrIndex((index + 1) % chunks.length);
-    };
-    
-    displayQR();
-    qrIntervalId = window.setInterval(displayQR, 100);
-  };
-
-  const stopQRDisplay = () => {
-    if (qrIntervalId !== null) {
-      clearInterval(qrIntervalId);
-      qrIntervalId = null;
-    }
-  };
-
-  const startScanning = async () => {
-    setPhase('scanning');
-    setStatusText(t('mlearn.Flashcards.Sync.PointCamera'));
-    stopQRDisplay();
-    
-    try {
-      videoStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
+      case 'offer': {
+        if (currentRole === 'receiver') {
+          setPhase('syncing');
+          setStatusText(t('mlearn.Flashcards.Sync.ConnectedSyncing'));
+          totalChunksExpected = msg.totalChunks || 0;
+          requestNextChunk(0);
+        }
+        break;
+      }
       
-      if (videoEl) {
-        videoEl.srcObject = videoStream;
-        videoEl.setAttribute('playsinline', 'true');
-        await videoEl.play();
-        
-        // Start scanning loop
-        const scan = () => {
-          if (!videoEl || phase() !== 'scanning') return;
+      case 'request_chunk': {
+        if (currentRole === 'sender' && msg.index !== undefined) {
+          await sendChunk(msg.index);
+        }
+        break;
+      }
+      
+      case 'chunk_data': {
+        if (currentRole === 'receiver' && msg.index !== undefined && msg.data) {
+          receivedChunks[msg.index] = msg.data;
+          const current = Object.keys(receivedChunks).length;
+          setProgress((current / totalChunksExpected) * 100);
           
-          if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
-            const canvas = canvasEl || document.createElement('canvas');
-            canvas.width = videoEl.videoWidth;
-            canvas.height = videoEl.videoHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(videoEl, 0, 0);
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              if (!jsQR) {
-                return;
-              }
-              const code = jsQR(imageData.data, canvas.width, canvas.height);
-              
-              if (code && code.data) {
-                handleScannedQR(code.data);
-              }
-            }
+          socketClient?.send({ type: 'chunk_received', index: msg.index });
+          
+          if (current < totalChunksExpected) {
+            requestNextChunk(current);
+          } else {
+            completeReceive();
           }
-          
-          scanAnimationId = requestAnimationFrame(scan);
-        };
-        
-        scan();
+        }
+        break;
       }
-    } catch (e) {
-      log.error('Camera access error:', e);
-      setError(t('mlearn.Flashcards.Sync.Error.CameraAccess'));
-      setPhase('error');
-    }
-  };
-
-  const stopScanning = () => {
-    if (scanAnimationId !== null) {
-      cancelAnimationFrame(scanAnimationId);
-      scanAnimationId = null;
-    }
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
-      videoStream = null;
-    }
-  };
-
-  const handleScannedQR = (data: string) => {
-    try {
-      const parsed = JSON.parse(data) as [number, string];
-      const [index, chunk] = parsed;
       
-      const isComplete = chunkCollector.addChunk(index, chunk, numberOfChunks());
-      const { current, total } = chunkCollector.getProgress();
-      setProgress((current / total) * 100);
-      
-      if (isComplete) {
-        log.info('All QR chunks collected');
-        const assembled = chunkCollector.assemble();
-        const signal = JSON.parse(assembled);
-        peer?.signal(signal);
-        stopScanning();
-        setPhase('connecting');
-        setStatusText(t('mlearn.Flashcards.Sync.EstablishingConnection'));
+      case 'chunk_received': {
+        if (currentRole === 'sender') {
+          ackedChunkCount++;
+          setProgress((ackedChunkCount / chunksToSend.length) * 100);
+        }
+        break;
       }
-    } catch (e) {
-      log.error("error", e);
-      // Ignore invalid QR codes
-    }
-  };
-
-  const sendFlashcards = async () => {
-    if (!peer) return;
-    const storeData = JSON.stringify(store);
-    try {
-      await sendChunkedWithBackpressure(peer, 'sync', storeData);
-    } catch (e) {
-      log.error('Error sending flashcards:', e);
-      setError(t('mlearn.Flashcards.Sync.Error.Connection'));
-      setPhase('error');
-    }
-  };
-
-  const receivedChunkCollector = new ChunkCollector();
-
-  const handleIncomingData = async (rawData: string | ArrayBuffer | Uint8Array) => {
-    try {
-      const str = typeof rawData === 'string'
-        ? rawData
-        : rawData instanceof Uint8Array
-          ? new TextDecoder().decode(rawData)
-          : new TextDecoder().decode(new Uint8Array(rawData));
-      const parsed = JSON.parse(str);
       
-      if (parsed.type === 'sync-chunk') {
-        const [index, chunk, total] = parsed.data;
-        const isComplete = receivedChunkCollector.addChunk(index, chunk, total);
-        const { current, total: totalChunks } = receivedChunkCollector.getProgress();
-        setProgress((current / totalChunks) * 100);
-        
-        if (isComplete) {
-          const assembled = receivedChunkCollector.assemble();
-          const remoteStore = JSON.parse(assembled) as FlashcardStore;
-          
-          // Merge flashcards
-          const merged = await mergeFlashcards(store, remoteStore);
-          
-          // Save merged store via IPC
-          getBridge().flashcards.saveFlashcards(merged);
-          
+      case 'complete': {
+        if (currentRole === 'sender') {
+          syncCompleted = true;
           setPhase('complete');
           setStatusText(t('mlearn.Flashcards.Sync.Complete'));
-          
-          // Auto-close after 2 seconds
-          setTimeout(() => {
-            props.onClose();
-          }, 2000);
+          setTimeout(() => props.onClose(), 2000);
         }
+        break;
       }
+
+      case 'error': {
+        setError(msg.message || 'Sync error');
+        setPhase('error');
+        break;
+      }
+
+      case 'peer_disconnected': {
+        if (syncCompleted) {
+          break;
+        }
+        setError(t('mlearn.Flashcards.Sync.Error.Connection'));
+        setPhase('error');
+        break;
+      }
+    }
+  };
+
+  const sendOffer = async () => {
+    if (!socketClient) return;
+    
+    const strippedStore = stripMediaUrls(store);
+    const storeData = JSON.stringify(strippedStore);
+    chunksToSend = splitTextIntoChunks(storeData);
+    
+    socketClient.send({
+      type: 'offer',
+      totalChunks: chunksToSend.length,
+      totalSize: storeData.length,
+    });
+  };
+
+  const sendChunk = async (index: number) => {
+    if (!socketClient || index >= chunksToSend.length) return;
+    
+    socketClient.send({
+      type: 'chunk_data',
+      index,
+      data: chunksToSend[index],
+    });
+  };
+
+  const requestNextChunk = (index: number) => {
+    if (!socketClient) return;
+    socketClient.send({
+      type: 'request_chunk',
+      index,
+    });
+  };
+
+  const completeReceive = async () => {
+    try {
+      let assembled = '';
+      for (let i = 0; i < totalChunksExpected; i++) {
+        assembled += receivedChunks[i];
+      }
+      
+      const remoteStore = JSON.parse(assembled) as FlashcardStore;
+      const merged = await mergeFlashcards(store, remoteStore);
+      
+      getBridge().flashcards.saveFlashcards(merged);
+      
+      socketClient?.send({ type: 'complete' });
+      
+      setPhase('complete');
+      setStatusText(t('mlearn.Flashcards.Sync.Complete'));
+      setTimeout(() => props.onClose(), 2000);
     } catch (e) {
-      log.error('Error handling incoming data:', e);
+      log.error('Error completing receive:', e);
+      setError(t('mlearn.Flashcards.Sync.Error.Connection'));
+      setPhase('error');
+    }
+  };
+
+  const displayRoomQR = async (roomIdValue: string, roomCodeValue: string) => {
+    if (!qrCodeEl || !QRCodeLib) return;
+
+    qrCodeEl.innerHTML = '';
+
+    try {
+      const canvas = document.createElement('canvas');
+      const qrText = `${roomIdValue}:${roomCodeValue}`;
+      await QRCodeLib.toCanvas(canvas, qrText, {
+        width: 300,
+        margin: 1,
+        color: {
+          dark: getThemeColor('--sync-qr-code-dark'),
+          light: getThemeColor('--sync-qr-code-bg'),
+        },
+      });
+      qrCodeEl.appendChild(canvas);
+    } catch (e) {
+      log.error('QR render error:', e);
     }
   };
 
@@ -407,65 +339,40 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
           <span class="status-text">{statusText()}</span>
         </div>
         
-        {/* QR Code Display */}
-        <Show when={phase() === 'showing-qr' || phase() === 'init'}>
+        {<Show when={phase() === 'showing-qr' || phase() === 'init'}>
           <div class="qr-container">
             <div class="qr-code" ref={qrCodeEl}>
-              <Spinner size={40} shape="square" />
+              <Spinner size={40} shape="square" strokeWidth={8} cornerRadius={0} />
             </div>
             <p class="qr-hint">
               {t('mlearn.Flashcards.Sync.QRHint')}
             </p>
-            <Btn onClick={startScanning}>
-              {t('mlearn.Flashcards.Sync.ScanQRInstead')}
-            </Btn>
           </div>
-        </Show>
+        </Show>}
         
-        {/* Camera Scanning */}
-        <Show when={phase() === 'scanning'}>
-          <div class="scan-container">
-            <video
-              ref={videoEl}
-              class="scan-video"
-              autoplay
-              playsinline
-              muted
-            />
-            <canvas ref={canvasEl} class="scan-canvas" />
-            <ProgressBar value={progress()} showPercent variant="primary" animated />
-            <Btn onClick={() => { stopScanning(); startConnection(); }}>
-              {t('mlearn.Flashcards.Sync.ShowQRInstead')}
-            </Btn>
-          </div>
-        </Show>
-        
-        {/* Syncing */}
-        <Show when={phase() === 'syncing' || phase() === 'connecting'}>
+        {<Show when={phase() === 'syncing' || phase() === 'connecting'}>
           <div class="sync-progress">
-            <Spinner size={48} shape="square" text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
+            <Spinner size={48} shape="square" strokeWidth={8} cornerRadius={0} text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
             <ProgressBar value={progress()} showPercent variant="primary" animated />
           </div>
-        </Show>
+        </Show>}
         
-        {/* Complete */}
-        <Show when={phase() === 'complete'}>
+        {<Show when={phase() === 'complete'}>
           <div class="sync-complete">
             <div class="complete-icon"><CheckIcon size={24} /></div>
             <p>{t('mlearn.Flashcards.Sync.SyncedSuccessfully')}</p>
           </div>
-        </Show>
+        </Show>}
         
-        {/* Error */}
-        <Show when={phase() === 'error'}>
+        {<Show when={phase() === 'error'}>
           <div class="sync-error">
             <div class="error-icon"><CrossIcon size={24} /></div>
             <p>{error()}</p>
-            <Btn onClick={startConnection}>
+            <Btn onClick={startAsSender}>
               {t('mlearn.Global.TryAgain')}
             </Btn>
           </div>
-        </Show>
+        </Show>}
       </div>
     </Modal>
   );

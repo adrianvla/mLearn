@@ -9,11 +9,10 @@ import { useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
 import { isElectron as isElectronPlatform } from '../../../../shared/platform';
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
 import { CloudReLoginModal } from '../../../components/cloud';
-import { WatchTogetherCodeModal, WatchTogetherModeModal, MediaDistributionModal, MediaReceiveModal } from '../../../components/watchTogether';
-import type { MediaTransferMetadata } from '../../../services/mediaDistributionService';
+import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../components/watchTogether';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
-import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
+import { Panel, Btn, NavBtn, VideoIcon, Spinner } from '../../../components/common';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
@@ -26,7 +25,7 @@ import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMedi
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
-import { tokensToColoredHtml } from '../../../utils/subtitleParsing';
+import { tokensToColoredHtml, parseWorkName } from '../../../utils/subtitleParsing';
 import { getWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -40,8 +39,10 @@ import {
 } from '../../../services/watchTogetherRoomService';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
 import { collectDroppedMediaFiles } from './videoDropUtils';
+import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import './video.css';
@@ -50,12 +51,19 @@ import { getLogger } from '@shared/utils/logger';
 const log = getLogger("renderer.video");
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
-const toLocalMediaUrl = (filePath: string): string => `local-media://${filePath}`;
+const toLocalMediaUrl = (filePath: string): string => {
+  const normalized = filePath.replace(/\\/g, '/');
+  const encoded = normalized.split('/').map(encodeURIComponent).join('/');
+  return `local-media://localhost${encoded.startsWith('/') ? encoded : '/' + encoded}`;
+};
 
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
 
-const getMediaNameFromPath = (filePath: string): string => filePath.split('/').pop() || filePath.split('\\').pop() || 'Video';
+const getMediaNameFromPath = (filePath: string): string => {
+  const rawName = filePath.split('/').pop() || filePath.split('\\').pop() || 'Video';
+  return parseWorkName(rawName);
+};
 
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
@@ -99,14 +107,15 @@ export const VideoRoute: Component = () => {
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
   const [, setCurrentSubtitlePath] = createSignal('');
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
+  const [detectedAudioTracks, setDetectedAudioTracks] = createSignal<Array<{ index: number; label: string; language: string | null }>>([]);
+  const [detectedSubtitleTracks, setDetectedSubtitleTracks] = createSignal<Array<{ index: number; label: string; language: string | null; extractedPath?: string }>>([]);
+  const [activeDetectedSubtitleTrack, setActiveDetectedSubtitleTrack] = createSignal<number | null>(null);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [showWatchTogetherModeModal, setShowWatchTogetherModeModal] = createSignal(false);
   const [showWatchTogetherCodeModal, setShowWatchTogetherCodeModal] = createSignal(false);
   const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
   const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
   const [watchTogetherError, setWatchTogetherError] = createSignal('');
-  const [showMediaDistributionModal, setShowMediaDistributionModal] = createSignal(false);
-  const [showMediaReceiveModal, setShowMediaReceiveModal] = createSignal(false);
   const [explainerOpen, setExplainerOpen] = createSignal(false);
   const [explainerContext, setExplainerContext] = createSignal('');
   const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -176,6 +185,8 @@ export const VideoRoute: Component = () => {
       currentTime: video?.currentTime ?? currentVideoTime(),
       paused: video?.paused ?? true,
       playbackRate: video?.playbackRate ?? 1,
+      mediaUrl,
+      mediaTitle: currentVideoName(),
     };
   };
 
@@ -286,8 +297,27 @@ export const VideoRoute: Component = () => {
     setExplainerOpen(false);
   };
 
-  const loadVideo = (path: string, name: string) => {
-    setVideoSrc(toLocalMediaUrl(path));
+  const handleSelectDetectedSubtitleTrack = async (index: number | null) => {
+    if (index === null) {
+      setActiveDetectedSubtitleTrack(null);
+      return;
+    }
+    const tracks = detectedSubtitleTracks();
+    const track = tracks[index];
+    if (!track) return;
+    const src = videoSrc();
+    if (!src) return;
+    setActiveDetectedSubtitleTrack(index);
+    const result = await extractSubtitleTrack(src, track.index);
+    if (result.success && result.content) {
+      setSubtitleContent(result.content);
+    }
+  };
+
+  const loadVideo = async (path: string, name: string) => {
+    const url = toLocalMediaUrl(path);
+    log.info('[VideoRoute] loadVideo: path=', path, 'url=', url);
+    setVideoSrc(url);
     setCurrentVideoTime(0);
     setCurrentVideoDuration(null);
     setCurrentVideoPath(path);
@@ -295,6 +325,52 @@ export const VideoRoute: Component = () => {
     setCurrentSubtitlePath('');
     setShowDropZone(false);
     setCurrentVideoName(name);
+    setDetectedAudioTracks([]);
+    setDetectedSubtitleTracks([]);
+    setActiveDetectedSubtitleTrack(null);
+
+    if (isElectronPlatform() && path) {
+      const tracks = await detectMediaTracks(url);
+      if (tracks.audioTracks.length > 0 || tracks.subtitleTracks.length > 0) {
+        setDetectedAudioTracks(
+          tracks.audioTracks.map((t) => ({
+            index: t.index,
+            label: t.label || t.language || `Audio ${t.index + 1}`,
+            language: t.language,
+          })),
+        );
+        const subtitleTrackInfos = tracks.subtitleTracks.map((t) => ({
+          index: t.index,
+          label: t.label || t.language || `Subtitle ${t.index + 1}`,
+          language: t.language,
+        }));
+        setDetectedSubtitleTracks(subtitleTrackInfos);
+
+        if (subtitleTrackInfos.length > 0) {
+          const fileSize = await getBridge().files.getFileSize(path);
+          const maxSize = 512 * 1024 * 1024;
+          if (fileSize != null && fileSize > maxSize) {
+            log.info('[VideoRoute] loadVideo: file too large for auto-extraction', fileSize);
+            showToast({
+              message: t('mlearn.Video.SubtitleTracksDetected'),
+              variant: 'info',
+            });
+          } else {
+            const firstTrack = tracks.subtitleTracks[0];
+            const result = await extractSubtitleTrack(url, firstTrack.index);
+            if (result.success && result.content) {
+              setSubtitleContent(result.content);
+              setActiveDetectedSubtitleTrack(0);
+            } else {
+              showToast({
+                message: t('mlearn.Video.SubtitleExtractionFailed'),
+                variant: 'warning',
+              });
+            }
+          }
+        }
+      }
+    }
   };
 
   const saveVideoToRecentItems = async (path: string, name: string, subtitlePath?: string) => {
@@ -323,6 +399,19 @@ export const VideoRoute: Component = () => {
   });
 
   createEffect(() => {
+    const content = subtitleContent();
+    const src = videoSrc();
+    if (!content || !src) return;
+    console.log('[VideoRoute] Forwarding subtitle tracks to overlay, content length=', content.length, 'url=', src);
+    const bridge = getBridge();
+    bridge.overlay.sendOverlaySubtitleTracks({
+      tracks: [],
+      textTracks: [{ language: settings.language || 'unknown', text: content }],
+      url: src,
+    });
+  });
+
+  createEffect(() => {
     const mode = watchTogether.mode();
     const activeVideoSrc = videoSrc();
 
@@ -339,62 +428,27 @@ export const VideoRoute: Component = () => {
     watchTogether.sendSync(getCurrentVideoElement()?.currentTime ?? 0);
   });
 
-  // Show the media receive modal when a pending offer arrives
   createEffect(() => {
-    const offer = watchTogether.pendingMediaOffer();
-    if (offer) {
-      setShowMediaReceiveModal(true);
-    }
-  });
+    const state = watchTogether.roomState();
+    if (!state?.mediaUrl || watchTogether.mode() !== 'room-viewer') return;
 
-  // When the owner sends a sync-state with a new mediaUrl, load the video (viewer mode)
-  createEffect(() => {
-    const received = watchTogether.receivedMediaUrl();
-    if (!received) return;
-
-    if (!isRemoteWatchTogetherUrl(received.url)) {
-      watchTogether.clearReceivedMediaUrl();
+    if (!isRemoteWatchTogetherUrl(state.mediaUrl)) {
       return;
     }
 
-    loadSharedVideo(received.url, received.title);
-    watchTogether.clearReceivedMediaUrl();
+    loadSharedVideo(state.mediaUrl, state.mediaTitle || '');
   });
 
-  // When the room is closed by the host, notify the viewer
   createEffect(() => {
-    if (!watchTogether.roomClosedByHost()) return;
+    if (watchTogether.roomState()?.status !== 'closed') return;
     showToast({
       message: t('mlearn.WatchTogether.Code.RoomClosed'),
       variant: 'warning',
     });
     setShowWatchTogetherCodeModal(false);
     setShowWatchTogetherModeModal(false);
-    watchTogether.clearRoomClosedByHost();
+    watchTogether.deactivate();
   });
-
-  // When a media file is received via WebRTC, allow loading it
-  const handleLoadReceivedMedia = (file: Blob, meta: MediaTransferMetadata) => {
-    const objectUrl = URL.createObjectURL(file);
-    setVideoSrc(objectUrl);
-    setCurrentVideoTime(0);
-    setCurrentVideoDuration(null);
-    setCurrentVideoPath('');
-    setShowDropZone(false);
-    setCurrentVideoName(meta.fileName);
-
-    if (meta.subtitleContent) {
-      setSubtitleContent(meta.subtitleContent);
-      setCurrentSubtitlePath('');
-    }
-
-    watchTogether.clearMediaReceiveResult();
-    setShowMediaReceiveModal(false);
-  };
-
-  const handleStartMediaDistribution = (file: Blob, fileName: string, subtitleContent: string | null) => {
-    watchTogether.startMediaDistribution(file, fileName, subtitleContent);
-  };
 
   syncVideoPluginActivity({
     workName: currentVideoName,
@@ -536,7 +590,7 @@ export const VideoRoute: Component = () => {
       log.info('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
       if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
         const { clipVideo } = await import('../../../services/videoClipService');
-        const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
+        const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
         const start = Math.max(0, entry.subtitleStart - margin);
         const end = entry.subtitleEnd + margin;
         log.info('[VideoRoute] addVideoWordFlashcard: calling clipVideo, start=', start, 'end=', end);
@@ -696,19 +750,78 @@ export const VideoRoute: Component = () => {
       updateVideoProgress();
     }, 10000); // Save progress every 10 seconds
 
+    // Set up overlay video state sync interval
+    const overlaySyncInterval = window.setInterval(() => {
+      const video = getCurrentVideoElement();
+      if (!video) return;
+      bridge.overlay.sendOverlayVideoState({
+        currentTime: video.currentTime,
+        isPlaying: !video.paused,
+        duration: video.duration && isFinite(video.duration) ? video.duration : 0,
+        playbackRate: video.playbackRate,
+        volume: video.volume,
+        muted: video.muted,
+        isWaiting: video.readyState < 3,
+        url: videoSrc(),
+        title: currentVideoName(),
+      });
+    }, 100);
+    ipcCleanups.push(() => clearInterval(overlaySyncInterval));
+
+    // Respond to overlay sync requests
+    ipcCleanups.push(bridge.overlay.onOverlayRequestSync(() => {
+      const video = getCurrentVideoElement();
+      if (!video) return;
+      bridge.overlay.sendOverlayVideoState({
+        currentTime: video.currentTime,
+        isPlaying: !video.paused,
+        duration: video.duration && isFinite(video.duration) ? video.duration : 0,
+        playbackRate: video.playbackRate,
+        volume: video.volume,
+        muted: video.muted,
+        isWaiting: video.readyState < 3,
+        url: videoSrc(),
+        title: currentVideoName(),
+      });
+      const subContent = subtitleContent();
+      const src = videoSrc();
+      if (subContent && src) {
+        bridge.overlay.sendOverlaySubtitleTracks({
+          tracks: [],
+          textTracks: [{ language: settings.language || 'unknown', text: subContent }],
+          url: src,
+        });
+      }
+    }));
+
     // Attach watch-together listeners to the video element once it exists.
     // Uses a short poll because the <video> may not be in the DOM yet.
     const attachWatchTogetherListeners = () => {
       const video = document.querySelector('video');
       if (!video) return;
 
+      let isAnticipatingPlay = false;
+
       const onPlay = () => {
-        if (!watchTogether.isSuppressed) {
+        if (watchTogether.isSuppressed) return;
+        if (watchTogether.mode() === 'room-owner' && !isAnticipatingPlay) {
+          isAnticipatingPlay = true;
+          video.pause();
+          watchTogether.handlePlayAction();
+          const checkDone = window.setInterval(() => {
+            if (!watchTogether.isAnticipatingPing()) {
+              window.clearInterval(checkDone);
+              isAnticipatingPlay = false;
+            }
+          }, 50);
+          return;
+        }
+        if (!isAnticipatingPlay) {
           watchTogether.sendPlay(video.currentTime);
         }
       };
       const onPause = () => {
-        if (!watchTogether.isSuppressed) {
+        if (!watchTogether.isSuppressed && !isAnticipatingPlay) {
           watchTogether.sendPause(video.currentTime);
         }
         savePlaybackTime();
@@ -718,6 +831,17 @@ export const VideoRoute: Component = () => {
         if (!watchTogether.isSuppressed) {
           watchTogether.sendSync(video.currentTime);
         }
+        bridge.overlay.sendOverlayVideoState({
+          currentTime: video.currentTime,
+          isPlaying: !video.paused,
+          duration: video.duration && isFinite(video.duration) ? video.duration : 0,
+          playbackRate: video.playbackRate,
+          volume: video.volume,
+          muted: video.muted,
+          isWaiting: video.readyState < 3,
+          url: videoSrc(),
+          title: currentVideoName(),
+        });
       };
 
       video.addEventListener('play', onPlay);
@@ -833,8 +957,8 @@ export const VideoRoute: Component = () => {
     if (!html) return;
     watchTogether.sendSubtitles(
       html,
-      settings.subtitle_font_size ?? 32,
-      settings.subtitle_font_weight ?? 700,
+      settings.subtitle_font_size ?? DEFAULT_SETTINGS.subtitle_font_size,
+      settings.subtitle_font_weight ?? DEFAULT_SETTINGS.subtitle_font_weight,
     );
   });
   
@@ -926,22 +1050,25 @@ export const VideoRoute: Component = () => {
     );
 
     if (droppedMedia.video) {
+      log.info('[VideoRoute] handleDrop: video filePath=', droppedMedia.video.filePath, 'fileName=', droppedMedia.video.fileName, 'displayName=', droppedMedia.video.displayName);
       if (droppedMedia.video.filePath) {
-        loadVideo(droppedMedia.video.filePath, droppedMedia.video.fileName);
+        loadVideo(droppedMedia.video.filePath, droppedMedia.video.displayName);
         await saveVideoToRecentItems(
           droppedMedia.video.filePath,
-          droppedMedia.video.fileName,
+          droppedMedia.video.displayName,
           droppedMedia.subtitle?.filePath,
         );
       } else {
-        setVideoSrc(URL.createObjectURL(droppedMedia.video.file));
+        const blobUrl = URL.createObjectURL(droppedMedia.video.file);
+        log.info('[VideoRoute] handleDrop: using blobUrl=', blobUrl);
+        setVideoSrc(blobUrl);
         setCurrentVideoTime(0);
         setCurrentVideoDuration(null);
         setCurrentVideoPath('');
         setSubtitleContent('');
         setCurrentSubtitlePath('');
         setShowDropZone(false);
-        setCurrentVideoName(droppedMedia.video.fileName);
+        setCurrentVideoName(droppedMedia.video.displayName);
       }
     }
 
@@ -1094,36 +1221,29 @@ export const VideoRoute: Component = () => {
       <WindowDragRegion />
 
       {/* Back button */}
-      <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
-        {t('mlearn.Video.UI.GoHome')}
-      </NavBtn>
-
-      <NavBtn
-        class="conversation-agent-button"
-        onClick={openConversationAgent}
-        title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
-      >
-        {t('mlearn.Video.UI.OpenConversationAgent')}
-      </NavBtn>
-
-      <Show when={watchTogether.isRoomMode()}>
-        <NavBtn
-          class="watch-together-room-button"
-          onClick={openWatchTogetherCodeModal}
-          title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
-        >
-          {t('mlearn.WatchTogether.Code.OpenRoomPanel')}
+      <div class="video-nav">
+        <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
+          {t('mlearn.Video.UI.GoHome')}
         </NavBtn>
-        <Show when={watchTogether.canControl()}>
+
+        <NavBtn
+          class="conversation-agent-button"
+          onClick={openConversationAgent}
+          title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
+        >
+          {t('mlearn.Video.UI.OpenConversationAgent')}
+        </NavBtn>
+
+        <Show when={watchTogether.isRoomMode()}>
           <NavBtn
-            class="watch-together-distribute-button"
-            onClick={() => setShowMediaDistributionModal(true)}
-            title={t('mlearn.WatchTogether.Media.DistributeTitle')}
+            class="watch-together-room-button"
+            onClick={openWatchTogetherCodeModal}
+            title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
           >
-            {t('mlearn.WatchTogether.Media.DistributeAction')}
+            {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''} • ${watchTogether.peerCount()} ${t('mlearn.WatchTogether.Code.Peers')}`}
           </NavBtn>
         </Show>
-      </Show>
+      </div>
 
       <Show
         when={!showDropZone()}
@@ -1153,23 +1273,34 @@ export const VideoRoute: Component = () => {
           </div>
         }
       >
-        <VideoPlayer
-          src={videoSrc()}
-          subtitleContent={subtitleContent()}
-          remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}
-          remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}
-          remoteSubtitleWeight={watchTogether.remoteSubtitle()?.weight ?? null}
-          subtitles={subtitles}
-          ctxMenuOptions={{
-            isWatchTogether: watchTogether.isActive(),
-            hasContextPhrase: !!currentSubtitlePhrase(),
-            canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
-          }}
-          onContextMenuOpen={setContextMenuPosition}
-          onTimeUpdate={(time) => setCurrentVideoTime(time)}
-          showWordSidebar={showWordSidebar()}
-          onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
-        />
+        <div class="video-player-container">
+          <VideoPlayer
+            src={videoSrc()}
+            subtitleContent={subtitleContent()}
+            remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}
+            remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}
+            remoteSubtitleWeight={watchTogether.remoteSubtitle()?.weight ?? null}
+            subtitles={subtitles}
+            ctxMenuOptions={{
+              isWatchTogether: watchTogether.isActive(),
+              hasContextPhrase: !!currentSubtitlePhrase(),
+              canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
+            }}
+            onContextMenuOpen={setContextMenuPosition}
+            onTimeUpdate={(time) => setCurrentVideoTime(time)}
+            showWordSidebar={showWordSidebar()}
+            onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
+            detectedAudioTracks={detectedAudioTracks()}
+            detectedSubtitleTracks={detectedSubtitleTracks()}
+            activeDetectedSubtitleTrack={activeDetectedSubtitleTrack()}
+            onSelectDetectedSubtitleTrack={handleSelectDetectedSubtitleTrack}
+          />
+          <Show when={watchTogether.isAnticipatingPing()}>
+            <div class="watch-together-anticipation-overlay">
+              <Spinner size={32} text={t('mlearn.WatchTogether.AnticipatingPing')} />
+            </div>
+          </Show>
+        </div>
       </Show>
 
       <ExplainerPopup
@@ -1242,31 +1373,7 @@ export const VideoRoute: Component = () => {
         codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
       />
 
-      <MediaDistributionModal
-        isOpen={showMediaDistributionModal()}
-        onClose={() => setShowMediaDistributionModal(false)}
-        connectedPeerCount={watchTogether.connectedPeerCount()}
-        isSending={watchTogether.isSendingMedia()}
-        sendProgress={watchTogether.mediaSendProgress()}
-        sendComplete={watchTogether.mediaSendComplete()}
-        onStartDistribution={handleStartMediaDistribution}
-        onCancel={() => { watchTogether.cancelMediaDistribution(); setShowMediaDistributionModal(false); }}
-        videoSrc={videoSrc()}
-        subtitleContent={subtitleContent() || null}
-      />
 
-      <MediaReceiveModal
-        isOpen={showMediaReceiveModal()}
-        onClose={() => setShowMediaReceiveModal(false)}
-        offerMeta={watchTogether.pendingMediaOffer()?.meta ?? null}
-        isReceiving={watchTogether.isReceivingMedia()}
-        receiveProgress={watchTogether.mediaReceiveProgress()}
-        receiveResult={watchTogether.mediaReceiveResult()}
-        onAccept={() => watchTogether.acceptMediaOffer()}
-        onReject={() => { watchTogether.rejectMediaOffer(); setShowMediaReceiveModal(false); }}
-        onLoadReceived={handleLoadReceivedMedia}
-        onDismiss={() => { watchTogether.clearMediaReceiveResult(); setShowMediaReceiveModal(false); }}
-      />
     </div>
   );
 };

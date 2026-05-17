@@ -105,6 +105,7 @@ export const LiveWordTranslator: Component = () => {
   createEffect(() => {
     const handleShowAside = () => {
       setIsActive(true);
+      updateSetting('openAside', true);
       resetHideTimeout();
     };
 
@@ -147,6 +148,9 @@ export const LiveWordTranslator: Component = () => {
     if (!isActive()) {
       classes.push('idle');
     }
+    if (settings.openAside === false) {
+      classes.push('hidden');
+    }
     return classes.join(' ');
   };
 
@@ -158,7 +162,7 @@ export const LiveWordTranslator: Component = () => {
           onMouseLeave={handleMouseLeave}
       >
         {/* Header with close button */}
-        <PanelHeader onClose={() => { setIsActive(false); setCards([]); }} />
+        <PanelHeader onClose={() => { setIsActive(false); setCards([]); updateSetting('openAside', false); }} />
 
         {/* Card container */}
         <div class="translator-cards-container">

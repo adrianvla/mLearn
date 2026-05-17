@@ -4,7 +4,7 @@
  */
 
 import { Component, createMemo, createSignal, Show, onCleanup } from 'solid-js';
-import type { Token } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
 import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { getCachedReading, getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
@@ -115,7 +115,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     if (!isWordTranslatable()) return;
     setIsMouseOver(true);
 
-    const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
+    const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     switch (triggerMode) {
       case 'hover':
         triggerHoverFromElement();
@@ -146,8 +146,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Key event handlers for key-hover mode
   const handleKeyDown = (e: KeyboardEvent) => {
-    if ((settings.readerWordHoverTrigger ?? 'hover') !== 'key-hover') return;
-    const keybind = settings.readerWordHoverKey ?? 'shift';
+    if ((settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger) !== 'key-hover') return;
+    const keybind = settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!;
     if (matchesKeybind(e, keybind) && !isKeyHeld()) {
       setIsKeyHeld(true);
       if (isMouseOver() && isWordTranslatable()) triggerHoverFromElement();
@@ -155,8 +155,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   };
 
   const handleKeyUp = (e: KeyboardEvent) => {
-    if ((settings.readerWordHoverTrigger ?? 'hover') !== 'key-hover') return;
-    const keybind = settings.readerWordHoverKey ?? 'shift';
+    if ((settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger) !== 'key-hover') return;
+    const keybind = settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!;
     if (matchesKeybind(e, keybind)) {
       setIsKeyHeld(false);
       if (isMouseOver()) props.onLeave?.();

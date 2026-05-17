@@ -44,29 +44,6 @@
   --welcome-language-code-bg: var(--bg-intense);
   --welcome-language-code-border: var(--border-color);
   --welcome-language-code-text: var(--text-primary);
-  --log-console-bg: var(--bg-nt-primary);
-  --log-console-header-bg: var(--bg-nt-secondary);
-  --log-console-border: var(--border-color-intense);
-  --log-console-title: var(--text-secondary);
-  --log-console-action: var(--text-tertiary);
-  --log-console-action-hover: var(--text-primary);
-  --log-console-action-hover-bg: var(--bg-intense);
-  --log-console-entry-border: var(--border-color);
-  --log-console-timestamp: var(--text-tertiary);
-  --log-console-message: var(--text-primary);
-  --log-console-info: var(--color-info);
-  --log-console-info-bg: rgba(52, 152, 219, 0.18);
-  --log-console-success: var(--color-success);
-  --log-console-success-bg: rgba(88, 195, 51, 0.18);
-  --log-console-warning: var(--color-warning);
-  --log-console-warning-bg: rgba(241, 196, 15, 0.18);
-  --log-console-error: var(--color-error);
-  --log-console-error-bg: rgba(231, 76, 60, 0.18);
-  --log-console-debug: var(--text-secondary);
-  --log-console-debug-bg: var(--bg-intense);
-  --log-console-empty: var(--text-tertiary);
-  --log-console-scrollbar: var(--text-tertiary);
-  --log-console-scrollbar-hover: var(--text-secondary);
   --furigana-hider-bg: #ffffff;
   --furigana-hider-shadow: rgba(0, 0, 0, 0.1);
   --selectable-card-badge-text: var(--text-on-warning);
@@ -84,14 +61,14 @@
 
   --bg-opaque: #f5f5f5;
 
-  --bg: rgba(85, 85, 85, 0.1);
-  --bg-intense: rgba(85, 85, 85, 0.15);
+  --bg: rgba(200,200,200, 0.7);
+  --bg-intense: rgba(220,220,220, 0.8);
   --bg-nt-primary: rgb(238,238,238); /*non-translucent*/
   --bg-nt-secondary: rgb(230,230,230); /*non-translucent*/
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
-  --backdrop-filter: blur(10px) saturate(2) brightness(1.1);
-  --backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-filter: blur(10px) saturate(1) brightness(1.1);
+  --backdrop-filter-nodim: blur(10px) saturate(1) brightness(1.1);
   --border-color: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);
 
@@ -177,7 +154,7 @@
   /* ========== Text Color Aliases ========== */
   /* Used by components for consistency */
   --text-primary: #1a1a1a;
-  --text-secondary: #666666;
+  --text-secondary: #444;
   --text-tertiary: rgba(0, 0, 0, 0.4);
   
   /* ========== Additional Color Aliases ========== */
@@ -192,6 +169,7 @@
   /* ========== Subtitle Specific ========== */
   --subtitle-font-size: 40px;
   --subtitle-font-weight: 400;
+  --subtitle-text: #ffffff;
   --word-blur-amount: 5px;
   --pitch-accent-height: 2px;
 
@@ -244,7 +222,8 @@
   --skeleton-base: rgba(112, 112, 112, 0.63);
   --skeleton-highlight: rgba(160, 160, 160, 0.63);
 
-  /* ========== Scrollbar Colors ========== */
+  /* ========== Scrollbar ========== */
+  --scrollbar-width: 6px;
   --scrollbar-thumb: var(--bg);
   --scrollbar-thumb-hover: var(--accent-bg);
 
@@ -291,5 +270,13 @@
 
   /*for OSes*/
   --navbar-margin-left: 70px;
+
+  /* ========== Overlay Specific ========== */
+  --overlay-dragover-bg: rgba(0, 0, 0, 0.15);
+  --overlay-controls-bg: rgba(0, 0, 0, 0.5);
+  --overlay-controls-text: #ffffff;
+  --overlay-controls-btn-bg: rgba(255, 255, 255, 0.15);
+  --overlay-controls-btn-hover-bg: rgba(255, 255, 255, 0.25);
+  --overlay-sync-indicator-default: #888;
 }
 

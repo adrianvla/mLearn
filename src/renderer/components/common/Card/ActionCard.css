@@ -32,7 +32,13 @@
 .action-card.disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  pointer-events: none;
+}
+
+.action-card.disabled:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border-color);
+  background: var(--bg);
 }
 
 .action-card .action-icon {

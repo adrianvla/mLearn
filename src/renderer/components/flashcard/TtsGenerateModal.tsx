@@ -15,7 +15,7 @@ import { stripHtmlForTts, getLanguageDisplayName } from '../../../shared/utils/t
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { withCloudAuth } from '../../services/cloudSessionManager';
-import type { TTSProvider } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type TTSProvider } from '../../../shared/types';
 import './TtsGenerateModal.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -41,7 +41,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   const { requestAccess } = useLowPowerGate();
 
   const [provider, setProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
-  const [voiceSampleId, setVoiceSampleId] = createSignal(settings.flashcardVoiceSampleId || '');
+  const [voiceSampleId, setVoiceSampleId] = createSignal(settings.flashcardVoiceSampleId || DEFAULT_SETTINGS.flashcardVoiceSampleId!);
 
   // Task toggles
   const [doWordTts, setDoWordTts] = createSignal(true);

@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
-import { spawn, exec, ChildProcess } from 'child_process';
+import { spawn, exec, execSync, ChildProcess } from 'child_process';
 import { ipcMain } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
@@ -118,13 +118,25 @@ let waitingForInstallChoice = false;
 let pendingInstallOptions: InstallOptions = { includeLLM: true, includeOCR: true, includeVoice: true };
 let serverLoadCheckInterval: NodeJS.Timeout | null = null;
 let lastExitWasAnkiError = false;
+let ankiErrorSent = false;
 let ankiOverrideDisable = false;
+
+let quitToken: string | null = null;
 
 // Buffered error state so the renderer can retrieve it even if it mounts
 // after the Python process exits (race condition: fast Anki connection-refused)
 let pendingAnkiError: string | null = null;
 let pendingCriticalError: string | null = null;
 let pendingStartupStatusMessage: string | null = null;
+let activePipProcess: ChildProcess | null = null;
+
+const PACKAGE_SIZE_ESTIMATES_BYTES: Readonly<Record<string, number>> = {
+  core: 500 * 1024 * 1024,
+  ocr: 3000 * 1024 * 1024,
+  llm: 5000 * 1024 * 1024,
+  voice: 4000 * 1024 * 1024,
+  python: 150 * 1024 * 1024,
+};
 
 // Paths
 const resPath = getResourcePath();
@@ -185,6 +197,10 @@ export function isServerLoaded(): boolean {
 
 export function getPythonProcess(): ChildProcess | null {
   return pythonChildProcess;
+}
+
+export function getQuitToken(): string | null {
+  return quitToken;
 }
 
 // Send status update to current window
@@ -364,6 +380,63 @@ function buildPipRequirementList(options: InstallOptions): string[] {
   return packages;
 }
 
+function estimateRequiredBytes(options: InstallOptions): number {
+  let total = PACKAGE_SIZE_ESTIMATES_BYTES.python + PACKAGE_SIZE_ESTIMATES_BYTES.core;
+  if (options.includeOCR) total += PACKAGE_SIZE_ESTIMATES_BYTES.ocr;
+  if (options.includeLLM) total += PACKAGE_SIZE_ESTIMATES_BYTES.llm;
+  if (options.includeVoice) total += PACKAGE_SIZE_ESTIMATES_BYTES.voice;
+  return total;
+}
+
+function formatBytes(bytes: number): string {
+  const gb = bytes / (1024 * 1024 * 1024);
+  return `${gb.toFixed(1)} GB`;
+}
+
+async function checkDiskSpace(targetPath: string): Promise<number> {
+  try {
+    const dir = path.dirname(targetPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const statfs = (fs as any).statfs || (fs as any).statFS;
+    if (typeof statfs === 'function') {
+      const stats = await new Promise<any>((resolve, reject) => {
+        statfs(dir, (err: Error | null, result: any) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+      return stats.bavail * stats.bsize;
+    }
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
+async function verifyPythonInstallation(options: InstallOptions): Promise<boolean> {
+  const pythonPath = getPythonExecutablePath();
+  const imports = ['fastapi', 'uvicorn', 'spacy'];
+  if (options.includeOCR) imports.push('paddleocr');
+  if (options.includeLLM) imports.push('torch', 'transformers');
+
+  const script = imports.map(mod => `try:\n    import ${mod}\nexcept Exception as e:\n    print(f"FAIL:${mod}:{e}")`).join('\n');
+
+  return new Promise((resolve) => {
+    const verifyProcess = spawn(pythonPath, ['-c', script], { cwd: envPath });
+    let output = '';
+    verifyProcess.stdout.on('data', (data) => { output += data.toString(); });
+    verifyProcess.stderr.on('data', (data) => { output += data.toString(); });
+    verifyProcess.on('close', (code) => {
+      if (code !== 0 || output.includes('FAIL:')) {
+        log.error('Installation verification failed:', output);
+        resolve(false);
+      } else {
+        resolve(true);
+      }
+    });
+  });
+}
+
 // Download file with redirect handling
 function downloadFile(
   fileUrl: string, 
@@ -520,10 +593,67 @@ function startServerReadyPolling(): void {
   serverLoadCheckInterval = setTimeout(poll, 750);
 }
 
-// Start Python backend
+function killProcessesOnPort(port: number): void {
+  try {
+    let pids: string[] = [];
+
+    if (isWindows) {
+      try {
+        const output = execSync(`netstat -ano | findstr :${port}`, {
+          encoding: 'utf8',
+          windowsHide: true,
+        });
+        const lines = output.split('\n').filter((line) => line.trim());
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && /^\d+$/.test(pid)) {
+            pids.push(pid);
+          }
+        }
+      } catch {
+      }
+    } else {
+      try {
+        const output = execSync(`lsof -ti:${port}`, { encoding: 'utf8' }).trim();
+        if (output) {
+          pids = output.split('\n').filter((pid) => pid.trim());
+        }
+      } catch {
+      }
+    }
+
+    if (pids.length === 0) {
+      log.info(`No stale processes found using port ${port}`);
+      return;
+    }
+
+    log.warn(
+      `Found ${pids.length} stale process(es) using port ${port}: ${pids.join(', ')}. Killing...`
+    );
+
+    for (const pid of pids) {
+      try {
+        if (isWindows) {
+          execSync(`taskkill /F /PID ${pid}`, { windowsHide: true });
+        } else {
+          process.kill(parseInt(pid, 10), 'SIGKILL');
+        }
+        log.info(`Killed stale process ${pid}`);
+      } catch (e) {
+        log.warn(`Failed to kill stale process ${pid}:`, e);
+      }
+    }
+  } catch (e) {
+    log.warn(`Failed to clean up processes on port ${port}:`, e);
+  }
+}
+
 function pythonFound(): void {
   log.info('Python found, starting backend...');
-  
+
+  killProcessesOnPort(PYTHON_BACKEND_PORT);
+
   if (isFirstTimeSetup) return;
 
   const settings = loadSettings();
@@ -539,6 +669,7 @@ function pythonFound(): void {
 
   // Reset Anki error flag for this launch
   lastExitWasAnkiError = false;
+  ankiErrorSent = false;
   pendingAnkiError = null;
   pendingCriticalError = null;
   pendingStartupStatusMessage = null;
@@ -585,6 +716,13 @@ function pythonFound(): void {
     if (module === 'anki' && msg.startsWith('ANKI_ERROR')) {
       lastExitWasAnkiError = true;
       ankiErrorReason = msg.replace('ANKI_ERROR', '').trim();
+      if (!ankiErrorSent) {
+        ankiErrorSent = true;
+        getMainWindow()?.webContents.send(
+          IPC_CHANNELS.ANKI_CONNECTION_ERROR,
+          ankiErrorReason
+        );
+      }
     }
     forwardStatusToRenderer(msg);
   };
@@ -609,6 +747,11 @@ function pythonFound(): void {
     const text = data.toString('utf8');
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
     for (const line of lines) {
+      const quitTokenMatch = line.match(/^::QUIT_TOKEN::([a-f0-9]+)$/);
+      if (quitTokenMatch) {
+        quitToken = quitTokenMatch[1];
+        continue;
+      }
       if (line.startsWith(V2_PREFIX)) {
         const parts = line.substring(V2_PREFIX.length).split('::');
         if (parts.length >= 4) {
@@ -652,15 +795,17 @@ function pythonFound(): void {
     lifecycleLog.info(`python exited code=${code ?? 'null'} signal=${signal ?? 'null'}`);
     pythonChildProcess = null;
     serverLoaded = false;
+    quitToken = null;
     if (serverLoadCheckInterval) {
       clearTimeout(serverLoadCheckInterval);
       serverLoadCheckInterval = null;
     }
 
-    if (lastExitWasAnkiError) {
+    if (lastExitWasAnkiError && !ankiErrorSent) {
       const reason = ankiErrorReason || 'connection_failed';
       pendingAnkiError = reason;
       pendingCriticalError = null;
+      ankiErrorSent = true;
       getMainWindow()?.webContents.send(
         IPC_CHANNELS.ANKI_CONNECTION_ERROR,
         reason
@@ -717,6 +862,30 @@ function pythonFound(): void {
 }
 
 // Find Python installation
+function verifyPythonExecutable(pythonPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const check = spawn(pythonPath, ['--version'], { timeout: 5000 });
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      check.kill('SIGKILL');
+      resolve(false);
+    }, 5000);
+    check.on('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    check.on('close', (code) => {
+      clearTimeout(timer);
+      if (!timedOut && code === 0) {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+  });
+}
+
 export async function findPython(): Promise<boolean> {
   log.info('Finding Python...');
 
@@ -729,17 +898,21 @@ export async function findPython(): Promise<boolean> {
 
   for (const pythonPath of possibilities) {
     if (fs.existsSync(pythonPath)) {
-      log.info('Python found at:', pythonPath);
-      pythonSuccessInstall = true;
-      pythonFound();
-      return true;
+      const healthy = await verifyPythonExecutable(pythonPath);
+      if (healthy) {
+        log.info('Python found and healthy at:', pythonPath);
+        pythonSuccessInstall = true;
+        pythonFound();
+        return true;
+      }
+      log.warn('Python binary exists but is not healthy:', pythonPath);
     }
   }
 
   log.info('Python not found, starting installer...');
   waitingForInstallChoice = true;
   isFirstTimeSetup = true;
-  
+
   sendStatusUpdate('Select the components you want and click Install to continue.');
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
@@ -751,9 +924,20 @@ export async function findPython(): Promise<boolean> {
 }
 
 // Start Python installation
-export function startPythonInstall(options: InstallOptions): void {
+export async function startPythonInstall(options: InstallOptions): Promise<void> {
   if (installInProgress) {
     log.warn('Installation already in progress');
+    return;
+  }
+
+  const requiredBytes = estimateRequiredBytes(options);
+  const availableBytes = await checkDiskSpace(envPath);
+  const bufferMultiplier = 1.2;
+  if (availableBytes < requiredBytes * bufferMultiplier) {
+    handleInstallerFailure('Not enough disk space', {
+      detail: `Need ${formatBytes(requiredBytes * bufferMultiplier)}, have ${formatBytes(availableBytes)}`,
+      emitNetworkError: true,
+    });
     return;
   }
 
@@ -765,6 +949,7 @@ export function startPythonInstall(options: InstallOptions): void {
   const selectedComponents = ['Python runtime'];
   if (options.includeLLM) selectedComponents.push('Local language model support');
   if (options.includeOCR) selectedComponents.push('OCR reader support');
+  if (options.includeVoice) selectedComponents.push('Voice & TTS support');
   log.info('Installing:', selectedComponents.join(', '));
 
   try {
@@ -810,6 +995,7 @@ export function startPythonInstall(options: InstallOptions): void {
       const pipProcess = spawn(isWindows ? getPythonExecutablePath() : pipExecutable, pipArgs, {
         cwd: envPath,
       });
+      activePipProcess = pipProcess;
 
       const seenPackages = new Set<string>();
       let pipOutputBuffer = '';
@@ -858,15 +1044,22 @@ export function startPythonInstall(options: InstallOptions): void {
         processPipLines(data.toString(), true);
       });
 
-      pipProcess.on('close', (code) => {
+      pipProcess.on('close', async (code) => {
+        activePipProcess = null;
         installInProgress = false;
         if (code === 0 || code === null) {
-          log.info('Installation complete');
-          pythonSuccessInstall = true;
-          sendStatusUpdate('Installation complete');
-          // Don't close welcome window — let the user select a language first.
-          // The welcome window will show language selection on "Installation complete".
-          // Transition to main window happens via handleContinue → forceRestartApp.
+          sendStatusUpdate('Verifying installation...');
+          const verified = await verifyPythonInstallation(options);
+          if (verified) {
+            log.info('Installation complete');
+            pythonSuccessInstall = true;
+            sendStatusUpdate('Installation complete');
+          } else {
+            log.error('Installation verification failed');
+            waitingForInstallChoice = true;
+            sendStatusUpdate('ERROR: Installation verification failed');
+            getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+          }
         } else {
           log.error('pip install failed with code:', code);
           waitingForInstallChoice = true;
@@ -900,6 +1093,7 @@ export function terminatePythonBackend(): void {
     port: PYTHON_BACKEND_PORT,
     path: '/quit',
     method: 'POST',
+    headers: quitToken ? { 'x-quit-token': quitToken } : {},
     timeout: 2000,
   };
 
@@ -978,12 +1172,28 @@ export function setupPythonBackendIPC(): void {
     }
   });
 
-  ipcMain.on(IPC_CHANNELS.START_INSTALL, (_event, rawOptions) => {
+  ipcMain.on(IPC_CHANNELS.START_INSTALL, async (_event, rawOptions) => {
     const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
-    startPythonInstall({
+    await startPythonInstall({
       includeLLM: options.includeLLM ?? true,
       includeOCR: options.includeOCR ?? true,
+      includeVoice: options.includeVoice ?? true,
     });
+  });
+
+  ipcMain.on(IPC_CHANNELS.CANCEL_INSTALL, () => {
+    if (activePipProcess) {
+      activePipProcess.kill('SIGTERM');
+      activePipProcess = null;
+    }
+    installInProgress = false;
+    waitingForInstallChoice = true;
+    sendStatusUpdate('Installation cancelled');
+    try {
+      getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+    } catch (e) {
+      log.error("error", e);
+    }
   });
 
   ipcMain.on(IPC_CHANNELS.INSTALLER_STATE_REQUEST, (event) => {
