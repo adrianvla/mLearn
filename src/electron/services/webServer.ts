@@ -281,14 +281,6 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
-  // Serve light_style.css
-  if (pathname === '/light_style.css' || pathname === '/pages/assets/light_style.css') {
-    const basePath = getStaticBasePath();
-    const filePath = path.join(basePath, 'assets', 'light_style.css');
-    serveStaticFile(res, filePath);
-    return;
-  }
-
   // Serve assets from /assets/ path
   if (pathname.startsWith('/assets/')) {
     const assetPath = pathname.replace('/assets/', '');
