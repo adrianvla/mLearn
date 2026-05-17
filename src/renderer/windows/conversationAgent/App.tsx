@@ -53,6 +53,7 @@ import { SessionContextTab } from './SessionContextTab';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 import { AgentSetupModal } from './AgentSetupModal';
+import { AgeVerificationModal } from './AgeVerificationModal';
 import { AgentListPanel } from './AgentListPanel';
 import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
@@ -1336,6 +1337,9 @@ export const ConversationContent: Component = () => {
 
   return (
     <div class="conversation-agent">
+      <Show when={!settings.conversationAgentDisclaimerAccepted && settings.llmProvider === 'cloud'}>
+        <AgeVerificationModal onAccept={() => updateSettings({ conversationAgentDisclaimerAccepted: true })} />
+      </Show>
       {/* Header with integrated tabs */}
       <div class="ca-header">
         <div class="ca-header-left">
@@ -1446,6 +1450,24 @@ export const ConversationContent: Component = () => {
 
           {/* AI disclaimer */}
           <div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>
+          <Show when={settings.llmProvider !== 'cloud'}>
+            <div class="ca-prechat-banner">
+              <p class="ca-banner-warning">{t('mlearn.ConversationAgent.Banner.AIWarning')}</p>
+              <p class="ca-banner-safety">
+                {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: settings.agentSafetyChecker ? 'ON' : 'OFF' })}
+                {' '}
+                <button
+                  type="button"
+                  class="ca-banner-link"
+                  onClick={() => getBridge().window.openWindow({ type: 'settings' })}
+                >
+                  [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
+                </button>
+                {' '}
+                {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
+              </p>
+            </div>
+          </Show>
           <Show when={agent.isSafetyLocked()}>
             <div class="ca-safety-lockout">
               {t('mlearn.ConversationAgent.Safety.LockoutMessage')}

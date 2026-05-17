@@ -66,18 +66,23 @@ If you or someone you know is in crisis, contact your local emergency
 services or a crisis helpline in your jurisdiction immediately. This
 software is not a crisis response system.
 
-### 3.5 Age Requirement & Institutional Use
-By enabling the AI Conversation Agent, you certify that you are at least
-18 years of age, or the age of majority in your jurisdiction, whichever
-is higher.
+### 3.5 Age Requirement & Cloud vs. Local Use
 
-If you are an educational institution seeking to use mLearn with students
-under 18, you must deploy the software in **local-only mode** using the
-built-in AI or your own local Ollama server. The public cloud relay at
-kikan.net is not available to minors or institutional users.
+**Cloud AI (mlearn-cloud.kikan.net):**  
+By creating a cloud account or using the Cloud LLM relay, you certify
+that you are at least 18 years of age, or the age of majority in your
+jurisdiction, whichever is higher. The public cloud relay is not
+available to minors or institutional users.
 
-See SCHOOL_DEPLOYMENT.md for local deployment instructions. For
-enterprise cloud solutions, contact the developer directly.
+**Local AI (built-in or local Ollama):**  
+No age restriction applies to local-only use. The AI runs entirely on
+your device; no data is transmitted to our servers. Parents, guardians,
+and educational institutions are responsible for supervising minor use
+of local AI features.
+
+If you are an educational institution using mLearn with students under
+18, you must use local AI mode only. See SCHOOL_DEPLOYMENT.md for
+deployment instructions.
 
 ## 4. Voice Cloning & Text-to-Speech
 

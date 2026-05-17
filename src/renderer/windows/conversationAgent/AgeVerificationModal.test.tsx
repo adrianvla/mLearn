@@ -8,12 +8,12 @@ vi.mock('../../context', () => ({
   useLocalization: () => ({
     t: (key: string) => {
       const map: Record<string, string> = {
-        'mlearn.ConversationAgent.Disclaimer.Title': 'AI Conversation Agent — Age Verification',
-        'mlearn.ConversationAgent.Disclaimer.AIWarning': 'AI responses may be inaccurate.',
-        'mlearn.ConversationAgent.Disclaimer.SafetyNotice': 'Safety screening is ON.',
-        'mlearn.ConversationAgent.Disclaimer.AgeVerificationText': 'You must be 18+.',
-        'mlearn.ConversationAgent.Disclaimer.Certification': 'By continuing, you certify you are 18+.',
-        'mlearn.ConversationAgent.Disclaimer.ContinueButton': 'Continue to Chat',
+        'mlearn.ConversationAgent.AgeVerification.Title': 'AI Conversation Agent — Age Verification',
+        'mlearn.ConversationAgent.AgeVerification.AIWarning': 'AI responses may be inaccurate.',
+        'mlearn.ConversationAgent.AgeVerification.SafetyNotice': 'Safety screening is ON.',
+        'mlearn.ConversationAgent.AgeVerification.AgeVerificationText': 'You must be 18+.',
+        'mlearn.ConversationAgent.AgeVerification.Certification': 'By continuing, you certify you are 18+.',
+        'mlearn.ConversationAgent.AgeVerification.ContinueButton': 'Continue to Chat',
       };
       return map[key] ?? key;
     },

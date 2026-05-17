@@ -333,11 +333,39 @@
         "AssistantFiltered": "Потенциально небезопасный ответ помощника был заменён.",
         "AssistantReplacement": "Мне нужно ответить здесь осторожно. Если речь идёт о реальном риске самоповреждения или немедленной опасности, сейчас же свяжитесь с местными экстренными службами или кризисной линией в вашем регионе. Если хотите, расскажите, что происходит, и я продолжу отвечать осторожно.",
         "GetHelp": "Если это отражает реальный риск, немедленно свяжитесь с местными экстренными службами или кризисной линией в вашем регионе.",
-        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
-        "SensitiveNotice": "Обнаружен чувствительный контент, связанный с самоповреждением.",
+        "LockoutMessage": "Этот чат заблокирован из-за проблемы безопасности. Очистите чат, чтобы начать новый разговор.",
+        "SensitiveNotice": "Обнаружен возможный немедленный риск самоповреждения.",
         "UrgentNotice": "Обнаружен возможный немедленный риск самоповреждения.",
         "UserConcernResponse": "Мне нужно ответить на это осторожно. Если это отражает реальный риск самоповреждения, немедленно свяжитесь с местными экстренными службами или кризисной линией в вашем регионе. Если хотите, расскажите, что происходит, и я продолжу отвечать осторожно.",
         "UserUrgentResponse": "Я воспринимаю это серьёзно. Если речь идёт о немедленной опасности или риске самоповреждения, сейчас же свяжитесь с местными экстренными службами или кризисной линией в вашем регионе. Если хотите, скажите, находитесь ли вы сейчас в непосредственной опасности, и я отвечу осторожно."
+      },
+      "AgeVerification": {
+        "Title": "AI-разговорный агент — Проверка возраста",
+        "AIWarning": "⚠️ Ответы, сгенерированные ИИ, могут быть неточными или неуместными. Этот агент не является человеком и не может предоставлять профессиональные консультации.",
+        "SafetyNotice": "🛡️ Проверка безопасности включена (использует дополнительные вычислительные ресурсы на сообщение). При обнаружении вредоносного контента чат будет немедленно завершен. Настройки → Безопасность ИИ для отключения.",
+        "AgeVerificationText": "AI-репетитор предназначен для изучения языков. Однако он работает на основе больших языковых моделей, которые генерируют вероятностный текст. Несмотря на инструкции безопасности на уровне системы, выходные данные могут иногда содержать неточный, неуместный или неожиданный контент. В связи с рамками защиты данных и ответственности для облачных ИИ-сервисов, вам должно быть 18 лет или больше, чтобы использовать облачного AI-репетитора. Для использования в классе учащимися младше 18 лет ваша организация должна самостоятельно размещать весь программный стек.",
+        "Certification": "Продолжая, вы подтверждаете, что вам исполнилось 18 лет или более, и принимаете лицензионное соглашение.",
+        "ContinueButton": "Продолжить чат"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ Ответы, сгенерированные ИИ, могут быть неточными или неуместными. Этот агент не является человеком и не может предоставлять профессиональные консультации.",
+        "SafetyNotice": "🛡️ Проверка безопасности {status} (использует дополнительные вычислительные ресурсы).",
+        "SettingsLink": "Настройки",
+        "TerminationNotice": "При обнаружении вредоносного контента чат будет завершен."
+      },
+      "AgeVerification": {
+        "Title": "AI Conversation Agent — Age Verification",
+        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
+        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
+        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
+        "ContinueButton": "Continue to Chat"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
+        "SettingsLink": "Settings",
+        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
       },
       "Commands": {
         "NewTopic": "Новая тема",

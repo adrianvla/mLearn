@@ -333,11 +333,39 @@
         "AssistantFiltered": "已替换可能不安全的助手回复。",
         "AssistantReplacement": "我需要谨慎回复。如果这涉及真实的自残风险或紧急危险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
         "GetHelp": "如果这反映了真实风险，请立即联系您当地的紧急服务或危机热线。",
-        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
-        "SensitiveNotice": "检测到可能涉及自残的敏感内容。",
+        "LockoutMessage": "由于安全顾虑，此对话已被锁定。清除聊天以开始新对话。",
+        "SensitiveNotice": "检测到可能的即时自残风险。",
         "UrgentNotice": "检测到可能的即时自残风险。",
         "UserConcernResponse": "我需要谨慎回复。如果这反映了真实的自残风险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
         "UserUrgentResponse": "我认真对待此事。如果涉及即时危险或自残风险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我是否处于即时危险中，我会谨慎回复。"
+      },
+      "AgeVerification": {
+        "Title": "AI对话代理 — 年龄验证",
+        "AIWarning": "⚠️ AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
+        "SafetyNotice": "🛡️ 安全筛查已开启（每条消息使用额外计算资源）。如果检测到有害内容，聊天将立即终止。设置 → AI安全以禁用。",
+        "AgeVerificationText": "AI辅导老师专为语言教育而设计。然而，它由生成概率文本的大型语言模型驱动。尽管有系统级安全指令，输出偶尔可能包含不准确、不适当或意外的内容。由于云AI服务的数据保护和责任框架，您必须年满18岁才能使用云AI辅导老师。对于18岁以下学生的课堂使用，您的机构必须自行托管整个软件栈。",
+        "Certification": "继续即表示您证明您已年满18岁并接受最终用户许可协议。",
+        "ContinueButton": "继续聊天"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
+        "SafetyNotice": "🛡️ 安全筛查已{status}（使用额外计算资源）。",
+        "SettingsLink": "设置",
+        "TerminationNotice": "如果检测到有害内容，聊天将被终止。"
+      },
+      "AgeVerification": {
+        "Title": "AI Conversation Agent — Age Verification",
+        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
+        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
+        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
+        "ContinueButton": "Continue to Chat"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
+        "SettingsLink": "Settings",
+        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
       },
       "Commands": {
         "NewTopic": "新主题",

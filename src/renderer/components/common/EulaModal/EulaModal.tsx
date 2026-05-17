@@ -1,10 +1,10 @@
-import { Component, createSignal, onMount, onCleanup } from 'solid-js';
-import { getBridge } from '@shared/bridges';
+import { Component, createSignal } from 'solid-js';
 import { useSettings, useLocalization } from '@renderer/context';
 import { Btn, ToggleSwitch } from '../';
 import './EulaModal.css';
 
 export interface EulaModalProps {
+  content: string;
   onAccept: () => void;
 }
 
@@ -94,24 +94,10 @@ function markdownToHtml(md: string): string {
 export const EulaModal: Component<EulaModalProps> = (props) => {
   const { t } = useLocalization();
   const { updateSettings } = useSettings();
-  const [eulaContent, setEulaContent] = createSignal('');
   const [hasRead, setHasRead] = createSignal(false);
-  const [isLoading, setIsLoading] = createSignal(true);
   const [hasScrolledToBottom, setHasScrolledToBottom] = createSignal(false);
 
   let documentRef: HTMLDivElement | undefined;
-
-  onMount(() => {
-    const bridge = getBridge();
-    const cleanup = bridge.server.onLegalDocumentReceive((content) => {
-      setEulaContent(content);
-      setIsLoading(false);
-    });
-    bridge.server.getLegalDocument('EULA');
-    onCleanup(() => {
-      cleanup();
-    });
-  });
 
   const handleScroll = () => {
     const el = documentRef;
@@ -143,11 +129,7 @@ export const EulaModal: Component<EulaModalProps> = (props) => {
             ref={documentRef}
             onScroll={handleScroll}
           >
-            {isLoading() ? (
-              <p class="eula-loading">{t('mlearn.Eula.Loading')}</p>
-            ) : (
-              <div class="eula-text" innerHTML={markdownToHtml(eulaContent())} />
-            )}
+            <div class="eula-text" innerHTML={markdownToHtml(props.content)} />
           </div>
 
           <ToggleSwitch
