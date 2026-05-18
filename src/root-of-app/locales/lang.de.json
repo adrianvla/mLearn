@@ -340,10 +340,10 @@
         "UserUrgentResponse": "Ich nehme das ernst. Wenn es um unmittelbare Gefahr oder Selbstgefährdungsrisiko geht, kontaktiere jetzt sofort den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, ob du gerade in unmittelbarer Gefahr bist, und ich antworte vorsichtig."
       },
       "AgeVerification": {
-        "Title": "KI-Sprachlehrer — Altersverifikation",
+        "Title": "KI-Sprachlehrer — EULA",
         "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
         "SafetyNotice": "🛡️ Sicherheitsprüfung ist ON (verbraucht zusätzliche Rechenleistung pro Nachricht). Bei Erkennung schädlicher Inhalte wird der Chat sofort beendet. Einstellungen → KI-Sicherheit zum Deaktivieren.",
-        "AgeVerificationText": "Der KI-Sprachlehrer ist für Sprachbildung konzipiert. Er wird jedoch von großen Sprachmodellen angetrieben, die probabilistischen Text generieren. Trotz systemweiter Sicherheitsanweisungen können Ausgaben gelegentlich ungenaue, unangemessene oder unerwartete Inhalte enthalten. Aufgrund von Datenschutz- und Haftungsrahmen für Cloud-KI-Dienste müssen Sie 18 Jahre oder älter sein, um den Cloud-KI-Sprachlehrer zu nutzen. Für den Unterrichtsgebrauch durch Schüler unter 18 Jahren muss Ihre Institution den gesamten Software-Stack selbst hosten.",
+        "AgeVerificationText": "Sie haben einen Cloud-LLM-Anbieter aktiviert. Cloud-KI-Dienste leiten Ihre Unterhaltungen über entfernte Server, sodass Ihre Nachrichten nicht vollständig auf Ihrem eigenen Gerät verarbeitet werden. Aufgrund von Datenschutz- und Haftungsrahmen für Cloud-KI-Dienste müssen Sie 18 Jahre oder älter sein, um den Cloud-KI-Sprachlehrer zu nutzen. Für den Unterrichtsgebrauch durch Schüler unter 18 Jahren muss Ihre Institution den gesamten Software-Stack selbst hosten.",
         "Certification": "Indem Sie fortfahren, bestätigen Sie, dass Sie 18 Jahre oder älter sind und die EULA akzeptieren.",
         "ContinueButton": "Weiter zum Chat"
       },

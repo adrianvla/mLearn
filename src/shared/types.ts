@@ -382,9 +382,6 @@ export interface Settings {
   agentMistakeChecker: boolean;
   /** Whether the separate checker agent should flag safety risks (e.g. self-harm) */
   agentSafetyChecker: boolean;
-  /** Whether the user has accepted the AI conversation agent age-verification disclaimer */
-  conversationAgentDisclaimerAccepted: boolean;
-
   /** List of browser paths that have the mLearn browser extension installed */
   installedBrowserExtensions: string[];
 
@@ -536,7 +533,6 @@ export const DEFAULT_SETTINGS: Settings = {
   agentMemoryShared: true,
   agentMistakeChecker: true,
   agentSafetyChecker: true,
-  conversationAgentDisclaimerAccepted: false,
   installedBrowserExtensions: [],
   eulaAccepted: false,
   eulaAcceptedVersion: '',

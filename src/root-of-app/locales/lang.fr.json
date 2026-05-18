@@ -340,10 +340,10 @@
         "UserUrgentResponse": "Je prends cela au sérieux. S'il s'agit d'un danger immédiat ou d'un risque d'automutilation, contactez tout de suite les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi si vous êtes en danger immédiat et je répondrai avec prudence."
       },
       "AgeVerification": {
-        "Title": "Agent de conversation IA — Vérification d'âge",
+        "Title": "Agent de conversation IA — CLUF",
         "AIWarning": "⚠️ Les réponses générées par l'IA peuvent être inexactes ou inappropriées. Cet agent n'est pas un humain et ne peut fournir de conseils professionnels.",
         "SafetyNotice": "🛡️ Le filtrage de sécurité est ON (utilise de la puissance de calcul supplémentaire par message). Si du contenu nuisible est détecté, le chat sera immédiatement terminé. Paramètres → Sécurité IA pour désactiver.",
-        "AgeVerificationText": "Le tuteur IA est conçu pour l'enseignement des langues. Cependant, il est alimenté par de grands modèles de langage qui génèrent du texte probabiliste. Malgré les instructions de sécurité au niveau du système, les sorties peuvent occasionnellement contenir du contenu inexact, inapproprié ou inattendu. En raison des cadres de protection des données et de responsabilité pour les services d'IA cloud, vous devez avoir 18 ans ou plus pour utiliser le tuteur IA cloud. Pour une utilisation en classe par des élèves de moins de 18 ans, votre institution doit auto-héberger l'ensemble de la pile logicielle.",
+        "AgeVerificationText": "Vous avez activé un fournisseur LLM cloud. Les services d'IA cloud acheminent vos conversations via des serveurs distants, ce qui signifie que vos messages ne sont pas entièrement traités sur votre propre machine. En raison des cadres de protection des données et de responsabilité pour les services d'IA cloud, vous devez avoir 18 ans ou plus pour utiliser le tuteur IA cloud. Pour une utilisation en classe par des élèves de moins de 18 ans, votre institution doit auto-héberger l'ensemble de la pile logicielle.",
         "Certification": "En continuant, vous certifiez que vous avez 18 ans ou plus et acceptez le CLUF.",
         "ContinueButton": "Continuer vers le chat"
       },
