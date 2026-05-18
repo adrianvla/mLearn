@@ -94,12 +94,20 @@ We do NOT:
 
 ## 5. Third-Party Services
 
-| Service | Purpose | Data Shared |
-|---------|---------|-------------|
-| Cloudflare | Edge network / Worker / Durable Objects | Encrypted requests, flashcard chunks |
-| Supabase | Auth, job tracking, Watch Together, quota | Account email, job metadata, room state |
-| Cerebras | LLM inference | Conversation messages (transient, not stored by us) |
-| Modal | TTS / voice cloning | Text, 3s voice sample (transient, not stored by us) |
+We use the following categories of service providers to operate the
+cloud backend:
+
+| Category | Purpose | Data Shared |
+|----------|---------|-------------|
+| **Edge network / CDN** | Request routing, DDoS protection, flashcard sync | Encrypted requests, flashcard chunks |
+| **Database / Auth** | User accounts, job tracking, Watch Together state | Account email, job metadata, room state |
+| **AI inference** | LLM text generation | Conversation messages (transient, not stored by us) |
+| **Audio synthesis** | TTS and voice cloning | Text, voice sample (transient, not stored by us) |
+
+Specific provider names and locations may change over time. A current
+list is maintained at [mlearn-app.kikan.net/infrastructure]. We do not
+sell your data. We process it only to provide the service.
+
 
 ### 5.1 International Data Transfers
 
