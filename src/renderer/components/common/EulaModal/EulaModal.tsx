@@ -1,4 +1,4 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount } from 'solid-js';
 import { useSettings, useLocalization } from '@renderer/context';
 import { Btn, ToggleSwitch } from '../';
 import './EulaModal.css';
@@ -98,6 +98,13 @@ export const EulaModal: Component<EulaModalProps> = (props) => {
   const [hasScrolledToBottom, setHasScrolledToBottom] = createSignal(false);
 
   let documentRef: HTMLDivElement | undefined;
+
+  onMount(() => {
+    const el = documentRef;
+    if (el && el.scrollHeight <= el.clientHeight + 10) {
+      setHasScrolledToBottom(true);
+    }
+  });
 
   const handleScroll = () => {
     const el = documentRef;

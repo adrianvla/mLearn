@@ -23,6 +23,23 @@
           "Title": "クラウドLLM設定",
           "TokenHint": "接続設定からサインインしてクラウドLLMの認証を行います。"
         },
+        "CloudTiers": {
+          "Title": "クラウドLLMモデルティア",
+          "Cheap": "安価 (DeepSeek)",
+          "Fast": "高速 (Cerebras)",
+          "Conversation": {
+            "Label": "会話エージェント",
+            "Description": "AIチュターとのテキストチャット用モデルティア"
+          },
+          "Voice": {
+            "Label": "音声エージェント",
+            "Description": "音声モード会話用モデルティア"
+          },
+          "Explanation": {
+            "Label": "単語解説",
+            "Description": "ホバー単語解説用モデルティア"
+          }
+        },
         "Description": "単語解説と会話練習のためのAI機能を設定します。",
         "FlashcardTTS": {
           "AutoGenerate": {

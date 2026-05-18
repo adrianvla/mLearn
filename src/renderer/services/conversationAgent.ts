@@ -1368,6 +1368,9 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     const isVoice = deps.isVoiceMode?.() ?? false;
     const settingsObj = deps.getSettings();
+    const tier = isVoice
+      ? (settingsObj.cloudLLMTierVoice || 'fast')
+      : (settingsObj.cloudLLMTierConversation || 'cheap');
     const memoryEnabled = settingsObj.agentMemoryEnabled;
 
     const tutorCfg = deps.getTutorConfig?.() ?? null;
@@ -1543,7 +1546,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
     });
 
-    bridge.llm.llmStream(messages, tools);
+    bridge.llm.llmStream(messages, tools, tier);
 
     // Timeout after 90 seconds
     setTimeout(() => {

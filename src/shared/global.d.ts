@@ -229,7 +229,7 @@ sendLogRecord: (record: unknown) => void;
   onOllamaPullModelProgress: (callback: (progress: { status: string; completed?: number; total?: number; error?: string }) => void) => () => void;
 
   // Unified LLM
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[]) => void;
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string) => void;
   llmStreamAbort: () => void;
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) => () => void;
   llmCheckModel: (modelFile?: string) => Promise<LLMModelStatus>;

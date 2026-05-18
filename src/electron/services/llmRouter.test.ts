@@ -180,7 +180,8 @@ describe('LLM_STREAM routing to cloud', () => {
     expect(mockCloudStreamChat).toHaveBeenCalledWith(
       messages,
       [],
-      expect.objectContaining({ onChunk: expect.any(Function), onDone: expect.any(Function), onError: expect.any(Function) })
+      expect.objectContaining({ onChunk: expect.any(Function), onDone: expect.any(Function), onError: expect.any(Function) }),
+      undefined,
     );
   });
 
