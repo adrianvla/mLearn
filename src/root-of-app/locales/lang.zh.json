@@ -337,6 +337,7 @@
       },
       "ExperimentalBanner": "实验性功能 — AI 回复可能包含错误。请验证重要的语言点。",
       "Disclaimer": "这是 AI，可能会犯错。请仔细核对回复内容。",
+      "ErrorTitle": "出了点问题",
       "IncludeKnowledge": "包含知识信息",
       "InputPlaceholder": "用{language}发送消息…",
       "LevelAdapt": {

@@ -1356,6 +1356,8 @@ export interface ConversationMessage {
   interrupted?: boolean;
   /** The content up to where TTS was interrupted (e.g. "I have eaten a green") */
   interruptedAt?: string;
+  /** Whether this message represents an error from the AI */
+  isError?: boolean;
 }
 
 /** Performance stats from the LLM streaming response */
@@ -1505,6 +1507,26 @@ export interface AgentMemoryEntry {
   content: string;
   /** Timestamp of when the memory was created */
   timestamp: number;
+}
+
+/** A conversation session with an AI tutor */
+export interface ConversationSession {
+  /** Unique ID */
+  id: string;
+  /** Display title */
+  title: string;
+  /** ID of the agent this session belongs to, or null for legacy sessions */
+  agentId: string | null;
+  /** Messages in the conversation */
+  messages: ConversationMessage[];
+  /** Full LLM history for context reconstruction */
+  llmHistory: LLMChatMessage[];
+  /** Timestamp of session creation */
+  createdAt: number;
+  /** Timestamp of last activity */
+  updatedAt: number;
+  /** Total number of messages (for efficient count queries) */
+  messageCount: number;
 }
 
 // ============================================================================

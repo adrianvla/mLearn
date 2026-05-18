@@ -337,6 +337,21 @@
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
       "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
+      "History": {
+        "Title": "History",
+        "Empty": "No saved conversations",
+        "NewSession": "New Session",
+        "Delete": "Delete",
+        "DeleteConfirm": "Type the session title to confirm deletion",
+        "DeleteConfirmTitle": "Delete session",
+        "DeleteConfirmPlaceholder": "Session title",
+        "DeleteAll": "Delete All",
+        "DeleteAllTitle": "Delete all sessions",
+        "DeleteAllConfirm": "Type DELETE to confirm deleting all conversations",
+        "DeleteAllConfirmPlaceholder": "Type to confirm",
+        "DeleteAllConfirmWord": "DELETE",
+        "ToggleSidebar": "Toggle History"
+      },
       "IncludeKnowledge": "知識情報を含める",
       "InputPlaceholder": "{language}でメッセージ...",
       "LevelAdapt": {
