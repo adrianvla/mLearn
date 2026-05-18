@@ -1,9 +1,9 @@
 # mLearn Cloud Terms of Service
 
-**Version 1.1 — Effective Date: 2026-05-18**
+**Version 1.2 — Effective Date: 2026-05-18**
 
 **Operator:** Adrian Vlasov, Vaud, Switzerland  
-**Contact:** adrian@kikan.net (legal) | support@kikan.net (technical)  
+**Contact:** adrian@kikan.net  
 **Service:** mLearn Cloud relay and sync infrastructure (mlearn-cloud.kikan.net)
 
 ---
@@ -18,7 +18,7 @@ accessible through a mLearn Cloud account, including:
 - Cloud TTS / voice cloning (via Modal infrastructure)
 - Watch Together session coordination (playback state sync only)
 - Flashcard and settings sync (via Cloudflare Durable Objects and Supabase)
-- Quota tracking and billing
+- Quota tracking
 
 These ToS do NOT apply to self-hosted, local-only, or forked versions
 of the software.
@@ -27,9 +27,7 @@ of the software.
 
 For the purposes of these Terms:
 - **"Service"** means the mLearn Cloud relay and sync infrastructure accessible at mlearn-cloud.kikan.net.
-- **"Software"** means the mLearn language immersion application, browser extension, installer, and associated documentation.
 - **"Cloud Features"** means features that require a connection to the Service, including but not limited to Cloud LLM relay, Cloud OCR, Cloud TTS, Watch Together, and flashcard sync.
-- **"Plugin"** means a third-party software module loaded via the local plugin manifest system.
 - **"Quota"** means the allocated usage limit for Cloud Features.
 - **"Institutional User"** means a school, university, tutoring center, or other educational institution.
 - **"Operator"**, **"We"**, or **"Us"** means Adrian Vlasov.
@@ -70,10 +68,10 @@ consult SCHOOL_DEPLOYMENT.md for the self-hosting package.
 ## 3. Cloud AI Features
 
 ### 3.1 Nature of Service
-The Cloud LLM relay forwards your messages to third-party AI providers
-(e.g., Cerebras). We do not train or fine-tune models on your data. We
-do not store the content of your conversations. All AI outputs are
-probabilistic and may be inaccurate, inappropriate, or unexpected.
+The Cloud LLM relay forwards your messages to third-party AI providers.
+We do not train or fine-tune models on your data. We do not store the
+content of your conversations. All AI outputs are probabilistic and may
+be inaccurate, inappropriate, or unexpected.
 
 ### 3.2 Safety Screening
 An optional automated screening tool may analyze conversation content for
@@ -119,20 +117,10 @@ Briefly:
 - We do NOT train AI models on your data
 - We do NOT sell your data
 
-## 6. Quotas & Payments
+## 6. Quotas
 
-### 6.1 Free Tier
 Cloud features are currently offered with limited free quota. We reserve
-the right to modify, reduce, or discontinue free quota with reasonable
-notice, or at the end of the current billing period.
-
-### 6.2 Future Paid Tier
-If paid quotas are introduced, they will be billed through a separate
-payment processor. You must be notified before any charges occur.
-
-### 6.3 No Refunds
-Quota is consumed on use. We do not refund consumed quota except in cases
-of demonstrable service error on our part, or at our sole discretion.
+the right to modify or discontinue free quota at any time.
 
 ## 7. Limitation of Liability
 
@@ -164,73 +152,31 @@ Before filing any claim, you agree to attempt to resolve the dispute
 informally by contacting us. If unresolved within thirty (30) days,
 either party may pursue mediation. Nothing in this clause prevents either
 party from seeking injunctive relief. Mandatory consumer protection law
-in your jurisdiction — including, where applicable, EU consumer protection
-law — may override the governing law and jurisdiction clauses above to the
-extent required by mandatory law.
+in your jurisdiction may override the governing law and jurisdiction
+clauses above to the extent required by mandatory law.
 
 ## 10. Changes
 
 We may update these Terms. Material changes will be notified via email
-and/or in-app notice at least thirty (30) days before they take effect.
-Continued use after the effective date constitutes acceptance.
+and/or in-app notice. Continued use of the Cloud Service after notification
+constitutes acceptance.
 
 ## 11. Indemnification
 
-You agree to indemnify, defend, and hold harmless the Operator from and
-against any and all claims, damages, losses, liabilities, costs, and
-expenses (including reasonable attorneys' fees) arising out of or relating
-to: (a) your misuse of the Service; (b) your violation of any third-party
-intellectual property rights through your use of the Service; (c) your
-violation of any applicable law or regulation; or (d) your breach of these
-Terms.
+You agree to indemnify and hold harmless the Operator from claims arising
+solely from your misuse of the Service, your breach of these Terms, or
+your violation of third-party rights through content you upload or
+generate.
 
-## 12. Force Majeure
-
-Neither party shall be liable for any failure or delay in performance
-under these Terms due to causes beyond its reasonable control, including
-but not limited to acts of God, natural disasters, war, terrorism, riots,
-embargoes, acts of civil or military authorities, fire, floods, accidents,
-strikes, shortages of transportation, facilities, fuel, energy, labor, or
-materials, or failure of telecommunications or internet service providers.
-
-## 13. Copyright Policy
-
-If you believe that your copyrighted work has been copied in a way that
-constitutes copyright infringement and is accessible via the Service,
-please notify us at adrian@kikan.net with the following information:
-(a) identification of the copyrighted work; (b) identification of the
-infringing material and its location; (c) your contact information;
-(d) a statement that you have a good faith belief that the use is not
-authorized; (e) a statement that the information is accurate; and
-(f) your physical or electronic signature. We reserve the right to remove
-content and terminate accounts for repeat infringers.
-
-## 14. Severability
+## 12. Severability
 
 If any provision of these Terms is held to be invalid, illegal, or
 unenforceable, the remaining provisions shall continue in full force and
 effect.
 
-## 15. Entire Agreement
-
-These Terms constitute the entire agreement between you and the Operator
-regarding the subject matter hereof and supersede all prior or
-contemporaneous agreements, representations, warranties, and understandings.
-
-## 16. Assignment
-
-You may not assign or transfer these Terms without the prior written consent
-of the Operator. The Operator may assign these Terms without restriction.
-
-## 17. Acceptance
+## 13. Acceptance
 
 BY CREATING AN ACCOUNT OR USING THE CLOUD SERVICE, YOU ACKNOWLEDGE THAT YOU HAVE
 READ, UNDERSTOOD, AND AGREE TO BE BOUND BY THESE TERMS AND THE PRIVACY POLICY.
 
 If you do not agree, do not use the Service.
-
-## 18. Version History
-
-Your continued use of the Service after a version change constitutes
-acceptance of the updated terms. A version history is maintained as part
-of this document.

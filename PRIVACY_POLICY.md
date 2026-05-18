@@ -1,8 +1,8 @@
 # mLearn Privacy Policy
 
-**Version 1.1 — Effective Date: 2026-05-18**
+**Version 1.2 — Effective Date: 2026-05-18**
 
-**Contact:** adrian@kikan.net (privacy) | support@kikan.net (technical)
+**Contact:** adrian@kikan.net  
 **Operator:** Adrian Vlasov, Vaud, Switzerland
 
 ---
@@ -103,12 +103,10 @@ We do NOT:
 
 ### 5.1 International Data Transfers
 
-Some of our processors (Cloudflare, Supabase, Cerebras, Modal) operate in
-the United States. For transfers of personal data from Switzerland or the
-European Economic Area (EEA) to the United States, we rely on Standard
-Contractual Clauses (SCCs) approved by the Swiss Federal Data Protection
-and Information Commissioner (FDPIC) and/or the European Commission.
-Where applicable, we also rely on the Swiss-US Data Privacy Framework.
+Some of our processors operate outside Switzerland. For transfers of
+personal data, we rely on appropriate safeguards as required by
+applicable data protection law, which may include Standard Contractual
+Clauses where applicable.
 
 ---
 
@@ -145,19 +143,5 @@ it.
 ## 9. Changes
 
 We may update this policy. Material changes will be notified via email
-and/or in-app notice at least thirty (30) days before they take effect.
-Continued use after the effective date constitutes acceptance.
-
-## 10. Cookies and Tracking Technologies
-
-If you access our web properties (e.g., mlearn.morisinc.net,
-mlearn-app.kikan.net), we may use essential cookies and similar
-technologies for authentication, security, and session management. We do
-not use third-party advertising cookies. You can manage cookie preferences
-through your browser settings.
-
-## 11. Version History
-
-Your continued use of our services after a policy change constitutes
-acceptance of the updated terms. A version history is maintained as part
-of this document.
+and/or in-app notice. Continued use after the effective date constitutes
+acceptance.
