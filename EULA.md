@@ -1,9 +1,9 @@
 # mLearn End User License Agreement (EULA)
 
-**Version 1.1 — Effective Date: 2026-05-18**
+**Version 1.2 — Effective Date: 2026-05-18**
 
 **Licensor:** Adrian Vlasov, Vaud, Switzerland  
-**Contact:** adrian@kikan.net (legal) | support@kikan.net (technical)  
+**Contact:** adrian@kikan.net  
 **Software:** mLearn language immersion application and browser extension
 
 ---
@@ -22,17 +22,9 @@ software as a commercial service without a separate written agreement.
 
 For the purposes of this EULA:
 - **"Software"** means the mLearn language immersion application, browser extension, installer, and associated documentation.
-- **"Service"** or **"Cloud Service"** means the cloud-hosted services accessible through a mLearn Cloud account at mlearn-cloud.kikan.net.
-- **"Cloud Features"** means features that require a connection to the Cloud Service, including but not limited to Cloud LLM relay, Cloud OCR, Cloud TTS, Watch Together, and flashcard sync.
 - **"Plugin"** means a third-party software module loaded via the local plugin manifest system.
-- **"Quota"** means the allocated usage limit for Cloud Features.
-- **"Institutional User"** means a school, university, tutoring center, or other educational institution.
 - **"Licensor"**, **"We"**, or **"Us"** means Adrian Vlasov.
 - **"You"** means the individual or entity using the Software.
-
-### 1.2 Hierarchy
-
-To the extent of any conflict between this EULA and the mLearn Cloud Terms of Service, the Terms of Service govern Cloud Services and this EULA governs the Software.
 
 ## 2. No Warranty / As-Is
 
@@ -104,20 +96,15 @@ deployment instructions.
 ## 4. Voice Cloning & Text-to-Speech
 
 Voice cloning allows you to generate speech using a short audio sample.
-You are solely responsible for obtaining all necessary rights and consents
+You are solely responsible for complying with all applicable biometric
+privacy, voice likeness, and personality rights laws in your jurisdiction
 before cloning any voice. You may not clone voices without the speaker's
 explicit consent, nor use cloned voices for fraud, defamation, harassment,
 impersonation, or any illegal purpose.
 
-You agree to comply with all applicable biometric privacy laws, including
-but not limited to the Illinois Biometric Information Privacy Act (BIPA)
-and the Texas Capture or Use of Biometric Identifier Act (CUBI), where
-applicable.
-
 Voice samples are processed transiently and are not stored by us. If you
 use cloud TTS/voice cloning, your sample passes through our relay and is
-deleted immediately after processing. If a sample is retained longer than
-intended due to a technical failure, contact us immediately for deletion.
+deleted immediately after processing.
 
 ## 5. OCR & User-Provided Content
 
@@ -137,7 +124,6 @@ the terms of service of any website you use the extension on.
 ## 7. Plugin System
 
 mLearn supports third-party plugins via a local plugin manifest system.
-A **"Plugin"** is a third-party software module loaded via this system.
 We do not operate a plugin store, review, or endorse any plugin. Plugins
 run with the permissions YOU grant them. You assume all risks of
 installing and running third-party plugins. We are not liable for any
@@ -183,9 +169,8 @@ Before filing any claim, you agree to attempt to resolve the dispute
 informally by contacting us. If unresolved within thirty (30) days,
 either party may pursue mediation. Nothing in this clause prevents either
 party from seeking injunctive relief. Mandatory consumer protection law
-in your jurisdiction — including, where applicable, EU consumer protection
-law — may override the governing law and jurisdiction clauses above to the
-extent required by mandatory law.
+in your jurisdiction may override the governing law and jurisdiction
+clauses above to the extent required by mandatory law.
 
 ## 11. Acceptance
 
@@ -197,13 +182,9 @@ If you do not agree, do not use the software.
 
 ## 12. Indemnification
 
-You agree to indemnify, defend, and hold harmless the Licensor from and
-against any and all claims, damages, losses, liabilities, costs, and
-expenses (including reasonable attorneys' fees) arising out of or relating
-to: (a) your misuse of the Software; (b) your violation of any third-party
-intellectual property rights through your use of the Software; (c) your
-violation of any applicable law or regulation; or (d) your breach of this
-EULA.
+You agree to indemnify and hold harmless the Licensor from claims arising
+solely from your misuse of the Software, your breach of this EULA, or your
+violation of third-party rights through content you create or upload.
 
 ## 13. Severability
 
@@ -211,21 +192,9 @@ If any provision of this EULA is held to be invalid, illegal, or
 unenforceable, the remaining provisions shall continue in full force and
 effect.
 
-## 14. Entire Agreement
+## 14. Changes to This EULA
 
-This EULA constitutes the entire agreement between you and the Licensor
-regarding the subject matter hereof and supersedes all prior or
-contemporaneous agreements, representations, warranties, and understandings.
-
-## 15. Assignment
-
-You may not assign or transfer this EULA without the prior written consent
-of the Licensor. The Licensor may assign this EULA without restriction.
-
-## 16. Changes to This EULA
-
-We may update this EULA from time to time. Material changes will be
-notified via email and/or in-app notice at least thirty (30) days before
-they take effect. Your continued use of the Software after the effective
-date constitutes acceptance of the updated terms. A version history is
-maintained as part of this document.
+We may update this EULA from time to time. Material changes are presented
+on next app launch and must be accepted before continued use. Your
+continued use of the Software after the effective date constitutes
+acceptance of the updated terms.
