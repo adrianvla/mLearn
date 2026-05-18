@@ -227,6 +227,7 @@ const GlobalEulaModal: Component = () => {
       eulaAcceptedAt: Date.now(),
       eulaAcceptedHash: currentHash(),
     });
+    setNeedsAcceptance(false);
   };
 
   return (
