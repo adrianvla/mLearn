@@ -154,10 +154,10 @@ describe('CloudLLMAdapter', () => {
         expect(body.messages[0].tool_calls[0].function.arguments).toBe('{"already":"string"}');
       });
 
-      it('converts tool role message with toolName to tool_call_id', async () => {
+      it('converts tool role message with toolCallId to tool_call_id', async () => {
         const adapter = new CloudLLMAdapter('https://api.example.com', '');
         const messages: LLMChatMessage[] = [
-          { role: 'tool', content: 'result', toolName: 'call_abc' },
+          { role: 'tool', content: 'result', toolCallId: 'call_abc' },
         ];
         mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
         const cb = makeCallbacks();
