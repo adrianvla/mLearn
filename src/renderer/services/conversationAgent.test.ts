@@ -9,6 +9,7 @@ import type {
   WordFrequencyEntry,
   VoiceMistake,
   Token,
+  LLMChatMessage,
 } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { createConversationAgent, type StreamCallbacks } from './conversationAgent';
@@ -555,6 +556,32 @@ describe('createConversationAgent', () => {
       expect(userMsgs.length).toBe(1);
       expect(userMsgs[0].content).toBe('hello');
     });
+
+    it('pops assistant messages back to the last user message before re-streaming', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+      sendChunk('first response');
+      sendDone();
+
+      await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalled());
+
+      vi.clearAllMocks();
+      mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
+        streamCallback = cb;
+        return mockStreamCleanup;
+      });
+      mockBackend.tokenize.mockResolvedValue([]);
+
+      agent.restartStream(callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const nonSystem = messages.filter((m: { role: string }) => m.role !== 'system');
+      expect(nonSystem.length).toBe(1);
+      expect(nonSystem[0].role).toBe('user');
+      expect(nonSystem[0].content).toBe('hello');
+    });
   });
 
   // ==========================================================================
@@ -592,16 +619,10 @@ describe('createConversationAgent', () => {
 
       agent.markInterrupted('こんにちは');
 
-      vi.clearAllMocks();
-      mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
-        streamCallback = cb;
-        return mockStreamCleanup;
-      });
-      mockBackend.tokenize.mockResolvedValue([]);
+      const { callbacks: callbacks2 } = createCallbacks();
+      agent.processMessage('next', [], callbacks2);
 
-      agent.restartStream(callbacks);
-
-      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const [messages] = mockBridge.llm.llmStream.mock.calls[mockBridge.llm.llmStream.mock.calls.length - 1];
       const assistantMsgs = messages.filter((m: { role: string }) => m.role === 'assistant');
       expect(assistantMsgs[assistantMsgs.length - 1].content).toBe('こんにちは [interrupted by user]');
     });
@@ -875,6 +896,53 @@ describe('createConversationAgent', () => {
 
       await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
       expect(deps.flashcardCtx.trackGrammarEncountered).toHaveBeenCalledWith('て-form');
+    });
+  });
+
+  describe('duplicate tool_call_id handling', () => {
+    it('rewrites duplicate tool call IDs so follow-up stream has unique IDs', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onToolCall, onDone } = createCallbacks();
+
+      agent.processMessage('quiz me', [], callbacks);
+      sendChunk('Quiz time!');
+      sendDone([
+        {
+          id: 'dup_id_1',
+          name: 'create_quiz',
+          arguments: {
+            quiz_type: 'mcq',
+            question: 'Q1?',
+            options: ['A', 'B', 'C', 'D'],
+            correct_answer: 'A',
+          },
+        },
+        {
+          id: 'dup_id_1',
+          name: 'create_quiz',
+          arguments: {
+            quiz_type: 'mcq',
+            question: 'Q2?',
+            options: ['X', 'Y', 'Z', 'W'],
+            correct_answer: 'X',
+          },
+        },
+      ]);
+
+      await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+
+      expect(onToolCall).toHaveBeenCalledTimes(2);
+      expect(onToolCall.mock.calls[0][0].data.question).toBe('Q1?');
+      expect(onToolCall.mock.calls[1][0].data.question).toBe('Q2?');
+
+      const followUpMessages = mockBridge.llm.llmStream.mock.calls[1][0];
+      const assistantMsg = followUpMessages.find((m: { role: string }) => m.role === 'assistant');
+      expect(assistantMsg).toBeDefined();
+      expect(assistantMsg.toolCalls).toHaveLength(2);
+      expect(assistantMsg.toolCalls[0].id).not.toBe(assistantMsg.toolCalls[1].id);
+
+      sendDone();
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
     });
   });
 
@@ -1876,6 +1944,109 @@ describe('createConversationAgent', () => {
 
       expect(onError).toHaveBeenCalledWith('LLM backend crashed');
       expect(onDone).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('history management', () => {
+    it('getHistory returns messages after processMessage', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+
+      const history = agent.getHistory();
+      const userMsg = history.find((m) => m.role === 'user');
+      expect(userMsg?.content).toBe('hello');
+    });
+
+    it('loadHistory restores previous conversation state', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onDone } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+      sendChunk('response');
+      sendDone();
+
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+
+      const savedHistory = agent.getHistory();
+
+      const newAgent = createConversationAgent(createMockDeps());
+      newAgent.loadHistory(savedHistory);
+
+      expect(newAgent.getHistory()).toEqual(savedHistory);
+    });
+
+    it('clearHistory resets both internal and display history', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onDone } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+      sendChunk('response');
+      sendDone();
+
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+
+      agent.clearHistory();
+      expect(agent.getHistory()).toEqual([]);
+    });
+  });
+
+  describe('context compaction', () => {
+    it('does nothing when under token limit', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const history: LLMChatMessage[] = [
+        { role: 'user', content: 'short message' },
+        { role: 'assistant', content: 'short reply' },
+      ];
+
+      agent.loadHistory(history);
+      agent.compactHistory(16000);
+
+      expect(agent.getHistory()).toEqual(history);
+    });
+
+    it('removes oldest user+assistant pairs when over limit', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const longContent = 'a'.repeat(16000);
+      const history: LLMChatMessage[] = [
+        { role: 'user', content: longContent },
+        { role: 'assistant', content: longContent },
+        { role: 'user', content: longContent },
+        { role: 'assistant', content: longContent },
+        { role: 'user', content: longContent },
+        { role: 'assistant', content: longContent },
+        { role: 'user', content: longContent },
+        { role: 'assistant', content: longContent },
+      ];
+
+      agent.loadHistory(history);
+      agent.compactHistory(16000);
+
+      const result = agent.getHistory();
+      expect(result.length).toBe(4);
+      expect(result[0].role).toBe('user');
+      expect(result[0].content).toBe(longContent);
+      expect(result[1].role).toBe('assistant');
+      expect(result[2].role).toBe('user');
+      expect(result[3].role).toBe('assistant');
+    });
+
+    it('preserves the most recent exchange during compaction', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const longContent = 'a'.repeat(50000);
+      const history: LLMChatMessage[] = [
+        { role: 'user', content: longContent },
+        { role: 'assistant', content: longContent },
+      ];
+
+      agent.loadHistory(history);
+      agent.compactHistory(16000);
+
+      const result = agent.getHistory();
+      expect(result.length).toBe(2);
+      expect(result[0].role).toBe('user');
+      expect(result[1].role).toBe('assistant');
     });
   });
 });

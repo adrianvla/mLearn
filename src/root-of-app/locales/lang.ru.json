@@ -337,6 +337,22 @@
       },
       "ExperimentalBanner": "Экспериментальная функция — ответы AI могут содержать ошибки. Проверяйте важные языковые моменты.",
       "Disclaimer": "Это ИИ, он может ошибаться. Пожалуйста, перепроверяйте ответы.",
+      "ErrorTitle": "Что-то пошло не так",
+      "History": {
+        "Title": "History",
+        "Empty": "No saved conversations",
+        "NewSession": "New Session",
+        "Delete": "Delete",
+        "DeleteConfirm": "Type the session title to confirm deletion",
+        "DeleteConfirmTitle": "Delete session",
+        "DeleteConfirmPlaceholder": "Session title",
+        "DeleteAll": "Delete All",
+        "DeleteAllTitle": "Delete all sessions",
+        "DeleteAllConfirm": "Type DELETE to confirm deleting all conversations",
+        "DeleteAllConfirmPlaceholder": "Type to confirm",
+        "DeleteAllConfirmWord": "DELETE",
+        "ToggleSidebar": "Toggle History"
+      },
       "IncludeKnowledge": "Включить информацию о знаниях",
       "InputPlaceholder": "Сообщение на {language}...",
       "LevelAdapt": {

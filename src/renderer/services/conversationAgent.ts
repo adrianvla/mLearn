@@ -27,8 +27,11 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import type { LanguageFeatures } from '../context/LanguageContext';
 import { getLogger } from '../../shared/utils/logger';
+import { estimateMessagesTokens } from '../../shared/utils/tokenEstimation';
 
 const log = getLogger("renderer.services.conversationAgent");
+
+const COMPACTION_TOKEN_LIMIT = 16000;
 
 // ============================================================================
 // Types
@@ -96,6 +99,9 @@ export interface AgentInstance {
   lockSafety: () => void;
   /** Whether the conversation is currently safety-locked */
   isSafetyLocked: () => boolean;
+  getHistory: () => LLMChatMessage[];
+  loadHistory: (history: LLMChatMessage[]) => void;
+  compactHistory: (maxTokens?: number) => void;
 }
 
 // ============================================================================
@@ -960,6 +966,19 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       return `## Your Backstory\n${agentCfg.roleplayContext}`;
     }
 
+    case 'correct_mistake': {
+      const rawCorrections = args.corrections as Record<string, unknown>[] | undefined;
+      if (rawCorrections && rawCorrections.length > 0) {
+        const items = rawCorrections.map((c) => {
+          const span = (c.error_span as string) || '';
+          const corr = (c.correction as string) || '';
+          return `"${span}" → "${corr}"`;
+        });
+        return `Corrections: ${items.join(', ')}`;
+      }
+      return 'Correction applied.';
+    }
+
     default:
       return null;
   }
@@ -1156,6 +1175,50 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     safetyLocked = false;
   }
 
+  function getHistory(): LLMChatMessage[] {
+    return [...conversationHistory];
+  }
+
+  function loadHistory(history: LLMChatMessage[]): void {
+    conversationHistory = [...history];
+  }
+
+  function compactHistory(maxTokens: number = COMPACTION_TOKEN_LIMIT): void {
+    if (conversationHistory.length === 0) return;
+
+    let totalTokens = estimateMessagesTokens(conversationHistory);
+    if (totalTokens <= maxTokens) return;
+
+    while (totalTokens > maxTokens && conversationHistory.length > 2) {
+      let removedTokens = 0;
+      let removeCount = 0;
+
+      for (let i = 0; i < conversationHistory.length - 1; i++) {
+        if (conversationHistory[i].role === 'user') {
+          const pair = conversationHistory.slice(i, i + 2);
+          removedTokens = estimateMessagesTokens(pair);
+          conversationHistory.splice(i, 2);
+          removeCount = 2;
+          break;
+        }
+      }
+
+      if (removeCount === 0) {
+        const msg = conversationHistory.shift();
+        if (msg) {
+          removedTokens = estimateMessagesTokens([msg]);
+          removeCount = 1;
+        }
+      }
+
+      totalTokens -= removedTokens;
+
+      if (removeCount === 0) break;
+    }
+
+    log.info(`[ConversationAgent] Compacted history: removed old turns, new token estimate: ${totalTokens}`);
+  }
+
   let safetyLocked = false;
 
   function lockSafety(): void {
@@ -1258,12 +1321,25 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     existingWidgets: ChatWidget[] = [],
     deferredTerminalToolCalls: ToolCall[] = [],
   ): Promise<void> {
+    // Ensure all tool call IDs are unique. LLMs occasionally generate duplicate
+    // tool_call_id values within a single response, which causes a 400 error
+    // from OpenAI-compatible APIs when the conversation history is sent back.
+    const usedIds = new Set<string>();
+    const fixedToolCalls: ToolCall[] = toolCalls.map((tc) => {
+      let newId = tc.id;
+      if (usedIds.has(newId)) {
+        newId = `${tc.id}_dup${Math.random().toString(36).slice(2, 9)}`;
+      }
+      usedIds.add(newId);
+      return { ...tc, id: newId };
+    });
+
     const widgets: ChatWidget[] = [...existingWidgets];
     const toolResponses: LLMChatMessage[] = [];
     const nonTerminalToolCalls: ToolCall[] = [];
     const terminalToolCalls: ToolCall[] = [];
 
-    for (const toolCall of toolCalls) {
+    for (const toolCall of fixedToolCalls) {
       if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'save_memory') {
         terminalToolCalls.push(toolCall);
       } else {
@@ -1277,12 +1353,12 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const assistantMsg: LLMChatMessage = {
       role: 'assistant',
       content: assistantSegmentContent,
-      toolCalls,
+      toolCalls: fixedToolCalls,
     };
     conversationHistory.push(assistantMsg);
 
     for (const tc of nonTerminalToolCalls) {
-      // Try widget-producing tools first
+      // Widget-producing tools (create_quiz)
       const w = executeTool(tc, deps);
       if (w) {
         const widgetList = Array.isArray(w) ? w : [w];
@@ -1290,18 +1366,17 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
           widgets.push(widget);
           callbacks.onToolCall(widget);
         }
-      } else {
-        // Response-producing tools (fetch_url, get_media_stats)
-        const result = await executeToolWithResponse(tc, deps);
-        if (result !== null) {
-          toolResponses.push({
-            role: 'tool' as const,
-            toolName: tc.name,
-            toolCallId: tc.id,
-            content: result,
-          });
-        }
       }
+
+      // Every tool_call in the assistant message MUST have a matching tool response
+      // in the conversation history, or the LLM API will reject the next request.
+      const result = await executeToolWithResponse(tc, deps);
+      toolResponses.push({
+        role: 'tool' as const,
+        toolName: tc.name,
+        toolCallId: tc.id,
+        content: result ?? `${tc.name} executed.`,
+      });
     }
 
     // Non-terminal tools require a follow-up model pass after execution.
@@ -1316,6 +1391,15 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
             callbacks.onToolCall(w);
           }
         }
+
+        // Every tool_call in the assistant message MUST have a matching tool response.
+        const result = await executeToolWithResponse(terminalCall, deps);
+        conversationHistory.push({
+          role: 'tool' as const,
+          toolName: terminalCall.name,
+          toolCallId: terminalCall.id,
+          content: result ?? `${terminalCall.name} executed.`,
+        });
       }
 
       // Finalize with level adaptation if needed
@@ -1359,6 +1443,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     if (hadActiveStream) {
       getBridge().llm.llmStreamAbort();
     }
+
+    compactHistory();
 
     const myRequestId = ++streamRequestId;
 
@@ -1428,7 +1514,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     // on our new listener before the real stream produces any content. Absorb it.
     let skipStaleAbort = hadActiveStream;
 
-    streamCleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+    streamCleanup = bridge.llm.onLLMStreamChunk(async (chunk: LLMStreamChunk) => {
       if (aborted || myRequestId !== streamRequestId) return;
 
       // Absorb the stale abort/done response from the preemptive llmStreamAbort() call.
@@ -1530,8 +1616,18 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
                 callbacks.onToolCall(w);
               }
             }
+
+            const result = await executeToolWithResponse(terminalCall, deps);
+            conversationHistory.push({
+              role: 'tool' as const,
+              toolName: terminalCall.name,
+              toolCallId: terminalCall.id,
+              content: result ?? `${terminalCall.name} executed.`,
+            });
           }
         }
+
+        if (aborted || myRequestId !== streamRequestId) return;
 
         // Add assistant response to history
         conversationHistory.push({ role: 'assistant', content: accumulated });
@@ -1591,6 +1687,11 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       callbacks.onError('This conversation has been locked due to a safety concern. Please clear the chat to start a new conversation.');
       return;
     }
+
+    while (conversationHistory.length > 0 && conversationHistory[conversationHistory.length - 1].role !== 'user') {
+      conversationHistory.pop();
+    }
+
     const language = deps.getLanguage();
     const langName = deps.getLanguageName();
     aborted = false;
@@ -1626,5 +1727,5 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
   }
 
-  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, lockSafety, isSafetyLocked };
+  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, lockSafety, isSafetyLocked, getHistory, loadHistory, compactHistory };
 }

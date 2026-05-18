@@ -337,6 +337,22 @@
       },
       "ExperimentalBanner": "Fonctionnalité expérimentale — les réponses de l'IA peuvent contenir des erreurs. Vérifiez les points linguistiques importants.",
       "Disclaimer": "Ceci est une IA et peut faire des erreurs. Veuillez vérifier les réponses.",
+      "ErrorTitle": "Quelque chose s'est mal passé",
+      "History": {
+        "Title": "History",
+        "Empty": "No saved conversations",
+        "NewSession": "New Session",
+        "Delete": "Delete",
+        "DeleteConfirm": "Type the session title to confirm deletion",
+        "DeleteConfirmTitle": "Delete session",
+        "DeleteConfirmPlaceholder": "Session title",
+        "DeleteAll": "Delete All",
+        "DeleteAllTitle": "Delete all sessions",
+        "DeleteAllConfirm": "Type DELETE to confirm deleting all conversations",
+        "DeleteAllConfirmPlaceholder": "Type to confirm",
+        "DeleteAllConfirmWord": "DELETE",
+        "ToggleSidebar": "Toggle History"
+      },
       "IncludeKnowledge": "Inclure les informations de connaissances",
       "InputPlaceholder": "Message en {language}...",
       "LevelAdapt": {
