@@ -799,7 +799,7 @@ describe('llmBridge', () => {
     const msgs = [{ role: 'user' as const, content: 'hello' }];
     const tools = [] as never[];
     bridge.llm.llmStream(msgs, tools);
-    expect(mockIPC.llmStream).toHaveBeenCalledWith(msgs, tools);
+    expect(mockIPC.llmStream).toHaveBeenCalledWith(msgs, tools, undefined);
   });
 
   it('llmStreamAbort delegates to ipc.llmStreamAbort', () => {

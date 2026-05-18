@@ -23,6 +23,23 @@
           "Title": "Configuration LLM Cloud",
           "TokenHint": "Connectez-vous via les paramètres de connexion pour vous authentifier auprès du LLM cloud."
         },
+        "CloudTiers": {
+          "Title": "Niveaux de modèles LLM Cloud",
+          "Cheap": "Économique (DeepSeek)",
+          "Fast": "Rapide (Cerebras)",
+          "Conversation": {
+            "Label": "Agent de conversation",
+            "Description": "Niveau de modèle pour le chat texte avec le tuteur IA"
+          },
+          "Voice": {
+            "Label": "Agent vocal",
+            "Description": "Niveau de modèle pour les conversations en mode vocal"
+          },
+          "Explanation": {
+            "Label": "Explicateur de mots",
+            "Description": "Niveau de modèle pour les explications de mots au survol"
+          }
+        },
         "Description": "Configurez les fonctions IA pour l'explication des mots et la pratique conversationnelle.",
         "FlashcardTTS": {
           "AutoGenerate": {

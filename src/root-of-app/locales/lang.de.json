@@ -23,6 +23,23 @@
           "Title": "Cloud-LLM-Konfiguration",
           "TokenHint": "Melden Sie sich über die Verbindungseinstellungen an, um sich beim Cloud-LLM zu authentifizieren."
         },
+        "CloudTiers": {
+          "Title": "Cloud-LLM-Modellebenen",
+          "Cheap": "Günstig (DeepSeek)",
+          "Fast": "Schnell (Cerebras)",
+          "Conversation": {
+            "Label": "Konversationsagent",
+            "Description": "Modellebene für Textchat mit dem AI-Tutor"
+          },
+          "Voice": {
+            "Label": "Sprachagent",
+            "Description": "Modellebene für Sprachmodus-Konversationen"
+          },
+          "Explanation": {
+            "Label": "Worterklärer",
+            "Description": "Modellebene für Hover-Worterklärungen"
+          }
+        },
         "Description": "KI-Funktionen für Worterklärungen und Konversationsübungen konfigurieren.",
         "FlashcardTTS": {
           "AutoGenerate": {

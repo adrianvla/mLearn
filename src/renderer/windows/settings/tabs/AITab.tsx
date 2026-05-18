@@ -569,6 +569,53 @@ export const AITab: Component = () => {
             {t('mlearn.AI.Settings.CloudConfig.ApiUrlHint')}
           </HintText>
         </SettingGroup>
+
+        <SettingGroup title={t('mlearn.AI.Settings.CloudTiers.Title')}>
+          <SettingRow
+            label={t('mlearn.AI.Settings.CloudTiers.Conversation.Label')}
+            description={t('mlearn.AI.Settings.CloudTiers.Conversation.Description')}
+          >
+            <Select
+              class="setting-select"
+              value={settings.cloudLLMTierConversation}
+              onChange={(e) => updateSettings({ cloudLLMTierConversation: e.currentTarget.value as 'cheap' | 'fast' })}
+              options={[
+                { value: 'cheap', label: t('mlearn.AI.Settings.CloudTiers.Cheap') },
+                { value: 'fast', label: t('mlearn.AI.Settings.CloudTiers.Fast') },
+              ]}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.AI.Settings.CloudTiers.Voice.Label')}
+            description={t('mlearn.AI.Settings.CloudTiers.Voice.Description')}
+          >
+            <Select
+              class="setting-select"
+              value={settings.cloudLLMTierVoice}
+              onChange={(e) => updateSettings({ cloudLLMTierVoice: e.currentTarget.value as 'cheap' | 'fast' })}
+              options={[
+                { value: 'cheap', label: t('mlearn.AI.Settings.CloudTiers.Cheap') },
+                { value: 'fast', label: t('mlearn.AI.Settings.CloudTiers.Fast') },
+              ]}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.AI.Settings.CloudTiers.Explanation.Label')}
+            description={t('mlearn.AI.Settings.CloudTiers.Explanation.Description')}
+          >
+            <Select
+              class="setting-select"
+              value={settings.cloudLLMTierExplanation}
+              onChange={(e) => updateSettings({ cloudLLMTierExplanation: e.currentTarget.value as 'cheap' | 'fast' })}
+              options={[
+                { value: 'cheap', label: t('mlearn.AI.Settings.CloudTiers.Cheap') },
+                { value: 'fast', label: t('mlearn.AI.Settings.CloudTiers.Fast') },
+              ]}
+            />
+          </SettingRow>
+        </SettingGroup>
       </Show>
 
 

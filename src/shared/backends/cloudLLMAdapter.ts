@@ -5,7 +5,7 @@
  * Compatible with OpenAI-style streaming API format.
  */
 
-import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall } from '../types';
+import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, CloudLLMTier } from '../types';
 import { getLogger } from '../utils/logger';
 
 const log = getLogger("shared.backends.cloudLLM");
@@ -122,6 +122,7 @@ export class CloudLLMAdapter {
     messages: LLMChatMessage[],
     tools: LLMToolDefinition[],
     callbacks: CloudLLMCallbacks,
+    tier?: CloudLLMTier,
   ): Promise<void> {
     this.abortController = new AbortController();
     const partialToolCalls = new Map<string, PartialCloudToolCallState>();
@@ -143,6 +144,7 @@ export class CloudLLMAdapter {
         body: JSON.stringify({
           messages: openAIMessages,
           tools: openAITools,
+          model_tier: tier,
         }),
         signal: this.abortController.signal,
       });

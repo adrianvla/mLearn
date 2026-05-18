@@ -23,6 +23,23 @@
           "Title": "云 LLM 配置",
           "TokenHint": "通过连接设置登录以验证云 LLM。"
         },
+        "CloudTiers": {
+          "Title": "云 LLM 模型层级",
+          "Cheap": "廉价 (DeepSeek)",
+          "Fast": "快速 (Cerebras)",
+          "Conversation": {
+            "Label": "对话代理",
+            "Description": "AI 导师文本聊天的模型层级"
+          },
+          "Voice": {
+            "Label": "语音代理",
+            "Description": "语音模式对话的模型层级"
+          },
+          "Explanation": {
+            "Label": "单词解释器",
+            "Description": "悬停单词解释的模型层级"
+          }
+        },
         "Description": "配置用于单词解释和对话练习的 AI 功能。",
         "FlashcardTTS": {
           "AutoGenerate": {

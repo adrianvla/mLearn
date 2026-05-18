@@ -105,7 +105,7 @@ cloud backend:
 | **Audio synthesis** | TTS and voice cloning | Text, voice sample (transient, not stored by us) |
 
 Specific provider names and locations may change over time. A current
-list is maintained at [mlearn-app.kikan.net/infrastructure]. We do not
+list is maintained at [mlearn.kikan.net/infrastructure]. We do not
 sell your data. We process it only to provide the service.
 
 

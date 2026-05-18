@@ -373,6 +373,14 @@ export interface Settings {
   /** Mute audio: prevent autoplay of TTS audio during flashcard review */
   flashcardMuteAudio: boolean;
 
+  // Cloud LLM tier settings
+  /** Cloud LLM tier for conversation agent (text chat) */
+  cloudLLMTierConversation: CloudLLMTier;
+  /** Cloud LLM tier for voice agent */
+  cloudLLMTierVoice: CloudLLMTier;
+  /** Cloud LLM tier for word explainer */
+  cloudLLMTierExplanation: CloudLLMTier;
+
   // Conversation agent settings
   /** Whether the agent memory feature is enabled */
   agentMemoryEnabled: boolean;
@@ -542,6 +550,9 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudTosAcceptedAt: 0,
   cloudPrivacyAccepted: false,
   cloudPrivacyAcceptedAt: 0,
+  cloudLLMTierConversation: 'cheap',
+  cloudLLMTierVoice: 'fast',
+  cloudLLMTierExplanation: 'cheap',
 };
 
 // ============================================================================
@@ -1145,6 +1156,9 @@ export interface LLMResponse {
 
 /** LLM backend provider */
 export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
+
+/** Cloud LLM model tier */
+export type CloudLLMTier = 'fast' | 'cheap';
 
 /** Configuration for a built-in GGUF model */
 export interface BuiltinModelConfig {

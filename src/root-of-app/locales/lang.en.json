@@ -23,6 +23,23 @@
           "Title": "Cloud LLM Configuration",
           "TokenHint": "Sign in via Connection settings to authenticate with the cloud LLM."
         },
+        "CloudTiers": {
+          "Title": "Cloud LLM Model Tiers",
+          "Cheap": "Cheap (DeepSeek)",
+          "Fast": "Fast (Cerebras)",
+          "Conversation": {
+            "Label": "Conversation Agent",
+            "Description": "Model tier for text chat with the AI tutor"
+          },
+          "Voice": {
+            "Label": "Voice Agent",
+            "Description": "Model tier for voice-mode conversations"
+          },
+          "Explanation": {
+            "Label": "Word Explainer",
+            "Description": "Model tier for hover word explanations"
+          }
+        },
         "Description": "Configure AI features for word explanations and conversation practice.",
         "FlashcardTTS": {
           "AutoGenerate": {

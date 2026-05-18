@@ -49,6 +49,7 @@ import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
 import { loadBundledLanguageData, loadBundledLocaleStrings } from './bundledLanguageAssets';
 import { getLogger } from '../utils/logger';
+import eulaMd from '../../../EULA.md?raw';
 
 const log = getLogger("shared.bridges.capacitor");
 
@@ -1088,6 +1089,10 @@ const serverBridge: ServerBridge = {
   },
 
   getLegalDocument(name: string) {
+    if (name === 'EULA') {
+      emitter.emit('legal-document', eulaMd);
+      return;
+    }
     fetch(`https://mlearn.morisinc.net/legal/${name}.md`)
       .then(res => res.ok ? res.text() : '')
       .then(text => emitter.emit('legal-document', text))
@@ -1126,7 +1131,7 @@ let llmAbortController: AbortController | null = null;
 let ollamaAbortController: AbortController | null = null;
 
 const llmBridge: LLMBridge = {
-  llmStream(messages, tools) {
+  llmStream(messages, tools, tier) {
     // Abort any previous stream
     llmAbortController?.abort();
     llmAbortController = new AbortController();
@@ -1154,7 +1159,7 @@ const llmBridge: LLMBridge = {
     fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ messages, tools }),
+      body: JSON.stringify({ messages, tools, model_tier: tier }),
       signal,
     })
       .then(async res => {
