@@ -96,8 +96,8 @@ function toOpenAIMessages(messages: LLMChatMessage[]): OpenAIMessage[] {
       }));
     }
 
-    if (m.role === 'tool' && m.toolName) {
-      msg.tool_call_id = m.toolName;
+    if (m.role === 'tool' && m.toolCallId) {
+      msg.tool_call_id = m.toolCallId;
     }
 
     return msg;

@@ -358,6 +358,7 @@ You MUST call submit_result when done, even if you found nothing (submit empty s
           messages.push({
             role: 'tool',
             toolName: tc.name,
+            toolCallId: tc.id,
             content: result,
           });
         } catch (err) {
@@ -365,6 +366,7 @@ You MUST call submit_result when done, even if you found nothing (submit empty s
           messages.push({
             role: 'tool',
             toolName: tc.name,
+            toolCallId: tc.id,
             content: `Error: ${(err as Error).message}`,
           });
         }

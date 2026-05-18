@@ -1297,6 +1297,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
           toolResponses.push({
             role: 'tool' as const,
             toolName: tc.name,
+            toolCallId: tc.id,
             content: result,
           });
         }

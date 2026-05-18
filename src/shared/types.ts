@@ -1198,6 +1198,7 @@ export interface LLMChatMessage {
   content: string;
   toolCalls?: LLMToolCall[];
   toolName?: string;
+  toolCallId?: string;
 }
 
 /** Provider-agnostic tool definition */
