@@ -1,12 +1,6 @@
-/**
- * AgeVerificationModal
- * Unskippable fullscreen disclaimer and age-verification screen
- * shown before the user can interact with the AI conversation agent.
- */
-
 import { Component } from 'solid-js';
 import { useLocalization } from '../../context';
-import { Btn } from '../../components/common';
+import { Btn, Panel } from '../../components/common';
 import './AgeVerificationModal.css';
 
 interface AgeVerificationModalProps {
@@ -18,7 +12,7 @@ export const AgeVerificationModal: Component<AgeVerificationModalProps> = (props
 
   return (
     <div class="avm-overlay">
-      <div class="avm-card">
+      <Panel variant="solid" rounded="lg" padding="none" class="avm-card">
         <div class="avm-content">
           <h2 class="avm-title">{t('mlearn.ConversationAgent.AgeVerification.Title')}</h2>
 
@@ -57,7 +51,7 @@ export const AgeVerificationModal: Component<AgeVerificationModalProps> = (props
             {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
           </Btn>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 };

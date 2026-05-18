@@ -31,7 +31,9 @@ import {
   generateAgentId,
 } from '../../services/agentConfigService';
 import {
+  Btn,
   IconBtn,
+  Modal,
   TabContainer,
   TabPanel,
   EmptyState,
@@ -179,6 +181,9 @@ export const ConversationContent: Component = () => {
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
   const [sceneContext, setSceneContext] = createSignal('');
+
+  const [showSplash, setShowSplash] = createSignal(true);
+  const [showDisclaimer, setShowDisclaimer] = createSignal(true);
 
   const [isProcessingToolCall, setIsProcessingToolCall] = createSignal(false);
 
@@ -1337,9 +1342,42 @@ export const ConversationContent: Component = () => {
 
   return (
     <div class="conversation-agent">
-      <Show when={!settings.conversationAgentDisclaimerAccepted && settings.llmProvider === 'cloud'}>
-        <AgeVerificationModal onAccept={() => updateSettings({ conversationAgentDisclaimerAccepted: true })} />
+      <Show when={showSplash() && settings.llmProvider === 'cloud'}>
+        <AgeVerificationModal onAccept={() => setShowSplash(false)} />
       </Show>
+      <Modal
+        isOpen={showDisclaimer() && settings.llmProvider !== 'cloud'}
+        onClose={() => setShowDisclaimer(false)}
+        title={t('mlearn.ConversationAgent.Title')}
+        closeOnOverlay={false}
+        closeOnEscape={false}
+        showCloseButton={false}
+        size="md"
+        footer={
+          <Btn variant="primary" size="lg" onClick={() => setShowDisclaimer(false)}>
+            {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
+          </Btn>
+        }
+      >
+        <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-4)' }}>
+          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-warning)', 'font-weight': 500 }}>
+            {t('mlearn.ConversationAgent.Banner.AIWarning')}
+          </p>
+          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-secondary)' }}>
+            {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: settings.agentSafetyChecker ? 'ON' : 'OFF' })}
+            {' '}
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text-link)', 'text-decoration': 'underline', cursor: 'pointer' }}
+              onClick={() => getBridge().window.openWindow({ type: 'settings' })}
+            >
+              [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
+            </button>
+            {' '}
+            {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
+          </p>
+        </div>
+      </Modal>
       {/* Header with integrated tabs */}
       <div class="ca-header">
         <div class="ca-header-left">
@@ -1450,24 +1488,6 @@ export const ConversationContent: Component = () => {
 
           {/* AI disclaimer */}
           <div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>
-          <Show when={settings.llmProvider !== 'cloud'}>
-            <div class="ca-prechat-banner">
-              <p class="ca-banner-warning">{t('mlearn.ConversationAgent.Banner.AIWarning')}</p>
-              <p class="ca-banner-safety">
-                {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: settings.agentSafetyChecker ? 'ON' : 'OFF' })}
-                {' '}
-                <button
-                  type="button"
-                  class="ca-banner-link"
-                  onClick={() => getBridge().window.openWindow({ type: 'settings' })}
-                >
-                  [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
-                </button>
-                {' '}
-                {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
-              </p>
-            </div>
-          </Show>
           <Show when={agent.isSafetyLocked()}>
             <div class="ca-safety-lockout">
               {t('mlearn.ConversationAgent.Safety.LockoutMessage')}
