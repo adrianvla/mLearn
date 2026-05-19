@@ -88,7 +88,9 @@ export interface MLearnIPC {
   restartBackend: () => void;
   getVersion: () => void;
   onVersionReceive: (callback: (version: string) => void) => () => void;
-  
+  getLegalDocument: (name: string) => void;
+  onLegalDocumentReceive: (callback: (content: string) => void) => () => void;
+
   // Server/Backend Status
   isLoaded: () => void;
   isSuccess: () => void;
@@ -227,7 +229,7 @@ sendLogRecord: (record: unknown) => void;
   onOllamaPullModelProgress: (callback: (progress: { status: string; completed?: number; total?: number; error?: string }) => void) => () => void;
 
   // Unified LLM
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[]) => void;
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string) => void;
   llmStreamAbort: () => void;
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) => () => void;
   llmCheckModel: (modelFile?: string) => Promise<LLMModelStatus>;

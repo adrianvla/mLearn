@@ -37,7 +37,7 @@ function getCloudAdapter(): CloudLLMAdapter {
  */
 export function setupLLMRouterIPC(): void {
   // Unified stream — routes to the correct provider
-  ipcMain.on(IPC_CHANNELS.LLM_STREAM, async (event: IpcMainEvent, messages: LLMChatMessage[], tools: LLMToolDefinition[]) => {
+  ipcMain.on(IPC_CHANNELS.LLM_STREAM, async (event: IpcMainEvent, messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string) => {
     const settings = loadSettings();
     const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
 
@@ -51,7 +51,7 @@ export function setupLLMRouterIPC(): void {
             const errorChunk: LLMStreamChunk = { error, done: true };
             event.sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, errorChunk);
           },
-        });
+        }, tier === 'fast' || tier === 'cheap' ? tier : undefined);
       } else if (provider === 'ollama') {
         ollamaStreamChatUnified(event.sender, messages, tools || []);
       } else {

@@ -154,6 +154,8 @@ const serverBridge: ServerBridge = {
   restartBackend: () => getIPC().restartBackend(),
   getVersion: () => getIPC().getVersion(),
   onVersionReceive: (cb) => getIPC().onVersionReceive(cb),
+  getLegalDocument: (name) => getIPC().getLegalDocument(name),
+  onLegalDocumentReceive: (cb) => getIPC().onLegalDocumentReceive(cb),
 };
 
 const installerBridge: InstallerBridge = {
@@ -169,7 +171,7 @@ const installerBridge: InstallerBridge = {
 };
 
 const llmBridge: LLMBridge = {
-  llmStream: (msgs, tools) => getIPC().llmStream(msgs, tools),
+  llmStream: (msgs, tools, tier) => getIPC().llmStream(msgs, tools, tier),
   llmStreamAbort: () => getIPC().llmStreamAbort(),
   onLLMStreamChunk: (cb) => getIPC().onLLMStreamChunk(cb),
   llmCheckModel: (f) => getIPC().llmCheckModel(f),

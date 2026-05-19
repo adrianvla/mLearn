@@ -35,6 +35,7 @@ export {
   EyeIcon,
   EyeOffIcon,
   ClockIcon,
+  HistoryIcon,
   TargetIcon,
   LinkIcon,
   ChatIcon,

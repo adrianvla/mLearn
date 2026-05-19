@@ -41,6 +41,12 @@ export {
   type DraggablePopupProps,
 } from './Modal';
 
+// EulaModal
+export {
+  EulaModal,
+  type EulaModalProps,
+} from './EulaModal/EulaModal';
+
 // ModalForm Components
 export {
   ModalForm,
@@ -293,6 +299,7 @@ export {
   EyeIcon,
   EyeOffIcon,
   ClockIcon,
+  HistoryIcon,
   TargetIcon,
   LinkIcon,
   ChatIcon,

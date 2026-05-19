@@ -5,7 +5,7 @@
  * Compatible with OpenAI-style streaming API format.
  */
 
-import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall } from '../types';
+import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, CloudLLMTier } from '../types';
 import { getLogger } from '../utils/logger';
 
 const log = getLogger("shared.backends.cloudLLM");
@@ -96,8 +96,8 @@ function toOpenAIMessages(messages: LLMChatMessage[]): OpenAIMessage[] {
       }));
     }
 
-    if (m.role === 'tool' && m.toolName) {
-      msg.tool_call_id = m.toolName;
+    if (m.role === 'tool' && m.toolCallId) {
+      msg.tool_call_id = m.toolCallId;
     }
 
     return msg;
@@ -122,9 +122,11 @@ export class CloudLLMAdapter {
     messages: LLMChatMessage[],
     tools: LLMToolDefinition[],
     callbacks: CloudLLMCallbacks,
+    tier?: CloudLLMTier,
   ): Promise<void> {
     this.abortController = new AbortController();
     const partialToolCalls = new Map<string, PartialCloudToolCallState>();
+    const toolCallIndexToId = new Map<number, string>();
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -143,6 +145,7 @@ export class CloudLLMAdapter {
         body: JSON.stringify({
           messages: openAIMessages,
           tools: openAITools,
+          model_tier: tier,
         }),
         signal: this.abortController.signal,
       });
@@ -186,7 +189,7 @@ export class CloudLLMAdapter {
 
             try {
               const parsed = JSON.parse(data) as CloudStreamEvent;
-              const chunk = this.parseStreamEvent(parsed, partialToolCalls);
+              const chunk = this.parseStreamEvent(parsed, partialToolCalls, toolCallIndexToId);
               callbacks.onChunk(chunk);
 
               if (chunk.done) {
@@ -262,6 +265,7 @@ export class CloudLLMAdapter {
   private parseStreamEvent(
     event: CloudStreamEvent,
     partialToolCalls: Map<string, PartialCloudToolCallState>,
+    toolCallIndexToId: Map<number, string>,
   ): LLMStreamChunk {
     const chunk: LLMStreamChunk = {};
 
@@ -273,7 +277,7 @@ export class CloudLLMAdapter {
       }
 
       if (delta.tool_calls) {
-        const toolCalls = accumulateToolCallDeltas(delta.tool_calls, partialToolCalls);
+        const toolCalls = accumulateToolCallDeltas(delta.tool_calls, partialToolCalls, toolCallIndexToId);
         if (toolCalls.length > 0) {
           chunk.toolCalls = toolCalls;
         }
@@ -328,11 +332,13 @@ interface CloudStreamEvent {
 function accumulateToolCallDeltas(
   toolCalls: CloudToolCallDeltaList,
   partialToolCalls: Map<string, PartialCloudToolCallState>,
+  toolCallIndexToId: Map<number, string>,
 ): LLMToolCall[] {
   const emittedToolCalls: LLMToolCall[] = [];
+  const emittedIds = new Set<string>();
 
   for (const [fallbackIndex, toolCall] of toolCalls.entries()) {
-    const key = getToolCallKey(toolCall, fallbackIndex);
+    const key = getToolCallKey(toolCall, fallbackIndex, toolCallIndexToId);
     const state = partialToolCalls.get(key) ?? {
       id: toolCall.id ?? '',
       name: toolCall.function?.name ?? '',
@@ -342,6 +348,9 @@ function accumulateToolCallDeltas(
 
     if (toolCall.id) {
       state.id = toolCall.id;
+      if (typeof toolCall.index === 'number') {
+        toolCallIndexToId.set(toolCall.index, toolCall.id);
+      }
     }
 
     if (toolCall.function?.name) {
@@ -365,8 +374,15 @@ function accumulateToolCallDeltas(
     }
 
     state.lastEmittedSignature = signature;
+
+    const callId = state.id || `cloud_tool_call_${key}`;
+    if (emittedIds.has(callId)) {
+      continue;
+    }
+    emittedIds.add(callId);
+
     emittedToolCalls.push({
-      id: state.id || `cloud_tool_call_${key}`,
+      id: callId,
       name: state.name,
       arguments: normalizedArguments,
     });
@@ -378,13 +394,18 @@ function accumulateToolCallDeltas(
 function getToolCallKey(
   toolCall: CloudToolCallDelta,
   fallbackIndex: number,
+  toolCallIndexToId: Map<number, string>,
 ): string {
-  if (typeof toolCall.index === 'number') {
-    return `index:${toolCall.index}`;
-  }
-
   if (toolCall.id) {
     return `id:${toolCall.id}`;
+  }
+
+  if (typeof toolCall.index === 'number' && toolCallIndexToId.has(toolCall.index)) {
+    return `id:${toolCallIndexToId.get(toolCall.index)}`;
+  }
+
+  if (typeof toolCall.index === 'number') {
+    return `index:${toolCall.index}`;
   }
 
   return `position:${fallbackIndex}`;

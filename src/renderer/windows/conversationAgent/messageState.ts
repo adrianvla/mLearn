@@ -37,11 +37,18 @@ export function shouldHideAssistantBubble(
     return false;
   }
 
-  if ((message.widgets && message.widgets.length > 0) || message.widget) {
+  const hasWidgets = (message.widgets && message.widgets.length > 0) || !!message.widget;
+  const isCurrentlyStreaming = isStreamingAssistantBubble(message, index, isStreaming, streamingMessageIndex);
+
+  if (hasWidgets && isCurrentlyStreaming) {
+    return true;
+  }
+
+  if (hasWidgets) {
     return false;
   }
 
-  return !isStreamingAssistantBubble(message, index, isStreaming, streamingMessageIndex);
+  return !isCurrentlyStreaming;
 }
 
 export function canRegenerateAssistantMessage(

@@ -45,9 +45,9 @@ mLearn is an all-in-one immersion app that knows what you know. Watch videos, re
 
 | Feature | Description |
 |---------|-------------|
-| **Watch Together** | Sync video playback across devices. Local network or cloud rooms with P2P media sharing. |
+| **Watch Together** | Sync video playback across devices. Local network or cloud rooms with cloud-synced playback. |
 | **Between-Devices Sync** | Desktop ↔ Mobile sync via tethered mode (local network) or cloud. Bidirectional settings + flashcard sync. |
-| **P2P Flashcard Sync** | Share flashcards instantly via QR code + WebRTC. |
+| **Cloud Flashcard Sync** | Share flashcards instantly via QR code through the cloud. |
 
 ### AI & Voice
 
@@ -86,7 +86,7 @@ v2.0 is a complete rewrite in **TypeScript + SolidJS** with major new capabiliti
 - **AI Conversation Agent** — Full AI tutor with voice chat, tool calling, and memory
 - **OCR Reader** — Manga/comic/PDF reader with 3 OCR engines
 - **Statistics Dashboard** — Comprehensive analytics with heatmaps and immersion tracking
-- **Watch Together** — Synced video watching with P2P media share
+- **Watch Together** — Synced video watching with cloud playback sync
 - **TTS / Voice** — Kokoro, Qwen3-TTS, voice cloning
 - **STT / Speech Recognition** — Whisper-based voice input
 - **Browser Extension** — Chrome/Firefox extension for streaming sites
@@ -321,6 +321,17 @@ examples/plugins/    # Plugin templates
 2. New IPC → add to `IPC_CHANNELS`, implement in both bridges
 3. Settings changes → update `Settings` interface + `DEFAULT_SETTINGS`
 4. New renderer code → use `getBridge()`/`getBackend()`, never direct IPC
+
+---
+
+## Legal
+
+- End User License Agreement: [EULA.md](EULA.md)
+- Terms of Service: [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
+- Privacy Policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
+- School Deployment Guide: [SCHOOL_DEPLOYMENT.md](SCHOOL_DEPLOYMENT.md)
+
+Web versions of these documents are available at [mlearn.morisinc.net](https://mlearn.morisinc.net).
 
 ---
 

@@ -23,6 +23,23 @@
           "Title": "云 LLM 配置",
           "TokenHint": "通过连接设置登录以验证云 LLM。"
         },
+        "CloudTiers": {
+          "Title": "云 LLM 模型层级",
+          "Cheap": "廉价 (DeepSeek)",
+          "Fast": "快速 (Cerebras)",
+          "Conversation": {
+            "Label": "对话代理",
+            "Description": "AI 导师文本聊天的模型层级"
+          },
+          "Voice": {
+            "Label": "语音代理",
+            "Description": "语音模式对话的模型层级"
+          },
+          "Explanation": {
+            "Label": "单词解释器",
+            "Description": "悬停单词解释的模型层级"
+          }
+        },
         "Description": "配置用于单词解释和对话练习的 AI 功能。",
         "FlashcardTTS": {
           "AutoGenerate": {
@@ -266,11 +283,7 @@
       "SigningIn": "正在登录…",
       "TestConnection": "测试连接",
       "Title": "连接",
-      "Unreachable": "无法访问",
-      "ICEServers": "WebRTC ICE 服务器",
-      "ICEServersLabel": "STUN / TURN 服务器",
-      "ICEServersDescription": "用于一起看视频的对等连接。",
-      "ICETURNWarning": "仅配置了 STUN 服务器。不同网络上的对等端（例如移动热点）可能无法连接。添加 TURN 服务器以实现可靠的跨网络连接。"
+      "Unreachable": "无法访问"
     },
     "ConversationAgent": {
       "Agents": {
@@ -324,6 +337,7 @@
       },
       "ExperimentalBanner": "实验性功能 — AI 回复可能包含错误。请验证重要的语言点。",
       "Disclaimer": "这是 AI，可能会犯错。请仔细核对回复内容。",
+      "ErrorTitle": "出了点问题",
       "IncludeKnowledge": "包含知识信息",
       "InputPlaceholder": "用{language}发送消息…",
       "LevelAdapt": {
@@ -337,10 +351,40 @@
         "AssistantFiltered": "已替换可能不安全的助手回复。",
         "AssistantReplacement": "我需要谨慎回复。如果这涉及真实的自残风险或紧急危险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
         "GetHelp": "如果这反映了真实风险，请立即联系您当地的紧急服务或危机热线。",
-        "SensitiveNotice": "检测到可能涉及自残的敏感内容。",
+        "LockoutMessage": "由于安全顾虑，此对话已被锁定。清除聊天以开始新对话。",
+        "ScreeningQuotaExceeded": "由于配额不足，无法对此消息进行安全筛查。该消息已被作为预防措施保留。您可以在 设置 → AI安全 中管理筛查配额。",
+        "SensitiveNotice": "检测到可能的即时自残风险。",
         "UrgentNotice": "检测到可能的即时自残风险。",
         "UserConcernResponse": "我需要谨慎回复。如果这反映了真实的自残风险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
         "UserUrgentResponse": "我认真对待此事。如果涉及即时危险或自残风险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我是否处于即时危险中，我会谨慎回复。"
+      },
+      "AgeVerification": {
+        "Title": "AI对话代理 — 最终用户许可协议",
+        "AIWarning": "⚠️ AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
+        "SafetyNotice": "🛡️ 安全筛查已开启（每条消息使用额外计算资源）。如果检测到有害内容，聊天将立即终止。设置 → AI安全以禁用。",
+        "AgeVerificationText": "您已启用云LLM提供商。云AI服务通过远程服务器路由您的对话，这意味着您的消息并非完全在您自己的设备上处理。由于云AI服务的数据保护和责任框架，您必须年满18岁才能使用云AI辅导老师。对于18岁以下学生的课堂使用，您的机构必须自行托管整个软件栈。",
+        "Certification": "继续即表示您证明您已年满18岁并接受最终用户许可协议。",
+        "ContinueButton": "继续聊天"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
+        "SafetyNotice": "🛡️ 安全筛查已{status}（使用额外计算资源）。",
+        "SettingsLink": "设置",
+        "TerminationNotice": "如果检测到有害内容，聊天将被终止。"
+      },
+      "AgeVerification": {
+        "Title": "AI Conversation Agent — Age Verification",
+        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
+        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
+        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
+        "ContinueButton": "Continue to Chat"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
+        "SettingsLink": "Settings",
+        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
       },
       "Commands": {
         "NewTopic": "新主题",
@@ -2127,23 +2171,21 @@
       },
       "Media": {
         "DistributeTitle": "分发媒体",
-        "DistributeSubtitle": "通过 WebRTC 向连接的对等端发送媒体文件",
+        "DistributeSubtitle": "通过云端同步向连接的参与者发送媒体文件",
         "DistributeAction": "分发",
         "SelectFile": "选择要分发的媒体文件",
         "FileName": "文件名",
         "FileSize": "文件大小",
-        "ConnectedPeers": "连接的对等端",
+        "ConnectedPeers": "连接的参与者",
         "SubtitlesIncluded": "包含字幕",
         "StartDistribution": "开始分发",
-        "Sending": "正在向对等端发送媒体…",
-        "DistributionComplete": "分发完成。所有对等端已收到媒体。",
+        "Sending": "正在向参与者发送媒体…",
+        "DistributionComplete": "分发完成。所有参与者已收到媒体。",
         "ReceiveTitle": "传入媒体",
-        "ReceivePrompt": "一个对等端想向您发送媒体文件。是否接收？",
+        "ReceivePrompt": "一个参与者想向您发送媒体文件。是否接收？",
         "Receiving": "正在接收媒体…",
         "ReceiveComplete": "媒体接收成功。",
-        "LoadMedia": "加载媒体",
-        "PeerConnectionFailed": "对等连接失败。如果对等端在不同网络上，请在连接设置中配置 TURN 服务器。",
-        "NoPeersConnected": "没有连接的对等端。确保所有参与者都在同一房间，如果在不同网络请检查连接设置。"
+        "LoadMedia": "加载媒体"
       }
     },
     "WordDbEditor": {
@@ -2360,6 +2402,12 @@
       "FilterSkip": "跳过",
       "EmptyTitle": "点击“运行所有测试”以验证 mLearn 中的所有功能。",
       "EmptyDescription": "这将测试 Python 后端、LLM 提供商、云连接、词典、OCR、语音、存储、媒体协议等 — 全部使用真实服务。"
+    },
+    "Eula": {
+      "Title": "End User License Agreement",
+      "Loading": "Loading...",
+      "AgreeLabel": "I have read and agree to the End User License Agreement",
+      "AcceptButton": "Accept & Continue"
     }
   }
 }

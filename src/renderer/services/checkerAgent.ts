@@ -24,6 +24,7 @@ const log = getLogger("renderer.services.checkerAgent");
 export interface CheckerResult {
   corrections: MistakeWidgetData[];
   safety: ConversationSafetyFlag | null;
+  error?: 'quota' | 'generic';
 }
 
 export interface CheckerMessageOptions {
@@ -293,7 +294,9 @@ export function createCheckerAgent(): CheckerAgentInstance {
         if (chunk.error) {
           streamCleanup?.();
           streamCleanup = null;
-          resolve({ corrections: [], safety: null });
+          const lower = chunk.error.toLowerCase();
+          const isQuota = lower.includes('quota') || lower.includes('rate limit');
+          resolve({ corrections: [], safety: null, error: isQuota ? 'quota' : 'generic' });
           return;
         }
 

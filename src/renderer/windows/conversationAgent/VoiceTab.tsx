@@ -1070,7 +1070,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                       message={msg()}
                       isStreaming={props.isStreaming && index === props.messages.length - 1 && msg().role === 'assistant'}
                       isWaiting={false}
-                      isProcessingToolCall={false}
                       onTokenHover={props.onTokenHover}
                       onTokenLeave={props.onTokenLeave}
                       triggerMode={props.triggerMode}
@@ -1089,7 +1088,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   }}
                   isStreaming={true}
                   isWaiting={false}
-                  isProcessingToolCall={false}
                 />
               </Show>
             </Show>

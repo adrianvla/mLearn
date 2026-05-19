@@ -5,7 +5,7 @@
 
 import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch } from '../../../components/common';
+import { Modal, SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch, CheckboxCard } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBackend } from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
@@ -35,6 +35,11 @@ export const ConnectionTab: Component = () => {
   const [pendingState, setPendingState] = createSignal('');
   const [pendingVerifier, setPendingVerifier] = createSignal('');
   const [manualDesktopCode, setManualDesktopCode] = createSignal('');
+
+  // ToS / Privacy acceptance modal
+  const [showTosModal, setShowTosModal] = createSignal(false);
+  const [tosChecked, setTosChecked] = createSignal(false);
+  const [privacyChecked, setPrivacyChecked] = createSignal(false);
 
   // Backend mode options — hide 'local' on mobile
   const modeOptions = (): SelectOption[] => {
@@ -90,6 +95,16 @@ export const ConnectionTab: Component = () => {
     }
   }
 
+  function handleSignInClick() {
+    if (settings.cloudTosAccepted && settings.cloudPrivacyAccepted) {
+      handleCloudSignIn();
+    } else {
+      setTosChecked(false);
+      setPrivacyChecked(false);
+      setShowTosModal(true);
+    }
+  }
+
   async function handleCloudSignIn() {
     setBackendError('');
     setCloudLoginPending(true);
@@ -104,6 +119,18 @@ export const ConnectionTab: Component = () => {
       setBackendError(String(e));
       setCloudLoginPending(false);
     }
+  }
+
+  function handleAcceptAndSignIn() {
+    const now = Date.now();
+    updateSettings({
+      cloudTosAccepted: true,
+      cloudTosAcceptedAt: now,
+      cloudPrivacyAccepted: true,
+      cloudPrivacyAcceptedAt: now,
+    });
+    setShowTosModal(false);
+    handleCloudSignIn();
   }
 
   function handleCloudSignOut() {
@@ -266,7 +293,7 @@ export const ConnectionTab: Component = () => {
             <Show
               when={settings.cloudAuthStatus === 'signed-in' && !!(settings.cloudAuthAccessToken || settings.cloudAuthToken)}
               fallback={(
-                <Btn onClick={handleCloudSignIn} disabled={cloudLoginPending()}>
+                <Btn onClick={handleSignInClick} disabled={cloudLoginPending()}>
                   {cloudLoginPending()
                     ? (t('mlearn.Connection.SigningIn') || 'Signing in...')
                     : (t('mlearn.Connection.SignIn') || 'Sign in')}
@@ -353,6 +380,66 @@ export const ConnectionTab: Component = () => {
           </SettingRow>
         </SettingGroup>
       </Show>
+
+      {/* ── ToS / Privacy Acceptance Modal ── */}
+      <Modal
+        isOpen={showTosModal()}
+        onClose={() => setShowTosModal(false)}
+        title="Terms of Service"
+        size="sm"
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setShowTosModal(false)}>
+              Cancel
+            </Btn>
+            <Btn
+              variant="primary"
+              disabled={!tosChecked() || !privacyChecked()}
+              onClick={handleAcceptAndSignIn}
+            >
+              Accept & Sign In
+            </Btn>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-4)' }}>
+          <p style={{ margin: '0', color: 'var(--text-secondary)', 'font-size': 'var(--font-size-sm)' }}>
+            To use cloud services, you must accept our Terms of Service and Privacy Policy.
+          </p>
+          <CheckboxCard
+            checked={tosChecked()}
+            onChange={setTosChecked}
+            title="I agree to the Terms of Service"
+          >
+            <Btn
+              variant="ghost"
+              size="sm"
+              onClick={(e: MouseEvent) => {
+                e.stopPropagation();
+                getBridge().window.openExternalUrl('https://mlearn.morisinc.net/terms');
+              }}
+            >
+              View Terms of Service
+            </Btn>
+          </CheckboxCard>
+          <CheckboxCard
+            checked={privacyChecked()}
+            onChange={setPrivacyChecked}
+            title="I agree to the Privacy Policy"
+          >
+            <Btn
+              variant="ghost"
+              size="sm"
+              onClick={(e: MouseEvent) => {
+                e.stopPropagation();
+                getBridge().window.openExternalUrl('https://mlearn.morisinc.net/privacy');
+              }}
+            >
+              View Privacy Policy
+            </Btn>
+          </CheckboxCard>
+        </div>
+      </Modal>
 
     </TabContent>
   );
