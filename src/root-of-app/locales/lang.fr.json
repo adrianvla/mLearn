@@ -367,6 +367,7 @@
         "AssistantReplacement": "Je dois répondre avec prudence ici. S'il s'agit d'un risque réel d'automutilation ou d'un danger immédiat, contactez tout de suite les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi ce qui se passe et je continuerai à répondre avec prudence.",
         "GetHelp": "Si cela correspond à un risque réel, contactez maintenant les services d'urgence locaux ou une ligne de crise de votre région.",
         "LockoutMessage": "Cette conversation a été verrouillée pour des raisons de sécurité. Effacez le chat pour commencer une nouvelle conversation.",
+        "ScreeningQuotaExceeded": "Ce message n'a pas pu être analysé pour des raisons de sécurité en raison d'un quota insuffisant. Il a été retenu par précaution. Gérez votre quota d'analyse dans Paramètres → Sécurité IA.",
         "SensitiveNotice": "Contenu sensible lié à l'auto-mutilation détecté.",
         "UrgentNotice": "Risque possible d'automutilation immédiate détecté.",
         "UserConcernResponse": "Je dois répondre prudemment à cela. Si cela reflète un risque réel d'automutilation, contactez maintenant les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi ce qui se passe et je continuerai à répondre avec prudence.",

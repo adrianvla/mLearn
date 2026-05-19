@@ -65,6 +65,10 @@ conversation content for potentially harmful references. If triggered,
 the conversation is immediately terminated and the user is directed to
 seek professional help.
 
+If the screening tool is enabled but cannot complete due to resource
+exhaustion, quota depletion, or backend unavailability, the AI-generated
+response will be withheld from display as a precautionary measure.
+
 This tool:
 - is NOT 100% accurate;
 - is NOT a substitute for professional mental health services or

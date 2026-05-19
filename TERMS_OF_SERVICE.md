@@ -76,7 +76,13 @@ be inaccurate, inappropriate, or unexpected.
 ### 3.2 Safety Screening
 An optional automated screening tool may analyze conversation content for
 potentially harmful references. If triggered, the conversation is
-terminated and crisis resources are displayed. This tool:
+terminated and crisis resources are displayed.
+
+If the screening tool is enabled but cannot complete due to resource
+exhaustion, quota depletion, or backend unavailability, the AI-generated
+response will be withheld from display as a precautionary measure.
+
+This tool:
 
 - is NOT 100% accurate;
 - is NOT medically validated;
@@ -84,7 +90,6 @@ terminated and crisis resources are displayed. This tool:
 - is provided for convenience only.
 
 You may disable this tool in Settings, subject to quota implications.
-
 ### 3.3 No Professional Advice
 The cloud AI features are language-learning tools only. They do not
 provide medical, legal, psychological, or safety-critical advice.

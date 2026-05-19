@@ -355,6 +355,26 @@ export const ConversationContent: Component = () => {
           includeCorrections: false,
         });
 
+        if (result.error === 'quota') {
+          agent.lockSafety();
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (!updated[assistantMsgIndex] || updated[assistantMsgIndex].role !== 'assistant') {
+              return updated;
+            }
+
+            updated[assistantMsgIndex] = {
+              ...updated[assistantMsgIndex],
+              content: t('mlearn.ConversationAgent.Safety.ScreeningQuotaExceeded'),
+              tokens: undefined,
+              widget: undefined,
+              widgets: undefined,
+            };
+            return updated;
+          });
+          return;
+        }
+
         if (result.safety) {
           agent.lockSafety();
           setMessages((prev) => {
@@ -438,6 +458,32 @@ export const ConversationContent: Component = () => {
     });
   };
 
+  const applyQuotaSafetyResponse = (userMsgIndex: number, assistantMsgIndex: number) => {
+    agent.lockSafety();
+    setMessages((prev) => {
+      const updated = [...prev];
+      if (updated[userMsgIndex]?.role === 'user') {
+        updated[userMsgIndex] = {
+          ...updated[userMsgIndex],
+          safety: undefined,
+        };
+      }
+
+      if (updated[assistantMsgIndex]?.role === 'assistant') {
+        updated[assistantMsgIndex] = {
+          ...updated[assistantMsgIndex],
+          content: t('mlearn.ConversationAgent.Safety.ScreeningQuotaExceeded'),
+          tokens: undefined,
+          widget: undefined,
+          widgets: undefined,
+          streamStats: undefined,
+        };
+      }
+
+      return updated;
+    });
+  };
+
   /**
    * Run the checker agent on user text and apply corrections / safety flags.
    * Called when at least one checker feature (mistake or safety) is enabled.
@@ -450,6 +496,10 @@ export const ConversationContent: Component = () => {
         includeCorrections: settings.agentMistakeChecker,
         includeSafety: settings.agentSafetyChecker,
       });
+      if (result.error === 'quota' && settings.agentSafetyChecker) {
+        applyQuotaSafetyResponse(userMsgIndex, assistantMsgIndex);
+        return;
+      }
       if (result.corrections.length === 0 && !result.safety) {
         return;
       }
