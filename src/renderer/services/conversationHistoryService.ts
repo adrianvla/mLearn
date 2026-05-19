@@ -34,6 +34,8 @@ export async function updateSession(session: ConversationSession): Promise<Conve
   const idx = sessions.findIndex((s) => s.id === session.id);
   if (idx !== -1) {
     sessions[idx] = session;
+  } else {
+    sessions.push(session);
   }
   await saveSessions(sessions);
   return sessions;
