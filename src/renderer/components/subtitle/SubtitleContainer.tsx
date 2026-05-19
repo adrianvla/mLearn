@@ -32,6 +32,7 @@ export interface SubtitleContainerProps {
   subtitleEnd?: number;
   /** Video source URL (for video clip flashcards) */
   videoSrc?: string;
+  lastScreenshot?: string;
 }
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
@@ -432,6 +433,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             subtitleStart={props.subtitleStart}
             subtitleEnd={props.subtitleEnd}
             videoSrc={props.videoSrc}
+            lastScreenshot={props.lastScreenshot}
           />
         ) : null}
       </Show>

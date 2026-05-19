@@ -136,6 +136,7 @@ sendLogRecord: (record: unknown) => void;
   // Overlay
   sendOverlayVideoState: (state: import('./types').OverlayVideoState) => void;
   onOverlayVideoState: (callback: (state: import('./types').OverlayVideoState) => void) => () => void;
+  onOverlayVideoScreenshot: (callback: (screenshot: import('./types').OverlayVideoScreenshot) => void) => () => void;
   requestOverlaySync: () => void;
   onOverlayRequestSync: (callback: () => void) => () => void;
   launchOverlay: () => void;

@@ -155,6 +155,7 @@ export const IPC_CHANNELS = {
   IS_WATCHING_TOGETHER: 'is-watching-together',
 
   OVERLAY_VIDEO_STATE: 'overlay-video-state',
+  OVERLAY_VIDEO_SCREENSHOT: 'overlay-video-screenshot',
   OVERLAY_REQUEST_SYNC: 'overlay-request-sync',
   OVERLAY_LAUNCH: 'overlay-launch',
   OVERLAY_GEOMETRY: 'overlay-geometry',

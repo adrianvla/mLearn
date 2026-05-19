@@ -79,6 +79,7 @@ export interface WordHoverProps {
   subtitleEnd?: number;
   /** Video source URL (for video clip flashcards) */
   videoSrc?: string;
+  lastScreenshot?: string;
 }
 
 export const WordHover: Component<WordHoverProps> = (props) => {
@@ -375,6 +376,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           flashcardMediaType: isVideoMode ? 'video' : 'image',
           srsLearningEase: settings.srsLearningEase,
           srsKnownEase: settings.srsKnownEase,
+          screenshotDataUrl: props.lastScreenshot,
         });
 
         // If video mode, clip and save the video segment

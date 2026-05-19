@@ -1486,6 +1486,7 @@ const watchTogetherBridge: WatchTogetherBridge = {
 const overlayBridge: OverlayBridge = {
   sendOverlayVideoState: noop,
   onOverlayVideoState: noopCleanup,
+  onOverlayVideoScreenshot: noopCleanup,
   requestOverlaySync: noop,
   onOverlayRequestSync: noopCleanup,
   launchOverlay: noop,

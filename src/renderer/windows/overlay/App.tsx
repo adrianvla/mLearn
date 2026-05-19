@@ -1,6 +1,6 @@
 import { Component, Show, createSignal, createMemo, onMount, onCleanup, createEffect, untrack } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
-import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks, Token } from '../../../shared/types';
+import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks, Token, OverlayVideoScreenshot } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { SubtitleContainer } from '../../components/subtitle/SubtitleContainer';
 import { LiveWordTranslator } from '../../components/subtitle/LiveWordTranslator';
@@ -121,6 +121,7 @@ export const App: Component = () => {
   const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
   const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
   const [watchTogetherError, setWatchTogetherError] = createSignal('');
+  const [lastScreenshot, setLastScreenshot] = createSignal<OverlayVideoScreenshot | null>(null);
 
   // Text mode state
   const [textModeLookup, setTextModeLookup] = createSignal<TextModeLookupData | null>(null);
@@ -267,6 +268,12 @@ export const App: Component = () => {
         setTextModeLookup(null);
         setTextModeToken(null);
         setTextModeTranslation(null);
+      })
+    );
+
+    cleanups.push(
+      bridge.overlay.onOverlayVideoScreenshot((screenshot: OverlayVideoScreenshot) => {
+        setLastScreenshot(screenshot);
       })
     );
 
@@ -690,7 +697,29 @@ export const App: Component = () => {
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
         srsLearningEase: settings.srsLearningEase,
         srsKnownEase: settings.srsKnownEase,
+        screenshotDataUrl: lastScreenshot()?.dataUrl,
       });
+
+      if (settings.flashcardMediaType === 'video' && (videoState()?.videoSrc || videoState()?.url) && entry.subtitleStart != null && entry.subtitleEnd != null) {
+        const { clipVideo } = await import('../../services/videoClipService');
+        const { toUniqueIdentifier } = await import('../../services/statsService');
+        const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
+        const start = Math.max(0, entry.subtitleStart - margin);
+        const end = entry.subtitleEnd + margin;
+        const videoData = await clipVideo(videoState()?.videoSrc || videoState()!.url!, start, end);
+        if (videoData) {
+          const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
+          const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
+          if (videoUrl) {
+            content.videoUrl = videoUrl;
+            content.skipExampleTts = true;
+          } else {
+            showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
+          }
+        } else {
+          showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
+        }
+      }
 
       await flashcardCtx.addFlashcard(content, ease);
     } catch (err) {
@@ -1071,7 +1100,8 @@ export const App: Component = () => {
                 originalText={subtitles.currentSubtitle()?.text}
                 subtitleStart={subtitles.currentSubtitle()?.start}
                 subtitleEnd={subtitles.currentSubtitle()?.end}
-                videoSrc={videoState()?.url}
+                videoSrc={videoState()?.videoSrc || videoState()?.url}
+                lastScreenshot={lastScreenshot()?.dataUrl}
                 remoteHtml={watchTogether.remoteSubtitle()?.html || null}
                 remoteSize={watchTogether.remoteSubtitle()?.size ?? null}
                 remoteWeight={watchTogether.remoteSubtitle()?.weight ?? null}

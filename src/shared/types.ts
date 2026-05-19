@@ -23,6 +23,12 @@ export interface OverlayVideoState {
   isFullscreen?: boolean;
   url?: string;
   title?: string;
+  videoSrc?: string;
+}
+
+export interface OverlayVideoScreenshot {
+  dataUrl: string;
+  timestamp: number;
 }
 
 export interface OverlayGeometry {

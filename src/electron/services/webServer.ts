@@ -17,7 +17,7 @@ import path from 'path';
 import fs from 'fs';
 import { ipcMain } from 'electron';
 import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shared/constants';
-import { DEFAULT_SETTINGS } from '../../shared/types';
+import { DEFAULT_SETTINGS, OverlayVideoScreenshot } from '../../shared/types';
 import { getAppPath, getResourcePath } from '../utils/platform';
 import { loadSettings, loadLangData, saveSettings } from './settings';
 import { getMainWindow, getOverlayWindow, launchOverlayWindow, updateOverlayGeometry } from './windowManager';
@@ -441,6 +441,41 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         sendJsonResponse(res, { status: 'ok' });
       } catch (e) {
         log.error('Error parsing overlay-sync body:', e);
+        sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
+      }
+    });
+    return;
+  }
+
+  // API: Overlay video screenshot (POST with JSON body)
+  if (pathname === '/api/overlay-video-screenshot') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
+    }
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body) as OverlayVideoScreenshot;
+        if (typeof parsed.dataUrl !== 'string') {
+          sendJsonResponse(res, { status: 'error', error: 'Invalid screenshot: dataUrl must be a string' }, 400);
+          return;
+        }
+        const overlay = getOverlayWindow();
+        if (overlay && !overlay.isDestroyed()) {
+          overlay.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_SCREENSHOT, parsed);
+        }
+        sendJsonResponse(res, { status: 'ok' });
+      } catch (e) {
+        log.error('Error parsing overlay-video-screenshot body:', e);
         sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
       }
     });
