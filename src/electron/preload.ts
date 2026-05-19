@@ -433,8 +433,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.VOICE_STT_RESULT, (_event, result) => callback(result)),
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_VAD_EVENT, (_event, vadEvent) => callback(vadEvent)),
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId, provider),
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId, provider, cloudAuthToken),
   voiceTtsStop: () =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STOP),
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) =>

@@ -10,7 +10,7 @@ import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressConten
 import { ConfirmDialog } from '../common/Modal/ConfirmDialog';
 import { useSettings, useLocalization, useLanguage, useFlashcards, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { getBackend } from '../../../shared/backends';
+import { getBackend, resolveCloudApiUrl } from '../../../shared/backends';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
@@ -120,7 +120,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
     const prov = provider();
     const sampleId = voiceSampleId() || undefined;
     const language = settings.language;
-    const cloudApiUrl = settings.cloudApiUrl || undefined;
+    const cloudApiUrl = resolveCloudApiUrl(settings);
 
     // Build task list
     const taskList: TaskState[] = [];

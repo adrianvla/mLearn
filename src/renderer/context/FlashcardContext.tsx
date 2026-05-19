@@ -18,7 +18,7 @@ import { useLanguage } from './LanguageContext';
 import { showToast, updateToast } from '../components/common/Feedback/Toast';
 import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskGroup } from '../components/common/TaskProgress/TaskProgress';
 import { getBridge } from '../../shared/bridges';
-import { getBackend } from '../../shared/backends';
+import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
 import { streamChat } from '../services/llmProvider';
@@ -913,7 +913,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
       const language = settings.language;
-      const cloudApiUrl = settings.cloudApiUrl || undefined;
+      const cloudApiUrl = resolveCloudApiUrl(settings);
 
       // Word TTS
       updatePostCreateTask(wordLabel, 'wordTts', 'running');
@@ -1641,7 +1641,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             const bridge = getBridge();
             const provider = settings.flashcardTtsProvider || DEFAULT_SETTINGS.flashcardTtsProvider;
             const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-            const cloudApiUrl = provider === 'cloud' ? settings.cloudApiUrl : undefined;
+            const cloudApiUrl = provider === 'cloud' ? resolveCloudApiUrl(settings) : undefined;
             const ttsItems: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [
               { cardId: newCardId, text: suggestion.word, field: 'word' },
             ];

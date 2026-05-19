@@ -12,7 +12,9 @@ import { getUserDataPath } from '../utils/platform';
 import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
 import { limitConsecutiveDots } from '../../shared/utils/textUtils';
 import http from 'http';
+import https from 'https';
 import { getLogger } from '../../shared/utils/logger';
+import { loadSettings } from './settings';
 
 const log = getLogger('electron.flashcardTtsStorage');
 
@@ -179,61 +181,117 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
   });
 }
 
-async function generateViaCloud(text: string, language: string, outputPath: string, authToken: string, apiUrl?: string): Promise<boolean> {
-  try {
-    const baseUrl = (apiUrl || DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
-    const https = require('https');
+interface HttpResponse {
+  statusCode: number;
+  headers: http.IncomingHttpHeaders;
+  body: Buffer;
+}
 
-    const jobUrl = new URL(`${baseUrl}/api/tts/jobs`);
-    const jobBody = JSON.stringify({ text, language, provider: 'qwen3' });
+function requestWithRedirects(
+  url: URL,
+  options: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    timeout?: number;
+    maxRedirects?: number;
+  } = {},
+): Promise<HttpResponse> {
+  return new Promise((resolve, reject) => {
+    const doRequest = (currentUrl: URL, redirectsLeft: number) => {
+      if (redirectsLeft <= 0) {
+        reject(new Error('Too many redirects'));
+        return;
+      }
 
-    const jobInfo = await new Promise<{ jobId: string }>((resolve, reject) => {
-      const proto = jobUrl.protocol === 'https:' ? https : http;
+      const proto = currentUrl.protocol === 'https:' ? https : http;
       const req = proto.request(
         {
-          hostname: jobUrl.hostname,
-          port: jobUrl.port,
-          path: jobUrl.pathname,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(jobBody),
-            'Authorization': `Bearer ${authToken}`,
-          },
-          timeout: 30000,
+          hostname: currentUrl.hostname,
+          port: currentUrl.port,
+          path: currentUrl.pathname + currentUrl.search,
+          method: options.method || 'GET',
+          headers: options.headers || {},
+          timeout: options.timeout || 30000,
         },
         (res: http.IncomingMessage) => {
-          if (res.statusCode !== 200) {
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
             res.resume();
-            reject(new Error(`Cloud TTS job creation failed: ${res.statusCode}`));
+            const nextUrl = new URL(res.headers.location, currentUrl.toString());
+            doRequest(nextUrl, redirectsLeft - 1);
             return;
           }
+
           const chunks: Buffer[] = [];
           res.on('data', (chunk: Buffer) => chunks.push(chunk));
           res.on('end', () => {
-            try {
-              const data = JSON.parse(Buffer.concat(chunks).toString());
-              const jobId = data.jobId;
-              if (!jobId) {
-                reject(new Error('Cloud TTS: missing jobId'));
-                return;
-              }
-              resolve({ jobId });
-            } catch (e) {
-              log.error("error", e);
-              reject(e);
-            }
+            resolve({
+              statusCode: res.statusCode || 0,
+              headers: res.headers,
+              body: Buffer.concat(chunks),
+            });
           });
           res.on('error', reject);
         },
       );
+
       req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS job creation timeout')); });
-      req.write(jobBody);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request timeout'));
+      });
+
+      if (options.body) {
+        req.write(options.body);
+      }
       req.end();
+    };
+
+    doRequest(url, options.maxRedirects ?? 5);
+  });
+}
+
+async function generateViaCloud(
+  text: string,
+  language: string,
+  outputPath: string,
+  authToken: string,
+  apiUrl?: string,
+  provider?: string,
+  voiceSampleId?: string,
+): Promise<boolean> {
+  try {
+    const settings = loadSettings();
+    const baseUrl = ((settings.overrideCloudEndpointUrl && settings.cloudApiUrl)
+      ? settings.cloudApiUrl
+      : (apiUrl || DEFAULT_CLOUD_API_URL)).replace(/\/+$/, '');
+
+    const jobPayload: Record<string, unknown> = { text, language };
+    if (provider && provider !== 'cloud') jobPayload.provider = provider;
+    if (voiceSampleId) jobPayload.voiceSampleId = voiceSampleId;
+    const jobBody = JSON.stringify(jobPayload);
+
+    const jobRes = await requestWithRedirects(new URL(`${baseUrl}/api/tts/jobs`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: jobBody,
+      timeout: 30000,
     });
 
-    const statusUrl = new URL(`${baseUrl}/api/jobs/${jobInfo.jobId}`);
+    if (jobRes.statusCode !== 200) {
+      throw new Error(`Cloud TTS job creation failed: ${jobRes.statusCode}`);
+    }
+
+    const jobData = JSON.parse(jobRes.body.toString());
+    const jobId = jobData.jobId;
+    if (!jobId) {
+      throw new Error('Cloud TTS: missing jobId');
+    }
+
+    const statusUrl = new URL(`${baseUrl}/api/jobs/${jobId}`);
     const maxPolls = 60;
     const pollIntervalMs = 2000;
     let jobStatus = 'pending';
@@ -241,48 +299,20 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
     for (let poll = 0; poll < maxPolls; poll++) {
       await new Promise((r) => setTimeout(r, pollIntervalMs));
 
-      const status = await new Promise<{ status: string; error?: string }>((resolve, reject) => {
-        const proto = statusUrl.protocol === 'https:' ? https : http;
-        const req = proto.request(
-          {
-            hostname: statusUrl.hostname,
-            port: statusUrl.port,
-            path: statusUrl.pathname,
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-            },
-            timeout: 10000,
-          },
-          (res: http.IncomingMessage) => {
-            if (res.statusCode !== 200) {
-              res.resume();
-              reject(new Error(`Job status check failed: ${res.statusCode}`));
-              return;
-            }
-            const chunks: Buffer[] = [];
-            res.on('data', (chunk: Buffer) => chunks.push(chunk));
-            res.on('end', () => {
-              try {
-                const data = JSON.parse(Buffer.concat(chunks).toString());
-                resolve({ status: data.job?.status || 'unknown', error: data.job?.error });
-              } catch (e) {
-                log.error("error", e);
-                reject(e);
-              }
-            });
-            res.on('error', reject);
-          },
-        );
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('Job status timeout')); });
-        req.end();
+      const statusRes = await requestWithRedirects(statusUrl, {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        timeout: 10000,
       });
 
-      jobStatus = status.status;
+      if (statusRes.statusCode !== 200) {
+        throw new Error(`Job status check failed: ${statusRes.statusCode}`);
+      }
+
+      const statusData = JSON.parse(statusRes.body.toString());
+      jobStatus = statusData.job?.status || 'unknown';
       if (jobStatus === 'completed') break;
       if (jobStatus === 'failed') {
-        log.error(`[FlashcardTTS] Cloud job failed: ${status.error || 'Unknown error'}`);
+        log.error(`[FlashcardTTS] Cloud job failed: ${statusData.job?.error || 'Unknown error'}`);
         return false;
       }
     }
@@ -292,81 +322,32 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
       return false;
     }
 
-    const resultUrl = new URL(`${baseUrl}/api/jobs/${jobInfo.jobId}/result`);
-    const downloadInfo = await new Promise<{ downloadUrl: string }>((resolve, reject) => {
-      const proto = resultUrl.protocol === 'https:' ? https : http;
-      const req = proto.request(
-        {
-          hostname: resultUrl.hostname,
-          port: resultUrl.port,
-          path: resultUrl.pathname,
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-          },
-          timeout: 10000,
-        },
-        (res: http.IncomingMessage) => {
-          if (res.statusCode !== 200) {
-            res.resume();
-            reject(new Error(`Download URL request failed: ${res.statusCode}`));
-            return;
-          }
-          const chunks: Buffer[] = [];
-          res.on('data', (chunk: Buffer) => chunks.push(chunk));
-          res.on('end', () => {
-            try {
-              const data = JSON.parse(Buffer.concat(chunks).toString());
-              const downloadUrl = data.downloadUrl;
-              if (!downloadUrl) {
-                reject(new Error('Cloud TTS: missing downloadUrl'));
-                return;
-              }
-              resolve({ downloadUrl });
-            } catch (e) {
-              log.error("error", e);
-              reject(e);
-            }
-          });
-          res.on('error', reject);
-        },
-      );
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Download URL timeout')); });
-      req.end();
+    const resultRes = await requestWithRedirects(new URL(`${baseUrl}/api/jobs/${jobId}/result`), {
+      headers: { 'Authorization': `Bearer ${authToken}` },
+      timeout: 10000,
     });
 
-    const audioUrl = new URL(downloadInfo.downloadUrl);
-    const audioData = await new Promise<Buffer>((resolve, reject) => {
-      const proto = audioUrl.protocol === 'https:' ? https : http;
-      const req = proto.request(
-        {
-          hostname: audioUrl.hostname,
-          port: audioUrl.port,
-          path: audioUrl.pathname + audioUrl.search,
-          method: 'GET',
-          timeout: 60000,
-        },
-        (res: http.IncomingMessage) => {
-          if (res.statusCode !== 200) {
-            res.resume();
-            reject(new Error(`Cloud TTS audio download failed: ${res.statusCode}`));
-            return;
-          }
-          const chunks: Buffer[] = [];
-          res.on('data', (chunk: Buffer) => chunks.push(chunk));
-          res.on('end', () => resolve(Buffer.concat(chunks)));
-          res.on('error', reject);
-        },
-      );
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS audio download timeout')); });
-      req.end();
+    if (resultRes.statusCode !== 200) {
+      throw new Error(`Download URL request failed: ${resultRes.statusCode}`);
+    }
+
+    const resultData = JSON.parse(resultRes.body.toString());
+    const downloadUrl = resultData.downloadUrl;
+    if (!downloadUrl) {
+      throw new Error('Cloud TTS: missing downloadUrl');
+    }
+
+    const audioRes = await requestWithRedirects(new URL(downloadUrl), {
+      timeout: 60000,
     });
 
-    if (audioData.length > 0) {
+    if (audioRes.statusCode !== 200) {
+      throw new Error(`Cloud TTS audio download failed: ${audioRes.statusCode}`);
+    }
+
+    if (audioRes.body.length > 0) {
       ensureAudioDir();
-      fs.writeFileSync(outputPath, audioData);
+      fs.writeFileSync(outputPath, audioRes.body);
       return true;
     }
     return false;
@@ -414,7 +395,7 @@ async function generateFlashcardTts(
     let success = false;
 
     if (provider === 'cloud' && cloudAuthToken) {
-      success = await generateViaCloud(sanitizedText, language, output, cloudAuthToken, cloudApiUrl);
+      success = await generateViaCloud(sanitizedText, language, output, cloudAuthToken, cloudApiUrl, provider, voiceSampleId);
     } else {
       success = await generateViaLocal(sanitizedText, language, output, provider, voiceSamplePath);
     }

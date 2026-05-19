@@ -32,7 +32,7 @@ import {
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
 import { stripHtmlForTts } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
-import { getBackend } from '../../../shared/backends';
+import { getBackend, resolveCloudApiUrl } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
@@ -275,7 +275,7 @@ export const FlashcardsContent: Component = () => {
       const bridge = getBridge();
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-      const cloudApiUrl = settings.cloudApiUrl || undefined;
+      const cloudApiUrl = resolveCloudApiUrl(settings);
       const total = ttsJobs.length;
       let succeeded = 0;
 
@@ -487,7 +487,7 @@ export const FlashcardsContent: Component = () => {
     const cards = flashcards();
     const provider = bulkTtsProvider();
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-    const cloudApiUrl = settings.cloudApiUrl || undefined;
+    const cloudApiUrl = resolveCloudApiUrl(settings);
     const language = settings.language;
 
     const replaceAll = bulkMode() === 'replaceAll';

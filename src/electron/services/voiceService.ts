@@ -421,6 +421,7 @@ function startSession(
       if (activeWs === ws) {
         activeWs = null;
         activeSession = false;
+        activeSender = null;
       }
     });
   } catch (err) {
@@ -483,13 +484,14 @@ async function generateCloudTTS(
   text: string,
   language: string,
   sender: Electron.WebContents,
+  cloudAuthToken?: string,
 ): Promise<void> {
   ttsAbortController = new AbortController();
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false });
 
   try {
     const settings = loadSettings();
-    const authToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
+    const authToken = cloudAuthToken || settings.cloudAuthAccessToken || settings.cloudAuthToken;
     if (!authToken) {
       throw new Error('Cloud TTS requires authentication. Please sign in to mLearn Cloud.');
     }
@@ -553,81 +555,97 @@ async function generateCloudTTS(
 
     // Step 2: Stream audio from Modal endpoint
     // The Modal endpoint returns chunked WAV — each chunk is a separate WAV file (~100ms of PCM_16 @ 24kHz)
-    const audioUrl = new URL(streamInfo.streamUrl);
     const sampleRate = 24000;
     const WAV_HEADER_SIZE = 44;
 
-    await new Promise<void>((resolve, reject) => {
-      if (ttsAbortController?.signal.aborted) { resolve(); return; }
-      const proto = audioUrl.protocol === 'https:' ? https : http;
-      const req = proto.request(
-        {
-          hostname: audioUrl.hostname,
-          port: audioUrl.port,
-          path: audioUrl.pathname + audioUrl.search,
-          method: 'GET',
-          timeout: 120000,
-        },
-        (res: http.IncomingMessage) => {
-          if (res.statusCode !== 200) {
-            res.resume();
-            reject(new Error(`Cloud TTS stream failed: HTTP ${res.statusCode}`));
-            return;
-          }
+    const streamAudio = (streamUrl: string, redirectsLeft = 5): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        if (redirectsLeft <= 0) {
+          reject(new Error('Too many redirects'));
+          return;
+        }
+        if (ttsAbortController?.signal.aborted) { resolve(); return; }
 
-          // Accumulate incoming data and extract WAV chunks.
-          // Each chunk from Modal is a full WAV file (header + PCM data).
-          let pending = Buffer.alloc(0);
-          let sentenceIndex = 0;
-
-          res.on('data', (chunk: Buffer) => {
-            if (ttsAbortController?.signal.aborted) {
-              res.destroy();
+        const url = new URL(streamUrl);
+        const proto = url.protocol === 'https:' ? https : http;
+        const req = proto.request(
+          {
+            hostname: url.hostname,
+            port: url.port,
+            path: url.pathname + url.search,
+            method: 'GET',
+            timeout: 120000,
+          },
+          (res: http.IncomingMessage) => {
+            if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+              res.resume();
+              streamAudio(new URL(res.headers.location, url.toString()).toString(), redirectsLeft - 1)
+                .then(resolve, reject);
               return;
             }
-            pending = Buffer.concat([pending, chunk]);
 
-            // Try to extract complete WAV chunks from the buffer
-            while (pending.length > WAV_HEADER_SIZE) {
-              // Read data size from WAV header bytes 40-43 (little-endian uint32)
-              const dataSize = pending.readUInt32LE(40);
-              const totalSize = WAV_HEADER_SIZE + dataSize;
-              if (pending.length < totalSize) break;
-
-              // Extract this WAV chunk's PCM data
-              const pcmData = pending.subarray(WAV_HEADER_SIZE, totalSize);
-              pending = pending.subarray(totalSize);
-
-              // Convert Int16 PCM to Float32
-              const int16View = new Int16Array(
-                pcmData.buffer,
-                pcmData.byteOffset,
-                pcmData.byteLength / 2,
-              );
-              const float32Samples = new Float32Array(int16View.length);
-              for (let i = 0; i < int16View.length; i++) {
-                float32Samples[i] = int16View[i] / 32768;
-              }
-
-              const audio: VoiceTtsAudio = {
-                samples: float32Samples,
-                sampleRate,
-                sentenceIndex: sentenceIndex++,
-                sentenceText: '',
-                totalSentences: 0,
-              };
-              sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
+            if (res.statusCode !== 200) {
+              res.resume();
+              reject(new Error(`Cloud TTS stream failed: HTTP ${res.statusCode}`));
+              return;
             }
-          });
 
-          res.on('end', resolve);
-          res.on('error', reject);
-        },
-      );
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS stream timeout')); });
-      req.end();
-    });
+            // Accumulate incoming data and extract WAV chunks.
+            // Each chunk from Modal is a full WAV file (header + PCM data).
+            let pending = Buffer.alloc(0);
+            let sentenceIndex = 0;
+
+            res.on('data', (chunk: Buffer) => {
+              if (ttsAbortController?.signal.aborted) {
+                res.destroy();
+                return;
+              }
+              pending = Buffer.concat([pending, chunk]);
+
+              // Try to extract complete WAV chunks from the buffer
+              while (pending.length > WAV_HEADER_SIZE) {
+                // Read data size from WAV header bytes 40-43 (little-endian uint32)
+                const dataSize = pending.readUInt32LE(40);
+                const totalSize = WAV_HEADER_SIZE + dataSize;
+                if (pending.length < totalSize) break;
+
+                // Extract this WAV chunk's PCM data
+                const pcmData = pending.subarray(WAV_HEADER_SIZE, totalSize);
+                pending = pending.subarray(totalSize);
+
+                // Convert Int16 PCM to Float32
+                const int16View = new Int16Array(
+                  pcmData.buffer,
+                  pcmData.byteOffset,
+                  pcmData.byteLength / 2,
+                );
+                const float32Samples = new Float32Array(int16View.length);
+                for (let i = 0; i < int16View.length; i++) {
+                  float32Samples[i] = int16View[i] / 32768;
+                }
+
+                const audio: VoiceTtsAudio = {
+                  samples: float32Samples,
+                  sampleRate,
+                  sentenceIndex: sentenceIndex++,
+                  sentenceText: sentenceIndex === 1 ? text : '',
+                  totalSentences: 1,
+                };
+                sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
+              }
+            });
+
+            res.on('end', resolve);
+            res.on('error', reject);
+          },
+        );
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS stream timeout')); });
+        req.end();
+      });
+    };
+
+    await streamAudio(streamInfo.streamUrl);
   } catch (err) {
     if (!ttsAbortController?.signal.aborted) {
       log.error('[VoiceService] Cloud TTS error:', err);
@@ -649,13 +667,14 @@ async function generateTTS(
   voiceSampleId: string | undefined,
   sender: Electron.WebContents,
   provider?: string,
+  cloudAuthToken?: string,
 ): Promise<void> {
   // Sanitize consecutive dots to prevent TTS backend failures
   const sanitizedText = limitConsecutiveDots(text);
 
   // Cloud TTS has a completely different path — BFF → Modal streaming
   if (provider === 'cloud') {
-    return generateCloudTTS(sanitizedText, language, sender);
+    return generateCloudTTS(sanitizedText, language, sender, cloudAuthToken);
   }
 
   ttsAbortController = new AbortController();
@@ -792,7 +811,6 @@ async function generateTTS(
 function stopTTS(): void {
   if (ttsAbortController) {
     ttsAbortController.abort();
-    ttsAbortController = null;
   }
 }
 
@@ -915,8 +933,8 @@ export function setupVoiceIPC(): void {
   // TTS generation request
   ipcMain.on(
     IPC_CHANNELS.VOICE_TTS_GENERATE,
-    (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string) => {
-      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider).catch((err) => {
+    (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) => {
+      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider, cloudAuthToken).catch((err) => {
         log.error('[VoiceService] TTS error:', err);
       });
     },
