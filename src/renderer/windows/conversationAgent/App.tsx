@@ -311,6 +311,8 @@ export const ConversationContent: Component = () => {
     getDisabledTools: () => disabledTools(),
   });
 
+  const [isSafetyLockedState, setIsSafetyLockedState] = createSignal(agent.isSafetyLocked());
+
   // Checker agent for split-checker mode
   const checkerAgent = createCheckerAgent();
   let checkerTaskQueue: Promise<void> = Promise.resolve();
@@ -357,6 +359,7 @@ export const ConversationContent: Component = () => {
 
         if (result.error === 'quota') {
           agent.lockSafety();
+          setIsSafetyLockedState(true);
           setMessages((prev) => {
             const updated = [...prev];
             if (!updated[assistantMsgIndex] || updated[assistantMsgIndex].role !== 'assistant') {
@@ -377,6 +380,7 @@ export const ConversationContent: Component = () => {
 
         if (result.safety) {
           agent.lockSafety();
+          setIsSafetyLockedState(true);
           setMessages((prev) => {
             const updated = [...prev];
             if (!updated[assistantMsgIndex] || updated[assistantMsgIndex].role !== 'assistant') {
@@ -434,6 +438,7 @@ export const ConversationContent: Component = () => {
     safety: ConversationSafetyFlag,
   ) => {
     agent.lockSafety();
+    setIsSafetyLockedState(true);
     setMessages((prev) => {
       const updated = [...prev];
       if (updated[userMsgIndex]?.role === 'user') {
@@ -460,6 +465,7 @@ export const ConversationContent: Component = () => {
 
   const applyQuotaSafetyResponse = (userMsgIndex: number, assistantMsgIndex: number) => {
     agent.lockSafety();
+    setIsSafetyLockedState(true);
     setMessages((prev) => {
       const updated = [...prev];
       if (updated[userMsgIndex]?.role === 'user') {
@@ -612,6 +618,8 @@ export const ConversationContent: Component = () => {
     // Clear conversation when switching agents
     setMessages([]);
     agent.clearHistory();
+    agent.unlockSafety();
+    setIsSafetyLockedState(false);
   };
 
   const handleCreateAgent = () => {
@@ -638,6 +646,8 @@ export const ConversationContent: Component = () => {
       }
       setMessages([]);
       agent.clearHistory();
+      agent.unlockSafety();
+      setIsSafetyLockedState(false);
     }
   };
 
@@ -646,6 +656,8 @@ export const ConversationContent: Component = () => {
     clearAssistantStreamState();
     if (autoSaveTimer) clearTimeout(autoSaveTimer);
     agent.clearHistory();
+    agent.unlockSafety();
+    setIsSafetyLockedState(false);
     setMessages([]);
     const newId = generateSessionId();
     setCurrentSessionId(newId);
@@ -660,6 +672,8 @@ export const ConversationContent: Component = () => {
     clearAssistantStreamState();
     if (autoSaveTimer) clearTimeout(autoSaveTimer);
     agent.loadHistory(session.llmHistory);
+    agent.unlockSafety();
+    setIsSafetyLockedState(false);
     setMessages(session.messages);
     setCurrentSessionId(id);
     setSidebarVisible(false);
@@ -848,7 +862,7 @@ export const ConversationContent: Component = () => {
     if (textareaRef) textareaRef.style.height = 'auto';
 
     if (command.id === 'newtopic') {
-      if (isStreaming() || !isConnected() || agent.isSafetyLocked()) return;
+      if (isStreaming() || !isConnected() || isSafetyLockedState()) return;
 
       const assistantMessageIndex = messages().length;
       setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
@@ -1159,7 +1173,7 @@ export const ConversationContent: Component = () => {
   };
 
   const sendTextMessage = (text: string) => {
-    if (!text || isStreaming() || agent.isSafetyLocked()) return;
+    if (!text || isStreaming() || isSafetyLockedState()) return;
 
     // Add user message
     const userMsg: ConversationMessage = {
@@ -1342,7 +1356,7 @@ export const ConversationContent: Component = () => {
   const normalizeQuizAnswer = (answer: string): string => answer.trim().toLocaleLowerCase();
 
   const handleQuizAnswer = (messageIndex: number, widgetIndex: number, answer: string) => {
-    if (agent.isSafetyLocked()) return;
+    if (isSafetyLockedState()) return;
     // Extract quiz data before updating state to determine follow-up action
     const msgs = messages();
     const targetMsg = msgs[messageIndex];
@@ -1660,9 +1674,7 @@ export const ConversationContent: Component = () => {
               initialPosition={explainerPosition()}
             />
 
-            {/* AI disclaimer */}
-            <div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>
-            <Show when={agent.isSafetyLocked()}>
+            <Show when={isSafetyLockedState()} fallback={<div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>}>
               <div class="ca-safety-lockout">
                 {t('mlearn.ConversationAgent.Safety.LockoutMessage')}
               </div>
@@ -1692,7 +1704,7 @@ export const ConversationContent: Component = () => {
                   <Textarea
                     ref={textareaRef}
                     class="ca-chat-textarea"
-                    placeholder={agent.isSafetyLocked()
+                    placeholder={isSafetyLockedState()
                       ? t('mlearn.ConversationAgent.Safety.LockoutMessage')
                       : t('mlearn.ConversationAgent.InputPlaceholder', { language: langName() })}
                     value={inputText()}
@@ -1700,7 +1712,7 @@ export const ConversationContent: Component = () => {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     resize="none"
-                    disabled={isStreaming() || !isConnected() || agent.isSafetyLocked()}
+                    disabled={isStreaming() || !isConnected() || isSafetyLockedState()}
                     ghost
                   />
 
@@ -1719,7 +1731,7 @@ export const ConversationContent: Component = () => {
                       icon={<SendIcon />}
                       variant="default"
                       onClick={handleSend}
-                      disabled={!inputText().trim() || !isConnected() || agent.isSafetyLocked()}
+                      disabled={!inputText().trim() || !isConnected() || isSafetyLockedState()}
                       aria-label={t('mlearn.ConversationAgent.Send')}
                     />
                   </Show>
