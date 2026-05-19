@@ -222,6 +222,35 @@ describe('checkerAgent', () => {
       const result = await promise;
       expect(result.corrections).toHaveLength(0);
       expect(result.safety).toBeNull();
+      expect(result.error).toBe('generic');
+    });
+
+    it('detects quota errors from "quota" keyword', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Test', 'English');
+
+      streamCallback!({ error: 'You have ran out of quota' });
+
+      const result = await promise;
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
+      expect(result.error).toBe('quota');
+    });
+
+    it('detects quota errors from "rate limit" keyword', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Test', 'English');
+
+      streamCallback!({ error: 'Rate limit exceeded, try again later' });
+
+      const result = await promise;
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
+      expect(result.error).toBe('quota');
     });
 
     it('collects multiple corrections from a single tool call', async () => {

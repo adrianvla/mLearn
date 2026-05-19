@@ -367,6 +367,7 @@
         "AssistantReplacement": "Ich muss hier vorsichtig antworten. Wenn es um ein reales Selbstgefährdungsrisiko oder eine unmittelbare Gefahr geht, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiterhin vorsichtig.",
         "GetHelp": "Wenn das ein reales Risiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region.",
         "LockoutMessage": "Dieser Chat wurde aus Sicherheitsgründen gesperrt. Löschen Sie den Chat, um eine neue Konversation zu starten.",
+        "ScreeningQuotaExceeded": "Diese Nachricht konnte aufgrund unzureichender Quota nicht auf Sicherheit geprüft werden. Sie wurde vorsichtshalber zurückgehalten. Verwalte deine Screening-Quota unter Einstellungen → KI-Sicherheit.",
         "SensitiveNotice": "Sensibler selbstverletzungsbezogener Inhalt erkannt.",
         "UrgentNotice": "Mögliches unmittelbares Selbstgefährdungsrisiko erkannt.",
         "UserConcernResponse": "Ich muss darauf vorsichtig reagieren. Wenn das ein reales Selbstgefährdungsrisiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiter vorsichtig.",

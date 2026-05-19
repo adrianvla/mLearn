@@ -367,6 +367,7 @@
         "AssistantReplacement": "I need to respond carefully here. If this is about real self-harm risk or immediate danger, contact local emergency services or a crisis line in your area right now. If you want, tell me what is happening and I will keep responding carefully.",
         "GetHelp": "If this reflects a real risk, contact local emergency services or a crisis line in your area now.",
         "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
+        "ScreeningQuotaExceeded": "This message could not be screened for safety due to insufficient quota. It has been withheld as a precaution. You can manage your screening quota in Settings → AI Safety.",
         "SensitiveNotice": "Sensitive self-harm-related content detected.",
         "UrgentNotice": "Possible immediate self-harm risk detected.",
         "UserConcernResponse": "I need to respond carefully to that. If this reflects a real self-harm risk, contact local emergency services or a crisis line in your area now. If you want, tell me what is happening and I will keep responding carefully.",
