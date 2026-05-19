@@ -779,9 +779,15 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidg
         ? 'text-input'
         : (rawQuizType as QuizWidgetData['type']);
 
+      const question = (args.question as string)?.trim() || '';
+
+      if (!question && !textWithBlanks) {
+        return null;
+      }
+
       const data: QuizWidgetData = {
         type: quizType,
-        question: (args.question as string) || '',
+        question,
         textWithBlanks,
         options: args.options as string[] | undefined,
         correctAnswer: (args.correct_answer as string) || '',
@@ -1006,6 +1012,43 @@ async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function extractWidgetText(widget: ChatWidget): string | undefined {
+  switch (widget.type) {
+    case 'quiz': {
+      const data = widget.data as unknown as QuizWidgetData;
+      return data.question || data.textWithBlanks;
+    }
+    case 'mistake': {
+      const data = widget.data as unknown as MistakeWidgetData;
+      return data.correction || data.errorSpan;
+    }
+    default:
+      return undefined;
+  }
+}
+
+async function tokenizeWidgets(widgets: ChatWidget[], language: string): Promise<ChatWidget[]> {
+  if (widgets.length === 0) return widgets;
+
+  return Promise.all(
+    widgets.map(async (widget) => {
+      const text = extractWidgetText(widget);
+      if (!text) return widget;
+
+      const tokens = await tokenizeText(text, language).catch(() => [] as Token[]);
+      if (tokens.length === 0) return widget;
+
+      return {
+        ...widget,
+        data: {
+          ...widget.data,
+          tokens,
+        },
+      };
+    }),
+  );
 }
 
 // ============================================================================
@@ -1299,10 +1342,13 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
     }
 
-    const tokens = await tokenizeText(finalContent, language).catch(() => [] as Token[]);
+    const [contentTokens, widgetsWithTokens] = await Promise.all([
+      tokenizeText(finalContent, language).catch(() => [] as Token[]),
+      tokenizeWidgets(widgets, language),
+    ]);
     if (aborted) return;
-    const finalTokens = tokens.length > 0 ? tokens : undefined;
-    callbacks.onDone(finalContent, finalTokens, widgets.length > 0 ? widgets : undefined, streamStats);
+    const finalTokens = contentTokens.length > 0 ? contentTokens : undefined;
+    callbacks.onDone(finalContent, finalTokens, widgetsWithTokens.length > 0 ? widgetsWithTokens : undefined, streamStats);
   }
 
   /**

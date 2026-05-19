@@ -1395,6 +1395,8 @@ export interface QuizWidgetData {
   affectedPattern?: string;
   userAnswer?: string;
   isCorrect?: boolean;
+  /** Tokenized question text for interactive rendering */
+  tokens?: Token[];
 }
 
 export interface MistakeWidgetData {
