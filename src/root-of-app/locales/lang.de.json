@@ -23,6 +23,23 @@
           "Title": "Cloud-LLM-Konfiguration",
           "TokenHint": "Melden Sie sich über die Verbindungseinstellungen an, um sich beim Cloud-LLM zu authentifizieren."
         },
+        "CloudTiers": {
+          "Title": "Cloud-LLM-Modellebenen",
+          "Cheap": "Günstig (DeepSeek)",
+          "Fast": "Schnell (Cerebras)",
+          "Conversation": {
+            "Label": "Konversationsagent",
+            "Description": "Modellebene für Textchat mit dem AI-Tutor"
+          },
+          "Voice": {
+            "Label": "Sprachagent",
+            "Description": "Modellebene für Sprachmodus-Konversationen"
+          },
+          "Explanation": {
+            "Label": "Worterklärer",
+            "Description": "Modellebene für Hover-Worterklärungen"
+          }
+        },
         "Description": "KI-Funktionen für Worterklärungen und Konversationsübungen konfigurieren.",
         "FlashcardTTS": {
           "AutoGenerate": {
@@ -266,11 +283,7 @@
       "SigningIn": "Anmeldung...",
       "TestConnection": "Verbindung testen",
       "Title": "Verbindung",
-      "Unreachable": "Nicht erreichbar",
-      "ICEServers": "WebRTC ICE Servers",
-      "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections.",
-      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
+      "Unreachable": "Nicht erreichbar"
     },
     "ConversationAgent": {
       "Agents": {
@@ -324,6 +337,22 @@
       },
       "ExperimentalBanner": "Experimentelle Funktion — KI-Antworten können Fehler enthalten. Überprüfen Sie wichtige sprachliche Punkte.",
       "Disclaimer": "Dies ist KI und kann Fehler machen. Bitte Antworten überprüfen.",
+      "ErrorTitle": "Etwas ist schiefgelaufen",
+      "History": {
+        "Title": "History",
+        "Empty": "No saved conversations",
+        "NewSession": "New Session",
+        "Delete": "Delete",
+        "DeleteConfirm": "Type the session title to confirm deletion",
+        "DeleteConfirmTitle": "Delete session",
+        "DeleteConfirmPlaceholder": "Session title",
+        "DeleteAll": "Delete All",
+        "DeleteAllTitle": "Delete all sessions",
+        "DeleteAllConfirm": "Type DELETE to confirm deleting all conversations",
+        "DeleteAllConfirmPlaceholder": "Type to confirm",
+        "DeleteAllConfirmWord": "DELETE",
+        "ToggleSidebar": "Toggle History"
+      },
       "IncludeKnowledge": "Wissensinformationen einbeziehen",
       "InputPlaceholder": "Nachricht auf {language}...",
       "LevelAdapt": {
@@ -337,10 +366,26 @@
         "AssistantFiltered": "Eine potenziell unsichere Assistentenantwort wurde ersetzt.",
         "AssistantReplacement": "Ich muss hier vorsichtig antworten. Wenn es um ein reales Selbstgefährdungsrisiko oder eine unmittelbare Gefahr geht, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiterhin vorsichtig.",
         "GetHelp": "Wenn das ein reales Risiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region.",
+        "LockoutMessage": "Dieser Chat wurde aus Sicherheitsgründen gesperrt. Löschen Sie den Chat, um eine neue Konversation zu starten.",
+        "ScreeningQuotaExceeded": "Diese Nachricht konnte aufgrund unzureichender Quota nicht auf Sicherheit geprüft werden. Sie wurde vorsichtshalber zurückgehalten. Verwalte deine Screening-Quota unter Einstellungen → KI-Sicherheit.",
         "SensitiveNotice": "Sensibler selbstverletzungsbezogener Inhalt erkannt.",
         "UrgentNotice": "Mögliches unmittelbares Selbstgefährdungsrisiko erkannt.",
         "UserConcernResponse": "Ich muss darauf vorsichtig reagieren. Wenn das ein reales Selbstgefährdungsrisiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiter vorsichtig.",
         "UserUrgentResponse": "Ich nehme das ernst. Wenn es um unmittelbare Gefahr oder Selbstgefährdungsrisiko geht, kontaktiere jetzt sofort den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, ob du gerade in unmittelbarer Gefahr bist, und ich antworte vorsichtig."
+      },
+      "AgeVerification": {
+        "Title": "KI-Sprachlehrer — EULA",
+        "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
+        "SafetyNotice": "🛡️ Sicherheitsprüfung ist ON (verbraucht zusätzliche Rechenleistung pro Nachricht). Bei Erkennung schädlicher Inhalte wird der Chat sofort beendet. Einstellungen → KI-Sicherheit zum Deaktivieren.",
+        "AgeVerificationText": "Sie haben einen Cloud-LLM-Anbieter aktiviert. Cloud-KI-Dienste leiten Ihre Unterhaltungen über entfernte Server, sodass Ihre Nachrichten nicht vollständig auf Ihrem eigenen Gerät verarbeitet werden. Aufgrund von Datenschutz- und Haftungsrahmen für Cloud-KI-Dienste müssen Sie 18 Jahre oder älter sein, um den Cloud-KI-Sprachlehrer zu nutzen. Für den Unterrichtsgebrauch durch Schüler unter 18 Jahren muss Ihre Institution den gesamten Software-Stack selbst hosten.",
+        "Certification": "Indem Sie fortfahren, bestätigen Sie, dass Sie 18 Jahre oder älter sind und die EULA akzeptieren.",
+        "ContinueButton": "Weiter zum Chat"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
+        "SafetyNotice": "🛡️ Sicherheitsprüfung ist {status} (verbraucht zusätzliche Rechenleistung).",
+        "SettingsLink": "Einstellungen",
+        "TerminationNotice": "Bei Erkennung schädlicher Inhalte wird der Chat beendet."
       },
       "Commands": {
         "NewTopic": "Neues Thema",
@@ -2127,23 +2172,21 @@
       },
       "Media": {
         "DistributeTitle": "Medien verteilen",
-        "DistributeSubtitle": "Mediendatei über WebRTC an verbundene Peers senden",
+        "DistributeSubtitle": "Mediendatei über Cloud-Sync an verbundene Teilnehmer senden",
         "DistributeAction": "Verteilen",
         "SelectFile": "Mediendatei zum Verteilen auswählen",
         "FileName": "Dateiname",
         "FileSize": "Dateigröße",
-        "ConnectedPeers": "Verbundene Peers",
+        "ConnectedPeers": "Verbundene Teilnehmer",
         "SubtitlesIncluded": "Untertitel enthalten",
         "StartDistribution": "Verteilung starten",
-        "Sending": "Medien werden an Peers gesendet...",
-        "DistributionComplete": "Verteilung abgeschlossen. Alle Peers haben die Medien erhalten.",
+        "Sending": "Medien werden an Teilnehmer gesendet...",
+        "DistributionComplete": "Verteilung abgeschlossen. Alle Teilnehmer haben die Medien erhalten.",
         "ReceiveTitle": "Eingehende Medien",
-        "ReceivePrompt": "Ein Peer möchte dir eine Mediendatei senden. Möchtest du sie empfangen?",
+        "ReceivePrompt": "Ein Teilnehmer möchte dir eine Mediendatei senden. Möchtest du sie empfangen?",
         "Receiving": "Medien werden empfangen...",
         "ReceiveComplete": "Medien erfolgreich empfangen.",
-        "LoadMedia": "Medien laden",
-        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
-        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
+        "LoadMedia": "Medien laden"
       }
     },
     "WordDbEditor": {
@@ -2360,6 +2403,12 @@
       "FilterSkip": "Skip",
       "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
       "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
+    },
+    "Eula": {
+      "Title": "Endbenutzer-Lizenzvereinbarung",
+      "Loading": "Wird geladen...",
+      "AgreeLabel": "Ich habe die Endbenutzer-Lizenzvereinbarung gelesen und stimme ihr zu",
+      "AcceptButton": "Akzeptieren & Fortfahren"
     }
   }
 }

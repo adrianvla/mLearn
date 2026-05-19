@@ -31,7 +31,9 @@ import {
   generateAgentId,
 } from '../../services/agentConfigService';
 import {
+  Btn,
   IconBtn,
+  Modal,
   TabContainer,
   TabPanel,
   EmptyState,
@@ -47,17 +49,29 @@ import {
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
+import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useDictionary, getCachedTranslation } from '../../hooks';
 import { ChatBubble } from './ChatBubble';
 import { SessionContextTab } from './SessionContextTab';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 import { AgentSetupModal } from './AgentSetupModal';
+import { AgeVerificationModal } from './AgeVerificationModal';
 import { AgentListPanel } from './AgentListPanel';
 import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
 import { ToolMenu } from './ToolMenu';
 import type { ToolMenuItem } from './ToolMenu';
+import { ConversationHistoryPanel } from './ConversationHistoryPanel';
+import {
+  loadSessions,
+  updateSession,
+  deleteSession,
+  deleteAllSessions,
+  generateSessionId,
+} from '../../services/conversationHistoryService';
+import type { ConversationSession } from '../../../shared/types';
+import { HistoryIcon } from '../../components/common/Misc/Icons';
 
 import { createConversationAgent } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
@@ -179,7 +193,8 @@ export const ConversationContent: Component = () => {
   const [isSpeaking, setIsSpeaking] = createSignal(false);
   const [sceneContext, setSceneContext] = createSignal('');
 
-  const [isProcessingToolCall, setIsProcessingToolCall] = createSignal(false);
+  const [showSplash, setShowSplash] = createSignal(true);
+  const [showDisclaimer, setShowDisclaimer] = createSignal(true);
 
   // Knowledge info toggle — controls whether failed words/grammar are included in the LLM context
   const [includeKnowledgeInfo, setIncludeKnowledgeInfo] = createSignal(true);
@@ -223,6 +238,16 @@ export const ConversationContent: Component = () => {
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
   let hoverRequestId = 0;
+
+  const [sessions, setSessions] = createSignal<ConversationSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = createSignal<string | null>(null);
+  const [sidebarVisible, setSidebarVisible] = createSignal(false);
+  let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const [explainerOpen, setExplainerOpen] = createSignal(false);
+  const [explainerWord, setExplainerWord] = createSignal('');
+  const [explainerContext, setExplainerContext] = createSignal('');
+  const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
 
   let messagesRef: HTMLDivElement | undefined;
   let textareaRef: HTMLTextAreaElement | undefined;
@@ -286,6 +311,8 @@ export const ConversationContent: Component = () => {
     getDisabledTools: () => disabledTools(),
   });
 
+  const [isSafetyLockedState, setIsSafetyLockedState] = createSignal(agent.isSafetyLocked());
+
   // Checker agent for split-checker mode
   const checkerAgent = createCheckerAgent();
   let checkerTaskQueue: Promise<void> = Promise.resolve();
@@ -307,14 +334,12 @@ export const ConversationContent: Component = () => {
     setStreamingMessageIndex(assistantMessageIndex);
     setIsStreaming(true);
     setIsWaiting(true);
-    setIsProcessingToolCall(false);
   };
 
   const clearAssistantStreamState = () => {
     setStreamingMessageIndex(null);
     setIsStreaming(false);
     setIsWaiting(false);
-    setIsProcessingToolCall(false);
   };
 
   const runAssistantSafetyScan = (
@@ -332,7 +357,30 @@ export const ConversationContent: Component = () => {
           includeCorrections: false,
         });
 
+        if (result.error === 'quota') {
+          agent.lockSafety();
+          setIsSafetyLockedState(true);
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (!updated[assistantMsgIndex] || updated[assistantMsgIndex].role !== 'assistant') {
+              return updated;
+            }
+
+            updated[assistantMsgIndex] = {
+              ...updated[assistantMsgIndex],
+              content: t('mlearn.ConversationAgent.Safety.ScreeningQuotaExceeded'),
+              tokens: undefined,
+              widget: undefined,
+              widgets: undefined,
+            };
+            return updated;
+          });
+          return;
+        }
+
         if (result.safety) {
+          agent.lockSafety();
+          setIsSafetyLockedState(true);
           setMessages((prev) => {
             const updated = [...prev];
             if (!updated[assistantMsgIndex] || updated[assistantMsgIndex].role !== 'assistant') {
@@ -389,6 +437,8 @@ export const ConversationContent: Component = () => {
     assistantMsgIndex: number,
     safety: ConversationSafetyFlag,
   ) => {
+    agent.lockSafety();
+    setIsSafetyLockedState(true);
     setMessages((prev) => {
       const updated = [...prev];
       if (updated[userMsgIndex]?.role === 'user') {
@@ -413,6 +463,33 @@ export const ConversationContent: Component = () => {
     });
   };
 
+  const applyQuotaSafetyResponse = (userMsgIndex: number, assistantMsgIndex: number) => {
+    agent.lockSafety();
+    setIsSafetyLockedState(true);
+    setMessages((prev) => {
+      const updated = [...prev];
+      if (updated[userMsgIndex]?.role === 'user') {
+        updated[userMsgIndex] = {
+          ...updated[userMsgIndex],
+          safety: undefined,
+        };
+      }
+
+      if (updated[assistantMsgIndex]?.role === 'assistant') {
+        updated[assistantMsgIndex] = {
+          ...updated[assistantMsgIndex],
+          content: t('mlearn.ConversationAgent.Safety.ScreeningQuotaExceeded'),
+          tokens: undefined,
+          widget: undefined,
+          widgets: undefined,
+          streamStats: undefined,
+        };
+      }
+
+      return updated;
+    });
+  };
+
   /**
    * Run the checker agent on user text and apply corrections / safety flags.
    * Called when at least one checker feature (mistake or safety) is enabled.
@@ -425,6 +502,10 @@ export const ConversationContent: Component = () => {
         includeCorrections: settings.agentMistakeChecker,
         includeSafety: settings.agentSafetyChecker,
       });
+      if (result.error === 'quota' && settings.agentSafetyChecker) {
+        applyQuotaSafetyResponse(userMsgIndex, assistantMsgIndex);
+        return;
+      }
       if (result.corrections.length === 0 && !result.safety) {
         return;
       }
@@ -475,6 +556,9 @@ export const ConversationContent: Component = () => {
 
     const mems = await loadAllMemories();
     setAllMemories(mems);
+
+    const loadedSessions = await loadSessions();
+    setSessions(loadedSessions);
   });
 
   const handleSetupComplete = async (config: AgentConfig) => {
@@ -534,6 +618,8 @@ export const ConversationContent: Component = () => {
     // Clear conversation when switching agents
     setMessages([]);
     agent.clearHistory();
+    agent.unlockSafety();
+    setIsSafetyLockedState(false);
   };
 
   const handleCreateAgent = () => {
@@ -560,7 +646,81 @@ export const ConversationContent: Component = () => {
       }
       setMessages([]);
       agent.clearHistory();
+      agent.unlockSafety();
+      setIsSafetyLockedState(false);
     }
+  };
+
+  const handleNewSession = () => {
+    agent.abortStream();
+    clearAssistantStreamState();
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    agent.clearHistory();
+    agent.unlockSafety();
+    setIsSafetyLockedState(false);
+    setMessages([]);
+    const newId = generateSessionId();
+    setCurrentSessionId(newId);
+    setSidebarVisible(false);
+  };
+
+  const handleLoadSession = async (id: string) => {
+    const session = sessions().find((s) => s.id === id);
+    if (!session) return;
+
+    agent.abortStream();
+    clearAssistantStreamState();
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    agent.loadHistory(session.llmHistory);
+    agent.unlockSafety();
+    setIsSafetyLockedState(false);
+    setMessages(session.messages);
+    setCurrentSessionId(id);
+    setSidebarVisible(false);
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    const updated = await deleteSession(id);
+    setSessions(updated);
+    if (currentSessionId() === id) {
+      setCurrentSessionId(null);
+    }
+  };
+
+  const handleDeleteAllSessions = async () => {
+    await deleteAllSessions();
+    setSessions([]);
+    setCurrentSessionId(null);
+  };
+
+  const saveCurrentSession = () => {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(async () => {
+      const msgs = messages();
+      if (msgs.length === 0) return;
+
+      const sessionId = currentSessionId() || generateSessionId();
+      if (!currentSessionId()) {
+        setCurrentSessionId(sessionId);
+      }
+
+      const firstUserMsg = msgs.find((m) => m.role === 'user');
+      const title = firstUserMsg?.content.slice(0, 50) || `Session ${new Date().toLocaleDateString()}`;
+
+      const session: ConversationSession = {
+        id: sessionId,
+        title,
+        agentId: activeAgentId(),
+        messages: msgs,
+        llmHistory: agent.getHistory(),
+        createdAt: sessions().find((s) => s.id === sessionId)?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+        messageCount: msgs.length,
+      };
+
+      const updated = await updateSession(session);
+      setSessions(updated);
+    }, 500);
   };
 
   // Check LLM availability reactively when provider/config changes
@@ -702,7 +862,7 @@ export const ConversationContent: Component = () => {
     if (textareaRef) textareaRef.style.height = 'auto';
 
     if (command.id === 'newtopic') {
-      if (isStreaming() || !isConnected()) return;
+      if (isStreaming() || !isConnected() || isSafetyLockedState()) return;
 
       const assistantMessageIndex = messages().length;
       setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
@@ -819,6 +979,17 @@ export const ConversationContent: Component = () => {
     hideHover();
   };
 
+  const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
+    setExplainerWord(word);
+    setExplainerContext(context);
+    setExplainerPosition(position);
+    setExplainerOpen(true);
+  };
+
+  const handleCloseExplainer = () => {
+    setExplainerOpen(false);
+  };
+
   /**
    * Build reusable streaming callbacks for agent responses.
    * Handles chunk accumulation, tool calls, completion, and errors.
@@ -842,7 +1013,6 @@ export const ConversationContent: Component = () => {
     return {
       onChunk: (accumulated) => {
         setIsWaiting(false);
-        setIsProcessingToolCall(false);
         const visibleContent = stripPartialToolCall(accumulated);
 
         setMessages((prev) => {
@@ -876,7 +1046,6 @@ export const ConversationContent: Component = () => {
       },
       onToolCall: (widget: ChatWidget) => {
         setIsWaiting(false);
-        setIsProcessingToolCall(true);
         if (widget.type === 'mistake') {
           const mistakeData = widget.data as unknown as MistakeWidgetData;
           setMessages((prev) => {
@@ -908,7 +1077,6 @@ export const ConversationContent: Component = () => {
         });
       },
       onDone: (finalContent, tokens, widgets, streamStats) => {
-        setIsProcessingToolCall(false);
         const finalWidgets = widgets && widgets.length > 0 ? widgets : undefined;
         const assistantMessageIndex = resolveTargetAssistantIndex(messages());
 
@@ -956,6 +1124,7 @@ export const ConversationContent: Component = () => {
           });
         }
         clearAssistantStreamState();
+        saveCurrentSession();
 
         if (assistantMessageIndex >= 0 && settings.agentSafetyChecker && finalContent) {
           runAssistantSafetyScan(finalContent, assistantMessageIndex);
@@ -981,6 +1150,7 @@ export const ConversationContent: Component = () => {
               widgets: undefined,
               widget: undefined,
               streamStats: undefined,
+              isError: true,
             };
             return updated;
           });
@@ -997,13 +1167,13 @@ export const ConversationContent: Component = () => {
         }
 
         const errorMessage = getConversationErrorMessage(error);
-        updateLastMessage(`Error: ${errorMessage}`);
+        updateLastMessage(errorMessage);
       },
     };
   };
 
   const sendTextMessage = (text: string) => {
-    if (!text || isStreaming()) return;
+    if (!text || isStreaming() || isSafetyLockedState()) return;
 
     // Add user message
     const userMsg: ConversationMessage = {
@@ -1147,8 +1317,6 @@ export const ConversationContent: Component = () => {
       const context = `[The learner is waiting. Greet them and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
       agent.continueWithContext(context, buildStreamCallbacks(messageIndex));
     } else {
-      // Remove only the last assistant entry from history, keep the user message and all prior context
-      agent.popHistory(1);
       agent.restartStream(buildStreamCallbacks(messageIndex));
     }
   };
@@ -1188,6 +1356,7 @@ export const ConversationContent: Component = () => {
   const normalizeQuizAnswer = (answer: string): string => answer.trim().toLocaleLowerCase();
 
   const handleQuizAnswer = (messageIndex: number, widgetIndex: number, answer: string) => {
+    if (isSafetyLockedState()) return;
     // Extract quiz data before updating state to determine follow-up action
     const msgs = messages();
     const targetMsg = msgs[messageIndex];
@@ -1333,6 +1502,42 @@ export const ConversationContent: Component = () => {
 
   return (
     <div class="conversation-agent">
+      <Show when={showSplash() && settings.llmProvider === 'cloud'}>
+        <AgeVerificationModal onAccept={() => setShowSplash(false)} />
+      </Show>
+      <Modal
+        isOpen={showDisclaimer() && settings.llmProvider !== 'cloud'}
+        onClose={() => setShowDisclaimer(false)}
+        title={t('mlearn.ConversationAgent.Title')}
+        closeOnOverlay={false}
+        closeOnEscape={false}
+        showCloseButton={false}
+        size="md"
+        footer={
+          <Btn variant="primary" size="lg" onClick={() => setShowDisclaimer(false)}>
+            {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
+          </Btn>
+        }
+      >
+        <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-4)' }}>
+          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-warning)', 'font-weight': 500 }}>
+            {t('mlearn.ConversationAgent.Banner.AIWarning')}
+          </p>
+          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-secondary)' }}>
+            {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: settings.agentSafetyChecker ? 'ON' : 'OFF' })}
+            {' '}
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text-link)', 'text-decoration': 'underline', cursor: 'pointer' }}
+              onClick={() => getBridge().window.openWindow({ type: 'settings' })}
+            >
+              [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
+            </button>
+            {' '}
+            {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
+          </p>
+        </div>
+      </Modal>
       {/* Header with integrated tabs */}
       <div class="ca-header">
         <div class="ca-header-left">
@@ -1359,6 +1564,12 @@ export const ConversationContent: Component = () => {
         <div class="ca-header-actions">
           <IconBtn
             variant="ghost"
+            onClick={() => setSidebarVisible((v) => !v)}
+            icon={<HistoryIcon size={14} />}
+            aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
+          />
+          <IconBtn
+            variant="ghost"
             onClick={handleClear}
             icon={<TrashIcon size={14} />}
             aria-label={t('mlearn.ConversationAgent.Clear')}
@@ -1369,179 +1580,206 @@ export const ConversationContent: Component = () => {
       {/* Chat panel */}
       <TabPanel tabId="chat" activeTab={activeTab()}>
         <div class="ca-chat-panel">
-          {/* TTS indicator */}
-          <Show when={isSpeaking()}>
-            <div class="ca-tts-indicator">
-              <div class="ca-tts-bars">
-                <div class="ca-tts-bar" />
-                <div class="ca-tts-bar" />
-                <div class="ca-tts-bar" />
-                <div class="ca-tts-bar" />
-              </div>
-              {t('mlearn.ConversationAgent.Speaking')}
+          <Show when={sidebarVisible()}>
+            <div class="ca-history-sidebar">
+              <ConversationHistoryPanel
+                sessions={sessions()}
+                activeSessionId={currentSessionId()}
+                onSelect={handleLoadSession}
+                onDelete={handleDeleteSession}
+                onDeleteAll={handleDeleteAllSessions}
+                onNewSession={handleNewSession}
+              />
             </div>
           </Show>
+          <div class={`ca-chat-content ${sidebarVisible() ? 'ca-chat-content--with-sidebar' : ''}`}>
+            {/* TTS indicator */}
+            <Show when={isSpeaking()}>
+              <div class="ca-tts-indicator">
+                <div class="ca-tts-bars">
+                  <div class="ca-tts-bar" />
+                  <div class="ca-tts-bar" />
+                  <div class="ca-tts-bar" />
+                  <div class="ca-tts-bar" />
+                </div>
+                {t('mlearn.ConversationAgent.Speaking')}
+              </div>
+            </Show>
 
-          {/* Messages */}
-          <div class="ca-messages" ref={messagesRef}>
-            <Show
-              when={messages().length > 0}
-              fallback={
-                <EmptyState
-                  icon={<ChatIcon size={24} />}
-                  title={t('mlearn.ConversationAgent.Empty.Title')}
-                  description={t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
-                  action={{
-                    label: t('mlearn.ConversationAgent.Empty.StartConversation'),
-                    onClick: handleStartConversation,
-                    variant: 'primary',
-                  }}
-                  class="ca-empty"
+            {/* Messages */}
+            <div class="ca-messages" ref={messagesRef}>
+              <Show
+                when={messages().length > 0}
+                fallback={
+                  <EmptyState
+                    icon={<ChatIcon size={24} />}
+                    title={t('mlearn.ConversationAgent.Empty.Title')}
+                    description={t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
+                    action={{
+                      label: t('mlearn.ConversationAgent.Empty.StartConversation'),
+                      onClick: handleStartConversation,
+                      variant: 'primary',
+                    }}
+                    class="ca-empty"
+                  />
+                }
+              >
+                <Index each={messages()}>
+                  {(msg, index) => (
+                    <Show when={!isEmptyToolOnlyBubble(index)}>
+                      <ChatBubble
+                        message={msg()}
+                        isStreaming={isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
+                        isWaiting={isWaiting() && isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
+                        onTokenHover={handleTokenHover}
+                        onTokenLeave={handleTokenLeave}
+                        triggerMode={currentTriggerMode()}
+                        triggerKey={currentKey()}
+                        onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
+                        onRegenerate={canRegenerateMessageAt(index) ? () => handleRegenerate(index) : undefined}
+                        avatarSrc={activeAgent()?.profilePhoto}
+                      />
+                    </Show>
+                  )}
+                </Index>
+              </Show>
+            </div>
+
+            {/* Word Hover Popup */}
+            <Show when={hoverData()} keyed>
+              {(data) => data.token ? (
+                <WordHover
+                  token={data.token}
+                  word={data.word}
+                  position={data.position}
+                  anchorRect={data.anchorRect}
+                  dictionaryEntries={dictionaryEntries()}
+                  translationData={translationData() || undefined}
+                  isLoading={isLoadingDict()}
+                  visible={isVisible()}
+                  contextPhrase={data.word}
+                  onMouseEnter={cancelHide}
+                  onMouseLeave={hideHover}
+                  onClose={hideHover}
+                  onOpenExplainer={handleOpenExplainer}
                 />
-              }
-            >
-              <Index each={messages()}>
-                {(msg, index) => (
-                  <Show when={!isEmptyToolOnlyBubble(index)}>
-                    <ChatBubble
-                      message={msg()}
-                      isStreaming={isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
-                      isWaiting={isWaiting() && isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
-                      isProcessingToolCall={isProcessingToolCall() && isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
-                      onTokenHover={handleTokenHover}
-                      onTokenLeave={handleTokenLeave}
-                      triggerMode={currentTriggerMode()}
-                      triggerKey={currentKey()}
-                      onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
-                      onRegenerate={canRegenerateMessageAt(index) ? () => handleRegenerate(index) : undefined}
-                      avatarSrc={activeAgent()?.profilePhoto}
+              ) : null}
+            </Show>
+
+            <ExplainerPopup
+              isOpen={explainerOpen()}
+              onClose={handleCloseExplainer}
+              word={explainerWord()}
+              contextPhrase={explainerContext()}
+              initialPosition={explainerPosition()}
+            />
+
+            <Show when={isSafetyLockedState()} fallback={<div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>}>
+              <div class="ca-safety-lockout">
+                {t('mlearn.ConversationAgent.Safety.LockoutMessage')}
+              </div>
+            </Show>
+            {/* Input */}
+            <div class="ca-input-area">
+              <div class="ca-input-row">
+                <Show when={settings.speechEnabled}>
+                  <IconBtn
+                    icon={<MicIcon />}
+                    variant={isRecording() ? 'danger' : 'ghost'}
+                    class={`ca-mic-btn ${isRecording() ? 'recording' : ''}`}
+                    onClick={toggleRecording}
+                    aria-label={isRecording() ? t('mlearn.ConversationAgent.StopRecording') : t('mlearn.ConversationAgent.StartRecording')}
+                  />
+                </Show>
+
+                <div class="ca-input-wrapper">
+                  <Show when={showCommandPalette()}>
+                    <CommandPalette
+                      commands={filteredCommands()}
+                      selectedIndex={commandSelectedIndex()}
+                      onSelect={executeCommand}
                     />
                   </Show>
-                )}
-              </Index>
-            </Show>
-          </div>
 
-          {/* Word Hover Popup */}
-          <Show when={hoverData()} keyed>
-            {(data) => data.token ? (
-              <WordHover
-                token={data.token}
-                word={data.word}
-                position={data.position}
-                anchorRect={data.anchorRect}
-                dictionaryEntries={dictionaryEntries()}
-                translationData={translationData() || undefined}
-                isLoading={isLoadingDict()}
-                visible={isVisible()}
-                onMouseEnter={cancelHide}
-                onMouseLeave={hideHover}
-                onClose={hideHover}
-              />
-            ) : null}
-          </Show>
-
-          {/* AI disclaimer */}
-          <div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>
-          {/* Input */}
-          <div class="ca-input-area">
-            <div class="ca-input-row">
-              <Show when={settings.speechEnabled}>
-                <IconBtn
-                  icon={<MicIcon />}
-                  variant={isRecording() ? 'danger' : 'ghost'}
-                  class={`ca-mic-btn ${isRecording() ? 'recording' : ''}`}
-                  onClick={toggleRecording}
-                  aria-label={isRecording() ? t('mlearn.ConversationAgent.StopRecording') : t('mlearn.ConversationAgent.StartRecording')}
-                />
-              </Show>
-
-              <div class="ca-input-wrapper">
-                <Show when={showCommandPalette()}>
-                  <CommandPalette
-                    commands={filteredCommands()}
-                    selectedIndex={commandSelectedIndex()}
-                    onSelect={executeCommand}
+                  <Textarea
+                    ref={textareaRef}
+                    class="ca-chat-textarea"
+                    placeholder={isSafetyLockedState()
+                      ? t('mlearn.ConversationAgent.Safety.LockoutMessage')
+                      : t('mlearn.ConversationAgent.InputPlaceholder', { language: langName() })}
+                    value={inputText()}
+                    onInput={handleTextareaInput}
+                    onKeyDown={handleKeyDown}
+                    rows={1}
+                    resize="none"
+                    disabled={isStreaming() || !isConnected() || isSafetyLockedState()}
+                    ghost
                   />
-                </Show>
 
-                <Textarea
-                  ref={textareaRef}
-                  class="ca-chat-textarea"
-                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: langName() })}
-                  value={inputText()}
-                  onInput={handleTextareaInput}
-                  onKeyDown={handleKeyDown}
-                  rows={1}
-                  resize="none"
-                  disabled={isStreaming() || !isConnected()}
-                  ghost
-                />
-
-                <Show
-                  when={!isStreaming()}
-                  fallback={
+                  <Show
+                    when={!isStreaming()}
+                    fallback={
+                      <IconBtn
+                        icon={<StopIcon />}
+                        variant="danger"
+                        onClick={handleAbort}
+                        aria-label={t('mlearn.ConversationAgent.StopStreaming')}
+                      />
+                    }
+                  >
                     <IconBtn
-                      icon={<StopIcon />}
-                      variant="danger"
-                      onClick={handleAbort}
-                      aria-label={t('mlearn.ConversationAgent.StopStreaming')}
+                      icon={<SendIcon />}
+                      variant="default"
+                      onClick={handleSend}
+                      disabled={!inputText().trim() || !isConnected() || isSafetyLockedState()}
+                      aria-label={t('mlearn.ConversationAgent.Send')}
                     />
-                  }
-                >
-                  <IconBtn
-                    icon={<SendIcon />}
-                    variant="default"
-                    onClick={handleSend}
-                    disabled={!inputText().trim() || !isConnected()}
-                    aria-label={t('mlearn.ConversationAgent.Send')}
-                  />
-                </Show>
+                  </Show>
+                </div>
               </div>
             </div>
-          </div>
-          {/* Status bar with hover trigger selector, knowledge toggle, and level adaptation */}
-          <StatusBar>
-            <Show when={isLowPowerActive()}>
-              <button type="button" class="statusbar-toggle active" tabIndex={-1} title={t('mlearn.LowPowerGate.StatusBarTooltip')}>
-                <BatteryLowIcon size={14} />
-              </button>
-            </Show>
-            <div class="hover-trigger-section">
-              <label class="hover-trigger-label">{t('mlearn.ConversationAgent.ShowTooltipOn')}</label>
-              <Select
-                  class="hover-trigger-select"
-                  options={triggerOptions()}
-                  value={currentTriggerMode()}
-                  onChange={handleTriggerModeChange}
-              />
-            </div>
-            <div class="hover-trigger-section">
-              <ToggleSwitch
-                checked={includeKnowledgeInfo()}
-                onChange={setIncludeKnowledgeInfo}
-                label={t('mlearn.ConversationAgent.IncludeKnowledge')}
-              />
-            </div>
-            <Show when={hasLevelData()}>
+            {/* Status bar with hover trigger selector, knowledge toggle, and level adaptation */}
+            <StatusBar>
+              <Show when={isLowPowerActive()}>
+                <button type="button" class="statusbar-toggle active" tabIndex={-1} title={t('mlearn.LowPowerGate.StatusBarTooltip')}>
+                  <BatteryLowIcon size={14} />
+                </button>
+              </Show>
               <div class="hover-trigger-section">
-                <label class="hover-trigger-label">{t('mlearn.ConversationAgent.LevelAdapt.Label')}</label>
+                <label class="hover-trigger-label">{t('mlearn.ConversationAgent.ShowTooltipOn')}</label>
                 <Select
                     class="hover-trigger-select"
-                    options={levelOptions()}
-                    value={targetLevel() !== null ? String(targetLevel()) : ''}
-                    onChange={handleLevelChange}
+                    options={triggerOptions()}
+                    value={currentTriggerMode()}
+                    onChange={handleTriggerModeChange}
                 />
               </div>
-            </Show>
-            <ToolMenu
-              tools={toolMenuItems()}
-              disabledTools={disabledTools()}
-              onToggle={handleToolToggle}
-            />
-          </StatusBar>
+              <div class="hover-trigger-section">
+                <ToggleSwitch
+                  checked={includeKnowledgeInfo()}
+                  onChange={setIncludeKnowledgeInfo}
+                  label={t('mlearn.ConversationAgent.IncludeKnowledge')}
+                />
+              </div>
+              <Show when={hasLevelData()}>
+                <div class="hover-trigger-section">
+                  <label class="hover-trigger-label">{t('mlearn.ConversationAgent.LevelAdapt.Label')}</label>
+                  <Select
+                      class="hover-trigger-select"
+                      options={levelOptions()}
+                      value={targetLevel() !== null ? String(targetLevel()) : ''}
+                      onChange={handleLevelChange}
+                  />
+                </div>
+              </Show>
+              <ToolMenu
+                tools={toolMenuItems()}
+                disabledTools={disabledTools()}
+                onToggle={handleToolToggle}
+              />
+            </StatusBar>
+          </div>
         </div>
-
       </TabPanel>
 
       {/* Voice panel */}

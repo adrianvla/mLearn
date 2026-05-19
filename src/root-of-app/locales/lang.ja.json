@@ -23,6 +23,23 @@
           "Title": "クラウドLLM設定",
           "TokenHint": "接続設定からサインインしてクラウドLLMの認証を行います。"
         },
+        "CloudTiers": {
+          "Title": "クラウドLLMモデルティア",
+          "Cheap": "安価 (DeepSeek)",
+          "Fast": "高速 (Cerebras)",
+          "Conversation": {
+            "Label": "会話エージェント",
+            "Description": "AIチュターとのテキストチャット用モデルティア"
+          },
+          "Voice": {
+            "Label": "音声エージェント",
+            "Description": "音声モード会話用モデルティア"
+          },
+          "Explanation": {
+            "Label": "単語解説",
+            "Description": "ホバー単語解説用モデルティア"
+          }
+        },
         "Description": "単語解説と会話練習のためのAI機能を設定します。",
         "FlashcardTTS": {
           "AutoGenerate": {
@@ -266,11 +283,7 @@
       "SigningIn": "サインイン中...",
       "TestConnection": "接続テスト",
       "Title": "接続",
-      "Unreachable": "到達不能",
-      "ICEServers": "WebRTC ICE Servers",
-      "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections.",
-      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
+      "Unreachable": "到達不能"
     },
     "ConversationAgent": {
       "Agents": {
@@ -324,6 +337,21 @@
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
       "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
+      "History": {
+        "Title": "History",
+        "Empty": "No saved conversations",
+        "NewSession": "New Session",
+        "Delete": "Delete",
+        "DeleteConfirm": "Type the session title to confirm deletion",
+        "DeleteConfirmTitle": "Delete session",
+        "DeleteConfirmPlaceholder": "Session title",
+        "DeleteAll": "Delete All",
+        "DeleteAllTitle": "Delete all sessions",
+        "DeleteAllConfirm": "Type DELETE to confirm deleting all conversations",
+        "DeleteAllConfirmPlaceholder": "Type to confirm",
+        "DeleteAllConfirmWord": "DELETE",
+        "ToggleSidebar": "Toggle History"
+      },
       "IncludeKnowledge": "知識情報を含める",
       "InputPlaceholder": "{language}でメッセージ...",
       "LevelAdapt": {
@@ -337,10 +365,40 @@
         "AssistantFiltered": "安全でない可能性のあるアシスタントの返答を置き換えました。",
         "AssistantReplacement": "ここでは慎重に返答する必要があります。現実の自傷リスクや差し迫った危険に関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、何が起きているのかを話してください。引き続き慎重に返答します。",
         "GetHelp": "現実の危険がある場合は、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。",
-        "SensitiveNotice": "自傷に関連する可能性のある内容を検出しました。",
+        "LockoutMessage": "この会話は安全上の理由からロックされています。新しい会話を始めるにはチャットをクリアしてください。",
+        "ScreeningQuotaExceeded": "このメッセージは、クォータ不足により安全スクリーニングを完了できませんでした。予防措置として保留されています。設定 → AIセーフティでスクリーニングクォータを管理できます。",
+        "SensitiveNotice": "差し迫った自傷リスクの可能性を検出しました。",
         "UrgentNotice": "差し迫った自傷リスクの可能性を検出しました。",
         "UserConcernResponse": "これには慎重に対応する必要があります。現実の自傷リスクに関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、何が起きているのかを話してください。引き続き慎重に返答します。",
         "UserUrgentResponse": "これは深刻に受け止めています。差し迫った危険や自傷のリスクに関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、今すぐ危険な状態かどうかを話してください。慎重に返答します。"
+      },
+      "AgeVerification": {
+        "Title": "AI会話エージェント — EULA",
+        "AIWarning": "⚠️ AIが生成する回答は不正確または不適切な場合があります。このエージェントは人間ではなく、専門的な助言を提供できません。",
+        "SafetyNotice": "🛡️ 安全スクリーニングはONです（メッセージごとに追加の計算リソースを使用します）。有害なコンテンツが検出された場合、チャットは直ちに終了されます。設定 → AI安全で無効化できます。",
+        "AgeVerificationText": "クラウドLLMプロバイダーを有効にしています。クラウドAIサービスはリモートサーバー経由で会話をルーティングするため、メッセージは自分のマシン上だけで完全に処理されるわけではありません。クラウドAIサービスのデータ保護および責任枠組みにより、クラウドAIチューターを使用するには18歳以上である必要があります。18歳未満の生徒による教室使用の場合、所属機関はソフトウェアスタック全体を自己ホストする必要があります。",
+        "Certification": "続行することで、あなたは18歳以上であり、EULAに同意することを証明します。",
+        "ContinueButton": "チャットを続ける"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AIが生成する回答は不正確または不適切な場合があります。このエージェントは人間ではなく、専門的な助言を提供できません。",
+        "SafetyNotice": "🛡️ 安全スクリーニングは{status}です（追加の計算リソースを使用します）。",
+        "SettingsLink": "設定",
+        "TerminationNotice": "有害なコンテンツが検出された場合、チャットは終了されます。"
+      },
+      "AgeVerification": {
+        "Title": "AI Conversation Agent — Age Verification",
+        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
+        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
+        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
+        "ContinueButton": "Continue to Chat"
+      },
+      "Banner": {
+        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
+        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
+        "SettingsLink": "Settings",
+        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
       },
       "Commands": {
         "NewTopic": "新しいトピック",
@@ -2127,23 +2185,21 @@
       },
       "Media": {
         "DistributeTitle": "メディアを配信",
-        "DistributeSubtitle": "WebRTCを使用して接続中のピアにメディアファイルを送信",
+        "DistributeSubtitle": "クラウド同期を使用して接続中の参加者にメディアファイルを送信",
         "DistributeAction": "配信",
         "SelectFile": "配信するメディアファイルを選択",
         "FileName": "ファイル名",
         "FileSize": "ファイルサイズ",
-        "ConnectedPeers": "接続中のピア",
+        "ConnectedPeers": "接続中の参加者",
         "SubtitlesIncluded": "字幕を含む",
         "StartDistribution": "配信を開始",
-        "Sending": "ピアにメディアを送信中...",
-        "DistributionComplete": "配信完了。すべてのピアがメディアを受信しました。",
+        "Sending": "参加者にメディアを送信中...",
+        "DistributionComplete": "配信完了。すべての参加者がメディアを受信しました。",
         "ReceiveTitle": "メディアの受信",
-        "ReceivePrompt": "ピアがメディアファイルを送信しようとしています。受信しますか？",
+        "ReceivePrompt": "参加者がメディアファイルを送信しようとしています。受信しますか？",
         "Receiving": "メディアを受信中...",
         "ReceiveComplete": "メディアを正常に受信しました。",
-        "LoadMedia": "メディアを読み込む",
-        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
-        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
+        "LoadMedia": "メディアを読み込む"
       }
     },
     "WordDbEditor": {
@@ -2360,6 +2416,12 @@
       "FilterSkip": "Skip",
       "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
       "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
+    },
+    "Eula": {
+      "Title": "End User License Agreement",
+      "Loading": "Loading...",
+      "AgreeLabel": "I have read and agree to the End User License Agreement",
+      "AcceptButton": "Accept & Continue"
     }
   }
 }

@@ -4,7 +4,7 @@
  * Routes to built-in (node-llama-cpp) or Ollama based on user settings.
  */
 
-import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings } from '../../shared/types';
+import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings, CloudLLMTier } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
@@ -118,12 +118,13 @@ export function streamChat(
   tools: LLMToolDefinition[],
   callbacks: LLMStreamCallbacks,
   settings?: Settings,
+  tier?: CloudLLMTier,
 ): { abort: () => void } {
   const activeSettings = settings ?? getCloudSessionSettings() ?? undefined;
 
   // Mobile: stream directly via HTTP (no IPC bridge)
   if (isMobile() && activeSettings) {
-    return streamChatMobile(messages, tools, callbacks, activeSettings);
+    return streamChatMobile(messages, tools, callbacks, activeSettings, tier);
   }
 
   const bridge = getBridge();
@@ -196,7 +197,7 @@ export function streamChat(
     if (activeSettings?.devMode) {
       log.info('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
     }
-    bridge.llm.llmStream(messages, tools);
+    bridge.llm.llmStream(messages, tools, tier);
   });
 
   const startStream = async () => {
@@ -253,6 +254,7 @@ function streamChatMobile(
   tools: LLMToolDefinition[],
   callbacks: LLMStreamCallbacks,
   settings: Settings,
+  tier?: CloudLLMTier,
 ): { abort: () => void } {
   const startTime = Date.now();
   let accumulated = '';
@@ -303,7 +305,7 @@ function streamChatMobile(
       onError: (error) => {
         reject(error);
       },
-    });
+    }, tier);
   });
 
   void withCloudAuth(
@@ -580,7 +582,7 @@ export function streamExplanation(
       onError: callbacks.onError,
     };
 
-    activeHandle = streamChat(attemptMessages, attemptTools, wrappedCallbacks);
+    activeHandle = streamChat(attemptMessages, attemptTools, wrappedCallbacks, getCloudSessionSettings() ?? undefined, getCloudSessionSettings()?.cloudLLMTierExplanation);
   };
 
   startAttempt(messages, requiredToolNames);

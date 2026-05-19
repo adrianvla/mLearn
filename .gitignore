@@ -12,7 +12,7 @@ src/root-of-app/dictionaries
 .github
 .agents
 .sisyphus
-AGENTS.md
+#AGENTS.md
 .vscode
 .venv
 .worktrees/

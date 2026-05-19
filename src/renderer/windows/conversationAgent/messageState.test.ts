@@ -46,7 +46,7 @@ describe('conversationAgent messageState', () => {
     expect(shouldHideAssistantBubble(messages, 0, false, null)).toBe(true);
   });
 
-  it('keeps quiz-only assistant bubbles visible even when they have no text', () => {
+  it('keeps quiz-only assistant bubbles visible when streaming has finished', () => {
     const messages: ConversationMessage[] = [
       makeMessage('user', 'hello'),
       {
@@ -64,6 +64,28 @@ describe('conversationAgent messageState', () => {
     ];
 
     expect(shouldHideAssistantBubble(messages, 1, false, null)).toBe(false);
+  });
+
+  it('hides widget-only assistant bubbles while they are still streaming', () => {
+    const messages: ConversationMessage[] = [
+      makeMessage('user', 'hello'),
+      {
+        ...makeMessage('assistant', ''),
+        widgets: [
+          {
+            type: 'quiz',
+            data: {
+              type: 'mcq',
+              question: 'Pick one',
+              options: ['a', 'b'],
+              correctAnswer: 'a',
+            },
+          },
+        ],
+      },
+    ];
+
+    expect(shouldHideAssistantBubble(messages, 1, true, 1)).toBe(true);
   });
 
   it('allows regenerate only for the latest assistant message when idle', () => {

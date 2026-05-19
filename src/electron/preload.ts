@@ -180,6 +180,9 @@ const mLearnIPC = {
   getVersion: () => ipcRenderer.send(IPC_CHANNELS.GET_VERSION),
   onVersionReceive: (callback: (version: string) => void) =>
     ipcOn(IPC_CHANNELS.VERSION, (_event, version) => callback(version)),
+  getLegalDocument: (name: string) => ipcRenderer.send(IPC_CHANNELS.GET_LEGAL_DOCUMENT, name),
+  onLegalDocumentReceive: (callback: (content: string) => void) =>
+    ipcOn(IPC_CHANNELS.LEGAL_DOCUMENT, (_event, content) => callback(content)),
 
   // ========== Server Status ==========
   isLoaded: () => ipcRenderer.send(IPC_CHANNELS.IS_LOADED),
@@ -370,8 +373,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, (_event, progress) => callback(progress)),
 
   // ========== Unified LLM ==========
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[]) =>
-    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM, messages, tools),
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM, messages, tools, tier),
   llmStreamAbort: () =>
     ipcRenderer.send(IPC_CHANNELS.LLM_STREAM_ABORT),
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) =>

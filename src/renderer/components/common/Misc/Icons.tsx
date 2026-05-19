@@ -212,6 +212,13 @@ export const ClockIcon = createIcon([
   'M12 6v6l4 2',
 ]);
 
+/** History/Recent icon — clock with counter-clockwise arrow */
+export const HistoryIcon = createIcon([
+  'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8',
+  'M3 3v5h5',
+  'M12 8v4l3 3',
+]);
+
 /** Target/Crosshair icon */
 export const TargetIcon = createIcon([
   'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
@@ -582,6 +589,7 @@ export default {
   EyeIcon,
   EyeOffIcon,
   ClockIcon,
+  HistoryIcon,
   TargetIcon,
   LinkIcon,
   ChatIcon,

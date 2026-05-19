@@ -73,8 +73,6 @@ interface ChatBubbleProps {
   isStreaming?: boolean;
   /** True when waiting for the request to be sent / before streaming starts */
   isWaiting?: boolean;
-  /** True when the LLM is processing a tool call */
-  isProcessingToolCall?: boolean;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onTokenLeave?: () => void;
   triggerMode?: WordHoverTriggerMode;
@@ -96,6 +94,8 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
     props.message.role === 'assistant' && !props.message.content;
 
   const isAssistant = () => props.message.role === 'assistant';
+
+  const isError = () => props.message.isError === true;
 
   const hasCorrections = () =>
     props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
@@ -143,79 +143,95 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   };
 
   return (
-    <div class={`chat-bubble ${props.message.role}${props.avatarSrc && isAssistant() ? ' has-avatar' : ''}`}>
+    <div class={`chat-bubble ${props.message.role}${props.avatarSrc && isAssistant() ? ' has-avatar' : ''}${isError() ? ' error' : ''}`}>
       <Show when={props.avatarSrc && isAssistant()}>
         <img class="chat-bubble-avatar" src={props.avatarSrc} alt="" />
       </Show>
       <div class="chat-bubble-inner">
       <div class="chat-bubble-content">
-        {/* State 1: Waiting for stream to begin (spinner) */}
-        <Show when={isAssistantEmpty() && props.isStreaming && props.isWaiting}>
-          <Spinner size={16} />
-        </Show>
-        {/* State 2: Stream started but no text yet (blinking cursor) */}
-        <Show when={isAssistantEmpty() && props.isStreaming && !props.isWaiting}>
-          <span class="chat-bubble-cursor" />
-        </Show>
-        {/* State 3: User message with inline corrections — tokenized with correction overlay */}
-        <Show when={hasCorrections() && hasTokens()}>
-          <CorrectedTokenizedText
-            tokens={props.message.tokens!}
-            corrections={props.message.corrections!}
-            onTokenHover={props.onTokenHover}
-            onTokenLeave={props.onTokenLeave}
-            triggerMode={props.triggerMode || 'hover'}
-            triggerKey={props.triggerKey || 'Shift'}
-          />
-        </Show>
-        {/* State 3b: User message with corrections but no tokens yet */}
-        <Show when={hasCorrections() && !hasTokens()}>
-          <CorrectedUserText content={props.message.content} corrections={props.message.corrections!} />
-        </Show>
-        {/* State 4: Tokenized text (any role with tokens, no corrections) */}
-        <Show when={!hasCorrections() && hasTokens() && isAssistant()}>
-          <MarkdownRenderer
-            content={props.message.content}
-            tokens={props.message.tokens!}
-            onTokenHover={props.onTokenHover}
-            onTokenLeave={props.onTokenLeave}
-            triggerMode={props.triggerMode || 'hover'}
-            triggerKey={props.triggerKey || 'Shift'}
-            renderToken={ChatToken}
-          />
-        </Show>
-        <Show when={!hasCorrections() && hasTokens() && !isAssistant()}>
-          <TokenizedText
-            tokens={props.message.tokens!}
-            onTokenHover={props.onTokenHover}
-            onTokenLeave={props.onTokenLeave}
-            triggerMode={props.triggerMode || 'hover'}
-            triggerKey={props.triggerKey || 'Shift'}
-          />
-        </Show>
-        {/* State 5: Plain text — assistant gets markdown rendering, user gets plain */}
-        <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && isAssistant()}>
-          <span class="ca-markdown" innerHTML={parseMarkdownToHtml(props.message.content)} />
-        </Show>
-        <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && !isAssistant()}>
-          <span>{props.message.content}</span>
-          <Show when={props.isStreaming}>
-            <span class="chat-bubble-cursor" />
-          </Show>
-        </Show>
-
-        {/* Spinner shown while processing tool calls (inside bubble for consistency) */}
-        <Show when={props.isProcessingToolCall && !props.isWaiting}>
-          <div class="chat-bubble-tool-spinner">
-            <Spinner size={14} />
+        <Show when={isError()}>
+          <div class="chat-error-banner">
+            <div class="chat-error-header">
+              <span class="chat-error-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+              </span>
+              <span class="chat-error-title">{t('mlearn.ConversationAgent.ErrorTitle')}</span>
+            </div>
+            <div class="chat-error-message">{props.message.content}</div>
+            <Show when={props.onRegenerate}>
+              <button type="button" class="chat-error-retry" onClick={() => props.onRegenerate?.()}>
+                <RefreshIcon size={14} />
+                {t('mlearn.Global.TryAgain')}
+              </button>
+            </Show>
           </div>
         </Show>
+        <Show when={!isError()}>
+          {/* State 1: Waiting for stream to begin (spinner) */}
+          <Show when={isAssistantEmpty() && props.isStreaming && props.isWaiting}>
+            <Spinner size={16} />
+          </Show>
+          {/* State 2: Stream started but no text yet (blinking cursor) */}
+          <Show when={isAssistantEmpty() && props.isStreaming && !props.isWaiting}>
+            <span class="chat-bubble-cursor" />
+          </Show>
+          {/* State 3: User message with inline corrections — tokenized with correction overlay */}
+          <Show when={hasCorrections() && hasTokens()}>
+            <CorrectedTokenizedText
+              tokens={props.message.tokens!}
+              corrections={props.message.corrections!}
+              onTokenHover={props.onTokenHover}
+              onTokenLeave={props.onTokenLeave}
+              triggerMode={props.triggerMode || 'hover'}
+              triggerKey={props.triggerKey || 'Shift'}
+            />
+          </Show>
+          {/* State 3b: User message with corrections but no tokens yet */}
+          <Show when={hasCorrections() && !hasTokens()}>
+            <CorrectedUserText content={props.message.content} corrections={props.message.corrections!} />
+          </Show>
+          {/* State 4: Tokenized text (any role with tokens, no corrections) */}
+          <Show when={!hasCorrections() && hasTokens() && isAssistant()}>
+            <MarkdownRenderer
+              content={props.message.content}
+              tokens={props.message.tokens!}
+              onTokenHover={props.onTokenHover}
+              onTokenLeave={props.onTokenLeave}
+              triggerMode={props.triggerMode || 'hover'}
+              triggerKey={props.triggerKey || 'Shift'}
+              renderToken={ChatToken}
+            />
+          </Show>
+          <Show when={!hasCorrections() && hasTokens() && !isAssistant()}>
+            <TokenizedText
+              tokens={props.message.tokens!}
+              onTokenHover={props.onTokenHover}
+              onTokenLeave={props.onTokenLeave}
+              triggerMode={props.triggerMode || 'hover'}
+              triggerKey={props.triggerKey || 'Shift'}
+            />
+          </Show>
+          {/* State 5: Plain text — assistant gets markdown rendering, user gets plain */}
+          <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && isAssistant()}>
+            <span class="ca-markdown" innerHTML={parseMarkdownToHtml(props.message.content)} />
+          </Show>
+          <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && !isAssistant()}>
+            <span>{props.message.content}</span>
+            <Show when={props.isStreaming}>
+              <span class="chat-bubble-cursor" />
+            </Show>
+          </Show>
 
-        {/* Interrupted indicator */}
-        <Show when={props.message.interrupted}>
-          <span class="chat-bubble-interrupted">
-            <ScissorsIcon size={12} /> {t('mlearn.ConversationAgent.Voice.Interrupted')}
-          </span>
+          {/* Interrupted indicator */}
+          <Show when={props.message.interrupted}>
+            <span class="chat-bubble-interrupted">
+              <ScissorsIcon size={12} /> {t('mlearn.ConversationAgent.Voice.Interrupted')}
+            </span>
+          </Show>
         </Show>
       </div>
 
@@ -239,6 +255,10 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
                   data={widget.data as unknown as QuizWidgetData}
                   resolved={widget.resolved}
                   onAnswer={(answer) => props.onQuizAnswer?.(widgetIndex(), answer)}
+                  onTokenHover={props.onTokenHover}
+                  onTokenLeave={props.onTokenLeave}
+                  triggerMode={props.triggerMode}
+                  triggerKey={props.triggerKey}
                 />
               </Show>
             )}
@@ -666,6 +686,10 @@ interface QuizWidgetProps {
   data: QuizWidgetData;
   resolved?: boolean;
   onAnswer?: (answer: string) => void;
+  onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
+  onTokenLeave?: () => void;
+  triggerMode?: WordHoverTriggerMode;
+  triggerKey?: string;
 }
 
 const QuizWidget: Component<QuizWidgetProps> = (props) => {
@@ -754,9 +778,21 @@ const QuizWidget: Component<QuizWidgetProps> = (props) => {
     return segments;
   });
 
+  const hasQuestionTokens = () => props.data.tokens && props.data.tokens.length > 0;
+
   return (
     <div class="quiz-widget">
-      <div class="quiz-question">{props.data.question}</div>
+      <div class="quiz-question">
+        <Show when={hasQuestionTokens()} fallback={<span>{props.data.question}</span>}>
+          <TokenizedText
+            tokens={props.data.tokens!}
+            onTokenHover={props.onTokenHover}
+            onTokenLeave={props.onTokenLeave}
+            triggerMode={props.triggerMode || 'hover'}
+            triggerKey={props.triggerKey || 'Shift'}
+          />
+        </Show>
+      </div>
 
       <Show when={props.data.type === 'mcq' && props.data.options}>
         <div class="quiz-options">

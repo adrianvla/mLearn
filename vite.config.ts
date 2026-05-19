@@ -78,15 +78,13 @@ export default defineConfig(({ mode }) => {
         'Cross-Origin-Embedder-Policy': 'require-corp',
       },
     },
-    // Define global for browser compatibility (needed for simple-peer)
     define: {
       global: 'globalThis',
       'process.env': {},
       __PLATFORM__: JSON.stringify(isCapacitor ? 'capacitor' : 'electron'),
     },
     optimizeDeps: {
-      // Include simple-peer and its dependencies for proper bundling
-      include: ['simple-peer', 'buffer', 'process'],
+      include: ['buffer', 'process'],
       exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@ffmpeg/core'],
       esbuildOptions: {
         // Node.js global to browser globalThis

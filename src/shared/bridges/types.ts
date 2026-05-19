@@ -29,6 +29,7 @@ import type {
   VoiceSample,
   PipProgress,
   SystemMemoryInfo,
+  CloudLLMTier,
 } from '../types';
 import type {
   PluginBusEnvelope,
@@ -160,6 +161,8 @@ export interface ServerBridge {
   restartBackend: () => void;
   getVersion: () => void;
   onVersionReceive: (callback: (version: string) => void) => () => void;
+  getLegalDocument: (name: string) => void;
+  onLegalDocumentReceive: (callback: (content: string) => void) => () => void;
 }
 
 export interface InstallerBridge {
@@ -176,7 +179,7 @@ export interface InstallerBridge {
 
 export interface LLMBridge {
   // Unified LLM
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[]) => void;
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: CloudLLMTier) => void;
   llmStreamAbort: () => void;
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) => () => void;
   llmCheckModel: (modelFile?: string) => Promise<LLMModelStatus>;

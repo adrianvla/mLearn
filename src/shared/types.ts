@@ -95,12 +95,6 @@ export const CUSTOMIZABLE_CSS_VARS = [
   'border-color-intense',
 ] as const;
 
-export interface IceServerConfig {
-  urls: string;
-  username?: string;
-  credential?: string;
-}
-
 export interface Settings {
   // Knowledge thresholds
   /** Built-in SRS ease above which a word is considered learning (integer, 0–5000 = 0.0–5.0 scale) */
@@ -379,6 +373,14 @@ export interface Settings {
   /** Mute audio: prevent autoplay of TTS audio during flashcard review */
   flashcardMuteAudio: boolean;
 
+  // Cloud LLM tier settings
+  /** Cloud LLM tier for conversation agent (text chat) */
+  cloudLLMTierConversation: CloudLLMTier;
+  /** Cloud LLM tier for voice agent */
+  cloudLLMTierVoice: CloudLLMTier;
+  /** Cloud LLM tier for word explainer */
+  cloudLLMTierExplanation: CloudLLMTier;
+
   // Conversation agent settings
   /** Whether the agent memory feature is enabled */
   agentMemoryEnabled: boolean;
@@ -388,15 +390,19 @@ export interface Settings {
   agentMistakeChecker: boolean;
   /** Whether the separate checker agent should flag safety risks (e.g. self-harm) */
   agentSafetyChecker: boolean;
-
   /** List of browser paths that have the mLearn browser extension installed */
   installedBrowserExtensions: string[];
 
-  // WebRTC ICE servers for flashcard sync peer connections
-  iceServers: IceServerConfig[];
-
-  // First-run tracking
   hasCompletedSetup?: boolean;
+
+  eulaAccepted: boolean;
+  eulaAcceptedVersion: string;
+  eulaAcceptedAt: number;
+  eulaAcceptedHash: string;
+  cloudTosAccepted: boolean;
+  cloudTosAcceptedAt: number;
+  cloudPrivacyAccepted: boolean;
+  cloudPrivacyAcceptedAt: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -536,10 +542,17 @@ export const DEFAULT_SETTINGS: Settings = {
   agentMistakeChecker: true,
   agentSafetyChecker: true,
   installedBrowserExtensions: [],
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
+  eulaAccepted: false,
+  eulaAcceptedVersion: '',
+  eulaAcceptedAt: 0,
+  eulaAcceptedHash: '',
+  cloudTosAccepted: false,
+  cloudTosAcceptedAt: 0,
+  cloudPrivacyAccepted: false,
+  cloudPrivacyAcceptedAt: 0,
+  cloudLLMTierConversation: 'cheap',
+  cloudLLMTierVoice: 'fast',
+  cloudLLMTierExplanation: 'cheap',
 };
 
 // ============================================================================
@@ -1144,6 +1157,9 @@ export interface LLMResponse {
 /** LLM backend provider */
 export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
 
+/** Cloud LLM model tier */
+export type CloudLLMTier = 'fast' | 'cheap';
+
 /** Configuration for a built-in GGUF model */
 export interface BuiltinModelConfig {
   /** Unique identifier e.g. 'qwen3.5-4b' */
@@ -1182,6 +1198,7 @@ export interface LLMChatMessage {
   content: string;
   toolCalls?: LLMToolCall[];
   toolName?: string;
+  toolCallId?: string;
 }
 
 /** Provider-agnostic tool definition */
@@ -1339,6 +1356,8 @@ export interface ConversationMessage {
   interrupted?: boolean;
   /** The content up to where TTS was interrupted (e.g. "I have eaten a green") */
   interruptedAt?: string;
+  /** Whether this message represents an error from the AI */
+  isError?: boolean;
 }
 
 /** Performance stats from the LLM streaming response */
@@ -1376,6 +1395,8 @@ export interface QuizWidgetData {
   affectedPattern?: string;
   userAnswer?: string;
   isCorrect?: boolean;
+  /** Tokenized question text for interactive rendering */
+  tokens?: Token[];
 }
 
 export interface MistakeWidgetData {
@@ -1488,6 +1509,26 @@ export interface AgentMemoryEntry {
   content: string;
   /** Timestamp of when the memory was created */
   timestamp: number;
+}
+
+/** A conversation session with an AI tutor */
+export interface ConversationSession {
+  /** Unique ID */
+  id: string;
+  /** Display title */
+  title: string;
+  /** ID of the agent this session belongs to, or null for legacy sessions */
+  agentId: string | null;
+  /** Messages in the conversation */
+  messages: ConversationMessage[];
+  /** Full LLM history for context reconstruction */
+  llmHistory: LLMChatMessage[];
+  /** Timestamp of session creation */
+  createdAt: number;
+  /** Timestamp of last activity */
+  updatedAt: number;
+  /** Total number of messages (for efficient count queries) */
+  messageCount: number;
 }
 
 // ============================================================================

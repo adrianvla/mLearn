@@ -861,6 +861,25 @@ export function setupWindowIPC(): void {
     event.reply(IPC_CHANNELS.VERSION, app.getVersion());
   });
 
+  ipcMain.on(IPC_CHANNELS.GET_LEGAL_DOCUMENT, (event, name: string) => {
+    try {
+      const candidates = [
+        path.join(process.cwd(), `${name}.md`),
+        path.join(app.getAppPath(), `${name}.md`),
+        path.join(__dirname, '..', '..', '..', `${name}.md`),
+      ];
+      const filePath = candidates.find((p) => fs.existsSync(p));
+      if (filePath) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        event.reply(IPC_CHANNELS.LEGAL_DOCUMENT, content);
+      } else {
+        event.reply(IPC_CHANNELS.LEGAL_DOCUMENT, '');
+      }
+    } catch {
+      event.reply(IPC_CHANNELS.LEGAL_DOCUMENT, '');
+    }
+  });
+
   // Flashcard syncing window
   ipcMain.on(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => {
     createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 });

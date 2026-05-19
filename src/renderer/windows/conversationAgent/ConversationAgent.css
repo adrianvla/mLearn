@@ -78,11 +78,29 @@
 /* Chat panel — fills remaining space below tabs, contains its own scroll */
 .ca-chat-panel {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   height: 100%;
+}
+
+.ca-history-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.ca-chat-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Voice panel — needs relative positioning to scope the aftermath overlay */
@@ -252,6 +270,18 @@ textarea.ca-chat-textarea,
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   padding: var(--spacing-1) var(--spacing-2);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.ca-safety-lockout {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-on-warning);
+  background: var(--bg-warning);
+  border-top: 1px solid var(--border-warning);
+  padding: var(--spacing-2) var(--spacing-3);
   user-select: none;
   flex-shrink: 0;
 }
