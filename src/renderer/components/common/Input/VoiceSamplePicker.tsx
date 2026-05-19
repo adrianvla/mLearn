@@ -286,8 +286,8 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
 
     const voiceSampleId = props.value || undefined;
     if (props.ttsProvider === 'cloud') {
-      void withCloudAuth(async () => {
-        getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider);
+      void withCloudAuth(async (token) => {
+        getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider, token);
       }).catch((error) => {
         log.error("error", error);
         setTtsGenerating(false);

@@ -138,6 +138,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // Sentence timing for estimating interruption position within a sentence
   let ttsCurrentSentenceStartTime = 0;
   let ttsCurrentSentenceDuration = 0;
+  let currentTtsText = '';
   // Barge-in detection: consecutive mic-loud frames during TTS playback
   let bargeInFrames = 0;
   const BARGE_IN_THRESHOLD = 0.15;
@@ -311,7 +312,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     const last = msgs[msgs.length - 1];
     // Skip TTS for interrupted messages to avoid re-reading already-spoken text
     if (last.role === 'assistant' && last.content && !props.isStreaming && !last.interrupted) {
+      stopTTSPlayback();
       // Reset sentence queue for new TTS turn
+      currentTtsText = last.content;
       ttsAborted = false;
       ttsQueue = [];
       ttsQueueIndex = 0;
@@ -329,8 +332,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           }
         })();
       } else {
-        void withCloudAuth(async () => {
-            getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
+        void withCloudAuth(async (token) => {
+            getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider, token);
         }).catch((error) => {
           log.error("error", error);
         });
@@ -346,18 +349,23 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // Clean up any existing capture to prevent duplicate pipelines
     stopAudioCapture();
 
-    try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
 
-      audioContext = new AudioContext({ sampleRate: 16000 });
+        if (!isCallActive()) {
+          stopAudioCapture();
+          return;
+        }
+
+        audioContext = new AudioContext({ sampleRate: 16000 });
       const source = audioContext.createMediaStreamSource(mediaStream);
 
       // Analyser for visualizer
@@ -536,8 +544,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     stopTTSPlayback();
 
-    if (spokenText && props.onInterrupted) {
-      props.onInterrupted(spokenText, interruptedAt);
+    if (props.onInterrupted) {
+      props.onInterrupted(spokenText || '', interruptedAt || currentTtsText);
     }
   };
 
@@ -556,6 +564,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsCurrentSentenceIdx = 0;
     ttsCurrentSentenceStartTime = 0;
     ttsCurrentSentenceDuration = 0;
+    currentTtsText = '';
     bargeInFrames = 0;
     if (ttsAudioContext) {
       ttsAudioContext.close();
@@ -650,7 +659,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   createEffect(
     on(
       () => settings.voiceMode,
-      (mode, prevMode) => {
+      async (mode, prevMode) => {
         if (mode !== prevMode && isCallActive() && !isInitializing()) {
           stopAudioCapture();
           getBridge().voice.voiceStopSession();
@@ -659,7 +668,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             mode as VoiceMode,
             settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold,
           );
-          startAudioCapture();
+          await startAudioCapture();
         }
       },
     ),
