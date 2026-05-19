@@ -89,7 +89,7 @@
   width: 280px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
