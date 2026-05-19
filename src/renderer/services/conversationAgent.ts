@@ -97,6 +97,8 @@ export interface AgentInstance {
   markInterrupted: (spokenText: string) => void;
   /** Permanently lock the conversation after a safety violation (e.g., self-harm detection) */
   lockSafety: () => void;
+  /** Unlock the conversation (e.g., when starting a new session) */
+  unlockSafety: () => void;
   /** Whether the conversation is currently safety-locked */
   isSafetyLocked: () => boolean;
   getHistory: () => LLMChatMessage[];
@@ -1268,6 +1270,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     safetyLocked = true;
   }
 
+  function unlockSafety(): void {
+    safetyLocked = false;
+  }
+
   function isSafetyLocked(): boolean {
     return safetyLocked;
   }
@@ -1773,5 +1779,5 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
   }
 
-  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, lockSafety, isSafetyLocked, getHistory, loadHistory, compactHistory };
+  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, lockSafety, unlockSafety, isSafetyLocked, getHistory, loadHistory, compactHistory };
 }
