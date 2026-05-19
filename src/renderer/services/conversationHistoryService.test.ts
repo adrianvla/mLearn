@@ -84,6 +84,16 @@ describe('conversationHistoryService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Updated');
     });
+
+    it('adds session if id does not exist', async () => {
+      const { updateSession } = await import('./conversationHistoryService');
+      const existing = makeSession({ id: 'session_existing' });
+      mockKvGet.mockResolvedValue(JSON.stringify([existing]));
+      const newSession = makeSession({ id: 'session_new', title: 'New' });
+      const result = await updateSession(newSession);
+      expect(result).toHaveLength(2);
+      expect(result[1]).toEqual(newSession);
+    });
   });
 
   describe('deleteSession', () => {
