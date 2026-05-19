@@ -73,8 +73,6 @@ interface ChatBubbleProps {
   isStreaming?: boolean;
   /** True when waiting for the request to be sent / before streaming starts */
   isWaiting?: boolean;
-  /** True when the LLM is processing a tool call */
-  isProcessingToolCall?: boolean;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onTokenLeave?: () => void;
   triggerMode?: WordHoverTriggerMode;
@@ -228,13 +226,6 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
             </Show>
           </Show>
 
-          {/* Spinner shown while processing tool calls (inside bubble for consistency) */}
-          <Show when={props.isProcessingToolCall && !props.isWaiting}>
-            <div class="chat-bubble-tool-spinner">
-              <Spinner size={14} />
-            </div>
-          </Show>
-
           {/* Interrupted indicator */}
           <Show when={props.message.interrupted}>
             <span class="chat-bubble-interrupted">
@@ -264,6 +255,10 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
                   data={widget.data as unknown as QuizWidgetData}
                   resolved={widget.resolved}
                   onAnswer={(answer) => props.onQuizAnswer?.(widgetIndex(), answer)}
+                  onTokenHover={props.onTokenHover}
+                  onTokenLeave={props.onTokenLeave}
+                  triggerMode={props.triggerMode}
+                  triggerKey={props.triggerKey}
                 />
               </Show>
             )}
@@ -691,6 +686,10 @@ interface QuizWidgetProps {
   data: QuizWidgetData;
   resolved?: boolean;
   onAnswer?: (answer: string) => void;
+  onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
+  onTokenLeave?: () => void;
+  triggerMode?: WordHoverTriggerMode;
+  triggerKey?: string;
 }
 
 const QuizWidget: Component<QuizWidgetProps> = (props) => {
@@ -779,9 +778,21 @@ const QuizWidget: Component<QuizWidgetProps> = (props) => {
     return segments;
   });
 
+  const hasQuestionTokens = () => props.data.tokens && props.data.tokens.length > 0;
+
   return (
     <div class="quiz-widget">
-      <div class="quiz-question">{props.data.question}</div>
+      <div class="quiz-question">
+        <Show when={hasQuestionTokens()} fallback={<span>{props.data.question}</span>}>
+          <TokenizedText
+            tokens={props.data.tokens!}
+            onTokenHover={props.onTokenHover}
+            onTokenLeave={props.onTokenLeave}
+            triggerMode={props.triggerMode || 'hover'}
+            triggerKey={props.triggerKey || 'Shift'}
+          />
+        </Show>
+      </div>
 
       <Show when={props.data.type === 'mcq' && props.data.options}>
         <div class="quiz-options">

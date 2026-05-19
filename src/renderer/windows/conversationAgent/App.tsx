@@ -196,8 +196,6 @@ export const ConversationContent: Component = () => {
   const [showSplash, setShowSplash] = createSignal(true);
   const [showDisclaimer, setShowDisclaimer] = createSignal(true);
 
-  const [isProcessingToolCall, setIsProcessingToolCall] = createSignal(false);
-
   // Knowledge info toggle — controls whether failed words/grammar are included in the LLM context
   const [includeKnowledgeInfo, setIncludeKnowledgeInfo] = createSignal(true);
 
@@ -334,14 +332,12 @@ export const ConversationContent: Component = () => {
     setStreamingMessageIndex(assistantMessageIndex);
     setIsStreaming(true);
     setIsWaiting(true);
-    setIsProcessingToolCall(false);
   };
 
   const clearAssistantStreamState = () => {
     setStreamingMessageIndex(null);
     setIsStreaming(false);
     setIsWaiting(false);
-    setIsProcessingToolCall(false);
   };
 
   const runAssistantSafetyScan = (
@@ -596,6 +592,9 @@ export const ConversationContent: Component = () => {
   };
 
   const handleNewSession = () => {
+    agent.abortStream();
+    clearAssistantStreamState();
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
     agent.clearHistory();
     setMessages([]);
     const newId = generateSessionId();
@@ -607,6 +606,9 @@ export const ConversationContent: Component = () => {
     const session = sessions().find((s) => s.id === id);
     if (!session) return;
 
+    agent.abortStream();
+    clearAssistantStreamState();
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
     agent.loadHistory(session.llmHistory);
     setMessages(session.messages);
     setCurrentSessionId(id);
@@ -947,7 +949,6 @@ export const ConversationContent: Component = () => {
     return {
       onChunk: (accumulated) => {
         setIsWaiting(false);
-        setIsProcessingToolCall(false);
         const visibleContent = stripPartialToolCall(accumulated);
 
         setMessages((prev) => {
@@ -981,7 +982,6 @@ export const ConversationContent: Component = () => {
       },
       onToolCall: (widget: ChatWidget) => {
         setIsWaiting(false);
-        setIsProcessingToolCall(true);
         if (widget.type === 'mistake') {
           const mistakeData = widget.data as unknown as MistakeWidgetData;
           setMessages((prev) => {
@@ -1013,7 +1013,6 @@ export const ConversationContent: Component = () => {
         });
       },
       onDone: (finalContent, tokens, widgets, streamStats) => {
-        setIsProcessingToolCall(false);
         const finalWidgets = widgets && widgets.length > 0 ? widgets : undefined;
         const assistantMessageIndex = resolveTargetAssistantIndex(messages());
 
@@ -1568,7 +1567,6 @@ export const ConversationContent: Component = () => {
                         message={msg()}
                         isStreaming={isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
                         isWaiting={isWaiting() && isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
-                        isProcessingToolCall={isProcessingToolCall() && isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
                         onTokenHover={handleTokenHover}
                         onTokenLeave={handleTokenLeave}
                         triggerMode={currentTriggerMode()}
