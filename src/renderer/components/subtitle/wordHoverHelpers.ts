@@ -318,7 +318,7 @@ function screenshotVideo(): string {
 
 function extractExampleHtml(wordUuid: string | undefined, fallbackText: string): string {
   try {
-    const subtitlesEl = document.querySelector('.subtitles, .subtitle-container, [class*="subtitle"]');
+    const subtitlesEl = document.querySelector('.subtitles, .subtitle-container');
     if (!subtitlesEl) {
       return fallbackText || '-';
     }
