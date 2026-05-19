@@ -40,6 +40,7 @@ export interface BuildWordHoverFlashcardContentParams {
   srsLearningEase?: number;
   /** Built-in SRS ease for Known status (float, e.g. 1.8) */
   srsKnownEase?: number;
+  screenshotDataUrl?: string;
 }
 
 export function numericToWordStatus(num: number): WordStatus {
@@ -465,9 +466,11 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
   const firstEntry = translationItems?.[0] as TranslationEntry | undefined;
   const reading = normalizeReading(firstEntry?.reading || params.token.reading || '');
   const pitchAccent = extractPitchAccentFromTranslationData(params.translationData);
-  const screenshot = params.isOcr
-    ? captureOcrScreenshot(params.anchorRect, params.ocrImageElement, params.ocrCropPadding)
-    : screenshotVideo();
+  const screenshot = params.screenshotDataUrl
+    ? params.screenshotDataUrl
+    : params.isOcr
+      ? captureOcrScreenshot(params.anchorRect, params.ocrImageElement, params.ocrCropPadding)
+      : screenshotVideo();
 
   let exampleHtml: string;
   if (params.isOcr) {

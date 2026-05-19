@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -245,6 +245,8 @@ const mLearnIPC = {
   sendOverlayVideoState: (state: OverlayVideoState) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, state),
   onOverlayVideoState: (callback: (state: OverlayVideoState) => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_VIDEO_STATE, (_event, state) => callback(state)),
+  onOverlayVideoScreenshot: (callback: (screenshot: OverlayVideoScreenshot) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_VIDEO_SCREENSHOT, (_event, screenshot) => callback(screenshot)),
   requestOverlaySync: () => ipcRenderer.send(IPC_CHANNELS.OVERLAY_REQUEST_SYNC),
   onOverlayRequestSync: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_REQUEST_SYNC, () => callback()),

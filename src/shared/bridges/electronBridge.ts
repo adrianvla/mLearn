@@ -245,6 +245,7 @@ const watchTogetherBridge: WatchTogetherBridge = {
 const overlayBridge: OverlayBridge = {
   sendOverlayVideoState: (state) => getIPC().sendOverlayVideoState(state),
   onOverlayVideoState: (cb) => getIPC().onOverlayVideoState(cb),
+  onOverlayVideoScreenshot: (cb) => getIPC().onOverlayVideoScreenshot(cb),
   requestOverlaySync: () => getIPC().requestOverlaySync(),
   onOverlayRequestSync: (cb) => getIPC().onOverlayRequestSync(cb),
   launchOverlay: () => getIPC().launchOverlay(),

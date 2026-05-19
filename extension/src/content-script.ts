@@ -8,6 +8,7 @@ import type {
   HeadlessCommandMessage,
   TextModeWordLookupMessage,
   TextModeCloseHoverMessage,
+  VideoScreenshotMessage,
 } from './types.js';
 
 interface ParsedSubtitle {
@@ -442,8 +443,8 @@ function handleInjectionScroll(): void {
 interface ChromeRuntime {
   sendMessage: (message: unknown, responseCallback?: (response: unknown) => void) => void;
   onMessage?: {
-    addListener: (callback: (message: unknown) => void) => void;
-    removeListener: (callback: (message: unknown) => void) => void;
+    addListener: (callback: (message: unknown, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void) => void;
+    removeListener: (callback: (message: unknown, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void) => void;
   };
 }
 
@@ -477,6 +478,63 @@ function getChromeRuntime(): ChromeRuntime | undefined {
     return chrome.runtime;
   }
   return undefined;
+}
+
+function captureVideoScreenshot(): string {
+  if (!trackedVideo?.element || trackedVideo.element.readyState < 2) {
+    return '';
+  }
+
+  const video = trackedVideo.element;
+  const canvas = document.createElement('canvas');
+  const maxWidth = 480;
+  let width = video.videoWidth;
+  let height = video.videoHeight;
+
+  if (width > maxWidth) {
+    height = Math.round((height * maxWidth) / width);
+    width = maxWidth;
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return '';
+  }
+
+  ctx.drawImage(video, 0, 0, width, height);
+
+  try {
+    return canvas.toDataURL('image/jpeg', 0.7);
+  } catch {
+    return '';
+  }
+}
+
+function sendVideoScreenshot(): void {
+  const dataUrl = captureVideoScreenshot();
+  if (!dataUrl) {
+    return;
+  }
+
+  const runtime = getChromeRuntime();
+  if (!runtime) {
+    return;
+  }
+
+  const message: VideoScreenshotMessage = {
+    type: 'VIDEO_SCREENSHOT',
+    dataUrl,
+    timestamp: Date.now(),
+  };
+
+  try {
+    runtime.sendMessage(message);
+  } catch {
+    // chrome.runtime may become unavailable during navigation
+  }
 }
 
 function isVisible(el: Element): boolean {
@@ -573,11 +631,13 @@ function handlePause(this: HTMLVideoElement): void {
   if (isDestroyed || !trackedVideo) return;
   trackedVideo.isWaiting = false;
   sendVideoState(this);
+  sendVideoScreenshot();
 }
 
 function handleSeeked(this: HTMLVideoElement): void {
   if (isDestroyed) return;
   sendVideoState(this);
+  sendVideoScreenshot();
 }
 
 function handleRateChange(this: HTMLVideoElement): void {
@@ -971,7 +1031,11 @@ function extractAndSendSubtitles(video: HTMLVideoElement): void {
 }
 
 // Listen for commands from the background script (bidirectional sync)
-function handleCommandMessage(message: unknown): void {
+function handleCommandMessage(
+  message: unknown,
+  _sender: unknown,
+  sendResponse?: (response?: unknown) => void,
+): boolean | void {
   if (!trackedVideo || isDestroyed) return;
 
   const cmd = message as ExtensionCommandMessage;
@@ -1001,6 +1065,12 @@ function handleCommandMessage(message: unknown): void {
         video.volume = Math.max(0, Math.min(1, cmd.volume));
       }
       break;
+    case 'captureScreenshot':
+      sendVideoScreenshot();
+      if (sendResponse) {
+        sendResponse({ success: true });
+      }
+      return true;
   }
 }
 

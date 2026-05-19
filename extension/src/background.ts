@@ -18,6 +18,7 @@ import type {
   WatchTogetherPlaybackPayloadExt,
   WatchTogetherRoomStateExt,
   ParsedSubtitle,
+  VideoScreenshotMessage,
 } from './types.js';
 import {
   loadHeadlessMode,
@@ -705,6 +706,17 @@ function isSyncMessage(message: unknown): message is { type: 'SYNC_STATE' | 'GET
   );
 }
 
+function isVideoScreenshotMessage(message: unknown): message is VideoScreenshotMessage {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    'type' in message &&
+    (message as Record<string, unknown>).type === 'VIDEO_SCREENSHOT' &&
+    'dataUrl' in message &&
+    typeof (message as Record<string, unknown>).dataUrl === 'string'
+  );
+}
+
 function setupMessageListener(): void {
   chrome.runtime.onMessage.addListener(
     (message: unknown, _sender: chrome.runtime.MessageSender, sendResponse: (response?: unknown) => void) => {
@@ -776,6 +788,13 @@ function setupMessageListener(): void {
       if (isSubtitleTracksMessage(message)) {
         lastSubtitleTracks = message;
         forwardSubtitleTracks(message);
+        sendResponse({ received: true });
+        return true;
+      }
+
+      // Video screenshot from content script
+      if (isVideoScreenshotMessage(message)) {
+        forwardVideoScreenshot(message.dataUrl, message.timestamp);
         sendResponse({ received: true });
         return true;
       }
@@ -1129,6 +1148,23 @@ async function forwardGeometry(geometry: { x: number; y: number; width: number; 
   }
 }
 
+async function forwardVideoScreenshot(dataUrl: string, timestamp: number): Promise<void> {
+  if (status === 'disconnected') {
+    return;
+  }
+
+  try {
+    await fetch(`${MLEARN_BASE_URL}/api/overlay-video-screenshot`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ dataUrl, timestamp }),
+    });
+  } catch {
+  }
+}
+
 async function forwardVideoState(state: VideoState, meta?: { url: string; title: string }): Promise<void> {
   if (status === 'disconnected') {
     return;
@@ -1146,6 +1182,7 @@ async function forwardVideoState(state: VideoState, meta?: { url: string; title:
       isFullscreen: state.isFullscreen ?? false,
       url: meta?.url ?? state.src,
       title: meta?.title,
+      videoSrc: state.src,
     };
     const response = await fetch(`${MLEARN_BASE_URL}/api/overlay-sync`, {
       method: 'POST',

@@ -71,10 +71,16 @@ export interface SubtitleTracksMessage {
 
 export interface ExtensionCommandMessage {
   type: 'EXTENSION_COMMAND';
-  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume';
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume' | 'captureScreenshot';
   time?: number;
   rate?: number;
   volume?: number;
+  timestamp: number;
+}
+
+export interface VideoScreenshotMessage {
+  type: 'VIDEO_SCREENSHOT';
+  dataUrl: string;
   timestamp: number;
 }
 

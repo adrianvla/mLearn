@@ -7,7 +7,7 @@ import { BrowserWindow, app, ipcMain, Menu, dialog, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { IPC_CHANNELS, WindowType } from '../../shared/constants';
-import type { WindowSize, OpenWindowPayload } from '../../shared/types';
+import type { WindowSize, OpenWindowPayload, OverlayVideoScreenshot } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
 import { getCurrentLocaleData } from './localization';
@@ -894,6 +894,14 @@ export function setupWindowIPC(): void {
     const target = overlayWindow;
     if (target && !target.isDestroyed()) {
       target.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, state);
+    }
+  });
+
+  // Forward overlay video screenshot to overlay window
+  ipcMain.on(IPC_CHANNELS.OVERLAY_VIDEO_SCREENSHOT, (_event, screenshot: OverlayVideoScreenshot) => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_SCREENSHOT, screenshot);
     }
   });
 
