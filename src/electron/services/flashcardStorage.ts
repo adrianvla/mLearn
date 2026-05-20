@@ -14,7 +14,7 @@ import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.flashcardStorage');
 
-const CURRENT_VERSION = 7;
+const CURRENT_VERSION = 2;
 
 function getTodayDateString(): string {
   return new Date().toISOString().split('T')[0];
@@ -112,53 +112,6 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
     lastReviewed,
     bestInterval,
     bestState,
-  };
-}
-
-function migrateV2ToV3(store: any): FlashcardStore {
-  log.info('Migrating flashcard store from v2 to v3...');
-  
-  const newWordToCardMap: Record<string, string[]> = {};
-  const wordStatsMap: Record<string, WordStats> = {};
-  
-  if (store.wordToCardMap) {
-    for (const [wordHash, cardId] of Object.entries(store.wordToCardMap)) {
-      if (typeof cardId === 'string') {
-        newWordToCardMap[wordHash] = [cardId];
-      } else if (Array.isArray(cardId)) {
-        newWordToCardMap[wordHash] = cardId as string[];
-      }
-    }
-  }
-  
-  const wordToCards: Record<string, Flashcard[]> = {};
-  for (const [wordHash, cardIds] of Object.entries(newWordToCardMap)) {
-    const cards: Flashcard[] = [];
-    for (const cardId of cardIds) {
-      const card = store.flashcards?.[cardId];
-      if (card) cards.push(card);
-    }
-    wordToCards[wordHash] = cards;
-  }
-  
-  for (const [wordHash, cards] of Object.entries(wordToCards)) {
-    wordStatsMap[wordHash] = calculateWordStats(cards);
-  }
-  
-  return {
-    flashcards: store.flashcards || {},
-    wordCandidates: store.wordCandidates || {},
-    wordToCardMap: newWordToCardMap,
-    wordStatsMap,
-    knownUntracked: store.knownUntracked || {},
-    ignoredWords: store.ignoredWords || {},
-    wordKnowledge: store.wordKnowledge || {},
-    grammarKnowledge: store.grammarKnowledge || {},
-    suggestedFlashcards: store.suggestedFlashcards || {},
-    wordSyncSeen: store.wordSyncSeen || {},
-    meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...store.meta },
-    dailyStats: store.dailyStats || {},
-    version: CURRENT_VERSION,
   };
 }
 
@@ -277,7 +230,7 @@ function migrateV4ToV5(store: FlashcardStore): FlashcardStore {
     Object.keys(store.wordKnowledge).filter(k => !isSha256Hex(k.includes(':') ? k.split(':')[1] : k)).length;
   log.info(`[flashcardStorage] v4→v5: re-hashed ${upgradedCount} legacy keys`);
 
-  return migrated;
+  return { ...migrated, version: CURRENT_VERSION };
 }
 
 function migrateV6ToV7(store: FlashcardStore, defaultLanguage: string): FlashcardStore {
@@ -308,7 +261,7 @@ function migrateV6ToV7(store: FlashcardStore, defaultLanguage: string): Flashcar
     if (!card.language) card.language = defaultLanguage;
   }
 
-  return { ...store, meta, dailyStats, flashcards, version: 7 };
+  return { ...store, meta, dailyStats, flashcards, version: CURRENT_VERSION };
 }
 
 interface V1FlashcardContent {
@@ -363,7 +316,7 @@ function createBackup(originalPath: string): string {
   return backupPath;
 }
 
-function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardStore {
+function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardStore {
   log.info('Migrating flashcard store from v1 (old app) to v3...');
   
   migrationInfo = {
@@ -481,9 +434,9 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     newCardsDate: today,
   };
   
-  log.info(`Migrated ${Object.keys(newFlashcards).length} flashcards from v1 to v3`);
-  
-  return {
+  log.info(`Migrated ${Object.keys(newFlashcards).length} flashcards from v1 to v2`);
+
+  let result: FlashcardStore = {
     flashcards: newFlashcards,
     wordCandidates: newWordCandidates,
     wordToCardMap,
@@ -496,8 +449,13 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     wordSyncSeen: {},
     meta,
     dailyStats: {},
-    version: CURRENT_VERSION,
+    version: 5,
   };
+
+  result = migrateV4ToV5(result);
+  result = migrateV6ToV7(result, 'ja');
+
+  return result;
 }
 
 function isValidFlashcardStore(value: unknown): value is FlashcardStore {
@@ -512,14 +470,7 @@ function isValidFlashcardStore(value: unknown): value is FlashcardStore {
 function checkFlashcards(fc_to_check: any): FlashcardStore {
   if (isV1Store(fc_to_check)) {
     const backupPath = createBackup(getFlashcardsPath());
-    fc_to_check = migrateV1ToV3(fc_to_check as V1FlashcardStore, backupPath);
-    return fc_to_check;
-  }
-  
-  const version = fc_to_check.version || 1;
-  
-  if (version < 3) {
-    fc_to_check = migrateV2ToV3(fc_to_check);
+    return migrateV1ToV2(fc_to_check as V1FlashcardStore, backupPath);
   }
 
   if (!isValidFlashcardStore(fc_to_check)) {
@@ -527,7 +478,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     return { ...DEFAULT_FLASHCARD_STORE };
   }
 
-  let result: FlashcardStore = {
+  const result: FlashcardStore = {
     flashcards: fc_to_check.flashcards || {},
     wordCandidates: fc_to_check.wordCandidates || {},
     wordToCardMap: fc_to_check.wordToCardMap || {},
@@ -540,18 +491,8 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     wordSyncSeen: fc_to_check.wordSyncSeen || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
-    version: version,
+    version: CURRENT_VERSION,
   };
-
-  if (result.version < 5) {
-    result = migrateV4ToV5(result);
-  }
-
-  if (result.version < 7) {
-    result = migrateV6ToV7(result, 'ja');
-  }
-
-  result.version = CURRENT_VERSION;
 
   return result;
 }
