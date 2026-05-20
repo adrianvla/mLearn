@@ -481,21 +481,24 @@ export const ReaderRoute: Component = () => {
     return Array.from(deduped.values());
   });
 
-  const capturePageImageDataUrl = (pageId: string): string => {
+  const capturePageImageDataUrl = async (pageId: string): Promise<string | null> => {
     try {
       const img = imageRefs()[pageId];
-      if (!img || !img.naturalWidth) return '';
+      if (!img || !img.naturalWidth) return null;
       const targetWidth = 480;
       const targetHeight = Math.round(img.naturalHeight * (targetWidth / img.naturalWidth));
       const canvas = document.createElement('canvas');
       canvas.width = targetWidth;
       canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return '';
+      if (!ctx) return null;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.5);
+      const base64 = canvas.toDataURL('image/jpeg', 0.5);
+      if (!base64) return null;
+      const cardId = `reader-page-${pageId}-${Date.now()}`;
+      return await getBridge().flashcards.saveFlashcardImage(cardId, base64);
     } catch {
-      return '';
+      return null;
     }
   };
 
@@ -505,27 +508,30 @@ export const ReaderRoute: Component = () => {
     const unknown = visibleUnknownWords();
     const mediaHash = mediaStats.stats().mediaHash;
     const bookId = currentBookId();
-    const capturedPages = new Map<string, string>();
-    for (const entry of unknown) {
-      if (capturedSuggestionWords.has(entry.word)) continue;
-      capturedSuggestionWords.add(entry.word);
-      const freq = langCtx.getFrequency(entry.word);
-      let image = capturedPages.get(entry.pageId);
-      if (image === undefined) {
-        image = capturePageImageDataUrl(entry.pageId);
-        capturedPages.set(entry.pageId, image);
+
+    void (async () => {
+      const capturedPages = new Map<string, string | null>();
+      for (const entry of unknown) {
+        if (capturedSuggestionWords.has(entry.word)) continue;
+        capturedSuggestionWords.add(entry.word);
+        const freq = langCtx.getFrequency(entry.word);
+        let image = capturedPages.get(entry.pageId);
+        if (image === undefined) {
+          image = await capturePageImageDataUrl(entry.pageId);
+          capturedPages.set(entry.pageId, image);
+        }
+        void flashcardCtx.captureSuggestedFlashcard({
+          word: entry.word,
+          reading: freq?.reading,
+          pos: entry.token.type,
+          level: freq?.raw_level ?? null,
+          contextPhrase: cleanContextPhrase(entry.contextPhrase),
+          imageUrl: image || undefined,
+          source: bookId || undefined,
+          sourceMediaHash: mediaHash || undefined,
+        });
       }
-      void flashcardCtx.captureSuggestedFlashcard({
-        word: entry.word,
-        reading: freq?.reading,
-        pos: entry.token.type,
-        level: freq?.raw_level ?? null,
-        contextPhrase: cleanContextPhrase(entry.contextPhrase),
-        imageUrl: image || undefined,
-        source: bookId || undefined,
-        sourceMediaHash: mediaHash || undefined,
-      });
-    }
+    })();
   });
   createEffect(on(currentBookId, () => {
     capturedSuggestionWords.clear();

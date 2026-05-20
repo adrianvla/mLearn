@@ -5,6 +5,8 @@ import type { AnkiWordStatusRecord } from '../../../shared/backends/types';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { getLogger } from '../../../shared/utils/logger';
+import { getBridge } from '../../../shared/bridges';
+import { generateUUID } from '../../services/srsAlgorithm';
 
 const log = getLogger("renderer.components.wordHoverHelpers");
 
@@ -292,7 +294,7 @@ export function extractPitchAccentFromTranslationData(data?: WordHoverTranslatio
   return findPitch(pitchEntry);
 }
 
-function screenshotVideo(): string {
+async function screenshotVideo(cardId: string): Promise<string> {
   try {
     const video = document.querySelector('video') as HTMLVideoElement | null;
     if (!video || video.readyState < 2) return '';
@@ -310,7 +312,9 @@ function screenshotVideo(): string {
     if (!ctx) return '';
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.5);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+    const saved = await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
+    return saved ?? '';
   } catch (e) {
     log.error("error", e);
     return '';
@@ -325,7 +329,7 @@ function extractExampleHtml(wordUuid: string | undefined, fallbackText: string):
     }
 
     const clone = subtitlesEl.cloneNode(true) as HTMLElement;
-    clone.querySelectorAll('.subtitle_hover, .word-hover-container').forEach((element) => element.remove());
+    clone.querySelectorAll('.subtitle_hover, .word-hover-container').forEach((element) => { element.remove(); });
 
     if (wordUuid) {
       const wordEl = clone.querySelector(`.subtitle_word.word_${wordUuid}, [data-uuid="${wordUuid}"]`);
@@ -341,7 +345,12 @@ function extractExampleHtml(wordUuid: string | undefined, fallbackText: string):
   }
 }
 
-function captureOcrScreenshot(anchorRect: DOMRect | undefined, ocrImageElement: HTMLImageElement | null | undefined, ocrCropPadding?: number): string {
+async function captureOcrScreenshot(
+  anchorRect: DOMRect | undefined,
+  ocrImageElement: HTMLImageElement | null | undefined,
+  ocrCropPadding?: number,
+  cardId?: string,
+): Promise<string> {
   try {
     let pageImg = ocrImageElement;
 
@@ -420,7 +429,10 @@ function captureOcrScreenshot(anchorRect: DOMRect | undefined, ocrImageElement: 
       ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
       ctx.restore();
 
-      return canvas.toDataURL('image/jpeg', 0.5);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+      if (!cardId) return dataUrl;
+      const saved = await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
+      return saved ?? '';
     }
 
     const targetWidth = 480;
@@ -433,7 +445,10 @@ function captureOcrScreenshot(anchorRect: DOMRect | undefined, ocrImageElement: 
     if (!ctx) return '';
 
     ctx.drawImage(pageImg, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.5);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+    if (!cardId) return dataUrl;
+    const saved = await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
+    return saved ?? '';
   } catch (e) {
     log.error("error", e);
     return '';
@@ -466,11 +481,16 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
   const firstEntry = translationItems?.[0] as TranslationEntry | undefined;
   const reading = normalizeReading(firstEntry?.reading || params.token.reading || '');
   const pitchAccent = extractPitchAccentFromTranslationData(params.translationData);
-  const screenshot = params.screenshotDataUrl
-    ? params.screenshotDataUrl
-    : params.isOcr
-      ? captureOcrScreenshot(params.anchorRect, params.ocrImageElement, params.ocrCropPadding)
-      : screenshotVideo();
+  const cardId = generateUUID();
+  let screenshot = '';
+  if (params.screenshotDataUrl) {
+    const saved = await getBridge().flashcards.saveFlashcardImage(cardId, params.screenshotDataUrl);
+    screenshot = saved ?? '';
+  } else if (params.isOcr) {
+    screenshot = await captureOcrScreenshot(params.anchorRect, params.ocrImageElement, params.ocrCropPadding, cardId);
+  } else {
+    screenshot = await screenshotVideo(cardId);
+  }
 
   let exampleHtml: string;
   if (params.isOcr) {
@@ -500,13 +520,16 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     level: params.level ?? -1,
     example: exampleHtml,
     exampleMeaning: '',
-    imageUrl: screenshot,
     word,
     pronunciation: reading || word,
     translation: translationArr,
     definition: definitionHtml ?? (params.token.meaning ? [params.token.meaning] : undefined),
-    screenshotUrl: screenshot,
   };
+
+  if (screenshot) {
+    content.imageUrl = screenshot;
+    content.screenshotUrl = screenshot;
+  }
 
   return {
     content,

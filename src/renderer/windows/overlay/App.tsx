@@ -1,6 +1,6 @@
 import { Component, Show, createSignal, createMemo, onMount, onCleanup, createEffect, untrack } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
-import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks, Token, OverlayVideoScreenshot } from '../../../shared/types';
+import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks, Token } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { SubtitleContainer } from '../../components/subtitle/SubtitleContainer';
 import { LiveWordTranslator } from '../../components/subtitle/LiveWordTranslator';
@@ -121,7 +121,7 @@ export const App: Component = () => {
   const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
   const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
   const [watchTogetherError, setWatchTogetherError] = createSignal('');
-  const [lastScreenshot, setLastScreenshot] = createSignal<OverlayVideoScreenshot | null>(null);
+  const [lastScreenshot, setLastScreenshot] = createSignal<string | null>(null);
 
   // Text mode state
   const [textModeLookup, setTextModeLookup] = createSignal<TextModeLookupData | null>(null);
@@ -272,8 +272,12 @@ export const App: Component = () => {
     );
 
     cleanups.push(
-      bridge.overlay.onOverlayVideoScreenshot((screenshot: OverlayVideoScreenshot) => {
-        setLastScreenshot(screenshot);
+      bridge.overlay.onOverlayVideoScreenshot(async (screenshot: { dataUrl: string; timestamp: number }) => {
+        const cardId = `overlay-screenshot-${Date.now()}`;
+        const fileUrl = await getBridge().flashcards.saveFlashcardImage(cardId, screenshot.dataUrl);
+        if (fileUrl) {
+          setLastScreenshot(fileUrl);
+        }
       })
     );
 
@@ -697,7 +701,7 @@ export const App: Component = () => {
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
         srsLearningEase: settings.srsLearningEase,
         srsKnownEase: settings.srsKnownEase,
-        screenshotDataUrl: lastScreenshot()?.dataUrl,
+        screenshotDataUrl: lastScreenshot() || undefined,
       });
 
       if (settings.flashcardMediaType === 'video' && (videoState()?.videoSrc || videoState()?.url) && entry.subtitleStart != null && entry.subtitleEnd != null) {
@@ -1101,7 +1105,7 @@ export const App: Component = () => {
                 subtitleStart={subtitles.currentSubtitle()?.start}
                 subtitleEnd={subtitles.currentSubtitle()?.end}
                 videoSrc={videoState()?.videoSrc || videoState()?.url}
-                lastScreenshot={lastScreenshot()?.dataUrl}
+                lastScreenshot={lastScreenshot() || undefined}
                 remoteHtml={watchTogether.remoteSubtitle()?.html || null}
                 remoteSize={watchTogether.remoteSubtitle()?.size ?? null}
                 remoteWeight={watchTogether.remoteSubtitle()?.weight ?? null}

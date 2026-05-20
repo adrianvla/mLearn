@@ -626,6 +626,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const now = Date.now();
     const id = SRS.generateUUID();
 
+    let imageUrl = content.imageUrl;
+    if (imageUrl?.startsWith('data:image/')) {
+      const bridge = getBridge();
+      const savedUrl = await bridge.flashcards.saveFlashcardImage(id, imageUrl);
+      if (savedUrl) {
+        imageUrl = savedUrl;
+      }
+    }
+
     const newCard: Flashcard = {
       id,
       content: {
@@ -638,7 +647,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         level: content.level,
         example: content.example,
         exampleMeaning: content.exampleMeaning,
-        imageUrl: content.imageUrl,
+        imageUrl,
         videoUrl: content.videoUrl,
         skipExampleTts: content.skipExampleTts,
         audioUrl: content.audioUrl,
@@ -918,9 +927,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     // Clean up associated image file
     if (card.content.imageUrl) {
-      getBridge().flashcards.deleteFlashcardImage(id).catch((err: unknown) =>
-        log.warn('Failed to delete flashcard image:', err)
-      );
+      const imageId = extractCardIdFromImageUrl(card.content.imageUrl);
+      if (imageId) {
+        getBridge().flashcards.deleteFlashcardImage(imageId).catch((err: unknown) =>
+          log.warn('Failed to delete flashcard image:', err)
+        );
+      }
     }
 
     // Clean up associated TTS audio (word + example fields)
@@ -1337,13 +1349,25 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     if (checkWordIsKnown(lk, knownWordSet(), store.wordKnowledge, settings.known_ease_threshold)) return;
 
+    let imageUrl = params.imageUrl;
+    let newId: string | undefined;
+    if (imageUrl?.startsWith('data:image/')) {
+      const bridge = getBridge();
+      const existing = store.suggestedFlashcards[lk];
+      newId = existing?.id ?? crypto.randomUUID();
+      const savedUrl = await bridge.flashcards.saveFlashcardImage(newId, imageUrl);
+      if (savedUrl) {
+        imageUrl = savedUrl;
+      }
+    }
+
     setStore(produce((s) => {
       const existing = s.suggestedFlashcards[lk];
       if (existing) {
         existing.count++;
         existing.lastSeen = now;
         // Only upgrade capture data if the previous capture lacked it
-        if (!existing.imageUrl && params.imageUrl) existing.imageUrl = params.imageUrl;
+        if (!existing.imageUrl && imageUrl) existing.imageUrl = imageUrl;
         if (!existing.videoUrl && params.videoUrl) existing.videoUrl = params.videoUrl;
         if (!existing.contextPhrase && params.contextPhrase) existing.contextPhrase = params.contextPhrase;
         if (!existing.contextHtml && params.contextHtml) existing.contextHtml = params.contextHtml;
@@ -1354,7 +1378,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         if (!existing.sourceMediaHash && params.sourceMediaHash) existing.sourceMediaHash = params.sourceMediaHash;
       } else {
         s.suggestedFlashcards[lk] = {
-          id: crypto.randomUUID(),
+          id: newId ?? crypto.randomUUID(),
           word: canonical,
           reading: params.reading,
           pos: params.pos,
@@ -1362,7 +1386,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           language: lang,
           contextPhrase: params.contextPhrase,
           contextHtml: params.contextHtml,
-          imageUrl: params.imageUrl,
+          imageUrl: imageUrl,
           videoUrl: params.videoUrl,
           source: params.source,
           sourceMediaHash: params.sourceMediaHash,
@@ -1402,9 +1426,43 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return null;
   };
 
+  const extractCardIdFromImageUrl = (url: string): string | null => {
+    if (!url.startsWith('flashcard-image://')) return null;
+    const filename = url.replace('flashcard-image://', '');
+    const dotIndex = filename.lastIndexOf('.');
+    if (dotIndex > 0) return filename.slice(0, dotIndex);
+    return filename;
+  };
+
   const removeSuggestedFlashcard = (id: string): void => {
     const key = findSuggestionKey(id);
     if (!key) return;
+    const suggestion = store.suggestedFlashcards[key];
+
+    if (suggestion?.imageUrl) {
+      const otherRef = Object.values(store.suggestedFlashcards).some(
+        (s) => s.id !== id && s.imageUrl === suggestion.imageUrl
+      );
+      if (!otherRef) {
+        const imageId = extractCardIdFromImageUrl(suggestion.imageUrl);
+        if (imageId) {
+          getBridge().flashcards.deleteFlashcardImage(imageId).catch((err: unknown) =>
+            log.warn('Failed to delete suggested flashcard image:', err)
+          );
+        }
+      }
+    }
+    if (suggestion?.videoUrl) {
+      const otherRef = Object.values(store.suggestedFlashcards).some(
+        (s) => s.id !== id && s.videoUrl === suggestion.videoUrl
+      );
+      if (!otherRef) {
+        getBridge().flashcards.deleteFlashcardVideo(id).catch((err: unknown) =>
+          log.warn('Failed to delete suggested flashcard video:', err)
+        );
+      }
+    }
+
     setStore(produce((s) => {
       delete s.suggestedFlashcards[key];
     }));
@@ -1414,11 +1472,42 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const removeSuggestedFlashcards = (ids: string[]): void => {
     if (ids.length === 0) return;
     const keysToRemove: string[] = [];
+    const suggestionsToRemove: SuggestedFlashcard[] = [];
     for (const id of ids) {
       const key = findSuggestionKey(id);
-      if (key) keysToRemove.push(key);
+      if (key) {
+        keysToRemove.push(key);
+        suggestionsToRemove.push(store.suggestedFlashcards[key]);
+      }
     }
     if (keysToRemove.length === 0) return;
+
+    const remainingSuggestions = Object.values(store.suggestedFlashcards).filter(
+      (s) => !ids.includes(s.id)
+    );
+
+    for (const suggestion of suggestionsToRemove) {
+      if (suggestion.imageUrl) {
+        const stillReferenced = remainingSuggestions.some((s) => s.imageUrl === suggestion.imageUrl);
+        if (!stillReferenced) {
+          const imageId = extractCardIdFromImageUrl(suggestion.imageUrl);
+          if (imageId) {
+            getBridge().flashcards.deleteFlashcardImage(imageId).catch((err: unknown) =>
+              log.warn('Failed to delete suggested flashcard image:', err)
+            );
+          }
+        }
+      }
+      if (suggestion.videoUrl) {
+        const stillReferenced = remainingSuggestions.some((s) => s.videoUrl === suggestion.videoUrl);
+        if (!stillReferenced) {
+          getBridge().flashcards.deleteFlashcardVideo(suggestion.id).catch((err: unknown) =>
+            log.warn('Failed to delete suggested flashcard video:', err)
+          );
+        }
+      }
+    }
+
     setStore(produce((s) => {
       for (const key of keysToRemove) {
         delete s.suggestedFlashcards[key];

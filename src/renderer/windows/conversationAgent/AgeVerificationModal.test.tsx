@@ -26,6 +26,9 @@ vi.mock('../../components/common', () => ({
       {props.children as string}
     </button>
   ),
+  Panel: (props: { children?: unknown; class?: string }) => (
+    <div class={props.class}>{props.children as string}</div>
+  ),
 }));
 
 describe('AgeVerificationModal', () => {

@@ -337,6 +337,7 @@
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
       "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
+      "ErrorTitle": "エラーが発生しました",
       "History": {
         "Title": "History",
         "Empty": "No saved conversations",

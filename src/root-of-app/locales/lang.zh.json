@@ -338,6 +338,21 @@
       "ExperimentalBanner": "实验性功能 — AI 回复可能包含错误。请验证重要的语言点。",
       "Disclaimer": "这是 AI，可能会犯错。请仔细核对回复内容。",
       "ErrorTitle": "出了点问题",
+      "History": {
+        "Title": "历史记录",
+        "Empty": "没有已保存的对话",
+        "NewSession": "新会话",
+        "Delete": "删除",
+        "DeleteConfirm": "输入会话标题以确认删除",
+        "DeleteConfirmTitle": "删除会话",
+        "DeleteConfirmPlaceholder": "会话标题",
+        "DeleteAll": "全部删除",
+        "DeleteAllTitle": "删除所有会话",
+        "DeleteAllConfirm": "输入 DELETE 以确认删除所有对话",
+        "DeleteAllConfirmPlaceholder": "输入以确认",
+        "DeleteAllConfirmWord": "DELETE",
+        "ToggleSidebar": "切换历史记录"
+      },
       "IncludeKnowledge": "包含知识信息",
       "InputPlaceholder": "用{language}发送消息…",
       "LevelAdapt": {

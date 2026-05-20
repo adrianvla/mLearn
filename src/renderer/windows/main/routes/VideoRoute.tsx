@@ -140,28 +140,31 @@ export const VideoRoute: Component = () => {
   const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
   const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || ''));
 
-  /** Capture the current video frame as a low-res JPEG data URL. Returns '' when unavailable. */
-  const captureVideoFrameDataUrl = (): string => {
+  /** Capture the current video frame as a low-res JPEG and save it via the bridge.
+   *  Returns the flashcard-image:// URL, or null when unavailable. */
+  async function captureVideoFrameDataUrl(cardId: string): Promise<string | null> {
     try {
       const video = getCurrentVideoElement();
-      if (!video || video.readyState < 2) return '';
+      if (!video || video.readyState < 2) return null;
       const videoWidth = video.videoWidth || video.clientWidth || 0;
       const videoHeight = video.videoHeight || video.clientHeight || 0;
-      if (videoWidth === 0 || videoHeight === 0) return '';
+      if (videoWidth === 0 || videoHeight === 0) return null;
       const targetWidth = 480;
       const targetHeight = Math.round(videoHeight * (targetWidth / videoWidth));
       const canvas = document.createElement('canvas');
       canvas.width = targetWidth;
       canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return '';
+      if (!ctx) return null;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.5);
+      const base64 = canvas.toDataURL('image/jpeg', 0.5);
+      if (!base64) return null;
+      return await getBridge().flashcards.saveFlashcardImage(cardId, base64);
     } catch (e) {
       log.error('captureVideoFrameDataUrl failed', e);
-      return '';
+      return null;
     }
-  };
+  }
 
   const loadSharedVideo = (url: string, name: string) => {
     setVideoSrc(url);
@@ -501,27 +504,31 @@ export const VideoRoute: Component = () => {
       // context only (no translation/LLM/TTS). The user reviews them later
       // from the Flashcards → Suggested tab.
       if (settings.autoSuggestFlashcards && settings.enable_flashcard_creation) {
-        const image = captureVideoFrameDataUrl();
         const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
         const contextHtml = tokens.length > 0
           ? tokensToColoredHtml(tokens, colourCodes)
           : undefined;
         const mediaName = currentVideoName();
         const mediaHash = mediaStats.stats().mediaHash;
-        for (const entry of newEntries) {
-          const freq = langCtx.getFrequency(entry.word);
-          void flashcardCtx.captureSuggestedFlashcard({
-            word: entry.word,
-            reading: freq?.reading,
-            pos: entry.token.type,
-            level: freq?.raw_level ?? null,
-            contextPhrase: cleanContextPhrase(entry.contextPhrase),
-            contextHtml,
-            imageUrl: image || undefined,
-            source: mediaName || undefined,
-            sourceMediaHash: mediaHash || undefined,
-          });
-        }
+
+        void (async () => {
+          const batchImageId = crypto.randomUUID();
+          const image = await captureVideoFrameDataUrl(batchImageId);
+          for (const entry of newEntries) {
+            const freq = langCtx.getFrequency(entry.word);
+            void flashcardCtx.captureSuggestedFlashcard({
+              word: entry.word,
+              reading: freq?.reading,
+              pos: entry.token.type,
+              level: freq?.raw_level ?? null,
+              contextPhrase: cleanContextPhrase(entry.contextPhrase),
+              contextHtml,
+              imageUrl: image || undefined,
+              source: mediaName || undefined,
+              sourceMediaHash: mediaHash || undefined,
+            });
+          }
+        })();
       }
     }
   });
@@ -586,6 +593,9 @@ export const VideoRoute: Component = () => {
         srsKnownEase: settings.srsKnownEase,
       });
 
+      const { toUniqueIdentifier } = await import('../../../services/statsService');
+      const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
+
       // If video mode, clip and save the video segment
       log.info('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
       if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
@@ -597,8 +607,6 @@ export const VideoRoute: Component = () => {
         const videoData = await clipVideo(videoSrc(), start, end);
         log.info('[VideoRoute] addVideoWordFlashcard: clipVideo result=', videoData == null ? 'null' : `Uint8Array(${videoData.byteLength})`);
         if (videoData) {
-          const { toUniqueIdentifier } = await import('../../../services/statsService');
-          const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
           const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
           log.info('[VideoRoute] addVideoWordFlashcard: saveFlashcardVideo result=', videoUrl);
           if (videoUrl) {
@@ -613,6 +621,11 @@ export const VideoRoute: Component = () => {
         }
       } else {
         log.info('[VideoRoute] addVideoWordFlashcard: skipping video clip — condition not met');
+      }
+
+      const imageUrl = await captureVideoFrameDataUrl(cardId);
+      if (imageUrl) {
+        content.imageUrl = imageUrl;
       }
 
       await flashcardCtx.addFlashcard(content, ease);

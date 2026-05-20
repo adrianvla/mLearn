@@ -3,7 +3,7 @@ import { getBundledLanguageCodes, getBundledLocaleCodes, loadBundledLanguageData
 
 describe('bundledLanguageAssets', () => {
   it('lists bundled locale codes', () => {
-    expect(getBundledLocaleCodes()).toEqual(['de', 'en', 'fr', 'ja', 'ru']);
+    expect(getBundledLocaleCodes()).toEqual(['de', 'en', 'fr', 'ja', 'ru', 'zh']);
   });
 
   it('lists bundled learning language codes', () => {
