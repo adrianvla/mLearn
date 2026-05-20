@@ -248,6 +248,9 @@ function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
     suggestedFlashcards: {},
     wordSyncSeen: {},
     meta: {
+      perLanguage: {
+        ja: { newCardsToday: 0, reviewsToday: 0, newCardsDate: '' },
+      },
       newCardsToday: 0,
       reviewsToday: 0,
       newCardsDate: '',
@@ -563,7 +566,7 @@ describe('FlashcardProvider', () => {
     }));
     ctx.refreshQueue();
 
-    const before = ctx.store.meta.newCardsToday;
+    const before = ctx.store.meta.newCardsToday ?? 0;
     ctx.answerCard('good');
     expect(ctx.store.meta.newCardsToday).toBe(before + 1);
     dispose();
@@ -587,7 +590,7 @@ describe('FlashcardProvider', () => {
     }));
     ctx.refreshQueue();
 
-    const before = ctx.store.meta.reviewsToday;
+    const before = ctx.store.meta.reviewsToday ?? 0;
     ctx.answerCard('good');
     expect(ctx.store.meta.reviewsToday).toBe(before + 1);
     dispose();
@@ -625,7 +628,9 @@ describe('FlashcardProvider', () => {
 
     ctx.answerCard('good');
     const today = SRS.getTodayDateString(4);
-    const stats = ctx.store.dailyStats[today];
+    const langStats = ctx.store.dailyStats[today];
+    expect(langStats).toBeDefined();
+    const stats = langStats['ja'];
     expect(stats).toBeDefined();
     expect(stats.newCardsStudied).toBe(1);
     dispose();

@@ -38,7 +38,7 @@ describe('conversationHistoryService', () => {
     it('returns empty array when kvGet returns null', async () => {
       const { loadSessions } = await import('./conversationHistoryService');
       mockKvGet.mockResolvedValue(null);
-      const result = await loadSessions();
+      const result = await loadSessions('ja');
       expect(result).toEqual([]);
     });
 
@@ -46,15 +46,21 @@ describe('conversationHistoryService', () => {
       const { loadSessions } = await import('./conversationHistoryService');
       const sessions = [makeSession()];
       mockKvGet.mockResolvedValue(JSON.stringify(sessions));
-      const result = await loadSessions();
+      const result = await loadSessions('ja');
       expect(result).toEqual(sessions);
     });
 
     it('returns empty array when kvGet returns invalid JSON', async () => {
       const { loadSessions } = await import('./conversationHistoryService');
       mockKvGet.mockResolvedValue('not-json');
-      const result = await loadSessions();
+      const result = await loadSessions('ja');
       expect(result).toEqual([]);
+    });
+
+    it('queries the language-scoped key', async () => {
+      const { loadSessions } = await import('./conversationHistoryService');
+      await loadSessions('ja');
+      expect(mockKvGet).toHaveBeenCalledWith('conversation-sessions-ja');
     });
   });
 
@@ -64,11 +70,11 @@ describe('conversationHistoryService', () => {
       const existing = makeSession({ id: 'session_existing' });
       mockKvGet.mockResolvedValue(JSON.stringify([existing]));
       const newSession = makeSession({ id: 'session_new' });
-      const result = await addSession(newSession);
+      const result = await addSession(newSession, 'ja');
       expect(result).toHaveLength(2);
       expect(result[1]).toEqual(newSession);
       expect(mockKvSet).toHaveBeenCalledWith(
-        'conversation-sessions',
+        'conversation-sessions-ja',
         JSON.stringify([existing, newSession]),
       );
     });
@@ -80,7 +86,7 @@ describe('conversationHistoryService', () => {
       const original = makeSession({ title: 'Original' });
       mockKvGet.mockResolvedValue(JSON.stringify([original]));
       const updated = makeSession({ id: original.id, title: 'Updated' });
-      const result = await updateSession(updated);
+      const result = await updateSession(updated, 'ja');
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Updated');
     });
@@ -90,7 +96,7 @@ describe('conversationHistoryService', () => {
       const existing = makeSession({ id: 'session_existing' });
       mockKvGet.mockResolvedValue(JSON.stringify([existing]));
       const newSession = makeSession({ id: 'session_new', title: 'New' });
-      const result = await updateSession(newSession);
+      const result = await updateSession(newSession, 'ja');
       expect(result).toHaveLength(2);
       expect(result[1]).toEqual(newSession);
     });
@@ -102,7 +108,7 @@ describe('conversationHistoryService', () => {
       const sessionA = makeSession({ id: 'session_a' });
       const sessionB = makeSession({ id: 'session_b' });
       mockKvGet.mockResolvedValue(JSON.stringify([sessionA, sessionB]));
-      const result = await deleteSession('session_a');
+      const result = await deleteSession('session_a', 'ja');
       expect(result).toEqual([sessionB]);
     });
   });
@@ -110,8 +116,8 @@ describe('conversationHistoryService', () => {
   describe('deleteAllSessions', () => {
     it('saves empty array', async () => {
       const { deleteAllSessions } = await import('./conversationHistoryService');
-      await deleteAllSessions();
-      expect(mockKvSet).toHaveBeenCalledWith('conversation-sessions', '[]');
+      await deleteAllSessions('ja');
+      expect(mockKvSet).toHaveBeenCalledWith('conversation-sessions-ja', '[]');
     });
   });
 
@@ -123,6 +129,21 @@ describe('conversationHistoryService', () => {
       expect(a).not.toBe(b);
       expect(a).toMatch(/^session_/);
       expect(b).toMatch(/^session_/);
+    });
+  });
+
+  describe('language scoping', () => {
+    it('does not return sessions saved under a different language', async () => {
+      const { loadSessions } = await import('./conversationHistoryService');
+      const session = makeSession({ id: 'session_1' });
+      mockKvGet.mockImplementation(async (key: string) => {
+        if (key === 'conversation-sessions-ja') return JSON.stringify([session]);
+        return null;
+      });
+      const jaSessions = await loadSessions('ja');
+      const deSessions = await loadSessions('de');
+      expect(jaSessions).toEqual([session]);
+      expect(deSessions).toEqual([]);
     });
   });
 });

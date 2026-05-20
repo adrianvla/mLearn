@@ -7,14 +7,18 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent } from '../../shared/types';
+import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.flashcardStorage');
 
-const CURRENT_VERSION = 6;
+const CURRENT_VERSION = 7;
+
+function getTodayDateString(): string {
+  return new Date().toISOString().split('T')[0];
+}
 
 let migrationInfo: { occurred: boolean; backupPath: string | null; fromVersion: number | null } = {
   occurred: false,
@@ -34,9 +38,13 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   suggestedFlashcards: {},
   wordSyncSeen: {},
   meta: {
-    newCardsToday: 0,
-    reviewsToday: 0,
-    newCardsDate: new Date().toISOString().split('T')[0],
+    perLanguage: {
+      ja: {
+        newCardsToday: 0,
+        reviewsToday: 0,
+        newCardsDate: getTodayDateString(),
+      },
+    },
     maxNewCardsPerDay: 10,
     maxNewCardsPerDayLearning: 20,
     maxReviewsPerDay: -1,
@@ -270,6 +278,37 @@ function migrateV4ToV5(store: FlashcardStore): FlashcardStore {
   log.info(`[flashcardStorage] v4→v5: re-hashed ${upgradedCount} legacy keys`);
 
   return migrated;
+}
+
+function migrateV6ToV7(store: FlashcardStore, defaultLanguage: string): FlashcardStore {
+  log.info('[flashcardStorage] Migrating store from v6 to v7 (per-language meta and dailyStats)...');
+
+  const meta = { ...store.meta };
+  if (!meta.perLanguage) {
+    meta.perLanguage = {
+      [defaultLanguage]: {
+        newCardsToday: (meta as any).newCardsToday ?? 0,
+        reviewsToday: (meta as any).reviewsToday ?? 0,
+        newCardsDate: (meta as any).newCardsDate ?? getTodayDateString(),
+      }
+    };
+  }
+
+  const dailyStats: Record<string, Record<string, DailyStudyStats>> = {};
+  for (const [date, stat] of Object.entries((store.dailyStats as any) || {})) {
+    if (stat && typeof stat === 'object' && 'newCardsStudied' in stat) {
+      dailyStats[date] = { [defaultLanguage]: stat as DailyStudyStats };
+    } else {
+      dailyStats[date] = stat as Record<string, DailyStudyStats>;
+    }
+  }
+
+  const flashcards = { ...store.flashcards };
+  for (const card of Object.values(flashcards)) {
+    if (!card.language) card.language = defaultLanguage;
+  }
+
+  return { ...store, meta, dailyStats, flashcards, version: 7 };
 }
 
 interface V1FlashcardContent {
@@ -508,8 +547,12 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     result = migrateV4ToV5(result);
   }
 
+  if (result.version < 7) {
+    result = migrateV6ToV7(result, 'ja');
+  }
+
   result.version = CURRENT_VERSION;
-  
+
   return result;
 }
 

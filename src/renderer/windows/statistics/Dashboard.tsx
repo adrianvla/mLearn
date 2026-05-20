@@ -21,6 +21,7 @@ import {
   computeRetentionStats,
   computeStreaks,
   getTodayStats,
+  aggregateDailyStats,
 } from '../../services/flashcardStats';
 import './Dashboard.css';
 
@@ -107,12 +108,14 @@ export const Dashboard: Component = () => {
 
   const cards = createMemo(() => Object.values(store.flashcards));
 
+  const flatDailyStats = createMemo(() => aggregateDailyStats(store.dailyStats));
+
   const cardStats = createMemo(() => {
     const all = cards();
     const stateDist = computeStateDistribution(all);
     const maturity = computeMaturityBreakdown(all);
     const intervals = computeIntervalDistribution(all);
-    const retention = computeRetentionStats(store.dailyStats);
+    const retention = computeRetentionStats(flatDailyStats());
 
     const intervalBuckets: Record<string, number> = {};
     for (const b of intervals) {
@@ -137,7 +140,7 @@ export const Dashboard: Component = () => {
   // ── Daily stats aggregation ──
 
   const dailyStatsData = createMemo(() => {
-    const ds = store.dailyStats;
+    const ds = flatDailyStats();
     const entries = Object.entries(ds).sort(([a], [b]) => a.localeCompare(b));
 
     const reviewHeatmap: Record<string, number> = {};

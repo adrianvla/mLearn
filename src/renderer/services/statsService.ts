@@ -27,7 +27,10 @@ interface LocalStorageMigrationInfo {
   migratedWordCount: number;
 }
 
-const WORD_STATUS_STORE_KEY = 'mlearn_words_learned';
+function getWordStatusKey(lang: string): string {
+  return `mlearn_words_learned_${lang}`;
+}
+
 const WORD_STATUS_MIGRATION_MARKER_KEY = 'mlearn_words_learned_v1_migration_done';
 
 let localStorageMigrationInfo: LocalStorageMigrationInfo = {
@@ -127,7 +130,7 @@ export function getWordsLearnedInApp(): Record<string, number> {
  * Set a word's learning status
  * Stores under the preferred word form and can remove legacy aliases.
  */
-export function setWordStatus(word: string, status: number, aliases: readonly string[] = []): void {
+export function setWordStatus(word: string, status: number, aliases: readonly string[] = [], language: string = 'en'): void {
   setWordsLearnedInApp((prev) => {
     const next = {
       ...prev,
@@ -143,15 +146,15 @@ export function setWordStatus(word: string, status: number, aliases: readonly st
     return next;
   });
   // Auto-save after status change (like old app's changeKnownStatus)
-  saveWordsToStorage();
+  saveWordsToStorage(language);
   log.info(`Set and saved known status for word: ${word} to ${status}`);
 }
 
 /**
  * Change known status by word (legacy compatible)
  */
-export function changeKnownStatus(word: string, status: number, aliases: readonly string[] = []): void {
-  setWordStatus(word, status, aliases);
+export function changeKnownStatus(word: string, status: number, aliases: readonly string[] = [], language: string = 'en'): void {
+  setWordStatus(word, status, aliases, language);
 }
 
 /**
@@ -191,15 +194,15 @@ export async function getKnownStatus(word: string, srsCheck?: (word: string) => 
  * Load words from storage via KV store bridge
  * Safe to call multiple times - will only load once
  */
-export async function loadWordsFromStorage(): Promise<void> {
+export async function loadWordsFromStorage(language: string = 'en'): Promise<void> {
   if (wordStatusesLoaded) return;
   wordStatusesLoaded = true;
-  
+
   try {
     const bridge = getBridge();
 
     // Check for existing v2 data in KV store
-    const stored = await bridge.kvStore.kvGet(WORD_STATUS_STORE_KEY);
+    const stored = await bridge.kvStore.kvGet(getWordStatusKey(language));
     if (stored) {
       setWordsLearnedInApp(JSON.parse(stored));
       log.info('[statsService] Loaded word statuses from KV store');
@@ -211,11 +214,11 @@ export async function loadWordsFromStorage(): Promise<void> {
       log.info('[statsService] Skipping v1 word status migration because it has already been imported');
       return;
     }
-    
+
     // No local data found - check for data migrated by main process
     // This handles the case where old app used file:// and new app uses localhost
     log.info('[statsService] No local data found, will check main process migration data');
-    await loadFromMainProcessMigration();
+    await loadFromMainProcessMigration(language);
   } catch (e) {
     log.error('[statsService] Failed to load words from storage:', e);
   }
@@ -224,14 +227,14 @@ export async function loadWordsFromStorage(): Promise<void> {
 /**
  * Migrate from v1 knownAdjustment data
  */
-async function migrateFromV1Data(knownAdjustment: Record<string, number>): Promise<void> {
+async function migrateFromV1Data(knownAdjustment: Record<string, number>, language: string): Promise<void> {
   try {
     const migratedWordCount = Object.keys(knownAdjustment).length;
     setWordsLearnedInApp(knownAdjustment);
 
     // Save in new format via KV store
     await getBridge().kvStore.kvSetBatch({
-      [WORD_STATUS_STORE_KEY]: JSON.stringify(knownAdjustment),
+      [getWordStatusKey(language)]: JSON.stringify(knownAdjustment),
       [WORD_STATUS_MIGRATION_MARKER_KEY]: '1',
     });
 
@@ -253,14 +256,14 @@ async function migrateFromV1Data(knownAdjustment: Record<string, number>): Promi
 /**
  * Load data from main process migration (async, called after sync attempt)
  */
-async function loadFromMainProcessMigration(): Promise<void> {
+async function loadFromMainProcessMigration(language: string): Promise<void> {
   // Check if we're in Electron environment
   if (isElectron()) {
     try {
       const knownAdjustment = await getBridge().migration.getMigratedItem('knownAdjustment');
       if (knownAdjustment && typeof knownAdjustment === 'object') {
         log.info('[statsService] Found knownAdjustment in main process migration data');
-        await migrateFromV1Data(knownAdjustment as Record<string, number>);
+        await migrateFromV1Data(knownAdjustment as Record<string, number>, language);
       }
     } catch (e) {
       log.warn('[statsService] Failed to get migrated data from main process:', e);
@@ -271,9 +274,9 @@ async function loadFromMainProcessMigration(): Promise<void> {
 /**
  * Save words to storage
  */
-export async function saveWordsToStorage(): Promise<void> {
+export async function saveWordsToStorage(language: string = 'en'): Promise<void> {
   try {
-    await getBridge().kvStore.kvSet('mlearn_words_learned', JSON.stringify(wordsLearnedInApp()));
+    await getBridge().kvStore.kvSet(getWordStatusKey(language), JSON.stringify(wordsLearnedInApp()));
   } catch (e) {
     log.error('Failed to save words to storage:', e);
   }

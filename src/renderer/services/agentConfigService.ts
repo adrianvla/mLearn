@@ -11,7 +11,10 @@ const log = getLogger("renderer.services.agentConfig");
 
 const AGENTS_KEY = 'agent-configs';
 const ACTIVE_AGENT_KEY = 'active-agent-id';
-const AGENT_MEMORIES_KEY = 'agent-memories';
+
+function getMemoriesKey(lang: string): string {
+  return `agent-memories-${lang}`;
+}
 
 // ============================================================================
 // Agent CRUD
@@ -50,15 +53,15 @@ export async function updateAgent(config: AgentConfig): Promise<AgentConfig[]> {
   return agents;
 }
 
-export async function deleteAgent(agentId: string): Promise<AgentConfig[]> {
+export async function deleteAgent(agentId: string, language: string = 'en'): Promise<AgentConfig[]> {
   const agents = await loadAgents();
   const filtered = agents.filter((a) => a.id !== agentId);
   await saveAgents(filtered);
 
   // Also remove this agent's memories
-  const memories = await loadAllMemories();
+  const memories = await loadAllMemories(language);
   const remaining = memories.filter((m) => m.agentId !== agentId);
-  await saveAllMemories(remaining);
+  await saveAllMemories(remaining, language);
 
   return filtered;
 }
@@ -79,7 +82,7 @@ export async function saveActiveAgentId(agentId: string): Promise<void> {
 // Migration: single agent → multi-agent
 // ============================================================================
 
-export async function migrateIfNeeded(): Promise<void> {
+export async function migrateIfNeeded(language: string = 'en'): Promise<void> {
   const raw = await getBridge().kvStore.kvGet('agent-config');
   if (!raw) return;
 
@@ -109,7 +112,7 @@ export async function migrateIfNeeded(): Promise<void> {
             const oldMems = JSON.parse(oldMemRaw);
             if (Array.isArray(oldMems)) {
               const tagged = oldMems.map((m: AgentMemoryEntry) => ({ ...m, agentId: id }));
-              await saveAllMemories(tagged);
+              await saveAllMemories(tagged, language);
             }
           } catch (e) {
             log.error("error", e);
@@ -130,8 +133,8 @@ export async function migrateIfNeeded(): Promise<void> {
 // Memories
 // ============================================================================
 
-export async function loadAllMemories(): Promise<AgentMemoryEntry[]> {
-  const raw = await getBridge().kvStore.kvGet(AGENT_MEMORIES_KEY);
+export async function loadAllMemories(language: string = 'en'): Promise<AgentMemoryEntry[]> {
+  const raw = await getBridge().kvStore.kvGet(getMemoriesKey(language));
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -142,8 +145,8 @@ export async function loadAllMemories(): Promise<AgentMemoryEntry[]> {
   }
 }
 
-async function saveAllMemories(memories: AgentMemoryEntry[]): Promise<void> {
-  await getBridge().kvStore.kvSet(AGENT_MEMORIES_KEY, JSON.stringify(memories));
+async function saveAllMemories(memories: AgentMemoryEntry[], language: string): Promise<void> {
+  await getBridge().kvStore.kvSet(getMemoriesKey(language), JSON.stringify(memories));
 }
 
 export function filterMemories(
@@ -158,8 +161,9 @@ export function filterMemories(
 export async function addAgentMemory(
   content: string,
   agentId: string,
+  language: string = 'en',
 ): Promise<AgentMemoryEntry> {
-  const memories = await loadAllMemories();
+  const memories = await loadAllMemories(language);
   const entry: AgentMemoryEntry = {
     id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     agentId,
@@ -167,25 +171,25 @@ export async function addAgentMemory(
     timestamp: Date.now(),
   };
   memories.push(entry);
-  await saveAllMemories(memories);
+  await saveAllMemories(memories, language);
   return entry;
 }
 
-export async function removeAgentMemory(id: string): Promise<AgentMemoryEntry[]> {
-  const memories = await loadAllMemories();
+export async function removeAgentMemory(id: string, language: string = 'en'): Promise<AgentMemoryEntry[]> {
+  const memories = await loadAllMemories(language);
   const filtered = memories.filter((m) => m.id !== id);
-  await saveAllMemories(filtered);
+  await saveAllMemories(filtered, language);
   return filtered;
 }
 
-export async function clearAgentMemories(agentId?: string): Promise<AgentMemoryEntry[]> {
+export async function clearAgentMemories(agentId?: string, language: string = 'en'): Promise<AgentMemoryEntry[]> {
   if (!agentId) {
-    await saveAllMemories([]);
+    await saveAllMemories([], language);
     return [];
   }
-  const memories = await loadAllMemories();
+  const memories = await loadAllMemories(language);
   const remaining = memories.filter((m) => m.agentId !== agentId);
-  await saveAllMemories(remaining);
+  await saveAllMemories(remaining, language);
   return remaining;
 }
 

@@ -133,7 +133,7 @@ describe('agentConfigService', () => {
       mockKvGet
         .mockResolvedValueOnce(JSON.stringify([agentA, agentB]))
         .mockResolvedValueOnce(null);
-      const result = await deleteAgent('agent_a');
+      const result = await deleteAgent('agent_a', 'ja');
       expect(result).toEqual([agentB]);
     });
 
@@ -145,8 +145,8 @@ describe('agentConfigService', () => {
       mockKvGet
         .mockResolvedValueOnce(JSON.stringify([agent]))
         .mockResolvedValueOnce(JSON.stringify([memA, memB]));
-      await deleteAgent('agent_a');
-      const savedMemories = JSON.parse(mockKvSet.mock.calls.find(c => c[0] === 'agent-memories')![1]);
+      await deleteAgent('agent_a', 'ja');
+      const savedMemories = JSON.parse(mockKvSet.mock.calls.find(c => c[0] === 'agent-memories-ja')![1]);
       expect(savedMemories).toEqual([memB]);
     });
 
@@ -156,8 +156,8 @@ describe('agentConfigService', () => {
       mockKvGet
         .mockResolvedValueOnce(JSON.stringify([agent]))
         .mockResolvedValueOnce(null);
-      await deleteAgent(agent.id);
-      const memCall = mockKvSet.mock.calls.find(c => c[0] === 'agent-memories');
+      await deleteAgent(agent.id, 'ja');
+      const memCall = mockKvSet.mock.calls.find(c => c[0] === 'agent-memories-ja');
       expect(JSON.parse(memCall![1])).toEqual([]);
     });
   });
@@ -196,7 +196,7 @@ describe('agentConfigService', () => {
     it('does nothing when there is no legacy agent-config key', async () => {
       const { migrateIfNeeded } = await import('./agentConfigService');
       mockKvGet.mockResolvedValue(null);
-      await migrateIfNeeded();
+      await migrateIfNeeded('ja');
       expect(mockKvSet).not.toHaveBeenCalled();
     });
 
@@ -206,7 +206,7 @@ describe('agentConfigService', () => {
         if (key === 'agent-config') return JSON.stringify({ setupComplete: false });
         return null;
       });
-      await migrateIfNeeded();
+      await migrateIfNeeded('ja');
       expect(mockKvRemove).toHaveBeenCalledWith('agent-config');
     });
 
@@ -216,7 +216,7 @@ describe('agentConfigService', () => {
         if (key === 'agent-config') return JSON.stringify({ setupComplete: false });
         return null;
       });
-      await migrateIfNeeded();
+      await migrateIfNeeded('ja');
       expect(mockKvRemove).toHaveBeenCalledWith('agent-memories');
     });
 
@@ -235,7 +235,7 @@ describe('agentConfigService', () => {
         if (key === 'agent-configs') return JSON.stringify([]);
         return null;
       });
-      await migrateIfNeeded();
+      await migrateIfNeeded('ja');
       const savedAgentsCall = mockKvSet.mock.calls.find(c => c[0] === 'agent-configs');
       expect(savedAgentsCall).toBeDefined();
       const savedAgents = JSON.parse(savedAgentsCall![1]);
@@ -251,7 +251,7 @@ describe('agentConfigService', () => {
         if (key === 'agent-config') return JSON.stringify({ agentName: 'X' });
         return null;
       });
-      await migrateIfNeeded();
+      await migrateIfNeeded('ja');
       expect(mockKvSet).not.toHaveBeenCalled();
     });
 
@@ -263,7 +263,7 @@ describe('agentConfigService', () => {
         if (key === 'agent-configs') return JSON.stringify([existing]);
         return null;
       });
-      await migrateIfNeeded();
+      await migrateIfNeeded('ja');
       const agentsSaved = mockKvSet.mock.calls.filter(c => c[0] === 'agent-configs');
       expect(agentsSaved).toHaveLength(0);
     });
@@ -277,8 +277,8 @@ describe('agentConfigService', () => {
         if (key === 'agent-memories') return JSON.stringify([oldMem]);
         return null;
       });
-      await migrateIfNeeded();
-      const memCall = mockKvSet.mock.calls.find(c => c[0] === 'agent-memories');
+      await migrateIfNeeded('ja');
+      const memCall = mockKvSet.mock.calls.find(c => c[0] === 'agent-memories-ja');
       expect(memCall).toBeDefined();
       const savedMems = JSON.parse(memCall![1]);
       expect(savedMems).toHaveLength(1);
@@ -294,8 +294,8 @@ describe('agentConfigService', () => {
         if (key === 'agent-memories') return JSON.stringify({ not: 'array' });
         return null;
       });
-      await migrateIfNeeded();
-      const memCall = mockKvSet.mock.calls.find(c => c[0] === 'agent-memories');
+      await migrateIfNeeded('ja');
+      const memCall = mockKvSet.mock.calls.find(c => c[0] === 'agent-memories-ja');
       expect(memCall).toBeUndefined();
     });
 
@@ -305,7 +305,7 @@ describe('agentConfigService', () => {
         if (key === 'agent-config') return 'not-json';
         return null;
       });
-      await expect(migrateIfNeeded()).resolves.toBeUndefined();
+      await expect(migrateIfNeeded('ja')).resolves.toBeUndefined();
     });
   });
 
@@ -313,7 +313,7 @@ describe('agentConfigService', () => {
     it('returns empty array when kvGet returns null', async () => {
       const { loadAllMemories } = await import('./agentConfigService');
       mockKvGet.mockResolvedValue(null);
-      const result = await loadAllMemories();
+      const result = await loadAllMemories('ja');
       expect(result).toEqual([]);
     });
 
@@ -321,28 +321,28 @@ describe('agentConfigService', () => {
       const { loadAllMemories } = await import('./agentConfigService');
       const memories = [makeMemory()];
       mockKvGet.mockResolvedValue(JSON.stringify(memories));
-      const result = await loadAllMemories();
+      const result = await loadAllMemories('ja');
       expect(result).toEqual(memories);
     });
 
     it('returns empty array when kvGet returns non-array JSON', async () => {
       const { loadAllMemories } = await import('./agentConfigService');
       mockKvGet.mockResolvedValue(JSON.stringify({ id: 'x' }));
-      const result = await loadAllMemories();
+      const result = await loadAllMemories('ja');
       expect(result).toEqual([]);
     });
 
     it('returns empty array when kvGet returns invalid JSON', async () => {
       const { loadAllMemories } = await import('./agentConfigService');
       mockKvGet.mockResolvedValue('broken{');
-      const result = await loadAllMemories();
+      const result = await loadAllMemories('ja');
       expect(result).toEqual([]);
     });
 
-    it('queries the agent-memories key', async () => {
+    it('queries the language-scoped key', async () => {
       const { loadAllMemories } = await import('./agentConfigService');
-      await loadAllMemories();
-      expect(mockKvGet).toHaveBeenCalledWith('agent-memories');
+      await loadAllMemories('ja');
+      expect(mockKvGet).toHaveBeenCalledWith('agent-memories-ja');
     });
   });
 
@@ -350,7 +350,7 @@ describe('agentConfigService', () => {
     it('adds a new memory entry to the list', async () => {
       const { addAgentMemory } = await import('./agentConfigService');
       mockKvGet.mockResolvedValue(null);
-      const entry = await addAgentMemory('remember this', 'agent_a');
+      const entry = await addAgentMemory('remember this', 'agent_a', 'ja');
       expect(entry.content).toBe('remember this');
       expect(entry.agentId).toBe('agent_a');
     });
@@ -358,7 +358,7 @@ describe('agentConfigService', () => {
     it('returned entry has a generated id starting with mem_', async () => {
       const { addAgentMemory } = await import('./agentConfigService');
       mockKvGet.mockResolvedValue(null);
-      const entry = await addAgentMemory('content', 'agent_a');
+      const entry = await addAgentMemory('content', 'agent_a', 'ja');
       expect(entry.id).toMatch(/^mem_/);
     });
 
@@ -366,7 +366,7 @@ describe('agentConfigService', () => {
       const { addAgentMemory } = await import('./agentConfigService');
       mockKvGet.mockResolvedValue(null);
       const before = Date.now();
-      const entry = await addAgentMemory('content', 'agent_a');
+      const entry = await addAgentMemory('content', 'agent_a', 'ja');
       const after = Date.now();
       expect(entry.timestamp).toBeGreaterThanOrEqual(before);
       expect(entry.timestamp).toBeLessThanOrEqual(after);
@@ -376,7 +376,7 @@ describe('agentConfigService', () => {
       const { addAgentMemory } = await import('./agentConfigService');
       const existing = makeMemory({ id: 'mem_existing' });
       mockKvGet.mockResolvedValue(JSON.stringify([existing]));
-      await addAgentMemory('new memory', 'agent_b');
+      await addAgentMemory('new memory', 'agent_b', 'ja');
       const saved = JSON.parse(mockKvSet.mock.calls[0][1]);
       expect(saved).toHaveLength(2);
       expect(saved[0]).toEqual(existing);
@@ -389,7 +389,7 @@ describe('agentConfigService', () => {
       const memA = makeMemory({ id: 'mem_a' });
       const memB = makeMemory({ id: 'mem_b' });
       mockKvGet.mockResolvedValue(JSON.stringify([memA, memB]));
-      const result = await removeAgentMemory('mem_a');
+      const result = await removeAgentMemory('mem_a', 'ja');
       expect(result).toEqual([memB]);
     });
 
@@ -397,7 +397,7 @@ describe('agentConfigService', () => {
       const { removeAgentMemory } = await import('./agentConfigService');
       const mem = makeMemory({ id: 'mem_a' });
       mockKvGet.mockResolvedValue(JSON.stringify([mem]));
-      const result = await removeAgentMemory('mem_nonexistent');
+      const result = await removeAgentMemory('mem_nonexistent', 'ja');
       expect(result).toEqual([mem]);
     });
   });
@@ -405,9 +405,9 @@ describe('agentConfigService', () => {
   describe('clearAgentMemories', () => {
     it('clears all memories when no agentId is provided', async () => {
       const { clearAgentMemories } = await import('./agentConfigService');
-      const result = await clearAgentMemories();
+      const result = await clearAgentMemories(undefined, 'ja');
       expect(result).toEqual([]);
-      expect(mockKvSet).toHaveBeenCalledWith('agent-memories', '[]');
+      expect(mockKvSet).toHaveBeenCalledWith('agent-memories-ja', '[]');
     });
 
     it('removes only memories for the specified agentId', async () => {
@@ -415,7 +415,7 @@ describe('agentConfigService', () => {
       const memA = makeMemory({ id: 'mem_a', agentId: 'agent_a' });
       const memB = makeMemory({ id: 'mem_b', agentId: 'agent_b' });
       mockKvGet.mockResolvedValue(JSON.stringify([memA, memB]));
-      const result = await clearAgentMemories('agent_a');
+      const result = await clearAgentMemories('agent_a', 'ja');
       expect(result).toEqual([memB]);
     });
 
@@ -423,7 +423,7 @@ describe('agentConfigService', () => {
       const { clearAgentMemories } = await import('./agentConfigService');
       const mem = makeMemory({ agentId: 'agent_b' });
       mockKvGet.mockResolvedValue(JSON.stringify([mem]));
-      const result = await clearAgentMemories('agent_x');
+      const result = await clearAgentMemories('agent_x', 'ja');
       expect(result).toEqual([mem]);
     });
   });
@@ -467,6 +467,21 @@ describe('agentConfigService', () => {
       const a = generateAgentId();
       const b = generateAgentId();
       expect(a).not.toBe(b);
+    });
+  });
+
+  describe('language scoping', () => {
+    it('does not return memories saved under a different language', async () => {
+      const { loadAllMemories } = await import('./agentConfigService');
+      const memory = makeMemory({ id: 'mem_1', content: 'ja memory' });
+      mockKvGet.mockImplementation(async (key: string) => {
+        if (key === 'agent-memories-ja') return JSON.stringify([memory]);
+        return null;
+      });
+      const jaMemories = await loadAllMemories('ja');
+      const deMemories = await loadAllMemories('de');
+      expect(jaMemories).toHaveLength(1);
+      expect(deMemories).toHaveLength(0);
     });
   });
 });

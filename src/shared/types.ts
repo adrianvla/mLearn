@@ -827,15 +827,23 @@ export interface WordStats {
 }
 
 /**
- * Flashcard store meta information
+ * Per-language daily flashcard meta counters
  */
-export interface FlashcardMeta {
+export interface PerLanguageMeta {
   /** Number of new cards introduced today */
   newCardsToday: number;
   /** Number of reviews done today */
   reviewsToday: number;
   /** Date when new card count was last reset (YYYY-MM-DD) */
   newCardsDate: string;
+}
+
+/**
+ * Flashcard store meta information
+ */
+export interface FlashcardMeta {
+  /** Per-language daily counters */
+  perLanguage: Record<string, PerLanguageMeta>;
   /** Maximum new cards per day (user setting stored here for sync) */
   maxNewCardsPerDay: number;
   /** Maximum new cards to learn per day (-1 = unlimited) */
@@ -856,6 +864,12 @@ export interface FlashcardMeta {
   reviewIntervalModifier: number;
   /** Maximum interval in days */
   maxInterval: number;
+  /** @deprecated Use perLanguage[lang].newCardsToday instead */
+  newCardsToday?: number;
+  /** @deprecated Use perLanguage[lang].reviewsToday instead */
+  reviewsToday?: number;
+  /** @deprecated Use perLanguage[lang].newCardsDate instead */
+  newCardsDate?: string;
 }
 
 /**
@@ -880,8 +894,8 @@ export interface FlashcardStore {
   grammarKnowledge: Record<string, GrammarKnowledgeEntry>;
   /** Store metadata */
   meta: FlashcardMeta;
-  /** Daily study statistics (keyed by date string YYYY-MM-DD) */
-  dailyStats: Record<string, DailyStudyStats>;
+  /** Daily study statistics (date → language → stats) */
+  dailyStats: Record<string, Record<string, DailyStudyStats>>;
   /**
    * Suggested flashcards captured automatically when the learner sees new
    * words. Keyed by a language-prefixed word hash (same key scheme as

@@ -4,10 +4,12 @@ import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.services.conversationHistory");
 
-const SESSIONS_KEY = 'conversation-sessions';
+function getSessionsKey(lang: string): string {
+  return `conversation-sessions-${lang}`;
+}
 
-export async function loadSessions(): Promise<ConversationSession[]> {
-  const raw = await getBridge().kvStore.kvGet(SESSIONS_KEY);
+export async function loadSessions(language: string = 'en'): Promise<ConversationSession[]> {
+  const raw = await getBridge().kvStore.kvGet(getSessionsKey(language));
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -18,38 +20,38 @@ export async function loadSessions(): Promise<ConversationSession[]> {
   }
 }
 
-async function saveSessions(sessions: ConversationSession[]): Promise<void> {
-  await getBridge().kvStore.kvSet(SESSIONS_KEY, JSON.stringify(sessions));
+async function saveSessions(sessions: ConversationSession[], language: string): Promise<void> {
+  await getBridge().kvStore.kvSet(getSessionsKey(language), JSON.stringify(sessions));
 }
 
-export async function addSession(session: ConversationSession): Promise<ConversationSession[]> {
-  const sessions = await loadSessions();
+export async function addSession(session: ConversationSession, language: string = 'en'): Promise<ConversationSession[]> {
+  const sessions = await loadSessions(language);
   sessions.push(session);
-  await saveSessions(sessions);
+  await saveSessions(sessions, language);
   return sessions;
 }
 
-export async function updateSession(session: ConversationSession): Promise<ConversationSession[]> {
-  const sessions = await loadSessions();
+export async function updateSession(session: ConversationSession, language: string = 'en'): Promise<ConversationSession[]> {
+  const sessions = await loadSessions(language);
   const idx = sessions.findIndex((s) => s.id === session.id);
   if (idx !== -1) {
     sessions[idx] = session;
   } else {
     sessions.push(session);
   }
-  await saveSessions(sessions);
+  await saveSessions(sessions, language);
   return sessions;
 }
 
-export async function deleteSession(id: string): Promise<ConversationSession[]> {
-  const sessions = await loadSessions();
+export async function deleteSession(id: string, language: string = 'en'): Promise<ConversationSession[]> {
+  const sessions = await loadSessions(language);
   const filtered = sessions.filter((s) => s.id !== id);
-  await saveSessions(filtered);
+  await saveSessions(filtered, language);
   return filtered;
 }
 
-export async function deleteAllSessions(): Promise<void> {
-  await saveSessions([]);
+export async function deleteAllSessions(language: string = 'en'): Promise<void> {
+  await saveSessions([], language);
 }
 
 export function generateSessionId(): string {

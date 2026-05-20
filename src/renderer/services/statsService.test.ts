@@ -132,20 +132,20 @@ describe('statsService', () => {
   describe('setWordStatus / getWordStatus', () => {
     it('sets and retrieves word status', async () => {
       const { setWordStatus, getWordStatus } = await import('./statsService');
-      setWordStatus('hello', 2);
+      setWordStatus('hello', 2, [], 'ja');
       expect(getWordStatus('hello')).toBe(2);
     });
 
     it('falls back to alias word forms when the preferred form is not stored yet', async () => {
       const { setWordStatus, getWordStatus } = await import('./statsService');
-      setWordStatus('なかま', 1);
+      setWordStatus('なかま', 1, [], 'ja');
       expect(getWordStatus('仲間', ['なかま'])).toBe(1);
     });
 
     it('removes alias statuses when saving the preferred word form', async () => {
       const { setWordStatus, getWordStatus } = await import('./statsService');
-      setWordStatus('なかま', 1);
-      setWordStatus('仲間', 2, ['なかま']);
+      setWordStatus('なかま', 1, [], 'ja');
+      setWordStatus('仲間', 2, ['なかま'], 'ja');
 
       expect(getWordStatus('仲間', ['なかま'])).toBe(2);
     });
@@ -157,9 +157,9 @@ describe('statsService', () => {
 
     it('saves to storage after setting word status', async () => {
       const { setWordStatus } = await import('./statsService');
-      setWordStatus('test', 1);
+      setWordStatus('test', 1, [], 'ja');
       await vi.waitFor(() => expect(mockKvSet).toHaveBeenCalledWith(
-        'mlearn_words_learned',
+        'mlearn_words_learned_ja',
         expect.any(String)
       ));
     });
@@ -168,7 +168,7 @@ describe('statsService', () => {
   describe('changeKnownStatus', () => {
     it('delegates to setWordStatus', async () => {
       const { changeKnownStatus, getWordStatus } = await import('./statsService');
-      changeKnownStatus('apple', 1);
+      changeKnownStatus('apple', 1, [], 'ja');
       expect(getWordStatus('apple')).toBe(1);
     });
   });
@@ -176,14 +176,14 @@ describe('statsService', () => {
   describe('getKnownStatus', () => {
     it('returns stored status when no srsCheck provided', async () => {
       const { setWordStatus, getKnownStatus } = await import('./statsService');
-      setWordStatus('cat', 2);
+      setWordStatus('cat', 2, [], 'ja');
       const status = await getKnownStatus('cat');
       expect(status).toBe(2);
     });
 
     it('returns max of local and srs status', async () => {
       const { setWordStatus, getKnownStatus } = await import('./statsService');
-      setWordStatus('dog', 1);
+      setWordStatus('dog', 1, [], 'ja');
       const srsCheck = vi.fn().mockResolvedValue(2);
       const status = await getKnownStatus('dog', srsCheck);
       expect(status).toBe(2);
@@ -197,25 +197,32 @@ describe('statsService', () => {
   });
 
   describe('loadWordsFromStorage', () => {
-    it('loads words from KV store', async () => {
+    it('loads words from KV store using language-scoped key', async () => {
       const stored = JSON.stringify({ hello: 2, world: 1 });
-      mockKvGet.mockResolvedValue(stored);
+      mockKvGet.mockImplementation(async (key: string) => {
+        if (key === 'mlearn_words_learned_en') return stored;
+        return null;
+      });
       const { loadWordsFromStorage } = await import('./statsService');
-      await loadWordsFromStorage();
-      expect(mockKvGet).toHaveBeenCalledWith('mlearn_words_learned');
+      await loadWordsFromStorage('ja');
+      expect(mockKvGet).toHaveBeenCalledWith('mlearn_words_learned_en');
     });
 
     it('calls getMigratedItem when no KV data and isElectron', async () => {
       const { isElectron } = await import('../../shared/platform');
       vi.mocked(isElectron).mockReturnValue(true);
-      mockKvGet.mockResolvedValue(null);
+      mockKvGet.mockImplementation(async (key: string) => {
+        if (key === 'mlearn_words_learned_en') return null;
+        if (key === 'mlearn_words_learned_v1_migration_done') return null;
+        return null;
+      });
       mockGetMigratedItem.mockResolvedValue({ testWord: 2 });
       const { loadWordsFromStorage } = await import('./statsService');
-      await loadWordsFromStorage();
+      await loadWordsFromStorage('ja');
 
       expect(mockGetMigratedItem).toHaveBeenCalledWith('knownAdjustment');
       expect(mockKvSetBatch).toHaveBeenCalledWith({
-        mlearn_words_learned: JSON.stringify({ testWord: 2 }),
+        mlearn_words_learned_en: JSON.stringify({ testWord: 2 }),
         mlearn_words_learned_v1_migration_done: '1',
       });
     });
@@ -224,13 +231,13 @@ describe('statsService', () => {
       const { isElectron } = await import('../../shared/platform');
       vi.mocked(isElectron).mockReturnValue(true);
       mockKvGet.mockImplementation(async (key: string) => {
-        if (key === 'mlearn_words_learned') return null;
+        if (key === 'mlearn_words_learned_en') return null;
         if (key === 'mlearn_words_learned_v1_migration_done') return '1';
         return null;
       });
 
       const { loadWordsFromStorage } = await import('./statsService');
-      await loadWordsFromStorage();
+      await loadWordsFromStorage('ja');
 
       expect(mockGetMigratedItem).not.toHaveBeenCalled();
     });
@@ -238,11 +245,15 @@ describe('statsService', () => {
     it('does not surface a migration toast when no word statuses were migrated', async () => {
       const { isElectron } = await import('../../shared/platform');
       vi.mocked(isElectron).mockReturnValue(true);
-      mockKvGet.mockResolvedValue(null);
+      mockKvGet.mockImplementation(async (key: string) => {
+        if (key === 'mlearn_words_learned_en') return null;
+        if (key === 'mlearn_words_learned_v1_migration_done') return null;
+        return null;
+      });
       mockGetMigratedItem.mockResolvedValue({});
 
       const { getLocalStorageMigrationInfo, loadWordsFromStorage } = await import('./statsService');
-      await loadWordsFromStorage();
+      await loadWordsFromStorage('ja');
 
       expect(getLocalStorageMigrationInfo()).toEqual({
         occurred: false,
@@ -253,12 +264,12 @@ describe('statsService', () => {
   });
 
   describe('saveWordsToStorage', () => {
-    it('saves current words to KV store', async () => {
+    it('saves current words to KV store under language-scoped key', async () => {
       const { setWordStatus, saveWordsToStorage } = await import('./statsService');
-      setWordStatus('persist', 2);
-      await saveWordsToStorage();
+      setWordStatus('persist', 2, [], 'ja');
+      await saveWordsToStorage('ja');
       expect(mockKvSet).toHaveBeenCalledWith(
-        'mlearn_words_learned',
+        'mlearn_words_learned_ja',
         expect.stringContaining('persist')
       );
     });
@@ -364,6 +375,26 @@ describe('statsService', () => {
       expect(info.occurred).toBe(false);
       expect(info.backupData).toBe(null);
       expect(info.migratedWordCount).toBe(0);
+    });
+  });
+
+  describe('language scoping', () => {
+    it('does not load word statuses saved under a different language', async () => {
+      mockKvGet.mockImplementation(async (key: string) => {
+        if (key === 'mlearn_words_learned_ja') return JSON.stringify({ hello: 2 });
+        return null;
+      });
+      const { loadWordsFromStorage, getWordStatus } = await import('./statsService');
+      await loadWordsFromStorage('de');
+      expect(getWordStatus('hello')).toBe(0);
+    });
+
+    it('uses different KV keys for different languages', async () => {
+      const { saveWordsToStorage } = await import('./statsService');
+      await saveWordsToStorage('ja');
+      await saveWordsToStorage('de');
+      expect(mockKvSet).toHaveBeenCalledWith('mlearn_words_learned_ja', expect.any(String));
+      expect(mockKvSet).toHaveBeenCalledWith('mlearn_words_learned_de', expect.any(String));
     });
   });
 });

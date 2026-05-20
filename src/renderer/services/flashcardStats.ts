@@ -96,6 +96,34 @@ function getSortedDateKeys(dailyStats: Record<string, DailyStudyStats>): string[
   return Object.keys(dailyStats).sort();
 }
 
+/**
+ * Flatten nested per-language daily stats into a single aggregated record per date.
+ */
+export function aggregateDailyStats(
+  dailyStats: Record<string, Record<string, DailyStudyStats>>
+): Record<string, DailyStudyStats> {
+  const result: Record<string, DailyStudyStats> = {};
+  for (const [date, langMap] of Object.entries(dailyStats)) {
+    const aggregated: DailyStudyStats = {
+      date,
+      newCardsStudied: 0,
+      reviewCardsStudied: 0,
+      lapses: 0,
+      timeSpent: 0,
+      graduated: 0,
+    };
+    for (const stats of Object.values(langMap)) {
+      aggregated.newCardsStudied += stats.newCardsStudied;
+      aggregated.reviewCardsStudied += stats.reviewCardsStudied;
+      aggregated.lapses += stats.lapses;
+      aggregated.timeSpent += stats.timeSpent;
+      aggregated.graduated += stats.graduated;
+    }
+    result[date] = aggregated;
+  }
+  return result;
+}
+
 function getTodayKey(): string {
   return getDateKey(new Date());
 }

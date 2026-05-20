@@ -217,10 +217,18 @@ export function dueDateToString(dueDate: number, t?: (key: string, params?: Reco
  * Default metadata
  */
 export function getDefaultMeta(newDayHour: number = 4): FlashcardMeta {
+    const today = getTodayDateString(newDayHour);
     return {
+        perLanguage: {
+            ja: {
+                newCardsToday: 0,
+                reviewsToday: 0,
+                newCardsDate: today,
+            },
+        },
         newCardsToday: 0,
         reviewsToday: 0,
-        newCardsDate: getTodayDateString(newDayHour),
+        newCardsDate: today,
         maxNewCardsPerDay: 20,
         maxNewCardsPerDayLearning: 20,
         maxReviewsPerDay: -1, // -1 = unlimited
@@ -551,10 +559,11 @@ export function sortByDueDate(cards: Flashcard[]): Flashcard[] {
  * All card types use end-of-SRS-day cutoff so all cards due today appear in one session.
  * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4)
  */
-export function getDueCards(cards: Record<string, Flashcard>, newDayHour: number = 4): Flashcard[] {
+export function getDueCards(cards: Record<string, Flashcard>, newDayHour: number = 4, language?: string): Flashcard[] {
     const dayEnd = getEndOfSRSDay(newDayHour);
     return Object.values(cards)
         .filter(c => {
+            if (language && c.language !== language && c.language) return false;
             if (c.suspended || c.buried) return false;
             return c.dueDate <= dayEnd;
         })
@@ -564,19 +573,25 @@ export function getDueCards(cards: Record<string, Flashcard>, newDayHour: number
 /**
  * Get new cards (never reviewed)
  */
-export function getNewCards(cards: Record<string, Flashcard>): Flashcard[] {
+export function getNewCards(cards: Record<string, Flashcard>, language?: string): Flashcard[] {
     return Object.values(cards)
-        .filter(c => c.state === 'new' && !c.suspended && !c.buried)
+        .filter(c => {
+            if (language && c.language !== language && c.language) return false;
+            return c.state === 'new' && !c.suspended && !c.buried;
+        })
         .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 /**
  * Get learning cards whose exact step due time has arrived.
  */
-export function getLearningCards(cards: Record<string, Flashcard>): Flashcard[] {
-    const now = Date.now();
+export function getLearningCards(cards: Record<string, Flashcard>, now?: number, language?: string): Flashcard[] {
+    const effectiveNow = now ?? Date.now();
     return Object.values(cards)
-        .filter(c => c.state === 'learning' && !c.suspended && !c.buried && c.dueDate <= now)
+        .filter(c => {
+            if (language && c.language !== language && c.language) return false;
+            return c.state === 'learning' && !c.suspended && !c.buried && c.dueDate <= effectiveNow;
+        })
         .sort((a, b) => a.dueDate - b.dueDate);
 }
 
@@ -585,29 +600,35 @@ export function getLearningCards(cards: Record<string, Flashcard>): Flashcard[] 
  * Uses end-of-SRS-day cutoff so all review cards due today appear in one session.
  * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4)
  */
-export function getReviewCards(cards: Record<string, Flashcard>, newDayHour: number = 4): Flashcard[] {
+export function getReviewCards(cards: Record<string, Flashcard>, newDayHour: number = 4, language?: string): Flashcard[] {
     const dayEnd = getEndOfSRSDay(newDayHour);
     return Object.values(cards)
-        .filter(c => c.state === 'review' && !c.suspended && !c.buried && c.dueDate <= dayEnd)
+        .filter(c => {
+            if (language && c.language !== language && c.language) return false;
+            return c.state === 'review' && !c.suspended && !c.buried && c.dueDate <= dayEnd;
+        })
         .sort((a, b) => a.dueDate - b.dueDate);
 }
 
-function isQueuedLearningCard(card: Flashcard, newDayHour: number): boolean {
+function isQueuedLearningCard(card: Flashcard, newDayHour: number, language?: string): boolean {
+    if (language && card.language !== language && card.language) return false;
     return card.state === 'learning' && !card.suspended && !card.buried && card.dueDate <= getEndOfSRSDay(newDayHour);
 }
 
-function isQueuedRelearningCard(card: Flashcard, newDayHour: number): boolean {
+function isQueuedRelearningCard(card: Flashcard, newDayHour: number, language?: string): boolean {
+    if (language && card.language !== language && card.language) return false;
     return card.state === 'relearning' && !card.suspended && !card.buried && card.dueDate <= getEndOfSRSDay(newDayHour);
 }
 
-function isQueuedReviewCard(card: Flashcard, newDayHour: number): boolean {
+function isQueuedReviewCard(card: Flashcard, newDayHour: number, language?: string): boolean {
+    if (language && card.language !== language && card.language) return false;
     return card.state === 'review' && !card.suspended && !card.buried && card.dueDate <= getEndOfSRSDay(newDayHour);
 }
 
-function isQueuedScheduledCard(card: Flashcard, newDayHour: number): boolean {
-    return isQueuedLearningCard(card, newDayHour)
-        || isQueuedRelearningCard(card, newDayHour)
-        || isQueuedReviewCard(card, newDayHour);
+function isQueuedScheduledCard(card: Flashcard, newDayHour: number, language?: string): boolean {
+    return isQueuedLearningCard(card, newDayHour, language)
+        || isQueuedRelearningCard(card, newDayHour, language)
+        || isQueuedReviewCard(card, newDayHour, language);
 }
 
 function compareScheduledCards(a: Flashcard, b: Flashcard, now: number): number {
@@ -676,19 +697,20 @@ export function buildReviewQueue(
     maxNewCardsPerDayLearning?: number,
     maxReviewsPerDay?: number,
     reviewsToday?: number,
-    newDayHour?: number
+    newDayHour?: number,
+    language?: string
 ): ReviewQueue {
     const hour = newDayHour ?? DEFAULT_SETTINGS.newDayHour;
     const now = Date.now();
 
     // Get all card lists
-    const allNewCards = getNewCards(cards);
+    const allNewCards = getNewCards(cards, language);
     const learningCards = Object.values(cards)
-        .filter(c => isQueuedLearningCard(c, hour))
+        .filter(c => isQueuedLearningCard(c, hour, language))
         .sort((a, b) => a.dueDate - b.dueDate);
-    const reviewCards = getReviewCards(cards, hour);
+    const reviewCards = getReviewCards(cards, hour, language);
     const relearnCards = Object.values(cards)
-        .filter(c => isQueuedRelearningCard(c, hour))
+        .filter(c => isQueuedRelearningCard(c, hour, language))
         .sort((a, b) => a.dueDate - b.dueDate);
 
     // Limit new cards for auto-creation system
