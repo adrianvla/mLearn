@@ -35,7 +35,7 @@ const PING_INTERVAL_SECONDS = 5;
 const PING_ALARM_NAME = 'mlearn-ping';
 const COMMAND_POLL_INTERVAL_SECONDS = 2;
 const COMMAND_POLL_ALARM_NAME = 'mlearn-command-poll';
-const SYNC_DEBOUNCE_MS = 500;
+const SYNC_DEBOUNCE_MS = 150;
 const GEOMETRY_DEBOUNCE_MS = 50;
 const MAX_RETRY_DELAY_MS = 30000;
 const INITIAL_RETRY_DELAY_MS = 1000;
@@ -1207,14 +1207,17 @@ async function forwardVideoState(state: VideoState, meta?: { url: string; title:
 
 async function forwardSubtitleTracks(message: SubtitleTracksMessage): Promise<void> {
   if (isHeadlessEnabled()) {
+    console.log('[mLearn:bg] forwardSubtitleTracks: skipped, headless enabled');
     return;
   }
 
   if (status === 'disconnected') {
+    console.log('[mLearn:bg] forwardSubtitleTracks: skipped, disconnected');
     return;
   }
 
   try {
+    console.log('[mLearn:bg] forwardSubtitleTracks: sending', message.textTracks.length, 'textTracks');
     await fetch(`${MLEARN_BASE_URL}/api/overlay-subtitles`, {
       method: 'POST',
       headers: {
@@ -1226,8 +1229,9 @@ async function forwardSubtitleTracks(message: SubtitleTracksMessage): Promise<vo
         url: message.url,
       }),
     });
-  } catch {
-    // Non-critical; don't change connection status
+    console.log('[mLearn:bg] forwardSubtitleTracks: sent successfully');
+  } catch (err) {
+    console.log('[mLearn:bg] forwardSubtitleTracks: failed', err);
   }
 }
 

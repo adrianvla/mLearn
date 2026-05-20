@@ -38,7 +38,7 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "build:extension": "tsc -p extension/tsconfig.json && sed -i '' '/^export {};$/d' extension/dist/content-script.js && cp extension/manifest.json extension/dist/manifest.json && mkdir -p extension/dist/popup extension/dist/icons && cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/ && cp extension/icons/*.png extension/dist/icons/"
+    "build:extension": "rm -rf extension/dist && mkdir -p extension/dist/popup extension/dist/icons && tsc -p extension/tsconfig.json --noEmit && esbuild extension/src/content-script.ts --bundle --platform=browser --outfile=extension/dist/content-script.js --format=iife && esbuild extension/src/background.ts --bundle --platform=browser --outfile=extension/dist/background.js --format=iife && esbuild extension/src/popup/popup.ts --platform=browser --outfile=extension/dist/popup/popup.js --format=esm && cp extension/manifest.json extension/dist/manifest.json && cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/ && cp extension/icons/*.png extension/dist/icons/"
   },
   "keywords": [
     "language-learning",

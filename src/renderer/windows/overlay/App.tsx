@@ -211,8 +211,13 @@ export const App: Component = () => {
           return;
         }
         if (tracks.textTracks.length > 0) {
-          console.log('[Overlay] Loading subtitle track, text length=', tracks.textTracks[0].text.length);
-          setSubtitleContent(tracks.textTracks[0].text);
+          const newText = tracks.textTracks[0].text;
+          if (newText === subtitleContent()) {
+            console.log('[Overlay] Subtitle content unchanged, skipping reload');
+            return;
+          }
+          console.log('[Overlay] Loading subtitle track, text length=', newText.length);
+          setSubtitleContent(newText);
         } else {
           console.log('[Overlay] No textTracks in subtitle tracks payload');
         }
@@ -411,8 +416,8 @@ export const App: Component = () => {
       subtitles.loadSubtitles(content);
       if (untrack(() => settings.showSubtitles) === false) {
         updateSetting('showSubtitles', true);
-        subtitles.updateTime(currentTime());
       }
+      subtitles.updateTime(currentTime());
     } else {
       subtitles.clearSubtitles();
     }
@@ -1020,13 +1025,19 @@ export const App: Component = () => {
       const cached = getCachedTranslation(lookupWord, settings.language);
       if (cached) {
         setTextModeTranslation(cached);
+        setTextModeLoading(false);
       } else {
-        translateWord(lookupWord).then((result) => {
-          if (result) setTextModeTranslation(result);
-        }).catch(() => {});
+        translateWord(lookupWord)
+          .then((result) => {
+            if (result) setTextModeTranslation(result);
+          })
+          .catch((e) => {
+            log.error('Overlay translate failed', e);
+          })
+          .finally(() => {
+            setTextModeLoading(false);
+          });
       }
-
-      setTextModeLoading(false);
     }).catch(() => {
       setTextModeToken({
         word,

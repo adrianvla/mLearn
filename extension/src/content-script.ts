@@ -9,240 +9,11 @@ import type {
   TextModeWordLookupMessage,
   TextModeCloseHoverMessage,
   VideoScreenshotMessage,
+  ParsedSubtitle,
 } from './types.js';
-
-interface ParsedSubtitle {
-  start: number;
-  end: number;
-  text: string;
-}
-
-function parseSRT(content: string): ParsedSubtitle[] {
-  const subtitles: ParsedSubtitle[] = [];
-  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const blocks = normalized.trim().split(/\n\n+/);
-
-  for (const block of blocks) {
-    const lines = block.split('\n');
-    if (lines.length < 3) continue;
-
-    const timeLine = lines[1];
-    const timeMatch = timeLine.match(
-      /(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/
-    );
-
-    if (!timeMatch) continue;
-
-    const start =
-      parseInt(timeMatch[1]) * 3600 +
-      parseInt(timeMatch[2]) * 60 +
-      parseInt(timeMatch[3]) +
-      parseInt(timeMatch[4]) / 1000;
-
-    const end =
-      parseInt(timeMatch[5]) * 3600 +
-      parseInt(timeMatch[6]) * 60 +
-      parseInt(timeMatch[7]) +
-      parseInt(timeMatch[8]) / 1000;
-
-    const text = lines.slice(2).join('\n').replace(/<[^>]*>/g, '');
-
-    subtitles.push({ start, end, text });
-  }
-
-  return subtitles;
-}
-
-function parseVTT(content: string): ParsedSubtitle[] {
-  const subtitles: ParsedSubtitle[] = [];
-  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const lines = normalized.split('\n');
-  let i = 0;
-
-  while (i < lines.length && !lines[i].includes('-->')) {
-    i++;
-  }
-
-  while (i < lines.length) {
-    const line = lines[i].trim();
-
-    if (!line || !line.includes('-->')) {
-      if (line && !line.match(/^\d{2}:/)) {
-        i++;
-        continue;
-      }
-      if (!line) {
-        i++;
-        continue;
-      }
-    }
-
-    const timeLine = lines[i];
-    const timeMatch = timeLine.match(
-      /(\d{2}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[.,](\d{3})/
-    );
-
-    let start = 0;
-    let end = 0;
-    let parsed = false;
-
-    if (timeMatch) {
-      start =
-        parseInt(timeMatch[1]) * 3600 +
-        parseInt(timeMatch[2]) * 60 +
-        parseInt(timeMatch[3]) +
-        parseInt(timeMatch[4]) / 1000;
-
-      end =
-        parseInt(timeMatch[5]) * 3600 +
-        parseInt(timeMatch[6]) * 60 +
-        parseInt(timeMatch[7]) +
-        parseInt(timeMatch[8]) / 1000;
-      parsed = true;
-    } else {
-      const shortMatch = timeLine.match(
-        /(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{2}):(\d{2})[.,](\d{3})/
-      );
-
-      if (shortMatch) {
-        start =
-          parseInt(shortMatch[1]) * 60 +
-          parseInt(shortMatch[2]) +
-          parseInt(shortMatch[3]) / 1000;
-        end =
-          parseInt(shortMatch[4]) * 60 +
-          parseInt(shortMatch[5]) +
-          parseInt(shortMatch[6]) / 1000;
-        parsed = true;
-      }
-    }
-
-    if (!parsed) {
-      i++;
-      continue;
-    }
-
-    i++;
-    const textLines: string[] = [];
-    while (i < lines.length && lines[i].trim() && !lines[i].includes('-->')) {
-      textLines.push(lines[i].replace(/<[^>]*>/g, ''));
-      i++;
-    }
-
-    if (textLines.length > 0) {
-      subtitles.push({ start, end, text: textLines.join('\n') });
-    }
-  }
-
-  return subtitles;
-}
-
-function parseASS(content: string): ParsedSubtitle[] {
-  const subtitles: ParsedSubtitle[] = [];
-  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const lines = normalized.split('\n');
-
-  let inEvents = false;
-  let formatFields: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith('[Events]')) {
-      inEvents = true;
-      continue;
-    }
-
-    if (line.startsWith('[') && inEvents) {
-      break;
-    }
-
-    if (inEvents) {
-      if (line.startsWith('Format:')) {
-        formatFields = line.substring(7).split(',').map(f => f.trim().toLowerCase());
-        continue;
-      }
-
-      if (line.startsWith('Dialogue:')) {
-        let dialogueLine = line;
-        if (dialogueLine.includes('Marked=')) {
-          dialogueLine = dialogueLine.replace(/Marked=\d+/, '');
-        }
-
-        const parts = dialogueLine.substring(9).split(',');
-        const startIdx = formatFields.indexOf('start');
-        const endIdx = formatFields.indexOf('end');
-        const textIdx = formatFields.indexOf('text');
-
-        if (startIdx === -1 || endIdx === -1 || textIdx === -1) continue;
-
-        const parseTime = (timeStr: string): number => {
-          const match = timeStr.trim().match(/(\d+):(\d{2}):(\d{2})\.(\d{2})/);
-          if (!match) return 0;
-          return (
-            parseInt(match[1]) * 3600 +
-            parseInt(match[2]) * 60 +
-            parseInt(match[3]) +
-            parseInt(match[4]) / 100
-          );
-        };
-
-        const start = parseTime(parts[startIdx]);
-        const end = parseTime(parts[endIdx]);
-
-        let text = parts.slice(textIdx).join(',');
-        text = text.replace(/\{[^}]*\}/g, '').replace(/\\N/g, '\n').replace(/\\n/g, '\n');
-
-        subtitles.push({ start, end, text: text.trim() });
-      }
-    }
-  }
-
-  return subtitles;
-}
-
-function detectSubtitleFormat(content: string): 'srt' | 'vtt' | 'ass' {
-  if (content.includes('WEBVTT')) {
-    return 'vtt';
-  }
-  if (content.includes('[Script Info]') || content.includes('[V4+ Styles]')) {
-    return 'ass';
-  }
-  return 'srt';
-}
-
-function parseSubtitles(content: string, format?: 'srt' | 'vtt' | 'ass'): ParsedSubtitle[] {
-  const detectedFormat = format || detectSubtitleFormat(content);
-
-  switch (detectedFormat) {
-    case 'vtt':
-      return parseVTT(content);
-    case 'ass':
-      return parseASS(content);
-    default:
-      return parseSRT(content);
-  }
-}
-
-function findCurrentSubtitle(subtitles: ParsedSubtitle[], time: number, offset: number): ParsedSubtitle | null {
-  const adjustedTime = time + offset;
-
-  let lo = 0;
-  let hi = subtitles.length - 1;
-  let found = -1;
-
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    if (subtitles[mid].start <= adjustedTime) {
-      found = mid;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-
-  if (found === -1) return null;
-  if (adjustedTime > subtitles[found].end) return null;
-  return subtitles[found];
-}
+import { parseSubtitles, findCurrentSubtitle } from './headless/subtitleParser.js';
+import { getSitePlatform } from './platforms/index.js';
+import type { PlatformSubtitleResult } from './platforms/types.js';
 
 const SUBTITLE_CONTAINER_ID = 'mlearn-headless-subtitles';
 const SUBTITLE_STYLE_ID = 'mlearn-headless-subtitle-styles';
@@ -472,6 +243,7 @@ let lastVolume = -1;
 let headlessModeEnabled = false;
 let headlessSubtitles: ParsedSubtitle[] = [];
 let urlObserver: MutationObserver | null = null;
+let platformCleanup: (() => void) | null = null;
 
 function getChromeRuntime(): ChromeRuntime | undefined {
   if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
@@ -686,16 +458,16 @@ function handleLoadedMetadata(this: HTMLVideoElement): void {
     trackedVideo.lastSrc = this.currentSrc || this.src || window.location.href;
   }
   sendVideoState(this);
-  extractAndSendSubtitles(this);
+  startPlatformExtraction(this);
 }
 
 function handleEmptied(this: HTMLVideoElement): void {
   if (isDestroyed || !trackedVideo) return;
-  if (this.currentSrc !== trackedVideo.lastSrc) {
-    trackedVideo.lastSrc = this.currentSrc || this.src || window.location.href;
-    sendVideoState(this);
-    extractAndSendSubtitles(this);
-  }
+    if (this.currentSrc !== trackedVideo.lastSrc) {
+      trackedVideo.lastSrc = this.currentSrc || this.src || window.location.href;
+      sendVideoState(this);
+      startPlatformExtraction(this);
+    }
 }
 
 function handleResize(): void {
@@ -738,14 +510,14 @@ function attachToVideo(video: HTMLVideoElement): void {
     if (newSrc !== trackedVideo.lastSrc) {
       trackedVideo.lastSrc = newSrc;
       sendVideoState(trackedVideo.element);
-      extractAndSendSubtitles(trackedVideo.element);
+      startPlatformExtraction(trackedVideo.element);
     }
   });
   videoAttrObserver.observe(video, { attributes: true, attributeFilter: ['src'] });
 
   sendVideoState(video);
   startGeometryPolling();
-  extractAndSendSubtitles(video);
+  startPlatformExtraction(video);
 
   if (headlessModeEnabled) {
     enableSubtitleInjection();
@@ -851,6 +623,11 @@ function detachFromVideo(): void {
   if (videoAttrObserver) {
     videoAttrObserver.disconnect();
     videoAttrObserver = null;
+  }
+
+  if (platformCleanup) {
+    platformCleanup();
+    platformCleanup = null;
   }
 
   trackedVideo = null;
@@ -964,68 +741,55 @@ function teardownMutationObserver(): void {
   }
 }
 
-function extractAndSendSubtitles(video: HTMLVideoElement): void {
+function handlePlatformSubtitles(result: PlatformSubtitleResult, video: HTMLVideoElement): void {
+  console.log('[mLearn:content] handlePlatformSubtitles: tracks=', result.tracks.length, 'textTracks=', result.textTracks.length);
   const runtime = getChromeRuntime();
   if (!runtime) return;
 
-  const tracks: Array<{ kind: string; src: string; srclang: string; label: string }> = [];
-  const textTracks: Array<{ language: string; text: string }> = [];
-
-  // Check <track> children
-  for (const track of Array.from(video.querySelectorAll('track'))) {
-    tracks.push({
-      kind: track.kind,
-      src: track.src,
-      srclang: track.srclang,
-      label: track.label,
-    });
-  }
-
-  // Check textTracks API for loaded cues
-  if (video.textTracks) {
-    for (let i = 0; i < video.textTracks.length; i++) {
-      const tt = video.textTracks[i];
-      if (tt.mode === 'showing' || tt.mode === 'hidden') {
-        const cues: string[] = [];
-        const cueList = tt.cues;
-        if (cueList) {
-          for (let j = 0; j < cueList.length; j++) {
-            const cue = cueList[j] as VTTCue;
-            if (cue.text) cues.push(cue.text);
-          }
-        }
-        if (cues.length > 0) {
-          textTracks.push({
-            language: tt.language || tt.label || 'unknown',
-            text: cues.join('\n'),
-          });
-        }
-      }
-    }
-  }
-
-  if (tracks.length > 0 || textTracks.length > 0) {
+  if (result.tracks.length > 0 || result.textTracks.length > 0) {
     try {
       runtime.sendMessage({
         type: 'SUBTITLE_TRACKS',
-        tracks,
-        textTracks,
+        tracks: result.tracks,
+        textTracks: result.textTracks,
         url: window.location.href,
         timestamp: Date.now(),
       });
+      console.log('[mLearn:content] Sent SUBTITLE_TRACKS');
     } catch {
       // Ignore
     }
   }
 
-  if (headlessModeEnabled && textTracks.length > 0) {
-    const firstTrack = textTracks[0];
+  if (headlessModeEnabled && result.textTracks.length > 0) {
+    const firstTrack = result.textTracks[0];
     try {
       headlessSubtitles = parseSubtitles(firstTrack.text);
       loadSubtitlesForInjection(headlessSubtitles);
       updateSubtitleForTime(video.currentTime);
     } catch {
       // Ignore
+    }
+  }
+}
+
+function startPlatformExtraction(video: HTMLVideoElement): void {
+  console.log('[mLearn:content] startPlatformExtraction');
+  if (platformCleanup) {
+    platformCleanup();
+    platformCleanup = null;
+  }
+
+  const platform = getSitePlatform(window.location.href);
+  console.log('[mLearn:content] Using platform:', platform.name);
+  platformCleanup = platform.startMonitoring(video, (result) => {
+    handlePlatformSubtitles(result, video);
+  });
+
+  if (platform.extractOnce) {
+    const result = platform.extractOnce(video);
+    if (result) {
+      handlePlatformSubtitles(result, video);
     }
   }
 }
@@ -1432,8 +1196,9 @@ function initContentScript(): void {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
       sendCloseHover();
-      // Re-evaluate video on URL change
-      if (!trackedVideo || !document.contains(trackedVideo.element)) {
+      if (trackedVideo && document.contains(trackedVideo.element)) {
+        startPlatformExtraction(trackedVideo.element);
+      } else {
         detachFromVideo();
         const newVideo = scanForVideo();
         if (newVideo) {

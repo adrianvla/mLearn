@@ -10,8 +10,8 @@ body {
   background-color: transparent;
   position: relative;
   pointer-events: none;
-  --bg: var(--bg-opaque);
-  --panel-bg: var(--bg-opaque);
+  /*--bg: var(--bg-opaque);*/
+  /*--panel-bg: var(--bg-opaque);*/
 }
 
 .overlay-container.interactive {
@@ -116,4 +116,9 @@ body {
   height: 4px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.4);
+}
+
+.live-word-translator{
+  --panel-bg:var(--bg-opaque);
+  opacity:0.7;
 }

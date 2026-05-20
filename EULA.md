@@ -120,10 +120,13 @@ have the legal right to use any media you load into the software.
 ## 6. Browser Extension
 
 The mLearn browser extension is provided as a manual-install tool to
-overlay user-provided subtitles on web pages. It does not circumvent
-digital rights management (DRM) and is not intended for use with
-DRM-protected streaming services. You are responsible for complying with
-the terms of service of any website you use the extension on.
+overlay user-provided subtitles on web pages and to read subtitle text
+from supported video platforms for transient flashcard creation. It does
+not circumvent digital rights management (DRM) and is not intended for use
+with DRM-protected streaming services. Subtitle text is processed in
+memory only and is not stored or redistributed. You are responsible for
+complying with the terms of service of any website you use the
+extension on.
 
 ## 7. Plugin System
 
