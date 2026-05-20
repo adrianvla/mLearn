@@ -76,7 +76,7 @@ function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
       maxInterval: 36500,
     },
     dailyStats: {},
-    version: 5,
+    version: 2,
     ...overrides,
   };
 }
@@ -131,14 +131,14 @@ describe('flashcardStorage', () => {
     it('returns default empty store when flashcards.json does not exist', async () => {
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(7);
+      expect(store.version).toBe(2);
       expect(store.flashcards).toEqual({});
       expect(store.wordToCardMap).toEqual({});
     });
 
     it('loads a valid v5 store from disk', async () => {
       const card = makeFlashcard('card-1', { content: { type: 'word', front: 'test', back: 'exam' } });
-      const data = makeStore({ flashcards: { 'card-1': card }, version: 5 });
+      const data = makeStore({ flashcards: { 'card-1': card }, version: 2 });
       writeFlashcardsFile(tempDir.tmpDir, data);
 
       const store = await loadFlashcards();
@@ -153,7 +153,7 @@ describe('flashcardStorage', () => {
       const store = await loadFlashcards();
 
       expect(store.flashcards).toEqual({});
-      expect(store.version).toBe(7);
+      expect(store.version).toBe(2);
     });
 
     it('returns default store when JSON root is not an object', async () => {
@@ -174,7 +174,7 @@ describe('flashcardStorage', () => {
 
     it('calls extractBase64Images after loading', async () => {
       const { extractBase64Images } = await import('./flashcardImageStorage');
-      const data = makeStore({ version: 5 });
+      const data = makeStore({ version: 2 });
       writeFlashcardsFile(tempDir.tmpDir, data);
 
       await loadFlashcards();
@@ -185,17 +185,17 @@ describe('flashcardStorage', () => {
     it('saves store after loading if extractBase64Images returns true', async () => {
       const { extractBase64Images } = await import('./flashcardImageStorage');
       vi.mocked(extractBase64Images).mockReturnValueOnce(true);
-      const data = makeStore({ version: 5 });
+      const data = makeStore({ version: 2 });
       writeFlashcardsFile(tempDir.tmpDir, data);
 
       await loadFlashcards();
 
       const saved = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8'));
-      expect(saved.version).toBe(7);
+      expect(saved.version).toBe(2);
     });
 
     it('loads store with missing optional fields and fills in defaults', async () => {
-      const partial = { flashcards: {}, version: 5 };
+      const partial = { flashcards: {}, version: 2 };
       writeFlashcardsFile(tempDir.tmpDir, partial);
 
       const store = await loadFlashcards();
@@ -290,7 +290,7 @@ describe('flashcardStorage', () => {
           'card-1': makeFlashcard('card-1', { content: { type: 'word', front: 'hello', back: 'world' }, ease: 2.5 }),
           'card-2': makeFlashcard('card-2', { content: { type: 'word', front: 'goodbye', back: 'au revoir' }, ease: 1.8 }),
         },
-        version: 5,
+        version: 2,
       });
       writeFlashcardsFile(tempDir.tmpDir, store);
 
@@ -305,7 +305,7 @@ describe('flashcardStorage', () => {
         flashcards: {
           'card-nf': makeFlashcard('card-nf', { content: { type: 'word', front: '', back: 'x' } }),
         },
-        version: 5,
+        version: 2,
       });
       writeFlashcardsFile(tempDir.tmpDir, store);
 
@@ -339,7 +339,7 @@ describe('flashcardStorage', () => {
 
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(7);
+      expect(store.version).toBe(2);
     });
 
     it('migrates v1 (array flashcards) store to v5', async () => {
@@ -369,7 +369,7 @@ describe('flashcardStorage', () => {
 
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(7);
+      expect(store.version).toBe(2);
       const cards = Object.values(store.flashcards);
       expect(cards).toHaveLength(1);
       expect(cards[0].content.front).toBe('test');
@@ -400,26 +400,6 @@ describe('flashcardStorage', () => {
       expect(info.occurred).toBe(true);
       expect(info.fromVersion).toBe(1);
       expect(info.backupPath).toBeTruthy();
-    });
-
-    it('migrates v4 store to v5 by re-hashing non-SHA256 wordToCardMap keys', async () => {
-      const cardId = 'card-v4';
-      const v4Store = makeStore({
-        flashcards: {
-          [cardId]: makeFlashcard(cardId, { content: { type: 'word', front: 'legacy-word', back: 'x' } }),
-        },
-        wordToCardMap: { 'legacy-word': [cardId] },
-        version: 4,
-      });
-      writeFlashcardsFile(tempDir.tmpDir, v4Store);
-
-      const store = await loadFlashcards();
-
-      expect(store.version).toBe(7);
-      const keys = Object.keys(store.wordToCardMap);
-      if (keys.length > 0) {
-        expect(keys[0]).toMatch(/^[0-9a-f]{64}$/);
-      }
     });
 
     it('v1 migration converts array translation to string back', async () => {
@@ -482,25 +462,9 @@ describe('flashcardStorage', () => {
 
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(7);
+      expect(store.version).toBe(2);
     });
 
-    it('v4 store with already-hashed keys preserves them unchanged', async () => {
-      const cardId = 'card-hashed';
-      const sha256Key = 'a'.repeat(64);
-      const v4Store = makeStore({
-        flashcards: {
-          [cardId]: makeFlashcard(cardId, { content: { type: 'word', front: 'word', back: 'x' } }),
-        },
-        wordToCardMap: { [sha256Key]: [cardId] },
-        version: 4,
-      });
-      writeFlashcardsFile(tempDir.tmpDir, v4Store);
-
-      const store = await loadFlashcards();
-
-      expect(store.wordToCardMap[sha256Key]).toEqual([cardId]);
-    });
   });
 
   describe('setupFlashcardIPC', () => {
@@ -515,7 +479,7 @@ describe('flashcardStorage', () => {
     });
 
     it('GET_FLASHCARDS handler replies with loaded flashcards', async () => {
-      const store = makeStore({ version: 6 });
+      const store = makeStore({ version: 2 });
       writeFlashcardsFile(tempDir.tmpDir, store);
 
       setupFlashcardIPC();
@@ -527,7 +491,7 @@ describe('flashcardStorage', () => {
       const replyFn = vi.fn();
       await listeners![0]({ reply: replyFn });
 
-      expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', expect.objectContaining({ version: 7 }));
+      expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', expect.objectContaining({ version: 2 }));
     });
 
     it('GET_FLASHCARDS handler also replies with migration info when migration occurred', async () => {

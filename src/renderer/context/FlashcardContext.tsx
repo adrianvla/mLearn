@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate, type SuggestedFlashcard, type DailyStudyStats } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats } from '../../shared/types';
 import type { WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -32,7 +32,7 @@ import { buildKnownWordSetFromStore, isWordKnown as checkWordIsKnown } from '../
 const log = getLogger("renderer.context.flashcard");
 
 // Current store version
-const CURRENT_VERSION = 6;
+const CURRENT_VERSION = 2;
 
 type StoredFlashcardStore = Partial<FlashcardStore> & {
   wordToCardMap?: Record<string, string | string[]>;
@@ -395,180 +395,24 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
   };
 
-  // Ensure store has all required fields and handle migrations
   function ensureStoreFields(partial: StoredFlashcardStore): FlashcardStore {
     const hour = newDayHour();
     const today = SRS.getTodayDateString(hour);
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
 
-    // Unbury cards at start of new day
     let flashcards = partial.flashcards || {};
     const lastDate = partial.meta?.newCardsDate;
     if (lastDate && lastDate !== today) {
       flashcards = SRS.unburyCards(flashcards);
     }
 
-    // Handle migration from v2 to v3 (single card per word -> multiple cards per word)
-    let wordToCardMap: Record<string, string[]> = {};
-    let wordStatsMap: Record<string, WordStats> = partial.wordStatsMap || {};
-
-    const version = partial.version || 1;
-    if (version < 3 && partial.wordToCardMap) {
-      // Migrate from Record<string, string> to Record<string, string[]>
-      for (const [wordHash, cardId] of Object.entries(partial.wordToCardMap)) {
-        if (typeof cardId === 'string') {
-          wordToCardMap[wordHash] = [cardId];
-        } else if (Array.isArray(cardId)) {
-          wordToCardMap[wordHash] = cardId as string[];
-        }
-      }
-
-      // Rebuild wordStatsMap from flashcards
-      for (const [wordHash, cardIds] of Object.entries(wordToCardMap)) {
-        const cards: Flashcard[] = [];
-        for (const cardId of cardIds) {
-          const card = flashcards[cardId];
-          if (card) cards.push(card);
-        }
-        wordStatsMap[wordHash] = calculateWordStats(cards);
-      }
-    } else {
-      // Already v3, use as-is but ensure arrays
-      wordToCardMap = partial.wordToCardMap || {};
-      for (const [wordHash, cardIds] of Object.entries(wordToCardMap)) {
-        if (!Array.isArray(cardIds)) {
-          wordToCardMap[wordHash] = [cardIds as unknown as string];
-        }
+    let wordToCardMap: Record<string, string[]> = partial.wordToCardMap || {};
+    for (const [wordHash, cardIds] of Object.entries(wordToCardMap)) {
+      if (!Array.isArray(cardIds)) {
+        wordToCardMap[wordHash] = [cardIds as unknown as string];
       }
     }
 
-    // Handle migration from v4 to v5 (per-language keying)
-    let wordKnowledge = partial.wordKnowledge || {};
-    let grammarKnowledge = partial.grammarKnowledge || {};
-    let knownUntracked = partial.knownUntracked || {};
-    let ignoredWords = partial.ignoredWords || {};
-    let wordCandidates = partial.wordCandidates || {};
-
-    if (version < 5) {
-      const lang = settings.language || DEFAULT_SETTINGS.language;
-
-      // Add language field to each flashcard
-      for (const card of Object.values(flashcards) as Flashcard[]) {
-        if (!card.language) {
-          card.language = lang;
-        }
-      }
-
-      // Re-key wordToCardMap with language prefix
-      const newWordToCardMap: Record<string, string[]> = {};
-      for (const [hash, cardIds] of Object.entries(wordToCardMap)) {
-        if (!hash.includes(':')) {
-          newWordToCardMap[langKey(lang, hash)] = cardIds;
-        } else {
-          newWordToCardMap[hash] = cardIds;
-        }
-      }
-      wordToCardMap = newWordToCardMap;
-
-      // Re-key wordStatsMap
-      const newWordStatsMap: Record<string, WordStats> = {};
-      for (const [hash, stats] of Object.entries(wordStatsMap)) {
-        if (!hash.includes(':')) {
-          newWordStatsMap[langKey(lang, hash)] = stats;
-        } else {
-          newWordStatsMap[hash] = stats;
-        }
-      }
-      wordStatsMap = newWordStatsMap;
-
-      // Re-key wordKnowledge
-      const newWordKnowledge: Record<string, PassiveWordKnowledge> = {};
-      for (const [hash, entry] of Object.entries<PassiveWordKnowledge>(wordKnowledge)) {
-        if (!hash.includes(':')) {
-          newWordKnowledge[langKey(lang, hash)] = { ...entry, language: lang };
-        } else {
-          newWordKnowledge[hash] = entry;
-        }
-      }
-      wordKnowledge = newWordKnowledge;
-
-      // Re-key grammarKnowledge
-      const newGrammarKnowledge: Record<string, GrammarKnowledgeEntry> = {};
-      for (const [key, entry] of Object.entries<GrammarKnowledgeEntry>(grammarKnowledge)) {
-        if (!key.includes(':')) {
-          newGrammarKnowledge[langKey(lang, key)] = { ...entry, language: lang };
-        } else {
-          newGrammarKnowledge[key] = entry;
-        }
-      }
-      grammarKnowledge = newGrammarKnowledge;
-
-      // Re-key knownUntracked
-      const newKnownUntracked: Record<string, boolean> = {};
-      for (const [hash, val] of Object.entries<boolean>(knownUntracked)) {
-        if (!hash.includes(':')) {
-          newKnownUntracked[langKey(lang, hash)] = val;
-        } else {
-          newKnownUntracked[hash] = val;
-        }
-      }
-      knownUntracked = newKnownUntracked;
-
-      const newIgnoredWords: Record<string, IgnoredWordEntry> = {};
-      for (const [hash, entry] of Object.entries<IgnoredWordEntry>(ignoredWords)) {
-        if (!hash.includes(':')) {
-          newIgnoredWords[langKey(lang, hash)] = { ...entry, language: lang };
-        } else {
-          newIgnoredWords[hash] = entry;
-        }
-      }
-      ignoredWords = newIgnoredWords;
-
-      // Re-key wordCandidates
-      const newWordCandidates: Record<string, WordCandidate> = {};
-      for (const [hash, entry] of Object.entries<WordCandidate>(wordCandidates)) {
-        if (!hash.includes(':')) {
-          newWordCandidates[langKey(lang, hash)] = { ...entry, language: lang };
-        } else {
-          newWordCandidates[hash] = entry;
-        }
-      }
-      wordCandidates = newWordCandidates;
-    }
-
-    // Handle migration from v6 to v7 (per-language meta and nested dailyStats)
-    let dailyStats: Record<string, Record<string, DailyStudyStats>> = (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {};
-    if (version < 7) {
-      const lang = settings.language || DEFAULT_SETTINGS.language;
-
-      if (!meta.perLanguage) {
-        meta.perLanguage = {};
-      }
-      if (!meta.perLanguage[lang]) {
-        meta.perLanguage[lang] = {
-          newCardsToday: (meta as any).newCardsToday ?? 0,
-          reviewsToday: (meta as any).reviewsToday ?? 0,
-          newCardsDate: (meta as any).newCardsDate ?? today,
-        };
-      }
-
-      const newDailyStats: Record<string, Record<string, DailyStudyStats>> = {};
-      for (const [date, stat] of Object.entries((partial.dailyStats || {}) as Record<string, unknown>)) {
-        if (stat && typeof stat === 'object' && 'newCardsStudied' in stat) {
-          newDailyStats[date] = { [lang]: stat as DailyStudyStats };
-        } else {
-          newDailyStats[date] = stat as Record<string, DailyStudyStats>;
-        }
-      }
-      dailyStats = newDailyStats;
-
-      // Stamp language on any card lacking it
-      for (const card of Object.values(flashcards) as Flashcard[]) {
-        if (!card.language) card.language = lang;
-      }
-    }
-
-    // After all migrations: reset per-language counters if it's a new day
     const lang = settings.language || DEFAULT_SETTINGS.language;
     const plm = meta.perLanguage[lang];
     if (plm) {
@@ -585,22 +429,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
       };
     }
 
-    // Keep deprecated flat fields in sync (for external consumers)
     meta.newCardsToday = meta.perLanguage[lang].newCardsToday;
     meta.reviewsToday = meta.perLanguage[lang].reviewsToday;
     meta.newCardsDate = meta.perLanguage[lang].newCardsDate;
 
     return {
       flashcards,
-      wordCandidates,
+      wordCandidates: partial.wordCandidates || {},
       wordToCardMap,
-      wordStatsMap,
-      knownUntracked,
-      ignoredWords,
-      wordKnowledge,
-      grammarKnowledge,
+      wordStatsMap: partial.wordStatsMap || {},
+      knownUntracked: partial.knownUntracked || {},
+      ignoredWords: partial.ignoredWords || {},
+      wordKnowledge: partial.wordKnowledge || {},
+      grammarKnowledge: partial.grammarKnowledge || {},
       meta,
-      dailyStats,
+      dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
       wordSyncSeen: partial.wordSyncSeen || {},
       version: CURRENT_VERSION,
