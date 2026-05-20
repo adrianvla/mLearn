@@ -650,6 +650,11 @@ function killProcessesOnPort(port: number): void {
 }
 
 function pythonFound(): void {
+  if (pythonChildProcess && pythonChildProcess.exitCode === null) {
+    log.info('Python backend already running, skipping restart');
+    return;
+  }
+
   log.info('Python found, starting backend...');
 
   killProcessesOnPort(PYTHON_BACKEND_PORT);
