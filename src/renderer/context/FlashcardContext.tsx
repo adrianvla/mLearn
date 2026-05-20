@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate, type SuggestedFlashcard } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate, type SuggestedFlashcard, type DailyStudyStats } from '../../shared/types';
 import type { WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -401,18 +401,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const today = SRS.getTodayDateString(hour);
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
 
-    // Reset new cards count and reviews count if it's a new day
-    if (meta.newCardsDate !== today) {
-      meta.newCardsToday = 0;
-      meta.reviewsToday = 0;
-      meta.newCardsDate = today;
-    }
-
-    // Ensure reviewsToday exists (for migration from older stores)
-    if (meta.reviewsToday === undefined) {
-      meta.reviewsToday = 0;
-    }
-
     // Unbury cards at start of new day
     let flashcards = partial.flashcards || {};
     const lastDate = partial.meta?.newCardsDate;
@@ -423,7 +411,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Handle migration from v2 to v3 (single card per word -> multiple cards per word)
     let wordToCardMap: Record<string, string[]> = {};
     let wordStatsMap: Record<string, WordStats> = partial.wordStatsMap || {};
-    
+
     const version = partial.version || 1;
     if (version < 3 && partial.wordToCardMap) {
       // Migrate from Record<string, string> to Record<string, string[]>
@@ -434,7 +422,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           wordToCardMap[wordHash] = cardId as string[];
         }
       }
-      
+
       // Rebuild wordStatsMap from flashcards
       for (const [wordHash, cardIds] of Object.entries(wordToCardMap)) {
         const cards: Flashcard[] = [];
@@ -455,6 +443,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
 
     // Handle migration from v4 to v5 (per-language keying)
+    let wordKnowledge = partial.wordKnowledge || {};
+    let grammarKnowledge = partial.grammarKnowledge || {};
+    let knownUntracked = partial.knownUntracked || {};
+    let ignoredWords = partial.ignoredWords || {};
+    let wordCandidates = partial.wordCandidates || {};
+
     if (version < 5) {
       const lang = settings.language || DEFAULT_SETTINGS.language;
 
@@ -489,81 +483,124 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
       // Re-key wordKnowledge
       const newWordKnowledge: Record<string, PassiveWordKnowledge> = {};
-      for (const [hash, entry] of Object.entries<PassiveWordKnowledge>(partial.wordKnowledge || {})) {
+      for (const [hash, entry] of Object.entries<PassiveWordKnowledge>(wordKnowledge)) {
         if (!hash.includes(':')) {
           newWordKnowledge[langKey(lang, hash)] = { ...entry, language: lang };
         } else {
           newWordKnowledge[hash] = entry;
         }
       }
+      wordKnowledge = newWordKnowledge;
 
       // Re-key grammarKnowledge
       const newGrammarKnowledge: Record<string, GrammarKnowledgeEntry> = {};
-      for (const [key, entry] of Object.entries<GrammarKnowledgeEntry>(partial.grammarKnowledge || {})) {
+      for (const [key, entry] of Object.entries<GrammarKnowledgeEntry>(grammarKnowledge)) {
         if (!key.includes(':')) {
           newGrammarKnowledge[langKey(lang, key)] = { ...entry, language: lang };
         } else {
           newGrammarKnowledge[key] = entry;
         }
       }
+      grammarKnowledge = newGrammarKnowledge;
 
       // Re-key knownUntracked
       const newKnownUntracked: Record<string, boolean> = {};
-      for (const [hash, val] of Object.entries<boolean>(partial.knownUntracked || {})) {
+      for (const [hash, val] of Object.entries<boolean>(knownUntracked)) {
         if (!hash.includes(':')) {
           newKnownUntracked[langKey(lang, hash)] = val;
         } else {
           newKnownUntracked[hash] = val;
         }
       }
+      knownUntracked = newKnownUntracked;
 
       const newIgnoredWords: Record<string, IgnoredWordEntry> = {};
-      for (const [hash, entry] of Object.entries<IgnoredWordEntry>(partial.ignoredWords || {})) {
+      for (const [hash, entry] of Object.entries<IgnoredWordEntry>(ignoredWords)) {
         if (!hash.includes(':')) {
           newIgnoredWords[langKey(lang, hash)] = { ...entry, language: lang };
         } else {
           newIgnoredWords[hash] = entry;
         }
       }
+      ignoredWords = newIgnoredWords;
 
       // Re-key wordCandidates
       const newWordCandidates: Record<string, WordCandidate> = {};
-      for (const [hash, entry] of Object.entries<WordCandidate>(partial.wordCandidates || {})) {
+      for (const [hash, entry] of Object.entries<WordCandidate>(wordCandidates)) {
         if (!hash.includes(':')) {
           newWordCandidates[langKey(lang, hash)] = { ...entry, language: lang };
         } else {
           newWordCandidates[hash] = entry;
         }
       }
+      wordCandidates = newWordCandidates;
+    }
 
-      return {
-        flashcards,
-        wordCandidates: newWordCandidates,
-        wordToCardMap,
-        wordStatsMap,
-        knownUntracked: newKnownUntracked,
-        ignoredWords: newIgnoredWords,
-        wordKnowledge: newWordKnowledge,
-        grammarKnowledge: newGrammarKnowledge,
-        meta,
-        dailyStats: partial.dailyStats || {},
-        suggestedFlashcards: partial.suggestedFlashcards || {},
-        wordSyncSeen: partial.wordSyncSeen || {},
-        version: CURRENT_VERSION,
+    // Handle migration from v6 to v7 (per-language meta and nested dailyStats)
+    let dailyStats: Record<string, Record<string, DailyStudyStats>> = (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {};
+    if (version < 7) {
+      const lang = settings.language || DEFAULT_SETTINGS.language;
+
+      if (!meta.perLanguage) {
+        meta.perLanguage = {};
+      }
+      if (!meta.perLanguage[lang]) {
+        meta.perLanguage[lang] = {
+          newCardsToday: (meta as any).newCardsToday ?? 0,
+          reviewsToday: (meta as any).reviewsToday ?? 0,
+          newCardsDate: (meta as any).newCardsDate ?? today,
+        };
+      }
+
+      const newDailyStats: Record<string, Record<string, DailyStudyStats>> = {};
+      for (const [date, stat] of Object.entries((partial.dailyStats || {}) as Record<string, unknown>)) {
+        if (stat && typeof stat === 'object' && 'newCardsStudied' in stat) {
+          newDailyStats[date] = { [lang]: stat as DailyStudyStats };
+        } else {
+          newDailyStats[date] = stat as Record<string, DailyStudyStats>;
+        }
+      }
+      dailyStats = newDailyStats;
+
+      // Stamp language on any card lacking it
+      for (const card of Object.values(flashcards) as Flashcard[]) {
+        if (!card.language) card.language = lang;
+      }
+    }
+
+    // After all migrations: reset per-language counters if it's a new day
+    const lang = settings.language || DEFAULT_SETTINGS.language;
+    const plm = meta.perLanguage[lang];
+    if (plm) {
+      if (plm.newCardsDate !== today) {
+        plm.newCardsToday = 0;
+        plm.reviewsToday = 0;
+        plm.newCardsDate = today;
+      }
+    } else {
+      meta.perLanguage[lang] = {
+        newCardsToday: 0,
+        reviewsToday: 0,
+        newCardsDate: today,
       };
     }
 
+    // Keep deprecated flat fields in sync (for external consumers)
+    meta.newCardsToday = meta.perLanguage[lang].newCardsToday;
+    meta.reviewsToday = meta.perLanguage[lang].reviewsToday;
+    meta.newCardsDate = meta.perLanguage[lang].newCardsDate;
+
     return {
       flashcards,
-      wordCandidates: partial.wordCandidates || {},
+      wordCandidates,
       wordToCardMap,
       wordStatsMap,
-      knownUntracked: partial.knownUntracked || {},
-      ignoredWords: partial.ignoredWords || {},
-      wordKnowledge: partial.wordKnowledge || {},
-      grammarKnowledge: partial.grammarKnowledge || {},
+      knownUntracked,
+      ignoredWords,
+      wordKnowledge,
+      grammarKnowledge,
       meta,
-      dailyStats: partial.dailyStats || {},
+      dailyStats,
       suggestedFlashcards: partial.suggestedFlashcards || {},
       wordSyncSeen: partial.wordSyncSeen || {},
       version: CURRENT_VERSION,
@@ -604,14 +641,17 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Refresh the review queue
   const refreshQueue = () => {
+    const lang = settings.language;
+    const plm = store.meta.perLanguage[lang];
     const newQueue = SRS.buildReviewQueue(
         store.flashcards,
         store.meta.maxNewCardsPerDay,
-        store.meta.newCardsToday,
+        plm?.newCardsToday ?? 0,
         store.meta.maxNewCardsPerDayLearning,
         store.meta.maxReviewsPerDay,
-        store.meta.reviewsToday,
-        newDayHour()
+        plm?.reviewsToday ?? 0,
+        newDayHour(),
+        lang
     );
     setQueue(newQueue);
   };
@@ -640,10 +680,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
         card.suspended = false;
         card.buried = false;
       }
-      // Reset daily stats
-      s.meta.newCardsToday = 0;
-      s.meta.reviewsToday = 0;
-      s.meta.newCardsDate = SRS.getTodayDateString(newDayHour());
+      const today = SRS.getTodayDateString(newDayHour());
+      for (const plm of Object.values(s.meta.perLanguage)) {
+        plm.newCardsToday = 0;
+        plm.reviewsToday = 0;
+        plm.newCardsDate = today;
+      }
       // Reset word knowledge and stats maps
       s.wordStatsMap = {};
       s.wordKnowledge = {};
@@ -1135,8 +1177,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const cardSnapshot: Flashcard = { ...card, content: { ...card.content } };
     const metaSnapshot = { ...store.meta };
     const undoToday = SRS.getTodayDateString(newDayHour());
-    const dailyStatSnapshot = store.dailyStats[undoToday]
-      ? { ...store.dailyStats[undoToday] }
+    const lang = card.language || settings.language;
+    const dailyStatSnapshot = store.dailyStats[undoToday]?.[lang]
+      ? { ...store.dailyStats[undoToday][lang] }
       : null;
 
     setUndoStack((prev) => {
@@ -1147,9 +1190,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
             s.flashcards[card.id] = cardSnapshot;
             Object.assign(s.meta, metaSnapshot);
             if (dailyStatSnapshot) {
-              s.dailyStats[undoToday] = dailyStatSnapshot;
+              if (!s.dailyStats[undoToday]) s.dailyStats[undoToday] = {};
+              s.dailyStats[undoToday][lang] = dailyStatSnapshot;
             } else {
-              delete s.dailyStats[undoToday];
+              if (s.dailyStats[undoToday]) {
+                delete s.dailyStats[undoToday][lang];
+              }
             }
           }));
         },
@@ -1161,20 +1207,26 @@ export const FlashcardProvider: ParentComponent = (props) => {
     setStore(produce((s) => {
       s.flashcards[card.id] = updated;
 
-      // Update new cards count if this was a new card
+      const today = SRS.getTodayDateString(newDayHour());
+      const lang = card.language || settings.language;
+      const plm = s.meta.perLanguage[lang] || { newCardsToday: 0, reviewsToday: 0, newCardsDate: today };
       if (wasNew) {
-        s.meta.newCardsToday++;
+        plm.newCardsToday++;
       }
-
-      // Update review count for review cards
       if (wasReview) {
-        s.meta.reviewsToday++;
+        plm.reviewsToday++;
       }
+      s.meta.perLanguage[lang] = plm;
+      s.meta.newCardsToday = plm.newCardsToday;
+      s.meta.reviewsToday = plm.reviewsToday;
+      s.meta.newCardsDate = plm.newCardsDate;
 
       // Update daily stats
-      const today = SRS.getTodayDateString(newDayHour());
       if (!s.dailyStats[today]) {
-        s.dailyStats[today] = {
+        s.dailyStats[today] = {};
+      }
+      if (!s.dailyStats[today][lang]) {
+        s.dailyStats[today][lang] = {
           date: today,
           newCardsStudied: 0,
           reviewCardsStudied: 0,
@@ -1185,22 +1237,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
 
       if (wasNew) {
-        s.dailyStats[today].newCardsStudied++;
+        s.dailyStats[today][lang].newCardsStudied++;
       } else {
-        s.dailyStats[today].reviewCardsStudied++;
+        s.dailyStats[today][lang].reviewCardsStudied++;
       }
 
       if (rating === 'again' && card.state === 'review') {
-        s.dailyStats[today].lapses++;
+        s.dailyStats[today][lang].lapses++;
       }
 
       if ((card.state === 'learning' || card.state === 'new') && updated.state === 'review') {
-        s.dailyStats[today].graduated++;
+        s.dailyStats[today][lang].graduated++;
       }
 
       // Track study time
       if (timeSpentMs && timeSpentMs > 0) {
-        s.dailyStats[today].timeSpent += timeSpentMs;
+        s.dailyStats[today][lang].timeSpent += timeSpentMs;
       }
     }));
 
@@ -1290,12 +1342,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Get due count (respects end-of-SRS-day for review cards)
   const getDueCount = (): number => {
-    return SRS.getDueCards(store.flashcards, newDayHour()).length;
+    return SRS.getDueCards(store.flashcards, newDayHour(), settings.language).length;
   };
 
   // Get new cards count
   const getNewCount = (): number => {
-    return SRS.getNewCards(store.flashcards).length;
+    return SRS.getNewCards(store.flashcards, settings.language).length;
   };
 
   // =========== Synchronous Lookup Methods ===========
@@ -1331,7 +1383,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       for (const id of ids) {
         if (seen.has(id)) continue;
         const card = store.flashcards[id];
-        if (card && (card.language === lang || !card.language)) {
+        if (card && card.language === lang) {
           seen.add(id);
           result.push(card);
         }
@@ -1743,7 +1795,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const hoverTimers = new Map<string, ReturnType<typeof setTimeout>>();
   onCleanup(() => {
-    hoverTimers.forEach(timer => clearTimeout(timer));
+    hoverTimers.forEach(timer => { clearTimeout(timer); });
     hoverTimers.clear();
   });
 
@@ -2401,7 +2453,14 @@ Translation: [${targetLang} translation]`;
     setStore(produce((s) => {
       // Unbury all cards
       s.flashcards = SRS.unburyCards(s.flashcards);
-      // Reset new cards count
+      const lang = settings.language;
+      if (!s.meta.perLanguage[lang]) {
+        s.meta.perLanguage[lang] = { newCardsToday: 0, reviewsToday: 0, newCardsDate: today };
+      } else {
+        s.meta.perLanguage[lang].newCardsToday = 0;
+        s.meta.perLanguage[lang].reviewsToday = 0;
+        s.meta.perLanguage[lang].newCardsDate = today;
+      }
       s.meta.newCardsToday = 0;
       s.meta.newCardsDate = today;
     }));

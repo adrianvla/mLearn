@@ -21,6 +21,14 @@ log = get_logger("anki")
 
 router = APIRouter()
 
+
+def _extract_words(text: str, language: str) -> str:
+    """Strip ASCII characters for CJK languages; preserve text for Latin scripts."""
+    if language in ("ja", "zh", "ko"):
+        return "".join([i for i in text if ord(i) > 128])
+    return text.strip()
+
+
 # ── Global state ──
 all_cards: list = []
 cards_per_id: dict = {}
@@ -202,8 +210,7 @@ def get_all_cards() -> bool:
 
     for card in all_cards:
         words = card["fields"]["Expression"]["value"]
-        # trim everything that's ascii
-        words = "".join([i for i in words if ord(i) > 128])
+        words = _extract_words(words, config.LANGUAGE)
         words_ids[words] = card["cardId"]
         cards_per_id[card["cardId"]] = card
     log.info("Loaded all cards")
@@ -213,7 +220,7 @@ def get_all_cards() -> bool:
     no_duplicates: dict = {}
     for card in all_cards:
         characters = card["fields"]["Expression"]["value"]
-        characters = "".join([i for i in characters if ord(i) > 128])
+        characters = _extract_words(characters, config.LANGUAGE)
         for character in list(characters):
             if character in who_contain:
                 if characters in no_duplicates[character]:

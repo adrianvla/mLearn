@@ -38,7 +38,7 @@ const DAY = 24 * HOUR;
 // Helper factories
 // ---------------------------------------------------------------------------
 
-function createTestCard(overrides: Partial<Flashcard> = {}): Flashcard {
+function createTestCard(overrides: Partial<Flashcard> = {}, language?: string): Flashcard {
     const now = Date.now();
     return {
         id: 'test-card-1',
@@ -54,6 +54,7 @@ function createTestCard(overrides: Partial<Flashcard> = {}): Flashcard {
         lastReviewed: 0,
         lastUpdated: now,
         ...overrides,
+        language: overrides.language ?? language,
     };
 }
 
@@ -1343,6 +1344,40 @@ describe('buildReviewQueue', () => {
 
         const queue = buildReviewQueue(cards, 0, 0, undefined, -1, 0);
         expect(queue.scheduledQueue).toHaveLength(5);
+    });
+
+    it('filters queue by language: returns only Japanese cards when language is "ja"', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const now = Date.now();
+        const cards = {
+            ja_new: createTestCard({ id: 'ja_new', state: 'new', createdAt: now, language: 'ja' }),
+            ja_learn: createTestCard({ id: 'ja_learn', state: 'learning', dueDate: now - 1000, language: 'ja' }),
+            ja_review: createTestCard({ id: 'ja_review', state: 'review', interval: DAY, dueDate: now - 500, language: 'ja' }),
+            de_new: createTestCard({ id: 'de_new', state: 'new', createdAt: now, language: 'de' }),
+            de_learn: createTestCard({ id: 'de_learn', state: 'learning', dueDate: now - 1000, language: 'de' }),
+            de_review: createTestCard({ id: 'de_review', state: 'review', interval: DAY, dueDate: now - 500, language: 'de' }),
+            no_lang: createTestCard({ id: 'no_lang', state: 'new', createdAt: now }),
+        };
+
+        const queue = buildReviewQueue(cards, 20, 0, undefined, undefined, undefined, undefined, 'ja');
+        expect(queue.newQueue).toEqual(['ja_new', 'no_lang']);
+        expect(queue.scheduledQueue).toEqual(['ja_learn', 'ja_review']);
+    });
+
+    it('filters queue by language: returns only German cards when language is "de"', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const now = Date.now();
+        const cards = {
+            ja_new: createTestCard({ id: 'ja_new', state: 'new', createdAt: now, language: 'ja' }),
+            de_new: createTestCard({ id: 'de_new', state: 'new', createdAt: now, language: 'de' }),
+            de_review: createTestCard({ id: 'de_review', state: 'review', interval: DAY, dueDate: now - 500, language: 'de' }),
+        };
+
+        const queue = buildReviewQueue(cards, 20, 0, undefined, undefined, undefined, undefined, 'de');
+        expect(queue.newQueue).toEqual(['de_new']);
+        expect(queue.scheduledQueue).toEqual(['de_review']);
     });
 });
 

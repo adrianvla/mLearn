@@ -51,7 +51,16 @@ function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
     ignoredWords: {},
     wordKnowledge: {},
     grammarKnowledge: {},
+    suggestedFlashcards: {},
+    wordSyncSeen: {},
     meta: {
+      perLanguage: {
+        ja: {
+          newCardsToday: 0,
+          reviewsToday: 0,
+          newCardsDate: new Date().toISOString().split('T')[0],
+        },
+      },
       newCardsToday: 0,
       reviewsToday: 0,
       newCardsDate: new Date().toISOString().split('T')[0],
@@ -122,7 +131,7 @@ describe('flashcardStorage', () => {
     it('returns default empty store when flashcards.json does not exist', async () => {
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(6);
+      expect(store.version).toBe(7);
       expect(store.flashcards).toEqual({});
       expect(store.wordToCardMap).toEqual({});
     });
@@ -144,7 +153,7 @@ describe('flashcardStorage', () => {
       const store = await loadFlashcards();
 
       expect(store.flashcards).toEqual({});
-      expect(store.version).toBe(6);
+      expect(store.version).toBe(7);
     });
 
     it('returns default store when JSON root is not an object', async () => {
@@ -182,7 +191,7 @@ describe('flashcardStorage', () => {
       await loadFlashcards();
 
       const saved = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8'));
-      expect(saved.version).toBe(6);
+      expect(saved.version).toBe(7);
     });
 
     it('loads store with missing optional fields and fills in defaults', async () => {
@@ -330,7 +339,7 @@ describe('flashcardStorage', () => {
 
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(6);
+      expect(store.version).toBe(7);
     });
 
     it('migrates v1 (array flashcards) store to v5', async () => {
@@ -360,7 +369,7 @@ describe('flashcardStorage', () => {
 
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(6);
+      expect(store.version).toBe(7);
       const cards = Object.values(store.flashcards);
       expect(cards).toHaveLength(1);
       expect(cards[0].content.front).toBe('test');
@@ -406,7 +415,7 @@ describe('flashcardStorage', () => {
 
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(6);
+      expect(store.version).toBe(7);
       const keys = Object.keys(store.wordToCardMap);
       if (keys.length > 0) {
         expect(keys[0]).toMatch(/^[0-9a-f]{64}$/);
@@ -473,7 +482,7 @@ describe('flashcardStorage', () => {
 
       const store = await loadFlashcards();
 
-      expect(store.version).toBe(6);
+      expect(store.version).toBe(7);
     });
 
     it('v4 store with already-hashed keys preserves them unchanged', async () => {
@@ -518,7 +527,7 @@ describe('flashcardStorage', () => {
       const replyFn = vi.fn();
       await listeners![0]({ reply: replyFn });
 
-      expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', expect.objectContaining({ version: 6 }));
+      expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', expect.objectContaining({ version: 7 }));
     });
 
     it('GET_FLASHCARDS handler also replies with migration info when migration occurred', async () => {

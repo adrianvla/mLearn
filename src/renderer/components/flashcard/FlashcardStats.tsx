@@ -18,6 +18,7 @@ import {
   computeAverageEase,
   computeDailyActivity,
   computeDueCounts,
+  aggregateDailyStats,
 } from '../../services/flashcardStats';
 import { Card, StatCard, BookIcon, CalendarIcon, StarIcon, BreakdownRow } from '../common';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
@@ -274,9 +275,10 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   const easeDistribution = createMemo(() => computeEaseDistribution(cards()));
   const intervalDistribution = createMemo(() => computeIntervalDistribution(cards()));
   const maturityBreakdown = createMemo(() => computeMaturityBreakdown(cards()));
-  const retentionStats = createMemo(() => computeRetentionStats(store.dailyStats));
+  const aggregatedDailyStats = createMemo(() => aggregateDailyStats(store.dailyStats));
+  const retentionStats = createMemo(() => computeRetentionStats(aggregatedDailyStats()));
   const averageEase = createMemo(() => computeAverageEase(cards()));
-  const dailyActivity = createMemo(() => computeDailyActivity(store.dailyStats));
+  const dailyActivity = createMemo(() => computeDailyActivity(aggregatedDailyStats()));
 
   // Format milliseconds to readable time
   const formatTime = (ms: number): string => formatDurationHM(ms, t);
