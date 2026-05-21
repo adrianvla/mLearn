@@ -9,11 +9,13 @@ let currentSubtitles: ParsedSubtitle[] = [];
 let currentOffset = 0;
 let lastText: string | null = null;
 let isEnabled = false;
+let currentFontSize = 22;
 
-const defaultStyles = `
+function buildStyles(fontSize: number): string {
+  return `
   #${SUBTITLE_CONTAINER_ID} {
-    position: absolute;
-    bottom: 48px;
+    position: fixed;
+    bottom: 56px;
     left: 0;
     right: 0;
     display: flex;
@@ -21,35 +23,42 @@ const defaultStyles = `
     align-items: center;
     pointer-events: none;
     z-index: 999999;
-    font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-    font-size: 24px;
-    font-weight: 700;
+    font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: ${fontSize}px;
+    font-weight: 600;
     line-height: 1.5;
     color: #ffffff;
-    text-shadow: 0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7), 0 0 12px rgba(0, 0, 0, 0.5);
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     text-align: center;
-    padding: 0 20px;
+    padding: 0 24px;
     box-sizing: border-box;
-    transition: opacity 0.15s ease;
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
   #${SUBTITLE_CONTAINER_ID}.hidden {
     opacity: 0;
+    transform: translateY(6px);
   }
   #${SUBTITLE_CONTAINER_ID} .subtitle-line {
     display: inline-block;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 4px 12px;
-    border-radius: 4px;
+    padding: 6px 16px;
     max-width: 90%;
     word-wrap: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `;
+}
 
 function injectStyles(): void {
-  if (document.getElementById(SUBTITLE_STYLE_ID)) return;
+  const existing = document.getElementById(SUBTITLE_STYLE_ID) as HTMLStyleElement | null;
+  if (existing) {
+    existing.textContent = buildStyles(currentFontSize);
+    return;
+  }
   const style = document.createElement('style');
   style.id = SUBTITLE_STYLE_ID;
-  style.textContent = defaultStyles;
+  style.textContent = buildStyles(currentFontSize);
   document.head.appendChild(style);
 }
 
@@ -93,7 +102,23 @@ function createSubtitleContainer(): HTMLDivElement {
   return container;
 }
 
-function positionOverVideo(video: HTMLVideoElement): void {
+function handleResize(): void {
+  if (!isEnabled) return;
+  const video = getBestVideo();
+  if (video && subtitleContainer) {
+    positionSubtitleOverVideo(video);
+  }
+}
+
+function handleScroll(): void {
+  if (!isEnabled) return;
+  const video = getBestVideo();
+  if (video && subtitleContainer) {
+    positionSubtitleOverVideo(video);
+  }
+}
+
+export function positionSubtitleOverVideo(video: HTMLVideoElement): void {
   if (!subtitleContainer) return;
 
   const rect = video.getBoundingClientRect();
@@ -101,9 +126,11 @@ function positionOverVideo(video: HTMLVideoElement): void {
   subtitleContainer.style.left = `${rect.left}px`;
   subtitleContainer.style.width = `${rect.width}px`;
   subtitleContainer.style.height = 'auto';
+  subtitleContainer.style.right = 'auto';
+  subtitleContainer.style.bottom = 'auto';
 }
 
-function updateSubtitleText(text: string | null): void {
+export function updateSubtitleText(text: string | null): void {
   if (!subtitleContainer) return;
   const line = subtitleContainer.querySelector('.subtitle-line');
   if (!line) return;
@@ -126,7 +153,7 @@ export function enableSubtitleInjection(): void {
 
   const video = getBestVideo();
   if (video) {
-    positionOverVideo(video);
+    positionSubtitleOverVideo(video);
   }
 
   window.addEventListener('resize', handleResize);
@@ -173,7 +200,7 @@ export function updateSubtitleForTime(currentTime: number): void {
 
   const video = getBestVideo();
   if (video && subtitleContainer) {
-    positionOverVideo(video);
+    positionSubtitleOverVideo(video);
   }
 }
 
@@ -181,18 +208,12 @@ export function isSubtitleInjectionEnabled(): boolean {
   return isEnabled;
 }
 
-function handleResize(): void {
-  if (!isEnabled) return;
-  const video = getBestVideo();
-  if (video && subtitleContainer) {
-    positionOverVideo(video);
-  }
+export function adjustFontSize(delta: number): number {
+  currentFontSize = Math.max(10, Math.min(60, currentFontSize + delta));
+  injectStyles();
+  return currentFontSize;
 }
 
-function handleScroll(): void {
-  if (!isEnabled) return;
-  const video = getBestVideo();
-  if (video && subtitleContainer) {
-    positionOverVideo(video);
-  }
+export function getFontSize(): number {
+  return currentFontSize;
 }

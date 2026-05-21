@@ -34,11 +34,16 @@ function createMockElement(tagName: string): MockElement {
     },
     querySelectorAll(selector: string): MockElement[] {
       const results: MockElement[] = [];
+      const selectors = selector.split(',').map((s) => s.trim());
       const collect = (item: MockElement) => {
-        if (selector.startsWith('.') && item.className && item.className.includes(selector.slice(1))) {
-          results.push(item);
-        } else if (!selector.startsWith('.') && item.tagName.toLowerCase() === selector.toLowerCase()) {
-          results.push(item);
+        for (const sel of selectors) {
+          if (sel.startsWith('.') && item.className && item.className.includes(sel.slice(1))) {
+            results.push(item);
+            break;
+          } else if (!sel.startsWith('.') && item.tagName.toLowerCase() === sel.toLowerCase()) {
+            results.push(item);
+            break;
+          }
         }
         item.children.forEach(collect);
       };
@@ -208,9 +213,12 @@ describe('platforms', () => {
       };
       vi.stubGlobal('document', mockDocument);
 
+      vi.useFakeTimers();
       const video = { currentTime: 5 } as HTMLVideoElement;
       const callback = vi.fn();
       const cleanup = youtubePlatform.startMonitoring(video, callback);
+
+      vi.advanceTimersByTime(200);
 
       expect(callback).toHaveBeenCalled();
       const result = callback.mock.calls[0][0];

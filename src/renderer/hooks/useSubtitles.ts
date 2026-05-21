@@ -259,6 +259,7 @@ export function useSubtitles() {
     setSubtitles(parsed);
     setCurrentIndex(-1);
     setTokens([]);
+    setIsTokenizing(false);
     tokenizationGen++;
     console.log('[useSubtitles] loadSubtitles: parsed', parsed.length, 'subtitles');
   };
@@ -314,6 +315,7 @@ export function useSubtitles() {
       console.log('[useSubtitles] updateTime: no matching subtitle at time=', time);
       setCurrentIndex(-1);
       setTokens([]);
+      setIsTokenizing(false);
       return;
     }
     console.log('[useSubtitles] updateTime: found subtitle idx=', result.idx, 'text=', result.sub.text.slice(0, 50));
@@ -341,35 +343,39 @@ export function useSubtitles() {
         }));
     };
 
+    const safetyTimeout = setTimeout(() => {
+      if (myGen === tokenizationGen) {
+        log.warn('Tokenization safety timeout fired');
+        setIsTokenizing(false);
+        setTokens(buildFallbackTokens(sub.text));
+      }
+    }, 5000);
+
     try {
       let rawText = sub.text;
 
-      // Remove speaker name prefixes (e.g. "Speaker:" or "JOHN:")
       if (settings.removeSpeakerNames) {
         rawText = rawText.replace(/^[A-Za-z\u00C0-\u024F\s]+:\s*/gm, '');
       }
 
-      // Remove all parenthesized content (must happen before parseSubtitle which handles furigana parens)
       if (settings.removeParentheses && shouldRemoveParentheticalContent(settings.language)) {
         rawText = rawText.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
       }
 
       const { text: cleanedText, readingOverrides } = parseSubtitle(rawText, settings.language);
-      
-      // If a newer tokenization was requested, abandon this one
+
       if (myGen !== tokenizationGen) return;
 
       const newTokens = await tokenize(cleanedText);
 
-      // Double-check generation after await
       if (myGen !== tokenizationGen) return;
 
       if (Array.isArray(newTokens) && newTokens.length > 0) {
         if (readingOverrides.length > 0) {
           for (const token of newTokens) {
-            const override = readingOverrides.find(o => 
-              o.word === token.word || 
-              o.word === token.surface || 
+            const override = readingOverrides.find(o =>
+              o.word === token.word ||
+              o.word === token.surface ||
               o.word === token.actual_word
             );
             if (override) {
@@ -386,6 +392,7 @@ export function useSubtitles() {
       if (myGen !== tokenizationGen) return;
       setTokens(buildFallbackTokens(sub.text));
     } finally {
+      clearTimeout(safetyTimeout);
       if (myGen === tokenizationGen) {
         setIsTokenizing(false);
       }
@@ -405,6 +412,7 @@ export function useSubtitles() {
     setSubtitles([]);
     setCurrentIndex(-1);
     setTokens([]);
+    setIsTokenizing(false);
     setError(null);
     tokenizationGen++;
   };

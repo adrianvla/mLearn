@@ -50,6 +50,7 @@ let headlessMode: HeadlessMode = 'disabled';
 let headlessSubtitleOffset = 0;
 let headlessSubtitlesLoaded = false;
 let headlessCurrentSubtitleText: string | null = null;
+let headlessSubtitleFilename: string | null = null;
 let parsedSubtitles: ParsedSubtitle[] = [];
 
 let watchTogetherState: WatchTogetherExtensionState = {
@@ -66,6 +67,9 @@ let unsubscribeRealtimeRef: (() => void) | null = null;
 let ownerSyncInterval: ReturnType<typeof setInterval> | null = null;
 
 let cloudApiUrl = DEFAULT_CLOUD_API_URL;
+
+const activeVideoFrames = new Map<number, number>();
+let activeVideoTabId: number | undefined;
 
 async function fetchAuthTokenFromDesktop(): Promise<void> {
   try {
@@ -168,6 +172,7 @@ function buildHeadlessPopupState(): HeadlessPopupState {
     subtitleOffset: headlessSubtitleOffset,
     subtitlesLoaded: headlessSubtitlesLoaded,
     currentSubtitleText: headlessCurrentSubtitleText,
+    subtitleFilename: headlessSubtitleFilename,
   };
 }
 
@@ -192,6 +197,7 @@ async function handleHeadlessModeToggle(): Promise<HeadlessMode> {
     headlessSubtitleOffset = 0;
     headlessSubtitlesLoaded = false;
     headlessCurrentSubtitleText = null;
+    headlessSubtitleFilename = null;
     parsedSubtitles = [];
   }
 
@@ -210,6 +216,7 @@ function disableHeadlessMode(): void {
   headlessSubtitleOffset = 0;
   headlessSubtitlesLoaded = false;
   headlessCurrentSubtitleText = null;
+  headlessSubtitleFilename = null;
   parsedSubtitles = [];
 
   if (watchTogetherState.isInRoom) {
@@ -228,37 +235,73 @@ function notifyContentScriptsOfHeadlessState(): void {
   chrome.tabs.query({}).then((tabs) => {
     for (const tab of tabs) {
       if (tab.id !== undefined) {
-        chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+        const frameId = activeVideoFrames.get(tab.id);
+        if (frameId !== undefined) {
+          chrome.tabs.sendMessage(tab.id, message, { frameId }).catch(() => {});
+        } else {
+          chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+        }
       }
     }
   });
 }
 
-function handleHeadlessSubtitleLoad(content: string, format?: 'srt' | 'vtt' | 'ass'): void {
+function handleHeadlessSubtitleLoad(content: string, format?: 'srt' | 'vtt' | 'ass', filename?: string): void {
   parsedSubtitles = parseSubtitles(content, format);
   headlessSubtitlesLoaded = parsedSubtitles.length > 0;
+  headlessSubtitleFilename = headlessSubtitlesLoaded ? (filename ?? null) : null;
+
+  const loadMessage = {
+    type: 'HEADLESS_SUBTITLE_LOAD' as const,
+    content,
+    format,
+  };
+  const targetTabId = activeVideoTabId;
+  if (targetTabId !== undefined) {
+    const frameId = activeVideoFrames.get(targetTabId);
+    if (frameId !== undefined) {
+      chrome.tabs.sendMessage(targetTabId, loadMessage, { frameId }).catch(() => {});
+    } else {
+      chrome.tabs.sendMessage(targetTabId, loadMessage).catch(() => {});
+    }
+  } else {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+      if (tab?.id !== undefined) {
+        chrome.tabs.sendMessage(tab.id, loadMessage).catch(() => {});
+      }
+    });
+  }
 
   if (lastVideoState && headlessSubtitlesLoaded) {
     handleHeadlessVideoStateUpdate(lastVideoState);
   } else {
     sendHeadlessSubtitleToActiveTab(null);
   }
+
+  notifyPopupOfState();
 }
 
 function handleHeadlessSubtitleOffsetChange(offset: number): void {
   headlessSubtitleOffset = offset;
 
-  chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
-    if (tab?.id !== undefined) {
-      chrome.tabs.sendMessage(tab.id, { type: 'HEADLESS_SUBTITLE_OFFSET', offset }).catch(() => {});
-    }
-  });
+  const targetTabId = activeVideoTabId;
+  if (targetTabId !== undefined) {
+    chrome.tabs.sendMessage(targetTabId, { type: 'HEADLESS_SUBTITLE_OFFSET', offset }).catch(() => {});
+  } else {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+      if (tab?.id !== undefined) {
+        chrome.tabs.sendMessage(tab.id, { type: 'HEADLESS_SUBTITLE_OFFSET', offset }).catch(() => {});
+      }
+    });
+  }
 
   if (lastVideoState) {
     handleHeadlessVideoStateUpdate(lastVideoState);
   } else {
     sendHeadlessSubtitleToActiveTab(headlessCurrentSubtitleText);
   }
+
+  notifyPopupOfState();
 }
 
 function handleSnapSubtitleOffset(direction: 'backward' | 'forward'): void {
@@ -294,14 +337,35 @@ function handleHeadlessVideoStateUpdate(state: VideoState): void {
 }
 
 function sendHeadlessSubtitleToActiveTab(text: string | null): void {
+  const targetTabId = activeVideoTabId;
+  if (targetTabId !== undefined) {
+    const frameId = activeVideoFrames.get(targetTabId);
+    const message: HeadlessSubtitleMessage = {
+      type: 'HEADLESS_SUBTITLE_UPDATE',
+      text,
+      offset: headlessSubtitleOffset,
+    };
+    if (frameId !== undefined) {
+      chrome.tabs.sendMessage(targetTabId, message, { frameId }).catch(() => {});
+    } else {
+      chrome.tabs.sendMessage(targetTabId, message).catch(() => {});
+    }
+    return;
+  }
+
   chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
     if (tab?.id !== undefined) {
+      const frameId = activeVideoFrames.get(tab.id);
       const message: HeadlessSubtitleMessage = {
         type: 'HEADLESS_SUBTITLE_UPDATE',
         text,
         offset: headlessSubtitleOffset,
       };
-      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+      if (frameId !== undefined) {
+        chrome.tabs.sendMessage(tab.id, message, { frameId }).catch(() => {});
+      } else {
+        chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+      }
     }
   });
 }
@@ -650,6 +714,12 @@ function cleanupRoomConnection(): void {
 }
 
 function forwardHeadlessCommand(command: HeadlessCommandMessage): void {
+  const targetTabId = activeVideoTabId;
+  if (targetTabId !== undefined) {
+    chrome.tabs.sendMessage(targetTabId, command).catch(() => {});
+    return;
+  }
+
   chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
     if (tab?.id !== undefined) {
       chrome.tabs.sendMessage(tab.id, command).catch(() => {});
@@ -733,7 +803,15 @@ function setupMessageListener(): void {
       // Video state from content script
       if (isVideoStateMessage(message)) {
         const meta = message.meta;
-        handleVideoState(message.state, meta, _sender.tab?.id);
+        const tabId = _sender.tab?.id;
+        const frameId = _sender.frameId;
+        if (tabId !== undefined) {
+          activeVideoTabId = tabId;
+        }
+        if (tabId !== undefined && frameId !== undefined) {
+          activeVideoFrames.set(tabId, frameId);
+        }
+        handleVideoState(message.state, meta, tabId);
         sendResponse({ received: true });
         return true;
       }
@@ -938,7 +1016,7 @@ function setupMessageListener(): void {
 
         if (message.type === 'LOAD_SUBTITLES') {
           if (message.subtitleContent) {
-            handleHeadlessSubtitleLoad(message.subtitleContent, message.subtitleFormat);
+            handleHeadlessSubtitleLoad(message.subtitleContent, message.subtitleFormat, message.subtitleFilename);
           }
           sendResponse({
             type: 'HEADLESS_STATE_UPDATE',
@@ -984,6 +1062,27 @@ function setupMessageListener(): void {
 
         if (message.type === 'SNAP_SUBTITLE_OFFSET_FORWARD') {
           handleSnapSubtitleOffset('forward');
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
+        if (message.type === 'SET_SUBTITLE_FONT_SIZE') {
+          if (typeof message.fontSizeDelta === 'number') {
+            const targetTabId = activeVideoTabId;
+            if (targetTabId !== undefined) {
+              chrome.tabs.sendMessage(targetTabId, { type: 'HEADLESS_SUBTITLE_FONT_SIZE', delta: message.fontSizeDelta }).catch(() => {});
+            } else {
+              chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+                if (tab?.id !== undefined) {
+                  chrome.tabs.sendMessage(tab.id, { type: 'HEADLESS_SUBTITLE_FONT_SIZE', delta: message.fontSizeDelta }).catch(() => {});
+                }
+              });
+            }
+          }
           sendResponse({
             type: 'HEADLESS_STATE_UPDATE',
             headlessState: buildHeadlessPopupState(),
@@ -1227,6 +1326,7 @@ async function forwardSubtitleTracks(message: SubtitleTracksMessage): Promise<vo
         tracks: message.tracks,
         textTracks: message.textTracks,
         url: message.url,
+        timestamp: message.timestamp,
       }),
     });
     console.log('[mLearn:bg] forwardSubtitleTracks: sent successfully');

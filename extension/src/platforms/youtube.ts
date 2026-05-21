@@ -8,6 +8,8 @@ interface CaptionEntry {
 
 const CAPTION_CONTAINER_SELECTOR = '.ytp-caption-window-container';
 const MIN_CAPTION_DURATION_SECONDS = 5;
+const MAX_FINALIZED_ENTRIES = 50;
+const EMIT_THROTTLE_MS = 500;
 
 function toSRTTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -26,7 +28,7 @@ function generateSRT(entries: CaptionEntry[]): string {
 }
 
 function extractCaptionText(container: Element): { text: string; language: string } | null {
-  const windows = container.querySelectorAll('.caption-window');
+  const windows = container.querySelectorAll('.caption-window, .ytp-caption-window');
   if (windows.length === 0) return null;
 
   const lines: string[] = [];
@@ -36,7 +38,7 @@ function extractCaptionText(container: Element): { text: string; language: strin
     const lang = windowEl.getAttribute('lang');
     if (lang) language = lang;
 
-    const visualLines = windowEl.querySelectorAll('.caption-visual-line');
+    const visualLines = windowEl.querySelectorAll('.caption-visual-line, .ytp-caption-visual-line, .captions-text');
     for (const lineEl of Array.from(visualLines)) {
       const segments = lineEl.querySelectorAll('.ytp-caption-segment');
       const lineText = Array.from(segments)
@@ -70,20 +72,46 @@ export const youtubePlatform: SitePlatform = {
     let documentObserver: MutationObserver | null = null;
     let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     let lastObservedContainer: Element | null = null;
+    let lastEmittedSrt: string | null = null;
+    let lastEmitTime = 0;
+    let readDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const READ_DEBOUNCE_MS = 120;
 
     console.log('[mLearn:youtube] startMonitoring called');
 
-    function emitSubtitles(): void {
-      const entries: CaptionEntry[] = [...finalizedEntries];
+    function emitSubtitles(force = false): void {
+      let entries: CaptionEntry[] = [...finalizedEntries];
       if (currentEntry) {
         entries.push({
           ...currentEntry,
           end: Math.max(currentEntry.end, video.currentTime),
         });
       }
+
+      // Merge consecutive entries with identical text to prevent duplicates
+      // caused by brief flickers or transition artifacts
+      const deduped: CaptionEntry[] = [];
+      for (const entry of entries) {
+        const last = deduped[deduped.length - 1];
+        if (last && last.text === entry.text) {
+          last.end = Math.max(last.end, entry.end);
+        } else {
+          deduped.push({ ...entry });
+        }
+      }
+      entries = deduped;
+
       if (entries.length === 0) return;
 
       const srtText = generateSRT(entries);
+      const now = Date.now();
+
+      if (!force && srtText === lastEmittedSrt && now - lastEmitTime < EMIT_THROTTLE_MS) {
+        return;
+      }
+      lastEmittedSrt = srtText;
+      lastEmitTime = now;
+
       const container = document.querySelector(CAPTION_CONTAINER_SELECTOR);
       const language = container ? (extractCaptionText(container)?.language || 'unknown') : 'unknown';
 
@@ -96,19 +124,32 @@ export const youtubePlatform: SitePlatform = {
     }
 
     function readCaptions(): void {
+      if (readDebounceTimer) {
+        clearTimeout(readDebounceTimer);
+      }
+      readDebounceTimer = setTimeout(() => {
+        readDebounceTimer = null;
+        doReadCaptions();
+      }, READ_DEBOUNCE_MS);
+    }
+
+    function doReadCaptions(): void {
       const container = document.querySelector(CAPTION_CONTAINER_SELECTOR);
       const captionData = container ? extractCaptionText(container) : null;
       const now = video.currentTime;
 
-      console.log('[mLearn:youtube] readCaptions: container=', !!container, 'captionData=', !!captionData, 'currentTime=', now);
+      console.log('[mLearn:youtube] doReadCaptions: container=', !!container, 'captionData=', !!captionData, 'currentTime=', now);
 
       if (!captionData || captionData.text === '') {
         if (currentEntry) {
           currentEntry.end = now;
           finalizedEntries.push(currentEntry);
+          if (finalizedEntries.length > MAX_FINALIZED_ENTRIES) {
+            finalizedEntries = finalizedEntries.slice(-MAX_FINALIZED_ENTRIES);
+          }
           currentEntry = null;
           lastText = '';
-          emitSubtitles();
+          emitSubtitles(true);
         }
         return;
       }
@@ -124,11 +165,14 @@ export const youtubePlatform: SitePlatform = {
       if (currentEntry) {
         currentEntry.end = now;
         finalizedEntries.push(currentEntry);
+        if (finalizedEntries.length > MAX_FINALIZED_ENTRIES) {
+          finalizedEntries = finalizedEntries.slice(-MAX_FINALIZED_ENTRIES);
+        }
       }
 
       currentEntry = { start: now, end: now + MIN_CAPTION_DURATION_SECONDS, text };
       lastText = text;
-      emitSubtitles();
+      emitSubtitles(true);
     }
 
     function observeContainer(container: Element): void {
@@ -187,13 +231,20 @@ export const youtubePlatform: SitePlatform = {
 
     heartbeatInterval = setInterval(() => {
       if (currentEntry) {
+        const oldEnd = currentEntry.end;
         currentEntry.end = video.currentTime;
-        emitSubtitles();
+        if (currentEntry.end - oldEnd >= 1) {
+          emitSubtitles();
+        }
       }
     }, 2000);
 
     return () => {
       console.log('[mLearn:youtube] Cleanup called');
+      if (readDebounceTimer) {
+        clearTimeout(readDebounceTimer);
+        readDebounceTimer = null;
+      }
       if (containerObserver) {
         containerObserver.disconnect();
         containerObserver = null;
