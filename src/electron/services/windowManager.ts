@@ -137,6 +137,7 @@ const GEOMETRY_UPDATE_MIN_INTERVAL_MS = 250;
 
 export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
   if (geometryUpdateLocked) return;
+  if (!overlayAutoPositionEnabled) return;
 
   if (
     !Number.isFinite(geometry.x) ||

@@ -16,6 +16,7 @@ const DEFAULT_STATE: PopupState = {
     subtitleOffset: 0,
     subtitlesLoaded: false,
     currentSubtitleText: null,
+    subtitleFilename: null,
   },
   watchTogetherState: {
     isInRoom: false,
@@ -66,6 +67,9 @@ function getElements(): {
   snapBackwardBtn: HTMLButtonElement;
   snapForwardBtn: HTMLButtonElement;
   offsetInput: HTMLInputElement;
+  fontSizeDownBtn: HTMLButtonElement;
+  fontSizeUpBtn: HTMLButtonElement;
+  fontSizeLabel: HTMLSpanElement;
   watchTogetherSignedOut: HTMLElement;
   watchTogetherPanel: HTMLElement;
   watchTogetherTabs: HTMLElement;
@@ -98,6 +102,9 @@ function getElements(): {
   const snapBackwardBtn = document.getElementById('snapBackwardBtn');
   const snapForwardBtn = document.getElementById('snapForwardBtn');
   const offsetInput = document.getElementById('offsetInput');
+  const fontSizeDownBtn = document.getElementById('fontSizeDownBtn');
+  const fontSizeUpBtn = document.getElementById('fontSizeUpBtn');
+  const fontSizeLabel = document.getElementById('fontSizeLabel');
   const watchTogetherSignedOut = document.getElementById('watchTogetherSignedOut');
   const watchTogetherPanel = document.getElementById('watchTogetherPanel');
   const watchTogetherTabs = document.getElementById('watchTogetherTabs');
@@ -117,6 +124,7 @@ function getElements(): {
     !seekBackBtn || !seekForwardBtn ||
     !actionsSection || !headlessSection || !headlessToggleBtn || !headlessControls ||
     !loadSubtitlesBtn || !snapBackwardBtn || !snapForwardBtn || !offsetInput ||
+    !fontSizeDownBtn || !fontSizeUpBtn || !fontSizeLabel ||
     !watchTogetherSignedOut || !watchTogetherPanel || !watchTogetherTabs ||
     !createRoomBtn || !joinRoomCode || !joinRoomBtn ||
     !roomActive || !roomCodeValue || !roomPeersValue || !leaveRoomBtn || !signInBtn || !signOutBtn
@@ -144,6 +152,9 @@ function getElements(): {
     snapBackwardBtn: snapBackwardBtn as HTMLButtonElement,
     snapForwardBtn: snapForwardBtn as HTMLButtonElement,
     offsetInput: offsetInput as HTMLInputElement,
+    fontSizeDownBtn: fontSizeDownBtn as HTMLButtonElement,
+    fontSizeUpBtn: fontSizeUpBtn as HTMLButtonElement,
+    fontSizeLabel: fontSizeLabel as HTMLSpanElement,
     watchTogetherSignedOut: watchTogetherSignedOut as HTMLElement,
     watchTogetherPanel: watchTogetherPanel as HTMLElement,
     watchTogetherTabs: watchTogetherTabs as HTMLElement,
@@ -221,6 +232,12 @@ function updateUI(state: PopupState): void {
   }
 
   els.offsetInput.value = String(state.headlessState.subtitleOffset);
+
+  if (state.headlessState.subtitlesLoaded && state.headlessState.subtitleFilename) {
+    els.loadSubtitlesBtn.textContent = state.headlessState.subtitleFilename;
+  } else {
+    els.loadSubtitlesBtn.textContent = 'Load Subtitle File';
+  }
 
   if (state.accessToken) {
     els.signOutBtn.classList.remove('hidden');
@@ -366,7 +383,9 @@ function initPopup(): void {
         const content = String(reader.result);
         const ext = file.name.split('.').pop()?.toLowerCase();
         const format = ext === 'vtt' ? 'vtt' : ext === 'ass' || ext === 'ssa' ? 'ass' : 'srt';
-        sendMessage('LOAD_SUBTITLES', { subtitleContent: content, subtitleFormat: format });
+        sendMessage('LOAD_SUBTITLES', { subtitleContent: content, subtitleFormat: format, subtitleFilename: file.name }, (response) => {
+          handleStateUpdate(response as PopupMessage);
+        });
       };
       reader.readAsText(file);
     };
@@ -374,11 +393,27 @@ function initPopup(): void {
   });
 
   els.snapBackwardBtn.addEventListener('click', () => {
-    sendMessage('SNAP_SUBTITLE_OFFSET_BACKWARD');
+    sendMessage('SNAP_SUBTITLE_OFFSET_BACKWARD', {}, (response) => {
+      handleStateUpdate(response as PopupMessage);
+    });
   });
 
   els.snapForwardBtn.addEventListener('click', () => {
-    sendMessage('SNAP_SUBTITLE_OFFSET_FORWARD');
+    sendMessage('SNAP_SUBTITLE_OFFSET_FORWARD', {}, (response) => {
+      handleStateUpdate(response as PopupMessage);
+    });
+  });
+
+  els.fontSizeDownBtn.addEventListener('click', () => {
+    sendMessage('SET_SUBTITLE_FONT_SIZE', { fontSizeDelta: -2 }, (response) => {
+      handleStateUpdate(response as PopupMessage);
+    });
+  });
+
+  els.fontSizeUpBtn.addEventListener('click', () => {
+    sendMessage('SET_SUBTITLE_FONT_SIZE', { fontSizeDelta: 2 }, (response) => {
+      handleStateUpdate(response as PopupMessage);
+    });
   });
 
   const handleOffsetChange = (): void => {

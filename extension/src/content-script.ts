@@ -11,205 +11,19 @@ import type {
   VideoScreenshotMessage,
   ParsedSubtitle,
 } from './types.js';
-import { parseSubtitles, findCurrentSubtitle } from './headless/subtitleParser.js';
+import { parseSubtitles } from './headless/subtitleParser.js';
+import {
+  enableSubtitleInjection,
+  disableSubtitleInjection,
+  loadSubtitles,
+  setSubtitleOffset,
+  updateSubtitleForTime,
+  updateSubtitleText,
+  positionSubtitleOverVideo,
+  adjustFontSize,
+} from './headless/subtitleInjector.js';
 import { getSitePlatform } from './platforms/index.js';
 import type { PlatformSubtitleResult } from './platforms/types.js';
-
-const SUBTITLE_CONTAINER_ID = 'mlearn-headless-subtitles';
-const SUBTITLE_STYLE_ID = 'mlearn-headless-subtitle-styles';
-
-let subtitleContainer: HTMLDivElement | null = null;
-let currentSubtitles: ParsedSubtitle[] = [];
-let currentOffset = 0;
-let lastText: string | null = null;
-let isInjectionEnabled = false;
-
-const defaultStyles = `
-  #${SUBTITLE_CONTAINER_ID} {
-    position: absolute;
-    bottom: 56px;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    pointer-events: none;
-    z-index: 999999;
-    font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    font-size: 22px;
-    font-weight: 600;
-    line-height: 1.5;
-    color: #ffffff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.9);
-    text-align: center;
-    padding: 0 24px;
-    box-sizing: border-box;
-    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  #${SUBTITLE_CONTAINER_ID}.hidden {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  #${SUBTITLE_CONTAINER_ID} .subtitle-line {
-    display: inline-block;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    padding: 6px 16px;
-    border-radius: 8px;
-    max-width: 90%;
-    word-wrap: break-word;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
-`;
-
-function injectStyles(): void {
-  if (document.getElementById(SUBTITLE_STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = SUBTITLE_STYLE_ID;
-  style.textContent = defaultStyles;
-  document.head.appendChild(style);
-}
-
-function removeStyles(): void {
-  const style = document.getElementById(SUBTITLE_STYLE_ID);
-  if (style) {
-    style.remove();
-  }
-}
-
-function getBestVideoForInjection(): HTMLVideoElement | null {
-  const videos = document.querySelectorAll('video');
-  let best: HTMLVideoElement | null = null;
-  let bestArea = 0;
-
-  for (const video of Array.from(videos)) {
-    const rect = video.getBoundingClientRect();
-    const area = rect.width * rect.height;
-    if (area > bestArea && rect.width > 0 && rect.height > 0) {
-      bestArea = area;
-      best = video;
-    }
-  }
-
-  return best;
-}
-
-function createSubtitleContainer(): HTMLDivElement {
-  removeSubtitleContainer();
-  injectStyles();
-
-  const container = document.createElement('div');
-  container.id = SUBTITLE_CONTAINER_ID;
-  container.classList.add('hidden');
-
-  const line = document.createElement('span');
-  line.className = 'subtitle-line';
-  container.appendChild(line);
-
-  document.body.appendChild(container);
-  return container;
-}
-
-function positionSubtitleOverVideo(video: HTMLVideoElement): void {
-  if (!subtitleContainer) return;
-
-  const rect = video.getBoundingClientRect();
-  subtitleContainer.style.top = `${rect.top + rect.height - 96}px`;
-  subtitleContainer.style.left = `${rect.left}px`;
-  subtitleContainer.style.width = `${rect.width}px`;
-  subtitleContainer.style.height = 'auto';
-}
-
-function updateSubtitleText(text: string | null): void {
-  if (!subtitleContainer) return;
-  const line = subtitleContainer.querySelector('.subtitle-line');
-  if (!line) return;
-
-  if (text) {
-    line.textContent = text;
-    subtitleContainer.classList.remove('hidden');
-  } else {
-    subtitleContainer.classList.add('hidden');
-  }
-}
-
-function enableSubtitleInjection(): void {
-  if (isInjectionEnabled) return;
-  isInjectionEnabled = true;
-
-  if (!subtitleContainer) {
-    subtitleContainer = createSubtitleContainer();
-  }
-
-  const video = getBestVideoForInjection();
-  if (video) {
-    positionSubtitleOverVideo(video);
-  }
-
-  window.addEventListener('resize', handleInjectionResize);
-  window.addEventListener('scroll', handleInjectionScroll, true);
-}
-
-function disableSubtitleInjection(): void {
-  if (!isInjectionEnabled) return;
-  isInjectionEnabled = false;
-
-  removeSubtitleContainer();
-  removeStyles();
-
-  window.removeEventListener('resize', handleInjectionResize);
-  window.removeEventListener('scroll', handleInjectionScroll, true);
-}
-
-function removeSubtitleContainer(): void {
-  const existing = document.getElementById(SUBTITLE_CONTAINER_ID);
-  if (existing) {
-    existing.remove();
-  }
-  subtitleContainer = null;
-}
-
-function loadSubtitlesForInjection(subtitles: ParsedSubtitle[]): void {
-  currentSubtitles = subtitles;
-}
-
-function setInjectionSubtitleOffset(offset: number): void {
-  currentOffset = offset;
-}
-
-function updateSubtitleForTime(currentTime: number): void {
-  if (!isInjectionEnabled || currentSubtitles.length === 0) return;
-
-  const subtitle = findCurrentSubtitle(currentSubtitles, currentTime, currentOffset);
-  const text = subtitle?.text || null;
-
-  if (text === lastText) return;
-  lastText = text;
-
-  updateSubtitleText(text);
-
-  const video = getBestVideoForInjection();
-  if (video && subtitleContainer) {
-    positionSubtitleOverVideo(video);
-  }
-}
-
-function handleInjectionResize(): void {
-  if (!isInjectionEnabled) return;
-  const video = getBestVideoForInjection();
-  if (video && subtitleContainer) {
-    positionSubtitleOverVideo(video);
-  }
-}
-
-function handleInjectionScroll(): void {
-  if (!isInjectionEnabled) return;
-  const video = getBestVideoForInjection();
-  if (video && subtitleContainer) {
-    positionSubtitleOverVideo(video);
-  }
-}
 
 interface ChromeRuntime {
   sendMessage: (message: unknown, responseCallback?: (response: unknown) => void) => void;
@@ -524,11 +338,25 @@ function attachToVideo(video: HTMLVideoElement): void {
   }
 }
 
+function getIframeOffset(): { x: number; y: number } {
+  if (window.self === window.top) return { x: 0, y: 0 };
+  try {
+    const frameEl = window.frameElement;
+    if (frameEl) {
+      const frameRect = frameEl.getBoundingClientRect();
+      return { x: frameRect.x, y: frameRect.y };
+    }
+  } catch {
+  }
+  return { x: 0, y: 0 };
+}
+
 function getVideoGeometry(video: HTMLVideoElement): VideoViewportGeometry {
   const rect = video.getBoundingClientRect();
+  const iframeOffset = getIframeOffset();
   return {
-    rectX: rect.x,
-    rectY: rect.y,
+    rectX: rect.x + iframeOffset.x,
+    rectY: rect.y + iframeOffset.y,
     width: rect.width,
     height: rect.height,
     screenX: window.screenX,
@@ -765,10 +593,10 @@ function handlePlatformSubtitles(result: PlatformSubtitleResult, video: HTMLVide
     const firstTrack = result.textTracks[0];
     try {
       headlessSubtitles = parseSubtitles(firstTrack.text);
-      loadSubtitlesForInjection(headlessSubtitles);
+      loadSubtitles(headlessSubtitles);
       updateSubtitleForTime(video.currentTime);
-    } catch {
-      // Ignore
+    } catch (e) {
+      console.error('[mLearn:content] Failed to parse headless subtitles:', e);
     }
   }
 }
@@ -867,7 +695,7 @@ function handleHeadlessStateChanged(enabled: boolean): void {
 function handleHeadlessSubtitleLoad(content: string, format?: 'srt' | 'vtt' | 'ass'): void {
   try {
     headlessSubtitles = parseSubtitles(content, format);
-    loadSubtitlesForInjection(headlessSubtitles);
+    loadSubtitles(headlessSubtitles);
     if (trackedVideo) {
       updateSubtitleForTime(trackedVideo.element.currentTime);
     }
@@ -876,7 +704,7 @@ function handleHeadlessSubtitleLoad(content: string, format?: 'srt' | 'vtt' | 'a
 }
 
 function handleHeadlessSubtitleOffset(offset: number): void {
-  setInjectionSubtitleOffset(offset);
+  setSubtitleOffset(offset);
   if (trackedVideo) {
     updateSubtitleForTime(trackedVideo.element.currentTime);
   }
@@ -931,9 +759,22 @@ function handleHeadlessMessage(message: unknown): void {
       handleHeadlessSubtitleOffset(offsetMsg.offset);
       break;
     }
+    case 'HEADLESS_SUBTITLE_UPDATE': {
+      const updateMsg = msg as unknown as { text: string | null };
+      updateSubtitleText(updateMsg.text);
+      if (trackedVideo) {
+        positionSubtitleOverVideo(trackedVideo.element);
+      }
+      break;
+    }
     case 'HEADLESS_COMMAND': {
       const cmdMsg = msg as HeadlessCommandMessage;
       handleHeadlessCommand(cmdMsg);
+      break;
+    }
+    case 'HEADLESS_SUBTITLE_FONT_SIZE': {
+      const fontSizeMsg = msg as unknown as { delta: number };
+      adjustFontSize(fontSizeMsg.delta);
       break;
     }
   }
@@ -1028,25 +869,26 @@ function handleLongPressStart(e: MouseEvent): void {
   sendCloseHover();
   longPressStartX = e.clientX;
   longPressStartY = e.clientY;
-  longPressTimer = setTimeout(() => {
-    longPressTimer = null;
-    const result = getWordAtPoint(e.clientX, e.clientY);
-    const word = result?.word ?? '';
-    console.log('[mLearn Content] Long-press detected, word:', word, 'at client(', longPressStartX, longPressStartY, ') screen(', window.screenX, window.screenY, ')');
-    if (word.length > 0) {
-      const runtime = getChromeRuntime();
-      if (runtime) {
-        try {
-          runtime.sendMessage({
-            type: 'TEXT_MODE_WORD_LOOKUP',
-            word,
-            x: longPressStartX,
-            y: longPressStartY,
-            screenX: window.screenX,
-            screenY: window.screenY,
-            contextText: result?.contextText,
-            offset: result?.offset,
-          } satisfies TextModeWordLookupMessage);
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      const result = getWordAtPoint(e.clientX, e.clientY);
+      const word = result?.word ?? '';
+      const iframeOffset = getIframeOffset();
+      console.log('[mLearn Content] Long-press detected, word:', word, 'at client(', longPressStartX, longPressStartY, ') screen(', window.screenX, window.screenY, ')');
+      if (word.length > 0) {
+        const runtime = getChromeRuntime();
+        if (runtime) {
+          try {
+            runtime.sendMessage({
+              type: 'TEXT_MODE_WORD_LOOKUP',
+              word,
+              x: longPressStartX + iframeOffset.x,
+              y: longPressStartY + iframeOffset.y,
+              screenX: window.screenX,
+              screenY: window.screenY,
+              contextText: result?.contextText,
+              offset: result?.offset,
+            } satisfies TextModeWordLookupMessage);
           console.log('[mLearn Content] Sent TEXT_MODE_WORD_LOOKUP for:', word);
         } catch (err) {
           console.log('[mLearn Content] Failed to send word lookup:', err);
@@ -1155,6 +997,10 @@ function initContentScript(): void {
   const video = scanForVideo();
   if (video) {
     attachToVideo(video);
+  }
+
+  if (window.self !== window.top && !video) {
+    return;
   }
 
   setupMutationObserver();

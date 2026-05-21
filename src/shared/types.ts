@@ -50,6 +50,7 @@ export interface OverlaySubtitleTracks {
   tracks: Array<{ kind: string; src: string; srclang: string; label: string }>;
   textTracks: Array<{ language: string; text: string }>;
   url: string;
+  timestamp?: number;
 }
 
 export interface OverlayBounds {

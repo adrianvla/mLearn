@@ -1,5 +1,13 @@
 import type { SitePlatform, PlatformSubtitleResult } from './types.js';
 
+function toSRTTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+}
+
 export const genericPlatform: SitePlatform = {
   name: 'generic',
 
@@ -32,19 +40,23 @@ export const genericPlatform: SitePlatform = {
       for (let i = 0; i < video.textTracks.length; i++) {
         const tt = video.textTracks[i];
         if (tt.mode === 'showing' || tt.mode === 'hidden') {
-          const cues: string[] = [];
           const cueList = tt.cues;
-          if (cueList) {
+          if (cueList && cueList.length > 0) {
+            const srtCues: string[] = [];
             for (let j = 0; j < cueList.length; j++) {
               const cue = cueList[j] as VTTCue;
-              if (cue.text) cues.push(cue.text);
+              if (cue.text) {
+                srtCues.push(
+                  `${j + 1}\n${toSRTTime(cue.startTime)} --> ${toSRTTime(cue.endTime)}\n${cue.text}`
+                );
+              }
             }
-          }
-          if (cues.length > 0) {
-            textTracks.push({
-              language: tt.language || tt.label || 'unknown',
-              text: cues.join('\n'),
-            });
+            if (srtCues.length > 0) {
+              textTracks.push({
+                language: tt.language || tt.label || 'unknown',
+                text: srtCues.join('\n\n'),
+              });
+            }
           }
         }
       }

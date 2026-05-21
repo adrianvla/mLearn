@@ -935,6 +935,18 @@ describe('windowManager', () => {
         height: 200,
       });
     });
+
+    it('updateOverlayGeometry: does not move window when auto-position is disabled', async () => {
+      const { launchOverlayWindow, updateOverlayGeometry, setOverlayAutoPositionEnabled } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 0, y: 0, width: 400, height: 200 });
+      setOverlayAutoPositionEnabled(false);
+
+      updateOverlayGeometry({ x: 100, y: 100, width: 400, height: 200 });
+
+      expect(overlayWin.setBounds).not.toHaveBeenCalled();
+    });
   });
 
   describe('setupAppMenu via createMainWindow', () => {

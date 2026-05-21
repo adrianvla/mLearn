@@ -131,6 +131,9 @@ export const App: Component = () => {
 
   const [viewportScale, setViewportScale] = createSignal({ x: 1, y: 1 });
 
+  let subtitleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastSubtitleTimestamp = 0;
+
   const textModeScaledPosition = createMemo(() => {
     const lookup = textModeLookup();
     const scale = viewportScale();
@@ -205,11 +208,17 @@ export const App: Component = () => {
     cleanups.push(
       bridge.overlay.onOverlaySubtitleTracks((tracks: OverlaySubtitleTracks) => {
         const currentUrl = videoState()?.url;
-        console.log('[Overlay] onOverlaySubtitleTracks: tracks.url=', tracks.url, 'currentUrl=', currentUrl, 'textTracks.length=', tracks.textTracks.length);
+        console.log('[Overlay] onOverlaySubtitleTracks: tracks.url=', tracks.url, 'currentUrl=', currentUrl, 'textTracks.length=', tracks.textTracks.length, 'timestamp=', tracks.timestamp);
         if (tracks.url && currentUrl && tracks.url !== currentUrl) {
           console.log('[Overlay] Subtitle track URL mismatch, ignoring');
           return;
         }
+        const msgTs = tracks.timestamp ?? 0;
+        if (msgTs > 0 && msgTs < lastSubtitleTimestamp) {
+          console.log('[Overlay] Ignoring out-of-order subtitle track, timestamp=', msgTs, 'last=', lastSubtitleTimestamp);
+          return;
+        }
+        lastSubtitleTimestamp = msgTs;
         if (tracks.textTracks.length > 0) {
           const newText = tracks.textTracks[0].text;
           if (newText === subtitleContent()) {
@@ -412,12 +421,19 @@ export const App: Component = () => {
 
   createEffect(() => {
     const content = subtitleContent();
+    if (subtitleDebounceTimer) {
+      clearTimeout(subtitleDebounceTimer);
+      subtitleDebounceTimer = null;
+    }
     if (content) {
-      subtitles.loadSubtitles(content);
-      if (untrack(() => settings.showSubtitles) === false) {
-        updateSetting('showSubtitles', true);
-      }
-      subtitles.updateTime(currentTime());
+      subtitleDebounceTimer = setTimeout(() => {
+        subtitleDebounceTimer = null;
+        subtitles.loadSubtitles(content);
+        if (untrack(() => settings.showSubtitles) === false) {
+          updateSetting('showSubtitles', true);
+        }
+        subtitles.updateTime(currentTime());
+      }, 300);
     } else {
       subtitles.clearSubtitles();
     }

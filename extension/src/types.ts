@@ -104,6 +104,7 @@ export type PopupMessageType =
   | 'SNAP_SUBTITLE_OFFSET_BACKWARD'
   | 'SNAP_SUBTITLE_OFFSET_FORWARD'
   | 'SET_SUBTITLE_OFFSET_EXPLICIT'
+  | 'SET_SUBTITLE_FONT_SIZE'
   | 'WATCH_TOGETHER_CREATE_ROOM'
   | 'WATCH_TOGETHER_JOIN_ROOM'
   | 'WATCH_TOGETHER_LEAVE_ROOM'
@@ -119,8 +120,10 @@ export interface PopupMessage {
   enabled?: boolean;
   subtitleContent?: string;
   subtitleFormat?: 'srt' | 'vtt' | 'ass';
+  subtitleFilename?: string;
   offset?: number;
   explicitOffset?: number;
+  fontSizeDelta?: number;
   roomCode?: string;
   accessToken?: string;
   headlessState?: HeadlessPopupState;
@@ -135,6 +138,7 @@ export interface HeadlessPopupState {
   subtitleOffset: number;
   subtitlesLoaded: boolean;
   currentSubtitleText: string | null;
+  subtitleFilename: string | null;
 }
 
 export interface HeadlessStateMessage {
