@@ -223,6 +223,9 @@ describe('platforms', () => {
           if (selector === '.ytp-caption-window-container') return container;
           return null;
         },
+        getElementById: () => null,
+        createElement: (tag: string) => createMockElement(tag),
+        head: createMockElement('head'),
         documentElement: docElement,
         contains: () => true,
       };
@@ -292,6 +295,9 @@ describe('platforms', () => {
           if (selector === '.ytp-caption-window-container') return container;
           return null;
         },
+        getElementById: () => null,
+        createElement: (tag: string) => createMockElement(tag),
+        head: createMockElement('head'),
         documentElement: docElement,
         contains: () => true,
       };
@@ -342,6 +348,9 @@ describe('platforms', () => {
           if (selector === '.ytp-caption-window-container') return container;
           return null;
         },
+        getElementById: () => null,
+        createElement: (tag: string) => createMockElement(tag),
+        head: createMockElement('head'),
         documentElement: docElement,
         contains: () => true,
       };
@@ -425,6 +434,9 @@ describe('platforms', () => {
           if (selector === '.ytp-caption-window-container') return container;
           return null;
         },
+        getElementById: () => null,
+        createElement: (tag: string) => createMockElement(tag),
+        head: createMockElement('head'),
         documentElement: docElement,
         contains: () => true,
       };
@@ -479,6 +491,9 @@ describe('platforms', () => {
           if (selector === '.ytp-caption-window-container') return container;
           return null;
         },
+        getElementById: () => null,
+        createElement: (tag: string) => createMockElement(tag),
+        head: createMockElement('head'),
         documentElement: docElement,
         contains: () => true,
       };
@@ -532,6 +547,9 @@ describe('platforms', () => {
           if (selector === '.ytp-caption-window-container') return container;
           return null;
         },
+        getElementById: () => null,
+        createElement: (tag: string) => createMockElement(tag),
+        head: createMockElement('head'),
         documentElement: docElement,
         contains: () => true,
       };

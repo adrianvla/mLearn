@@ -7,6 +7,7 @@ interface CaptionEntry {
 }
 
 const CAPTION_CONTAINER_SELECTOR = '.ytp-caption-window-container';
+const NATIVE_CAPTIONS_STYLE_ID = 'mlearn-hide-youtube-captions';
 const ACTIVE_CAPTION_END_TIME = 359999; // ~99.9 hours; max valid SRT time with 2-digit hour parser
 const MAX_FINALIZED_ENTRIES = 50;
 const EMIT_THROTTLE_MS = 500;
@@ -29,6 +30,19 @@ function generateSRT(entries: CaptionEntry[]): string {
 
 function isUiOnlyText(text: string): boolean {
   return text.includes('Click for settings') || /\(auto-generated\)/.test(text);
+}
+
+function showNativeCaptions(): void {
+  const existing = document.getElementById(NATIVE_CAPTIONS_STYLE_ID);
+  if (existing) existing.remove();
+}
+
+function hideNativeCaptions(): void {
+  if (document.getElementById(NATIVE_CAPTIONS_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = NATIVE_CAPTIONS_STYLE_ID;
+  style.textContent = '.ytp-caption-window-container { opacity: 0 !important; }';
+  document.head.appendChild(style);
 }
 
 function extractCaptionText(container: Element): { text: string; language: string } | null {
@@ -261,9 +275,11 @@ export const youtubePlatform: SitePlatform = {
 
     findAndObserveContainer();
     setupDocumentObserver();
+    hideNativeCaptions();
 
     return () => {
       console.log('[mLearn:youtube] Cleanup called');
+      showNativeCaptions();
       if (readDebounceTimer) {
         clearTimeout(readDebounceTimer);
         readDebounceTimer = null;
