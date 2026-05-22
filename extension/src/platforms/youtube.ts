@@ -7,7 +7,7 @@ interface CaptionEntry {
 }
 
 const CAPTION_CONTAINER_SELECTOR = '.ytp-caption-window-container';
-const MIN_CAPTION_DURATION_SECONDS = 5;
+const ACTIVE_CAPTION_END_TIME = 359999; // ~99.9 hours; max valid SRT time with 2-digit hour parser
 const MAX_FINALIZED_ENTRIES = 50;
 const EMIT_THROTTLE_MS = 500;
 
@@ -27,29 +27,53 @@ function generateSRT(entries: CaptionEntry[]): string {
     .join('\n\n');
 }
 
+function isUiOnlyText(text: string): boolean {
+  return text.includes('Click for settings') || /\(auto-generated\)/.test(text);
+}
+
 function extractCaptionText(container: Element): { text: string; language: string } | null {
   const windows = container.querySelectorAll('.caption-window, .ytp-caption-window');
   if (windows.length === 0) return null;
 
+  const targetWindow = windows[windows.length - 1];
+  const lang = targetWindow.getAttribute('lang');
+  const language = lang || 'unknown';
+
+  const allLineEls = targetWindow.querySelectorAll('.caption-visual-line, .ytp-caption-visual-line, .captions-text');
+  const leafLineEls: Element[] = [];
+
+  for (const el of Array.from(allLineEls)) {
+    let isParent = false;
+    for (const other of Array.from(allLineEls)) {
+      if (el !== other && el.contains(other)) {
+        isParent = true;
+        break;
+      }
+    }
+    if (!isParent) {
+      leafLineEls.push(el);
+    }
+  }
+
   const lines: string[] = [];
-  let language = 'unknown';
-
-  for (const windowEl of Array.from(windows)) {
-    const lang = windowEl.getAttribute('lang');
-    if (lang) language = lang;
-
-    const visualLines = windowEl.querySelectorAll('.caption-visual-line, .ytp-caption-visual-line, .captions-text');
-    for (const lineEl of Array.from(visualLines)) {
-      const segments = lineEl.querySelectorAll('.ytp-caption-segment');
-      const lineText = Array.from(segments)
-        .map((seg) => seg.textContent || '')
-        .join('');
-      if (lineText) lines.push(lineText);
+  const seenTexts = new Set<string>();
+  for (const lineEl of leafLineEls) {
+    const segments = lineEl.querySelectorAll('.ytp-caption-segment');
+    const lineText = Array.from(segments)
+      .map((seg) => seg.textContent || '')
+      .join('');
+    if (lineText && !seenTexts.has(lineText)) {
+      lines.push(lineText);
+      seenTexts.add(lineText);
     }
   }
 
   if (lines.length === 0) return null;
-  return { text: lines.join('\n'), language };
+
+  const text = lines.join('\n');
+  if (isUiOnlyText(text)) return null;
+
+  return { text, language };
 }
 
 export const youtubePlatform: SitePlatform = {
@@ -70,12 +94,12 @@ export const youtubePlatform: SitePlatform = {
     let lastText = '';
     let containerObserver: MutationObserver | null = null;
     let documentObserver: MutationObserver | null = null;
-    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     let lastObservedContainer: Element | null = null;
-    let lastEmittedSrt: string | null = null;
+    let lastEmittedContentHash: string | null = null;
     let lastEmitTime = 0;
     let readDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const READ_DEBOUNCE_MS = 120;
+    let cachedLanguage = 'unknown';
 
     console.log('[mLearn:youtube] startMonitoring called');
 
@@ -88,8 +112,6 @@ export const youtubePlatform: SitePlatform = {
         });
       }
 
-      // Merge consecutive entries with identical text to prevent duplicates
-      // caused by brief flickers or transition artifacts
       const deduped: CaptionEntry[] = [];
       for (const entry of entries) {
         const last = deduped[deduped.length - 1];
@@ -104,22 +126,21 @@ export const youtubePlatform: SitePlatform = {
       if (entries.length === 0) return;
 
       const srtText = generateSRT(entries);
+      const contentHash = entries.map((e) => e.text).join('\n');
       const now = Date.now();
 
-      if (!force && srtText === lastEmittedSrt && now - lastEmitTime < EMIT_THROTTLE_MS) {
-        return;
+      if (!force) {
+        if (contentHash === lastEmittedContentHash) return;
+        if (now - lastEmitTime < EMIT_THROTTLE_MS) return;
       }
-      lastEmittedSrt = srtText;
+      lastEmittedContentHash = contentHash;
       lastEmitTime = now;
 
-      const container = document.querySelector(CAPTION_CONTAINER_SELECTOR);
-      const language = container ? (extractCaptionText(container)?.language || 'unknown') : 'unknown';
-
-      console.log('[mLearn:youtube] emitSubtitles: entries=', entries.length, 'language=', language, 'srtLength=', srtText.length);
+      console.log('[mLearn:youtube] emitSubtitles: entries=', entries.length, 'language=', cachedLanguage, 'srtLength=', srtText.length);
 
       onSubtitlesChanged({
         tracks: [],
-        textTracks: [{ language, text: srtText }],
+        textTracks: [{ language: cachedLanguage, text: srtText }],
       });
     }
 
@@ -140,6 +161,10 @@ export const youtubePlatform: SitePlatform = {
 
       console.log('[mLearn:youtube] doReadCaptions: container=', !!container, 'captionData=', !!captionData, 'currentTime=', now);
 
+      if (captionData?.language) {
+        cachedLanguage = captionData.language;
+      }
+
       if (!captionData || captionData.text === '') {
         if (currentEntry) {
           currentEntry.end = now;
@@ -156,9 +181,17 @@ export const youtubePlatform: SitePlatform = {
 
       const text = captionData.text;
       if (text === lastText) {
-        if (currentEntry) {
-          currentEntry.end = now;
-        }
+        return;
+      }
+
+      if (
+        currentEntry &&
+        (text.trim().includes(currentEntry.text.trim()) ||
+          currentEntry.text.trim().includes(text.trim()))
+      ) {
+        currentEntry.text = text;
+        lastText = text;
+        emitSubtitles(true);
         return;
       }
 
@@ -170,7 +203,7 @@ export const youtubePlatform: SitePlatform = {
         }
       }
 
-      currentEntry = { start: now, end: now + MIN_CAPTION_DURATION_SECONDS, text };
+      currentEntry = { start: now, end: ACTIVE_CAPTION_END_TIME, text };
       lastText = text;
       emitSubtitles(true);
     }
@@ -229,16 +262,6 @@ export const youtubePlatform: SitePlatform = {
     findAndObserveContainer();
     setupDocumentObserver();
 
-    heartbeatInterval = setInterval(() => {
-      if (currentEntry) {
-        const oldEnd = currentEntry.end;
-        currentEntry.end = video.currentTime;
-        if (currentEntry.end - oldEnd >= 1) {
-          emitSubtitles();
-        }
-      }
-    }, 2000);
-
     return () => {
       console.log('[mLearn:youtube] Cleanup called');
       if (readDebounceTimer) {
@@ -252,10 +275,6 @@ export const youtubePlatform: SitePlatform = {
       if (documentObserver) {
         documentObserver.disconnect();
         documentObserver = null;
-      }
-      if (heartbeatInterval) {
-        clearInterval(heartbeatInterval);
-        heartbeatInterval = null;
       }
       lastObservedContainer = null;
     };
