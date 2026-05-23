@@ -8,19 +8,19 @@
 
 mLearn is an all-in-one immersion app that knows what you know. Watch videos, read manga, chat with an AI tutor, and review flashcards — all while the app passively tracks every word you encounter to build a personalized model of your knowledge.
 
-**[Website](https://mlearn.morisinc.net)** | **[Releases](https://github.com/adrianvla/mLearn/releases)** | **[Issues](https://github.com/adrianvla/mLearn/issues)**
+**[Website](https://mlearn.kikan.net)** | **[Releases](https://github.com/adrianvla/mLearn/releases)** | **[Issues](https://github.com/adrianvla/mLearn/issues)**
 
 ---
 
 ## Screenshots
 
-<img alt="legends" src="https://morisinc.net/assets/img/mlearn-screenshot.png" />
+<img alt="legends" src="https://kikan.net/assets/img/mlearn-screenshot.png" />
 
 <img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="Video player with subtitle overlay" width="800"/>
 
-<img src="https://mlearn.morisinc.net/img/statistics.webp" alt="Statistics dashboard" width="800"/>
+<img src="https://mlearn.kikan.net/img/statistics.webp" alt="Statistics dashboard" width="800"/>
 
-<img src="https://mlearn.morisinc.net/img/Screenshot%202025-09-19%20at%2022.03.49.png" alt="Kanji knowledge grid" width="800"/>
+<img src="https://mlearn.kikan.net/img/Screenshot%202025-09-19%20at%2022.03.49.png" alt="Kanji knowledge grid" width="800"/>
 
 <img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn-video-overlay.webp" alt="Video overlay with synced subtitles over a streaming site" width="800"/>
 
@@ -114,8 +114,8 @@ v2.0 is a complete rewrite in **TypeScript + SolidJS** with major new capabiliti
 | macOS (Intel) | ✅ Fully supported |
 | Linux (x86_64) | ✅ Fully supported |
 | Windows (x86_64) | ✅ Fully supported |
-| iOS | 🚧 Coming Soon — [Get notified](https://mlearn.morisinc.net) |
-| Android | 🚧 Coming Soon — [Get notified](https://mlearn.morisinc.net) |
+| iOS | 🚧 Coming Soon — [Get notified](https://mlearn.kikan.net) |
+| Android | 🚧 Coming Soon — [Get notified](https://mlearn.kikan.net) |
 | Web (Flashcards PWA) | ✅ [mlearn-app.kikan.net](https://mlearn-app.kikan.net/) — sync your flashcards and review on any device ([source](https://github.com/adrianvla/mlearn-mobile-app)) |
 | Browser Extension | ✅ Chrome / Firefox |
 
@@ -331,7 +331,7 @@ examples/plugins/    # Plugin templates
 - Privacy Policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
 - School Deployment Guide: [SCHOOL_DEPLOYMENT.md](SCHOOL_DEPLOYMENT.md)
 
-Web versions of these documents are available at [mlearn.morisinc.net](https://mlearn.morisinc.net).
+Web versions of these documents are available at [mlearn.kikan.net](https://mlearn.kikan.net).
 
 ---
 

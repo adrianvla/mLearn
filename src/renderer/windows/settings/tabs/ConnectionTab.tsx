@@ -416,7 +416,7 @@ export const ConnectionTab: Component = () => {
               size="sm"
               onClick={(e: MouseEvent) => {
                 e.stopPropagation();
-                getBridge().window.openExternalUrl('https://mlearn.morisinc.net/terms');
+                getBridge().window.openExternalUrl('https://mlearn.kikan.net/terms');
               }}
             >
               View Terms of Service
@@ -432,7 +432,7 @@ export const ConnectionTab: Component = () => {
               size="sm"
               onClick={(e: MouseEvent) => {
                 e.stopPropagation();
-                getBridge().window.openExternalUrl('https://mlearn.morisinc.net/privacy');
+                getBridge().window.openExternalUrl('https://mlearn.kikan.net/privacy');
               }}
             >
               View Privacy Policy

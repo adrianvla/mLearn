@@ -71,16 +71,16 @@ export const AboutTab: Component = () => {
       </div>
 
       <div class="about-legal">
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/eula')}>
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/eula')}>
           End User License Agreement
         </Btn>
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/terms')}>
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/terms')}>
           Terms of Service
         </Btn>
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/privacy')}>
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/privacy')}>
           Privacy Policy
         </Btn>
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/school-deployment')}>
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/school-deployment')}>
           School Deployment
         </Btn>
       </div>
