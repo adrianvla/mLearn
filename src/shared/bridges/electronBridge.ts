@@ -171,7 +171,7 @@ const installerBridge: InstallerBridge = {
 };
 
 const llmBridge: LLMBridge = {
-  llmStream: (msgs, tools, tier) => getIPC().llmStream(msgs, tools, tier),
+  llmStream: (msgs, tools, tier, think) => getIPC().llmStream(msgs, tools, tier, think),
   llmStreamAbort: () => getIPC().llmStreamAbort(),
   onLLMStreamChunk: (cb) => getIPC().onLLMStreamChunk(cb),
   llmCheckModel: (f) => getIPC().llmCheckModel(f),

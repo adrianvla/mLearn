@@ -5,6 +5,8 @@
  * fullscreen panel. Only active when `settings.devMode` is true or toggled on.
  */
 
+import { populateMockStatsData } from './mockStatsData';
+
 type LogLevel = 'log' | 'warn' | 'error' | 'info' | 'debug';
 
 interface LogEntry {
@@ -138,6 +140,11 @@ function ensureDOM() {
   header.className = 'debug-logger-header';
   const title = document.createElement('span');
   title.textContent = 'Debug Console';
+  const btnMock = document.createElement('button');
+  btnMock.textContent = 'Mock Data';
+  btnMock.onclick = () => {
+    populateMockStatsData();
+  };
   const btnClear = document.createElement('button');
   btnClear.textContent = 'Clear';
   btnClear.onclick = () => clearLogs();
@@ -145,6 +152,7 @@ function ensureDOM() {
   btnClose.textContent = 'Close';
   btnClose.onclick = () => hide();
   header.appendChild(title);
+  header.appendChild(btnMock);
   header.appendChild(btnClear);
   header.appendChild(btnClose);
   container.appendChild(header);

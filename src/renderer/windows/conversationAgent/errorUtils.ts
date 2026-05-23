@@ -104,12 +104,24 @@ export function isCloudSessionError(error: unknown): boolean {
   const code = getConversationErrorCode(error)?.toLowerCase();
 
   return status === 401
+    || status === 403
     || code === '401'
+    || code === '403'
     || code === 'unauthorized'
+    || code === 'forbidden'
     || code === 'invalid_session'
     || message.includes('401')
+    || message.includes('403')
     || message.includes('unauthorized')
-    || message.includes('invalid session');
+    || message.includes('forbidden')
+    || message.includes('invalid session')
+    || message.includes('session expired')
+    || message.includes('token expired')
+    || message.includes('jwt expired')
+    || message.includes('refresh token is invalid')
+    || message.includes('invalid refresh token')
+    || message.includes('refresh token expired')
+    || message.includes('missing cloud refresh token');
 }
 
 function getConversationErrorStatus(error: unknown): number | undefined {

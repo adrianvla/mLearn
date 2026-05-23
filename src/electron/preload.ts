@@ -375,8 +375,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, (_event, progress) => callback(progress)),
 
   // ========== Unified LLM ==========
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM, messages, tools, tier),
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string, think?: boolean) =>
+    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM, messages, tools, tier, think),
   llmStreamAbort: () =>
     ipcRenderer.send(IPC_CHANNELS.LLM_STREAM_ABORT),
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) =>

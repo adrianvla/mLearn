@@ -271,11 +271,17 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // Voice session error
     cleanups.push(bridge.voice.onVoiceSessionError((data) => {
       setIsInitializing(false);
-      setInitError(data.error);
       setIsCallActive(false);
       props.onCallStateChange?.(false);
       setCallState('idle');
       stopAudioCapture();
+
+      const err = data.error.toLowerCase();
+      if (err.includes('403') || err.includes('4003') || err.includes('unauthorized')) {
+        setInitError(t('mlearn.ConversationAgent.Voice.BackendAuthError'));
+      } else {
+        setInitError(data.error);
+      }
     }));
 
     onCleanup(() => {

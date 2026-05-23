@@ -460,6 +460,7 @@
       "TriggerKeyHover": "{key} + Hover",
       "TriggerLongHover": "Long hover",
       "Voice": {
+        "BackendAuthError": "Voice backend connection failed. Please try again.",
         "Aftermath": {
           "Duration": "Duration",
           "Messages": "Messages",

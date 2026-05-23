@@ -123,6 +123,7 @@ export class CloudLLMAdapter {
     tools: LLMToolDefinition[],
     callbacks: CloudLLMCallbacks,
     tier?: CloudLLMTier,
+    think?: boolean,
   ): Promise<void> {
     this.abortController = new AbortController();
     const partialToolCalls = new Map<string, PartialCloudToolCallState>();
@@ -146,6 +147,7 @@ export class CloudLLMAdapter {
           messages: openAIMessages,
           tools: openAITools,
           model_tier: tier,
+          think,
         }),
         signal: this.abortController.signal,
       });

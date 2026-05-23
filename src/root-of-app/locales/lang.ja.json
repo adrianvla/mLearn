@@ -474,7 +474,8 @@
       "TriggerKeyHover": "{key} + ホバー",
       "TriggerLongHover": "長押しホバー",
       "Voice": {
-        "Aftermath": {
+        "BackendAuthError": "音声バックエンドへの接続に失敗しました。もう一度お試しください。",
+      "Aftermath": {
           "Duration": "所要時間",
           "Messages": "メッセージ数",
           "Mistakes": "指摘されたミス",

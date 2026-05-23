@@ -474,7 +474,8 @@
       "TriggerKeyHover": "{key} + survol",
       "TriggerLongHover": "Survol prolongé",
       "Voice": {
-        "Aftermath": {
+        "BackendAuthError": "Échec de la connexion au serveur vocal. Veuillez réessayer.",
+      "Aftermath": {
           "Duration": "Durée",
           "Messages": "Messages",
           "Mistakes": "Erreurs signalées",

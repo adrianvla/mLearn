@@ -179,7 +179,7 @@ export interface InstallerBridge {
 
 export interface LLMBridge {
   // Unified LLM
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: CloudLLMTier) => void;
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: CloudLLMTier, think?: boolean) => void;
   llmStreamAbort: () => void;
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) => () => void;
   llmCheckModel: (modelFile?: string) => Promise<LLMModelStatus>;

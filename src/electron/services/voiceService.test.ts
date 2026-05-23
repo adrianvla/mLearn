@@ -237,6 +237,7 @@ beforeEach(async () => {
   onHandlers.clear();
   vi.clearAllMocks();
   lastCreatedWebSocket = null;
+  mockQuitToken = 'test-token';
 
   existsSyncFn.mockReturnValue(false);
   readFileSyncFn.mockReturnValue('[]');
@@ -427,12 +428,36 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     mockQuitToken = null;
   });
 
-  it('does not include token param when quit token is null', () => {
+  it('waits for quit token and connects when it becomes available', () => {
+    vi.useFakeTimers();
     mockQuitToken = null;
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
-    expect(lastCreatedWebSocket?.url).not.toContain('token=');
+    expect(lastCreatedWebSocket).toBeNull();
+
+    mockQuitToken = 'delayed-token';
+    vi.advanceTimersByTime(100);
+    expect(lastCreatedWebSocket).not.toBeNull();
+    expect(lastCreatedWebSocket?.url).toContain('token=delayed-token');
+    vi.useRealTimers();
+  });
+
+  it('sends VOICE_SESSION_ERROR when quit token does not arrive within timeout', () => {
+    vi.useFakeTimers();
+    mockQuitToken = null;
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
+    vi.advanceTimersByTime(5100);
+    expect(lastCreatedWebSocket).toBeNull();
+    expect(event.sender.send).toHaveBeenCalledWith(
+      'voice-session-error',
+      expect.objectContaining({
+        error: 'Voice backend is not ready. Please wait a moment and try again.',
+      }),
+    );
+    vi.useRealTimers();
   });
 
   it('closes the WebSocket when stopSession is called', () => {

@@ -162,7 +162,7 @@ describe('llmProvider', () => {
       streamChat([], [], { onChunk, onDone, onError, onToolCall });
 
       expect(mockBridge.llm.onLLMStreamChunk).toHaveBeenCalledOnce();
-      expect(mockBridge.llm.llmStream).toHaveBeenCalledWith([], [], undefined);
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledWith([], [], undefined, undefined);
     });
 
     it('accumulates content chunks and calls onChunk', async () => {

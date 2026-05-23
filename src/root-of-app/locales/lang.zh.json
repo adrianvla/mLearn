@@ -474,7 +474,8 @@
       "TriggerKeyHover": "{key} + 悬停",
       "TriggerLongHover": "长按悬停",
       "Voice": {
-        "Aftermath": {
+        "BackendAuthError": "语音后端连接失败。请重试。",
+      "Aftermath": {
           "Duration": "时长",
           "Messages": "消息数",
           "Mistakes": "记录的错误",

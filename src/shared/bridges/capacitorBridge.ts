@@ -1093,7 +1093,7 @@ const serverBridge: ServerBridge = {
       emitter.emit('legal-document', eulaMd);
       return;
     }
-    fetch(`https://mlearn.morisinc.net/legal/${name}.md`)
+    fetch(`https://mlearn.kikan.net/legal/${name}.md`)
       .then(res => res.ok ? res.text() : '')
       .then(text => emitter.emit('legal-document', text))
       .catch(() => emitter.emit('legal-document', ''));
@@ -1131,7 +1131,7 @@ let llmAbortController: AbortController | null = null;
 let ollamaAbortController: AbortController | null = null;
 
 const llmBridge: LLMBridge = {
-  llmStream(messages, tools, tier) {
+  llmStream(messages, tools, tier, think) {
     // Abort any previous stream
     llmAbortController?.abort();
     llmAbortController = new AbortController();
@@ -1159,7 +1159,7 @@ const llmBridge: LLMBridge = {
     fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ messages, tools, model_tier: tier }),
+      body: JSON.stringify({ messages, tools, model_tier: tier, think }),
       signal,
     })
       .then(async res => {
