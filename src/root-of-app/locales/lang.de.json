@@ -460,7 +460,8 @@
       "TriggerKeyHover": "{key} + Hover",
       "TriggerLongHover": "Langes Hover",
       "Voice": {
-        "Aftermath": {
+        "BackendAuthError": "Sprachbackend-Verbindung fehlgeschlagen. Bitte versuche es erneut.",
+      "Aftermath": {
           "Duration": "Dauer",
           "Messages": "Nachrichten",
           "Mistakes": "Gemeldete Fehler",

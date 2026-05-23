@@ -293,6 +293,7 @@ let activeSender: Electron.WebContents | null = null;
 
 const MAX_QUEUED_AUDIO_CHUNKS = 256;
 let pendingAudioChunks: Float32Array[] = [];
+let pendingTokenTimer: NodeJS.Timeout | null = null;
 
 // ============================================================================
 // TTS Abort
@@ -350,7 +351,50 @@ function startSession(
   }
 
   const token = getQuitToken();
-  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+  if (!token) {
+    waitForQuitTokenAndStart(language, mode, silenceThreshold, sender);
+    return;
+  }
+
+  doStartSession(language, mode, silenceThreshold, sender, token);
+}
+
+function waitForQuitTokenAndStart(
+  language: string,
+  mode: VoiceMode,
+  silenceThreshold: number,
+  sender: Electron.WebContents,
+): void {
+  const startTime = Date.now();
+  const TIMEOUT = 5000;
+  const POLL_INTERVAL = 100;
+
+  const poll = () => {
+    const token = getQuitToken();
+    if (token) {
+      doStartSession(language, mode, silenceThreshold, sender, token);
+      return;
+    }
+    if (Date.now() - startTime >= TIMEOUT) {
+      sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+        error: 'Voice backend is not ready. Please wait a moment and try again.',
+      });
+      return;
+    }
+    pendingTokenTimer = setTimeout(poll, POLL_INTERVAL);
+  };
+
+  poll();
+}
+
+function doStartSession(
+  language: string,
+  mode: VoiceMode,
+  silenceThreshold: number,
+  sender: Electron.WebContents,
+  token: string,
+): void {
+  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}&token=${encodeURIComponent(token)}`;
 
   try {
     const ws = new WebSocket(wsUrl);
@@ -436,6 +480,10 @@ function stopSession(): void {
   activeSession = false;
   activeSender = null;
   pendingAudioChunks = [];
+  if (pendingTokenTimer) {
+    clearTimeout(pendingTokenTimer);
+    pendingTokenTimer = null;
+  }
   if (activeWs) {
     try { activeWs.close(); } catch (e) {
       log.error("error", e);

@@ -474,7 +474,8 @@
       "TriggerKeyHover": "{key} + наведение",
       "TriggerLongHover": "Длительное наведение",
       "Voice": {
-        "Aftermath": {
+        "BackendAuthError": "Ошибка подключения к голосовому серверу. Пожалуйста, попробуйте снова.",
+      "Aftermath": {
           "Duration": "Длительность",
           "Messages": "Сообщений",
           "Mistakes": "Отмечено ошибок",

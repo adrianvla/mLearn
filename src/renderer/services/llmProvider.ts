@@ -119,12 +119,13 @@ export function streamChat(
   callbacks: LLMStreamCallbacks,
   settings?: Settings,
   tier?: CloudLLMTier,
+  think?: boolean,
 ): { abort: () => void } {
   const activeSettings = settings ?? getCloudSessionSettings() ?? undefined;
 
   // Mobile: stream directly via HTTP (no IPC bridge)
   if (isMobile() && activeSettings) {
-    return streamChatMobile(messages, tools, callbacks, activeSettings, tier);
+    return streamChatMobile(messages, tools, callbacks, activeSettings, tier, think);
   }
 
   const bridge = getBridge();
@@ -197,7 +198,7 @@ export function streamChat(
     if (activeSettings?.devMode) {
       log.info('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
     }
-    bridge.llm.llmStream(messages, tools, tier);
+    bridge.llm.llmStream(messages, tools, tier, think);
   });
 
   const startStream = async () => {
@@ -255,6 +256,7 @@ function streamChatMobile(
   callbacks: LLMStreamCallbacks,
   settings: Settings,
   tier?: CloudLLMTier,
+  think?: boolean,
 ): { abort: () => void } {
   const startTime = Date.now();
   let accumulated = '';
@@ -305,7 +307,7 @@ function streamChatMobile(
       onError: (error) => {
         reject(error);
       },
-    }, tier);
+    }, tier, think);
   });
 
   void withCloudAuth(
@@ -582,7 +584,7 @@ export function streamExplanation(
       onError: callbacks.onError,
     };
 
-    activeHandle = streamChat(attemptMessages, attemptTools, wrappedCallbacks, getCloudSessionSettings() ?? undefined, getCloudSessionSettings()?.cloudLLMTierExplanation);
+    activeHandle = streamChat(attemptMessages, attemptTools, wrappedCallbacks, getCloudSessionSettings() ?? undefined, getCloudSessionSettings()?.cloudLLMTierExplanation, false);
   };
 
   startAttempt(messages, requiredToolNames);
@@ -626,6 +628,7 @@ ${requiresWordPanel
 - show_grammar_points must contain 1 to 4 concise grammar points when the phrase has meaningful grammar. For short/simple phrases, explain particles, endings, tense, politeness, aspect, or sentence structure instead of skipping the tool.
 - Keep each explanation concise and clear for a learner.
 - Do not output markdown or headings.
+- Do not think or use <think> tags. Output tool calls immediately.
 - Prefer structured tool calls.
 - If tool calling is unavailable, emit the same tool calls as plain text using this exact syntax so the UI can still parse them while streaming:
 ${fallbackSyntax}

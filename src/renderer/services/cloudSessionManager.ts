@@ -151,12 +151,17 @@ export function isCloudSessionError(error: unknown): boolean {
     : String(record?.message ?? error ?? '').toLowerCase();
 
   return status === 401
+    || status === 403
     || code === '401'
+    || code === '403'
     || code === 'unauthorized'
+    || code === 'forbidden'
     || code === 'invalid_session'
     || code === 'invalid_refresh_token'
     || message.includes('401')
+    || message.includes('403')
     || message.includes('unauthorized')
+    || message.includes('forbidden')
     || message.includes('invalid session')
     || message.includes('session expired')
     || message.includes('token expired')
