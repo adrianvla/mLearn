@@ -8,4 +8,6 @@ export interface SitePlatform {
   matchesUrl(url: string): boolean;
   startMonitoring(video: HTMLVideoElement, onSubtitlesChanged: (result: PlatformSubtitleResult) => void): () => void;
   extractOnce?(video: HTMLVideoElement): PlatformSubtitleResult | null;
+  showNativeCaptions?(): void;
+  hideNativeCaptions?(): void;
 }

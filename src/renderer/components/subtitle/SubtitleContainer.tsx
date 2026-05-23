@@ -256,6 +256,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Pre-fetch translations for all translatable words when subtitle appears
   // This populates the translation cache for furigana display and faster hover
   createEffect(() => {
+    if (!shouldShow()) return;
     const tokens = props.tokens || [];
     if (!tokens.length) return;
 
@@ -302,6 +303,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Append live translator entries as subtitles appear (not just on hover)
   // Only for translatable words
   createEffect(() => {
+    if (!shouldShow()) return;
     if (settings.showLiveTranslator === false) return;
     const tokens = props.tokens || [];
     if (!tokens.length) return;

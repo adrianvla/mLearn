@@ -40,7 +40,7 @@ export interface OverlayGeometry {
 }
 
 export interface OverlayCommand {
-  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume';
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume' | 'showNativeCaptions' | 'hideNativeCaptions';
   time?: number;
   rate?: number;
   volume?: number;

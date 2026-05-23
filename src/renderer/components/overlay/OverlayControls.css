@@ -238,3 +238,32 @@
   color: var(--text-primary);
   background-color: var(--bg-intense);
 }
+
+.overlay-fontsize-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.overlay-fontsize-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: default;
+  padding: 0;
+  transition: color var(--transition-normal), background-color var(--transition-normal);
+}
+
+.overlay-fontsize-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-intense);
+}

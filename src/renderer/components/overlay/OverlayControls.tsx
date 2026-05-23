@@ -19,6 +19,7 @@ export interface OverlayControlsProps {
   onOffsetChange: (offset: number) => void;
   onLoadSubtitles: () => void;
   onToggleSubtitles: () => void;
+  onSubtitleFontSizeChange?: (delta: number) => void;
   onClose: () => void;
   onDragStart?: () => void;
   onDragMove?: (deltaX: number, deltaY: number) => void;
@@ -281,6 +282,29 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                 >
                   <SubtitleIcon />
                 </IconBtn>
+
+                <Show when={props.onSubtitleFontSizeChange}>
+                  <div class="overlay-fontsize-control">
+                    <button
+                      type="button"
+                      class="overlay-fontsize-btn"
+                      onClick={() => props.onSubtitleFontSizeChange?.(-2)}
+                      aria-label="Decrease subtitle font size"
+                      title="Decrease subtitle font size"
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      class="overlay-fontsize-btn"
+                      onClick={() => props.onSubtitleFontSizeChange?.(2)}
+                      aria-label="Increase subtitle font size"
+                      title="Increase subtitle font size"
+                    >
+                      +
+                    </button>
+                  </div>
+                </Show>
 
                 <IconBtn
                     variant="ghost"

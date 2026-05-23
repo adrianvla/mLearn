@@ -71,7 +71,7 @@ export interface SubtitleTracksMessage {
 
 export interface ExtensionCommandMessage {
   type: 'EXTENSION_COMMAND';
-  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume' | 'captureScreenshot';
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume' | 'captureScreenshot' | 'showNativeCaptions' | 'hideNativeCaptions';
   time?: number;
   rate?: number;
   volume?: number;
