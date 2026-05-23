@@ -10,22 +10,9 @@ mLearn is an all-in-one immersion app that knows what you know. Watch videos, re
 
 **[Website](https://mlearn.kikan.net)** | **[Releases](https://github.com/adrianvla/mLearn/releases)** | **[Issues](https://github.com/adrianvla/mLearn/issues)**
 
----
+<img src="https://mlearn.kikan.net/img/mlearn-screenshot.png" alt="mLearn overview with feature legends" width="800" />
 
-## Screenshots
-
-<img alt="legends" src="https://kikan.net/assets/img/mlearn-screenshot.png" />
-
-<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="Video player with subtitle overlay" width="800"/>
-
-<img src="https://mlearn.kikan.net/img/statistics.webp" alt="Statistics dashboard" width="800"/>
-
-<img src="https://mlearn.kikan.net/img/Screenshot%202025-09-19%20at%2022.03.49.png" alt="Kanji knowledge grid" width="800"/>
-
-<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn-video-overlay.webp" alt="Video overlay with synced subtitles over a streaming site" width="800"/>
-
-<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn-text-overlay.webp" alt="Text overlay mode - click any webpage text to look up words" width="800"/>
-
+<img src="https://mlearn.kikan.net/img/reader-ai-explanation.webp" alt="Reader / OCR — manga and PDF reading with real-time OCR" width="800" />
 ---
 
 ## Features
@@ -132,6 +119,34 @@ v2.0 is a complete rewrite in **TypeScript + SolidJS** with major new capabiliti
 | **Build** | Vite 6 with custom multi-page config |
 | **Testing** | Vitest with coverage |
 | **Styling** | CSS per component, 7-theme system |
+
+---
+
+
+## Screenshots
+
+
+<img src="https://mlearn.kikan.net/img/mlearn-screenshot.png" alt="mLearn overview with feature legends" width="800" />
+
+<img src="https://mlearn.kikan.net/img/video-player.png" alt="Video player with subtitle overlay and word lookup" width="800" />
+
+<img src="https://mlearn.kikan.net/img/reader-ocr.png" alt="Reader / OCR — manga and PDF reading with real-time OCR" width="800" />
+
+<img src="https://mlearn.kikan.net/img/reader-ai-explanation.webp" alt="Reader / OCR — manga and PDF reading with real-time OCR" width="800" />
+
+<img src="https://mlearn.kikan.net/img/ai-tutor.webp" alt="AI Conversation Agent with voice chat" width="800" />
+
+<img src="https://mlearn.kikan.net/img/flashcards.webp" alt="SRS Flashcards with review and statistics" width="800" />
+
+<img src="https://mlearn.kikan.net/img/kanji-grid.webp" alt="Kanji knowledge grid" width="800" />
+
+<img src="https://mlearn.kikan.net/img/word-tracking.png" alt="Word Passive Tracking — auto-tracks every word you encounter" width="800" />
+
+<img src="https://mlearn.kikan.net/img/watch-together.png" alt="Watch Together — synced video playback across devices" width="800" />
+
+<img src="https://mlearn.kikan.net/img/overlay-video.png" alt="Video overlay with synced subtitles over a streaming site" width="800" />
+
+<img src="https://mlearn.kikan.net/img/overlay-web.png" alt="Text overlay — click any webpage text to look up words" width="800" />
 
 ---
 
