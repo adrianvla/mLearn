@@ -58,6 +58,7 @@ let headlessModeEnabled = false;
 let headlessSubtitles: ParsedSubtitle[] = [];
 let urlObserver: MutationObserver | null = null;
 let platformCleanup: (() => void) | null = null;
+let currentPlatform: import('./platforms/types').SitePlatform | null = null;
 
 function getChromeRuntime(): ChromeRuntime | undefined {
   if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
@@ -609,6 +610,7 @@ function startPlatformExtraction(video: HTMLVideoElement): void {
   }
 
   const platform = getSitePlatform(window.location.href);
+  currentPlatform = platform;
   console.log('[mLearn:content] Using platform:', platform.name);
   platformCleanup = platform.startMonitoring(video, (result) => {
     handlePlatformSubtitles(result, video);
@@ -656,6 +658,12 @@ function handleCommandMessage(
       if (typeof cmd.volume === 'number' && isFinite(cmd.volume)) {
         video.volume = Math.max(0, Math.min(1, cmd.volume));
       }
+      break;
+    case 'showNativeCaptions':
+      currentPlatform?.showNativeCaptions?.();
+      break;
+    case 'hideNativeCaptions':
+      currentPlatform?.hideNativeCaptions?.();
       break;
     case 'captureScreenshot':
       sendVideoScreenshot();

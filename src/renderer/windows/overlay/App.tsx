@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, createMemo, onMount, onCleanup, createEffect, untrack } from 'solid-js';
+import { Component, Show, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
 import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks, Token } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
@@ -225,8 +225,10 @@ export const App: Component = () => {
             console.log('[Overlay] Subtitle content unchanged, skipping reload');
             return;
           }
-          console.log('[Overlay] Loading subtitle track, text length=', newText.length);
-          setSubtitleContent(newText);
+          if (settings.showSubtitles ?? true) {
+            console.log('[Overlay] Loading subtitle track, text length=', newText.length);
+            setSubtitleContent(newText);
+          }
         } else {
           console.log('[Overlay] No textTracks in subtitle tracks payload');
         }
@@ -425,13 +427,10 @@ export const App: Component = () => {
       clearTimeout(subtitleDebounceTimer);
       subtitleDebounceTimer = null;
     }
-    if (content) {
+    if (content && (settings.showSubtitles ?? true)) {
       subtitleDebounceTimer = setTimeout(() => {
         subtitleDebounceTimer = null;
         subtitles.loadSubtitles(content);
-        if (untrack(() => settings.showSubtitles) === false) {
-          updateSetting('showSubtitles', true);
-        }
         subtitles.updateTime(currentTime());
       }, 300);
     } else {
@@ -577,7 +576,18 @@ export const App: Component = () => {
     updateSetting('showSubtitles', next);
     if (next) {
       subtitles.updateTime(currentTime());
+      bridge.overlay.sendOverlayCommand({ command: 'hideNativeCaptions' });
+    } else {
+      subtitles.clearSubtitles();
+      setSubtitleContent('');
+      bridge.overlay.sendOverlayCommand({ command: 'showNativeCaptions' });
     }
+  };
+
+  const handleSubtitleFontSizeChange = (delta: number) => {
+    const current = settings.subtitle_font_size ?? DEFAULT_SETTINGS.subtitle_font_size;
+    const next = Math.max(10, Math.min(100, current + delta));
+    updateSetting('subtitle_font_size', next);
   };
 
   const handleOffsetChange = (offset: number) => {
@@ -1162,6 +1172,7 @@ export const App: Component = () => {
               onOffsetChange={handleOffsetChange}
               onLoadSubtitles={handleOpenSubtitleFile}
               onToggleSubtitles={handleToggleSubtitles}
+              onSubtitleFontSizeChange={handleSubtitleFontSizeChange}
               onClose={handleClose}
               onDragStart={handleDragStart}
               onDragMove={handleDragMove}
