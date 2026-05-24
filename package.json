@@ -127,7 +127,10 @@
       "!node_modules/@capacitor{,/**}",
       "!node_modules/@ffmpeg{,/**}",
       "!node_modules/solid-js{,/**}",
-      "!node_modules/@solidjs{,/**}"
+      "!node_modules/@solidjs{,/**}",
+      "!node_modules/bare-*/prebuilds/{linux-*,darwin-*,ios-*,android-*,win32-x64}",
+      "!node_modules/@node-llama-cpp/mac-arm64-metal/**",
+      "!node_modules/@reflink/reflink-darwin-arm64/**"
     ],
     "directories": {
       "output": "release"
@@ -139,7 +142,10 @@
         "filter": [
           "**/*",
           "!__pycache__/**",
-          "!**/*.pyc"
+          "!**/*.pyc",
+          "!dictionary_cache.sqlite3",
+          "!*.bak",
+          "!*.pkl"
         ]
       },
       {
@@ -148,6 +154,14 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "build/icons",
+        "to": "icons"
       },
       {
         "from": "EULA.md",
@@ -214,7 +228,7 @@
       ]
     },
     "linux": {
-      "icon": "build/icon.png",
+      "icon": "build/icons/",
       "protocols": [
         {
           "name": "mLearn Auth Callback",

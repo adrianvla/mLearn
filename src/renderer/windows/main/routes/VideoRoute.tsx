@@ -61,7 +61,7 @@ const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
 
 const getMediaNameFromPath = (filePath: string): string => {
-  const rawName = filePath.split('/').pop() || filePath.split('\\').pop() || 'Video';
+  const rawName = filePath.replace(/\\/g, '/').split('/').pop() || 'Video';
   return parseWorkName(rawName);
 };
 

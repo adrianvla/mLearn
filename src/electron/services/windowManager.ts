@@ -263,11 +263,10 @@ export function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: false,
+    frame: isMac ? false : true,
     backgroundColor: '#000000',
   };
 
-  // macOS-specific title bar
   if (isMac) {
     windowOptions.titleBarStyle = 'hidden';
   }
@@ -281,6 +280,13 @@ export function createMainWindow(): BrowserWindow {
   } else {
     mainWindow.loadFile(getWindowHtmlPath('main'));
   }
+
+  mainWindow.on('close', (event) => {
+    if (!isMac && !(app as any).isQuitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -303,7 +309,7 @@ export function createWelcomeWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: false,
+    frame: isMac ? false : true,
     backgroundColor: '#000000',
   });
 
@@ -336,7 +342,7 @@ export function createDiagnosticsWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: false,
+    frame: isMac ? false : true,
     backgroundColor: '#000000',
     ...(isMac ? { titleBarStyle: 'hidden' } : {}),
   });
@@ -382,7 +388,7 @@ export function createChildWindow(
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: false,
+    frame: isMac ? false : true,
     backgroundColor: '#000000',
     ...platformOptions,
     ...options,
@@ -854,6 +860,29 @@ export function setupWindowIPC(): void {
   ipcMain.on(IPC_CHANNELS.CLOSE_WINDOW, (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     window?.close();
+  });
+
+  ipcMain.on(IPC_CHANNELS.MINIMIZE_WINDOW, (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    window?.minimize();
+  });
+
+  ipcMain.on(IPC_CHANNELS.MAXIMIZE_WINDOW, (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+      if (window.isMaximized()) {
+        window.unmaximize();
+      } else {
+        window.maximize();
+      }
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.RESTORE_WINDOW, (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window?.isMinimized()) {
+      window.restore();
+    }
   });
 
   // Version

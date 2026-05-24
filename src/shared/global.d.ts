@@ -300,6 +300,9 @@ sendLogRecord: (record: unknown) => void;
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
+  minimizeWindow: () => void;
+  maximizeWindow: () => void;
+  restoreWindow: () => void;
   getWindowContext: (windowType: string) => void;
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
 

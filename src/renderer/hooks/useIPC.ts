@@ -23,8 +23,9 @@ interface MLearnAPI {
   // Windows
   openWindow: (type: WindowType, options?: Record<string, unknown>) => void;
   closeWindow: () => void;
-  minimize: () => void;
-  maximize: () => void;
+  minimizeWindow: () => void;
+  maximizeWindow: () => void;
+  restoreWindow: () => void;
   setAlwaysOnTop: (value: boolean) => void;
   togglePiP: (width?: number, height?: number) => void;
   
@@ -121,12 +122,16 @@ export function useIPC() {
     api.closeWindow();
   };
 
-  const minimize = () => {
-    api?.minimize();
+  const minimizeWindow = () => {
+    api?.minimizeWindow();
   };
 
-  const maximize = () => {
-    api?.maximize();
+  const maximizeWindow = () => {
+    api?.maximizeWindow();
+  };
+
+  const restoreWindow = () => {
+    api?.restoreWindow();
   };
 
   const setAlwaysOnTop = (value: boolean) => {
@@ -250,8 +255,9 @@ export function useIPC() {
     // Windows
     openWindow,
     closeWindow,
-    minimize,
-    maximize,
+    minimizeWindow,
+    maximizeWindow,
+    restoreWindow,
     setAlwaysOnTop,
     togglePiP,
     

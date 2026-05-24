@@ -201,6 +201,9 @@ export const IPC_CHANNELS = {
   // Window spawning from renderer
   OPEN_WINDOW: 'open-window',
   CLOSE_WINDOW: 'close-window',
+  MINIMIZE_WINDOW: 'minimize-window',
+  MAXIMIZE_WINDOW: 'maximize-window',
+  RESTORE_WINDOW: 'restore-window',
   
   // LocalStorage sync
   SEND_LS: 'send-ls',

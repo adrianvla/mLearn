@@ -319,7 +319,7 @@ describe('windowManager', () => {
       expect(getCurrentWindow()).toBeNull();
     });
 
-    it('creates the window with frame:false', async () => {
+    it('creates the window with platform-appropriate frame', async () => {
       const { createMainWindow } = await import('./windowManager');
       const win = createMainWindow();
       expect(win).toBeDefined();

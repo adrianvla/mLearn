@@ -965,6 +965,12 @@ const windowBridge: WindowBridge = {
     window.history.back();
   },
 
+  minimizeWindow() {},
+
+  maximizeWindow() {},
+
+  restoreWindow() {},
+
   getWindowContext(windowType: string) {
     // Read context stored by openWindow and emit to registered callbacks
     try {

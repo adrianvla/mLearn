@@ -821,7 +821,7 @@ async def ocr_endpoint(
                     t1 = time.perf_counter()
                     if rapid is None:
                         raise HTTPException(
-                            status_code=500, detail="RapidOCR not available"
+                            status_code=500, detail="RapidOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected."
                         )
                     log_run.info(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
 
@@ -872,7 +872,7 @@ async def ocr_endpoint(
                 mocr = _get_manga_ocr()
                 if mocr is None:
                     raise HTTPException(
-                        status_code=500, detail="MangaOCR not available"
+                        status_code=500, detail="MangaOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected."
                     )
                 timing_recognition_engine = "MangaOCR"
                 t_rec_start = time.perf_counter()
@@ -931,7 +931,7 @@ async def ocr_endpoint(
                 t1 = time.perf_counter()
                 if rapid is None:
                     raise HTTPException(
-                        status_code=500, detail="RapidOCR not available"
+                        status_code=500, detail="RapidOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected."
                     )
                 log_run.info(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
                 log_run.info("Recognizing text positions...")
@@ -992,7 +992,7 @@ async def ocr_endpoint(
                     t1 = time.perf_counter()
                     if paddle is None:
                         raise HTTPException(
-                            status_code=500, detail="PaddleOCR not available"
+                            status_code=500, detail="PaddleOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected."
                         )
                     log_run.info(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
 
@@ -1041,7 +1041,7 @@ async def ocr_endpoint(
                 mocr = _get_manga_ocr()
                 if mocr is None:
                     raise HTTPException(
-                        status_code=500, detail="MangaOCR not available"
+                        status_code=500, detail="MangaOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected."
                     )
                 timing_recognition_engine = "MangaOCR"
                 t_rec_start = time.perf_counter()
@@ -1100,7 +1100,7 @@ async def ocr_endpoint(
                 t1 = time.perf_counter()
                 if paddle is None:
                     raise HTTPException(
-                        status_code=500, detail="PaddleOCR not available"
+                        status_code=500, detail="PaddleOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected."
                     )
                 log_run.info(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
                 log_run.info("Recognizing text positions...")
