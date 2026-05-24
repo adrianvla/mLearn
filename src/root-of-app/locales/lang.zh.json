@@ -1134,7 +1134,8 @@
       "MigrationComplete": "数据迁移完成",
       "MigrationFlashcards": "您的闪卡已从 v{version} 迁移。已创建备份。",
       "MigrationFlashcardsNoBackup": "您的闪卡已从 v{version} 迁移。",
-      "MigrationWordStatuses": "已迁移 {count} 个单词状态（来自 v1）。已创建备份。"
+      "MigrationWordStatuses": "已迁移 {count} 个单词状态（来自 v1）。已创建备份。",
+      "UpdateAvailable": "新版本 {latestVersion} 可用（当前版本 {currentVersion}）。请前往网站下载。"
     },
     "PitchAccent": {
       "Atamadaka": "头高型",

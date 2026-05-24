@@ -1134,7 +1134,8 @@
       "MigrationComplete": "Migration des données terminée",
       "MigrationFlashcards": "Vos cartes ont été migrées depuis la v{version}. Une sauvegarde a été créée.",
       "MigrationFlashcardsNoBackup": "Vos cartes ont été migrées depuis la v{version}.",
-      "MigrationWordStatuses": "{count} statuts de mots ont été migrés depuis la v1. Une sauvegarde a été créée."
+      "MigrationWordStatuses": "{count} statuts de mots ont été migrés depuis la v1. Une sauvegarde a été créée.",
+      "UpdateAvailable": "Version {latestVersion} disponible (vous utilisez {currentVersion}). Rendez-vous sur le site web pour télécharger."
     },
     "PitchAccent": {
       "Atamadaka": "Tête haute (atamadaka)",

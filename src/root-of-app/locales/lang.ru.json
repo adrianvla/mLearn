@@ -1134,7 +1134,8 @@
       "MigrationComplete": "Миграция данных завершена",
       "MigrationFlashcards": "Ваши карточки были перенесены из v{version}. Создана резервная копия.",
       "MigrationFlashcardsNoBackup": "Ваши карточки были перенесены из v{version}.",
-      "MigrationWordStatuses": "Перенесено {count} статусов слов из v1. Создана резервная копия."
+      "MigrationWordStatuses": "Перенесено {count} статусов слов из v1. Создана резервная копия.",
+      "UpdateAvailable": "Версия {latestVersion} доступна (у вас {currentVersion}). Загрузите с сайта."
     },
     "PitchAccent": {
       "Atamadaka": "Начальное повышение (атамадака)",

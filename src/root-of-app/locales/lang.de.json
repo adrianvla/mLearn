@@ -1120,7 +1120,8 @@
       "MigrationComplete": "Datenmigration abgeschlossen",
       "MigrationFlashcards": "Ihre Lernkarten wurden aus v{version} migriert. Ein Backup wurde erstellt.",
       "MigrationFlashcardsNoBackup": "Ihre Lernkarten wurden aus v{version} migriert.",
-      "MigrationWordStatuses": "{count} Wortstatus-Einträge aus v1 wurden migriert. Es wurde ein Backup erstellt."
+      "MigrationWordStatuses": "{count} Wortstatus-Einträge aus v1 wurden migriert. Es wurde ein Backup erstellt.",
+      "UpdateAvailable": "Version {latestVersion} ist jetzt verfügbar (Sie haben {currentVersion}). Besuchen Sie die Website zum Herunterladen."
     },
     "PitchAccent": {
       "Atamadaka": "Kopfhoch (Atamadaka)",

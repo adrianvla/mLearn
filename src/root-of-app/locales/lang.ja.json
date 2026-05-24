@@ -1134,7 +1134,8 @@
       "MigrationComplete": "データ移行が完了しました",
       "MigrationFlashcards": "フラッシュカードを v{version} から移行しました。バックアップが作成されました。",
       "MigrationFlashcardsNoBackup": "フラッシュカードを v{version} から移行しました。",
-      "MigrationWordStatuses": "v1から {count} 件の単語ステータスを移行しました。バックアップが作成されました。"
+      "MigrationWordStatuses": "v1から {count} 件の単語ステータスを移行しました。バックアップが作成されました。",
+      "UpdateAvailable": "バージョン {latestVersion} が利用可能です（現在 {currentVersion}）。ダウンロードはウェブサイトをご確認ください。"
     },
     "PitchAccent": {
       "Atamadaka": "頭高（あたまだか）",
