@@ -27,3 +27,4 @@ website/worker/node_modules
 website/frontend/node_modules
 docs/superpowers
 /src/root-of-app/dictionary_cache.sqlite3
+/*.zip
