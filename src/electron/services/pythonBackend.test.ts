@@ -15,6 +15,9 @@ vi.mock('electron', () => ({
     handle: vi.fn(),
     removeHandler: vi.fn(),
   },
+  app: {
+    getVersion: vi.fn(() => '1.0.0'),
+  },
 }));
 
 const mockSpawn = vi.fn();
@@ -163,6 +166,9 @@ describe('pythonBackend', () => {
 
     mockGetCurrentWindow.mockReturnValue(null);
     mockGetMainWindow.mockReturnValue(null);
+
+    fs.mkdirSync('/tmp/test-userdata', { recursive: true });
+    fs.writeFileSync('/tmp/test-userdata/python-version.txt', '1.0.0');
 
     mod = await import('./pythonBackend');
   });

@@ -497,7 +497,7 @@ export const DEFAULT_SETTINGS: Settings = {
   liveTranslatorIncludeKnown: false,
   blurKnownWords: false,
   ocrRamSaver: false,
-  ocrTurboMode: false,
+  ocrTurboMode: true,
   ocrFuriganaDetection: true,
   ocrFuriganaWidthRatio: 1.5,
   ocrFuriganaNeighborWindowMultiplier: 2.4,

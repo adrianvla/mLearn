@@ -34,6 +34,7 @@ import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
 import { setupPluginIPC } from './services/pluginIPC';
 import { setupDiagnosticsIPC } from './services/diagnostics';
+import { createTray, destroyTray } from './services/trayManager';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
@@ -346,6 +347,12 @@ async function initialize(): Promise<void> {
   // Create windows and start services
   await createAppWindows();
 
+  const { getMainWindow } = require('./services/windowManager');
+  const mainWindow = getMainWindow();
+  if (mainWindow) {
+    createTray(mainWindow);
+  }
+
   if (app.isPackaged && !app.isDefaultProtocolClient('mlearn')) {
     if (process.defaultApp && process.argv.length >= 2) {
       app.setAsDefaultProtocolClient('mlearn', process.execPath, [path.resolve(process.argv[1])]);
@@ -376,17 +383,24 @@ if (!gotSingleInstanceLock) {
     void initialize();
 
     app.on('activate', () => {
-      // On macOS, recreate window when dock icon is clicked
       const { BrowserWindow } = require('electron');
-      if (BrowserWindow.getAllWindows().length === 0) {
+      const allWindows = BrowserWindow.getAllWindows();
+      if (allWindows.length === 0) {
         createAppWindows();
+      } else {
+        const win = allWindows[0];
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
       }
     });
   });
 }
 
 app.on('before-quit', () => {
-  log.info('App before-quit: terminating Python backend');
+  log.info('App before-quit: setting isQuitting flag, cleaning up');
+  (app as any).isQuitting = true;
+  destroyTray();
   terminatePythonBackend();
 });
 
@@ -398,6 +412,10 @@ app.on('quit', () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    const { hasTray } = require('./services/trayManager');
+    if (hasTray()) {
+      return;
+    }
     terminatePythonBackend();
     app.quit();
   }

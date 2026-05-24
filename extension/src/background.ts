@@ -39,6 +39,7 @@ const SYNC_DEBOUNCE_MS = 150;
 const GEOMETRY_DEBOUNCE_MS = 50;
 const MAX_RETRY_DELAY_MS = 30000;
 const INITIAL_RETRY_DELAY_MS = 1000;
+const FETCH_TIMEOUT_MS = 5000;
 
 let status: ConnectionStatus = 'disconnected';
 let lastVideoState: VideoState | null = null;
@@ -71,13 +72,40 @@ let cloudApiUrl = DEFAULT_CLOUD_API_URL;
 const activeVideoFrames = new Map<number, number>();
 let activeVideoTabId: number | undefined;
 
-async function fetchAuthTokenFromDesktop(): Promise<void> {
+export async function fetchAuthTokenFromDesktop(): Promise<void> {
   try {
-    const response = await fetch(`${MLEARN_BASE_URL}/api/extension-auth-token`);
-    if (!response.ok) return;
+    const response = await fetchWithTimeout(`${MLEARN_BASE_URL}/api/extension-auth-token`);
+    if (!response.ok) {
+      console.error('[mLearn Background] fetchAuthTokenFromDesktop failed:', response.status, response.statusText);
+      return;
+    }
     const data = (await response.json()) as { accessToken?: string };
     await saveAuthToken(data.accessToken || '');
-  } catch {
+  } catch (error) {
+    console.error('[mLearn Background] fetchAuthTokenFromDesktop error:', error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new DOMException('Timeout', 'AbortError'));
+  }, timeoutMs);
+
+  try {
+    if (init.signal) {
+      init.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      if (init.signal.aborted) {
+        controller.abort();
+      }
+    }
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -100,7 +128,7 @@ function setupTabActivatedListener(): void {
         console.log('[mLearn Background] Skipping internal URL');
         return;
       }
-      fetch(`${MLEARN_BASE_URL}/api/active-url-changed`, {
+      fetchWithTimeout(`${MLEARN_BASE_URL}/api/active-url-changed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: tabUrl }),
@@ -121,6 +149,10 @@ export async function initHeadlessMode(): Promise<void> {
 
   if (mode === 'enabled' && status === 'connected') {
     disableHeadlessMode();
+  }
+
+  if (mode === 'enabled' && status !== 'connected') {
+    notifyContentScriptsOfHeadlessState();
   }
 }
 
@@ -920,7 +952,7 @@ function setupMessageListener(): void {
         const windowId = _sender.tab?.windowId;
 
         const forwardLookup = (absX: number, absY: number) => {
-          fetch(`${MLEARN_BASE_URL}/api/overlay-text-lookup`, {
+          fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-text-lookup`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ word, x: absX, y: absY, contextText }),
@@ -962,11 +994,11 @@ function setupMessageListener(): void {
         message !== null &&
         (message as Record<string, unknown>).type === 'TEXT_MODE_CLOSE_HOVER'
       ) {
-        fetch(`${MLEARN_BASE_URL}/api/overlay-close-hover`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        }).catch(() => {});
+      fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-close-hover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).catch(() => {});
         sendResponse({ received: true });
         return true;
       }
@@ -989,7 +1021,7 @@ function setupMessageListener(): void {
         }
 
         if (message.type === 'OPEN_OVERLAY') {
-          fetch(`${MLEARN_BASE_URL}/api/overlay-launch`, { method: 'POST' }).catch(() => {});
+          fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-launch`, { method: 'POST' }).catch(() => {});
           sendResponse(buildPopupStateResponse());
           return true;
         }
@@ -1222,7 +1254,7 @@ async function forwardGeometry(geometry: { x: number; y: number; width: number; 
   }
 
   try {
-    const response = await fetch(`${MLEARN_BASE_URL}/api/overlay-geometry`, {
+    const response = await fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-geometry`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1253,7 +1285,7 @@ async function forwardVideoScreenshot(dataUrl: string, timestamp: number): Promi
   }
 
   try {
-    await fetch(`${MLEARN_BASE_URL}/api/overlay-video-screenshot`, {
+    await fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-video-screenshot`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1283,7 +1315,7 @@ async function forwardVideoState(state: VideoState, meta?: { url: string; title:
       title: meta?.title,
       videoSrc: state.src,
     };
-    const response = await fetch(`${MLEARN_BASE_URL}/api/overlay-sync`, {
+    const response = await fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1317,7 +1349,7 @@ async function forwardSubtitleTracks(message: SubtitleTracksMessage): Promise<vo
 
   try {
     console.log('[mLearn:bg] forwardSubtitleTracks: sending', message.textTracks.length, 'textTracks');
-    await fetch(`${MLEARN_BASE_URL}/api/overlay-subtitles`, {
+    await fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-subtitles`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1363,7 +1395,7 @@ function handleConnectionError(): void {
 
 async function pingMlearn(): Promise<void> {
   try {
-    const response = await fetch(`${MLEARN_BASE_URL}/api/ping`, {
+    const response = await fetchWithTimeout(`${MLEARN_BASE_URL}/api/ping`, {
       method: 'GET',
     });
 
@@ -1371,7 +1403,7 @@ async function pingMlearn(): Promise<void> {
       retryDelay = INITIAL_RETRY_DELAY_MS;
       if (status !== 'connected') {
         setConnectionStatus('connected');
-        void fetchAuthTokenFromDesktop();
+        await fetchAuthTokenFromDesktop();
         if (lastVideoState) {
           forwardVideoState(lastVideoState);
         }
@@ -1413,7 +1445,7 @@ function setupPingAlarm(): void {
 
 async function pollCommands(): Promise<void> {
   try {
-    const response = await fetch(`${MLEARN_BASE_URL}/api/command-poll`, {
+    const response = await fetchWithTimeout(`${MLEARN_BASE_URL}/api/command-poll`, {
       method: 'GET',
     });
     if (!response.ok) return;
@@ -1479,4 +1511,4 @@ export function getLastVideoState(): VideoState | null {
 }
 
 initServiceWorker();
-initHeadlessMode();
+void initHeadlessMode();

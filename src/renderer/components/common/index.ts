@@ -330,3 +330,5 @@ export {
   type VolumeLevelIconProps,
   type AutoPositionIconProps,
 } from './Misc';
+
+export { default as TitleBar } from './TitleBar/TitleBar';

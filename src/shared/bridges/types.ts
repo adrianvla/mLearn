@@ -132,6 +132,9 @@ export interface WindowBridge {
   openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
+  minimizeWindow: () => void;
+  maximizeWindow: () => void;
+  restoreWindow: () => void;
   getWindowContext: (windowType: string) => void;
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
   onOpenSettings: (callback: (section?: string) => void) => () => void;

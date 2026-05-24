@@ -16,7 +16,7 @@
     "websockets"
   ],
   "ocr": [
-    "paddlepaddle>=2.5.2",
+    "paddlepaddle==3.2.2",
     "paddleocr>=2.7.3",
     "manga-ocr",
     "onnxruntime",

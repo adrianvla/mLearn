@@ -7,8 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
-import { spawn, execSync, ChildProcess } from 'child_process';
-import { ipcMain } from 'electron';
+import { spawn, exec, execSync, ChildProcess } from 'child_process';
+import { ipcMain, app } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
 import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress } from '../../shared/types';
@@ -144,6 +144,26 @@ const userDataPath = getUserDataPath();
 const downloadPath = path.join(userDataPath, 'python.tar.gz');
 const extractPath = path.join(userDataPath, 'py');
 const envPath = path.join(userDataPath, 'env');
+const pythonVersionPath = path.join(userDataPath, 'python-version.txt');
+
+function getInstalledPythonVersion(): string | null {
+  try {
+    if (fs.existsSync(pythonVersionPath)) {
+      return fs.readFileSync(pythonVersionPath, 'utf-8').trim();
+    }
+  } catch (e) {
+    lifecycleLog.warn('Failed to read installed Python version:', e);
+  }
+  return null;
+}
+
+function setInstalledPythonVersion(version: string): void {
+  try {
+    fs.writeFileSync(pythonVersionPath, version, 'utf-8');
+  } catch (e) {
+    lifecycleLog.warn('Failed to write installed Python version:', e);
+  }
+}
 
 function resolveResourceFilePath(...segments: string[]): string {
   const appPath = getAppPath();
@@ -443,7 +463,7 @@ async function checkDiskSpace(targetPath: string): Promise<number> {
 async function verifyPythonInstallation(options: InstallOptions): Promise<boolean> {
   const pythonPath = resolvePythonExecutablePath();
   const imports = ['fastapi', 'uvicorn', 'spacy'];
-  if (options.includeOCR) imports.push('paddleocr');
+  if (options.includeOCR) imports.push('paddleocr', 'rapidocr', 'manga_ocr', 'onnxruntime', 'cv2');
   if (options.includeLLM) imports.push('torch', 'transformers');
 
   const script = imports.map(mod => `try:\n    import ${mod}\nexcept Exception as e:\n    print(f"FAIL:${mod}:{e}")`).join('\n');
@@ -866,10 +886,16 @@ function pythonFound(): void {
   ];
 
   if (isWindows) {
-    pythonChildProcess = spawn(pythonExecutable, args, {
-      detached: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    // Use exec() on Windows — running through cmd.exe ensures proper
+    // environment setup (PATH, DLL search paths) for native Python
+    // modules (onnxruntime, OpenCV, paddlepaddle). spawn() breaks
+    // DLL resolution for these modules in packaged builds.
+    const command = [
+      `"${pythonExecutable}"`,
+      ...args.map(a => a.includes(' ') ? `"${a}"` : a),
+    ].join(' ');
+
+    pythonChildProcess = exec(command);
   } else {
     // Raise the per-process FD limit before exec-ing Python.
     // ML libs (torch, transformers, ONNX) open thousands of files;
@@ -932,6 +958,28 @@ export async function findPython(): Promise<boolean> {
       const healthy = await verifyPythonExecutable(pythonPath);
       if (healthy) {
         log.info('Python found and healthy at:', pythonPath);
+
+        // Only enforce version check for Python installed in userData path
+        // (persistent across app updates). Dev Python in project resources
+        // doesn't have version tracking.
+        if (pythonPath.startsWith(userDataPath)) {
+          const installedVersion = getInstalledPythonVersion();
+          const currentVersion = app.getVersion();
+          if (installedVersion !== currentVersion) {
+            log.info(`Python was installed with version ${installedVersion ?? 'unknown'}, current app version is ${currentVersion}. Showing installer for update/reinstall.`);
+            try { fs.unlinkSync(pythonVersionPath); } catch {}
+            waitingForInstallChoice = true;
+            isFirstTimeSetup = true;
+            sendStatusUpdate('Select the components you want and click Install to continue.');
+            try {
+              getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+            } catch (e) {
+              log.error('error', e);
+            }
+            return false;
+          }
+        }
+
         pythonSuccessInstall = true;
         pythonFound();
         return true;
@@ -1084,6 +1132,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
           if (verified) {
             log.info('Installation complete');
             pythonSuccessInstall = true;
+            setInstalledPythonVersion(app.getVersion());
             sendStatusUpdate('Installation complete');
           } else {
             log.error('Installation verification failed');

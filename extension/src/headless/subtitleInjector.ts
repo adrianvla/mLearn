@@ -69,12 +69,33 @@ function removeStyles(): void {
   }
 }
 
-function getBestVideo(): HTMLVideoElement | null {
-  const videos = document.querySelectorAll('video');
+function getAllVideos(root: Document | ShadowRoot = document): HTMLVideoElement[] {
+  const found: HTMLVideoElement[] = [];
+  try {
+    const videos = root.querySelectorAll('video');
+    for (const video of Array.from(videos)) {
+      found.push(video);
+    }
+  } catch {
+    // Some shadow roots may not support querySelector
+  }
+
+  const allElements = root.querySelectorAll('*');
+  for (const el of Array.from(allElements)) {
+    if (el.shadowRoot) {
+      found.push(...getAllVideos(el.shadowRoot));
+    }
+  }
+
+  return found;
+}
+
+export function getBestVideo(): HTMLVideoElement | null {
+  const videos = getAllVideos(document);
   let best: HTMLVideoElement | null = null;
   let bestArea = 0;
 
-  for (const video of Array.from(videos)) {
+  for (const video of videos) {
     const rect = video.getBoundingClientRect();
     const area = rect.width * rect.height;
     if (area > bestArea && rect.width > 0 && rect.height > 0) {

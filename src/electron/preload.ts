@@ -169,6 +169,9 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command)),
   openWindow: (payload: OpenWindowPayload) => ipcRenderer.send(IPC_CHANNELS.OPEN_WINDOW, payload),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
+  minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MINIMIZE_WINDOW),
+  maximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MAXIMIZE_WINDOW),
+  restoreWindow: () => ipcRenderer.send(IPC_CHANNELS.RESTORE_WINDOW),
   getWindowContext: (windowType: string) => ipcRenderer.send(IPC_CHANNELS.GET_WINDOW_CONTEXT, windowType),
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) =>
     ipcOn(IPC_CHANNELS.WINDOW_CONTEXT, (_event, context) => callback(context)),

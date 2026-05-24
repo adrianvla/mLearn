@@ -9,8 +9,8 @@ interface MockMLearnAPI {
   deleteFlashcard: ReturnType<typeof vi.fn>;
   openWindow: ReturnType<typeof vi.fn>;
   closeWindow: ReturnType<typeof vi.fn>;
-  minimize: ReturnType<typeof vi.fn>;
-  maximize: ReturnType<typeof vi.fn>;
+  minimizeWindow: ReturnType<typeof vi.fn>;
+  maximizeWindow: ReturnType<typeof vi.fn>;
   setAlwaysOnTop: ReturnType<typeof vi.fn>;
   togglePiP: ReturnType<typeof vi.fn>;
   getBackendStatus: ReturnType<typeof vi.fn>;
@@ -37,8 +37,8 @@ function createMockAPI(overrides: Partial<MockMLearnAPI> = {}): MockMLearnAPI {
     deleteFlashcard: vi.fn().mockResolvedValue(undefined),
     openWindow: vi.fn(),
     closeWindow: vi.fn(),
-    minimize: vi.fn(),
-    maximize: vi.fn(),
+    minimizeWindow: vi.fn(),
+    maximizeWindow: vi.fn(),
     setAlwaysOnTop: vi.fn(),
     togglePiP: vi.fn(),
     getBackendStatus: vi.fn().mockResolvedValue(true),
@@ -263,25 +263,25 @@ describe('useIPC', () => {
     });
   });
 
-  describe('minimize', () => {
-    it('delegates to api.minimize', () => {
-      const { minimize } = useIPC();
-      minimize();
-      expect(mockAPI.minimize).toHaveBeenCalled();
+  describe('minimizeWindow', () => {
+    it('delegates to api.minimizeWindow', () => {
+      const { minimizeWindow } = useIPC();
+      minimizeWindow();
+      expect(mockAPI.minimizeWindow).toHaveBeenCalled();
     });
 
     it('is a no-op when no API', () => {
       setWindowMlearn(undefined);
-      const { minimize } = useIPC();
-      minimize();
+      const { minimizeWindow } = useIPC();
+      minimizeWindow();
     });
   });
 
-  describe('maximize', () => {
-    it('delegates to api.maximize', () => {
-      const { maximize } = useIPC();
-      maximize();
-      expect(mockAPI.maximize).toHaveBeenCalled();
+  describe('maximizeWindow', () => {
+    it('delegates to api.maximizeWindow', () => {
+      const { maximizeWindow } = useIPC();
+      maximizeWindow();
+      expect(mockAPI.maximizeWindow).toHaveBeenCalled();
     });
   });
 
@@ -489,8 +489,8 @@ describe('useIPC', () => {
       expect(ipc).toHaveProperty('deleteFlashcard');
       expect(ipc).toHaveProperty('openWindow');
       expect(ipc).toHaveProperty('closeWindow');
-      expect(ipc).toHaveProperty('minimize');
-      expect(ipc).toHaveProperty('maximize');
+      expect(ipc).toHaveProperty('minimizeWindow');
+      expect(ipc).toHaveProperty('maximizeWindow');
       expect(ipc).toHaveProperty('setAlwaysOnTop');
       expect(ipc).toHaveProperty('togglePiP');
       expect(ipc).toHaveProperty('getBackendStatus');
@@ -517,14 +517,14 @@ describe('useIPC without API', () => {
     expect(isTethered).toBe(false);
   });
 
-  it('minimize is a no-op', () => {
-    const { minimize } = useIPC();
-    expect(() => minimize()).not.toThrow();
+  it('minimizeWindow is a no-op', () => {
+    const { minimizeWindow } = useIPC();
+    expect(() => minimizeWindow()).not.toThrow();
   });
 
-  it('maximize is a no-op', () => {
-    const { maximize } = useIPC();
-    expect(() => maximize()).not.toThrow();
+  it('maximizeWindow is a no-op', () => {
+    const { maximizeWindow } = useIPC();
+    expect(() => maximizeWindow()).not.toThrow();
   });
 
   it('setAlwaysOnTop is a no-op', () => {

@@ -209,8 +209,13 @@ export { tokensToColoredHtml, cleanContextPhrase, formatForClipboard } from './p
 export function parseWorkName(name: string): string {
   if (!name) return '';
 
+  // Step 0: Strip any directory path (handle both / and \ separators)
+  // This is critical on Windows where dragged file names can include the full
+  // path like C:\Users\...\filename.ext
+  let cleaned = name.replace(/^.*[/\\]/, '');
+
   // Step 1: Remove only short extensions (like .srt, .ass, .sub, .pdf, .cbz, .cbr, .mkv, .mp4)
-  let cleaned = name.replace(/\.[^.]{1,4}$/, '');
+  cleaned = cleaned.replace(/\.[^.]{1,4}$/, '');
 
   // Step 2: Remove dot-separated codec versions (e.g. DDP2.0, AAC5.1) before normalizing dots
   cleaned = cleaned.replace(/\b(DDP|AAC|DD\+)\d+(?:\.\d+)?\b/gi, '');
