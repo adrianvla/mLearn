@@ -99,6 +99,13 @@ vi.mock('fs', async (importOriginal) => {
 let mockQuitToken: string | null = null;
 vi.mock('./pythonBackend', () => ({
   getQuitToken: () => mockQuitToken,
+  readResourceFile: (...segments: string[]) => {
+    const path = segments.join('/');
+    if (path.includes('pip_requirements')) {
+      return JSON.stringify({ voice: ['faster-whisper'], 'qwen3-tts': ['qwen3-tts-package'] });
+    }
+    return '';
+  },
 }));
 
 type SpawnEventCallback = (...args: unknown[]) => void;

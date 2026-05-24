@@ -6,6 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'node:url';
 import { ipcMain, protocol, net } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
@@ -79,7 +80,7 @@ export function setupFlashcardVideoProtocol(): void {
   protocol.handle(SCHEME, (request) => {
     const filename = decodeURIComponent(request.url.slice(`${SCHEME}://`.length).split('?')[0]);
     const filePath = path.join(getVideoDir(), filename);
-    const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
+    const fileUrl = pathToFileURL(filePath).href;
     return net.fetch(fileUrl, { headers: request.headers });
   });
 }

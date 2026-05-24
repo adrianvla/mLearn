@@ -11,6 +11,7 @@ import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared
 import { getUserDataPath } from '../utils/platform';
 import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
 import { limitConsecutiveDots } from '../../shared/utils/textUtils';
+import { pathToFileURL } from 'node:url';
 import http from 'http';
 import https from 'https';
 import { getLogger } from '../../shared/utils/logger';
@@ -471,7 +472,7 @@ export function setupFlashcardAudioProtocol(): void {
     const raw = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
     const filename = raw.split('?')[0];
     const filePath = path.join(getAudioDir(), filename);
-    const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
+    const fileUrl = pathToFileURL(filePath).href;
     return net.fetch(fileUrl, { headers: request.headers });
   });
 }

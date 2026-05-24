@@ -6,6 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'node:url';
 import { ipcMain, protocol, net } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
@@ -166,8 +167,7 @@ export function resolveImagePath(imageUrl: string): string | null {
 export function resolveImageUrl(imageUrl: string): string | null {
   const filePath = resolveImagePath(imageUrl);
   if (!filePath) return null;
-  // Convert to a file:// URL - cross-platform compatible
-  return `file://${filePath.replace(/\\/g, '/')}`;
+  return pathToFileURL(filePath).href;
 }
 
 /**
@@ -198,7 +198,7 @@ export function setupFlashcardImageProtocol(): void {
     // flashcard-image://cardId.jpg -> {userData}/flashcard-images/cardId.jpg
     const filename = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
     const filePath = path.join(getImageDir(), filename);
-    const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
+    const fileUrl = pathToFileURL(filePath).href;
     return net.fetch(fileUrl, { headers: request.headers });
   });
 }

@@ -214,7 +214,6 @@ function getPreloadPath(): string {
     return resolveExistingPath([
       path.join(appPath, 'dist-electron', 'electron', 'preload.js'),
       path.join(__dirname, '..', 'preload.js'),
-      path.join(__dirname, 'preload.js'),
     ]);
   }
 
@@ -865,9 +864,9 @@ export function setupWindowIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_LEGAL_DOCUMENT, (event, name: string) => {
     try {
       const candidates = [
-        path.join(process.cwd(), `${name}.md`),
-        path.join(app.getAppPath(), `${name}.md`),
-        path.join(__dirname, '..', '..', '..', `${name}.md`),
+        path.join(process.resourcesPath, `${name}.md`),      // extraResources in packaged mode
+        path.join(app.getAppPath(), `${name}.md`),            // asar root or dev project root
+        path.join(__dirname, '..', '..', '..', `${name}.md`), // fallback (project root in dev, asar root in packaged)
       ];
       const filePath = candidates.find((p) => fs.existsSync(p));
       if (filePath) {
