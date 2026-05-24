@@ -45,10 +45,6 @@ function hideNativeCaptions(): void {
   document.head.appendChild(style);
 }
 
-function setupNativeCaptions(): { show: () => void; hide: () => void } {
-  return { show: showNativeCaptions, hide: hideNativeCaptions };
-}
-
 function extractCaptionText(container: Element): { text: string; language: string } | null {
   const windows = container.querySelectorAll('.caption-window, .ytp-caption-window');
   if (windows.length === 0) return null;
@@ -282,7 +278,6 @@ export const youtubePlatform: SitePlatform = {
 
     findAndObserveContainer();
     setupDocumentObserver();
-    hideNativeCaptions();
 
     return () => {
       console.log('[mLearn:youtube] Cleanup called');
