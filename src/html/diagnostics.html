@@ -8,8 +8,8 @@
         style-src 'self' 'unsafe-inline';
         connect-src *;
         script-src 'self';
-        img-src 'self' data: blob:;
-        media-src 'self' blob: *;
+        img-src 'self' data: blob: flashcard-image: local-media:;
+        media-src 'self' blob: * flashcard-audio: flashcard-video: local-media:;
         worker-src 'self' blob:;
     ">
     <title>Diagnostics - mLearn</title>

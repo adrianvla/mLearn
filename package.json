@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit && tsc -p src/electron/tsconfig.json --noEmit",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac": "npm run build:extension && npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
     "dist:tar": "node scripts/pack-tar.js",
@@ -148,11 +148,27 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "EULA.md",
+        "to": "EULA.md"
+      },
+      {
+        "from": "TERMS_OF_SERVICE.md",
+        "to": "TERMS_OF_SERVICE.md"
+      },
+      {
+        "from": "PRIVACY_POLICY.md",
+        "to": "PRIVACY_POLICY.md"
       }
     ],
     "mac": {
       "category": "public.app-category.education",
       "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "protocols": [
         {
           "name": "mLearn Auth Callback",

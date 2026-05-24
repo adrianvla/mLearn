@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
-import { spawn, exec, execSync, ChildProcess } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import { ipcMain } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
@@ -140,23 +140,28 @@ const PACKAGE_SIZE_ESTIMATES_BYTES: Readonly<Record<string, number>> = {
 
 // Paths
 const resPath = getResourcePath();
-const downloadPath = path.join(resPath, 'python.tar.gz');
-const extractPath = path.join(resPath, 'py');
-const envPath = path.join(resPath, 'env');
+const userDataPath = getUserDataPath();
+const downloadPath = path.join(userDataPath, 'python.tar.gz');
+const extractPath = path.join(userDataPath, 'py');
+const envPath = path.join(userDataPath, 'env');
 
 function resolveResourceFilePath(...segments: string[]): string {
   const appPath = getAppPath();
   const candidatePaths = [
-    path.join(appPath, ...segments),
-    getBundledDistElectronPath(...segments),
     path.join(resPath, 'root-of-app', ...segments),
     path.join(resPath, ...segments),
+    path.join(appPath, ...segments),
+    getBundledDistElectronPath(...segments),
   ];
-
+  for (const candidate of candidatePaths) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
   return candidatePaths[0];
 }
 
-function readResourceFile(...segments: string[]): string {
+export function readResourceFile(...segments: string[]): string {
   const candidatePaths = [
     resolveResourceFilePath(...segments),
     getBundledDistElectronPath(...segments),
@@ -188,6 +193,28 @@ function resolveExternalResourceFilePath(...segments: string[]): string {
   }
 
   return candidatePaths[0];
+}
+
+function resolvePythonExecutablePath(): string {
+  if (isWindows) {
+    const userDataExe = path.join(userDataPath, 'env', 'python.exe');
+    if (fs.existsSync(userDataExe)) return userDataExe;
+  } else {
+    const userDataPy = path.join(userDataPath, 'env', 'bin', 'python3');
+    if (fs.existsSync(userDataPy)) return userDataPy;
+  }
+  return getPythonExecutablePath();
+}
+
+function resolvePipExecutablePath(): string {
+  if (isWindows) {
+    const userDataExe = path.join(userDataPath, 'env', 'python.exe');
+    if (fs.existsSync(userDataExe)) return userDataExe;
+  } else {
+    const userDataPip = path.join(userDataPath, 'env', 'bin', 'pip3');
+    if (fs.existsSync(userDataPip)) return userDataPip;
+  }
+  return getPipExecutablePath();
 }
 
 // Getters
@@ -414,7 +441,7 @@ async function checkDiskSpace(targetPath: string): Promise<number> {
 }
 
 async function verifyPythonInstallation(options: InstallOptions): Promise<boolean> {
-  const pythonPath = getPythonExecutablePath();
+  const pythonPath = resolvePythonExecutablePath();
   const imports = ['fastapi', 'uvicorn', 'spacy'];
   if (options.includeOCR) imports.push('paddleocr');
   if (options.includeLLM) imports.push('torch', 'transformers');
@@ -662,9 +689,8 @@ function pythonFound(): void {
   if (isFirstTimeSetup) return;
 
   const settings = loadSettings();
-  const pythonExecutable = getPythonExecutablePath();
+  const pythonExecutable = resolvePythonExecutablePath();
   const serverPath = resolveExternalResourceFilePath('server.py');
-  const userDataPath = getUserDataPath();
 
   const llmEnabled = settings.llmEnabled !== false;
   const ocrEnabled = settings.ocrEnabled !== false;
@@ -840,12 +866,10 @@ function pythonFound(): void {
   ];
 
   if (isWindows) {
-    const command = [
-      `"${pythonExecutable}"`,
-      ...args.map(a => a.includes(' ') ? `"${a}"` : a),
-    ].join(' ');
-    
-    pythonChildProcess = exec(command);
+    pythonChildProcess = spawn(pythonExecutable, args, {
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   } else {
     // Raise the per-process FD limit before exec-ing Python.
     // ML libs (torch, transformers, ONNX) open thousands of files;
@@ -895,6 +919,8 @@ export async function findPython(): Promise<boolean> {
   log.info('Finding Python...');
 
   const possibilities = [
+    path.join(userDataPath, 'env', 'bin', 'python3'),
+    path.join(userDataPath, 'env', 'python.exe'),
     path.join(process.resourcesPath, 'env', 'bin', 'python3'),
     path.join(resPath, 'env', 'bin', 'python3'),
     path.join(process.resourcesPath, 'env', 'python.exe'),
@@ -994,10 +1020,10 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
         return;
       }
 
-      const pipExecutable = getPipExecutablePath();
+      const pipExecutable = resolvePipExecutablePath();
       const pipArgs = isWindows ? ['-m', 'pip', 'install', ...pipRequirements] : ['install', ...pipRequirements];
 
-      const pipProcess = spawn(isWindows ? getPythonExecutablePath() : pipExecutable, pipArgs, {
+      const pipProcess = spawn(isWindows ? resolvePythonExecutablePath() : pipExecutable, pipArgs, {
         cwd: envPath,
       });
       activePipProcess = pipProcess;
