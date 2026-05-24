@@ -1120,7 +1120,8 @@
       "MigrationComplete": "Data Migration Complete",
       "MigrationFlashcards": "Your flashcards have been migrated from v{version}. A backup was created.",
       "MigrationFlashcardsNoBackup": "Your flashcards have been migrated from v{version}.",
-      "MigrationWordStatuses": "Migrated {count} word statuses from v1. A backup has been created."
+      "MigrationWordStatuses": "Migrated {count} word statuses from v1. A backup has been created.",
+      "UpdateAvailable": "Version {latestVersion} is now available (you are running {currentVersion}). Check the website to download."
     },
     "PitchAccent": {
       "Atamadaka": "Atamadaka (頭高)",
