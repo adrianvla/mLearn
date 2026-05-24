@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit && tsc -p src/electron/tsconfig.json --noEmit",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build:extension && npm run build && electron-builder --mac",
+    "dist:mac": "npm run build:extension && npm run build && electron-builder --mac --universal",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
     "dist:tar": "node scripts/pack-tar.js",
@@ -176,6 +176,15 @@
         "to": "PRIVACY_POLICY.md"
       }
     ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/*.dylib",
+      "**/@node-llama-cpp/**",
+      "**/@img/**",
+      "**/@reflink/**",
+      "**/fsevents/**",
+      "**/iconv-corefoundation/**"
+    ],
     "mac": {
       "category": "public.app-category.education",
       "icon": "build/icon.icns",
@@ -192,8 +201,14 @@
         }
       ],
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
       ]
     },
     "dmg": {
@@ -223,12 +238,19 @@
         }
       ],
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64", "arm64"]
+        }
       ]
     },
     "linux": {
       "icon": "build/icons/",
+      "maintainer": "Adrian Vlasov <adrian@kikan.net>",
       "protocols": [
         {
           "name": "mLearn Auth Callback",
@@ -238,13 +260,17 @@
         }
       ],
       "target": [
-        "AppImage",
-        "deb"
+        { "target": "AppImage", "arch": ["x64", "arm64"] },
+        { "target": "deb", "arch": ["x64", "arm64"] }
       ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName} Setup ${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName} ${version}-${arch}.${ext}"
     }
   }
 }
