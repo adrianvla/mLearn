@@ -16,7 +16,7 @@ import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../
 import { parseKeybind } from '../../../components/common';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
-import { WORD_STATUS } from '../../../../shared/constants';
+import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
 import { isElectron } from '../../../../shared/platform';
@@ -575,8 +575,8 @@ export const ReaderRoute: Component = () => {
         colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
         ocrCropPadding: settings.ocr_crop_padding,
         tokenize,
-        srsLearningEase: settings.srsLearningEase,
-        srsKnownEase: settings.srsKnownEase,
+srsLearningEase: settings.srsLearningThreshold / 1000,
+          srsKnownEase: settings.known_ease_threshold / 1000,
       });
       await flashcardCtx.addFlashcard(content, ease);
     } finally {
@@ -620,7 +620,7 @@ export const ReaderRoute: Component = () => {
           const forms = getWordForms(entry.word);
           const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
           const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
-          const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
+          const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
           try {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
             await refreshAnkiWordsCache();
