@@ -19,11 +19,8 @@ import {
   buildWordHoverFlashcardContent,
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
-  getAnkiWordKnowledgeStatus,
-  resolveWordKnowledge,
   numericToWordStatus,
   type WordStatus,
-  type WordKnowledgeResult,
 } from './wordHoverHelpers';
 import { clipVideo } from '../../services/videoClipService';
 import { getBridge } from '../../../shared/bridges';
@@ -84,7 +81,7 @@ export interface WordHoverProps {
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
-  const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
+  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language });
   const { t } = useLocalization();
@@ -374,8 +371,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           ocrCropPadding: settings.ocr_crop_padding,
           tokenize,
           flashcardMediaType: isVideoMode ? 'video' : 'image',
-          srsLearningEase: settings.srsLearningEase,
-          srsKnownEase: settings.srsKnownEase,
+          srsLearningEase: settings.srsLearningThreshold / 1000,
+          srsKnownEase: settings.known_ease_threshold / 1000,
           screenshotDataUrl: props.lastScreenshot,
         });
 
@@ -518,23 +515,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return findAnkiWordMatchInCache(wordForms());
   });
 
-  const ankiKnowledgeStatus = createMemo(() =>
-    getAnkiWordKnowledgeStatus(
-      ankiMatch()?.cards,
-      settings.ankiLearningThreshold,
-      settings.ankiKnownThreshold,
-    )
-  );
-
-  // Resolve word knowledge from all sources using the configured strategy
-  const wordKnowledge = createMemo<WordKnowledgeResult>(() =>
-    resolveWordKnowledge(
-      currentFlashcard(), manualStatus(), ankiKnowledgeStatus(),
-      settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-    )
-  );
-
-  const effectiveStatus = createMemo(() => wordKnowledge().status);
+  const comprehensiveStatus = createMemo(() => getComprehensiveWordStatusSync(actualWord()));
+  const effectiveStatus = createMemo(() => comprehensiveStatus());
 
   // Level pill showing JLPT/frequency level from langdata (not hardcoded!)
   // Must reactively update when word changes - use createMemo for full reactivity

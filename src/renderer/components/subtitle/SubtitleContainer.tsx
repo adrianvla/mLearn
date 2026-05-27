@@ -16,6 +16,9 @@ import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.components.subtitleContainer");
 
+const PASSIVE_SUBTITLE_EASE_BUMP = 0.01;
+const LIVE_TRANSLATOR_EASE_BUMP = 0.02;
+
 export interface SubtitleContainerProps {
   tokens: Token[];
   originalText?: string;
@@ -39,7 +42,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { settings } = useSettings();
   const { isTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm } = useLanguage();
   const flashcardCtx = useFlashcards();
-  const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
+  const { hoverData, isVisible, showHover, hideHover, cancelHide, forceHide } = useWordHover();
   const { lookup } = useDictionary({ language: settings.language });
   const { translateWord } = useTranslation({ immediate: true, language: settings.language });
 
@@ -61,7 +64,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
   let hoverRequestId = 0;
   let lastSubtitleKey = '';
-  let liveTranslatorSeen = new Set<string>();
+  let lastLiveTranslatorKey = '';
   
   // Handle opening the explainer popup
   const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
@@ -221,7 +224,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   };
 
   // Determine visibility - use not-shown class for fade animation
-  const hasContent = () => props.tokens.length > 0 || props.originalText || props.isLoading;
+  const hasContent = () => !props.isLoading && (props.tokens.length > 0 || props.originalText);
   const shouldShow = () => (settings.showSubtitles ?? true) && hasContent();
 
   // Check if all tokens in the current subtitle are known (for blur_known_subtitles)
@@ -233,7 +236,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       // Non-translatable tokens (particles, punctuation) don't affect known status
       if (!isTranslatable(pos)) return true;
       const word = t.actual_word ?? t.surface ?? t.word;
-      return flashcardCtx.isWordKnownByText(getCanonicalForm(word));
+      return flashcardCtx.isWordKnownComprehensiveSync(getCanonicalForm(word));
     });
   });
 
@@ -241,17 +244,20 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const getContainerClass = () => {
     const classes = ['subtitles', getSubtitleThemeClass()];
     const show = shouldShow();
-    const content = hasContent();
-    console.log('[SubtitleContainer] shouldShow=', show, 'hasContent=', content, 'tokens=', props.tokens.length, 'originalText=', !!props.originalText, 'isLoading=', props.isLoading, 'showSubtitles=', settings.showSubtitles, 'class=', classes.join(' '));
     if (!show) {
       classes.push('not-shown');
-      console.log('[SubtitleContainer] APPLYING not-shown because shouldShow=false');
     }
     if (settings.blur_known_subtitles && allWordsKnown()) {
       classes.push('subtitle-line-blur');
     }
     return classes.join(' ');
   };
+
+  // Hide hover popup when subtitles change (words re-render, onMouseLeave never fires)
+  createEffect(() => {
+    props.tokens; // track token changes reactively
+    forceHide();
+  });
 
   // Pre-fetch translations for all translatable words when subtitle appears
   // This populates the translation cache for furigana display and faster hover
@@ -264,7 +270,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (subtitleKey === lastSubtitleKey) return; // Already processed
     
     lastSubtitleKey = subtitleKey;
-    liveTranslatorSeen = new Set();
 
     // Track word seen for passive knowledge + populate Token.isKnown
     for (const token of tokens) {
@@ -275,7 +280,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       if (!lookupWord) continue;
 
       // Passive word tracking
-      flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading);
+      flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading, PASSIVE_SUBTITLE_EASE_BUMP);
     }
 
     // Passive grammar encounter tracking
@@ -308,30 +313,35 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     const tokens = props.tokens || [];
     if (!tokens.length) return;
     if (typeof window === 'undefined') return;
-    const translator = window.mLearnLiveTranslator;
-    if (!translator || typeof translator.addCard !== 'function') return;
+
+    const subtitleKey = tokens.map((t) => t.surface ?? t.word).join('|');
+    if (subtitleKey === lastLiveTranslatorKey) return; // Already processed
+    lastLiveTranslatorKey = subtitleKey;
+
+    const seenInThisRun = new Set<string>();
 
     for (const token of tokens) {
       const pos = token.partOfSpeech ?? token.type ?? '';
-      // Only process translatable words
       if (!isTranslatable(pos)) continue;
-      
+
       const displayWord = token.surface ?? token.word;
       const lookupWord = token.actual_word ?? displayWord;
-      
-      if (!displayWord || liveTranslatorSeen.has(displayWord)) continue;
+
+      if (!displayWord) continue;
 
       // Skip known words unless liveTranslatorIncludeKnown is enabled
       if (!settings.liveTranslatorIncludeKnown) {
-        const isKnown = flashcardCtx.isWordKnownByText(getCanonicalForm(lookupWord));
+        const isKnown = flashcardCtx.isWordKnownComprehensiveSync(getCanonicalForm(lookupWord));
         if (isKnown) continue;
       }
 
-      liveTranslatorSeen.add(displayWord);
+      // Deduplicate within this subtitle to avoid double-translating the same word
+      if (seenInThisRun.has(displayWord)) continue;
+      seenInThisRun.add(displayWord);
 
       // Higher ease bump for words shown in live translator (+0.02 vs +0.01)
-      flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading, 0.02);
-      
+      flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading, LIVE_TRANSLATOR_EASE_BUMP);
+
       (async () => {
         try {
           const translation = await translateWord(lookupWord);
@@ -343,10 +353,23 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
               : String(first.definitions);
           }
           const reading = first?.reading ?? token.reading ?? '';
-          if (translationText) translator.addCard(displayWord, reading, translationText);
+          if (!translationText) return;
+
+          // Retry adding to live translator in case it hasn't mounted yet
+          let attempts = 0;
+          const tryAddCard = () => {
+            const translator = window.mLearnLiveTranslator;
+            if (translator && typeof translator.addCard === 'function') {
+              translator.addCard(displayWord, reading, translationText);
+              return;
+            }
+            if (++attempts < 10) {
+              setTimeout(tryAddCard, 100);
+            }
+          };
+          tryAddCard();
         } catch (_e) {
           log.error("error", _e);
-          /* ignore translation failures for live list */
         }
       })();
     }
@@ -356,18 +379,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     <>
       <div class={getContainerClass()}>
         {/*<GlassPanel variant="elevated" blur="md" rounded="lg" padding="sm">*/}
-          {/* Loading state */}
-          <Show when={props.isLoading}>
-            <div
-              style={{
-                ...subtitleStyle(),
-                color: 'var(--text-secondary)',
-              }}
-            >
-              Tokenizing...
-            </div>
-          </Show>
-
           {/* Subtitle text */}
           <Show when={!props.isLoading && props.tokens.length > 0}>
             <div style={subtitleStyle()}>
