@@ -148,9 +148,10 @@ export const KanjiGridContent: Component = () => {
 
       const trackedWordsArray: Array<{ word: string; status: number }> = [];
       for (const word of wordSet) {
-        if (flashcardCtx.isWordKnownByText(word)) {
+        const status = flashcardCtx.getComprehensiveWordStatusSync(word);
+        if (status === 'known') {
           trackedWordsArray.push({ word, status: WORD_STATUS.KNOWN });
-        } else if (flashcardCtx.isWordLearningByText(word)) {
+        } else if (status === 'learning') {
           trackedWordsArray.push({ word, status: WORD_STATUS.LEARNING });
         } else {
           trackedWordsArray.push({ word, status: WORD_STATUS.UNKNOWN });
