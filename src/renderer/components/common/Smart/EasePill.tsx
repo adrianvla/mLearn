@@ -1,11 +1,12 @@
 import { Component, createMemo, Show } from 'solid-js';
-import { useLocalization, useSettings } from '../../../context';
+import { useLocalization } from '../../../context';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
 import { AnkiHoverPreview } from '../AnkiHoverPreview';
 import { PillBtn } from '../Button';
 import { Tooltip } from '../Tooltip';
 import Icon from '../Icons/Icon';
 import { getAnkiEaseForStatus, type WordStatus } from '../../subtitle/wordHoverHelpers';
+import { ANKI_EASE } from '../../../../shared/constants';
 import './EasePill.css';
 
 const ICON_ANKI = 'anki';
@@ -22,7 +23,7 @@ export interface EasePillProps {
 }
 
 export const EasePill: Component<EasePillProps> = (props) => {
-  const { settings } = useSettings();
+
   const { t } = useLocalization();
 
   const easeLabel = createMemo(() => props.ease === undefined
@@ -38,7 +39,7 @@ export const EasePill: Component<EasePillProps> = (props) => {
     }
 
     if (props.isInAnki) {
-      const ankiEase = getAnkiEaseForStatus(props.effectiveStatus, settings.ankiLearningEase, settings.ankiKnownEase);
+      const ankiEase = getAnkiEaseForStatus(props.effectiveStatus, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
       parts.push(t('mlearn.WordHover.AnkiEase', { ease: String(ankiEase) }));
     }
 

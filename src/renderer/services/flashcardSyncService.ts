@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type WordCandidate, type WordStats, type FlashcardState } from '../../shared/types';
+import { SRS_EASE } from '../../shared/constants';
 
 const CHUNK_SIZE = 16000;
 const MAX_RETRIES = 3;
@@ -51,7 +52,7 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
   if (cards.length === 0) {
     return {
       cardCount: 0,
-      bestEase: 2.5,
+      bestEase: SRS_EASE.DEFAULT_KNOWN,
       totalReviews: 0,
       totalLapses: 0,
       lastReviewed: 0,

@@ -7,6 +7,7 @@
 import { createSignal, onMount, onCleanup } from 'solid-js';
 import type { MediaStats, MediaSession, Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
+import { SRS_EASE } from '../../shared/constants';
 
 interface UseMediaStatsOptions {
   mediaType: 'video' | 'book';
@@ -127,7 +128,7 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   const recordWord = (word: string, ease: number) => {
     if (!isActive()) return;
     setStats((prev) => {
-      const existing = prev.wordsEncountered[word] || { word, ease: 2.5, timesSeen: 0, timesHovered: 0 };
+      const existing = prev.wordsEncountered[word] || { word, ease: SRS_EASE.MIN, timesSeen: 0, timesHovered: 0 };
       return {
         ...prev,
         wordsEncountered: {
@@ -146,7 +147,7 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   const recordWordHover = (word: string, ease: number) => {
     if (!isActive()) return;
     setStats((prev) => {
-      const existing = prev.wordsEncountered[word] || { word, ease: 2.5, timesSeen: 0, timesHovered: 0 };
+      const existing = prev.wordsEncountered[word] || { word, ease: SRS_EASE.MIN, timesSeen: 0, timesHovered: 0 };
       return {
         ...prev,
         wordsEncountered: {
@@ -165,7 +166,7 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   const recordGrammar = (pattern: string, ease: number) => {
     if (!isActive()) return;
     setStats((prev) => {
-      const existing = prev.grammarEncountered[pattern] || { pattern, ease: 2.5, timesFailed: 0 };
+      const existing = prev.grammarEncountered[pattern] || { pattern, ease: SRS_EASE.MIN, timesFailed: 0 };
       return {
         ...prev,
         grammarEncountered: {
@@ -183,7 +184,7 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   const recordGrammarFailed = (pattern: string, ease: number) => {
     if (!isActive()) return;
     setStats((prev) => {
-      const existing = prev.grammarEncountered[pattern] || { pattern, ease: 2.5, timesFailed: 0 };
+      const existing = prev.grammarEncountered[pattern] || { pattern, ease: SRS_EASE.MIN, timesFailed: 0 };
       return {
         ...prev,
         grammarEncountered: {
