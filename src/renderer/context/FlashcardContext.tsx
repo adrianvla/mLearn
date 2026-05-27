@@ -27,6 +27,7 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore, isWordKnown as checkWordIsKnown } from '../utils/knowledgeUtils';
+import { getComprehensiveWordStatus, isWordKnownComprehensive } from '../utils/comprehensiveKnowledge';
 
 
 const log = getLogger("renderer.context.flashcard");
@@ -237,6 +238,10 @@ interface FlashcardContextValue {
   isWordKnownByText: (word: string) => boolean;
   isWordLearning: (wordHash: string) => boolean;
   isWordLearningByText: (word: string) => boolean;
+  /** Comprehensive word status: checks ALL knowledge banks (knownUntracked, ignored, SRS, passive) */
+  getComprehensiveWordStatusSync: (word: string) => WordStatus;
+  /** Shorthand: is word known by any knowledge bank? */
+  isWordKnownComprehensiveSync: (word: string) => boolean;
   trackWordStatusChange: (word: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
@@ -512,7 +517,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       for (const id of Object.keys(s.flashcards)) {
         const card = s.flashcards[id];
         card.state = 'new';
-        card.ease = 2.5;
+        card.ease = SRS.MIN_EASE;
         card.interval = 0;
         card.dueDate = now;
         card.reviews = 0;
@@ -1745,7 +1750,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     setStore(produce((s) => {
       if (!s.wordKnowledge[lk]) {
         s.wordKnowledge[lk] = {
-          ease: 2.5,
+          ease: SRS.MIN_EASE,
           lastSeen: now,
           timesSeen: 0,
           timesHovered: 0,
@@ -1762,7 +1767,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }));
 
     // Notify media stats listeners so per-media tracking stays in sync
-    const newEase = store.wordKnowledge[lk]?.ease ?? 2.5;
+    const newEase = store.wordKnowledge[lk]?.ease ?? SRS.MIN_EASE;
     window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, ease: newEase } }));
   };
 
@@ -1783,33 +1788,33 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const timer = setTimeout(() => {
       hoverTimers.delete(lk);
       const now = Date.now();
-      let nextEase = 2.5;
+      let nextEase: number = SRS.MIN_EASE;
       let nextTimesHovered = 0;
       let isFailed = false;
 
-      setStore(produce((s) => {
-        if (!s.wordKnowledge[lk]) {
-          s.wordKnowledge[lk] = {
-            ease: 2.5,
-            lastSeen: now,
-            timesSeen: 0,
-            timesHovered: 0,
-            word: canonical,
-            reading,
-            language: lang,
-          };
-        }
-        const k = s.wordKnowledge[lk];
-        const hoveredCount = k.timesHovered + 1;
-        k.timesHovered = hoveredCount;
-        k.lastSeen = now;
-        isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
-        if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings)) {
-          k.ease = Math.max(SRS.MIN_EASE, k.ease - getPassiveHoverEaseDecrease(settings));
-        }
-        nextEase = k.ease;
-        nextTimesHovered = hoveredCount;
-      }));
+        setStore(produce((s) => {
+            if (!s.wordKnowledge[lk]) {
+                s.wordKnowledge[lk] = {
+                    ease: SRS.MIN_EASE,
+                    lastSeen: now,
+                    timesSeen: 0,
+                    timesHovered: 0,
+                    word: canonical,
+                    reading,
+                    language: lang,
+                };
+            }
+            const k = s.wordKnowledge[lk];
+            const hoveredCount = k.timesHovered + 1;
+            k.timesHovered = hoveredCount;
+            k.lastSeen = now;
+            isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
+            if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings)) {
+                k.ease = Math.max(SRS.MIN_EASE, k.ease - getPassiveHoverEaseDecrease(settings));
+            }
+            nextEase = k.ease;
+            nextTimesHovered = hoveredCount;
+        }));
       saveFlashcards();
 
       // Notify media stats listeners so per-media tracking stays in sync
@@ -1881,6 +1886,38 @@ export const FlashcardProvider: ParentComponent = (props) => {
       return isWordLearning(langKey(settings.language, cHash));
     }
     return false;
+  };
+
+  // Comprehensive word status check: considers ALL knowledge banks (OR logic)
+  const getComprehensiveWordStatusSync = (word: string): WordStatus => {
+    return getComprehensiveWordStatus(word, {
+      getCanonicalForm,
+      hashWordSync: SRS.hashWordSync,
+      langKey,
+      language: settings.language,
+      knownUntracked: store.knownUntracked,
+      ignoredWords: store.ignoredWords,
+      wordKnowledge: store.wordKnowledge,
+      knownEaseThreshold: settings.easeThresholdKnown,
+      learningThreshold: settings.easeThresholdLearning,
+      getCardByWordSync,
+    });
+  };
+
+  // Shorthand: is word known by any knowledge bank?
+  const isWordKnownComprehensiveSync = (word: string): boolean => {
+    return isWordKnownComprehensive(word, {
+      getCanonicalForm,
+      hashWordSync: SRS.hashWordSync,
+      langKey,
+      language: settings.language,
+      knownUntracked: store.knownUntracked,
+      ignoredWords: store.ignoredWords,
+      wordKnowledge: store.wordKnowledge,
+      knownEaseThreshold: settings.easeThresholdKnown,
+      learningThreshold: settings.easeThresholdLearning,
+      getCardByWordSync,
+    });
   };
 
   // Record when a user manually changes the word status pill
@@ -1979,7 +2016,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           if (status === 'unknown') {
             delete s.wordKnowledge[lk];
           } else {
-            const ease = status === 'known' ? settings.srsKnownEase : settings.srsLearningEase;
+            const ease = status === 'known' ? settings.known_ease_threshold / 1000 : settings.srsLearningThreshold / 1000;
             if (!s.wordKnowledge[lk]) {
               s.wordKnowledge[lk] = {
                 ease,
@@ -2008,13 +2045,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
             await removeFlashcard(card.id, false);
           }
         } else if (cards.length > 0) {
-          const ease = status === 'known' ? settings.srsKnownEase : settings.srsLearningEase;
+          const ease = status === 'known' ? settings.known_ease_threshold / 1000 : settings.srsLearningThreshold / 1000;
           const state: FlashcardState = status === 'known' ? 'review' : 'learning';
           for (const card of cards) {
             updateFlashcard(card.id, { state, ease });
           }
         } else if (options?.content) {
-          const ease = status === 'known' ? settings.srsKnownEase : settings.srsLearningEase;
+          const ease = status === 'known' ? settings.known_ease_threshold / 1000 : settings.srsLearningThreshold / 1000;
           const state: FlashcardState = status === 'known' ? 'review' : 'learning';
           const cardId = await addFlashcard(options.content, ease);
           if (cardId) {
@@ -2064,7 +2101,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (!s.grammarKnowledge[lk]) {
         s.grammarKnowledge[lk] = {
           pattern,
-          ease: 2.5,
+          ease: SRS.MIN_EASE,
           timesEncountered: 0,
           timesFailed: 0,
           lastSeen: now,
@@ -2089,7 +2126,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (!s.grammarKnowledge[lk]) {
         s.grammarKnowledge[lk] = {
           pattern,
-          ease: 2.5,
+          ease: SRS.MIN_EASE,
           timesEncountered: 0,
           timesFailed: 0,
           lastSeen: now,
@@ -2497,7 +2534,7 @@ Translation: [${targetLang} translation]`;
               setStore(produce((s) => {
                 if (!s.wordKnowledge[lk]) {
                   s.wordKnowledge[lk] = {
-                    ease: settings.srsLearningEase,
+                    ease: settings.srsLearningThreshold / 1000,
                     lastSeen: now,
                     timesSeen: 0,
                     timesHovered: 0,
@@ -2507,7 +2544,7 @@ Translation: [${targetLang} translation]`;
                     wordSyncRatedAt: now,
                   };
                 } else {
-                  s.wordKnowledge[lk].ease = settings.srsLearningEase;
+                  s.wordKnowledge[lk].ease = settings.srsLearningThreshold / 1000;
                   s.wordKnowledge[lk].lastStatusChange = now;
                 }
               }));
@@ -2668,6 +2705,8 @@ Translation: [${targetLang} translation]`;
     isWordKnownByText,
     isWordLearning,
     isWordLearningByText,
+    getComprehensiveWordStatusSync,
+    isWordKnownComprehensiveSync,
     trackWordStatusChange,
     setWordKnowledgeEase,
     setWordBankStatus,
