@@ -165,6 +165,7 @@ export async function saveToRecentItems(
     // Create new item
     const newItem: RecentItem = {
       ...item,
+      playbackTime: existing?.playbackTime,
       subtitlePath: item.subtitlePath ?? existing?.subtitlePath,
       thumbnail: thumbnail || item.thumbnail || existing?.thumbnail,
       lastWatched: Date.now(),

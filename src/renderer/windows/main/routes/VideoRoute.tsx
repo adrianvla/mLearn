@@ -17,7 +17,7 @@ import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModify
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
-import { WORD_STATUS } from '../../../../shared/constants';
+import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
@@ -589,8 +589,8 @@ export const VideoRoute: Component = () => {
         colourCodes,
         tokenize,
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
-        srsLearningEase: settings.srsLearningEase,
-        srsKnownEase: settings.srsKnownEase,
+srsLearningEase: settings.srsLearningThreshold / 1000,
+          srsKnownEase: settings.known_ease_threshold / 1000,
       });
 
       const { toUniqueIdentifier } = await import('../../../services/statsService');
@@ -658,7 +658,7 @@ export const VideoRoute: Component = () => {
           const forms = getWordForms(entry.word);
           const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
           const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
-          const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
+          const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
           try {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
             await refreshAnkiWordsCache();
@@ -718,7 +718,9 @@ export const VideoRoute: Component = () => {
         return;
       }
 
-      loadVideo(pendingVideo, getMediaNameFromPath(pendingVideo));
+      const name = getMediaNameFromPath(pendingVideo);
+      loadVideo(pendingVideo, name);
+      void saveVideoToRecentItems(pendingVideo, name);
 
       if (!pendingSubtitle?.trim()) {
         return;
@@ -897,9 +899,12 @@ export const VideoRoute: Component = () => {
       video.addEventListener('durationchange', syncVideoDuration)
       ipcCleanups.push(() => video.removeEventListener('durationchange', syncVideoDuration))
 
+      let lastRestoredPath = '';
+
       const restorePlayback = async () => {
         const path = currentVideoPath();
-        if (!path) return;
+        if (!path || path === lastRestoredPath) return;
+        lastRestoredPath = path;
         const items = await getRecentItems();
         const saved = items.find(i => i.path === path);
         if (saved?.playbackTime && saved.playbackTime > 5 && isFinite(saved.playbackTime)) {
@@ -910,15 +915,14 @@ export const VideoRoute: Component = () => {
       if (video.readyState >= 1) {
         syncVideoDuration()
         void restorePlayback();
-      } else {
-        const onLoadedMetadata = () => {
-          syncVideoDuration()
-          void restorePlayback();
-          video.removeEventListener('loadedmetadata', onLoadedMetadata);
-        };
-        video.addEventListener('loadedmetadata', onLoadedMetadata);
-        ipcCleanups.push(() => video.removeEventListener('loadedmetadata', onLoadedMetadata));
       }
+
+      const onLoadedMetadata = () => {
+        syncVideoDuration()
+        void restorePlayback();
+      };
+      video.addEventListener('loadedmetadata', onLoadedMetadata);
+      ipcCleanups.push(() => video.removeEventListener('loadedmetadata', onLoadedMetadata));
     };
 
     // The video element may appear later (ShowDropZone toggle), so use a
@@ -992,28 +996,32 @@ export const VideoRoute: Component = () => {
     }
   };
 
-  const updateVideoProgress = () => {
+  const updateVideoProgress = async () => {
     const videoEl = document.querySelector('video');
     const name = currentVideoName();
     const path = currentVideoPath();
     if (videoEl && name && videoEl.duration && isFinite(videoEl.duration)) {
       const progress = videoEl.currentTime / videoEl.duration;
       if (path) {
-        void updateRecentItemProgressByPath(path, progress);
+        await updateRecentItemProgressByPath(path, progress);
+        await updateRecentItemPlaybackTimeByPath(path, videoEl.currentTime);
+      } else {
+        await updateRecentItemProgress(name, progress);
+        await updateRecentItemPlaybackTime(name, videoEl.currentTime);
       }
-      void updateRecentItemProgress(name, progress);
     }
   };
 
-  const savePlaybackTime = () => {
+  const savePlaybackTime = async () => {
     const videoEl = document.querySelector('video');
     const name = currentVideoName();
     const path = currentVideoPath();
     if (videoEl && name && isFinite(videoEl.currentTime) && videoEl.currentTime > 5) {
       if (path) {
-        void updateRecentItemPlaybackTimeByPath(path, videoEl.currentTime);
+        await updateRecentItemPlaybackTimeByPath(path, videoEl.currentTime);
+      } else {
+        await updateRecentItemPlaybackTime(name, videoEl.currentTime);
       }
-      void updateRecentItemPlaybackTime(name, videoEl.currentTime);
     }
   };
 
