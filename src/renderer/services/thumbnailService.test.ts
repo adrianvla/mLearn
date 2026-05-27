@@ -396,6 +396,18 @@ describe('thumbnailService', () => {
       const saved = JSON.parse(mockKvSet.mock.calls[0][1] as string) as RecentItem[];
       expect(saved[0].subtitlePath).toBe('/sub.srt');
     });
+
+    it('preserves playbackTime from existing item when re-saving', async () => {
+      mockKvGet.mockResolvedValue(JSON.stringify([
+        { type: 'video', name: 'vid.mp4', path: '/vid.mp4', progress: 0, lastWatched: 1, playbackTime: 3600 },
+      ]));
+      mockKvSet.mockResolvedValue(undefined);
+
+      await saveToRecentItems({ type: 'video', name: 'vid.mp4', path: '/vid.mp4', progress: 0.5 });
+
+      const saved = JSON.parse(mockKvSet.mock.calls[0][1] as string) as RecentItem[];
+      expect(saved[0].playbackTime).toBe(3600);
+    });
   });
 
   describe('updateRecentItemThumbnail', () => {

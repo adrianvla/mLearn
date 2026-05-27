@@ -50,7 +50,7 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   let broadcastChannel: BroadcastChannel | null = null;
   const ipcCleanups: Array<() => void> = [];
-  let pendingSettingsSnapshot: Settings | null = null;
+  let pendingSettingsSnapshot: Partial<Settings> | null = null;
   let unregisterCloudSessionController: (() => void) | null = null;
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
@@ -103,7 +103,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       applySettingsToDOM(mergedSettings);
 
       if (pendingSettingsSnapshot) {
-        bridge.settings.saveSettings(pendingSettingsSnapshot);
+        bridge.settings.saveSettings(mergedSettings);
         pendingSettingsSnapshot = null;
       }
 
@@ -188,7 +188,13 @@ export const SettingsProvider: ParentComponent = (props) => {
     syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, new Set([key]));
-    saveSettings(nextSettings);
+
+    if (!hasLoaded()) {
+      pendingSettingsSnapshot = { ...pendingSettingsSnapshot, [key]: value };
+      return;
+    }
+
+    saveSettings();
   };
 
   // Update multiple settings
@@ -202,17 +208,22 @@ export const SettingsProvider: ParentComponent = (props) => {
     syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, new Set(Object.keys(partial) as (keyof Settings)[]));
-    saveSettings(nextSettings);
+
+    if (!hasLoaded()) {
+      pendingSettingsSnapshot = { ...pendingSettingsSnapshot, ...partial };
+      return;
+    }
+
+    saveSettings();
   };
 
   // Save settings to main process
-  const saveSettings = (settingsSnapshot?: Settings) => {
-    const snapshot = settingsSnapshot ?? serializeSettings(settings as Settings);
+  const saveSettings = () => {
+    const snapshot = serializeSettings(settings as Settings);
 
     // CRITICAL: Don't save until we've loaded settings from disk
     // This prevents overwriting user settings with defaults during app startup
     if (!hasLoaded()) {
-      pendingSettingsSnapshot = snapshot;
       return;
     }
 
