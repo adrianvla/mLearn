@@ -272,7 +272,12 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   const dueCounts = createMemo(() => computeDueCounts(cards(), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!));
 
   const stateDistribution = createMemo(() => computeStateDistribution(cards()));
-  const easeDistribution = createMemo(() => computeEaseDistribution(cards()));
+  const easeDistribution = createMemo(() => computeEaseDistribution(cards(), {
+      unknown: settings.easeThresholdUnknown,
+      learning: settings.easeThresholdLearning,
+      known: settings.easeThresholdKnown,
+      mastered: settings.easeThresholdMastered,
+    }));
   const intervalDistribution = createMemo(() => computeIntervalDistribution(cards()));
   const maturityBreakdown = createMemo(() => computeMaturityBreakdown(cards()));
   const aggregatedDailyStats = createMemo(() => aggregateDailyStats(store.dailyStats));

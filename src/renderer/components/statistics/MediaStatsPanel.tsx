@@ -45,9 +45,9 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
   const formatTime = (ms: number): string => formatDurationHM(ms, t);
 
   const getEaseColor = (ease: number): string => {
-    if (ease >= 4) return 'var(--color-success)';
-    if (ease >= 2.5) return 'var(--text-secondary)';
-    if (ease >= 1.5) return 'var(--color-warning)';
+    if (ease >= settings.easeThresholdMastered) return 'var(--color-success)';
+    if (ease >= settings.easeThresholdKnown) return 'var(--text-secondary)';
+    if (ease >= settings.easeThresholdLearning) return 'var(--color-warning)';
     return 'var(--color-danger)';
   };
 

@@ -173,16 +173,20 @@ export function computeStateDistribution(cards: Flashcard[]): StateDistribution 
 
 /**
  * Ease-factor buckets for graduated cards (review + relearning).
- * Buckets are half-open intervals [min, max).
+ * Buckets align with SRS_EASE thresholds.
  */
-export function computeEaseDistribution(cards: Flashcard[]): EaseBucket[] {
+export function computeEaseDistribution(
+  cards: Flashcard[],
+  thresholds: { unknown: number; learning: number; known: number; mastered: number }
+): EaseBucket[] {
+  const { unknown, learning, known, mastered } = thresholds;
   const buckets: EaseBucket[] = [
-    { label: '<1.5', count: 0 },
-    { label: '1.5-1.8', count: 0 },
-    { label: '1.8-2.1', count: 0 },
-    { label: '2.1-2.5', count: 0 },
-    { label: '2.5-3.0', count: 0 },
-    { label: '3.0+', count: 0 },
+    { label: `<${unknown}`, count: 0 },
+    { label: `${unknown}-${learning}`, count: 0 },
+    { label: `${learning}-${known}`, count: 0 },
+    { label: `${known}-${mastered}`, count: 0 },
+    { label: `${mastered}-${mastered + 0.5}`, count: 0 },
+    { label: `${mastered + 0.5}+`, count: 0 },
   ];
 
   const active = cards.filter(
@@ -191,11 +195,11 @@ export function computeEaseDistribution(cards: Flashcard[]): EaseBucket[] {
 
   for (const card of active) {
     const e = card.ease;
-    if (e < 1.5) buckets[0].count++;
-    else if (e < 1.8) buckets[1].count++;
-    else if (e < 2.1) buckets[2].count++;
-    else if (e < 2.5) buckets[3].count++;
-    else if (e < 3.0) buckets[4].count++;
+    if (e < unknown) buckets[0].count++;
+    else if (e < learning) buckets[1].count++;
+    else if (e < known) buckets[2].count++;
+    else if (e < mastered) buckets[3].count++;
+    else if (e < mastered + 0.5) buckets[4].count++;
     else buckets[5].count++;
   }
 

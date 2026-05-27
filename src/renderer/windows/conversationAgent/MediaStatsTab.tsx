@@ -51,13 +51,6 @@ interface MediaView {
   lastAccessed: number;
 }
 
-const getEaseColor = (ease: number): string => {
-  if (ease >= 4) return 'var(--color-success)';
-  if (ease >= 2.5) return 'var(--text-secondary)';
-  if (ease >= 1.5) return 'var(--color-warning)';
-  return 'var(--color-danger)';
-};
-
 export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const { t } = useLocalization();
 
@@ -65,6 +58,14 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const { settings } = useSettings();
+
+  const getEaseColor = (ease: number): string => {
+    if (ease >= settings.easeThresholdMastered) return 'var(--color-success)';
+    if (ease >= settings.easeThresholdKnown) return 'var(--text-secondary)';
+    if (ease >= settings.easeThresholdLearning) return 'var(--color-warning)';
+    return 'var(--color-danger)';
+  };
+
   const [subTab, setSubTab] = createSignal<string>('overview');
   const [allMediaStats, setAllMediaStats] = createSignal<MediaStats[]>([]);
   const [selectedHash, setSelectedHash] = createSignal<string>('');
@@ -407,7 +408,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                         </Show>
                         <For each={sorted}>
                           {(entry) => (
-                            <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < 1.5 ? 'severe' : ''}`}>
+                            <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < settings.easeThresholdUnknown ? 'severe' : ''}`}>
                               <span class="ca-stats-word">{entry.word}</span>
                               <span class="ca-stats-meta">
                                 <Show when={entry.level != null && levelNames[String(entry.level)]}>
@@ -454,7 +455,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                         </Show>
                         <For each={sorted}>
                           {(entry) => (
-                            <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < 1.5 ? 'severe' : ''}`}>
+                            <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < settings.easeThresholdUnknown ? 'severe' : ''}`}>
                               <span class="ca-stats-word">{entry.pattern}</span>
                               <span class="ca-stats-meta">
                                 <Show when={entry.level != null && levelNames[String(entry.level)]}>
