@@ -76,7 +76,7 @@ describe('computeEaseDistribution', () => {
       makeCard({ state: 'new', ease: 2.5 }),           // ignored
       makeCard({ state: 'review', ease: 2.5, suspended: true }), // ignored
     ];
-    const dist = computeEaseDistribution(cards);
+    const dist = computeEaseDistribution(cards, { unknown: 1.5, learning: 1.8, known: 2.1, mastered: 2.5 });
     expect(dist[0].count).toBe(1); // <1.5
     expect(dist[1].count).toBe(1); // 1.5-1.8
     expect(dist[2].count).toBe(1); // 1.8-2.1
@@ -86,7 +86,7 @@ describe('computeEaseDistribution', () => {
   });
 
   it('returns zero counts for no graduated cards', () => {
-    const dist = computeEaseDistribution([makeCard({ state: 'new' })]);
+    const dist = computeEaseDistribution([makeCard({ state: 'new' })], { unknown: 1.5, learning: 1.8, known: 2.1, mastered: 2.5 });
     expect(dist.every(b => b.count === 0)).toBe(true);
   });
 });
