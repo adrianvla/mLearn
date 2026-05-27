@@ -68,11 +68,11 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return isTranslatable(pos);
   });
 
-  // Check if this word is known via the passive knowledge system
+  // Check if this word is known via the comprehensive knowledge system
   const wordIsKnown = createMemo(() => {
     const word = props.token.actual_word ?? props.token.surface ?? props.token.word;
     if (!word) return false;
-    return props.token.isKnown || flashcardCtx.isWordKnownByText(getCanonicalForm(word));
+    return flashcardCtx.isWordKnownComprehensiveSync(getCanonicalForm(word));
   });
 
   // Determine word class based on token type

@@ -2,6 +2,7 @@ import { Component, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
 import { getWordStatus, setWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
+import { ANKI_EASE } from '../../../../shared/constants';
 import { useAnki } from '../../../hooks/useAnki';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
@@ -37,7 +38,7 @@ export interface WordStatusPillProps {
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { getCanonicalForm, getWordVariants } = useLanguage();
-  const { getCardByWordSync, trackWordStatusChange } = useFlashcards();
+  const { getCardByWordSync, trackWordStatusChange, getComprehensiveWordStatusSync } = useFlashcards();
   const { t } = useLocalization();
   const anki = useAnki();
 
@@ -70,7 +71,8 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
     )
   );
-  const effectiveStatus = createMemo(() => wordKnowledge().status);
+  const comprehensiveStatus = createMemo(() => getComprehensiveWordStatusSync(props.word));
+  const effectiveStatus = createMemo(() => comprehensiveStatus());
   const statusSourceLabel = createMemo(() => {
     const sources = wordKnowledge().activeSources.map((source) =>
       t(`mlearn.Settings.KnowledgePriority.Source.${source[0].toUpperCase() + source.slice(1)}`)
@@ -106,7 +108,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
 
     const ankiWord = matchedAnkiWord();
     if (!skipAnki && ankiWord && settings.use_anki && nextStatus !== 'unknown') {
-      const ankiEase = getAnkiEaseForStatus(nextStatus, settings.ankiLearningEase, settings.ankiKnownEase);
+      const ankiEase = getAnkiEaseForStatus(nextStatus, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
       anki.updateWordCards(ankiWord, ankiEase).then((result) => {
         if (result.updated > 0) {
           void refreshAnkiWordsCache();
