@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
-import { IPC_CHANNELS } from '../../shared/constants';
+import { IPC_CHANNELS, SRS_EASE } from '../../shared/constants';
 import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
@@ -79,7 +79,7 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
   if (cards.length === 0) {
     return {
       cardCount: 0,
-      bestEase: 2.5,
+      bestEase: SRS_EASE.DEFAULT_KNOWN,
       totalReviews: 0,
       totalLapses: 0,
       lastReviewed: 0,
@@ -338,14 +338,14 @@ function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardSt
     const cardId = generateUUID();
     
     const v1Ease = v1Card.ease || 0;
-    let newEase = 2.5;
+    let newEase: number = SRS_EASE.DEFAULT_KNOWN;
     if (v1Ease > 0) {
-      newEase = Math.max(1.3, Math.min(3.0, v1Ease * 1.2));
+      newEase = Math.max(SRS_EASE.MIN, Math.min(3.0, v1Ease * 1.2));
     }
-    
+
     let state: FlashcardState = 'new';
     if (v1Card.reviews > 0) {
-      if (newEase >= 2.5) {
+      if (newEase >= SRS_EASE.DEFAULT_KNOWN) {
         state = 'review';
       } else {
         state = 'learning';

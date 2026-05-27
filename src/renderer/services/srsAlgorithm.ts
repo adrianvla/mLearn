@@ -10,6 +10,7 @@
  */
 
 import {DEFAULT_SETTINGS, Flashcard, FlashcardMeta, ReviewQueue} from '../../shared/types';
+import { SRS_EASE } from '../../shared/constants';
 
 // Time constants
 const MINUTE = 60 * 1000;
@@ -17,7 +18,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 // SRS constants
-export const MIN_EASE = 1.3;
+export const MIN_EASE = SRS_EASE.MIN;
 const EASE_BONUS = 1.3; // Bonus for Easy button
 
 // Rating values
