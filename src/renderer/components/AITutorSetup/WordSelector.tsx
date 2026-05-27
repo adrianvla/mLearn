@@ -39,23 +39,23 @@ interface WordSelectorProps {
   onCustomWordsChange: (words: TutorWordSelection[]) => void;
 }
 
-/**
- * Get background color for a word cell based on ease value.
- * Lower ease = more red/struggling, higher ease = more green/known.
- */
-function getWordCellColor(ease: number, isDark: boolean): string {
-  // Unassessed words (generated/custom) get a neutral color
-  if (ease < 0) return isDark ? 'rgba(160, 160, 160, 0.25)' : 'rgba(160, 160, 160, 0.18)';
-  if (ease < 1.5) return isDark ? 'rgba(255, 60, 89, 0.45)' : 'rgba(255, 60, 89, 0.25)';
-  if (ease < 2.0) return isDark ? 'rgba(255, 141, 60, 0.45)' : 'rgba(255, 141, 60, 0.25)';
-  if (ease < 2.5) return isDark ? 'rgba(255, 200, 60, 0.40)' : 'rgba(255, 200, 60, 0.25)';
-  if (ease < 3.0) return isDark ? 'rgba(66, 214, 49, 0.35)' : 'rgba(66, 214, 49, 0.2)';
-  return isDark ? 'rgba(66, 214, 49, 0.5)' : 'rgba(66, 214, 49, 0.3)';
-}
-
 export const WordSelector: Component<WordSelectorProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+
+  /**
+   * Get background color for a word cell based on ease value.
+   * Lower ease = more red/struggling, higher ease = more green/known.
+   */
+  const getWordCellColor = (ease: number, isDarkMode: boolean): string => {
+    // Unassessed words (generated/custom) get a neutral color
+    if (ease < 0) return isDarkMode ? 'rgba(160, 160, 160, 0.25)' : 'rgba(160, 160, 160, 0.18)';
+    if (ease < settings.easeThresholdUnknown) return isDarkMode ? 'rgba(255, 60, 89, 0.45)' : 'rgba(255, 60, 89, 0.25)';
+    if (ease < settings.easeThresholdLearning) return isDarkMode ? 'rgba(255, 141, 60, 0.45)' : 'rgba(255, 141, 60, 0.25)';
+    if (ease < settings.easeThresholdKnown) return isDarkMode ? 'rgba(255, 200, 60, 0.40)' : 'rgba(255, 200, 60, 0.25)';
+    if (ease < settings.easeThresholdMastered) return isDarkMode ? 'rgba(66, 214, 49, 0.35)' : 'rgba(66, 214, 49, 0.2)';
+    return isDarkMode ? 'rgba(66, 214, 49, 0.5)' : 'rgba(66, 214, 49, 0.3)';
+  };
   const { getFrequency, getFreqLevelNames } = useLanguage();
   const flashcardCtx = useFlashcards();
   const { requestAccess } = useLowPowerGate();

@@ -235,12 +235,12 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
   const renderOverlay = () => {
     const resolved = resolveChildren(() => props.children);
     return (
-      <Show when={pitchHtml()} fallback={resolved()}>
-        <span class={`pitch-overlay-wrapper ${props.class || ''}`}>
-          {resolved()}
+      <span class={`pitch-overlay-wrapper ${props.class || ''}`}>
+        {resolved()}
+        <Show when={pitchHtml()}>
           <span class="mLearn-pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
-        </span>
-      </Show>
+        </Show>
+      </span>
     );
   };
 

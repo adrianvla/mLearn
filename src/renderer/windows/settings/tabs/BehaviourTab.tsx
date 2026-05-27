@@ -72,26 +72,7 @@ export const BehaviourTab: Component = () => {
     >
 
       <SettingGroup title={t('mlearn.Settings.Groups.WordKnowledge')}>
-        {/* Built-in SRS thresholds + ease (always visible) */}
-        <SettingRow
-          label={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.LearningEase.Label')}
-          description={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.LearningEase.Description')}
-        >
-          <Input
-            type="number"
-            value={settings.srsLearningEase}
-            min={1.0}
-            max={5.0}
-            step={0.05}
-            onInput={(e) => {
-              const val = parseFloat(e.currentTarget.value);
-              if (!isNaN(val) && val >= 1.0 && val <= 5.0) {
-                updateSettings({ srsLearningEase: val });
-              }
-            }}
-          />
-        </SettingRow>
-
+        {/* Built-in SRS thresholds (always visible) */}
         <SettingRow
           label={t('mlearn.Settings.WordStatus.SrsLearningThreshold.Label')}
           description={t('mlearn.Settings.WordStatus.SrsLearningThreshold.Description')}
@@ -130,46 +111,8 @@ export const BehaviourTab: Component = () => {
           />
         </SettingRow>
 
-        <SettingRow
-          label={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.KnownEase.Label')}
-          description={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.KnownEase.Description')}
-        >
-          <Input
-            type="number"
-            value={settings.srsKnownEase}
-            min={1.0}
-            max={5.0}
-            step={0.05}
-            onInput={(e) => {
-              const val = parseFloat(e.currentTarget.value);
-              if (!isNaN(val) && val >= 1.0 && val <= 5.0) {
-                updateSettings({ srsKnownEase: val });
-              }
-            }}
-          />
-        </SettingRow>
-
-        {/* Anki thresholds + ease (only when Anki is enabled) */}
+        {/* Anki thresholds (only when Anki is enabled) */}
         <Show when={settings.use_anki}>
-          <SettingRow
-            label={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.LearningEase.Label')}
-            description={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.LearningEase.Description')}
-          >
-            <Input
-              type="number"
-              value={settings.ankiLearningEase}
-              min={1000}
-              max={3000}
-              step={10}
-              onInput={(e) => {
-                const val = parseInt(e.currentTarget.value, 10);
-                if (!isNaN(val) && val >= 1000 && val <= 3000) {
-                  updateSettings({ ankiLearningEase: val });
-                }
-              }}
-            />
-          </SettingRow>
-
           <SettingRow
             label={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Label')}
             description={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Description')}
@@ -203,25 +146,6 @@ export const BehaviourTab: Component = () => {
                 const val = parseInt(e.currentTarget.value, 10);
                 if (!isNaN(val) && val >= 1000 && val <= 3000) {
                   updateSettings({ ankiKnownThreshold: val });
-                }
-              }}
-            />
-          </SettingRow>
-
-          <SettingRow
-            label={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.KnownEase.Label')}
-            description={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.KnownEase.Description')}
-          >
-            <Input
-              type="number"
-              value={settings.ankiKnownEase}
-              min={1000}
-              max={3000}
-              step={10}
-              onInput={(e) => {
-                const val = parseInt(e.currentTarget.value, 10);
-                if (!isNaN(val) && val >= 1000 && val <= 3000) {
-                  updateSettings({ ankiKnownEase: val });
                 }
               }}
             />
