@@ -167,8 +167,8 @@ const WordDefinitionContent: Component = () => {
         manualStatus: manualStatus(),
         colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
         tokenize,
-        srsLearningEase: settings.srsLearningEase,
-        srsKnownEase: settings.srsKnownEase,
+srsLearningEase: settings.srsLearningThreshold / 1000,
+          srsKnownEase: settings.known_ease_threshold / 1000,
       });
       await addFlashcard(content, ease);
     } catch (err) {
