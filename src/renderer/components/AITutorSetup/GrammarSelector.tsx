@@ -156,7 +156,7 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
                 <p class="grammar-selector__card-meaning">{gp.meaning}</p>
                 <Show when={(knowledge()?.timesFailed ?? 0) > 0}>
                   <div class="grammar-selector__card-meta">
-                    <Tag size="sm" variant={knowledge()!.ease < 2.0 ? 'error' : knowledge()!.ease < 2.5 ? 'warning' : 'default'}>
+                    <Tag size="sm" variant={knowledge()!.ease < settings.easeThresholdLearning ? 'error' : knowledge()!.ease < settings.easeThresholdKnown ? 'warning' : 'default'}>
                       {`${knowledge()!.timesFailed}/${knowledge()!.timesEncountered}`}
                     </Tag>
                   </div>
