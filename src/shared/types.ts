@@ -147,14 +147,14 @@ export interface Settings {
   skipStatusSourceWarning: boolean;
   /** Skip the warning modal when modifying Anki card ease/position */
   skipAnkiModifyWarning: boolean;
-  /** Anki ease factor (integer, 1000 = 1.0×) assigned when a word is marked Learning */
-  ankiLearningEase: number;
-  /** Anki ease factor (integer, 1000 = 1.0×) assigned when a word is marked Known */
-  ankiKnownEase: number;
-  /** Built-in SRS initial ease (float) assigned when a word is marked Learning */
-  srsLearningEase: number;
-  /** Built-in SRS initial ease (float) assigned when a word is marked Known */
-  srsKnownEase: number;
+  /** Ease threshold below which a word is considered unknown / failing (float, 0.0–5.0 scale) */
+  easeThresholdUnknown: number;
+  /** Ease threshold above which a word is considered learning (float, 0.0–5.0 scale) */
+  easeThresholdLearning: number;
+  /** Ease threshold above which a word is considered known (float, 0.0–5.0 scale) */
+  easeThresholdKnown: number;
+  /** Ease threshold above which a word is considered mastered (float, 0.0–5.0 scale) */
+  easeThresholdMastered: number;
   /** Order of knowledge sources for word status resolution */
   knowledgeSourceOrder: KnowledgeSource[];
   /** How to resolve word status from multiple knowledge sources */
@@ -435,10 +435,10 @@ export const DEFAULT_SETTINGS: Settings = {
   skipAnkiDuplicateWarning: false,
   skipStatusSourceWarning: false,
   skipAnkiModifyWarning: false,
-  ankiLearningEase: ANKI_EASE.DEFAULT_LEARNING,
-  ankiKnownEase: ANKI_EASE.DEFAULT_KNOWN,
-  srsLearningEase: SRS_EASE.DEFAULT_LEARNING,
-  srsKnownEase: SRS_EASE.DEFAULT_KNOWN,
+  easeThresholdUnknown: SRS_EASE.MIN,
+  easeThresholdLearning: SRS_EASE.DEFAULT_LEARNING,
+  easeThresholdKnown: SRS_EASE.DEFAULT_KNOWN,
+  easeThresholdMastered: SRS_EASE.DEFAULT_KNOWN + 0.5,
   knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
   knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
   furigana: true,
