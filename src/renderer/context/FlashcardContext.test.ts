@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { FlashcardStore, Flashcard, FlashcardMeta, ReviewQueue, Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { Rating } from '../services/srsAlgorithm';
+import * as SRS from '../services/srsAlgorithm';
 
 // ── IPC callback captures ────────────────────────────────────────────
 let flashcardsCb: (store: FlashcardStore) => void;
@@ -901,7 +902,7 @@ describe('FlashcardProvider', () => {
 
     const after = ctx.store.flashcards['reset-1'];
     expect(after.state).toBe('new');
-    expect(after.ease).toBe(2.5);
+    expect(after.ease).toBe(SRS.MIN_EASE);
     expect(after.interval).toBe(0);
     expect(after.reviews).toBe(0);
     expect(ctx.store.meta.newCardsToday).toBe(0);
@@ -1032,7 +1033,7 @@ describe('FlashcardProvider', () => {
     const knowledge = ctx.store.wordKnowledge[lk];
     expect(knowledge).toBeDefined();
     expect(knowledge.timesSeen).toBe(1);
-    expect(knowledge.ease).toBeCloseTo(2.55, 2);
+    expect(knowledge.ease).toBeCloseTo(SRS.MIN_EASE + 0.05, 2);
     dispose();
   });
 
@@ -1080,7 +1081,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(DEFAULT_SETTINGS.srsKnownEase);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(mockSettings.known_ease_threshold / 1000);
     dispose();
   });
 
@@ -1170,7 +1171,7 @@ describe('FlashcardProvider', () => {
 
     await ctx.setWordBankStatus('学校', 'known', 'flashcard');
     expect(ctx.store.flashcards[cardId]?.state).toBe('review');
-    expect(ctx.store.flashcards[cardId]?.ease).toBe(DEFAULT_SETTINGS.srsKnownEase);
+    expect(ctx.store.flashcards[cardId]?.ease).toBe(mockSettings.known_ease_threshold / 1000);
     dispose();
   });
 
@@ -1184,7 +1185,7 @@ describe('FlashcardProvider', () => {
     expect(Object.keys(ctx.store.flashcards)).toHaveLength(1);
     const card = Object.values(ctx.store.flashcards)[0];
     expect(card?.state).toBe('learning');
-    expect(card?.ease).toBe(DEFAULT_SETTINGS.srsLearningEase);
+    expect(card?.ease).toBe(mockSettings.srsLearningThreshold / 1000);
     dispose();
   });
 
@@ -1251,13 +1252,14 @@ describe('FlashcardProvider', () => {
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
 
     expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(1);
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
 
     ctx.trackWordHovered('学校');
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
 
     expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(2);
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(2.45, 2);
+    // Starting from MIN_EASE, the decrease is clamped back to MIN_EASE
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
 
     mockSettings.passiveHoverFailCount = prevCount;
     dispose();
@@ -1279,7 +1281,7 @@ describe('FlashcardProvider', () => {
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
 
     expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(1);
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
 
     mockSettings.passiveHoverFailAction = prevAction;
     dispose();
@@ -1300,7 +1302,8 @@ describe('FlashcardProvider', () => {
     ctx.trackWordHovered('減少');
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
 
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(2.3, 2);
+    // Starting from MIN_EASE, the decrease is clamped back to MIN_EASE
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
 
     mockSettings.passiveHoverEaseDecrease = prevDecrease;
     dispose();
@@ -1363,12 +1366,13 @@ describe('FlashcardProvider', () => {
   it('trackGrammarEncountered creates entry and bumps ease', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
 
     ctx.trackGrammarEncountered('てform', 3);
     const grammar = ctx.getGrammarKnowledge('てform');
     expect(grammar).toBeDefined();
     expect(grammar!.timesEncountered).toBe(1);
-    expect(grammar!.ease).toBeCloseTo(2.51, 2);
+    expect(grammar!.ease).toBeCloseTo(SRS.MIN_EASE + 0.01, 2);
     expect(grammar!.level).toBe(3);
     dispose();
   });
