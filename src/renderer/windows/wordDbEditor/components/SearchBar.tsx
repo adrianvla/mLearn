@@ -14,6 +14,8 @@ export interface SearchBarProps {
   setSearchQuery: Setter<string>;
   selectedLevel: Accessor<number | null>;
   setSelectedLevel: Setter<number | null>;
+  selectedSource: Accessor<string>;
+  setSelectedSource: Setter<string>;
   browseMode: Accessor<WordDbBrowseMode>;
   setBrowseMode: Setter<WordDbBrowseMode>;
   isLoading: Accessor<boolean>;
@@ -45,7 +47,20 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         <option value="all">{t('mlearn.WordDbEditor.BrowseMode.AllWords')}</option>
         <option value="ignored">{t('mlearn.WordDbEditor.BrowseMode.IgnoredWords')}</option>
       </Select>
-      
+
+      <Select
+        class="source-select"
+        value={props.selectedSource()}
+        onChange={(e) => props.setSelectedSource(e.currentTarget.value)}
+      >
+        <option value="all">{t('mlearn.WordDbEditor.SourceFilter.AllSources')}</option>
+        <option value="KnownWordsList">{t('mlearn.WordDbEditor.SourceFilter.KnownWordsList')}</option>
+        <option value="IgnoredWords">{t('mlearn.WordDbEditor.SourceFilter.IgnoredWords')}</option>
+        <option value="Srs">{t('mlearn.WordDbEditor.SourceFilter.Srs')}</option>
+        <option value="PassiveTracking">{t('mlearn.WordDbEditor.SourceFilter.PassiveTracking')}</option>
+        <option value="None">{t('mlearn.WordDbEditor.SourceFilter.None')}</option>
+      </Select>
+
       <Show when={props.isLoading()}>
         <ProgressBar 
           value={props.loadProgress()} 

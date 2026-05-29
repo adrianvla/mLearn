@@ -26,7 +26,7 @@ const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
-  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage } = useFlashcards();
+  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const anki = useAnki();
@@ -36,6 +36,7 @@ export const WordDbEditorContent: Component = () => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [loadProgress, setLoadProgress] = createSignal(0);
   const [selectedLevel, setSelectedLevel] = createSignal<number | null>(null);
+  const [selectedSource, setSelectedSource] = createSignal<string>('all');
   const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
   const [sortKey, setSortKey] = createSignal<string>('word');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
@@ -125,9 +126,13 @@ export const WordDbEditorContent: Component = () => {
   const buildFilteredEntries = (sourceEntries: WordEntry[]): WordEntry[] => {
     const query = searchQuery().toLowerCase().trim();
     const level = selectedLevel();
+    const source = selectedSource();
 
     return sourceEntries.filter((entry) => {
       if (level !== null && entry.level !== level) {
+        return false;
+      }
+      if (source !== 'all' && entry.knowledgeSource !== source) {
         return false;
       }
       if (!query) {
@@ -176,6 +181,7 @@ export const WordDbEditorContent: Component = () => {
           level: freqEntry?.raw_level ?? -1,
           tracker: 'ignored',
           status: knowledgeStatusToNumeric(ignored.word),
+          knowledgeSource: 'IgnoredWords',
           alternateReadings: freqEntry?.alternateReadings,
           ignoredAt: ignored.ignoredAt,
         };
@@ -183,7 +189,7 @@ export const WordDbEditorContent: Component = () => {
       .sort((a, b) => (b.ignoredAt ?? 0) - (a.ignoredAt ?? 0) || a.word.localeCompare(b.word));
   });
 
-  createEffect(on([entries, ignoredEntries, selectedLevel, browseMode, hasLoadedWords], () => {
+  createEffect(on([entries, ignoredEntries, selectedLevel, selectedSource, browseMode, hasLoadedWords], () => {
     if (browseMode() === 'all' && !hasLoadedWords()) {
       return;
     }
@@ -221,6 +227,7 @@ export const WordDbEditorContent: Component = () => {
         const status = wordStatusToNumeric(knowledge.status);
         const isTracked = hasWordSync(word);
         const inAnki = !!knowledge.ankiMatch;
+        const comprehensive = getComprehensiveWordStatusWithSourceSync(word);
 
         wordEntries.push({
           uuid,
@@ -230,6 +237,7 @@ export const WordDbEditorContent: Component = () => {
           level: freqEntry.raw_level ?? -1,
           tracker: isTracked ? 'flashcards' : inAnki ? 'anki' : 'nothing',
           status,
+          knowledgeSource: comprehensive.source,
           alternateReadings: freqEntry.alternateReadings,
         });
 
@@ -529,6 +537,8 @@ export const WordDbEditorContent: Component = () => {
               setSearchQuery={setSearchQuery}
               selectedLevel={selectedLevel}
               setSelectedLevel={setSelectedLevel}
+              selectedSource={selectedSource}
+              setSelectedSource={setSelectedSource}
               browseMode={browseMode}
               setBrowseMode={setBrowseMode}
               isLoading={isLoading}

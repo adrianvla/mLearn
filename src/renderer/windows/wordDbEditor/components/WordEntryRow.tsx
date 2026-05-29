@@ -94,6 +94,8 @@ export interface WordEntry {
   level: number;
   tracker: string;
   status: number;
+  /** The comprehensive knowledge source that determined this word's status */
+  knowledgeSource?: string;
   fullTranslation?: string;
   pitch?: number | null;
   ignoredAt?: number;
