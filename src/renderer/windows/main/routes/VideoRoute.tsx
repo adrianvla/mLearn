@@ -74,9 +74,8 @@ export const VideoRoute: Component = () => {
   const subtitles = useSubtitles();
   const anki = useAnki();
   const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants);
-  const getManualWordStatus = (word: string): WordStatus => {
-    const forms = getWordForms(word);
-    return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
+  const getWordComprehensiveStatus = (word: string): WordStatus => {
+    return flashcardCtx.getComprehensiveWordStatusSync(word);
   };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
@@ -477,9 +476,9 @@ export const VideoRoute: Component = () => {
       if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
-      const manualStatus = getManualWordStatus(word);
+      const comprehensiveStatus = getWordComprehensiveStatus(word);
       const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(word), manualStatus,
+        flashcardCtx.getCardByWordSync(word), comprehensiveStatus,
         getAnkiKnowledgeStatus(word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
@@ -537,9 +536,9 @@ export const VideoRoute: Component = () => {
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      const manualStatus = getManualWordStatus(entry.word);
+      const comprehensiveStatus = getWordComprehensiveStatus(entry.word);
       const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(entry.word), manualStatus,
+        flashcardCtx.getCardByWordSync(entry.word), comprehensiveStatus,
         getAnkiKnowledgeStatus(entry.word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
@@ -575,7 +574,7 @@ export const VideoRoute: Component = () => {
         }
       }
       const freq = langCtx.getFrequency(word);
-      const manualStatus = getManualWordStatus(word);
+      const wordStatus = getWordComprehensiveStatus(word);
       const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({
@@ -585,7 +584,7 @@ export const VideoRoute: Component = () => {
         contextPhrase: entry.contextPhrase,
         isOcr: false,
         level: freq?.raw_level ?? -1,
-        manualStatus,
+        wordStatus,
         colourCodes,
         tokenize,
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
@@ -701,10 +700,19 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     window.addEventListener('focus', syncWindowFocus)
     window.addEventListener('blur', syncWindowFocus)
     document.addEventListener('visibilitychange', syncWindowFocus)
+
+    const handleBeforeUnload = () => {
+      captureThumbnailIfReady();
+      void savePlaybackTime();
+      void updateVideoProgress();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     ipcCleanups.push(() => {
       window.removeEventListener('focus', syncWindowFocus)
       window.removeEventListener('blur', syncWindowFocus)
       document.removeEventListener('visibilitychange', syncWindowFocus)
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     })
 
     const loadPendingVideo = async () => {
@@ -762,7 +770,8 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     
     // Set up video progress save interval
     progressInterval = window.setInterval(() => {
-      updateVideoProgress();
+      void updateVideoProgress();
+      void savePlaybackTime();
     }, 10000); // Save progress every 10 seconds
 
     // Set up overlay video state sync interval

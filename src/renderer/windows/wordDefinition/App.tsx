@@ -4,7 +4,7 @@ import { WINDOW_TYPES } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { WindowWrapper, useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
+import { toUniqueIdentifier } from '../../services/statsService';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, PitchAccentOverlay, Spinner, ClockIcon } from '../../components/common';
@@ -13,11 +13,9 @@ import {
   buildWordHoverFlashcardContent,
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
-  numericToWordStatus,
   type WordHoverTranslationData,
 } from '../../components/subtitle/wordHoverHelpers';
 import { openWordLookup } from '../../services/wordLookupService';
-import { getWordFormCandidates } from '../../utils/wordForms';
 import './WordDefinition.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -28,8 +26,8 @@ const ICON_CHECK = 'check';
 
 const WordDefinitionContent: Component = () => {
   const { settings } = useSettings();
-  const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
-  const { getFrequency, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
+  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
+  const { getFrequency, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language });
   const { t } = useLocalization();
 
@@ -90,7 +88,7 @@ const WordDefinitionContent: Component = () => {
         if (features.supportsPitchAccent && settings.showPitchAccent) {
           const reading = normalizeReading(extractReadingFromEntries(data));
           const position = extractPitchAccentFromTranslationData(resp);
-          if (reading && reading.length > 1 && position !== undefined) {
+          if (reading && reading.length > 0 && position !== undefined) {
             setPitchAccent({ position, reading });
           }
         }
@@ -124,10 +122,7 @@ const WordDefinitionContent: Component = () => {
 
   const currentEase = createMemo(() => currentFlashcard()?.ease);
 
-  const wordForms = createMemo(() => getWordFormCandidates(word(), getCanonicalForm, getWordVariants));
-  const manualStatus = createMemo(() =>
-    numericToWordStatus(getWordStatus(wordForms()[0] ?? word(), wordForms().slice(1)))
-  );
+  const comprehensiveStatus = createMemo(() => getComprehensiveWordStatusSync(word()));
 
   const levelPillData = createMemo(() => {
     const w = word();
@@ -164,7 +159,7 @@ const WordDefinitionContent: Component = () => {
         isOcr: false,
         wordUuid: wordUuid(),
         level: freq?.raw_level ?? -1,
-        manualStatus: manualStatus(),
+        wordStatus: comprehensiveStatus(),
         colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
         tokenize,
 srsLearningEase: settings.srsLearningThreshold / 1000,
