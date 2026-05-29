@@ -6,44 +6,45 @@ export type { PitchAccentInfo };
 /** @deprecated Use SMALL_KANA from shared/utils/textUtils instead */
 export const SMALL_KANA_CHARS = SMALL_KANA;
 
-function buildAccentPattern(accentType: number, reading: string): boolean[] {
-  const chars = Array.from(reading || "");
-  const count = chars.length;
-  const pattern: boolean[] = [];
-  for (let i = 0; i < count; i++) {
-    switch (accentType) {
-      case 0:
-        pattern.push(i !== 0);
-        break;
-      case 1:
-        pattern.push(i === 0);
-        break;
-      case 2:
-        pattern.push(i === 1);
-        break;
-      case 3:
-        pattern.push(i !== 0 && i < count - 1);
-        break;
-      default:
-        pattern.push(i !== 0 && i < accentType);
-        break;
+export function getMoraCount(reading: string): number {
+  let count = 0;
+  for (const ch of reading) {
+    if (!SMALL_KANA.has(ch)) {
+      count++;
     }
   }
+  return count;
+}
 
-  for (let i = 0; i < count - 1; i++) {
-    const nextIndex = i + 1;
-    if (pattern[nextIndex] === undefined) break;
-    if (pattern[i] === pattern[nextIndex]) continue;
-    if (!SMALL_KANA.has(chars[nextIndex])) continue;
-    const desiredValue = pattern[nextIndex];
-    let shiftIndex = nextIndex;
-    while (shiftIndex < count && SMALL_KANA.has(chars[shiftIndex])) {
-      pattern[shiftIndex] = pattern[i];
-      shiftIndex++;
+function buildAccentPattern(accentType: number, reading: string): boolean[] {
+  const chars = Array.from(reading || "");
+  const moraCount = getMoraCount(reading || "");
+  const pattern: boolean[] = [];
+  let charIndex = 0;
+  for (let moraIndex = 0; moraIndex < moraCount; moraIndex++) {
+    while (charIndex < chars.length && SMALL_KANA.has(chars[charIndex])) {
+      charIndex++;
     }
-    if (shiftIndex < count) {
-      pattern[shiftIndex] = desiredValue;
-      i = shiftIndex - 1;
+    switch (accentType) {
+      case 0:
+        pattern.push(moraIndex !== 0);
+        break;
+      case 1:
+        pattern.push(moraIndex === 0);
+        break;
+      case 2:
+        pattern.push(moraIndex === 1);
+        break;
+      case 3:
+        pattern.push(moraIndex !== 0 && moraIndex < moraCount - 1);
+        break;
+      default:
+        pattern.push(moraIndex !== 0 && moraIndex < accentType);
+        break;
+    }
+    charIndex++;
+    while (charIndex < chars.length && SMALL_KANA.has(chars[charIndex])) {
+      charIndex++;
     }
   }
   return pattern;
