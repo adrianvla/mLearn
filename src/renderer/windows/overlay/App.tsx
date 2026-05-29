@@ -158,9 +158,8 @@ export const App: Component = () => {
   });
 
   const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants);
-  const getManualWordStatus = (word: string): WordStatus => {
-    const forms = getWordForms(word);
-    return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
+  const getWordComprehensiveStatus = (word: string): WordStatus => {
+    return flashcardCtx.getComprehensiveWordStatusSync(word);
   };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
@@ -694,9 +693,9 @@ export const App: Component = () => {
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      const manualStatus = getManualWordStatus(entry.word);
+      const comprehensiveStatus = getWordComprehensiveStatus(entry.word);
       const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(entry.word), manualStatus,
+        flashcardCtx.getCardByWordSync(entry.word), comprehensiveStatus,
         getAnkiKnowledgeStatus(entry.word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
@@ -716,7 +715,7 @@ export const App: Component = () => {
         try { translationData = await translateWord(word); } catch (e) { log.error('Translation failed', e); }
       }
       const freq = langCtx.getFrequency(word);
-      const manualStatus = getManualWordStatus(word);
+      const wordStatus = getWordComprehensiveStatus(word);
       const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({
@@ -726,7 +725,7 @@ export const App: Component = () => {
         contextPhrase: entry.contextPhrase,
         isOcr: false,
         level: freq?.raw_level ?? -1,
-        manualStatus,
+        wordStatus,
         colourCodes,
         tokenize,
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
@@ -957,9 +956,9 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
-      const manualStatus = getManualWordStatus(word);
+      const wordStatus = getWordComprehensiveStatus(word);
       const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(word), manualStatus,
+        flashcardCtx.getCardByWordSync(word), wordStatus,
         getAnkiKnowledgeStatus(word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );

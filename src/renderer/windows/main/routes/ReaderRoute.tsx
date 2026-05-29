@@ -133,9 +133,8 @@ export const ReaderRoute: Component = () => {
   const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm, getWordVariants } = langCtx;
   const { translateWord } = useTranslation({ immediate: true, language: settings.language });
   const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm, getWordVariants);
-  const getManualWordStatus = (word: string): WordStatus => {
-    const forms = getWordForms(word);
-    return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
+  const getWordComprehensiveStatus = (word: string): WordStatus => {
+    return flashcardCtx.getComprehensiveWordStatusSync(word);
   };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
@@ -460,9 +459,9 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        const manualStatus = getManualWordStatus(entry.word);
+        const comprehensiveStatus = getWordComprehensiveStatus(entry.word);
         const effectiveStatus = getEffectiveWordStatus(
-          flashcardCtx.getCardByWordSync(entry.word), manualStatus,
+          flashcardCtx.getCardByWordSync(entry.word), comprehensiveStatus,
           getAnkiKnowledgeStatus(entry.word),
           settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
         );
@@ -560,7 +559,7 @@ export const ReaderRoute: Component = () => {
       const translationData = getCachedTranslation(entry.word, settings.language) ?? await translateWord(entry.word);
       const image = imageRefs()[entry.pageId] || null;
       const anchorRect = getAnchorRectForWord(entry);
-      const manualStatus = getManualWordStatus(entry.word);
+      const wordStatus = getWordComprehensiveStatus(entry.word);
       const frequency = langCtx.getFrequency(entry.word);
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
@@ -571,7 +570,7 @@ export const ReaderRoute: Component = () => {
         ocrImageElement: image,
         anchorRect: anchorRect || undefined,
         level: frequency?.raw_level ?? -1,
-        manualStatus,
+        wordStatus,
         colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
         ocrCropPadding: settings.ocr_crop_padding,
         tokenize,
