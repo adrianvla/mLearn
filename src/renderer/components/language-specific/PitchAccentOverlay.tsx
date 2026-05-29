@@ -13,7 +13,7 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, children as resolveChildren } from 'solid-js';
 import { useSettings, useLanguage } from '../../context';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
+import { buildPitchAccentHtml, getPitchAccentInfo, getMoraCount } from '../../utils/pitchAccent';
 import { getCachedTranslation } from '../../hooks/useTranslation';
 import { extractPitchPosition, extractReadingValue } from '../../utils/translationCacheParsers';
 import { PillLabel } from '../common/Label';
@@ -168,8 +168,9 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
   const includeParticleBox = createMemo(() => {
     if (props.showParticleBox !== undefined) return props.showParticleBox;
     const reading = effectiveReading();
+    const moraCount = getMoraCount(reading);
     // Always show particle box for 1-mora words — without it the diagram is meaningless
-    if (reading.length === 1) return true;
+    if (moraCount === 1) return true;
     const pos = props.pos || '';
     const nextPos = props.nextPos || '';
     // Suppress particle box for verbs followed by verbs (conjugation chain)
@@ -194,10 +195,10 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
 
     const isPill = (props.mode || 'overlay') === 'pill';
     const particleMargin = isPill ? 0 : undefined;
-    return buildPitchAccentHtml(info, reading.length, {
+    return buildPitchAccentHtml(info, info.length, {
       includeParticleBox: includeParticleBox(),
       particleMarginPercent: particleMargin,
-      padTo: reading.length,
+      padTo: info.length,
       homogenous: props.homogenous ?? false,
     });
   });

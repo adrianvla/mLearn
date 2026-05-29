@@ -24,7 +24,7 @@ export interface PitchAccentProps {
  */
 export const PitchAccent: Component<PitchAccentProps> = (props) => {
   const accentInfo = createMemo(() => {
-    if (!props.reading || props.reading.length <= 1) return null;
+    if (!props.reading || props.reading.length === 0) return null;
     return getPitchAccentInfo(props.position, props.reading);
   });
 

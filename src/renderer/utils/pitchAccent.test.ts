@@ -4,12 +4,31 @@ import {
   buildPitchAccentHtml,
   getPitchAccentName,
   SMALL_KANA_CHARS,
+  getMoraCount,
 } from './pitchAccent';
 import { SMALL_KANA } from '../../shared/utils/textUtils';
 
 describe('SMALL_KANA_CHARS', () => {
   it('exists and equals SMALL_KANA from textUtils', () => {
     expect(SMALL_KANA_CHARS).toBe(SMALL_KANA);
+  });
+});
+
+describe('getMoraCount', () => {
+  it('counts plain kana correctly', () => {
+    expect(getMoraCount('あめ')).toBe(2);
+    expect(getMoraCount('あたま')).toBe(3);
+  });
+
+  it('collapses small kana into preceding mora', () => {
+    expect(getMoraCount('ちゃ')).toBe(1);
+    expect(getMoraCount('きょう')).toBe(2);
+    expect(getMoraCount('ちゃん')).toBe(2);
+  });
+
+  it('counts long vowel and sokuon as separate morae', () => {
+    expect(getMoraCount('がっこう')).toBe(4);
+    expect(getMoraCount('たー')).toBe(2);
   });
 });
 
@@ -121,33 +140,38 @@ describe('getPitchAccentInfo', () => {
     expect(getPitchAccentInfo(5, 'あいうえおか')?.pattern).toEqual([false, true, true, true, true, false]);
   });
 
-  it('small kana: きょ with accent 1 — boundary absorbed when no char follows ょ', () => {
-    // ょ is small kana at index 1; the high→low boundary shifts past ょ but there is no
-    // following char to receive the low value, so ょ keeps pattern[0]=true
-    expect(getPitchAccentInfo(1, 'きょ')?.pattern).toEqual([true, true]);
+  it('single-mora heiban: ね → low, particleAccent true', () => {
+    expect(getPitchAccentInfo(0, 'ね')?.pattern).toEqual([false]);
   });
 
-  it('small kana: きょう with accent 1 — boundary shifted past ょ onto う', () => {
-    // ょ at index 1 is small kana; shift assigns pattern[1]=pattern[0]=true, pattern[2]=false
-    expect(getPitchAccentInfo(1, 'きょう')?.pattern).toEqual([true, true, false]);
+  it('single-mora atamadaka: ね → high, particleAccent false', () => {
+    expect(getPitchAccentInfo(1, 'ね')?.pattern).toEqual([true]);
   });
 
-  it('small kana: ちゃ with accent 0 — low→high boundary absorbed by ゃ', () => {
-    // ゃ at index 1 is small kana; shift assigns pattern[1]=pattern[0]=false, no char follows
-    expect(getPitchAccentInfo(0, 'ちゃ')?.pattern).toEqual([false, false]);
+  it('small kana 1-mora heiban: ちゃ → low (1 mora, not 2 chars)', () => {
+    expect(getPitchAccentInfo(0, 'ちゃ')?.pattern).toEqual([false]);
   });
 
-  it('small kana: ちゃん with accent 0 — boundary shifted past ゃ onto ん', () => {
-    // ゃ at index 1; shift assigns pattern[1]=false (same as pattern[0]), pattern[2]=true
-    expect(getPitchAccentInfo(0, 'ちゃん')?.pattern).toEqual([false, false, true]);
+  it('small kana 1-mora atamadaka: ちゃ → high (1 mora, not 2 chars)', () => {
+    expect(getPitchAccentInfo(1, 'ちゃ')?.pattern).toEqual([true]);
+  });
+
+  it('small kana 2-mora heiban: ちゃん → low-high', () => {
+    expect(getPitchAccentInfo(0, 'ちゃん')?.pattern).toEqual([false, true]);
+  });
+
+  it('small kana 2-mora atamadaka: きょう → high-low', () => {
+    expect(getPitchAccentInfo(1, 'きょう')?.pattern).toEqual([true, false]);
   });
 
   it('preserves accentType in returned info', () => {
     expect(getPitchAccentInfo(2, 'あいう')?.accentType).toBe(2);
   });
 
-  it('length equals number of chars in reading', () => {
+  it('length equals number of morae', () => {
     expect(getPitchAccentInfo(0, 'あいうえお')?.length).toBe(5);
+    expect(getPitchAccentInfo(0, 'ちゃ')?.length).toBe(1);
+    expect(getPitchAccentInfo(0, 'きょう')?.length).toBe(2);
   });
 });
 
