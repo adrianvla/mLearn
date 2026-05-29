@@ -21,13 +21,16 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
+import { findAnkiWordMatchInCache } from '../services/ankiWordsCache';
+import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
+import { getWordFormCandidates } from '../utils/wordForms';
 import { streamChat } from '../services/llmProvider';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../services/cloudSessionManager';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore, isWordKnown as checkWordIsKnown } from '../utils/knowledgeUtils';
-import { getComprehensiveWordStatus, isWordKnownComprehensive } from '../utils/comprehensiveKnowledge';
+import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, isWordKnownComprehensive } from '../utils/comprehensiveKnowledge';
 
 
 const log = getLogger("renderer.context.flashcard");
@@ -240,10 +243,14 @@ interface FlashcardContextValue {
   isWordLearningByText: (word: string) => boolean;
   /** Comprehensive word status: checks ALL knowledge banks (knownUntracked, ignored, SRS, passive) */
   getComprehensiveWordStatusSync: (word: string) => WordStatus;
+  /** Comprehensive word status with source attribution */
+  getComprehensiveWordStatusWithSourceSync: (word: string) => import('../../renderer/utils/comprehensiveKnowledge').ComprehensiveWordStatusResult;
   /** Shorthand: is word known by any knowledge bank? */
   isWordKnownComprehensiveSync: (word: string) => boolean;
   trackWordStatusChange: (word: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string) => void;
+  /** Directly set a word's comprehensive status by adjusting its passive ease and clearing conflicting banks */
+  setComprehensiveWordStatus: (word: string, status: WordStatus) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
   // Word sync seen tracking
@@ -284,7 +291,7 @@ const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { getCanonicalForm } = useLanguage();
+  const { getCanonicalForm, getWordVariants } = useLanguage();
   const { requestAccess } = useLowPowerGate();
   const newDayHour = () => settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour;
 
@@ -1809,7 +1816,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
             k.timesHovered = hoveredCount;
             k.lastSeen = now;
             isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
-            if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings)) {
+            const wasManuallySetRecently = k.lastStatusChange && (now - k.lastStatusChange) < 5000;
+            if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings) && !wasManuallySetRecently) {
                 k.ease = Math.max(SRS.MIN_EASE, k.ease - getPassiveHoverEaseDecrease(settings));
             }
             nextEase = k.ease;
@@ -1888,7 +1896,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return false;
   };
 
-  // Comprehensive word status check: considers ALL knowledge banks (OR logic)
+  const getAnkiStatusForWord = (word: string): WordStatus | null => {
+    if (!settings.use_anki) return null;
+    const forms = getWordFormCandidates(word, getCanonicalForm, getWordVariants);
+    const match = findAnkiWordMatchInCache(forms);
+    if (!match?.cards?.length) return null;
+    return getAnkiWordKnowledgeStatus(match.cards, settings.ankiLearningThreshold, settings.ankiKnownThreshold);
+  };
+
   const getComprehensiveWordStatusSync = (word: string): WordStatus => {
     return getComprehensiveWordStatus(word, {
       getCanonicalForm,
@@ -1901,10 +1916,30 @@ export const FlashcardProvider: ParentComponent = (props) => {
       knownEaseThreshold: settings.easeThresholdKnown,
       learningThreshold: settings.easeThresholdLearning,
       getCardByWordSync,
+      ankiStatus: getAnkiStatusForWord(word),
+      sourceOrder: settings.knowledgeSourceOrder,
+      resolutionMode: settings.knowledgeResolutionMode,
     });
   };
 
-  // Shorthand: is word known by any knowledge bank?
+  const getComprehensiveWordStatusWithSourceSync = (word: string) => {
+    return getComprehensiveWordStatusWithSource(word, {
+      getCanonicalForm,
+      hashWordSync: SRS.hashWordSync,
+      langKey,
+      language: settings.language,
+      knownUntracked: store.knownUntracked,
+      ignoredWords: store.ignoredWords,
+      wordKnowledge: store.wordKnowledge,
+      knownEaseThreshold: settings.easeThresholdKnown,
+      learningThreshold: settings.easeThresholdLearning,
+      getCardByWordSync,
+      ankiStatus: getAnkiStatusForWord(word),
+      sourceOrder: settings.knowledgeSourceOrder,
+      resolutionMode: settings.knowledgeResolutionMode,
+    });
+  };
+
   const isWordKnownComprehensiveSync = (word: string): boolean => {
     return isWordKnownComprehensive(word, {
       getCanonicalForm,
@@ -1917,6 +1952,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
       knownEaseThreshold: settings.easeThresholdKnown,
       learningThreshold: settings.easeThresholdLearning,
       getCardByWordSync,
+      ankiStatus: getAnkiStatusForWord(word),
+      sourceOrder: settings.knowledgeSourceOrder,
+      resolutionMode: settings.knowledgeResolutionMode,
     });
   };
 
@@ -1973,6 +2011,43 @@ export const FlashcardProvider: ParentComponent = (props) => {
         s.wordKnowledge[lk].lastSeen = now;
         s.wordKnowledge[lk].lastStatusChange = now;
         s.wordKnowledge[lk].wordSyncRatedAt = now;
+      }
+    }));
+    saveFlashcards();
+  };
+
+  const setComprehensiveWordStatus = (word: string, status: WordStatus) => {
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
+    const lang = settings.language;
+    const lk = langKey(lang, wordHash);
+    const now = Date.now();
+
+    let targetEase = settings.easeThresholdUnknown;
+    if (status === 'learning') targetEase = settings.easeThresholdLearning;
+    else if (status === 'known') targetEase = settings.easeThresholdKnown;
+
+    setStore(produce((s) => {
+      if (status !== 'known' && s.knownUntracked[lk]) {
+        delete s.knownUntracked[lk];
+      }
+      if (status !== 'known' && s.ignoredWords[lk]) {
+        delete s.ignoredWords[lk];
+      }
+
+      if (!s.wordKnowledge[lk]) {
+        s.wordKnowledge[lk] = {
+          ease: targetEase,
+          lastSeen: now,
+          timesSeen: 0,
+          timesHovered: 0,
+          word: canonical,
+          language: lang,
+          lastStatusChange: now,
+        };
+      } else {
+        s.wordKnowledge[lk].ease = targetEase;
+        s.wordKnowledge[lk].lastStatusChange = now;
       }
     }));
     saveFlashcards();
@@ -2706,9 +2781,11 @@ Translation: [${targetLang} translation]`;
     isWordLearning,
     isWordLearningByText,
     getComprehensiveWordStatusSync,
+    getComprehensiveWordStatusWithSourceSync,
     isWordKnownComprehensiveSync,
     trackWordStatusChange,
     setWordKnowledgeEase,
+    setComprehensiveWordStatus,
     setWordBankStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,
