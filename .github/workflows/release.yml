@@ -190,6 +190,13 @@ jobs:
           token: ${{ secrets.WEBSITE_PAT }}
           path: website
 
+      - name: Checkout Versioning
+        uses: actions/checkout@v4
+        with:
+          repository: adrianvla/mlearn-versioning
+          token: ${{ secrets.WEBSITE_PAT }}
+          path: versioning
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -199,6 +206,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           sed -i "s/const version = \".*\";/const version = \"${VERSION}\";/" website/frontend/public/download/auto/page.js
+          sed -i "s/\"latest\": \".*\"/\"latest\": \"${VERSION}\"/" versioning/version-info.json
 
       - name: Install Website Dependencies
         run: |
@@ -207,7 +215,7 @@ jobs:
           cd frontend && npm install && cd ..
           cd worker && npm install && cd ..
 
-      - name: Commit and Push
+      - name: Commit and Push Website
         run: |
           cd website
           git config user.name "github-actions"
@@ -215,16 +223,29 @@ jobs:
           git add frontend/public/download/auto/page.js
           if git diff --staged --quiet; then
             echo "No changes to commit"
-            exit 0
+          else
+            git commit -m "chore: bump version to ${GITHUB_REF_NAME}"
+            for branch in master main; do
+              if git show-ref --verify --quiet refs/remotes/origin/$branch; then
+                git push origin $branch
+              else
+                echo "Branch $branch does not exist on remote, skipping"
+              fi
+            done
           fi
-          git commit -m "chore: bump version to ${GITHUB_REF_NAME}"
-          for branch in master main; do
-            if git show-ref --verify --quiet refs/remotes/origin/$branch; then
-              git push origin $branch
-            else
-              echo "Branch $branch does not exist on remote, skipping"
-            fi
-          done
+
+      - name: Commit and Push Versioning
+        run: |
+          cd versioning
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add version-info.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: bump version to ${GITHUB_REF_NAME}"
+            git push origin main || git push origin master || true
+          fi
 
       - name: Deploy Website
         run: |
