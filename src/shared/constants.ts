@@ -378,8 +378,19 @@ export const WORD_STATUS = {
 export type NumericWordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
 
 // Knowledge sources for word status resolution
-export const KNOWLEDGE_SOURCES = ['srs', 'anki', 'manual'] as const;
+export const KNOWLEDGE_SOURCES = ['knownWordsList', 'ignoredWords', 'srs', 'anki', 'passiveTracking'] as const;
 export type KnowledgeSource = typeof KNOWLEDGE_SOURCES[number];
+
+export const KNOWLEDGE_SOURCE_DISPLAY_NAMES = {
+  knownWordsList: 'KnownWordsList',
+  ignoredWords: 'IgnoredWords',
+  srs: 'Srs',
+  anki: 'Anki',
+  passiveTracking: 'PassiveTracking',
+} as const satisfies Record<KnowledgeSource, string>;
+
+export type KnowledgeSourceDisplayName = typeof KNOWLEDGE_SOURCE_DISPLAY_NAMES[KnowledgeSource];
+export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'None';
 
 // Knowledge resolution modes
 export const KNOWLEDGE_RESOLUTION_MODES = ['order', 'highest', 'lowest'] as const;
