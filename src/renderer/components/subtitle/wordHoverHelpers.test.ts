@@ -21,21 +21,20 @@ describe('resolveWordKnowledge', () => {
     it('picks first source with data', () => {
       const result = resolveWordKnowledge(
         makeCard('review'), 'learning', 'learning',
-        ['anki', 'srs', 'manual'], 'order',
+        ['anki', 'srs', 'passiveTracking'], 'order',
       );
       expect(result.status).toBe('learning'); // anki → learning
       expect(result.activeSources).toEqual(['anki']);
-      expect(result.dataSources).toEqual(['anki', 'srs', 'manual']);
+      expect(result.dataSources).toEqual(['anki', 'srs', 'passiveTracking']);
     });
 
     it('skips sources without data', () => {
       const result = resolveWordKnowledge(
         null, 'known', null,
-        ['srs', 'anki', 'manual'], 'order',
+        ['srs', 'anki', 'passiveTracking'], 'order',
       );
-      // srs: no card → null, anki: null → null, manual: known → 'known'
       expect(result.status).toBe('known');
-      expect(result.activeSources).toEqual(['manual']);
+      expect(result.activeSources).toEqual(['passiveTracking']);
     });
   });
 
@@ -43,7 +42,7 @@ describe('resolveWordKnowledge', () => {
     it('picks highest status across all sources', () => {
       const result = resolveWordKnowledge(
         makeCard('review'), 'learning', 'learning',
-        ['srs', 'anki', 'manual'], 'highest',
+        ['srs', 'anki', 'passiveTracking'], 'highest',
       );
       // srs=known(2), anki=learning(1), manual=learning(1) → known wins
       expect(result.status).toBe('known');
@@ -53,11 +52,11 @@ describe('resolveWordKnowledge', () => {
     it('returns multiple active sources when tied', () => {
       const result = resolveWordKnowledge(
         makeCard('new'), 'learning', 'learning',
-        ['srs', 'anki', 'manual'], 'highest',
+        ['srs', 'anki', 'passiveTracking'], 'highest',
       );
       // srs=learning(1), anki=learning(1), manual=learning(1) → all tied
       expect(result.status).toBe('learning');
-      expect(result.activeSources).toEqual(['srs', 'anki', 'manual']);
+      expect(result.activeSources).toEqual(['srs', 'anki', 'passiveTracking']);
     });
   });
 
@@ -65,17 +64,17 @@ describe('resolveWordKnowledge', () => {
     it('picks lowest status across all sources', () => {
       const result = resolveWordKnowledge(
         makeCard('review'), 'learning', 'learning',
-        ['srs', 'anki', 'manual'], 'lowest',
+        ['srs', 'anki', 'passiveTracking'], 'lowest',
       );
       // srs=known(2), anki=learning(1), manual=learning(1) → learning wins
       expect(result.status).toBe('learning');
-      expect(result.activeSources).toEqual(['anki', 'manual']);
+      expect(result.activeSources).toEqual(['anki', 'passiveTracking']);
     });
   });
 
   describe('no data', () => {
     it('falls back to manualStatus when no source has data', () => {
-      const result = resolveWordKnowledge(null, 'unknown', null, ['srs', 'anki', 'manual'], 'highest');
+      const result = resolveWordKnowledge(null, 'unknown', null, ['srs', 'anki', 'passiveTracking'], 'highest');
       expect(result.status).toBe('unknown');
       expect(result.activeSources).toEqual([]);
       expect(result.dataSources).toEqual([]);
@@ -95,14 +94,14 @@ describe('resolveWordKnowledge', () => {
     });
 
     it('manual returns null when status is unknown', () => {
-      const result = resolveWordKnowledge(null, 'unknown', null, ['manual'], 'highest');
+      const result = resolveWordKnowledge(null, 'unknown', null, ['passiveTracking'], 'highest');
       expect(result.dataSources).toEqual([]);
     });
 
     it('manual returns status when not unknown', () => {
-      const result = resolveWordKnowledge(null, 'known', null, ['manual'], 'highest');
+      const result = resolveWordKnowledge(null, 'known', null, ['passiveTracking'], 'highest');
       expect(result.status).toBe('known');
-      expect(result.dataSources).toEqual(['manual']);
+      expect(result.dataSources).toEqual(['passiveTracking']);
     });
   });
 });
@@ -131,7 +130,7 @@ describe('getEffectiveWordStatus', () => {
 
   it('respects Anki and settings params', () => {
     // Anki-only word, order mode with anki first
-    expect(getEffectiveWordStatus(null, 'unknown', 'unknown', ['anki', 'srs', 'manual'], 'order')).toBe('unknown');
+    expect(getEffectiveWordStatus(null, 'unknown', 'unknown', ['anki', 'srs', 'passiveTracking'], 'order')).toBe('unknown');
   });
 });
 

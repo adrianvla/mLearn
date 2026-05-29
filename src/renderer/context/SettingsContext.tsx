@@ -8,7 +8,7 @@ import { createStore, reconcile } from 'solid-js/store';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
-import { APP_THEMES } from '../../shared/constants';
+import { APP_THEMES, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend } from '../../shared/backends';
 import { isCapacitor } from '../../shared/platform';
@@ -82,6 +82,20 @@ export const SettingsProvider: ParentComponent = (props) => {
       const mergedSettings = pendingSettingsSnapshot
         ? { ...loadedSettings, ...pendingSettingsSnapshot }
         : loadedSettings;
+
+      if (mergedSettings.knowledgeSourceOrder) {
+        const validSources = new Set(KNOWLEDGE_SOURCES);
+        const currentSources = new Set(mergedSettings.knowledgeSourceOrder as string[]);
+        const hasInvalid = (mergedSettings.knowledgeSourceOrder as string[]).some((src) => !validSources.has(src as typeof KNOWLEDGE_SOURCES[number]));
+        const hasMissing = KNOWLEDGE_SOURCES.some((src) => !currentSources.has(src));
+        // DEPRECATED (v2.0 migration): reset legacy/incomplete source orders to the new default.
+        // Remove after all active users have migrated (safe to remove ~2026-12).
+        if (hasInvalid || hasMissing) {
+          mergedSettings.knowledgeSourceOrder = [...KNOWLEDGE_SOURCES];
+          log.info('[SettingsContext] Migrated knowledgeSourceOrder to new default');
+          bridge.settings.saveSettings(mergedSettings);
+        }
+      }
 
       setSettings(reconcile(mergedSettings));
       syncCloudState(mergedSettings);
