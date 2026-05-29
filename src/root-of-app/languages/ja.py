@@ -329,13 +329,20 @@ def is_kana(s: str) -> bool:
     ) for ch in s)
 
 
-def _rank_entry(e) -> Tuple[int, int, int]:
+def _rank_entry(e) -> Tuple[int, int, int, int, int]:
     try:
-        reading = e[1] if len(e) > 1 else ''
+        reading = e[1] if len(e) > 1 and e[1] is not None else ''
     except Exception:
         reading = ''
     pref_hira = 0 if is_hiragana(reading) else 1
     pref_kana = 0 if is_kana(reading) else 1
+    # Prefer entries tagged as 'common' (Yomitan term_tags at index 7)
+    pref_common = 1
+    try:
+        if len(e) > 7 and isinstance(e[7], list) and 'common' in e[7]:
+            pref_common = 0
+    except Exception:
+        pass
     score_val = 0
     try:
         raw = e[4] if len(e) > 4 else 0
@@ -343,7 +350,8 @@ def _rank_entry(e) -> Tuple[int, int, int]:
             score_val = int(raw)
     except Exception:
         pass
-    return (pref_hira, pref_kana, -score_val)
+    # Prefer shorter readings as a final tiebreaker (common readings tend to be shorter)
+    return (pref_hira, pref_kana, pref_common, -score_val, len(reading))
 
 
 def _collect_by_headword(word: str) -> _List:
