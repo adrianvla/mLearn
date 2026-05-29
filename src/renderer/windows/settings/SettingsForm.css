@@ -75,3 +75,16 @@
   width: 120px;
   accent-color: var(--color-primary);
 }
+
+.ease-threshold-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.ease-exposures {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  line-height: 2.5rem;
+}
