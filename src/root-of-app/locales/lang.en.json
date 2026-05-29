@@ -1469,7 +1469,11 @@
         "Source": {
           "Srs": "Built-In SRS",
           "Anki": "Anki",
-          "Manual": "Manual"
+          "Manual": "Manual",
+          "KnownWordsList": "Known Words List",
+          "IgnoredWords": "Ignored Words",
+          "PassiveTracking": "Passive Tracking",
+          "None": "None"
         }
       },
       "Reader": {
@@ -1823,7 +1827,24 @@
         "AnkiKnownThreshold": {
           "Label": "Anki: Known Threshold",
           "Description": "Anki card factor above which a word is considered known"
-        }
+        },
+        "EaseUnknownThreshold": {
+          "Label": "Unknown Threshold",
+          "Description": "Minimum ease for a word to be considered unknown (starting point)"
+        },
+        "EaseLearningThreshold": {
+          "Label": "Learning Threshold",
+          "Description": "Ease at which a word is considered being learned"
+        },
+        "EaseKnownThreshold": {
+          "Label": "Known Threshold",
+          "Description": "Ease at which a word is considered known"
+        },
+        "EaseMasteredThreshold": {
+          "Label": "Mastered Threshold",
+          "Description": "Ease at which a word is considered mastered"
+        },
+        "EquivalentExposures": "≈ seen {count} times in subtitles"
       },
       "About": {
         "Licenses": "Licenses",
@@ -2211,6 +2232,14 @@
         "AllWords": "All Words",
         "IgnoredWords": "Ignored Words"
       },
+      "SourceFilter": {
+        "AllSources": "All Sources",
+        "KnownWordsList": "Known Words List",
+        "IgnoredWords": "Ignored Words",
+        "Srs": "SRS",
+        "PassiveTracking": "Passive Tracking",
+        "None": "No Source"
+      },
       "Columns": {
         "Level": "Level",
         "Status": "Status",
@@ -2276,6 +2305,7 @@
         "Prefix": "Source: ",
         "None": "None"
       },
+      "TimesSeen": "Seen {count} times",
       "StatusSourceWarning": {
         "Confirm": "Change anyway",
         "DontRemind": "Don't remind me again",

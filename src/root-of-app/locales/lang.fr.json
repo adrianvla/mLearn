@@ -1476,7 +1476,11 @@
         "Source": {
           "Srs": "SRS intégré",
           "Anki": "Anki",
-          "Manual": "Manuel"
+          "Manual": "Manuel",
+          "KnownWordsList": "Mots connus",
+          "IgnoredWords": "Mots ignorés",
+          "PassiveTracking": "Suivi passif",
+          "None": "Aucune"
         }
       },
       "Reader": {
@@ -1830,7 +1834,24 @@
         "AnkiKnownThreshold": {
           "Label": "Anki : Seuil connu",
           "Description": "Facteur de carte Anki au-dessus duquel un mot est considéré connu"
-        }
+        },
+        "EaseUnknownThreshold": {
+          "Label": "Seuil inconnu",
+          "Description": "Ease minimale à partir de laquelle un mot est considéré inconnu (point de départ)"
+        },
+        "EaseLearningThreshold": {
+          "Label": "Seuil d'apprentissage",
+          "Description": "Ease à laquelle un mot est considéré en apprentissage"
+        },
+        "EaseKnownThreshold": {
+          "Label": "Seuil connu",
+          "Description": "Ease à laquelle un mot est considéré connu"
+        },
+        "EaseMasteredThreshold": {
+          "Label": "Seuil maîtrisé",
+          "Description": "Ease à laquelle un mot est considéré maîtrisé"
+        },
+        "EquivalentExposures": "≈ vu {count} fois dans les sous-titres"
       },
       "VideoPlayer": {
         "Title": "Lecteur vidéo",
@@ -2225,6 +2246,14 @@
         "AllWords": "Tous les mots",
         "IgnoredWords": "Mots ignorés"
       },
+      "SourceFilter": {
+        "AllSources": "Toutes les sources",
+        "KnownWordsList": "Mots connus",
+        "IgnoredWords": "Mots ignorés",
+        "Srs": "SRS",
+        "PassiveTracking": "Suivi passif",
+        "None": "Aucune source"
+      },
       "Columns": {
         "Level": "Niveau",
         "Status": "Statut",
@@ -2290,6 +2319,7 @@
         "Prefix": "Source : ",
         "None": "Aucune"
       },
+      "TimesSeen": "Vu {count} fois",
       "StatusSourceWarning": {
         "Confirm": "Modifier quand même",
         "DontRemind": "Ne plus me rappeler",
