@@ -17,7 +17,6 @@ import { getLogger } from '../../../shared/utils/logger';
 const log = getLogger("renderer.components.subtitleContainer");
 
 const PASSIVE_SUBTITLE_EASE_BUMP = 0.01;
-const LIVE_TRANSLATOR_EASE_BUMP = 0.02;
 
 export interface SubtitleContainerProps {
   tokens: Token[];
@@ -338,9 +337,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       // Deduplicate within this subtitle to avoid double-translating the same word
       if (seenInThisRun.has(displayWord)) continue;
       seenInThisRun.add(displayWord);
-
-      // Higher ease bump for words shown in live translator (+0.02 vs +0.01)
-      flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading, LIVE_TRANSLATOR_EASE_BUMP);
 
       (async () => {
         try {

@@ -241,29 +241,36 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return reading !== word;
   });
 
-  // Build furigana reading with correction for verb conjugations
+  const isCharKana = (ch: string): boolean => {
+    if (!ch) return false;
+    const cp = ch.charCodeAt(0);
+    return (cp >= 0x3040 && cp <= 0x309f) || (cp >= 0x30a0 && cp <= 0x30ff);
+  };
+
   const getFuriganaReading = createMemo(() => {
     const reading = effectiveReading();
     if (!reading) return '';
     const word = displayWord();
     let result = reading;
     const pos = getPos();
-    
-    // For verbs, adjust reading if last character differs
+
     if (pos === '動詞' && word.length > 0 && result.length > 0) {
       const lastWordChar = word[word.length - 1];
       const lastReadingChar = result[result.length - 1];
-      if (lastWordChar !== lastReadingChar && word.length === result.length) {
+      if (
+        lastWordChar !== lastReadingChar &&
+        word.length === result.length &&
+        isCharKana(lastWordChar)
+      ) {
         result = result.substring(0, result.length - 1) + lastWordChar;
       }
     }
-    
-    // Add padding if reading is shorter than word
+
     let correction = '';
     for (let i = result.length; i < word.length; i++) {
-      correction += '\u00A0'; // non-breaking space
+      correction += '\u00A0';
     }
-    
+
     return result + correction;
   });
 
