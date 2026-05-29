@@ -1483,7 +1483,11 @@
         "Source": {
           "Srs": "内置 SRS",
           "Anki": "Anki",
-          "Manual": "手动"
+          "Manual": "手动",
+          "KnownWordsList": "已知单词列表",
+          "IgnoredWords": "已忽略的单词",
+          "PassiveTracking": "被动追踪",
+          "None": "无"
         }
       },
       "Reader": {
@@ -1837,7 +1841,24 @@
         "AnkiKnownThreshold": {
           "Label": "Anki：已知阈值",
           "Description": "单词被视为已知的 Anki 卡片系数阈值"
-        }
+        },
+        "EaseUnknownThreshold": {
+          "Label": "未知阈值",
+          "Description": "单词被视为未知的最低 Ease 值（起始点）"
+        },
+        "EaseLearningThreshold": {
+          "Label": "学习中阈值",
+          "Description": "单词被视为学习中的 Ease 值"
+        },
+        "EaseKnownThreshold": {
+          "Label": "已知阈值",
+          "Description": "单词被视为已知的 Ease 值"
+        },
+        "EaseMasteredThreshold": {
+          "Label": "掌握阈值",
+          "Description": "单词被视为掌握的 Ease 值"
+        },
+        "EquivalentExposures": "≈ 在字幕中出现过 {count} 次"
       },
       "About": {
         "Licenses": "许可协议",
@@ -2225,6 +2246,14 @@
         "AllWords": "所有单词",
         "IgnoredWords": "已忽略的单词"
       },
+      "SourceFilter": {
+        "AllSources": "所有来源",
+        "KnownWordsList": "已知单词列表",
+        "IgnoredWords": "已忽略的单词",
+        "Srs": "SRS",
+        "PassiveTracking": "被动追踪",
+        "None": "无来源"
+      },
       "Columns": {
         "Level": "等级",
         "Status": "状态",
@@ -2290,6 +2319,7 @@
         "Prefix": "来源：",
         "None": "无"
       },
+      "TimesSeen": "已见{count}次",
       "StatusSourceWarning": {
         "Confirm": "仍要更改",
         "DontRemind": "不再提醒",

@@ -1462,7 +1462,11 @@
         "Source": {
           "Srs": "Integriertes SRS",
           "Anki": "Anki",
-          "Manual": "Manuell"
+          "Manual": "Manuell",
+          "KnownWordsList": "Bekannte Wörter",
+          "IgnoredWords": "Ignorierte Wörter",
+          "PassiveTracking": "Passives Tracking",
+          "None": "Keine"
         }
       },
       "Reader": {
@@ -1816,7 +1820,24 @@
         "AnkiKnownThreshold": {
           "Label": "Anki: Bekannt-Schwelle",
           "Description": "Anki-Kartenfaktor, ab dem ein Wort als bekannt gilt"
-        }
+        },
+        "EaseUnknownThreshold": {
+          "Label": "Unbekannt-Schwelle",
+          "Description": "Mindest-Ease, ab der ein Wort als unbekannt gilt (Startpunkt)"
+        },
+        "EaseLearningThreshold": {
+          "Label": "Lern-Schwelle",
+          "Description": "Ease, ab der ein Wort als lernend gilt"
+        },
+        "EaseKnownThreshold": {
+          "Label": "Bekannt-Schwelle",
+          "Description": "Ease, ab der ein Wort als bekannt gilt"
+        },
+        "EaseMasteredThreshold": {
+          "Label": "Beherrscht-Schwelle",
+          "Description": "Ease, ab der ein Wort als beherrscht gilt"
+        },
+        "EquivalentExposures": "≈ {count} Mal in Untertiteln gesehen"
       },
       "VideoPlayer": {
         "Title": "Videoplayer",
@@ -2211,6 +2232,14 @@
         "AllWords": "Alle Wörter",
         "IgnoredWords": "Ignorierte Wörter"
       },
+      "SourceFilter": {
+        "AllSources": "Alle Quellen",
+        "KnownWordsList": "Bekannte Wörter",
+        "IgnoredWords": "Ignorierte Wörter",
+        "Srs": "SRS",
+        "PassiveTracking": "Passives Tracking",
+        "None": "Keine Quelle"
+      },
       "Columns": {
         "Level": "Stufe",
         "Status": "Status",
@@ -2276,6 +2305,7 @@
         "Prefix": "Quelle: ",
         "None": "Keine"
       },
+      "TimesSeen": "{count} Mal gesehen",
       "StatusSourceWarning": {
         "Confirm": "Trotzdem ändern",
         "DontRemind": "Nicht mehr erinnern",

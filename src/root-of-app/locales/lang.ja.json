@@ -1476,7 +1476,11 @@
         "Source": {
           "Srs": "内蔵SRS",
           "Anki": "Anki",
-          "Manual": "手動"
+          "Manual": "手動",
+          "KnownWordsList": "既知の単語リスト",
+          "IgnoredWords": "無視した単語",
+          "PassiveTracking": "パッシブトラッキング",
+          "None": "なし"
         }
       },
       "Reader": {
@@ -1830,7 +1834,24 @@
         "AnkiKnownThreshold": {
           "Label": "Anki: 既知しきい値",
           "Description": "この値以上で単語を既知とみなすAnkiカードファクター"
-        }
+        },
+        "EaseUnknownThreshold": {
+          "Label": "未知しきい値",
+          "Description": "単語を未知とみなす最小のEase値（開始点）"
+        },
+        "EaseLearningThreshold": {
+          "Label": "学習中しきい値",
+          "Description": "単語を学習中とみなすEase値"
+        },
+        "EaseKnownThreshold": {
+          "Label": "既知しきい値",
+          "Description": "単語を既知とみなすEase値"
+        },
+        "EaseMasteredThreshold": {
+          "Label": "習得しきい値",
+          "Description": "単語を習得済みとみなすEase値"
+        },
+        "EquivalentExposures": "≈ 字幕で{count}回見た"
       },
       "VideoPlayer": {
         "Title": "動画プレーヤー",
@@ -2225,6 +2246,14 @@
         "AllWords": "すべての単語",
         "IgnoredWords": "無視した単語"
       },
+      "SourceFilter": {
+        "AllSources": "すべてのソース",
+        "KnownWordsList": "既知の単語リスト",
+        "IgnoredWords": "無視した単語",
+        "Srs": "SRS",
+        "PassiveTracking": "パッシブトラッキング",
+        "None": "ソースなし"
+      },
       "Columns": {
         "Level": "レベル",
         "Status": "状態",
@@ -2290,6 +2319,7 @@
         "Prefix": "ソース: ",
         "None": "なし"
       },
+      "TimesSeen": "{count}回見た",
       "StatusSourceWarning": {
         "Confirm": "変更する",
         "DontRemind": "今後表示しない",

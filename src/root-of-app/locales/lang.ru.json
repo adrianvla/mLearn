@@ -1476,7 +1476,11 @@
         "Source": {
           "Srs": "Встроенный SRS",
           "Anki": "Anki",
-          "Manual": "Вручную"
+          "Manual": "Вручную",
+          "KnownWordsList": "Список известных слов",
+          "IgnoredWords": "Игнорируемые слова",
+          "PassiveTracking": "Пассивное отслеживание",
+          "None": "Нет"
         }
       },
       "Reader": {
@@ -1830,7 +1834,24 @@
         "AnkiKnownThreshold": {
           "Label": "Anki: порог известного",
           "Description": "Фактор карточки Anki, выше которого слово считается известным"
-        }
+        },
+        "EaseUnknownThreshold": {
+          "Label": "Порог неизвестного",
+          "Description": "Минимальный ease, при котором слово считается неизвестным (начальная точка)"
+        },
+        "EaseLearningThreshold": {
+          "Label": "Порог изучения",
+          "Description": "Ease, при котором слово считается изучаемым"
+        },
+        "EaseKnownThreshold": {
+          "Label": "Порог известного",
+          "Description": "Ease, при котором слово считается известным"
+        },
+        "EaseMasteredThreshold": {
+          "Label": "Порог усвоенного",
+          "Description": "Ease, при котором слово считается усвоенным"
+        },
+        "EquivalentExposures": "≈ увидено {count} раз в субтитрах"
       },
       "VideoPlayer": {
         "Title": "Видеоплеер",
@@ -2225,6 +2246,14 @@
         "AllWords": "Все слова",
         "IgnoredWords": "Игнорируемые слова"
       },
+      "SourceFilter": {
+        "AllSources": "Все источники",
+        "KnownWordsList": "Список известных слов",
+        "IgnoredWords": "Игнорируемые слова",
+        "Srs": "SRS",
+        "PassiveTracking": "Пассивное отслеживание",
+        "None": "Нет источника"
+      },
       "Columns": {
         "Level": "Уровень",
         "Status": "Состояние",
@@ -2290,6 +2319,7 @@
         "Prefix": "Источник: ",
         "None": "Нет"
       },
+      "TimesSeen": "Увидено {count} раз",
       "StatusSourceWarning": {
         "Confirm": "Всё равно изменить",
         "DontRemind": "Больше не напоминать",
