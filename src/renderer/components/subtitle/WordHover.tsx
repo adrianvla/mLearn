@@ -8,7 +8,7 @@ import { Component, JSX, Show, For, createMemo, createSignal, createEffect } fro
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry, type PitchData } from '../../../shared/types';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
-import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
+import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmProvider';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer } from '../../hooks/useTranslation';
@@ -19,7 +19,6 @@ import {
   buildWordHoverFlashcardContent,
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
-  numericToWordStatus,
   type WordStatus,
 } from './wordHoverHelpers';
 import { clipVideo } from '../../services/videoClipService';
@@ -123,11 +122,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   const wordForms = createMemo(() => getWordFormCandidates(actualWord(), getCanonicalForm, getWordVariants));
-  const primaryWord = createMemo(() => wordForms()[0] ?? actualWord());
-  const aliasWords = createMemo(() => wordForms().slice(1));
-  const manualStatus = createMemo(() =>
-    numericToWordStatus(getWordStatus(primaryWord(), aliasWords()))
-  );
   
   // REACTIVE: Get current ease from flashcard if tracked
   const currentEase = createMemo(() => {
@@ -273,12 +267,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     if (!visible || !subtitleHoverRef) return;
 
-    console.log('[WordHover] createEffect (1) triggering position calc, pos=', props.position.x, props.position.y, 'inner=', window.innerWidth, 'x', window.innerHeight);
-    
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
-      console.log('[WordHover] createEffect (1) RAF callback: dims=', width, 'x', height, 'newPos=', newPos, 'inner=', window.innerWidth, 'x', window.innerHeight);
       setComputedPosition(newPos);
     });
   });
@@ -287,13 +278,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const visible = isShown();
     if (!visible || !subtitleHoverRef) return;
 
-    console.log('[WordHover] createEffect (2 - ResizeObserver) mounted, inner=', window.innerWidth, 'x', window.innerHeight);
-
-    const ro = new ResizeObserver((entries) => {
-      console.log('[WordHover] 🔄 ResizeObserver fired, contentRect=', entries[0]?.contentRect, 'inner=', window.innerWidth, 'x', window.innerHeight);
+    const ro = new ResizeObserver(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
-      console.log('[WordHover] resize: newPos=', newPos);
       setComputedPosition(newPos);
     });
 
@@ -302,7 +289,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
-      console.log('[WordHover] createEffect (2) RAF: dims=', width, 'x', height, 'newPos=', newPos, 'inner=', window.innerWidth, 'x', window.innerHeight);
       setComputedPosition(newPos);
     });
 
@@ -366,7 +352,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           anchorRect: props.anchorRect,
           wordUuid: wordUuid(),
           level: freq?.raw_level ?? props.level ?? -1,
-          manualStatus: manualStatus(),
+          wordStatus: effectiveStatus(),
           colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
           ocrCropPadding: settings.ocr_crop_padding,
           tokenize,
@@ -467,7 +453,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     // Get reading from first entry
     const reading = normalizeReading(extractReadingFromEntries(data));
-    if (!reading || reading.length <= 1) return null;
+    if (!reading || reading.length === 0) return null;
     
     // Get pitch position - data[2] is the pitch entry
     // Format: ["word", "pitch", { pitches: [{ position: N }] }] or just { pitches: [...] }
@@ -515,8 +501,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return findAnkiWordMatchInCache(wordForms());
   });
 
-  const comprehensiveStatus = createMemo(() => getComprehensiveWordStatusSync(actualWord()));
-  const effectiveStatus = createMemo(() => comprehensiveStatus());
+  const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(actualWord()));
 
   // Level pill showing JLPT/frequency level from langdata (not hardcoded!)
   // Must reactively update when word changes - use createMemo for full reactivity

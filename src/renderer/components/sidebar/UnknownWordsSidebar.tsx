@@ -8,11 +8,7 @@ import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation
 import {
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
-  getAnkiWordKnowledgeStatus,
-  numericToWordStatus,
-  resolveWordKnowledge,
 } from '../subtitle/wordHoverHelpers';
-import { getWordStatus } from '../../services/statsService';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { normalizeReading, containsKanji, isAllKana } from '../../../shared/utils/textUtils';
@@ -75,17 +71,15 @@ const UnknownWordRow: Component<{
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getFrequency, getLevelName, getLanguageFeatures, getCanonicalForm, getWordVariants } = useLanguage();
-  const { getCardByWordSync } = useFlashcards();
+  const { getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word));
   const isTracked = createMemo(() => props.isAdding || currentFlashcard() !== null);
   const currentEase = createMemo(() => currentFlashcard()?.ease);
+  const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(props.entry.word));
+
   const wordForms = createMemo(() => getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.entry.word);
-  const aliasWords = createMemo(() => wordForms().slice(1));
-  const manualStatus = createMemo(() =>
-    numericToWordStatus(getWordStatus(primaryWord(), aliasWords()))
-  );
 
   const ankiMatch = createMemo(() => {
     if (!settings.use_anki) return null;
@@ -94,22 +88,6 @@ const UnknownWordRow: Component<{
   });
 
   const isInAnki = createMemo(() => !!ankiMatch());
-  const ankiKnowledgeStatus = createMemo(() =>
-    getAnkiWordKnowledgeStatus(
-      ankiMatch()?.cards,
-      settings.ankiLearningThreshold,
-      settings.ankiKnownThreshold,
-    )
-  );
-  const effectiveStatus = createMemo(() =>
-    resolveWordKnowledge(
-      currentFlashcard(),
-      manualStatus(),
-      ankiKnowledgeStatus(),
-      settings.knowledgeSourceOrder,
-      settings.knowledgeResolutionMode,
-    ).status
-  );
 
   const pitchData = createMemo(() => {
     const features = getLanguageFeatures();
@@ -118,7 +96,7 @@ const UnknownWordRow: Component<{
     }
     const reading = normalizeReading(extractReadingFromEntries(props.translation.data));
     const position = extractPitchAccentFromTranslationData(props.translation);
-    if (!reading || reading.length <= 1 || position === undefined) {
+    if (!reading || reading.length === 0 || position === undefined) {
       return null;
     }
     return { reading, position };

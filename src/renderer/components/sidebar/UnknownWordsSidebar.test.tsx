@@ -86,6 +86,7 @@ vi.mock('../../context', () => ({
   useFlashcards: () => ({
     hasWordSync: (word: string) => trackedWords.has(word),
     getCardByWordSync: (word: string) => flashcardsByWord.get(word) ?? null,
+    getComprehensiveWordStatusSync: () => 'unknown',
     isWordIgnoredSync: () => false,
   }),
   useLanguage: () => ({
