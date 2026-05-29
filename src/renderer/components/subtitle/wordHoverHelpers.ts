@@ -28,7 +28,7 @@ export interface BuildWordHoverFlashcardContentParams {
   anchorRect?: DOMRect;
   wordUuid?: string;
   level?: number;
-  manualStatus: WordStatus;
+  wordStatus: WordStatus;
   colourCodes: Record<string, string>;
   ocrCropPadding?: number;
   tokenize: (text: string) => Promise<Token[]>;
@@ -78,7 +78,7 @@ export interface WordKnowledgeResult {
 
 const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
 
-const DEFAULT_SOURCE_ORDER: readonly KnowledgeSource[] = ['srs', 'anki', 'manual'];
+const DEFAULT_SOURCE_ORDER: readonly KnowledgeSource[] = ['knownWordsList', 'ignoredWords', 'srs', 'anki', 'passiveTracking'];
 
 function getAnkiQueueTypeStatus(card: Pick<AnkiWordStatusRecord, 'queue' | 'type'>): WordStatus | null {
   if (card.queue === 2 || card.type === 2) {
@@ -158,8 +158,12 @@ function getStatusFromSource(
       return null;
     case 'anki':
       return ankiStatus;
-    case 'manual':
+    case 'knownWordsList':
+    case 'ignoredWords':
+    case 'passiveTracking':
       return manualStatus !== 'unknown' ? manualStatus : null;
+    default:
+      return null;
   }
 }
 
@@ -533,6 +537,6 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
 
   return {
     content,
-    ease: getEaseFromWordStatus(params.manualStatus, params.srsLearningEase, params.srsKnownEase),
+    ease: getEaseFromWordStatus(params.wordStatus, params.srsLearningEase, params.srsKnownEase),
   };
 }
