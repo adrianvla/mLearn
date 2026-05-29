@@ -1,5 +1,9 @@
-import { type WordStatus } from '../../shared/constants';
+import { type WordStatus, type KnowledgeSource, type KnowledgeResolutionMode, KNOWLEDGE_SOURCE_DISPLAY_NAMES, type WordKnowledgeSource } from '../../shared/constants';
 import type { Flashcard, IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
+
+const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
+
+const SOURCE_NONE: WordKnowledgeSource = 'None';
 
 export interface ComprehensiveKnowledgeDeps {
   getCanonicalForm: (word: string) => string;
@@ -12,54 +16,138 @@ export interface ComprehensiveKnowledgeDeps {
   knownEaseThreshold: number;
   learningThreshold: number;
   getCardByWordSync: (word: string) => Flashcard | null;
+  ankiStatus: WordStatus | null;
+  sourceOrder: readonly KnowledgeSource[];
+  resolutionMode: KnowledgeResolutionMode;
+}
+
+export interface ComprehensiveWordStatusResult {
+  status: WordStatus;
+  source: WordKnowledgeSource;
+  timesSeen: number;
+}
+
+interface SourceResult {
+  source: KnowledgeSource;
+  status: WordStatus;
+  timesSeen: number;
+}
+
+function getStatusFromSource(
+  src: KnowledgeSource,
+  word: string,
+  lk: string,
+  deps: ComprehensiveKnowledgeDeps
+): SourceResult | null {
+  switch (src) {
+    case 'knownWordsList': {
+      if (deps.knownUntracked[lk]) {
+        return { source: src, status: 'known', timesSeen: 0 };
+      }
+      return null;
+    }
+    case 'ignoredWords': {
+      if (deps.ignoredWords[lk]) {
+        return { source: src, status: 'known', timesSeen: 0 };
+      }
+      return null;
+    }
+    case 'srs': {
+      const card = deps.getCardByWordSync(word);
+      if (card) {
+        if (card.state === 'review') {
+          return { source: src, status: 'known', timesSeen: 0 };
+        }
+        if (card.state === 'learning' || card.state === 'relearning') {
+          return { source: src, status: 'learning', timesSeen: 0 };
+        }
+      }
+      return null;
+    }
+    case 'anki': {
+      if (deps.ankiStatus && deps.ankiStatus !== 'unknown') {
+        return { source: src, status: deps.ankiStatus, timesSeen: 0 };
+      }
+      return null;
+    }
+    case 'passiveTracking': {
+      const knowledge = deps.wordKnowledge[lk];
+      if (knowledge) {
+        if (knowledge.ease >= deps.knownEaseThreshold) {
+          return { source: src, status: 'known', timesSeen: knowledge.timesSeen };
+        }
+        if (knowledge.ease >= deps.learningThreshold) {
+          return { source: src, status: 'learning', timesSeen: knowledge.timesSeen };
+        }
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+function resolveSources(
+  available: SourceResult[],
+  resolutionMode: KnowledgeResolutionMode
+): ComprehensiveWordStatusResult {
+  if (available.length === 0) {
+    return { status: 'unknown', source: SOURCE_NONE, timesSeen: 0 };
+  }
+
+  switch (resolutionMode) {
+    case 'order': {
+      const winner = available[0];
+      return { status: winner.status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winner.source], timesSeen: winner.timesSeen };
+    }
+    case 'highest': {
+      const maxRank = Math.max(...available.map(a => STATUS_RANK[a.status]));
+      const winners = available.filter(a => STATUS_RANK[a.status] === maxRank);
+      return { status: winners[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winners[0].source], timesSeen: winners[0].timesSeen };
+    }
+    case 'lowest': {
+      const minRank = Math.min(...available.map(a => STATUS_RANK[a.status]));
+      const losers = available.filter(a => STATUS_RANK[a.status] === minRank);
+      return { status: losers[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[losers[0].source], timesSeen: losers[0].timesSeen };
+    }
+  }
+}
+
+/**
+ * Comprehensive synchronous word status check with source attribution.
+ * Checks sources in the configured order and applies the configured resolution mode.
+ */
+export function getComprehensiveWordStatusWithSource(
+  word: string,
+  deps: ComprehensiveKnowledgeDeps
+): ComprehensiveWordStatusResult {
+  const canonical = deps.getCanonicalForm(word);
+  const wordHash = deps.hashWordSync(canonical);
+  const lk = deps.langKey(deps.language, wordHash);
+
+  const available: SourceResult[] = [];
+
+  for (const src of deps.sourceOrder) {
+    // DEPRECATED (v2.0 migration): 'manual' was the old name for passiveTracking.
+    // Remove this mapping after all active users have migrated (safe to remove ~2026-12).
+    const mappedSrc = (src as string) === 'manual' ? 'passiveTracking' : src;
+    const result = getStatusFromSource(mappedSrc as KnowledgeSource, word, lk, deps);
+    if (result !== null) {
+      available.push(result);
+    }
+  }
+
+  return resolveSources(available, deps.resolutionMode);
 }
 
 /**
  * Comprehensive synchronous word status check.
- * A word is "known" if ANY knowledge bank marks it as known (OR logic).
- * Checks: knownUntracked, ignoredWords, SRS flashcards, passive ease.
  */
 export function getComprehensiveWordStatus(
   word: string,
   deps: ComprehensiveKnowledgeDeps
 ): WordStatus {
-  const canonical = deps.getCanonicalForm(word);
-  const wordHash = deps.hashWordSync(canonical);
-  const lk = deps.langKey(deps.language, wordHash);
-
-  // 1. Manually marked as known
-  if (deps.knownUntracked[lk]) {
-    return 'known';
-  }
-
-  // 2. Ignored words are treated as known (user doesn't want to see them)
-  if (deps.ignoredWords[lk]) {
-    return 'known';
-  }
-
-  // 3. SRS flashcard state
-  const card = deps.getCardByWordSync(word);
-  if (card) {
-    if (card.state === 'review') {
-      return 'known';
-    }
-    if (card.state === 'learning' || card.state === 'relearning') {
-      return 'learning';
-    }
-  }
-
-  // 4. Passive tracking ease
-  const knowledge = deps.wordKnowledge[lk];
-  if (knowledge) {
-    if (knowledge.ease >= deps.knownEaseThreshold) {
-      return 'known';
-    }
-    if (knowledge.ease >= deps.learningThreshold) {
-      return 'learning';
-    }
-  }
-
-  return 'unknown';
+  return getComprehensiveWordStatusWithSource(word, deps).status;
 }
 
 /**
@@ -69,5 +157,5 @@ export function isWordKnownComprehensive(
   word: string,
   deps: ComprehensiveKnowledgeDeps
 ): boolean {
-  return getComprehensiveWordStatus(word, deps) === 'known';
+  return getComprehensiveWordStatusWithSource(word, deps).status === 'known';
 }
