@@ -1,16 +1,11 @@
 import { Component, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
-import { getWordStatus, setWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
-import { ANKI_EASE } from '../../../../shared/constants';
+import { ANKI_EASE, type WordKnowledgeSource } from '../../../../shared/constants';
 import { useAnki } from '../../../hooks/useAnki';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
   getAnkiEaseForStatus,
-  getAnkiWordKnowledgeStatus,
-  resolveWordKnowledge,
-  numericToWordStatus,
-  wordStatusToNumeric,
   WORD_STATUS_VALUES,
   type WordStatus,
 } from '../../subtitle/wordHoverHelpers';
@@ -28,6 +23,8 @@ const getNextStatus = (status: WordStatus): WordStatus => {
   return WORD_STATUS_VALUES[(index + 1) % WORD_STATUS_VALUES.length];
 };
 
+const PASSIVE_SOURCES: ReadonlySet<WordKnowledgeSource> = new Set(['PassiveTracking', 'None']);
+
 export interface WordStatusPillProps {
   word: string;
   onStatusChange?: (status: WordStatus) => void;
@@ -38,7 +35,7 @@ export interface WordStatusPillProps {
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { getCanonicalForm, getWordVariants } = useLanguage();
-  const { getCardByWordSync, trackWordStatusChange, getComprehensiveWordStatusSync } = useFlashcards();
+  const { trackWordStatusChange, getComprehensiveWordStatusWithSourceSync, setComprehensiveWordStatus } = useFlashcards();
   const { t } = useLocalization();
   const anki = useAnki();
 
@@ -49,39 +46,28 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
 
   const wordForms = createMemo(() => getWordFormCandidates(props.word, getCanonicalForm, getWordVariants));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
-  const aliasWords = createMemo(() => wordForms().slice(1));
-  const currentFlashcard = createMemo(() => getCardByWordSync(props.word));
-  const manualStatus = createMemo(() =>
-    numericToWordStatus(getWordStatus(primaryWord(), aliasWords()))
-  );
   const matchedAnki = createMemo(() =>
     settings.use_anki ? findAnkiWordMatchInCache(wordForms()) : null
   );
   const matchedAnkiWord = createMemo(() => matchedAnki()?.word ?? null);
-  const ankiKnowledgeStatus = createMemo(() =>
-    getAnkiWordKnowledgeStatus(
-      matchedAnki()?.cards,
-      settings.ankiLearningThreshold,
-      settings.ankiKnownThreshold,
-    )
-  );
-  const wordKnowledge = createMemo(() =>
-    resolveWordKnowledge(
-      currentFlashcard(), manualStatus(), ankiKnowledgeStatus(),
-      settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-    )
-  );
-  const comprehensiveStatus = createMemo(() => getComprehensiveWordStatusSync(props.word));
-  const effectiveStatus = createMemo(() => comprehensiveStatus());
+  const comprehensiveResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word));
+  const effectiveStatus = createMemo(() => comprehensiveResult().status);
+
   const statusSourceLabel = createMemo(() => {
-    const sources = wordKnowledge().activeSources.map((source) =>
-      t(`mlearn.Settings.KnowledgePriority.Source.${source[0].toUpperCase() + source.slice(1)}`)
-    );
+    const source = comprehensiveResult().source;
+    const sourceLabels = source === 'None'
+      ? []
+      : [t(`mlearn.Settings.KnowledgePriority.Source.${source}`)];
+
+    const timesSeen = comprehensiveResult().timesSeen;
+    if (source === 'PassiveTracking' && timesSeen > 0) {
+      sourceLabels.push(t('mlearn.WordHover.TimesSeen', { count: String(timesSeen) }));
+    }
 
     return buildWordStatusSourceLabel({
       prefix: t('mlearn.WordHover.StatusSource.Prefix'),
       noneLabel: t('mlearn.WordHover.StatusSource.None'),
-      sourceLabels: sources,
+      sourceLabels,
       displayedWord: props.word,
       canonicalWord: primaryWord(),
     });
@@ -103,7 +89,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     const word = primaryWord();
     if (!word) return;
 
-    setWordStatus(word, wordStatusToNumeric(nextStatus), aliasWords());
+    setComprehensiveWordStatus(word, nextStatus);
     trackWordStatusChange(word);
 
     const ankiWord = matchedAnkiWord();
@@ -128,9 +114,12 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const openStatusChangeFlow = (nextStatus: WordStatus) => {
     setPendingStatus(nextStatus);
 
+    const source = comprehensiveResult().source;
+    const hasIntentionalSource = !PASSIVE_SOURCES.has(source);
+
     const action = getWordStatusChangeAction({
       isInAnki: !!matchedAnkiWord() && settings.use_anki,
-      hasNonManualSource: wordKnowledge().dataSources.some((source) => source !== 'manual'),
+      hasNonManualSource: hasIntentionalSource,
       skipAnkiModifyWarning: settings.skipAnkiModifyWarning,
       skipStatusSourceWarning: settings.skipStatusSourceWarning,
     });
@@ -152,7 +141,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const handleStatusChange = (event?: MouseEvent) => {
     event?.preventDefault();
     event?.stopPropagation();
-    openStatusChangeFlow(getNextStatus(manualStatus()));
+    openStatusChangeFlow(getNextStatus(effectiveStatus()));
   };
 
   const confirmStatusSourceChange = (dontRemind: boolean) => {
@@ -181,7 +170,10 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       updateSettings({ skipAnkiModifyWarning: true });
     }
 
-    if (wordKnowledge().dataSources.some((source) => source !== 'manual') && !settings.skipStatusSourceWarning) {
+    const source = comprehensiveResult().source;
+    const hasIntentionalSource = !PASSIVE_SOURCES.has(source);
+
+    if (hasIntentionalSource && !settings.skipStatusSourceWarning) {
       setShowStatusSourceWarning(true);
       return;
     }
@@ -201,7 +193,10 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       updateSettings({ skipAnkiModifyWarning: true });
     }
 
-    if (wordKnowledge().dataSources.some((source) => source !== 'manual') && !settings.skipStatusSourceWarning) {
+    const source = comprehensiveResult().source;
+    const hasIntentionalSource = !PASSIVE_SOURCES.has(source);
+
+    if (hasIntentionalSource && !settings.skipStatusSourceWarning) {
       setPendingSkipAnki(true);
       setShowStatusSourceWarning(true);
       return;
