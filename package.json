@@ -203,11 +203,13 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": ["universal"],
+          "artifactName": "mLearn-${version}-universal.dmg"
         },
         {
           "target": "zip",
-          "arch": ["universal"]
+          "arch": ["universal"],
+          "artifactName": "mLearn-${version}-universal-mac.zip"
         }
       ]
     },
@@ -260,17 +262,29 @@
         }
       ],
       "target": [
-        { "target": "AppImage", "arch": ["x64", "arm64"] },
-        { "target": "deb", "arch": ["x64", "arm64"] }
+        {
+          "target": "AppImage",
+          "arch": ["x64"],
+          "artifactName": "mLearn-${version}.AppImage"
+        },
+        {
+          "target": "AppImage",
+          "arch": ["arm64"],
+          "artifactName": "mLearn-${version}-arm64.AppImage"
+        },
+        {
+          "target": "deb",
+          "arch": ["x64", "arm64"]
+        }
       ]
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "${productName} Setup ${version}-${arch}.${ext}"
+      "artifactName": "mLearn.Setup.${version}-${arch}.exe"
     },
     "portable": {
-      "artifactName": "${productName} ${version}-${arch}.${ext}"
+      "artifactName": "mLearn-${version}-${arch}-portable.exe"
     }
   }
 }

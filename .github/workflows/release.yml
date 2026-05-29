@@ -1,0 +1,234 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.gh_release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
+          TAG="${GITHUB_REF_NAME}"
+          echo "Tag: $TAG, Previous: $PREV_TAG"
+
+          cat > release-notes.md << 'HEADER'
+          ## $TAG
+
+          HEADER
+
+          if [ -n "$PREV_TAG" ]; then
+            COUNT=$(git rev-list --count "${PREV_TAG}..HEAD" 2>/dev/null || echo "0")
+            echo "" >> release-notes.md
+            echo "**${COUNT} commits** since ${PREV_TAG}" >> release-notes.md
+            echo "" >> release-notes.md
+
+            for section in "feat:🚀 Features" "fix:🐛 Bug Fixes" "refactor:♻️ Refactoring" "legal:⚖️ Legal & Licensing" "docs:📝 Documentation" "chore:🔧 Chores & Maintenance" "test:🧪 Testing" "perf:⚡ Performance" "style:🎨 Styling" "i18n:🌐 Localization"; do
+              prefix="${section%%:*}"
+              label="${section#*:}"
+              commits=$(git log "${PREV_TAG}..HEAD" --no-merges --pretty=format:"- %s" | grep -i "^\- ${prefix}" || true)
+              if [ -n "$commits" ]; then
+                echo "### ${label}" >> release-notes.md
+                echo "$commits" | sed -E 's/^\- [a-zA-Z_-]+(\([^)]*\))?[: ]*/- /' >> release-notes.md
+                echo "" >> release-notes.md
+              fi
+            done
+
+            uncategorized=$(git log "${PREV_TAG}..HEAD" --no-merges --pretty=format:"- %s" | grep -vi "^\- feat" | grep -vi "^\- fix" | grep -vi "^\- refactor" | grep -vi "^\- legal" | grep -vi "^\- docs" | grep -vi "^\- chore" | grep -vi "^\- test" | grep -vi "^\- perf" | grep -vi "^\- style" | grep -vi "^\- i18n" || true)
+            if [ -n "$uncategorized" ]; then
+              echo "### 📦 Other Changes" >> release-notes.md
+              echo "$uncategorized" >> release-notes.md
+              echo "" >> release-notes.md
+            fi
+          else
+            echo "Initial release" >> release-notes.md
+          fi
+
+          cat release-notes.md
+
+      - name: Create Release
+        id: gh_release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          fail_on_unmatched_files: false
+
+  build-mac:
+    needs: changelog
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Build Extension
+        run: npm run build:extension
+
+      - name: Build macOS
+        run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload macOS Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            release/*.dmg
+            release/*.zip
+
+  build-win:
+    needs: changelog
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Build Extension
+        run: npm run build:extension
+
+      - name: Build Windows
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Zip Unpacked Directories
+        shell: powershell
+        run: |
+          $releaseDir = "release"
+          $unpackedDirs = Get-ChildItem -Path $releaseDir -Directory -Filter "*-unpacked"
+          foreach ($dir in $unpackedDirs) {
+            $zipName = "$($dir.Name).zip"
+            $zipPath = Join-Path $releaseDir $zipName
+            Compress-Archive -Path "$($dir.FullName)\*" -DestinationPath $zipPath -Force
+            Write-Host "Created $zipName"
+          }
+
+      - name: Upload Windows Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            release/*.exe
+            release/*.zip
+
+  build-linux:
+    needs: changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Build Extension
+        run: npm run build:extension
+
+      - name: Build Linux
+        run: npm run dist:linux
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Package Linux Installers
+        run: |
+          cd release
+          VERSION=${GITHUB_REF_NAME#v}
+          # Zip deb files as installers
+          for deb in mLearn_*_amd64.deb; do
+            if [ -f "$deb" ]; then
+              zip "mLearn-${VERSION}-linux-x64.zip" "$deb"
+              break
+            fi
+          done
+          for deb in mLearn_*_arm64.deb; do
+            if [ -f "$deb" ]; then
+              zip "mLearn-${VERSION}-linux-arm64.zip" "$deb"
+              break
+            fi
+          done
+
+      - name: Upload Linux Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            release/*.AppImage
+            release/*.zip
+            release/*.deb
+
+  update-website:
+    name: Update Website
+    needs: [build-mac, build-win, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Website
+        uses: actions/checkout@v4
+        with:
+          repository: adrianvla/mlearn-website
+          token: ${{ secrets.WEBSITE_PAT }}
+          path: website
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Update Version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -i "s/const version = \".*\";/const version = \"${VERSION}\";/" website/frontend/public/download/auto/page.js
+
+      - name: Install Website Dependencies
+        run: |
+          cd website
+          npm install
+          cd frontend && npm install && cd ..
+          cd worker && npm install && cd ..
+
+      - name: Commit and Push
+        run: |
+          cd website
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add frontend/public/download/auto/page.js
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: bump version to ${GITHUB_REF_NAME}"
+          for branch in master main; do
+            if git show-ref --verify --quiet refs/remotes/origin/$branch; then
+              git push origin $branch
+            else
+              echo "Branch $branch does not exist on remote, skipping"
+            fi
+          done
+
+      - name: Deploy Website
+        run: |
+          cd website
+          npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
