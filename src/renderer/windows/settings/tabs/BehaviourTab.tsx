@@ -4,9 +4,9 @@
 
 import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, SortableList, Input } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, SortableList } from '../../../components/common';
 import type { SortableListItem } from '../../../components/common';
-import { PASSIVE_HOVER_FAIL_ACTIONS, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
+import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, getPassiveHoverFailAction, getPassiveHoverFailCount } from '@shared/utils/passiveWordTracking';
 import '../SettingsForm.css';
 
@@ -14,15 +14,6 @@ export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { getFreqLevelNames, getLanguageFeatures } = useLanguage();
-
-  const sourceLabel = (src: KnowledgeSource) =>
-    t(`mlearn.Settings.KnowledgePriority.Source.${src[0].toUpperCase() + src.slice(1)}`);
-
-  const resolutionModeOptions = createMemo(() => [
-    { value: 'order', label: t('mlearn.Settings.KnowledgePriority.Mode.Order') },
-    { value: 'highest', label: t('mlearn.Settings.KnowledgePriority.Mode.Highest') },
-    { value: 'lowest', label: t('mlearn.Settings.KnowledgePriority.Mode.Lowest') },
-  ]);
 
   const passiveHoverDelayMs = () => getPassiveHoverDelayMs(settings);
   const passiveHoverFailCount = () => getPassiveHoverFailCount(settings);
@@ -33,6 +24,15 @@ export const BehaviourTab: Component = () => {
     label: t(`mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Options.${action === 'decrease-ease' ? 'DecreaseEase' : 'None'}`),
   })));
 
+  const sourceLabel = (src: KnowledgeSource) =>
+    t(`mlearn.Settings.KnowledgePriority.Source.${src[0].toUpperCase() + src.slice(1)}`);
+
+  const resolutionModeOptions = createMemo(() => [
+    { value: 'order', label: t('mlearn.Settings.KnowledgePriority.Mode.Order') },
+    { value: 'highest', label: t('mlearn.Settings.KnowledgePriority.Mode.Highest') },
+    { value: 'lowest', label: t('mlearn.Settings.KnowledgePriority.Mode.Lowest') },
+  ]);
+
   const visibleSourceItems = createMemo<SortableListItem[]>(() => {
     const order = settings.knowledgeSourceOrder;
     return order
@@ -41,7 +41,6 @@ export const BehaviourTab: Component = () => {
   });
 
   const handleSourceOrderChange = (newIds: string[]) => {
-    // Preserve hidden sources (e.g. Anki when disabled) at their relative position
     const hidden = settings.knowledgeSourceOrder.filter(
       (src: KnowledgeSource) => !newIds.includes(src)
     );
@@ -60,6 +59,18 @@ export const BehaviourTab: Component = () => {
   });
 
   const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
+
+  const passiveExposures = (ease: number) => {
+    const bump = 0.01;
+    return Math.max(0, Math.round((ease - SRS_EASE.MIN) / bump));
+  };
+
+  const easeThresholds = [
+    { key: 'easeThresholdUnknown' as const, labelKey: 'EaseUnknown', default: SRS_EASE.MIN },
+    { key: 'easeThresholdLearning' as const, labelKey: 'EaseLearning', default: SRS_EASE.DEFAULT_LEARNING },
+    { key: 'easeThresholdKnown' as const, labelKey: 'EaseKnown', default: SRS_EASE.DEFAULT_KNOWN },
+    { key: 'easeThresholdMastered' as const, labelKey: 'EaseMastered', default: SRS_EASE.DEFAULT_KNOWN + 0.5 },
+  ];
 
   return (
     <TabContent
@@ -110,6 +121,35 @@ export const BehaviourTab: Component = () => {
             }}
           />
         </SettingRow>
+
+        <For each={easeThresholds}>
+          {(item) => (
+            <SettingRow
+              label={t(`mlearn.Settings.WordStatus.${item.labelKey}Threshold.Label`)}
+              description={t(`mlearn.Settings.WordStatus.${item.labelKey}Threshold.Description`)}
+            >
+                <div class="ease-threshold-row">
+                  <Input
+                    type="number"
+                    value={Math.round((settings[item.key] ?? item.default) * 100)}
+                    min={130}
+                    max={500}
+                    step={1}
+                    style={{ width: '80px' }}
+                    onInput={(e) => {
+                      const val = parseInt(e.currentTarget.value, 10);
+                      if (!isNaN(val) && val >= 130 && val <= 500) {
+                        updateSettings({ [item.key]: val / 100 });
+                      }
+                    }}
+                  />
+                <span class="ease-exposures">
+                  {t('mlearn.Settings.WordStatus.EquivalentExposures', { count: String(passiveExposures(settings[item.key] ?? item.default)) })}
+                </span>
+              </div>
+            </SettingRow>
+          )}
+        </For>
 
         {/* Anki thresholds (only when Anki is enabled) */}
         <Show when={settings.use_anki}>
@@ -318,7 +358,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
+      <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}
+      >
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.OpenAside.Label')}
           description={t('mlearn.Settings.DisplayOptions.OpenAside.Description')}
