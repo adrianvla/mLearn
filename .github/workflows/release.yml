@@ -289,3 +289,6 @@ jobs:
           npm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          VITE_API_BASE_URL: https://mlearn-cloud.kikan.net
+          VITE_SUPABASE_URL: https://txacpviufzpvieiabwzg.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_G0ZiKYlL96Bqxnty-_s9SA_x6WQgPqJ
