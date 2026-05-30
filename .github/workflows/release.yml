@@ -219,6 +219,9 @@ jobs:
     needs: [build-mac, build-win, build-linux]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout App Repo
+        uses: actions/checkout@v4
+
       - name: Checkout Website
         uses: actions/checkout@v4
         with:
