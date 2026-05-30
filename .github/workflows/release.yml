@@ -87,6 +87,21 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Rename macOS Artifacts
+        run: |
+          cd release
+          VERSION=${GITHUB_REF_NAME#v}
+          for f in mLearn-*.dmg; do
+            if [ -f "$f" ] && [[ "$f" != *-universal* ]]; then
+              mv "$f" "mLearn-${VERSION}-universal.dmg"
+            fi
+          done
+          for f in mLearn-*.zip; do
+            if [ -f "$f" ] && [[ "$f" != *-universal-mac* ]]; then
+              mv "$f" "mLearn-${VERSION}-universal-mac.zip"
+            fi
+          done
+
       - name: Upload macOS Artifacts
         uses: softprops/action-gh-release@v2
         with:
@@ -150,6 +165,17 @@ jobs:
         run: npm run dist:linux
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Rename Linux Artifacts
+        run: |
+          cd release
+          VERSION=${GITHUB_REF_NAME#v}
+          # Rename x64 AppImage to remove arch suffix
+          for f in mLearn-*-x64.AppImage; do
+            if [ -f "$f" ]; then
+              mv "$f" "mLearn-${VERSION}.AppImage"
+            fi
+          done
 
       - name: Package Linux Installers
         run: |
