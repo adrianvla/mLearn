@@ -283,6 +283,11 @@ jobs:
             git push origin main || git push origin master || true
           fi
 
+      - name: Link Legal Docs for Worker Build
+        run: |
+          mkdir -p mlearn-ts
+          cp TERMS_OF_SERVICE.md PRIVACY_POLICY.md EULA.md mlearn-ts/
+
       - name: Deploy Website
         run: |
           cd website
