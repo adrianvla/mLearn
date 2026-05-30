@@ -88,22 +88,20 @@ def _select_release() -> tuple[dict, dict]:
     if entry is None:
         raise RuntimeError("Could not find deu-eng in FreeDict database index")
 
-    candidates: list[tuple[str, int, dict]] = []
+    candidates: list[tuple[str, dict]] = []
     for release in entry.get("releases", []):
         url = str(release.get("URL", ""))
         version = str(release.get("software-version") or release.get("version") or "").strip()
         if not version:
             continue
         if url.endswith(".src.tar.xz"):
-            candidates.append((str(release.get("date") or ""), 1, release))
-        elif url.endswith(".dictd.tar.xz"):
-            candidates.append((str(release.get("date") or ""), 0, release))
+            candidates.append((str(release.get("date") or ""), release))
 
     if not candidates:
         raise RuntimeError("Could not find a usable deu-eng source release")
 
-    candidates.sort(key=lambda item: (item[0], -item[1]))
-    release = candidates[-1][2]
+    candidates.sort(key=lambda item: item[0])
+    release = candidates[-1][1]
     return entry, release
 
 
@@ -301,7 +299,7 @@ def _write_database(tei_path: Path, release_version: str, source_url: str, licen
                         headword,
                         headword.lower(),
                         payload["pos"] or None,
-                        sqlite3.Binary(_compress_payload(payload)),
+                        _compress_payload(payload),
                     ))
                     inserted_count += 1
         if len(batch) >= 5000:
