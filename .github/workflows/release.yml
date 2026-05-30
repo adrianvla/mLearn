@@ -83,7 +83,7 @@ jobs:
         run: npm run build:extension
 
       - name: Build macOS
-        run: npm run dist:mac
+        run: npm run build && npx electron-builder --mac --universal --publish=never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -124,7 +124,7 @@ jobs:
         run: npm run build:extension
 
       - name: Build Windows
-        run: npm run dist:win
+        run: npm run build && npx electron-builder --win --publish=never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -162,7 +162,7 @@ jobs:
         run: npm run build:extension
 
       - name: Build Linux
-        run: npm run dist:linux
+        run: npm run build && npx electron-builder --linux --publish=never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
