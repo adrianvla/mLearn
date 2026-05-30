@@ -121,8 +121,17 @@ jobs:
       - run: npm install
 
       - name: Build Extension
-        run: npm run build:extension
         shell: bash
+        run: |
+          rm -rf extension/dist
+          mkdir -p extension/dist/popup extension/dist/icons
+          npx tsc -p extension/tsconfig.json --noEmit
+          npx esbuild extension/src/content-script.ts --bundle --platform=browser --outfile=extension/dist/content-script.js --format=iife
+          npx esbuild extension/src/background.ts --bundle --platform=browser --outfile=extension/dist/background.js --format=iife
+          npx esbuild extension/src/popup/popup.ts --platform=browser --outfile=extension/dist/popup/popup.js --format=esm
+          cp extension/manifest.json extension/dist/manifest.json
+          cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/
+          cp extension/icons/*.png extension/dist/icons/
 
       - name: Build Windows
         run: npm run build && npx electron-builder --win --publish=never
