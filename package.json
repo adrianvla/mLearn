@@ -205,15 +205,13 @@
           "target": "dmg",
           "arch": [
             "universal"
-          ],
-          "artifactName": "mLearn-${version}-universal.dmg"
+          ]
         },
         {
           "target": "zip",
           "arch": [
             "universal"
-          ],
-          "artifactName": "mLearn-${version}-universal-mac.zip"
+          ]
         }
       ]
     },
@@ -276,15 +274,13 @@
           "target": "AppImage",
           "arch": [
             "x64"
-          ],
-          "artifactName": "mLearn-${version}.AppImage"
+          ]
         },
         {
           "target": "AppImage",
           "arch": [
             "arm64"
-          ],
-          "artifactName": "mLearn-${version}-arm64.AppImage"
+          ]
         },
         {
           "target": "deb",
