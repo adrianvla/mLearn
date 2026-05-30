@@ -244,8 +244,13 @@ jobs:
       - name: Update Version
         run: |
           VERSION=${GITHUB_REF_NAME#v}
+          echo "Updating version to ${VERSION}"
           sed -i "s/const version = \".*\";/const version = \"${VERSION}\";/" website/frontend/public/download/auto/page.js
           sed -i "s/\"latest\": \".*\"/\"latest\": \"${VERSION}\"/" versioning/version-info.json
+          echo "--- page.js version line ---"
+          grep "const version" website/frontend/public/download/auto/page.js
+          echo "--- version-info.json ---"
+          cat versioning/version-info.json
 
       - name: Install Website Dependencies
         run: |
@@ -293,7 +298,11 @@ jobs:
 
       - name: Deploy Website
         run: |
-          cd website
+          cd website/frontend
+          npm run build
+          npx wrangler pages deploy dist/client --branch main --commit-dirty=true
+          cd ../worker
+          npm run predeploy
           npm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
