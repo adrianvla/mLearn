@@ -222,7 +222,7 @@ jobs:
       - name: Checkout Website
         uses: actions/checkout@v4
         with:
-          repository: adrianvla/mlearn-website
+          repository: adrianvla/mlearn-cloud
           token: ${{ secrets.WEBSITE_PAT }}
           path: website
 
