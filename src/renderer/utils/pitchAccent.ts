@@ -16,6 +16,22 @@ export function getMoraCount(reading: string): number {
   return count;
 }
 
+export function getMoraCharCounts(reading: string): number[] {
+  const counts: number[] = [];
+  for (const ch of reading) {
+    if (SMALL_KANA.has(ch)) {
+      if (counts.length > 0) {
+        counts[counts.length - 1]++;
+      } else {
+        counts.push(1);
+      }
+    } else {
+      counts.push(1);
+    }
+  }
+  return counts;
+}
+
 function buildAccentPattern(accentType: number, reading: string): boolean[] {
   const chars = Array.from(reading || "");
   const moraCount = getMoraCount(reading || "");
@@ -60,6 +76,7 @@ export function getPitchAccentInfo(accentType: number | undefined | null, readin
     pattern,
     particleAccent: accentType === 0,
     length: pattern.length,
+    moraCharCounts: getMoraCharCounts(reading),
   };
 }
 
@@ -87,7 +104,9 @@ export function buildPitchAccentHtml(info: PitchAccentInfo | null, realWordLengt
     if (bottom) classString += " bottom";
     if (top) classString += " top";
     if (left) classString += " left";
-    html += `<div class="${classString}"></div>`;
+    const charCount = info.moraCharCounts[i] ?? 1;
+    const style = charCount !== 1 ? ` style="flex-grow:${charCount}"` : "";
+    html += `<div class="${classString}"${style}></div>`;
   }
 
   if (includeParticleBox) {

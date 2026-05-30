@@ -61,6 +61,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [false, true],
       particleAccent: true,
       length: 2,
+      moraCharCounts: [1, 1],
     });
   });
 
@@ -70,6 +71,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [false, true, true],
       particleAccent: true,
       length: 3,
+      moraCharCounts: [1, 1, 1],
     });
   });
 
@@ -79,6 +81,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [true, false],
       particleAccent: false,
       length: 2,
+      moraCharCounts: [1, 1],
     });
   });
 
@@ -88,6 +91,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [true, false, false],
       particleAccent: false,
       length: 3,
+      moraCharCounts: [1, 1, 1],
     });
   });
 
@@ -97,6 +101,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [false, true, false],
       particleAccent: false,
       length: 3,
+      moraCharCounts: [1, 1, 1],
     });
   });
 
@@ -106,6 +111,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [false, true, false, false],
       particleAccent: false,
       length: 4,
+      moraCharCounts: [1, 1, 1, 1],
     });
   });
 
@@ -115,6 +121,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [false, true, true, false],
       particleAccent: false,
       length: 4,
+      moraCharCounts: [1, 1, 1, 1],
     });
   });
 
@@ -124,6 +131,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [false, true, true, true, false],
       particleAccent: false,
       length: 5,
+      moraCharCounts: [1, 1, 1, 1, 1],
     });
   });
 
@@ -133,6 +141,7 @@ describe('getPitchAccentInfo', () => {
       pattern: [false, true, true, true, false],
       particleAccent: false,
       length: 5,
+      moraCharCounts: [1, 1, 1, 1, 1],
     });
   });
 
@@ -292,6 +301,12 @@ describe('buildPitchAccentHtml', () => {
     const info = getPitchAccentInfo(0, 'あいうえお')!;
     const html = buildPitchAccentHtml(info, undefined, { includeParticleBox: false });
     expect(html.match(/<div class="box/g)?.length).toBe(5);
+  });
+
+  it('applies proportional flex-grow for multi-char morae', () => {
+    const info = getPitchAccentInfo(0, 'ちゃん')!;
+    const html = buildPitchAccentHtml(info, undefined, { includeParticleBox: false });
+    expect(html).toContain('flex-grow:2');
   });
 });
 

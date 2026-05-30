@@ -1061,6 +1061,7 @@ export interface PitchAccentInfo {
   pattern: boolean[];
   particleAccent: boolean;
   length: number;
+  moraCharCounts: number[];
 }
 
 // ============================================================================
