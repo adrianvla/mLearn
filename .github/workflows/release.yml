@@ -122,6 +122,7 @@ jobs:
 
       - name: Build Extension
         run: npm run build:extension
+        shell: bash
 
       - name: Build Windows
         run: npm run build && npx electron-builder --win --publish=never
