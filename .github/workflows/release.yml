@@ -247,6 +247,7 @@ jobs:
           echo "Updating version to ${VERSION}"
           sed -i "s/const version = \".*\";/const version = \"${VERSION}\";/" website/frontend/public/download/auto/page.js
           sed -i "s/\"latest\": \".*\"/\"latest\": \"${VERSION}\"/" versioning/version-info.json
+          sed -i "s/\"changelog\": \".*\"/\"changelog\": \"See full release notes at https:\/\/github.com\/adrianvla\/mLearn\/releases\/tag\/v${VERSION}\"/" versioning/version-info.json
           echo "--- page.js version line ---"
           grep "const version" website/frontend/public/download/auto/page.js
           echo "--- version-info.json ---"
