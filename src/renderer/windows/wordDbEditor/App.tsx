@@ -11,14 +11,14 @@ import {
   loadWordsFromStorage,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
+import type { WordStatus } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
 import { ModalLoadingOverlay, Spinner } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
-import { fetchAnkiWordsCache, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
-import { resolveRendererWordKnowledge } from '../../services/wordKnowledge';
+import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
+import { getWordFormCandidates } from '../../utils/wordForms';
 import './WordDbEditorLayout.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -147,18 +147,6 @@ export const WordDbEditorContent: Component = () => {
     });
   };
 
-  const getEntryKnowledge = (word: string) => resolveRendererWordKnowledge({
-    word,
-    getCanonicalForm,
-    getWordVariants,
-    getCardByWordSync,
-    useAnki: ankiEnabled(),
-    ankiLearningThreshold: settings.ankiLearningThreshold,
-    ankiKnownThreshold: settings.ankiKnownThreshold,
-    knowledgeSourceOrder: settings.knowledgeSourceOrder,
-    knowledgeResolutionMode: settings.knowledgeResolutionMode,
-  });
-
   const wordStatusToNumeric = (status: WordStatus): number => {
     if (status === 'known') return WORD_STATUS.KNOWN;
     if (status === 'learning') return WORD_STATUS.LEARNING;
@@ -166,8 +154,10 @@ export const WordDbEditorContent: Component = () => {
   };
 
   const knowledgeStatusToNumeric = (word: string): number => {
-    return wordStatusToNumeric(getEntryKnowledge(word).status);
+    return wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word).status);
   };
+
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm, getWordVariants);
 
   const ignoredEntries = createMemo<WordEntry[]>(() => {
     return getIgnoredWordsSync()
@@ -223,10 +213,9 @@ export const WordDbEditorContent: Component = () => {
       for (let i = 0; i < totalWords; i++) {
         const [word, freqEntry] = freqWords[i];
         const uuid = word; // Use word as UUID for consistency
-        const knowledge = getEntryKnowledge(word);
-        const status = wordStatusToNumeric(knowledge.status);
+        const status = knowledgeStatusToNumeric(word);
         const isTracked = hasWordSync(word);
-        const inAnki = !!knowledge.ankiMatch;
+        const inAnki = !!findAnkiWordMatchInCache(getWordForms(word));
         const comprehensive = getComprehensiveWordStatusWithSourceSync(word);
 
         wordEntries.push({
@@ -494,7 +483,7 @@ export const WordDbEditorContent: Component = () => {
       return false;
     }
 
-    return !!getEntryKnowledge(word).ankiMatch;
+    return !!findAnkiWordMatchInCache(getWordForms(word));
   };
 
   let entriesListRef: HTMLDivElement | undefined;
