@@ -1844,6 +1844,10 @@
           "Label": "Mastered Threshold",
           "Description": "Ease at which a word is considered mastered"
         },
+        "ManualStatusEaseBuffer": {
+          "Label": "Manual Status Ease Buffer",
+          "Description": "Extra ease added when manually setting a word's status. Provides a grace period before passive hover tracking can downgrade it."
+        },
         "EquivalentExposures": "≈ seen {count} times in subtitles"
       },
       "About": {

@@ -155,6 +155,7 @@ export interface Settings {
   easeThresholdKnown: number;
   /** Ease threshold above which a word is considered mastered (float, 0.0–5.0 scale) */
   easeThresholdMastered: number;
+  manualStatusEaseBuffer: number;
   /** Order of knowledge sources for word status resolution */
   knowledgeSourceOrder: KnowledgeSource[];
   /** How to resolve word status from multiple knowledge sources */
@@ -439,6 +440,7 @@ export const DEFAULT_SETTINGS: Settings = {
   easeThresholdLearning: SRS_EASE.DEFAULT_LEARNING,
   easeThresholdKnown: SRS_EASE.DEFAULT_KNOWN,
   easeThresholdMastered: SRS_EASE.DEFAULT_KNOWN + 0.5,
+  manualStatusEaseBuffer: 0,
   knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
   knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
   furigana: true,

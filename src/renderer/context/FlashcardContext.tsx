@@ -226,6 +226,8 @@ interface FlashcardContextValue {
   removeSuggestedFlashcard: (id: string) => void;
   /** Remove multiple suggestions in a single batch operation */
   removeSuggestedFlashcards: (ids: string[]) => void;
+  /** Remove suggested flashcards whose words have become known. Returns count removed. */
+  cleanupKnownSuggestions: () => number;
   /** Promote suggestions into full flashcards (runs translation + optional LLM/TTS). Returns number promoted. */
   promoteSuggestedFlashcards: (
     ids: string[],
@@ -1528,6 +1530,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  const cleanupKnownSuggestions = (): number => {
+    const idsToRemove: string[] = [];
+    for (const suggestion of Object.values(store.suggestedFlashcards)) {
+      if (getComprehensiveWordStatusSync(suggestion.word) === 'known') {
+        idsToRemove.push(suggestion.id);
+      }
+    }
+    if (idsToRemove.length > 0) {
+      removeSuggestedFlashcards(idsToRemove);
+    }
+    return idsToRemove.length;
+  };
+
   /**
    * Promote a batch of suggestions into real flashcards.
    * Runs translation, then optionally LLM example / TTS generation per card.
@@ -1816,7 +1831,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             k.timesHovered = hoveredCount;
             k.lastSeen = now;
             isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
-            const wasManuallySetRecently = k.lastStatusChange && (now - k.lastStatusChange) < 5000;
+            const wasManuallySetRecently = k.lastStatusChange && (now - k.lastStatusChange) < 300000;
             if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings) && !wasManuallySetRecently) {
                 k.ease = Math.max(SRS.MIN_EASE, k.ease - getPassiveHoverEaseDecrease(settings));
             }
@@ -1992,11 +2007,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const lk = langKey(lang, wordHash);
     if (store.knownUntracked[lk]) return;
     const now = Date.now();
+    const eased = ease + settings.manualStatusEaseBuffer;
 
     setStore(produce((s) => {
       if (!s.wordKnowledge[lk]) {
         s.wordKnowledge[lk] = {
-          ease,
+          ease: eased,
           lastSeen: now,
           timesSeen: 0,
           timesHovered: 0,
@@ -2007,7 +2023,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           wordSyncRatedAt: now,
         };
       } else {
-        s.wordKnowledge[lk].ease = ease;
+        s.wordKnowledge[lk].ease = eased;
         s.wordKnowledge[lk].lastSeen = now;
         s.wordKnowledge[lk].lastStatusChange = now;
         s.wordKnowledge[lk].wordSyncRatedAt = now;
@@ -2023,9 +2039,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const lk = langKey(lang, wordHash);
     const now = Date.now();
 
-    let targetEase = settings.easeThresholdUnknown;
-    if (status === 'learning') targetEase = settings.easeThresholdLearning;
-    else if (status === 'known') targetEase = settings.easeThresholdKnown;
+    const buffer = settings.manualStatusEaseBuffer;
+    let targetEase = settings.easeThresholdUnknown + buffer;
+    if (status === 'learning') targetEase = settings.easeThresholdLearning + buffer;
+    else if (status === 'known') targetEase = settings.easeThresholdKnown + buffer;
 
     setStore(produce((s) => {
       if (status !== 'known' && s.knownUntracked[lk]) {
@@ -2048,6 +2065,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       } else {
         s.wordKnowledge[lk].ease = targetEase;
         s.wordKnowledge[lk].lastStatusChange = now;
+        s.wordKnowledge[lk].timesHovered = 0;
       }
     }));
     saveFlashcards();
@@ -2771,6 +2789,7 @@ Translation: [${targetLang} translation]`;
     getSuggestedFlashcardsSync,
     removeSuggestedFlashcard,
     removeSuggestedFlashcards,
+    cleanupKnownSuggestions,
     promoteSuggestedFlashcards,
     trackWordSeen,
     trackWordHovered,
