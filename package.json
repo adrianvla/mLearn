@@ -123,7 +123,6 @@
       "!dist-electron/locales{,/**}",
       "!dist-electron/server.py",
       "!dist-electron/pip_requirements.json",
-      "!dist-electron/version-info.json",
       "!node_modules/@capacitor{,/**}",
       "!node_modules/@ffmpeg{,/**}",
       "!node_modules/solid-js{,/**}",
