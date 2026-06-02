@@ -1837,6 +1837,10 @@
           "Label": "Beherrscht-Schwelle",
           "Description": "Ease, ab der ein Wort als beherrscht gilt"
         },
+        "ManualStatusEaseBuffer": {
+          "Label": "Manueller Status-Ease-Puffer",
+          "Description": "Zusätzliche Leichtigkeit beim manuellen Setzen des Wortstatus. Bietet eine Schonfrist, bevor das passive Hover-Tracking ihn herabstufen kann."
+        },
         "EquivalentExposures": "≈ {count} Mal in Untertiteln gesehen"
       },
       "VideoPlayer": {

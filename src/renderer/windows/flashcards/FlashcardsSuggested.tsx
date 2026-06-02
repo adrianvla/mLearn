@@ -8,7 +8,7 @@
  * being saved as real flashcards.
  */
 
-import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
+import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
 import {
   Btn,
   Input,
@@ -53,6 +53,7 @@ export const FlashcardsSuggested: Component = () => {
     getSuggestedFlashcardsSync,
     removeSuggestedFlashcard,
     removeSuggestedFlashcards,
+    cleanupKnownSuggestions,
     promoteSuggestedFlashcards,
     ignoreWordForLanguage,
     store,
@@ -68,6 +69,10 @@ export const FlashcardsSuggested: Component = () => {
 
   let suggestedRef: HTMLDivElement | undefined;
   let virtualScrollRef: HTMLDivElement | undefined;
+
+  onMount(() => {
+    cleanupKnownSuggestions();
+  });
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.
   const suggestions = createMemo(() => getSuggestedFlashcardsSync());

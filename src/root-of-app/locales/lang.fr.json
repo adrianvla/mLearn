@@ -1851,6 +1851,10 @@
           "Label": "Seuil maîtrisé",
           "Description": "Ease à laquelle un mot est considéré maîtrisé"
         },
+        "ManualStatusEaseBuffer": {
+          "Label": "Tampon d'aisance de statut manuel",
+          "Description": "Aisance supplémentaire ajoutée lors de la définition manuelle du statut d'un mot. Fournit une période de grâce avant que le suivi de survol passif ne puisse le rétrograder."
+        },
         "EquivalentExposures": "≈ vu {count} fois dans les sous-titres"
       },
       "VideoPlayer": {

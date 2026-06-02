@@ -1858,6 +1858,10 @@
           "Label": "掌握阈值",
           "Description": "单词被视为掌握的 Ease 值"
         },
+        "ManualStatusEaseBuffer": {
+          "Label": "手动状态缓冲值",
+          "Description": "手动设置单词状态时添加的额外轻松度。在被动悬停追踪降级之前提供宽限期。"
+        },
         "EquivalentExposures": "≈ 在字幕中出现过 {count} 次"
       },
       "About": {

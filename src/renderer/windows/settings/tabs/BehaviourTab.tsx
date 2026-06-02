@@ -307,6 +307,25 @@ export const BehaviourTab: Component = () => {
               />
             </SettingRow>
           </Show>
+
+          <SettingRow
+            label={t('mlearn.Settings.WordStatus.ManualStatusEaseBuffer.Label')}
+            description={t('mlearn.Settings.WordStatus.ManualStatusEaseBuffer.Description')}
+          >
+            <Input
+              type="number"
+              value={settings.manualStatusEaseBuffer}
+              min={0}
+              max={1}
+              step={0.01}
+              onInput={(e) => {
+                const value = Number.parseFloat(e.currentTarget.value);
+                if (!Number.isNaN(value)) {
+                  updateSettings({ manualStatusEaseBuffer: Math.max(0, Math.min(1, value)) });
+                }
+              }}
+            />
+          </SettingRow>
         </Show>
       </SettingGroup>
 

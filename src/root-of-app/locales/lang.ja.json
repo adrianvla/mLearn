@@ -1851,6 +1851,10 @@
           "Label": "習得しきい値",
           "Description": "単語を習得済みとみなすEase値"
         },
+        "ManualStatusEaseBuffer": {
+          "Label": "手動ステータス緩衝値",
+          "Description": "単語のステータスを手動で設定する際に追加される余裕値。パッシブホバートラッキングがダウングレードする前の猶予期間を提供します。"
+        },
         "EquivalentExposures": "≈ 字幕で{count}回見た"
       },
       "VideoPlayer": {
