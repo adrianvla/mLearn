@@ -152,10 +152,10 @@ export const ReaderRoute: Component = () => {
   // Used for persisting to recent items so users can click to re-open
   const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
-  const [pageMode, setPageMode] = createSignal<PageMode>('double');
+  const pageMode = () => settings.readerPageMode ?? 'double';
   // When true and in double-page mode, first page displays alone (cover page)
   // This offsets the pairing: [0], [1,2], [3,4]... instead of [0,1], [2,3]...
-  const [firstPageSingle, setFirstPageSingle] = createSignal(true);
+  const firstPageSingle = () => settings.readerFirstPageSingle ?? true;
 
   // Helper: get the valid spread-start index for a given page in double-page mode
   // firstSingle=true:  valid starts are 0, 1, 3, 5, 7... (0 alone, then odd numbers)
@@ -1791,12 +1791,12 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
             onToggleSidebar={() => setShowSidebar(!showSidebar())}
             onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
             onFitModeChange={(mode) => setFitMode(mode as FitMode)}
-            onPageModeChange={(mode) => setPageMode(mode as PageMode)}
+            onPageModeChange={(mode) => updateSettings({ readerPageMode: mode as PageMode })}
             onToggleFirstPageSingle={() => {
               const wasFirstSingle = firstPageSingle();
               const newFirstSingle = !wasFirstSingle;
               const curr = currentPage();
-              setFirstPageSingle(newFirstSingle);
+              updateSettings({ readerFirstPageSingle: newFirstSingle });
 
               // Check if current page is valid in the new mode
               const isValidInNewMode = curr === 0 ||

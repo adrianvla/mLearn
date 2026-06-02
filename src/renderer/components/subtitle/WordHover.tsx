@@ -609,7 +609,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             if (!anchor) return;
             e.preventDefault();
             e.stopPropagation();
-            const text = anchor.textContent?.trim();
+            const clone = anchor.cloneNode(true) as HTMLElement;
+            clone.querySelectorAll('rt, rp').forEach((el) => { el.remove(); });
+            const text = clone.textContent?.trim();
             if (text) openWordLookup(text);
           }}>
             {/* Loading state */}
