@@ -37,6 +37,10 @@
   padding-right: 0.5rem;
 }
 
+.tab-list-header {
+  padding: 0.5rem 0.25rem;
+}
+
 /* Tab item base styles */
 .tab-item {
   display: flex;

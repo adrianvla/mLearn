@@ -1943,6 +1943,7 @@
         "VideoPlayer": "動画プレーヤー",
         "BrowserExtension": "ブラウザ拡張機能"
       },
+      "SearchPlaceholder": "設定を検索...",
       "Behaviour": {
         "LearningLanguageLevel": {
           "Label": "学習言語レベル",

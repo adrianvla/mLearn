@@ -29,6 +29,7 @@ export interface TabContainerProps {
   class?: string;
   /** Custom styles */
   style?: JSX.CSSProperties;
+  sidebarTop?: JSX.Element;
   /** Render content for each tab */
   children?: JSX.Element;
 }
@@ -49,6 +50,7 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
     'size',
     'class',
     'style',
+    'sidebarTop',
     'children',
   ]);
   
@@ -59,9 +61,13 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
       {...rest}
     >
       <div class="tab-list" role="tablist" aria-orientation={local.orientation}>
+        <Show when={local.sidebarTop}>
+          <div class="tab-list-header">{local.sidebarTop}</div>
+        </Show>
         <For each={local.tabs}>
           {(tab) => (
             <button
+              type="button"
               role="tab"
               class={`tab-item ${local.activeTab === tab.id ? 'active' : ''} ${tab.badge !== undefined ? 'tab-item--with-badge' : ''}`}
               aria-selected={local.activeTab === tab.id}

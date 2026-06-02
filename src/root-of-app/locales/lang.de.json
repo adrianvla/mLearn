@@ -1929,6 +1929,7 @@
         "VideoPlayer": "Videoplayer",
         "BrowserExtension": "Browser-Erweiterung"
       },
+      "SearchPlaceholder": "Einstellungen durchsuchen...",
       "Behaviour": {
         "LearningLanguageLevel": {
           "Label": "Lernsprachniveau",

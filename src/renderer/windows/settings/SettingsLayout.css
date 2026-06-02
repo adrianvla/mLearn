@@ -30,7 +30,7 @@
   padding-top:30px;
   app-region:drag;
 }
-.settings-tab-container.tab-container.vertical > .tab-list > button{
+.settings-tab-container.tab-container.vertical > .tab-list > button,.settings-tab-container.tab-container.vertical > .tab-list input{
     app-region: no-drag;
 }
 
@@ -64,4 +64,15 @@
 
 .settings-content::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
+}
+
+.settings-tab-container input[type="search"]::-webkit-search-decoration,
+.settings-tab-container input[type="search"]::-webkit-search-cancel-button,
+.settings-tab-container input[type="search"]::-webkit-search-results-button,
+.settings-tab-container input[type="search"]::-webkit-search-results-decoration {
+  display: none;
+}
+
+.settings-tab-panel {
+  width: 100%;
 }

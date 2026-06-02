@@ -4,35 +4,49 @@
  * Used extensively across all settings tabs
  */
 
-import { ParentComponent, Show, JSX } from 'solid-js';
-import { useLocalization } from '../../../context';
+import { ParentComponent, Show, JSX, createEffect, onCleanup } from 'solid-js';
+import { useLocalization, useSettingsSearch, useSettingsTab } from '../../../context';
 import './SettingRow.css';
 
+let rowCounter = 0;
+
 export interface SettingRowProps {
-  /** Label text for the setting */
   label: string;
-  /** Optional description text below the label */
   description?: string;
-  /** Whether the setting is disabled */
   disabled?: boolean;
-  /** Whether this setting requires restart */
   requiresRestart?: boolean;
-  /** Icon to show next to label */
   icon?: string;
-  /** Additional CSS class */
   class?: string;
-  /** Custom style */
   style?: JSX.CSSProperties;
 }
 
 export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
   const { t } = useLocalization();
-  
+  const searchCtx = useSettingsSearch();
+  const tabCtx = useSettingsTab();
+  const rowId = `sr-${++rowCounter}`;
+  const query = () => searchCtx?.searchQuery()?.toLowerCase().trim() ?? '';
+  const matches = () => {
+    const q = query();
+    if (!q) return true;
+    const text = `${props.label} ${props.description ?? ''}`.toLowerCase();
+    return text.includes(q);
+  };
+
+  createEffect(() => {
+    const tabId = tabCtx?.tabId;
+    if (tabId && searchCtx) {
+      searchCtx.registerMatch(tabId, rowId, matches());
+      onCleanup(() => searchCtx.registerMatch(tabId, rowId, false));
+    }
+  });
+
   return (
-    <div 
-      class={`setting-row ${props.disabled ? 'disabled' : ''} ${props.class || ''}`}
-      style={props.style}
-    >
+    <Show when={matches()}>
+      <div
+        class={`setting-row ${props.disabled ? 'disabled' : ''} ${props.class || ''}`}
+        style={props.style}
+      >
       <div class="setting-info">
         <span class="setting-label">
           <Show when={props.icon}>
@@ -51,6 +65,7 @@ export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
         {props.children}
       </div>
     </div>
+    </Show>
   );
 };
 
