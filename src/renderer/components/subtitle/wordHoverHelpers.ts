@@ -1,6 +1,6 @@
-import type { Flashcard, FlashcardContent, DictionaryEntry, PitchData, Token, TranslationEntry } from '../../../shared/types';
+import type { FlashcardContent, DictionaryEntry, PitchData, Token, TranslationEntry } from '../../../shared/types';
 import { WORD_STATUS, SRS_EASE, ANKI_EASE } from '../../../shared/constants';
-import type { KnowledgeSource, KnowledgeResolutionMode, WordStatus } from '../../../shared/constants';
+import type { WordStatus } from '../../../shared/constants';
 import type { AnkiWordStatusRecord } from '../../../shared/backends/types';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
@@ -67,18 +67,7 @@ export function wordStatusToNumeric(status: WordStatus): number {
   }
 }
 
-export interface WordKnowledgeResult {
-  /** The resolved effective word status */
-  status: WordStatus;
-  /** Sources that determined the winning status */
-  activeSources: KnowledgeSource[];
-  /** All sources that have data for this word */
-  dataSources: KnowledgeSource[];
-}
-
 const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
-
-const DEFAULT_SOURCE_ORDER: readonly KnowledgeSource[] = ['knownWordsList', 'ignoredWords', 'srs', 'anki', 'passiveTracking'];
 
 function getAnkiQueueTypeStatus(card: Pick<AnkiWordStatusRecord, 'queue' | 'type'>): WordStatus | null {
   if (card.queue === 2 || card.type === 2) {
@@ -142,86 +131,6 @@ export function getAnkiWordKnowledgeStatus(
   }
 
   return bestStatus;
-}
-
-function getStatusFromSource(
-  source: KnowledgeSource,
-  card: Flashcard | null,
-  manualStatus: WordStatus,
-  ankiStatus: WordStatus | null,
-): WordStatus | null {
-  switch (source) {
-    case 'srs':
-      if (!card) return null;
-      if (card.state === 'new' || card.state === 'learning' || card.state === 'relearning') return 'learning';
-      if (card.state === 'review') return 'known';
-      return null;
-    case 'anki':
-      return ankiStatus;
-    case 'knownWordsList':
-    case 'ignoredWords':
-    case 'passiveTracking':
-      return manualStatus !== 'unknown' ? manualStatus : null;
-    default:
-      return null;
-  }
-}
-
-/**
- * Resolve a word's knowledge status from multiple sources using the configured strategy.
- * This is the single system-wide function for determining word knowledge.
- */
-export function resolveWordKnowledge(
-  card: Flashcard | null,
-  manualStatus: WordStatus,
-  ankiStatus: WordStatus | null,
-  sourceOrder: readonly KnowledgeSource[] = DEFAULT_SOURCE_ORDER,
-  resolutionMode: KnowledgeResolutionMode = 'highest',
-): WordKnowledgeResult {
-  const available: { source: KnowledgeSource; status: WordStatus }[] = [];
-
-  for (const src of sourceOrder) {
-    const status = getStatusFromSource(src, card, manualStatus, ankiStatus);
-    if (status !== null) {
-      available.push({ source: src, status });
-    }
-  }
-
-  const dataSources = available.map(a => a.source);
-
-  if (available.length === 0) {
-    return { status: manualStatus, activeSources: [], dataSources: [] };
-  }
-
-  switch (resolutionMode) {
-    case 'order': {
-      return { status: available[0].status, activeSources: [available[0].source], dataSources };
-    }
-    case 'highest': {
-      const maxRank = Math.max(...available.map(a => STATUS_RANK[a.status]));
-      const winners = available.filter(a => STATUS_RANK[a.status] === maxRank);
-      return { status: winners[0].status, activeSources: winners.map(w => w.source), dataSources };
-    }
-    case 'lowest': {
-      const minRank = Math.min(...available.map(a => STATUS_RANK[a.status]));
-      const losers = available.filter(a => STATUS_RANK[a.status] === minRank);
-      return { status: losers[0].status, activeSources: losers.map(w => w.source), dataSources };
-    }
-  }
-}
-
-/**
- * Simple wrapper for callers that only need the effective status.
- * Delegates to resolveWordKnowledge.
- */
-export function getEffectiveWordStatus(
-  card: Flashcard | null,
-  manualStatus: WordStatus,
-  ankiStatus: WordStatus | null = null,
-  sourceOrder: readonly KnowledgeSource[] = DEFAULT_SOURCE_ORDER,
-  resolutionMode: KnowledgeResolutionMode = 'highest',
-): WordStatus {
-  return resolveWordKnowledge(card, manualStatus, ankiStatus, sourceOrder, resolutionMode).status;
 }
 
 export function getEaseFromWordStatus(

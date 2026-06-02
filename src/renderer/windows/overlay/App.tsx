@@ -21,7 +21,7 @@ import { cleanContextPhrase } from '../../utils/phraseExtraction';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { getWordStatus } from '../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../components/subtitle/wordHoverHelpers';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { WORD_STATUS, ANKI_EASE } from '../../../shared/constants';
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
@@ -158,20 +158,9 @@ export const App: Component = () => {
   });
 
   const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants);
-  const getWordComprehensiveStatus = (word: string): WordStatus => {
-    return flashcardCtx.getComprehensiveWordStatusSync(word);
-  };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
     return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
-  };
-  const getAnkiKnowledgeStatus = (word: string): WordStatus | null => {
-    if (!settings.use_anki) return null;
-    return getAnkiWordKnowledgeStatus(
-      findAnkiWordMatchInCache(getWordForms(word))?.cards,
-      settings.ankiLearningThreshold,
-      settings.ankiKnownThreshold,
-    );
   };
 
   onMount(() => {
@@ -693,13 +682,7 @@ export const App: Component = () => {
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      const comprehensiveStatus = getWordComprehensiveStatus(entry.word);
-      const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(entry.word), comprehensiveStatus,
-        getAnkiKnowledgeStatus(entry.word),
-        settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-      );
-      return effectiveStatus !== 'known';
+      return flashcardCtx.getComprehensiveWordStatusSync(entry.word) !== 'known';
     });
   });
 
@@ -715,7 +698,7 @@ export const App: Component = () => {
         try { translationData = await translateWord(word); } catch (e) { log.error('Translation failed', e); }
       }
       const freq = langCtx.getFrequency(word);
-      const wordStatus = getWordComprehensiveStatus(word);
+      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(word);
       const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({
@@ -956,13 +939,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
-      const wordStatus = getWordComprehensiveStatus(word);
-      const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(word), wordStatus,
-        getAnkiKnowledgeStatus(word),
-        settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-      );
-      if (effectiveStatus === 'known') continue;
+      if (flashcardCtx.getComprehensiveWordStatusSync(word) === 'known') continue;
 
       seenWords.add(word);
       newEntries.push({
