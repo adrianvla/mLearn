@@ -308,6 +308,8 @@ export interface Settings {
   readerFuriganaHider?: boolean;
   /** Whether to remove the gap between pages in double-page mode */
   readerCollatePages?: boolean;
+  readerPageMode?: 'single' | 'double';
+  readerFirstPageSingle?: boolean;
 
   // Reader magnifier settings
   /** Hotkey to activate the magnifying glass (e.g., 'z', 'Control', 'Alt') */
@@ -509,6 +511,8 @@ export const DEFAULT_SETTINGS: Settings = {
   readerWordHoverKey: 'shift',
   readerFuriganaHider: false,
   readerCollatePages: false,
+  readerPageMode: 'double',
+  readerFirstPageSingle: true,
   hideReadingForKnownWords: false,
   readerMagnifierHotkey: 'z',
   readerMagnifierZoom: 2,
