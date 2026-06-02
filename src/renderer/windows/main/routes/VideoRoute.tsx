@@ -23,7 +23,7 @@ import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { tokensToColoredHtml, parseWorkName } from '../../../utils/subtitleParsing';
 import { getWordStatus } from '../../../services/statsService';
@@ -74,20 +74,9 @@ export const VideoRoute: Component = () => {
   const subtitles = useSubtitles();
   const anki = useAnki();
   const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants);
-  const getWordComprehensiveStatus = (word: string): WordStatus => {
-    return flashcardCtx.getComprehensiveWordStatusSync(word);
-  };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
     return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
-  };
-  const getAnkiKnowledgeStatus = (word: string): WordStatus | null => {
-    if (!settings.use_anki) return null;
-    return getAnkiWordKnowledgeStatus(
-      findAnkiWordMatchInCache(getWordForms(word))?.cards,
-      settings.ankiLearningThreshold,
-      settings.ankiKnownThreshold,
-    );
   };
 
   const watchTogether = useWatchTogether({
@@ -476,13 +465,7 @@ export const VideoRoute: Component = () => {
       if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
-      const comprehensiveStatus = getWordComprehensiveStatus(word);
-      const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(word), comprehensiveStatus,
-        getAnkiKnowledgeStatus(word),
-        settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-      );
-      if (effectiveStatus === 'known') continue;
+      if (flashcardCtx.getComprehensiveWordStatusSync(word) === 'known') continue;
 
       seenWords.add(word);
       newEntries.push({
@@ -536,13 +519,7 @@ export const VideoRoute: Component = () => {
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      const comprehensiveStatus = getWordComprehensiveStatus(entry.word);
-      const effectiveStatus = getEffectiveWordStatus(
-        flashcardCtx.getCardByWordSync(entry.word), comprehensiveStatus,
-        getAnkiKnowledgeStatus(entry.word),
-        settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-      );
-      return effectiveStatus !== 'known';
+      return flashcardCtx.getComprehensiveWordStatusSync(entry.word) !== 'known';
     });
   });
 
@@ -574,7 +551,7 @@ export const VideoRoute: Component = () => {
         }
       }
       const freq = langCtx.getFrequency(word);
-      const wordStatus = getWordComprehensiveStatus(word);
+      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(word);
       const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({

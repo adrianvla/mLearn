@@ -28,7 +28,7 @@ import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { getWordStatus } from '../../../services/statsService';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -133,20 +133,9 @@ export const ReaderRoute: Component = () => {
   const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm, getWordVariants } = langCtx;
   const { translateWord } = useTranslation({ immediate: true, language: settings.language });
   const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm, getWordVariants);
-  const getWordComprehensiveStatus = (word: string): WordStatus => {
-    return flashcardCtx.getComprehensiveWordStatusSync(word);
-  };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
     return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
-  };
-  const getAnkiKnowledgeStatus = (word: string): WordStatus | null => {
-    if (!settings.use_anki) return null;
-    return getAnkiWordKnowledgeStatus(
-      findAnkiWordMatchInCache(getWordForms(word))?.cards,
-      settings.ankiLearningThreshold,
-      settings.ankiKnownThreshold,
-    );
   };
   const { tokenize } = useTokenizer({ language: settings.language });
   const { lookup } = useDictionary({ language: settings.language });
@@ -459,13 +448,7 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        const comprehensiveStatus = getWordComprehensiveStatus(entry.word);
-        const effectiveStatus = getEffectiveWordStatus(
-          flashcardCtx.getCardByWordSync(entry.word), comprehensiveStatus,
-          getAnkiKnowledgeStatus(entry.word),
-          settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-        );
-        if (effectiveStatus === 'known') {
+        if (flashcardCtx.getComprehensiveWordStatusSync(entry.word) === 'known') {
           continue;
         }
 
@@ -559,7 +542,7 @@ export const ReaderRoute: Component = () => {
       const translationData = getCachedTranslation(entry.word, settings.language) ?? await translateWord(entry.word);
       const image = imageRefs()[entry.pageId] || null;
       const anchorRect = getAnchorRectForWord(entry);
-      const wordStatus = getWordComprehensiveStatus(entry.word);
+      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(entry.word);
       const frequency = langCtx.getFrequency(entry.word);
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,

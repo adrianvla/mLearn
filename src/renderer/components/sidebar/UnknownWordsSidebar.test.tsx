@@ -113,11 +113,6 @@ vi.mock('../subtitle/wordHoverHelpers', () => ({
     if (status === 2) return 'known';
     return 'unknown';
   },
-  resolveWordKnowledge: (card: { ease?: number } | null, manualStatus: string, ankiStatus: string | null) => ({
-    status: ankiStatus ?? (card ? 'learning' : manualStatus),
-    activeSources: [],
-    dataSources: [],
-  }),
 }));
 
 vi.mock('../../services/statsService', () => ({
