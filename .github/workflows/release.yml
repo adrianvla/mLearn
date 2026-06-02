@@ -25,7 +25,7 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           echo "Tag: $TAG, Previous: $PREV_TAG"
 
-          cat > release-notes.md << 'HEADER'
+          cat > release-notes.md << HEADER
           ## $TAG
 
           HEADER
