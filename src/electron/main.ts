@@ -380,6 +380,7 @@ if (!gotSingleInstanceLock) {
     if (process.platform !== 'darwin') {
       handleDeepLinkArgs(process.argv);
     }
+
     void initialize();
 
     app.on('activate', () => {
