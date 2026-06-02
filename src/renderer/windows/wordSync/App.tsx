@@ -21,7 +21,6 @@ import {
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
 import { fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
-import { resolveRendererWordKnowledge } from '../../services/wordKnowledge';
 import './WordSync.css';
 
 type Rating = 'unknown' | 'learning' | 'known';
@@ -49,7 +48,7 @@ const WordSyncContent: Component = () => {
     setWordKnowledgeEase,
     markWordSyncSeen,
     getWordKnowledge,
-    getCardByWordSync,
+    getComprehensiveWordStatusWithSourceSync,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
@@ -144,9 +143,7 @@ const WordSyncContent: Component = () => {
     const now = Date.now();
     const rated = sessionRatedSet();
     const kanjiSet = knownKanjiSet();
-    const useAnki = settings.use_anki && ankiCacheReady();
-    const { knowledgeSourceOrder, knowledgeResolutionMode } = settings;
-    const getCanonicalForm = langCtx.getCanonicalForm;
+
 
     const groups = new Map<number, PoolEntry[]>();
     const lang = settings.language;
@@ -163,19 +160,9 @@ const WordSyncContent: Component = () => {
       if (store.ignoredWords[lk]) continue;
 
       const knowledge = getWordKnowledge(lk);
-      const resolvedKnowledge = resolveRendererWordKnowledge({
-        word,
-        getCanonicalForm,
-        getWordVariants: langCtx.getWordVariants,
-        getCardByWordSync,
-        useAnki,
-        ankiLearningThreshold: settings.ankiLearningThreshold,
-        ankiKnownThreshold: settings.ankiKnownThreshold,
-        knowledgeSourceOrder,
-        knowledgeResolutionMode,
-      });
+      const resolvedStatus = getComprehensiveWordStatusWithSourceSync(word).status;
 
-      if (onlyUnknown && resolvedKnowledge.status !== 'unknown') continue;
+      if (onlyUnknown && resolvedStatus !== 'unknown') continue;
 
       const seenRecently = isSyncSeenRecently(word, prefix);
 
@@ -321,19 +308,7 @@ const WordSyncContent: Component = () => {
     if (!ready || !initialized() || !unknownOnly() || !settings.use_anki) return;
     const word = currentWord();
     if (word) {
-      const resolvedKnowledge = resolveRendererWordKnowledge({
-        word: word.word,
-        getCanonicalForm: langCtx.getCanonicalForm,
-        getWordVariants: langCtx.getWordVariants,
-        getCardByWordSync,
-        useAnki: true,
-        ankiLearningThreshold: settings.ankiLearningThreshold,
-        ankiKnownThreshold: settings.ankiKnownThreshold,
-        knowledgeSourceOrder: settings.knowledgeSourceOrder,
-        knowledgeResolutionMode: settings.knowledgeResolutionMode,
-      });
-
-      if (resolvedKnowledge.status === 'unknown') {
+      if (getComprehensiveWordStatusWithSourceSync(word.word).status === 'unknown') {
         return;
       }
 
