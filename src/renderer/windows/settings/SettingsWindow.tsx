@@ -1,13 +1,9 @@
-/**
- * Settings Window
- * Standalone settings window with left sidebar navigation
- */
-
-import { Component, createSignal, createMemo, onCleanup, onMount, Show } from 'solid-js';
-import { WindowWrapper, useLocalization } from '../../context';
+import { Component, createSignal, createMemo, onCleanup, onMount } from 'solid-js';
+import { WindowWrapper, useLocalization, SettingsSearchContext, SettingsTabContext } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { TabContainer } from '../../components/common/Tabs/TabContainer';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
+import { Input, SearchIcon } from '../../components/common';
 import {
   GeneralTab,
   BehaviourTab,
@@ -50,14 +46,47 @@ const TABS: SettingsTab[] = [
 
 export const SettingsContent: Component = () => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
+  const [searchQuery, setSearchQuery] = createSignal('');
   const { t } = useLocalization();
 
+  const matchRegistry = new Map<string, Set<string>>();
+  const [matchCounts, setMatchCounts] = createSignal<Record<string, number>>({});
+
+  const registerMatch = (tabId: string, rowId: string, matches: boolean) => {
+    const set = matchRegistry.get(tabId) ?? new Set<string>();
+    if (matches) {
+      set.add(rowId);
+    } else {
+      set.delete(rowId);
+    }
+    matchRegistry.set(tabId, set);
+    setMatchCounts((prev) => ({ ...prev, [tabId]: set.size }));
+  };
+
+  const searchValue = createMemo(() => searchQuery());
+
   const tabItems = createMemo((): TabItem[] =>
-    TABS.map((tab) => ({
-      id: tab.id,
-      label: t(tab.labelKey),
-      icon: <Icon icon={tab.icon} color="currentColor" class="settings-tab-icon" />,
-    }))
+    TABS.map((tab) => {
+      const count = matchCounts()[tab.id];
+      const hasSearch = searchQuery().trim().length > 0;
+      return {
+        id: tab.id,
+        label: t(tab.labelKey),
+        icon: <Icon icon={tab.icon} color="currentColor" class="settings-tab-icon" />,
+        badge: hasSearch && count > 0 ? count : undefined,
+      };
+    })
+  );
+
+  const sidebarSearch = (
+    <Input
+      type="search"
+      placeholder={t('mlearn.Settings.SearchPlaceholder')}
+      value={searchQuery()}
+      onInput={(e) => setSearchQuery(e.currentTarget.value)}
+      leftIcon={<SearchIcon size={16} />}
+      size="sm"
+    />
   );
 
   const resolveTab = (section?: string): TabId => {
@@ -93,56 +122,50 @@ export const SettingsContent: Component = () => {
     });
   });
 
+  const TabWrap = (props: { tabId: string; children: unknown }) => (
+    <SettingsTabContext.Provider value={{ tabId: props.tabId }}>
+      {props.children as Element}
+    </SettingsTabContext.Provider>
+  );
+
+  const TabPanel = (props: { tabId: TabId; children: unknown }) => (
+    <div
+      class="settings-tab-panel"
+      style={{ display: activeTab() === props.tabId ? 'block' : 'none' }}
+      data-tab-id={props.tabId}
+    >
+      <TabWrap tabId={props.tabId}>{props.children as Element}</TabWrap>
+    </div>
+  );
+
   return (
     <div class="settings-window">
-
-      <TabContainer
-        tabs={tabItems()}
-        activeTab={activeTab()}
-        onTabChange={(id) => setActiveTab(id as TabId)}
-        orientation="vertical"
-        variant="pills"
-        class="settings-tab-container"
-      >
-        <div class="settings-content">
-          <Show when={activeTab() === 'general'}>
-            <GeneralTab />
-          </Show>
-          <Show when={activeTab() === 'behaviour'}>
-            <BehaviourTab />
-          </Show>
-          <Show when={activeTab() === 'customization'}>
-            <CustomizationTab />
-          </Show>
-          <Show when={activeTab() === 'srs'}>
-            <SRSTab />
-          </Show>
-          <Show when={activeTab() === 'reader'}>
-            <ReaderTab />
-          </Show>
-          <Show when={activeTab() === 'video-player'}>
-            <VideoPlayerTab />
-          </Show>
-          <Show when={activeTab() === 'ai'}>
-            <AITab />
-          </Show>
-          <Show when={activeTab() === 'connection'}>
-            <ConnectionTab />
-          </Show>
-          <Show when={activeTab() === 'plugins'}>
-            <PluginsTab />
-          </Show>
-          <Show when={activeTab() === 'components'}>
-            <ComponentsTab />
-          </Show>
-          <Show when={activeTab() === 'browser-extension'}>
-            <BrowserExtensionTab />
-          </Show>
-          <Show when={activeTab() === 'about'}>
-            <AboutTab />
-          </Show>
-        </div>
-      </TabContainer>
+      <SettingsSearchContext.Provider value={{ searchQuery: searchValue, matchCounts, registerMatch }}>
+        <TabContainer
+          tabs={tabItems()}
+          activeTab={activeTab()}
+          onTabChange={(id) => setActiveTab(id as TabId)}
+          orientation="vertical"
+          variant="pills"
+          class="settings-tab-container"
+          sidebarTop={sidebarSearch}
+        >
+          <div class="settings-content">
+            <TabPanel tabId="general"><GeneralTab /></TabPanel>
+            <TabPanel tabId="behaviour"><BehaviourTab /></TabPanel>
+            <TabPanel tabId="customization"><CustomizationTab /></TabPanel>
+            <TabPanel tabId="srs"><SRSTab /></TabPanel>
+            <TabPanel tabId="reader"><ReaderTab /></TabPanel>
+            <TabPanel tabId="video-player"><VideoPlayerTab /></TabPanel>
+            <TabPanel tabId="ai"><AITab /></TabPanel>
+            <TabPanel tabId="connection"><ConnectionTab /></TabPanel>
+            <TabPanel tabId="plugins"><PluginsTab /></TabPanel>
+            <TabPanel tabId="components"><ComponentsTab /></TabPanel>
+            <TabPanel tabId="browser-extension"><BrowserExtensionTab /></TabPanel>
+            <TabPanel tabId="about"><AboutTab /></TabPanel>
+          </div>
+        </TabContainer>
+      </SettingsSearchContext.Provider>
     </div>
   );
 };

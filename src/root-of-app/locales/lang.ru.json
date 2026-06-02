@@ -1943,6 +1943,7 @@
         "VideoPlayer": "Видеоплеер",
         "BrowserExtension": "Расширение браузера"
       },
+      "SearchPlaceholder": "Поиск настроек...",
       "Behaviour": {
         "LearningLanguageLevel": {
           "Label": "Уровень изучаемого языка",

@@ -1943,6 +1943,7 @@
         "VideoPlayer": "Lecteur vidéo",
         "BrowserExtension": "Extension navigateur"
       },
+      "SearchPlaceholder": "Rechercher dans les paramètres...",
       "Behaviour": {
         "LearningLanguageLevel": {
           "Label": "Niveau de langue d'apprentissage",

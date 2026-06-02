@@ -21,11 +21,18 @@ vi.mock('../../context', () => ({
         'mlearn.Settings.Tabs.Components': 'Components',
         'mlearn.Settings.Tabs.BrowserExtension': 'Browser Extension',
         'mlearn.Settings.Tabs.About': 'About',
+        'mlearn.Settings.SearchPlaceholder': 'Search settings...',
       };
       return labels[key] ?? key;
     },
   }),
   WindowWrapper: (props: { children: unknown }) => props.children,
+  SettingsSearchContext: {
+    Provider: (props: { children: unknown }) => props.children,
+  },
+  SettingsTabContext: {
+    Provider: (props: { children: unknown }) => props.children,
+  },
 }));
 
 vi.mock('../../../shared/bridges', () => ({

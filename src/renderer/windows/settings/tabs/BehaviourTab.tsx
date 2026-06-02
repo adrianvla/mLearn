@@ -128,24 +128,24 @@ export const BehaviourTab: Component = () => {
               label={t(`mlearn.Settings.WordStatus.${item.labelKey}Threshold.Label`)}
               description={t(`mlearn.Settings.WordStatus.${item.labelKey}Threshold.Description`)}
             >
-                <div class="ease-threshold-row">
-                  <Input
+              <div class="ease-threshold-row">
+                <span class="ease-exposures">
+                  {t('mlearn.Settings.WordStatus.EquivalentExposures', {count: String(passiveExposures(settings[item.key] ?? item.default))})}
+                </span>
+                <Input
                     type="number"
                     value={Math.round((settings[item.key] ?? item.default) * 100)}
                     min={130}
                     max={500}
                     step={1}
-                    style={{ width: '80px' }}
+                    style={{width: '80px'}}
                     onInput={(e) => {
                       const val = parseInt(e.currentTarget.value, 10);
                       if (!isNaN(val) && val >= 130 && val <= 500) {
-                        updateSettings({ [item.key]: val / 100 });
+                        updateSettings({[item.key]: val / 100});
                       }
                     }}
-                  />
-                <span class="ease-exposures">
-                  {t('mlearn.Settings.WordStatus.EquivalentExposures', { count: String(passiveExposures(settings[item.key] ?? item.default)) })}
-                </span>
+                />
               </div>
             </SettingRow>
           )}
@@ -154,7 +154,7 @@ export const BehaviourTab: Component = () => {
         {/* Anki thresholds (only when Anki is enabled) */}
         <Show when={settings.use_anki}>
           <SettingRow
-            label={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Label')}
+              label={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Label')}
             description={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Description')}
           >
             <Input

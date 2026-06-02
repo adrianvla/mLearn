@@ -1949,7 +1949,8 @@
         "Statistics": "统计",
         "VideoPlayer": "视频播放器",
         "BrowserExtension": "浏览器扩展"
-      }
+      },
+      "SearchPlaceholder": "搜索设置..."
     },
     "BrowserExtension": {
       "Title": "浏览器扩展",
