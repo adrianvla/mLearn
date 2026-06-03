@@ -71,7 +71,22 @@ export const FlashcardsSuggested: Component = () => {
   let virtualScrollRef: HTMLDivElement | undefined;
 
   onMount(() => {
-    cleanupKnownSuggestions();
+    let handle: number | ReturnType<typeof setTimeout>;
+    const run = () => {
+      cleanupKnownSuggestions();
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+      handle = requestIdleCallback(run);
+    } else {
+      handle = setTimeout(run, 0);
+    }
+    onCleanup(() => {
+      if (typeof requestIdleCallback !== 'undefined') {
+        cancelIdleCallback(handle as number);
+      } else {
+        clearTimeout(handle as ReturnType<typeof setTimeout>);
+      }
+    });
   });
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.

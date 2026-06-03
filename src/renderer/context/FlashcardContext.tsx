@@ -1485,25 +1485,33 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const removeSuggestedFlashcards = (ids: string[]): void => {
     if (ids.length === 0) return;
+    const idsSet = new Set(ids);
     const keysToRemove: string[] = [];
     const suggestionsToRemove: SuggestedFlashcard[] = [];
-    for (const id of ids) {
-      const key = findSuggestionKey(id);
-      if (key) {
+    for (const [key, suggestion] of Object.entries(store.suggestedFlashcards)) {
+      if (idsSet.has(suggestion.id)) {
         keysToRemove.push(key);
-        suggestionsToRemove.push(store.suggestedFlashcards[key]);
+        suggestionsToRemove.push(suggestion);
       }
     }
     if (keysToRemove.length === 0) return;
 
-    const remainingSuggestions = Object.values(store.suggestedFlashcards).filter(
-      (s) => !ids.includes(s.id)
-    );
+    const imageUrlCounts = new Map<string, number>();
+    const videoUrlCounts = new Map<string, number>();
+    for (const suggestion of Object.values(store.suggestedFlashcards)) {
+      if (suggestion.imageUrl) {
+        imageUrlCounts.set(suggestion.imageUrl, (imageUrlCounts.get(suggestion.imageUrl) || 0) + 1);
+      }
+      if (suggestion.videoUrl) {
+        videoUrlCounts.set(suggestion.videoUrl, (videoUrlCounts.get(suggestion.videoUrl) || 0) + 1);
+      }
+    }
 
     for (const suggestion of suggestionsToRemove) {
       if (suggestion.imageUrl) {
-        const stillReferenced = remainingSuggestions.some((s) => s.imageUrl === suggestion.imageUrl);
-        if (!stillReferenced) {
+        const newCount = (imageUrlCounts.get(suggestion.imageUrl) || 1) - 1;
+        imageUrlCounts.set(suggestion.imageUrl, newCount);
+        if (newCount <= 0) {
           const imageId = extractCardIdFromImageUrl(suggestion.imageUrl);
           if (imageId) {
             getBridge().flashcards.deleteFlashcardImage(imageId).catch((err: unknown) =>
@@ -1513,8 +1521,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
       }
       if (suggestion.videoUrl) {
-        const stillReferenced = remainingSuggestions.some((s) => s.videoUrl === suggestion.videoUrl);
-        if (!stillReferenced) {
+        const newCount = (videoUrlCounts.get(suggestion.videoUrl) || 1) - 1;
+        videoUrlCounts.set(suggestion.videoUrl, newCount);
+        if (newCount <= 0) {
           getBridge().flashcards.deleteFlashcardVideo(suggestion.id).catch((err: unknown) =>
             log.warn('Failed to delete suggested flashcard video:', err)
           );
@@ -1532,8 +1541,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const cleanupKnownSuggestions = (): number => {
     const idsToRemove: string[] = [];
-    for (const suggestion of Object.values(store.suggestedFlashcards)) {
-      if (getComprehensiveWordStatusSync(suggestion.word) === 'known') {
+    const known = knownWordSet();
+    const needsAnkiCheck = settings.use_anki;
+    for (const [lk, suggestion] of Object.entries(store.suggestedFlashcards)) {
+      if (known.has(lk)) {
+        idsToRemove.push(suggestion.id);
+        continue;
+      }
+      if (needsAnkiCheck && getComprehensiveWordStatusSync(suggestion.word) === 'known') {
         idsToRemove.push(suggestion.id);
       }
     }
