@@ -213,6 +213,7 @@ type FlashcardCtx = {
   getSuggestedFlashcardsSync: () => Array<{ id: string; word: string; reading?: string; pos?: string; level?: number | null; language: string; contextPhrase?: string; contextHtml?: string; imageUrl?: string; videoUrl?: string; source?: string; sourceMediaHash?: string; createdAt: number; lastSeen: number; count: number }>;
   removeSuggestedFlashcard: (id: string) => void;
   removeSuggestedFlashcards: (ids: string[]) => void;
+  cleanupKnownSuggestions: () => number;
 };
 
 // ── Mount helper ─────────────────────────────────────────────────────
@@ -1863,6 +1864,110 @@ describe('FlashcardProvider', () => {
     ctx.removeSuggestedFlashcards([]);
 
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions removes suggestions for knownUntracked words (fast path)', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('手動既知');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        [lk]: { id: 's-known', word: '手動既知', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash2': { id: 's-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+      },
+      knownUntracked: { [lk]: true },
+    }));
+
+    const removed = ctx.cleanupKnownSuggestions();
+    expect(removed).toBe(1);
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('未知単語');
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions removes suggestions with SRS review cards (fast path)', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('既知単語');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        [lk]: { id: 's-known', word: '既知単語', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash2': { id: 's-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+      },
+      flashcards: {
+        'fc-1': {
+          id: 'fc-1',
+          content: { type: 'word', front: '既知単語', back: 'known' },
+          state: 'review',
+          ease: 2.5,
+          interval: 86400000,
+          dueDate: Date.now(),
+          reviews: 5,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: Date.now(),
+          lastReviewed: Date.now(),
+          lastUpdated: Date.now(),
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk]: ['fc-1'] },
+    }));
+
+    const removed = ctx.cleanupKnownSuggestions();
+    expect(removed).toBe(1);
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('未知単語');
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions keeps suggestions for unknown words', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash1': { id: 's1', word: '未知単語', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+      },
+    }));
+
+    const removed = ctx.cleanupKnownSuggestions();
+    expect(removed).toBe(0);
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    dispose();
+  });
+
+  it('removeSuggestedFlashcards does not delete shared images when only one owner is removed', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1, imageUrl: 'flashcard-image://shared.png' },
+        'ja:hash2': { id: 's2', word: '単語2', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1, imageUrl: 'flashcard-image://shared.png' },
+      },
+    }));
+
+    ctx.removeSuggestedFlashcards(['s1']);
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    expect(mockBridge.flashcards.deleteFlashcardImage).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('removeSuggestedFlashcards deletes orphaned images when all owners are removed', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1, imageUrl: 'flashcard-image://shared.png' },
+        'ja:hash2': { id: 's2', word: '単語2', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1, imageUrl: 'flashcard-image://shared.png' },
+      },
+    }));
+
+    ctx.removeSuggestedFlashcards(['s1', 's2']);
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    expect(mockBridge.flashcards.deleteFlashcardImage).toHaveBeenCalledOnce();
+    expect(mockBridge.flashcards.deleteFlashcardImage).toHaveBeenCalledWith('shared');
     dispose();
   });
 });
