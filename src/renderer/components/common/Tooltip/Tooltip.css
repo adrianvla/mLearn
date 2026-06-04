@@ -4,26 +4,24 @@
 }
 
 .tooltip-content {
-  position: absolute;
-  left: 0;
+  position: fixed;
   z-index: var(--z-tooltip);
   pointer-events: none;
   white-space: nowrap;
 }
 
 .tooltip-content--top {
-  bottom: 100%;
-  margin-bottom: var(--spacing-1);
+  transform: translateX(-50%) translateY(-100%);
 }
 
 .tooltip-content--bottom {
-  top: 100%;
-  margin-top: var(--spacing-1);
+  transform: translateX(-50%);
 }
 
 .tooltip-text {
   padding: var(--spacing-1) var(--spacing-2);
-  background: var(--bg-nt-secondary); /*transparency workaround*/
+  background: var(--bg);
+  backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);

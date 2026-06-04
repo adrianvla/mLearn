@@ -12,6 +12,7 @@ describe('Tooltip', () => {
 
   afterEach(() => {
     container.remove();
+    document.querySelectorAll('.tooltip-content').forEach((el) => { el.remove(); });
   });
 
   async function renderTooltip(props: Record<string, unknown> = {}) {
@@ -41,7 +42,7 @@ describe('Tooltip', () => {
     const { dispose } = await renderTooltip();
     const trigger = container.querySelector('.tooltip-trigger');
     expect(trigger).not.toBeNull();
-    expect(trigger!.querySelector('.tooltip-content')).toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
     dispose();
   });
 
@@ -49,7 +50,7 @@ describe('Tooltip', () => {
     const { dispose } = await renderTooltip();
     const trigger = container.querySelector('.tooltip-trigger')!;
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    expect(trigger.querySelector('.tooltip-content')).not.toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
     dispose();
   });
 
@@ -57,9 +58,9 @@ describe('Tooltip', () => {
     const { dispose } = await renderTooltip();
     const trigger = container.querySelector('.tooltip-trigger')!;
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    expect(trigger.querySelector('.tooltip-content')).not.toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
     trigger.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
-    expect(trigger.querySelector('.tooltip-content')).toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
     dispose();
   });
 
@@ -67,7 +68,7 @@ describe('Tooltip', () => {
     const { dispose } = await renderTooltip();
     const trigger = container.querySelector('.tooltip-trigger')!;
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    const content = trigger.querySelector('.tooltip-content');
+    const content = document.body.querySelector('.tooltip-content');
     expect(content!.classList.contains('tooltip-content--top')).toBe(true);
     dispose();
   });
@@ -76,7 +77,7 @@ describe('Tooltip', () => {
     const { dispose } = await renderTooltip({ position: 'bottom' });
     const trigger = container.querySelector('.tooltip-trigger')!;
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    const content = trigger.querySelector('.tooltip-content');
+    const content = document.body.querySelector('.tooltip-content');
     expect(content!.classList.contains('tooltip-content--bottom')).toBe(true);
     dispose();
   });
@@ -95,6 +96,7 @@ describe('Tooltip', () => {
     const { dispose } = await renderTooltip({ onHide });
     const trigger = container.querySelector('.tooltip-trigger')!;
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
     trigger.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
     expect(onHide).toHaveBeenCalledOnce();
     dispose();
@@ -115,11 +117,11 @@ describe('Tooltip', () => {
     const { dispose } = await renderTooltip({ delay: 200, onShow });
     const trigger = container.querySelector('.tooltip-trigger')!;
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    expect(trigger.querySelector('.tooltip-content')).toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
     expect(onShow).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(200);
-    expect(trigger.querySelector('.tooltip-content')).not.toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
     expect(onShow).toHaveBeenCalledOnce();
     dispose();
     vi.useRealTimers();
@@ -134,7 +136,7 @@ describe('Tooltip', () => {
     vi.advanceTimersByTime(100);
     trigger.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
     vi.advanceTimersByTime(200);
-    expect(trigger.querySelector('.tooltip-content')).toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
     expect(onShow).not.toHaveBeenCalled();
     dispose();
     vi.useRealTimers();
@@ -154,8 +156,7 @@ describe('Tooltip', () => {
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     trigger.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
     vi.advanceTimersByTime(200);
-    // Tooltip should not appear because leave happened before delay
-    expect(trigger.querySelector('.tooltip-content')).toBeNull();
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
     dispose();
     vi.useRealTimers();
   });

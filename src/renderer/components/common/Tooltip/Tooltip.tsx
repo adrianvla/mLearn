@@ -1,4 +1,5 @@
 import { Component, JSX, Show, createSignal, onCleanup } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import './Tooltip.css';
 
 export interface TooltipProps {
@@ -17,16 +18,40 @@ export interface TooltipProps {
 
 export const Tooltip: Component<TooltipProps> = (props) => {
   const [visible, setVisible] = createSignal(false);
+  const [pos, setPos] = createSignal({ left: 0, top: 0 });
   let delayTimer: ReturnType<typeof setTimeout> | null = null;
+  let triggerRef: HTMLSpanElement | undefined;
+
+  const updatePosition = () => {
+    if (!triggerRef) return;
+    const rect = triggerRef.getBoundingClientRect();
+    const position = props.position ?? 'top';
+    const margin = 8;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+
+    let left = rect.left + rect.width / 2 + scrollX;
+    let top: number;
+
+    if (position === 'top') {
+      top = rect.top + scrollY - margin;
+    } else {
+      top = rect.bottom + scrollY + margin;
+    }
+
+    setPos({ left, top });
+  };
 
   const show = () => {
     const delay = props.delay ?? 0;
     if (delay > 0) {
       delayTimer = setTimeout(() => {
+        updatePosition();
         setVisible(true);
         props.onShow?.();
       }, delay);
     } else {
+      updatePosition();
       setVisible(true);
       props.onShow?.();
     }
@@ -46,17 +71,31 @@ export const Tooltip: Component<TooltipProps> = (props) => {
   onCleanup(hide);
 
   return (
-    <span
-      class={`tooltip-trigger ${props.class ?? ''}`}
-      onMouseEnter={show}
-      onMouseLeave={hide}
-    >
-      {props.children}
+    <>
+      <span
+        ref={triggerRef}
+        class={`tooltip-trigger ${props.class ?? ''}`}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+      >
+        {props.children}
+      </span>
       <Show when={visible()}>
-        <span class={`tooltip-content tooltip-content--${props.position ?? 'top'}`}>
-          {props.content}
-        </span>
+        <Portal mount={document.body}>
+          <span
+            class={`tooltip-content tooltip-content--${props.position ?? 'top'}`}
+            style={{
+              position: 'fixed',
+              left: `${pos().left}px`,
+              top: `${pos().top}px`,
+              transform: 'translateX(-50%)',
+              'z-index': 'var(--z-tooltip)',
+            }}
+          >
+            {props.content}
+          </span>
+        </Portal>
       </Show>
-    </span>
+    </>
   );
 };
