@@ -7,6 +7,7 @@ import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { getLogger } from '../../../shared/utils/logger';
 import { getBridge } from '../../../shared/bridges';
 import { generateUUID } from '../../services/srsAlgorithm';
+import { captureElementAndSave } from '../../services/canvasCapture';
 
 const log = getLogger("renderer.components.wordHoverHelpers");
 
@@ -208,30 +209,9 @@ export function extractPitchAccentFromTranslationData(data?: WordHoverTranslatio
 }
 
 async function screenshotVideo(cardId: string): Promise<string> {
-  try {
-    const video = document.querySelector('video') as HTMLVideoElement | null;
-    if (!video || video.readyState < 2) return '';
-
-    const targetWidth = 480;
-    const videoWidth = video.videoWidth || video.clientWidth || 640;
-    const videoHeight = video.videoHeight || video.clientHeight || 360;
-    if (videoWidth === 0 || videoHeight === 0) return '';
-
-    const targetHeight = Math.round(videoHeight * (targetWidth / videoWidth));
-    const canvas = document.createElement('canvas');
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-    const saved = await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
-    return saved ?? '';
-  } catch (e) {
-    log.error("error", e);
-    return '';
-  }
+  const video = document.querySelector('video') as HTMLVideoElement | null;
+  if (!video || video.readyState < 2) return '';
+  return (await captureElementAndSave(video, cardId)) ?? '';
 }
 
 function extractExampleHtml(wordUuid: string | undefined, fallbackText: string): string {
@@ -301,63 +281,69 @@ async function captureOcrScreenshot(
 
     const imageRect = pageImg.getBoundingClientRect();
 
-    if (anchorRect) {
-      const padding = ocrCropPadding ?? 200;
-      const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-      const sourceLeft = anchorRect.left - padding;
-      const sourceTop = anchorRect.top - padding;
-      const sourceWidth = anchorRect.width + padding * 2;
-      const sourceHeight = anchorRect.height + padding * 2;
-
-      const visibleLeft = clamp(sourceLeft, imageRect.left, imageRect.right);
-      const visibleTop = clamp(sourceTop, imageRect.top, imageRect.bottom);
-      const visibleRight = clamp(sourceLeft + sourceWidth, imageRect.left, imageRect.right);
-      const visibleBottom = clamp(sourceTop + sourceHeight, imageRect.top, imageRect.bottom);
-      const visibleWidth = Math.max(1, visibleRight - visibleLeft);
-      const visibleHeight = Math.max(1, visibleBottom - visibleTop);
-      const scaleX = pageImg.naturalWidth / Math.max(1, imageRect.width);
-      const scaleY = pageImg.naturalHeight / Math.max(1, imageRect.height);
-      const imageSourceX = (visibleLeft - imageRect.left) * scaleX;
-      const imageSourceY = (visibleTop - imageRect.top) * scaleY;
-      const imageSourceWidth = visibleWidth * scaleX;
-      const imageSourceHeight = visibleHeight * scaleY;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.min(4096, Math.max(1, Math.floor(imageSourceWidth)));
-      canvas.height = Math.min(4096, Math.max(1, Math.floor(imageSourceHeight)));
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return '';
-
-      ctx.drawImage(pageImg, imageSourceX, imageSourceY, imageSourceWidth, imageSourceHeight, 0, 0, canvas.width, canvas.height);
-
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
-      ctx.lineWidth = 6;
-      ctx.shadowColor = 'rgba(0,0,0,0.6)';
-      ctx.shadowBlur = 8;
-      const boxX = (anchorRect.left - visibleLeft) * (canvas.width / visibleWidth);
-      const boxY = (anchorRect.top - visibleTop) * (canvas.height / visibleHeight);
-      const boxWidth = anchorRect.width * (canvas.width / visibleWidth);
-      const boxHeight = anchorRect.height * (canvas.height / visibleHeight);
-      ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-      ctx.restore();
-
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-      if (!cardId) return dataUrl;
-      const saved = await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
-      return saved ?? '';
+    // Fallback: try to find hovered word from DOM if anchorRect wasn't provided
+    if (!anchorRect) {
+      const hoveredWord = document.querySelector('.ocr-box.hovered .ocr-word, .ocr-word:hover, .ocr-box:hover .ocr-word');
+      if (hoveredWord) {
+        anchorRect = hoveredWord.getBoundingClientRect();
+      }
     }
 
-    const targetWidth = 480;
-    const scale = targetWidth / pageImg.naturalWidth;
-    const targetHeight = Math.round(pageImg.naturalHeight * scale);
+    // Last resort fallback: center crop of the image
+    if (!anchorRect) {
+      const fallbackRatio = 0.6;
+      const fw = imageRect.width * fallbackRatio;
+      const fh = imageRect.height * fallbackRatio;
+      anchorRect = new DOMRect(
+        imageRect.left + (imageRect.width - fw) / 2,
+        imageRect.top + (imageRect.height - fh) / 2,
+        fw,
+        fh,
+      );
+    }
+
+    const requestedPadding = ocrCropPadding ?? 200;
+    const maxPadding = Math.floor(Math.min(imageRect.width, imageRect.height) / 3);
+    const padding = Math.min(requestedPadding, maxPadding);
+    const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+    const sourceLeft = anchorRect.left - padding;
+    const sourceTop = anchorRect.top - padding;
+    const sourceWidth = anchorRect.width + padding * 2;
+    const sourceHeight = anchorRect.height + padding * 2;
+
+    const visibleLeft = clamp(sourceLeft, imageRect.left, imageRect.right);
+    const visibleTop = clamp(sourceTop, imageRect.top, imageRect.bottom);
+    const visibleRight = clamp(sourceLeft + sourceWidth, imageRect.left, imageRect.right);
+    const visibleBottom = clamp(sourceTop + sourceHeight, imageRect.top, imageRect.bottom);
+    const visibleWidth = Math.max(1, visibleRight - visibleLeft);
+    const visibleHeight = Math.max(1, visibleBottom - visibleTop);
+    const scaleX = pageImg.naturalWidth / Math.max(1, imageRect.width);
+    const scaleY = pageImg.naturalHeight / Math.max(1, imageRect.height);
+    const imageSourceX = (visibleLeft - imageRect.left) * scaleX;
+    const imageSourceY = (visibleTop - imageRect.top) * scaleY;
+    const imageSourceWidth = visibleWidth * scaleX;
+    const imageSourceHeight = visibleHeight * scaleY;
+
     const canvas = document.createElement('canvas');
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
+    canvas.width = Math.min(4096, Math.max(1, Math.floor(imageSourceWidth)));
+    canvas.height = Math.min(4096, Math.max(1, Math.floor(imageSourceHeight)));
     const ctx = canvas.getContext('2d');
     if (!ctx) return '';
 
-    ctx.drawImage(pageImg, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(pageImg, imageSourceX, imageSourceY, imageSourceWidth, imageSourceHeight, 0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+    ctx.lineWidth = 6;
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 8;
+    const boxX = (anchorRect.left - visibleLeft) * (canvas.width / visibleWidth);
+    const boxY = (anchorRect.top - visibleTop) * (canvas.height / visibleHeight);
+    const boxWidth = anchorRect.width * (canvas.width / visibleWidth);
+    const boxHeight = anchorRect.height * (canvas.height / visibleHeight);
+    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+    ctx.restore();
+
     const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
     if (!cardId) return dataUrl;
     const saved = await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
