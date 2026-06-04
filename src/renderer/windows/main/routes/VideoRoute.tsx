@@ -21,6 +21,7 @@ import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
+import { captureElementAndSave } from '../../../services/canvasCapture';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -131,27 +132,9 @@ export const VideoRoute: Component = () => {
   /** Capture the current video frame as a low-res JPEG and save it via the bridge.
    *  Returns the flashcard-image:// URL, or null when unavailable. */
   async function captureVideoFrameDataUrl(cardId: string): Promise<string | null> {
-    try {
-      const video = getCurrentVideoElement();
-      if (!video || video.readyState < 2) return null;
-      const videoWidth = video.videoWidth || video.clientWidth || 0;
-      const videoHeight = video.videoHeight || video.clientHeight || 0;
-      if (videoWidth === 0 || videoHeight === 0) return null;
-      const targetWidth = 480;
-      const targetHeight = Math.round(videoHeight * (targetWidth / videoWidth));
-      const canvas = document.createElement('canvas');
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64 = canvas.toDataURL('image/jpeg', 0.5);
-      if (!base64) return null;
-      return await getBridge().flashcards.saveFlashcardImage(cardId, base64);
-    } catch (e) {
-      log.error('captureVideoFrameDataUrl failed', e);
-      return null;
-    }
+    const video = getCurrentVideoElement();
+    if (!video || video.readyState < 2) return null;
+    return await captureElementAndSave(video, cardId);
   }
 
   const loadSharedVideo = (url: string, name: string) => {
