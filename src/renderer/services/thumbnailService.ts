@@ -5,6 +5,7 @@
 
 import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
+import { captureElementToDataUrl } from './canvasCapture';
 
 const log = getLogger("renderer.services.thumbnail");
 
@@ -19,40 +20,7 @@ export function captureVideoThumbnail(
   maxWidth: number = 300,
   quality: number = 0.6
 ): string {
-  try {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      log.warn('Failed to get canvas 2D context');
-      return '';
-    }
-
-    // Get video dimensions
-    const videoWidth = video.videoWidth || video.clientWidth || 0;
-    const videoHeight = video.videoHeight || video.clientHeight || 0;
-
-    if (videoWidth === 0 || videoHeight === 0) {
-      log.warn('Video has no dimensions');
-      return '';
-    }
-
-    // Calculate thumbnail dimensions maintaining aspect ratio
-    const aspectRatio = videoHeight / videoWidth;
-    const thumbWidth = Math.min(videoWidth, maxWidth);
-    const thumbHeight = Math.round(thumbWidth * aspectRatio);
-
-    canvas.width = thumbWidth;
-    canvas.height = thumbHeight;
-
-    // Draw video frame to canvas
-    ctx.drawImage(video, 0, 0, thumbWidth, thumbHeight);
-
-    // Return as JPEG data URL
-    return canvas.toDataURL('image/jpeg', quality);
-  } catch (e) {
-    log.error('Failed to capture video thumbnail:', e);
-    return '';
-  }
+  return captureElementToDataUrl(video, { maxWidth, quality }) ?? '';
 }
 
 /**
@@ -66,30 +34,7 @@ export function captureImageThumbnail(
   maxWidth: number = 300,
   quality: number = 0.6
 ): string {
-  try {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    const imgWidth = img.naturalWidth || img.width || 0;
-    const imgHeight = img.naturalHeight || img.height || 0;
-
-    if (imgWidth === 0 || imgHeight === 0) return '';
-
-    const aspectRatio = imgHeight / imgWidth;
-    const thumbWidth = Math.min(imgWidth, maxWidth);
-    const thumbHeight = Math.round(thumbWidth * aspectRatio);
-
-    canvas.width = thumbWidth;
-    canvas.height = thumbHeight;
-
-    ctx.drawImage(img, 0, 0, thumbWidth, thumbHeight);
-
-    return canvas.toDataURL('image/jpeg', quality);
-  } catch (e) {
-    log.error('Failed to capture image thumbnail:', e);
-    return '';
-  }
+  return captureElementToDataUrl(img, { maxWidth, quality }) ?? '';
 }
 
 /**
