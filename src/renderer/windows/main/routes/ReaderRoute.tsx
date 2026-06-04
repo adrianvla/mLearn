@@ -24,6 +24,7 @@ import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard,
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages } from '../../../services/pdfService';
 import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
+import { captureElementAndSave } from '../../../services/canvasCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
@@ -464,24 +465,10 @@ export const ReaderRoute: Component = () => {
   });
 
   const capturePageImageDataUrl = async (pageId: string): Promise<string | null> => {
-    try {
-      const img = imageRefs()[pageId];
-      if (!img || !img.naturalWidth) return null;
-      const targetWidth = 480;
-      const targetHeight = Math.round(img.naturalHeight * (targetWidth / img.naturalWidth));
-      const canvas = document.createElement('canvas');
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const base64 = canvas.toDataURL('image/jpeg', 0.5);
-      if (!base64) return null;
-      const cardId = `reader-page-${pageId}-${Date.now()}`;
-      return await getBridge().flashcards.saveFlashcardImage(cardId, base64);
-    } catch {
-      return null;
-    }
+    const img = imageRefs()[pageId];
+    if (!img || !img.naturalWidth) return null;
+    const cardId = `reader-page-${pageId}-${Date.now()}`;
+    return await captureElementAndSave(img, cardId);
   };
 
   const capturedSuggestionWords = new Set<string>();
