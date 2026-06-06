@@ -25,8 +25,8 @@
         },
         "CloudTiers": {
           "Title": "Cloud LLM Model Tiers",
-          "Cheap": "Cheap (DeepSeek)",
-          "Fast": "Fast (Cerebras)",
+          "Cheap": "Cheap",
+          "Fast": "Fast",
           "Conversation": {
             "Label": "Conversation Agent",
             "Description": "Model tier for text chat with the AI tutor"
@@ -1136,6 +1136,12 @@
       "CopyPhrase": "Copy phrase",
       "HideFurigana": "Hide reading",
       "ShowFurigana": "Show reading",
+      "Requirements": {
+        "OcrTurboLowRam": {
+          "Title": "OCR may run slowly",
+          "Message": "This device has {ram} GB RAM. Turbo Mode may be enabled for better performance on lower-memory devices, but it can reduce recognition quality."
+        }
+      },
       "Sidebar": {
         "Pages": "Pages",
         "UnknownWordsEmpty": "No unknown words found on the current page.",
