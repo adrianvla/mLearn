@@ -8,6 +8,7 @@ import { createSignal } from 'solid-js';
 import { useServer, useLowPowerGate } from '../context';
 import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
+import type { OCRRequestOptions } from '../../shared/backends/types';
 import { withCloudAuth } from '../services/cloudSessionManager';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
@@ -129,7 +130,7 @@ async function transcodeBlobToPng(
 /**
  * Prepare blob for OCR - read dimensions and resize/transcode if needed
  */
-async function prepareBlobForOCR(blob: Blob, turbo = true): Promise<PreparedImage> {
+async function prepareBlobForOCR(blob: Blob, turbo = DEFAULT_SETTINGS.ocrTurboMode!): Promise<PreparedImage> {
   const maxOcrArea = turbo ? MAX_OCR_AREA_TURBO : MAX_OCR_AREA_ACCURATE;
   let w = 0;
   let h = 0;
@@ -204,7 +205,7 @@ async function prepareBlobForOCR(blob: Blob, turbo = true): Promise<PreparedImag
  */
 async function inputToBlobForOCR(
   input: Blob | HTMLCanvasElement | HTMLImageElement | string,
-  turbo = true,
+  turbo = DEFAULT_SETTINGS.ocrTurboMode!,
 ): Promise<PreparedImage> {
   const maxOcrArea = turbo ? MAX_OCR_AREA_TURBO : MAX_OCR_AREA_ACCURATE;
   // If it's a Blob/File already
@@ -329,34 +330,26 @@ async function inputToBlobForOCR(
 }
 
 /**
- * Send image to OCR backend using FormData (matches legacy implementation)
+ * Prepare image data in the renderer, then send it through the backend adapter.
  */
 async function sendImageForOCR(
   imageInput: Blob | HTMLCanvasElement | HTMLImageElement | string,
-  ocrUrl: string,
-  headers?: Record<string, string>,
-  turbo = true,
+  options: OCRRequestOptions & { paddleScale?: number } = {},
 ): Promise<OCRResult> {
+  const turbo = options.turbo ?? DEFAULT_SETTINGS.ocrTurboMode!;
   const prepared = await inputToBlobForOCR(imageInput, turbo);
+  const requestOptions: OCRRequestOptions = {
+    turbo,
+    ramSaver: options.ramSaver,
+    devMode: options.devMode,
+  };
 
-  const form = new FormData();
-  // Name the file for better server-side defaults
-  form.append('file', prepared.blob, 'image.png');
-  form.append('turbo', turbo ? '1' : '0');
-
-  const response = await fetch(ocrUrl, {
-    method: 'POST',
-    headers,
-    body: form,
-    // Do not set Content-Type manually for FormData
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OCR request failed: ${response.status} - ${errorText}`);
+  if (options.devMode && !turbo && options.paddleScale !== undefined && options.paddleScale < 100) {
+    requestOptions.paddleMaxWidth = Math.max(1, Math.round(prepared.sentW * (options.paddleScale / 100)));
+    requestOptions.paddleMaxHeight = Math.max(1, Math.round(prepared.sentH * (options.paddleScale / 100)));
   }
 
-  const result = (await response.json()) as OCRResult;
+  const result = await getBackend().ocr(prepared.blob, requestOptions) as OCRResult;
 
   // Attach client-side scaling metadata for overlay consumers
   result.client_scale = prepared.clientScale;
@@ -376,10 +369,6 @@ export function useOCR() {
   const [error, setError] = createSignal<string | null>(null);
 
   const isCloudOCR = () => settings.ocrProvider === 'cloud';
-
-  const getLocalOCRUrl = (): string => {
-    return getBackend().buildUrl('/ocr');
-  };
 
   /** Run OCR via the cloud HATEOAS job flow (CloudOCRAdapter) */
   const recognizeViaCloud = async (imageBlob: Blob, turbo: boolean): Promise<OCRResult> => {
@@ -435,9 +424,11 @@ export function useOCR() {
 
       const result = await sendImageForOCR(
         input,
-        getLocalOCRUrl(),
-        undefined,
-        turbo,
+        {
+          turbo,
+          ramSaver: settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver,
+          devMode: settings.devMode ? true : undefined,
+        },
       );
       setLastResult(result);
       return result;

@@ -286,7 +286,7 @@ export interface Settings {
   ocr_crop_padding: number;
   /** Use lightweight OCR detection to reduce memory usage (only visible for languages that support it) */
   ocrRamSaver?: boolean;
-  /** Turbo mode: faster but potentially less accurate OCR detection (default true) */
+  /** Turbo mode: faster but potentially less accurate OCR detection (default false) */
   ocrTurboMode?: boolean;
   /** Enable furigana detection and filtering in OCR results (default true) */
   ocrFuriganaDetection?: boolean;
@@ -501,7 +501,7 @@ export const DEFAULT_SETTINGS: Settings = {
   liveTranslatorIncludeKnown: false,
   blurKnownWords: false,
   ocrRamSaver: false,
-  ocrTurboMode: true,
+  ocrTurboMode: false,
   ocrFuriganaDetection: true,
   ocrFuriganaWidthRatio: 1.5,
   ocrFuriganaNeighborWindowMultiplier: 2.4,

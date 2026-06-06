@@ -29,3 +29,4 @@ Renderer-only platform abstraction layer. Types, constants, bridges, backends, p
 - **NEVER** use raw `fetch()` for backend calls — always go through `getBackend()`
 - **NEVER** add a bridge method to `types.ts` without implementing it in BOTH `electronBridge.ts` and `capacitorBridge.ts`
 - **NEVER** mutate `DEFAULT_SETTINGS` inline — it's the source of truth for initialization and migrations
+- **NEVER** hardcode migrated setting fallbacks — use `DEFAULT_SETTINGS.<key>` when a setting may be undefined

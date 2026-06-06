@@ -19,6 +19,8 @@ import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
+import type { OCRRequestOptions } from '../../../../shared/backends/types';
+import { getSettingRequirementWarningParams } from '../../../../shared/settingRequirements';
 import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard, ReaderStatusBar, type ReaderUnknownWordEntry } from './components';
 import { ProgressRing } from '../../../components/common';
@@ -35,6 +37,7 @@ import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../servic
 import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
+import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
 import { syncReaderPluginActivity } from './readerPluginActivity';
 import { getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
 import { getWordFormCandidates } from '../../../utils/wordForms';
@@ -170,6 +173,7 @@ export const ReaderRoute: Component = () => {
   const { tokenize } = useTokenizer({ language: settings.language });
   const { lookup } = useDictionary({ language: settings.language });
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
+  let settingRequirementWarningsChecked = false;
 
   // Media stats for this reader session
   const mediaStats = useMediaStats({ mediaType: 'book', language: settings.language });
@@ -182,10 +186,10 @@ export const ReaderRoute: Component = () => {
   // Used for persisting to recent items so users can click to re-open
   const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
-  const pageMode = () => settings.readerPageMode ?? 'double';
+  const pageMode = () => settings.readerPageMode ?? DEFAULT_SETTINGS.readerPageMode!;
   // When true and in double-page mode, first page displays alone (cover page)
   // This offsets the pairing: [0], [1,2], [3,4]... instead of [0,1], [2,3]...
-  const firstPageSingle = () => settings.readerFirstPageSingle ?? true;
+  const firstPageSingle = () => settings.readerFirstPageSingle ?? DEFAULT_SETTINGS.readerFirstPageSingle!;
 
   // Helper: get the valid spread-start index for a given page in double-page mode
   // firstSingle=true:  valid starts are 0, 1, 3, 5, 7... (0 alone, then odd numbers)
@@ -775,6 +779,29 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     }
   };
 
+  const showSettingRequirementWarningsOnce = async () => {
+    if (settingRequirementWarningsChecked) {
+      return;
+    }
+
+    settingRequirementWarningsChecked = true;
+
+    try {
+      const warnings = await getUnseenSettingRequirementWarnings(settings, 'reader');
+      for (const warning of warnings) {
+        markSettingRequirementWarningSeen('reader', warning.config.id);
+        showToast({
+          variant: 'warning',
+          title: t(warning.config.titleKey),
+          message: t(warning.config.messageKey, getSettingRequirementWarningParams(warning)),
+          duration: 9000,
+        });
+      }
+    } catch (error) {
+      log.warn('[Reader] Failed to show setting requirement warning', error);
+    }
+  };
+
   const performOcr = async (page: PageImage) => {
     // Capture generation at start — if it changes mid-flight, discard the result
     const gen = ocrGeneration();
@@ -786,9 +813,11 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     // Note: status bar text is handled by updateOverallStatus based on processingTask
 
     try {
+      await showSettingRequirementWarningsOnce();
+
       const imageBlob = page.blob ?? await (await fetch(page.src)).blob();
 
-      const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode;
+      const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
       const prepared = await prepareBlobForOCR(imageBlob, turbo);
 
       let result: OcrResult;
@@ -819,33 +848,22 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           boxes: convertedBoxes,
         } as OcrResult;
       } else {
-        // Local OCR via Python backend FormData
-        const formData = new FormData();
-        formData.append('file', prepared.blob, 'image.png');
-        formData.append('turbo', turbo ? '1' : '0');
-        formData.append('ram_saver', (settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver) ? '1' : '0');
+        const ocrOptions: OCRRequestOptions = {
+          turbo,
+          ramSaver: settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver,
+        };
+
         if (settings.devMode) {
-          formData.append('dev_mode', '1');
+          ocrOptions.devMode = true;
           // Dev-mode PaddleOCR downscale: compute max dimensions from scale percentage
           const scale = paddleOcrScale();
           if (!turbo && scale < 100) {
-            const maxW = Math.max(1, Math.round(prepared.sentW * (scale / 100)));
-            const maxH = Math.max(1, Math.round(prepared.sentH * (scale / 100)));
-            formData.append('paddle_max_width', String(maxW));
-            formData.append('paddle_max_height', String(maxH));
+            ocrOptions.paddleMaxWidth = Math.max(1, Math.round(prepared.sentW * (scale / 100)));
+            ocrOptions.paddleMaxHeight = Math.max(1, Math.round(prepared.sentH * (scale / 100)));
           }
         }
 
-        const response = await fetch(getBackend().buildUrl('/ocr'), {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(`OCR request failed: ${response.status}`);
-        }
-
-        result = (await response.json()) as OcrResult;
+        result = await getBackend().ocr(prepared.blob, ocrOptions) as OcrResult;
       }
 
       result.client_scale = prepared.clientScale;
@@ -1207,7 +1225,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     // This avoids loading heavy ML models at server startup;
     // the preimport only happens when the reader is actually opened.
     if (settings.ocrEnabled !== false) {
-      fetch(getBackend().buildUrl('/ocr/warmup'), { method: 'POST' }).catch(() => {/* non-fatal */});
+      getBackend().warmupOcr().catch(() => {/* non-fatal */});
     }
   });
 
