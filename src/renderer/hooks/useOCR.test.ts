@@ -35,7 +35,7 @@ class MockOffscreenCanvas {
 vi.stubGlobal('OffscreenCanvas', MockOffscreenCanvas);
 
 const mockBackend = {
-  buildUrl: vi.fn((path: string) => `http://localhost:7752${path}`),
+  ocr: vi.fn(),
 };
 
 const mockCloudRecognize = vi.fn();
@@ -113,20 +113,12 @@ function setupTranscodeOutput(outputBlob?: Blob) {
   return blob;
 }
 
-function setupFetchOCRResponse(result: { text: string; boxes?: unknown[] }) {
-  mockFetch.mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue(result),
-    text: vi.fn().mockResolvedValue(JSON.stringify(result)),
-  });
+function setupBackendOCRResponse(result: { text: string; boxes?: unknown[] }) {
+  mockBackend.ocr.mockResolvedValue(result);
 }
 
-function setupFetchOCRError(status: number, errorText: string) {
-  mockFetch.mockResolvedValue({
-    ok: false,
-    status,
-    text: vi.fn().mockResolvedValue(errorText),
-  });
+function setupBackendOCRError(status: number, errorText: string) {
+  mockBackend.ocr.mockRejectedValue(new Error(`OCR request failed: ${status} - ${errorText}`));
 }
 
 describe('OCR constants', () => {
@@ -249,73 +241,69 @@ describe('sendImageForOCR', () => {
     mockFetch.mockReset();
     mockCreateImageBitmap.mockReset();
     mockConvertToBlob.mockReset();
+    mockBackend.ocr.mockReset();
   });
 
-  it('sends FormData POST to the OCR URL', async () => {
+  it('sends the prepared image to the backend adapter', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'hello' });
+    setupBackendOCRResponse({ text: 'hello' });
 
-    await sendImageForOCR(blob, 'http://localhost:7752/ocr', undefined, true);
+    await sendImageForOCR(blob, { turbo: true });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe('http://localhost:7752/ocr');
-    expect(opts.method).toBe('POST');
-    expect(opts.body).toBeInstanceOf(FormData);
+    expect(mockBackend.ocr).toHaveBeenCalledTimes(1);
+    const [image, options] = mockBackend.ocr.mock.calls[0];
+    expect(image).toBeInstanceOf(Blob);
+    expect(options).toMatchObject({ turbo: true });
   });
 
-  it('includes turbo=1 in FormData when turbo is true', async () => {
+  it('passes turbo=true to the backend adapter', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'hello' });
+    setupBackendOCRResponse({ text: 'hello' });
 
-    await sendImageForOCR(blob, 'http://localhost:7752/ocr', undefined, true);
+    await sendImageForOCR(blob, { turbo: true });
 
-    const formData = mockFetch.mock.calls[0][1].body as FormData;
-    expect(formData.get('turbo')).toBe('1');
+    expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({ turbo: true });
   });
 
-  it('includes turbo=0 in FormData when turbo is false', async () => {
+  it('passes turbo=false to the backend adapter', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'hello' });
+    setupBackendOCRResponse({ text: 'hello' });
 
-    await sendImageForOCR(blob, 'http://localhost:7752/ocr', undefined, false);
+    await sendImageForOCR(blob, { turbo: false });
 
-    const formData = mockFetch.mock.calls[0][1].body as FormData;
-    expect(formData.get('turbo')).toBe('0');
+    expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({ turbo: false });
   });
 
-  it('includes file field in FormData', async () => {
+  it('passes ram saver and dev options to the backend adapter', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'hello' });
+    setupBackendOCRResponse({ text: 'hello' });
 
-    await sendImageForOCR(blob, 'http://localhost:7752/ocr');
+    await sendImageForOCR(blob, {
+      turbo: false,
+      ramSaver: true,
+      devMode: true,
+      paddleScale: 50,
+    });
 
-    const formData = mockFetch.mock.calls[0][1].body as FormData;
-    const file = formData.get('file');
-    expect(file).toBeInstanceOf(Blob);
-  });
-
-  it('passes custom headers to fetch', async () => {
-    const blob = makePngBlob();
-    setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'hello' });
-
-    await sendImageForOCR(blob, 'http://localhost:7752/ocr', { Authorization: 'Bearer xyz' });
-
-    const opts = mockFetch.mock.calls[0][1];
-    expect(opts.headers).toEqual({ Authorization: 'Bearer xyz' });
+    expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({
+      turbo: false,
+      ramSaver: true,
+      devMode: true,
+      paddleMaxWidth: 50,
+      paddleMaxHeight: 50,
+    });
   });
 
   it('returns OCR result with text', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'detected text', boxes: [] });
+    setupBackendOCRResponse({ text: 'detected text', boxes: [] });
 
-    const result = await sendImageForOCR(blob, 'http://localhost:7752/ocr');
+    const result = await sendImageForOCR(blob);
 
     expect(result.text).toBe('detected text');
     expect(result.boxes).toEqual([]);
@@ -324,9 +312,9 @@ describe('sendImageForOCR', () => {
   it('attaches client_scale and size metadata to result', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'ok' });
+    setupBackendOCRResponse({ text: 'ok' });
 
-    const result = await sendImageForOCR(blob, 'http://localhost:7752/ocr');
+    const result = await sendImageForOCR(blob);
 
     expect(result.client_scale).toBe(1);
     expect(result.downscale_factor).toBe(1);
@@ -338,9 +326,9 @@ describe('sendImageForOCR', () => {
     const blob = makePngBlob();
     setupImageBitmapMock(2000, 2000);
     setupTranscodeOutput();
-    setupFetchOCRResponse({ text: 'scaled' });
+    setupBackendOCRResponse({ text: 'scaled' });
 
-    const result = await sendImageForOCR(blob, 'http://localhost:7752/ocr', undefined, true);
+    const result = await sendImageForOCR(blob, { turbo: true });
 
     expect(result.client_scale).toBeLessThan(1);
     expect(result.downscale_factor).toBeGreaterThan(1);
@@ -352,20 +340,20 @@ describe('sendImageForOCR', () => {
   it('throws on non-ok response', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRError(500, 'Internal Server Error');
+    setupBackendOCRError(500, 'Internal Server Error');
 
     await expect(
-      sendImageForOCR(blob, 'http://localhost:7752/ocr')
+      sendImageForOCR(blob)
     ).rejects.toThrow('OCR request failed: 500 - Internal Server Error');
   });
 
   it('throws on 400 response with error body', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRError(400, 'Bad image format');
+    setupBackendOCRError(400, 'Bad image format');
 
     await expect(
-      sendImageForOCR(blob, 'http://localhost:7752/ocr')
+      sendImageForOCR(blob)
     ).rejects.toThrow('OCR request failed: 400 - Bad image format');
   });
 });
@@ -386,7 +374,7 @@ describe('useOCR', () => {
     mockRequestAccess = vi.fn(() => Promise.resolve(true));
     mockCloudRecognize.mockReset();
     mockEnsureCloudAccessToken.mockClear();
-    mockBackend.buildUrl.mockClear();
+    mockBackend.ocr.mockReset();
     mockSettings = {
       ocrProvider: 'local',
       ocrTurboMode: true,
@@ -409,7 +397,7 @@ describe('useOCR', () => {
   it('recognize with blob calls local backend and returns result', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'recognized' });
+    setupBackendOCRResponse({ text: 'recognized' });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -420,7 +408,10 @@ describe('useOCR', () => {
       expect(ocr.lastResult()!.text).toBe('recognized');
       expect(ocr.isProcessing()).toBe(false);
       expect(ocr.error()).toBeNull();
-      expect(mockBackend.buildUrl).toHaveBeenCalledWith('/ocr');
+      expect(mockBackend.ocr).toHaveBeenCalledWith(
+        expect.any(Blob),
+        expect.objectContaining({ turbo: true }),
+      );
       dispose();
     });
   });
@@ -434,7 +425,7 @@ describe('useOCR', () => {
 
       expect(result).toBeNull();
       expect(ocr.error()).toBe('Backend not connected');
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockBackend.ocr).not.toHaveBeenCalled();
       dispose();
     });
   });
@@ -449,14 +440,14 @@ describe('useOCR', () => {
       expect(result).toBeNull();
       expect(mockRequestAccess).toHaveBeenCalledWith('ocr');
       expect(ocr.isProcessing()).toBe(false);
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockBackend.ocr).not.toHaveBeenCalled();
       dispose();
     });
   });
 
-  it('recognize sets error on fetch failure', async () => {
+  it('recognize sets error on backend failure', async () => {
     setupImageBitmapMock(100, 100);
-    mockFetch.mockRejectedValue(new Error('Network failure'));
+    mockBackend.ocr.mockRejectedValue(new Error('Network failure'));
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -471,7 +462,7 @@ describe('useOCR', () => {
 
   it('recognize sets error on non-ok OCR response', async () => {
     setupImageBitmapMock(100, 100);
-    setupFetchOCRError(500, 'Server died');
+    setupBackendOCRError(500, 'Server died');
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -486,16 +477,11 @@ describe('useOCR', () => {
 
   it('recognizeBase64 converts raw base64 to data URL then recognizes', async () => {
     setupImageBitmapMock(100, 100);
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(makePngBlob()),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ text: 'base64 result' }),
-        text: vi.fn().mockResolvedValue(''),
-      });
+    setupBackendOCRResponse({ text: 'base64 result' });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(makePngBlob()),
+    });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -510,16 +496,11 @@ describe('useOCR', () => {
 
   it('recognizeBase64 does not double-wrap existing data URL', async () => {
     setupImageBitmapMock(100, 100);
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(makePngBlob()),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ text: 'ok' }),
-        text: vi.fn().mockResolvedValue(''),
-      });
+    setupBackendOCRResponse({ text: 'ok' });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(makePngBlob()),
+    });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -535,7 +516,7 @@ describe('useOCR', () => {
   it('recognizeBlob delegates to recognize', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'blob result' });
+    setupBackendOCRResponse({ text: 'blob result' });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -549,16 +530,11 @@ describe('useOCR', () => {
 
   it('recognizeUrl delegates to recognize with URL string', async () => {
     setupImageBitmapMock(100, 100);
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(makePngBlob()),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ text: 'url result' }),
-        text: vi.fn().mockResolvedValue(''),
-      });
+    setupBackendOCRResponse({ text: 'url result' });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(makePngBlob()),
+    });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -587,7 +563,7 @@ describe('useOCR', () => {
   it('clearResult resets lastResult to null', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'to be cleared' });
+    setupBackendOCRResponse({ text: 'to be cleared' });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -616,16 +592,11 @@ describe('useOCR', () => {
     vi.stubGlobal('mlearn', { captureScreen });
 
     setupImageBitmapMock(100, 100);
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(makePngBlob()),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ text: 'captured' }),
-        text: vi.fn().mockResolvedValue(''),
-      });
+    setupBackendOCRResponse({ text: 'captured' });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(makePngBlob()),
+    });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -765,7 +736,7 @@ describe('useOCR', () => {
 
       mockIsConnected = vi.fn(() => true);
       setupImageBitmapMock(100, 100);
-      setupFetchOCRResponse({ text: 'success' });
+      setupBackendOCRResponse({ text: 'success' });
 
       const result = await ocr.recognize(makePngBlob());
       expect(result).not.toBeNull();
@@ -777,7 +748,7 @@ describe('useOCR', () => {
   it('recognizeFile delegates File to recognize', async () => {
     const file = new File([new Uint8Array(100)], 'test.png', { type: 'image/png' });
     setupImageBitmapMock(100, 100);
-    setupFetchOCRResponse({ text: 'file result' });
+    setupBackendOCRResponse({ text: 'file result' });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
@@ -800,14 +771,13 @@ describe('useOCR', () => {
 
     const blob = makePngBlob();
     setupImageBitmapMock(1800, 1800);
-    setupFetchOCRResponse({ text: 'accurate mode' });
+    setupBackendOCRResponse({ text: 'accurate mode' });
 
     await createRoot(async (dispose) => {
       const ocr = useOCR();
       await ocr.recognize(blob);
 
-      const formData = mockFetch.mock.calls[0][1].body as FormData;
-      expect(formData.get('turbo')).toBe('0');
+      expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({ turbo: false });
       dispose();
     });
   });

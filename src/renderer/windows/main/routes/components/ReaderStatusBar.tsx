@@ -79,8 +79,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
     updateSettings({ readerWordHoverTrigger: value });
   };
 
-  const isTurbo = () => settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode;
-  const isFuriganaDetection = () => settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection;
+  const isTurbo = () => settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
+  const isFuriganaDetection = () => settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection!;
   const hasFurigana = () => currentLangData()?.hasFurigana ?? false;
 
   const toggleTurbo = () => {

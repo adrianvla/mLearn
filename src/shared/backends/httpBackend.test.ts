@@ -43,18 +43,6 @@ describe('HttpBackend', () => {
     });
   });
 
-  describe('buildUrl', () => {
-    const backend = new HttpBackend('http://127.0.0.1:7752');
-
-    it('concatenates baseUrl and path with leading slash', () => {
-      expect(backend.buildUrl('/tokenize')).toBe('http://127.0.0.1:7752/tokenize');
-    });
-
-    it('adds leading slash when path has none', () => {
-      expect(backend.buildUrl('tokenize')).toBe('http://127.0.0.1:7752/tokenize');
-    });
-  });
-
   describe('tokenize', () => {
     const backend = new HttpBackend('http://127.0.0.1:7752');
 
@@ -230,6 +218,53 @@ describe('HttpBackend', () => {
         message: 'OCR request failed: 401 - Unauthorized',
       });
     });
+
+    it('serializes OCR options as backend form fields', async () => {
+      const blob = new Blob(['img'], { type: 'image/png' });
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ boxes: [] }));
+
+      await backend.ocr(blob, {
+        turbo: false,
+        ramSaver: true,
+        devMode: true,
+        paddleMaxWidth: 640,
+        paddleMaxHeight: 480,
+      });
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const form = opts.body as FormData;
+      expect(form.get('turbo')).toBe('0');
+      expect(form.get('ram_saver')).toBe('1');
+      expect(form.get('dev_mode')).toBe('1');
+      expect(form.get('paddle_max_width')).toBe('640');
+      expect(form.get('paddle_max_height')).toBe('480');
+    });
+  });
+
+  describe('warmupOcr', () => {
+    const backend = new HttpBackend('http://127.0.0.1:7752');
+
+    it('posts to /ocr/warmup and returns status payload', async () => {
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ status: 'started' }));
+
+      const result = await backend.warmupOcr();
+
+      expect(result).toEqual({ status: 'started' });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:7752/ocr/warmup',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('throws structured errors from warmup failures', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(403, 'disabled'));
+
+      await expect(backend.warmupOcr()).rejects.toMatchObject({
+        name: 'HttpBackendStatusError',
+        status: 403,
+        message: 'OCR warmup failed: 403 - disabled',
+      });
+    });
   });
 
   describe('getCard', () => {
@@ -328,7 +363,10 @@ describe('HttpBackend', () => {
       expect(result).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
         'http://127.0.0.1:7752/control',
-        expect.objectContaining({ method: 'GET' })
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ function: 'ping' }),
+        })
       );
     });
 

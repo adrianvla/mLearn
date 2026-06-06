@@ -44,14 +44,16 @@ export const API_ENDPOINTS = {
   voiceTranscribe: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/transcribe`,
 } as const;
 
-/** Path-only endpoint constants — use with BackendAdapter.buildUrl() */
+/** Path-only endpoint constants for backend transport implementations. */
 export const API_PATHS = {
   tokenize: '/tokenize',
   translate: '/translate',
   getCard: '/getCard',
+  ankiWords: '/ankiWords',
   llm: '/llm',
   llmStatus: '/llm/status',
   ocr: '/ocr',
+  ocrWarmup: '/ocr/warmup',
   control: '/control',
   quit: '/quit',
   voiceStream: '/voice/stream',

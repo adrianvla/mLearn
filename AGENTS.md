@@ -39,6 +39,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Backend modes**: `settings.backendMode` is `'local' | 'tethered'` only. `getBackend()` returns `HttpBackend` for both. Cloud LLM calls bypass `getBackend()` entirely and use `CloudLLMAdapter` (SSE streaming).
 - **Context nesting order** (via `WindowWrapper`): `ServerProvider → LocalizationProvider → ResponsiveProvider → SettingsProvider → LowPowerGateProvider → LanguageProviderBridge → MigrationHandler → FlashcardProvider`
 - **Settings updates**: Always use `updateSetting()`/`updateSettings()` from Settings context — triggers `reconcile()`, DOM theme application, backend reconfig, bridge save, and `BroadcastChannel` cross-window sync. Never use raw `setStore`.
+- **Setting fallbacks**: When reading optional or migrated settings, use `DEFAULT_SETTINGS.<key>` as the fallback. Do not hardcode literal defaults like `?? true`, `?? 300`, or `|| 'local'`.
 - **State patterns**: Settings uses `createStore` + `reconcile()`. Flashcards use `createStore` + `produce()`.
 - **Capacitor stub**: `electron` imports are aliased to `src/shared/stubs/electron.ts` in Capacitor builds.
 - **Barrel exports**: Every new common component must be exported from `src/renderer/components/common/index.ts`.

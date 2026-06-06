@@ -7,7 +7,14 @@
  */
 
 import type { Token, TranslationResponse } from '../types';
-import type { AnkiWordStatusRecord, BackendAdapter, OCRResult } from './types';
+import { API_PATHS } from '../constants';
+import type {
+  AnkiWordStatusRecord,
+  BackendAdapter,
+  OCRRequestOptions,
+  OCRResult,
+  OCRWarmupResult,
+} from './types';
 import { getLogger } from '../utils/logger';
 
 const log = getLogger("shared.backends.http");
@@ -41,7 +48,7 @@ export class HttpBackend implements BackendAdapter {
     return this.baseUrl;
   }
 
-  buildUrl(path: string): string {
+  private buildUrl(path: string): string {
     const p = path.startsWith('/') ? path : `/${path}`;
     return `${this.baseUrl}${p}`;
   }
@@ -68,7 +75,7 @@ export class HttpBackend implements BackendAdapter {
     const body: Record<string, string> = { text };
     if (language) body.language = language;
 
-    const res = await fetch(this.buildUrl('/tokenize'), {
+    const res = await fetch(this.buildUrl(API_PATHS.tokenize), {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
@@ -84,7 +91,7 @@ export class HttpBackend implements BackendAdapter {
     const body: Record<string, string> = { word };
     if (language) body.language = language;
 
-    const res = await fetch(this.buildUrl('/translate'), {
+    const res = await fetch(this.buildUrl(API_PATHS.translate), {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
@@ -95,7 +102,7 @@ export class HttpBackend implements BackendAdapter {
     return (await res.json()) as TranslationResponse;
   }
 
-  async ocr(imageData: string | Blob): Promise<OCRResult> {
+  async ocr(imageData: string | Blob, options?: OCRRequestOptions): Promise<OCRResult> {
     const form = new FormData();
 
     if (typeof imageData === 'string') {
@@ -107,7 +114,23 @@ export class HttpBackend implements BackendAdapter {
       form.append('file', imageData, 'image.png');
     }
 
-    const res = await fetch(this.buildUrl('/ocr'), {
+    if (options?.turbo !== undefined) {
+      form.append('turbo', options.turbo ? '1' : '0');
+    }
+    if (options?.ramSaver !== undefined) {
+      form.append('ram_saver', options.ramSaver ? '1' : '0');
+    }
+    if (options?.devMode !== undefined) {
+      form.append('dev_mode', options.devMode ? '1' : '0');
+    }
+    if (options?.paddleMaxWidth !== undefined) {
+      form.append('paddle_max_width', String(options.paddleMaxWidth));
+    }
+    if (options?.paddleMaxHeight !== undefined) {
+      form.append('paddle_max_height', String(options.paddleMaxHeight));
+    }
+
+    const res = await fetch(this.buildUrl(API_PATHS.ocr), {
       method: 'POST',
       headers: this.headers(),
       body: form,
@@ -118,8 +141,19 @@ export class HttpBackend implements BackendAdapter {
     return (await res.json()) as OCRResult;
   }
 
+  async warmupOcr(): Promise<OCRWarmupResult> {
+    const res = await fetch(this.buildUrl(API_PATHS.ocrWarmup), {
+      method: 'POST',
+      headers: this.headers(),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    await this.throwOnError(res, 'OCR warmup');
+    return (await res.json()) as OCRWarmupResult;
+  }
+
   async getCard(params: Record<string, unknown>): Promise<unknown> {
-    const res = await fetch(this.buildUrl('/getCard'), {
+    const res = await fetch(this.buildUrl(API_PATHS.getCard), {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(params),
@@ -131,7 +165,7 @@ export class HttpBackend implements BackendAdapter {
   }
 
   private async getAnkiWordsPayload(): Promise<{ words?: string[]; cards?: AnkiWordStatusRecord[] }> {
-    const res = await fetch(this.buildUrl('/ankiWords'), {
+    const res = await fetch(this.buildUrl(API_PATHS.ankiWords), {
       method: 'GET',
       headers: this.headers(),
       signal: AbortSignal.timeout(10_000),
@@ -158,9 +192,10 @@ export class HttpBackend implements BackendAdapter {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(this.buildUrl('/control'), {
-        method: 'GET',
-        headers: this.headers(),
+      const res = await fetch(this.buildUrl(API_PATHS.control), {
+        method: 'POST',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ function: 'ping' }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

@@ -3,34 +3,38 @@ import { getBackend, resetBackend, resolveCloudLoginUrl, resolveCloudApiUrl } fr
 import { HttpBackend } from './httpBackend';
 import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 
+function expectHttpBackend(backend: ReturnType<typeof getBackend>): HttpBackend {
+  expect(backend).toBeInstanceOf(HttpBackend);
+  return backend as HttpBackend;
+}
+
 describe('getBackend', () => {
   beforeEach(() => {
     resetBackend();
   });
 
   it('returns HttpBackend with local default URL when called with no options', () => {
-    const backend = getBackend();
-    expect(backend).toBeInstanceOf(HttpBackend);
+    const backend = expectHttpBackend(getBackend());
     expect(backend.getBaseUrl()).toBe(`http://127.0.0.1:${PYTHON_BACKEND_PORT}`);
   });
 
   it('returns HttpBackend with local URL when mode is local', () => {
-    const backend = getBackend({ mode: 'local' });
+    const backend = expectHttpBackend(getBackend({ mode: 'local' }));
     expect(backend.getBaseUrl()).toBe(`http://127.0.0.1:${PYTHON_BACKEND_PORT}`);
   });
 
   it('returns HttpBackend with provided URL in tethered mode', () => {
-    const backend = getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752' });
+    const backend = expectHttpBackend(getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752' }));
     expect(backend.getBaseUrl()).toBe('http://192.168.1.10:7752');
   });
 
   it('falls back to default local URL in tethered mode when no url provided', () => {
-    const backend = getBackend({ mode: 'tethered' });
+    const backend = expectHttpBackend(getBackend({ mode: 'tethered' }));
     expect(backend.getBaseUrl()).toBe(`http://127.0.0.1:${PYTHON_BACKEND_PORT}`);
   });
 
   it('strips trailing slash from tethered URL', () => {
-    const backend = getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752/' });
+    const backend = expectHttpBackend(getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752/' }));
     expect(backend.getBaseUrl()).toBe('http://192.168.1.10:7752');
   });
 
