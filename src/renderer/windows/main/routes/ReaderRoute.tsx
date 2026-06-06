@@ -85,6 +85,7 @@ const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
 
 // Per-book page memory (like old app's sequencer.js)
 const STORAGE_KEY_PREFIX = 'reader:last-page:';
+const ACTIVE_BOOK_STORAGE_KEY = 'reader:active-book-path';
 const makeStorageKey = (bookId: string) => `${STORAGE_KEY_PREFIX}${bookId}`;
 
 const loadSavedPageIndex = async (bookId: string | null): Promise<number | null> => {
@@ -104,6 +105,34 @@ const persistPageIndex = (bookId: string | null, pageIndex: number, totalPages: 
   if (!bookId || totalPages === 0) return;
   const normalized = Math.min(Math.max(pageIndex, 0), totalPages - 1);
   getBridge().kvStore.kvSet(makeStorageKey(bookId), String(normalized));
+};
+
+const persistActiveBookPath = async (bookPath: string): Promise<void> => {
+  const trimmedPath = bookPath.trim();
+  if (!trimmedPath) return;
+  try {
+    await getBridge().kvStore.kvSet(ACTIVE_BOOK_STORAGE_KEY, trimmedPath);
+  } catch (err) {
+    log.warn('[Reader] Failed to persist active book path', err);
+  }
+};
+
+const loadActiveBookPath = async (): Promise<string | null> => {
+  try {
+    const path = await getBridge().kvStore.kvGet(ACTIVE_BOOK_STORAGE_KEY);
+    return path?.trim() || null;
+  } catch (err) {
+    log.warn('[Reader] Failed to read active book path', err);
+    return null;
+  }
+};
+
+const clearActiveBookPath = async (): Promise<void> => {
+  try {
+    await getBridge().kvStore.kvRemove(ACTIVE_BOOK_STORAGE_KEY);
+  } catch (err) {
+    log.warn('[Reader] Failed to clear active book path', err);
+  }
 };
 
 // Extract folder name from a path or first file
@@ -1037,9 +1066,11 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
         saveToRecent(bookId || t('mlearn.Reader.Status.ImportedBook'), 'book', startPage, bookPath, newPages[0]?.blob);
       }
 
+      void persistActiveBookPath(bookPath);
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
     } catch (error) {
       log.error('[Reader] Failed to load from path:', error);
+      void clearActiveBookPath();
       setOcrStatus(t('mlearn.Reader.Status.FailedToLoad'));
     }
   };
@@ -1163,7 +1194,13 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     const pendingBook = sessionStorage.getItem('mlearn_open_book');
     if (pendingBook) {
       sessionStorage.removeItem('mlearn_open_book');
-      loadBookFromPath(pendingBook);
+      void loadBookFromPath(pendingBook);
+    } else {
+      void loadActiveBookPath().then((activeBookPath) => {
+        if (activeBookPath && pages().length === 0) {
+          void loadBookFromPath(activeBookPath);
+        }
+      });
     }
 
     // Trigger lazy warmup of OCR transformers on the backend.
@@ -1188,13 +1225,14 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           // Toggle through settings so FuriganaHider component gets updated
           updateSettings({ readerFuriganaHider: !furiganaHiderEnabled() });
           break;
-        case 'copy-phrase':
+        case 'copy-phrase': {
           // Copy the current context phrase to clipboard
           const phrase = ocrContextPhrase();
           if (phrase) {
             bridge.files.writeToClipboard(phrase);
           }
           break;
+        }
         case 'explain-phrase':
           if (!settings.llmEnabled) {
             alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
@@ -1431,6 +1469,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           setBookTitle(title);
           saveToRecent(title, 'book', startPage, pdfPath, newPages[0]?.blob);
         });
+        void persistActiveBookPath(pdfPath);
         setOcrStatus(t('mlearn.Reader.Status.Ready'));
         return;
       } catch (error) {
@@ -1510,6 +1549,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     // Determine title: use the folder name (stripped)
     const title = bookId || t('mlearn.Reader.Status.ImportedBook');
     setBookTitle(title);
+    void persistActiveBookPath(bookPath);
     saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
   };
 
@@ -1692,7 +1732,10 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
   };
   const handleOcrWordLeave = () => hideOcrHover();
 
-  const goHome = () => navigate('/');
+  const goHome = () => {
+    void clearActiveBookPath();
+    navigate('/');
+  };
 
   const openConversationAgent = () => {
     const s = mediaStats.stats();
@@ -1758,8 +1801,10 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
   const hasOcrForPage = (pageId: string) => !!ocrResults[pageId];
 
   return (
-      <div
+      <section
           class="reader-route"
+          aria-label={t('mlearn.Reader.Title')}
+          tabIndex={-1}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -2072,6 +2117,6 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           onConfirm={confirmAnkiAddAll}
           onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
         />
-      </div>
+      </section>
   );
 };
