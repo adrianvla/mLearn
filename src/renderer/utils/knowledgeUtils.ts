@@ -77,3 +77,14 @@ export function buildKnownWordSetFromStore(
     knownEaseThreshold,
   );
 }
+
+export function buildTrackedWordSet(store: FlashcardStore, language: string): Set<string> {
+  const tracked = new Set<string>();
+  const prefix = language + ':';
+  for (const lk of Object.keys(store.wordToCardMap)) if (lk.startsWith(prefix)) tracked.add(lk);
+  for (const lk of Object.keys(store.wordKnowledge)) if (lk.startsWith(prefix)) tracked.add(lk);
+  for (const lk of Object.keys(store.wordCandidates)) if (lk.startsWith(prefix)) tracked.add(lk);
+  for (const lk of Object.keys(store.knownUntracked)) if (lk.startsWith(prefix)) tracked.add(lk);
+  for (const lk of Object.keys(store.ignoredWords)) if (lk.startsWith(prefix)) tracked.add(lk);
+  return tracked;
+}
