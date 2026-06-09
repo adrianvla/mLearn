@@ -387,20 +387,6 @@
         "SettingsLink": "設定",
         "TerminationNotice": "有害なコンテンツが検出された場合、チャットは終了されます。"
       },
-      "AgeVerification": {
-        "Title": "AI Conversation Agent — Age Verification",
-        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
-        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
-        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
-        "ContinueButton": "Continue to Chat"
-      },
-      "Banner": {
-        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
-        "SettingsLink": "Settings",
-        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
-      },
       "Commands": {
         "NewTopic": "新しいトピック",
         "NewTopicDesc": "新しい会話トピックに切り替える"
@@ -997,7 +983,14 @@
         },
         "WordSync": {
           "Description": "語彙の習得度を評価する",
+          "FilterUnknownOnly": "未知のみ",
+          "FilterUnknownLearning": "未知 + 学習中",
+          "FilterPassive": "受動的に追跡",
           "Title": "単語シンク"
+        },
+        "ExamCentricStudy": {
+          "Description": "Word Sync, Character Grid, and Exam Study in one place",
+          "Title": "Exam-centric Study"
         }
       },
       "Errors": {
@@ -1060,6 +1053,66 @@
         "AlreadySatisfied": "既にインストール済み",
         "Collecting": "依存関係を収集中…",
         "Downloading": "ダウンロード中…"
+      }
+    },
+    "ExamCentricStudy": {
+      "Title": "Exam-centric Study",
+      "Tabs": {
+        "WordSync": "Word Sync",
+        "CharacterGrid": "Character Grid",
+        "ExamStudy": "Exam Study"
+      }
+    },
+    "ExamStudy": {
+      "EmptyState": {
+        "Title": "試験学習",
+        "Description": "試験レベル別に整理された単語を学習します。進捗を追跡し、単語をフラッシュカードに追加できます。"
+      },
+      "Coverage": {
+        "Title": "試験単語カバレッジ",
+        "Words": "語",
+        "Complete": "すべての試験単語が追跡されています!",
+        "Hint": "下のレベルをクリックして単語を表示・追加"
+      },
+      "PopulationStats": {
+        "Title": "フラッシュカード作成状況",
+        "Populated": "{populated} / {total} 件作成済み",
+        "Complete": "すべてのフラッシュカードが作成済み"
+      },
+      "BulkAdd": {
+        "Button": "未追跡単語を一括追加",
+        "UntrackedCount": "{count}件の未追跡単語",
+        "Cancel": "キャンセル",
+        "Adding": "追加中...",
+        "Confirm": "すべて追加"
+      },
+      "LevelCard": {
+        "TotalWords": "{count}語",
+        "Known": "既知",
+        "Learning": "学習中",
+        "Unknown": "未知",
+        "Untracked": "未追跡",
+        "ClickToView": "クリックして単語を表示",
+        "ViewWords": "単語を表示"
+      },
+      "DetailModal": {
+        "Title": "{levelName}の単語",
+        "SelectAll": "すべて選択",
+        "SelectUntracked": "未追跡を選択",
+        "AddFlashcards": "{count}件のフラッシュカードを追加",
+        "AddAs": "追加方法:",
+        "StatusNew": "新規",
+        "StatusLearning": "学習中",
+        "StatusKnown": "既知",
+        "StatusMastered": "習得済み",
+        "SliderHint": "{status}ステータスまでのすべての単語を追加",
+        "NoWords": "現在のフィターに一致する単語がありません",
+        "WordsAdded": "{count}件のフラッシュカードを追加しました",
+        "Selected": "件選択",
+        "ClearSelection": "選択を解除",
+        "Adding": "追加中...",
+        "LoadMore": "さらに読み込む",
+        "Error": "追加に失敗しました"
       }
     },
     "KanjiGrid": {
@@ -2001,6 +2054,7 @@
       "Actions": {
         "EditWordDatabase": "単語データベースを編集",
         "OpenAiAnalytics": "AIメディア分析",
+        "OpenExamCentricStudy": "Open Exam-centric Study",
         "ViewKanjiGrid": "漢字グリッドを表示"
       },
       "CurrentlyLearning": "学習中",
@@ -2428,6 +2482,7 @@
       },
       "ReviewFlashcards": "フラッシュカードを復習",
       "Settings": "設定",
+      "ExamCentricStudy": "Exam-centric Study",
       "ShowKanjiGrid": "漢字グリッドを表示",
       "ShowLearningStatistics": "学習統計を表示",
       "ShowReading": "読みを表示",

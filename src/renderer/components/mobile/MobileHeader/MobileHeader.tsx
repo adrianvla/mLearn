@@ -23,7 +23,7 @@ const routeTitleKeys: Record<string, string> = {
   '/settings': 'mlearn.Tabs.Settings',
   '/conversation-agent': 'mlearn.ConversationAgent.Title',
   '/word-db-editor': 'mlearn.WordDbEditor.Title',
-  '/kanji-grid': 'mlearn.KanjiGrid.Title',
+  '/exam-centric-study': 'mlearn.ExamCentricStudy.Title',
   '/licenses': 'mlearn.Settings.About.Licenses',
 };
 

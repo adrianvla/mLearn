@@ -8,7 +8,7 @@ import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, GridIcon, SearchIcon, RefreshIcon, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, type RecentItem } from '../../../components/common';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
@@ -115,19 +115,11 @@ export const WelcomeRoute: Component = () => {
     }
   };
 
-  const openCharacterGrid = () => {
+  const openExamCentricStudy = () => {
     if (isMobile()) {
-      navigate('/kanji-grid');
+      navigate('/exam-centric-study');
     } else {
-      getBridge().window.openWindow({ type: 'kanji-grid' });
-    }
-  };
-
-  const openWordSync = () => {
-    if (isMobile()) {
-      navigate('/word-sync');
-    } else {
-      getBridge().window.openWindow({ type: 'word-sync' });
+      getBridge().window.openWindow({ type: 'exam-centric-study' });
     }
   };
 
@@ -240,17 +232,10 @@ export const WelcomeRoute: Component = () => {
         />
 
         <ActionCard
-          icon={<GridIcon size={24} />}
-          title={t('mlearn.Home.Cards.CharacterGrid.Title')}
-          description={t('mlearn.Home.Cards.CharacterGrid.Description')}
-          onClick={openCharacterGrid}
-        />
-
-        <ActionCard
-          icon={<RefreshIcon size={24} />}
-          title={t('mlearn.Home.Cards.WordSync.Title')}
-          description={t('mlearn.Home.Cards.WordSync.Description')}
-          onClick={openWordSync}
+          icon={<TargetIcon size={24} />}
+          title={t('mlearn.Home.Cards.ExamCentricStudy.Title')}
+          description={t('mlearn.Home.Cards.ExamCentricStudy.Description')}
+          onClick={openExamCentricStudy}
         />
 
         <Show

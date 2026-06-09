@@ -27,7 +27,7 @@ import { FlashcardsContent } from './routes/FlashcardsRoute';
 import { SettingsRoute } from './routes/SettingsRoute';
 import { ConversationAgentRoute } from './routes/ConversationAgentRoute';
 import { WordDbEditorRoute } from './routes/WordDbEditorRoute';
-import { KanjiGridRoute } from './routes/KanjiGridRoute';
+import { ExamCentricStudyRoute } from './routes/ExamCentricStudyRoute';
 import { LicensesRoute } from './routes/LicensesRoute';
 import { StatisticsRoute } from './routes/StatisticsRoute';
 
@@ -57,7 +57,7 @@ const App = () => {
           <Route path="/settings" component={() => <MobileLayout><SettingsRoute /></MobileLayout>} />
           <Route path="/conversation-agent" component={() => <MobileLayout><ConversationAgentRoute /></MobileLayout>} />
           <Route path="/word-db-editor" component={() => <MobileLayout><WordDbEditorRoute /></MobileLayout>} />
-          <Route path="/kanji-grid" component={() => <MobileLayout><KanjiGridRoute /></MobileLayout>} />
+          <Route path="/exam-centric-study" component={() => <MobileLayout><ExamCentricStudyRoute /></MobileLayout>} />
           <Route path="/statistics" component={() => <MobileLayout><StatisticsRoute /></MobileLayout>} />
           <Route path="/licenses" component={() => <MobileLayout><LicensesRoute /></MobileLayout>} />
         </HashRouter>

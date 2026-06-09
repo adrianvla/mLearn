@@ -387,20 +387,6 @@
         "SettingsLink": "设置",
         "TerminationNotice": "如果检测到有害内容，聊天将被终止。"
       },
-      "AgeVerification": {
-        "Title": "AI Conversation Agent — Age Verification",
-        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
-        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
-        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
-        "ContinueButton": "Continue to Chat"
-      },
-      "Banner": {
-        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
-        "SettingsLink": "Settings",
-        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
-      },
       "Commands": {
         "NewTopic": "新主题",
         "NewTopicDesc": "切换到新的对话主题"
@@ -997,7 +983,14 @@
         },
         "WordSync": {
           "Description": "评估您的词汇掌握程度",
+          "FilterUnknownOnly": "仅未知",
+          "FilterUnknownLearning": "未知 + 学习中",
+          "FilterPassive": "被动追踪",
           "Title": "单词同步"
+        },
+        "ExamCentricStudy": {
+          "Description": "Word Sync, Character Grid, and Exam Study in one place",
+          "Title": "Exam-centric Study"
         }
       },
       "Errors": {
@@ -1060,6 +1053,66 @@
         "AlreadySatisfied": "已满足",
         "Collecting": "正在收集依赖项…",
         "Downloading": "正在下载…"
+      }
+    },
+    "ExamCentricStudy": {
+      "Title": "Exam-centric Study",
+      "Tabs": {
+        "WordSync": "Word Sync",
+        "CharacterGrid": "Character Grid",
+        "ExamStudy": "Exam Study"
+      }
+    },
+    "ExamStudy": {
+      "EmptyState": {
+        "Title": "考试学习",
+        "Description": "按考试等级学习单词。跟踪进度并添加到闪卡。"
+      },
+      "Coverage": {
+        "Title": "考试单词覆盖率",
+        "Words": "个单词",
+        "Complete": "所有考试单词已追踪!",
+        "Hint": "点击下方等级查看并添加单词"
+      },
+      "PopulationStats": {
+        "Title": "闪卡填充",
+        "Populated": "已填充 {populated} / {total}",
+        "Complete": "所有闪卡已填充"
+      },
+      "BulkAdd": {
+        "Button": "批量添加未追踪单词",
+        "UntrackedCount": "{count} 个未追踪单词",
+        "Cancel": "取消",
+        "Adding": "添加中...",
+        "Confirm": "全部添加"
+      },
+      "LevelCard": {
+        "TotalWords": "{count} 个单词",
+        "Known": "已掌握",
+        "Learning": "学习中",
+        "Unknown": "未知",
+        "Untracked": "未追踪",
+        "ClickToView": "点击查看单词",
+        "ViewWords": "查看单词"
+      },
+      "DetailModal": {
+        "Title": "{levelName} 单词",
+        "SelectAll": "全选",
+        "SelectUntracked": "选择未追踪",
+        "AddFlashcards": "添加 {count} 张闪卡",
+        "AddAs": "添加为:",
+        "StatusNew": "新词",
+        "StatusLearning": "学习中",
+        "StatusKnown": "已掌握",
+        "StatusMastered": "已精通",
+        "SliderHint": "添加所有{status}状态及以下的单词",
+        "NoWords": "没有单词符合当前筛选条件",
+        "WordsAdded": "已添加 {count} 张闪卡",
+        "Selected": "已选择",
+        "ClearSelection": "清除选择",
+        "Adding": "添加中...",
+        "LoadMore": "加载更多",
+        "Error": "添加失败"
       }
     },
     "KanjiGrid": {
@@ -2001,6 +2054,7 @@
       "Actions": {
         "EditWordDatabase": "编辑单词数据库",
         "OpenAiAnalytics": "AI 媒体分析",
+        "OpenExamCentricStudy": "Open Exam-centric Study",
         "ViewKanjiGrid": "查看汉字网格"
       },
       "CurrentlyLearning": "正在学习",
@@ -2428,6 +2482,7 @@
       },
       "ReviewFlashcards": "复习闪卡",
       "Settings": "设置",
+      "ExamCentricStudy": "Exam-centric Study",
       "ShowKanjiGrid": "显示汉字网格",
       "ShowLearningStatistics": "显示学习统计",
       "ShowReading": "显示读音",

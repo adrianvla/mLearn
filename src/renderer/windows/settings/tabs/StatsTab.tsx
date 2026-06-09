@@ -41,7 +41,7 @@ export const StatsTab: Component = () => {
 
   const pct = (n: number, total: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
 
-  const openKanjiGrid = () => getBridge().window.openWindow({ type: 'kanji-grid' });
+  const openExamCentricStudy = () => getBridge().window.openWindow({ type: 'exam-centric-study' });
   const openWordDbEditor = () => getBridge().window.openWindow({ type: 'word-db-editor' });
   const openAiAnalytics = () => getBridge().window.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
 
@@ -123,8 +123,8 @@ export const StatsTab: Component = () => {
       </Show>
 
       <div class="stats-actions">
-        <Btn variant="default" onClick={openKanjiGrid}>
-          {t('mlearn.Statistics.Actions.ViewKanjiGrid')}
+        <Btn variant="default" onClick={openExamCentricStudy}>
+          {t('mlearn.Statistics.Actions.OpenExamCentricStudy')}
         </Btn>
         <Btn variant="default" onClick={openWordDbEditor}>
           {t('mlearn.Statistics.Actions.EditWordDatabase')}

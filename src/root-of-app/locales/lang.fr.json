@@ -387,20 +387,6 @@
         "SettingsLink": "Paramètres",
         "TerminationNotice": "Si du contenu nuisible est détecté, le chat sera terminé."
       },
-      "AgeVerification": {
-        "Title": "AI Conversation Agent — Age Verification",
-        "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
-        "AgeVerificationText": "The AI tutor is designed for language education. However, it is powered by large language models that generate probabilistic text. Despite system-level safety instructions, outputs may occasionally contain inaccurate, inappropriate, or unexpected content. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
-        "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
-        "ContinueButton": "Continue to Chat"
-      },
-      "Banner": {
-        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
-        "SettingsLink": "Settings",
-        "TerminationNotice": "If harmful content is detected, the chat will be terminated."
-      },
       "Commands": {
         "NewTopic": "Nouveau sujet",
         "NewTopicDesc": "Passer à un nouveau sujet de conversation"
@@ -997,7 +983,14 @@
         },
         "WordSync": {
           "Description": "Évaluez votre connaissance du vocabulaire",
+          "FilterUnknownOnly": "Inconnu seulement",
+          "FilterUnknownLearning": "Inconnu + En apprentissage",
+          "FilterPassive": "Suivi passivement",
           "Title": "Sync des mots"
+        },
+        "ExamCentricStudy": {
+          "Description": "Word Sync, Character Grid, and Exam Study in one place",
+          "Title": "Exam-centric Study"
         }
       },
       "Errors": {
@@ -1060,6 +1053,66 @@
         "AlreadySatisfied": "Déjà satisfait",
         "Collecting": "Collecte des dépendances…",
         "Downloading": "Téléchargement…"
+      }
+    },
+    "ExamCentricStudy": {
+      "Title": "Exam-centric Study",
+      "Tabs": {
+        "WordSync": "Word Sync",
+        "CharacterGrid": "Character Grid",
+        "ExamStudy": "Exam Study"
+      }
+    },
+    "ExamStudy": {
+      "EmptyState": {
+        "Title": "Préparation aux examens",
+        "Description": "Étudiez des mots organisés par niveau d'examen. Suivez vos progrès et ajoutez des mots aux flashcards."
+      },
+      "Coverage": {
+        "Title": "Couverture des mots d'examen",
+        "Words": "mots",
+        "Complete": "Tous les mots d'examen sont suivis!",
+        "Hint": "Cliquez sur un niveau ci-dessous pour voir et ajouter des mots"
+      },
+      "PopulationStats": {
+        "Title": "Remplissage des flashcards",
+        "Populated": "{populated} sur {total} remplis",
+        "Complete": "Toutes les flashcards sont remplies"
+      },
+      "BulkAdd": {
+        "Button": "Ajouter en masse les mots non suivis",
+        "UntrackedCount": "{count} mots non suivis",
+        "Cancel": "Annuler",
+        "Adding": "Ajout...",
+        "Confirm": "Tout ajouter"
+      },
+      "LevelCard": {
+        "TotalWords": "{count} mots",
+        "Known": "Connu",
+        "Learning": "En apprentissage",
+        "Unknown": "Inconnu",
+        "Untracked": "Non suivi",
+        "ClickToView": "Cliquez pour afficher les mots",
+        "ViewWords": "Voir les mots"
+      },
+      "DetailModal": {
+        "Title": "Mots {levelName}",
+        "SelectAll": "Tout sélectionner",
+        "SelectUntracked": "Sélectionner les non suivis",
+        "AddFlashcards": "Ajouter {count} flashcards",
+        "AddAs": "Ajouter en tant que:",
+        "StatusNew": "Nouveau",
+        "StatusLearning": "En apprentissage",
+        "StatusKnown": "Connu",
+        "StatusMastered": "Maîtrisé",
+        "SliderHint": "Ajout de tous les mots jusqu'au statut {status}",
+        "NoWords": "Aucun mot ne correspond au filtre actuel",
+        "WordsAdded": "{count} flashcards ajoutées",
+        "Selected": "sélectionnés",
+        "ClearSelection": "Effacer la sélection",
+        "Adding": "Ajout...",
+        "LoadMore": "Charger plus",
+        "Error": "Échec de l'ajout"
       }
     },
     "KanjiGrid": {
@@ -2001,6 +2054,7 @@
       "Actions": {
         "EditWordDatabase": "Éditeur de base de mots",
         "OpenAiAnalytics": "Analyse IA des médias",
+        "OpenExamCentricStudy": "Open Exam-centric Study",
         "ViewKanjiGrid": "Grille de kanji"
       },
       "CurrentlyLearning": "En cours d'apprentissage",
@@ -2428,6 +2482,7 @@
       },
       "ReviewFlashcards": "Réviser les cartes",
       "Settings": "Paramètres",
+      "ExamCentricStudy": "Exam-centric Study",
       "ShowKanjiGrid": "Afficher la grille des kanji",
       "ShowLearningStatistics": "Afficher les statistiques d'apprentissage",
       "ShowReading": "Afficher la lecture",

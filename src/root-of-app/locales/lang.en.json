@@ -983,7 +983,14 @@
         },
         "WordSync": {
           "Description": "Rate your vocabulary knowledge",
+          "FilterUnknownOnly": "Unknown only",
+          "FilterUnknownLearning": "Unknown + Learning",
+          "FilterPassive": "Passively tracked",
           "Title": "Word Sync"
+        },
+        "ExamCentricStudy": {
+          "Description": "Word Sync, Character Grid, and Exam Study in one place",
+          "Title": "Exam-centric Study"
         }
       },
       "Errors": {
@@ -1046,6 +1053,66 @@
         "AlreadySatisfied": "Already satisfied",
         "Collecting": "Collecting dependencies…",
         "Downloading": "Downloading…"
+      }
+    },
+    "ExamCentricStudy": {
+      "Title": "Exam-centric Study",
+      "Tabs": {
+        "WordSync": "Word Sync",
+        "CharacterGrid": "Character Grid",
+        "ExamStudy": "Exam Study"
+      }
+    },
+    "ExamStudy": {
+      "EmptyState": {
+        "Title": "Exam Study",
+        "Description": "Study words organized by exam level. Track your progress and add words to flashcards."
+      },
+      "Coverage": {
+        "Title": "Exam Word Coverage",
+        "Words": "words",
+        "Complete": "All exam words are tracked!",
+        "Hint": "Click a level below to view and add words"
+      },
+      "PopulationStats": {
+        "Title": "Flashcard Population",
+        "Populated": "{populated} of {total} populated",
+        "Complete": "All flashcards populated"
+      },
+      "BulkAdd": {
+        "Button": "Bulk Add Untracked Words",
+        "UntrackedCount": "{count} untracked words",
+        "Cancel": "Cancel",
+        "Adding": "Adding...",
+        "Confirm": "Add All"
+      },
+      "LevelCard": {
+        "TotalWords": "{count} words",
+        "Known": "Known",
+        "Learning": "Learning",
+        "Unknown": "Unknown",
+        "Untracked": "Untracked",
+        "ClickToView": "Click to view words",
+        "ViewWords": "View words"
+      },
+      "DetailModal": {
+        "Title": "{levelName} Words",
+        "SelectAll": "Select all",
+        "SelectUntracked": "Select untracked",
+        "AddFlashcards": "Add {count} Flashcards",
+        "AddAs": "Add as:",
+        "StatusNew": "New",
+        "StatusLearning": "Learning",
+        "StatusKnown": "Known",
+        "StatusMastered": "Mastered",
+        "SliderHint": "Adding all words up to {status} status",
+        "NoWords": "No words match the current filter",
+        "WordsAdded": "Added {count} flashcards",
+        "Selected": "selected",
+        "ClearSelection": "Clear selection",
+        "Adding": "Adding...",
+        "LoadMore": "Load more",
+        "Error": "Failed to add flashcards"
       }
     },
     "KanjiGrid": {
@@ -1987,6 +2054,7 @@
       "Actions": {
         "EditWordDatabase": "Edit Word Database",
         "OpenAiAnalytics": "AI Media Analytics",
+        "OpenExamCentricStudy": "Open Exam-centric Study",
         "ViewKanjiGrid": "View Kanji Grid"
       },
       "CurrentlyLearning": "Currently Learning",
@@ -2414,6 +2482,7 @@
       },
       "ReviewFlashcards": "Review Flashcards",
       "Settings": "Settings",
+      "ExamCentricStudy": "Exam-centric Study",
       "ShowKanjiGrid": "Show Kanji grid",
       "ShowLearningStatistics": "Show learning statistics",
       "ShowReading": "Show Reading",

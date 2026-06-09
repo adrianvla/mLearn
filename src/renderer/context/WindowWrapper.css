@@ -33,3 +33,27 @@
 .window-loading-spinner-dash {
   animation: square-dash 1.2s linear infinite;
 }
+
+.window-layout-with-titlebar {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.window-titlebar-mac {
+  height: 28px;
+  width: 100%;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  background-color: var(--bg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.window-content-below-titlebar {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
