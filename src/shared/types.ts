@@ -717,10 +717,16 @@ export interface FlashcardContent {
   context?: string;
   /** Source (video name, book name, etc.) */
   source?: string;
+  /** Hash of source media when known */
+  sourceMediaHash?: string;
   /** Video clip URL (flashcard-video:// protocol or Capacitor file URL) */
   videoUrl?: string;
   /** When true, skip automatic TTS generation for the example field (e.g. video clip provides audio) */
   skipExampleTts?: boolean;
+  /** True when the card was created as a shell and still needs media/definition population */
+  unpopulated?: boolean;
+  /** Content fields edited by the user that automatic population should not overwrite */
+  userEditedFields?: string[];
   /** Custom fields for extensibility */
   extra?: Record<string, unknown>;
   

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeWordLevelStats, computeLevelCoverage } from './wordLevelStats';
+import { computeWordLevelStats, computeLevelCoverage, computeExamLevelStats } from './wordLevelStats';
 import { hashWordSync } from '../services/srsAlgorithm';
 import type { FlashcardStore, WordFrequencyMap } from '../../shared/types';
 
@@ -18,6 +18,7 @@ function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
     wordKnowledge: {},
     grammarKnowledge: {},
     meta: {
+      perLanguage: {},
       newCardsToday: 0,
       reviewsToday: 0,
       newCardsDate: '2024-01-01',
@@ -148,6 +149,241 @@ describe('computeWordLevelStats', () => {
 
     expect(result.outsideLevels.known).toBe(1);
     expect(result.outsideLevels.total).toBe(1);
+  });
+});
+
+describe('computeExamLevelStats', () => {
+  const levelNames = {
+    5: 'N5',
+    4: 'N4',
+    3: 'N3',
+    2: 'N2',
+    1: 'N1',
+  };
+
+  it('returns empty array when wordFrequency is empty', () => {
+    const result = computeExamLevelStats(makeStore(), {}, 'ja', 1800, 1550, levelNames);
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns all untracked when store is empty', () => {
+    const result = computeExamLevelStats(
+      makeStore(),
+      {
+        猫: { reading: 'ねこ', level: 'N5', raw_level: 5 },
+        犬: { reading: 'いぬ', level: 'N5', raw_level: 5 },
+      },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(result).toEqual([
+      {
+        level: 5,
+        name: 'N5',
+        total: 2,
+        known: 0,
+        learning: 0,
+        unknown: 0,
+        untracked: 2,
+        knownPct: 0,
+        learningPct: 0,
+        unknownPct: 0,
+        untrackedPct: 100,
+      },
+    ]);
+  });
+
+  it('counts known from review-state flashcards', () => {
+    const store = makeStore({
+      flashcards: {
+        card1: {
+          id: 'card1',
+          content: { type: 'word', front: '猫', back: 'cat' },
+          state: 'review',
+          ease: 2.5,
+          interval: 1,
+          dueDate: 1,
+          reviews: 1,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 1,
+          lastUpdated: 1,
+          tags: [],
+          suspended: false,
+          buried: false,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk('ja', '猫')]: ['card1'] },
+    });
+
+    const [level] = computeExamLevelStats(
+      store,
+      { 猫: { reading: 'ねこ', level: 'N5', raw_level: 5 } },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(level.known).toBe(1);
+    expect(level.untracked).toBe(0);
+  });
+
+  it('counts learning from learning-state flashcards + wordKnowledge', () => {
+    const store = makeStore({
+      flashcards: {
+        card1: {
+          id: 'card1',
+          content: { type: 'word', front: '猫', back: 'cat' },
+          state: 'learning',
+          ease: 2.5,
+          interval: 0,
+          dueDate: 1,
+          reviews: 0,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 0,
+          lastUpdated: 1,
+          tags: [],
+          suspended: false,
+          buried: false,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk('ja', '猫')]: ['card1'] },
+      wordKnowledge: {
+        [lk('ja', '犬')]: { ease: 1.6, lastSeen: 1, timesSeen: 3, timesHovered: 1, word: '犬', language: 'ja' },
+      },
+    });
+
+    const [level] = computeExamLevelStats(
+      store,
+      {
+        猫: { reading: 'ねこ', level: 'N5', raw_level: 5 },
+        犬: { reading: 'いぬ', level: 'N5', raw_level: 5 },
+      },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(level.learning).toBe(2);
+    expect(level.known).toBe(0);
+  });
+
+  it('counts unknown from tracked but not known/learning', () => {
+    const store = makeStore({
+      wordKnowledge: {
+        [lk('ja', '猫')]: { ease: 1.0, lastSeen: 1, timesSeen: 1, timesHovered: 3, word: '猫', language: 'ja' },
+      },
+    });
+
+    const [level] = computeExamLevelStats(
+      store,
+      { 猫: { reading: 'ねこ', level: 'N5', raw_level: 5 } },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(level.unknown).toBe(1);
+    expect(level.untracked).toBe(0);
+  });
+
+  it('counts untracked as total minus tracked', () => {
+    const store = makeStore({
+      wordKnowledge: {
+        [lk('ja', '猫')]: { ease: 1.0, lastSeen: 1, timesSeen: 1, timesHovered: 3, word: '猫', language: 'ja' },
+      },
+    });
+
+    const [level] = computeExamLevelStats(
+      store,
+      {
+        猫: { reading: 'ねこ', level: 'N5', raw_level: 5 },
+        犬: { reading: 'いぬ', level: 'N5', raw_level: 5 },
+      },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(level.unknown).toBe(1);
+    expect(level.untracked).toBe(1);
+  });
+
+  it('percentages sum to 100 for each level', () => {
+    const store = makeStore({
+      flashcards: {
+        knownCard: {
+          id: 'knownCard',
+          content: { type: 'word', front: '猫', back: 'cat' },
+          state: 'review',
+          ease: 2.5,
+          interval: 1,
+          dueDate: 1,
+          reviews: 1,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 1,
+          lastUpdated: 1,
+          tags: [],
+          suspended: false,
+          buried: false,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk('ja', '猫')]: ['knownCard'] },
+      wordKnowledge: {
+        [lk('ja', '犬')]: { ease: 1.6, lastSeen: 1, timesSeen: 2, timesHovered: 1, word: '犬', language: 'ja' },
+        [lk('ja', '鳥')]: { ease: 1.0, lastSeen: 1, timesSeen: 1, timesHovered: 2, word: '鳥', language: 'ja' },
+      },
+    });
+
+    const [level] = computeExamLevelStats(
+      store,
+      {
+        猫: { reading: 'ねこ', level: 'N5', raw_level: 5 },
+        犬: { reading: 'いぬ', level: 'N5', raw_level: 5 },
+        鳥: { reading: 'とり', level: 'N5', raw_level: 5 },
+        魚: { reading: 'さかな', level: 'N5', raw_level: 5 },
+      },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(level.knownPct + level.learningPct + level.unknownPct + level.untrackedPct).toBe(100);
+    expect(level).toMatchObject({ knownPct: 25, learningPct: 25, unknownPct: 25, untrackedPct: 25 });
+  });
+
+  it('returns levels sorted descending (5 to 1)', () => {
+    const result = computeExamLevelStats(
+      makeStore(),
+      {
+        難問: { reading: 'なんもん', level: 'N1', raw_level: 1 },
+        基本: { reading: 'きほん', level: 'N5', raw_level: 5 },
+        中級: { reading: 'ちゅうきゅう', level: 'N3', raw_level: 3 },
+      },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(result.map((level) => level.level)).toEqual([5, 3, 1]);
   });
 });
 

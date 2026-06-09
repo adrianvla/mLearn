@@ -9,10 +9,11 @@
 
 import type {
   FlashcardStore,
+  WordFrequencyEntry,
   WordFrequencyMap,
 } from '../../shared/types';
 import { hashWordSync } from '../services/srsAlgorithm';
-import { buildKnownWordSet } from './knowledgeUtils';
+import { buildKnownWordSet, buildTrackedWordSet } from './knowledgeUtils';
 
 export interface LevelWordStats {
   level: number;
@@ -42,6 +43,20 @@ export interface ComprehensiveWordStats {
   };
 }
 
+export interface ExamLevelStats {
+  level: number;
+  name: string;
+  total: number;
+  known: number;
+  learning: number;
+  unknown: number;
+  untracked: number;
+  knownPct: number;
+  learningPct: number;
+  unknownPct: number;
+  untrackedPct: number;
+}
+
 function langKey(language: string, wordHash: string): string {
   return language + ':' + wordHash;
 }
@@ -54,7 +69,7 @@ function langKey(language: string, wordHash: string): string {
  * - OR its passive knowledge ease >= learning threshold but < known threshold
  * - OR it exists as a word candidate (auto-tracked for potential flashcards)
  */
-function buildLearningWordSet(
+export function buildLearningWordSet(
   store: FlashcardStore,
   learningThreshold: number,
   knownThreshold: number,
@@ -101,6 +116,101 @@ function buildFrequencyHashSet(
     set.add(langKey(language, hashWordSync(word)));
   }
   return set;
+}
+
+export type WordExamStatus = 'known' | 'learning' | 'unknown' | 'untracked';
+
+export function getWordExamStatus(
+  word: string,
+  language: string,
+  knownSet: Set<string>,
+  learningSet: Set<string>,
+  trackedSet: Set<string>,
+): WordExamStatus {
+  const lk = langKey(language, hashWordSync(word));
+
+  if (knownSet.has(lk)) return 'known';
+  if (learningSet.has(lk)) return 'learning';
+  if (trackedSet.has(lk)) return 'unknown';
+  return 'untracked';
+}
+
+function roundPct(count: number, total: number): number {
+  return total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
+}
+
+function buildExamLevelBuckets(
+  wordFrequency: WordFrequencyMap,
+): Map<number, Array<[string, WordFrequencyEntry]>> {
+  const buckets = new Map<number, Array<[string, WordFrequencyEntry]>>();
+
+  for (const [word, entry] of Object.entries(wordFrequency)) {
+    const bucket = buckets.get(entry.raw_level) ?? [];
+    bucket.push([word, entry]);
+    buckets.set(entry.raw_level, bucket);
+  }
+
+  return buckets;
+}
+
+export function computeExamLevelStats(
+  store: FlashcardStore,
+  wordFrequency: WordFrequencyMap,
+  language: string,
+  knownThreshold: number,
+  learningThreshold: number,
+  levelNames: Record<string, string>,
+): ExamLevelStats[] {
+  const levelBuckets = buildExamLevelBuckets(wordFrequency);
+  if (levelBuckets.size === 0) return [];
+
+  const knownSet = buildKnownWordSet(
+    store.flashcards,
+    store.wordToCardMap,
+    store.knownUntracked,
+    store.ignoredWords,
+    store.wordKnowledge,
+    knownThreshold,
+  );
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
+  const trackedSet = buildTrackedWordSet(store, language);
+
+  return [...levelBuckets.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([level, entries]) => {
+      let known = 0;
+      let learning = 0;
+      let unknown = 0;
+
+      for (const [word] of entries) {
+        const lk = langKey(language, hashWordSync(word));
+
+        if (knownSet.has(lk)) {
+          known++;
+        } else if (learningSet.has(lk)) {
+          learning++;
+        } else if (trackedSet.has(lk)) {
+          unknown++;
+        }
+      }
+
+      const total = entries.length;
+      const untracked = Math.max(total - known - learning - unknown, 0);
+
+      return {
+        level,
+        name: levelNames[String(level)] || `Level ${level}`,
+        total,
+        known,
+        learning,
+        unknown,
+        untracked,
+        knownPct: roundPct(known, total),
+        learningPct: roundPct(learning, total),
+        unknownPct: roundPct(unknown, total),
+        untrackedPct: roundPct(untracked, total),
+      };
+    });
 }
 
 /**
@@ -173,23 +283,7 @@ export function computeWordLevelStats(
 
   // Outside levels: tracked words not in the frequency list
   const outside: OutsideLevelStats = { known: 0, learning: 0, unknown: 0, total: 0 };
-  const allTracked = new Set<string>();
-
-  for (const lk of Object.keys(store.wordKnowledge)) {
-    if (lk.startsWith(language + ':')) allTracked.add(lk);
-  }
-  for (const lk of Object.keys(store.wordToCardMap)) {
-    if (lk.startsWith(language + ':')) allTracked.add(lk);
-  }
-  for (const lk of Object.keys(store.knownUntracked)) {
-    if (lk.startsWith(language + ':')) allTracked.add(lk);
-  }
-  for (const lk of Object.keys(store.ignoredWords)) {
-    if (lk.startsWith(language + ':')) allTracked.add(lk);
-  }
-  for (const lk of Object.keys(store.wordCandidates)) {
-    if (lk.startsWith(language + ':')) allTracked.add(lk);
-  }
+  const allTracked = buildTrackedWordSet(store, language);
 
   for (const lk of allTracked) {
     if (freqHashSet.has(lk)) continue;

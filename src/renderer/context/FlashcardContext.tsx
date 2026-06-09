@@ -125,6 +125,7 @@ interface UndoEntry {
 }
 
 const MAX_UNDO_STACK_SIZE = 50;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Pending flashcard creation requesting user choice between SRS and Anki */
 export interface PendingFlashcardChoice {
@@ -155,6 +156,8 @@ export interface SetWordBankStatusOptions {
   content?: Partial<FlashcardContent> & { front: string; back: string };
 }
 
+type ExamStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
+
 // Context interface
 interface FlashcardContextValue {
   // Store access
@@ -169,7 +172,7 @@ interface FlashcardContextValue {
   addFlashcard: (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean) => Promise<string>;
   removeFlashcard: (id: string, neverShowAgain?: boolean) => Promise<boolean>;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
-  updateFlashcardContent: (id: string, content: Partial<FlashcardContent>) => void;
+  updateFlashcardContent: (id: string, content: Partial<FlashcardContent>, trackUserEdits?: boolean) => void;
   suspendCard: (id: string) => void;
   unsuspendCard: (id: string) => void;
   buryCard: (id: string) => void;
@@ -203,6 +206,8 @@ interface FlashcardContextValue {
   isWordIgnoredSync: (word: string) => boolean;
   /** Synchronous get ignored words for the current language */
   getIgnoredWordsSync: () => IgnoredWordEntry[];
+  findUnpopulatedFlashcardForWord: (word: string, language?: string) => Flashcard | null;
+  populationStats: () => { total: number; unpopulated: number; populated: number; pct: number };
 
   // Settings
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
@@ -233,6 +238,10 @@ interface FlashcardContextValue {
     ids: string[],
     options?: { useLLM?: boolean; useTts?: boolean; onProgress?: (done: number, total: number) => void }
   ) => Promise<number>;
+  addExamStudyFlashcards: (
+    words: string[],
+    targetStatus: ExamStudyTargetStatus
+  ) => Promise<{ created: number; promoted: number; skipped: number }>;
 
   // Passive word knowledge tracking
   trackWordSeen: (word: string, reading?: string, easeBump?: number) => void;
@@ -664,6 +673,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
         imageUrl,
         videoUrl: content.videoUrl,
         skipExampleTts: content.skipExampleTts,
+        unpopulated: content.unpopulated,
+        userEditedFields: content.userEditedFields,
         audioUrl: content.audioUrl,
         context: content.context,
         source: content.source,
@@ -969,11 +980,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   // Update flashcard content
-  const updateFlashcardContent = (id: string, content: Partial<FlashcardContent>) => {
+  const updateFlashcardContent = (id: string, content: Partial<FlashcardContent>, trackUserEdits = true) => {
     if (!store.flashcards[id]) return;
+
+    const changedFields = trackUserEdits
+      ? (Object.keys(content) as Array<keyof FlashcardContent>).filter((key) =>
+        key !== 'userEditedFields' && store.flashcards[id].content[key] !== content[key]
+      )
+      : [];
 
     setStore(produce((s) => {
       Object.assign(s.flashcards[id].content, content);
+      if (changedFields.length > 0) {
+        const existing = s.flashcards[id].content.userEditedFields ?? [];
+        s.flashcards[id].content.userEditedFields = Array.from(new Set([...existing, ...changedFields.map(String)]));
+      }
       s.flashcards[id].lastUpdated = Date.now();
     }));
     saveFlashcards();
@@ -1314,6 +1335,38 @@ export const FlashcardProvider: ParentComponent = (props) => {
       .sort((a, b) => b.ignoredAt - a.ignoredAt);
   };
 
+  const findUnpopulatedFlashcardForWord = (word: string, language = settings.language): Flashcard | null => {
+    if (!word) return null;
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
+    const ids = store.wordToCardMap[langKey(language, wordHash)] ?? [];
+    for (const id of ids) {
+      const card = store.flashcards[id];
+      if (card?.content.unpopulated === true) return card;
+    }
+    return null;
+  };
+
+  const populationStats = createMemo(() => {
+    const cards = Object.values(store.flashcards).filter((card) => card.language === settings.language);
+    const total = cards.length;
+    const unpopulated = cards.filter((card) => card.content.unpopulated === true).length;
+    const populated = total - unpopulated;
+    const pct = total === 0 ? 100 : Math.round((populated / total) * 100);
+    return { total, unpopulated, populated, pct };
+  });
+
+  const filterUserEditedUpdates = (card: Flashcard, updates: Partial<FlashcardContent>): Partial<FlashcardContent> => {
+    const userEditedFields = new Set(card.content.userEditedFields ?? []);
+    const filtered: Partial<FlashcardContent> = {};
+    for (const key of Object.keys(updates) as Array<keyof FlashcardContent>) {
+      if (updates[key] !== undefined && !userEditedFields.has(String(key))) {
+        Object.assign(filtered, { [key]: updates[key] });
+      }
+    }
+    return filtered;
+  };
+
   // Update metadata
   const updateMeta = (updates: Partial<FlashcardMeta>) => {
     setStore(produce((s) => {
@@ -1360,19 +1413,33 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = await SRS.hashWord(canonical);
     const lk = langKey(lang, wordHash);
     const now = Date.now();
+    const unpopulatedCard = findUnpopulatedFlashcardForWord(canonical, lang);
 
-    if (checkWordIsKnown(lk, knownWordSet(), store.wordKnowledge, settings.known_ease_threshold)) return;
+    if (checkWordIsKnown(lk, knownWordSet(), store.wordKnowledge, settings.known_ease_threshold) && !unpopulatedCard) return;
 
     let imageUrl = params.imageUrl;
     let newId: string | undefined;
     if (imageUrl?.startsWith('data:image/')) {
       const bridge = getBridge();
       const existing = store.suggestedFlashcards[lk];
-      newId = existing?.id ?? crypto.randomUUID();
+      newId = unpopulatedCard?.id ?? existing?.id ?? crypto.randomUUID();
       const savedUrl = await bridge.flashcards.saveFlashcardImage(newId, imageUrl);
       if (savedUrl) {
         imageUrl = savedUrl;
       }
+    }
+
+    if (unpopulatedCard) {
+      const updates = filterUserEditedUpdates(unpopulatedCard, {
+        context: params.contextPhrase,
+        example: params.contextHtml,
+        imageUrl,
+        videoUrl: params.videoUrl,
+        source: params.source,
+        sourceMediaHash: params.sourceMediaHash,
+      });
+      updateFlashcardContent(unpopulatedCard.id, { ...updates, unpopulated: false }, false);
+      return;
     }
 
     setStore(produce((s) => {
@@ -1426,7 +1493,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
           if (s.level == null || s.level < userLevel) return false;
         }
         const lk = langKey(lang, SRS.hashWordSync(s.word));
-        if (checkWordIsKnown(lk, known, store.wordKnowledge, settings.known_ease_threshold)) return false;
+        const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(s.word, lang) !== null;
+        if (checkWordIsKnown(lk, known, store.wordKnowledge, settings.known_ease_threshold) && !hasUnpopulatedCard) return false;
         return true;
       })
       .sort((a, b) => b.createdAt - a.createdAt);
@@ -1544,11 +1612,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const known = knownWordSet();
     const needsAnkiCheck = settings.use_anki;
     for (const [lk, suggestion] of Object.entries(store.suggestedFlashcards)) {
-      if (known.has(lk)) {
+      const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language) !== null;
+      if (known.has(lk) && !hasUnpopulatedCard) {
         idsToRemove.push(suggestion.id);
         continue;
       }
-      if (needsAnkiCheck && getComprehensiveWordStatusSync(suggestion.word) === 'known') {
+      if (needsAnkiCheck && getComprehensiveWordStatusSync(suggestion.word) === 'known' && !hasUnpopulatedCard) {
         idsToRemove.push(suggestion.id);
       }
     }
@@ -1652,27 +1721,37 @@ export const FlashcardProvider: ParentComponent = (props) => {
           videoUrl: suggestion.videoUrl,
           context: suggestion.contextPhrase,
           source: suggestion.source,
+          sourceMediaHash: suggestion.sourceMediaHash,
           word: suggestion.word,
           pronunciation: reading || undefined,
           translation: backText ? [backText] : undefined,
           definition: definitionArr,
         };
 
-        const newCardId = await addFlashcard(content, undefined, true);
+        const unpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language);
+        let populatedCardId: string;
+        if (unpopulatedCard) {
+          const updates = filterUserEditedUpdates(unpopulatedCard, content);
+          updateFlashcardContent(unpopulatedCard.id, { ...updates, unpopulated: false }, false);
+          populatedCardId = unpopulatedCard.id;
+        } else {
+          populatedCardId = await addFlashcard(content, undefined, true);
+        }
+        if (!populatedCardId) continue;
         created++;
 
         // Optional TTS generation for word + example
-        if (useTts && isElectron()) {
+        if (populatedCardId && useTts && isElectron()) {
           try {
             const bridge = getBridge();
             const provider = settings.flashcardTtsProvider || DEFAULT_SETTINGS.flashcardTtsProvider;
             const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-            const cloudApiUrl = provider === 'cloud' ? resolveCloudApiUrl(settings) : undefined;
-            const ttsItems: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [
-              { cardId: newCardId, text: suggestion.word, field: 'word' },
+             const cloudApiUrl = provider === 'cloud' ? resolveCloudApiUrl(settings) : undefined;
+             const ttsItems: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [
+              { cardId: populatedCardId, text: suggestion.word, field: 'word' },
             ];
             if (exampleSentence && !content.skipExampleTts) {
-              ttsItems.push({ cardId: newCardId, text: stripHtmlForTts(exampleSentence), field: 'example' });
+              ttsItems.push({ cardId: populatedCardId, text: stripHtmlForTts(exampleSentence), field: 'example' });
             }
             if (provider === 'cloud') {
               await withCloudAuth((cloudToken) => bridge.flashcards.batchGenerateFlashcardTts(
@@ -1713,6 +1792,121 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     if (created > 0) saveFlashcards();
     return created;
+  };
+
+  const getExamStudyScheduling = (targetStatus: ExamStudyTargetStatus) => {
+    switch (targetStatus) {
+      case 'new':
+        return { state: 'new' as FlashcardState, ease: SRS.MIN_EASE, interval: 0 };
+      case 'learning':
+        return { state: 'learning' as FlashcardState, ease: settings.srsLearningThreshold / 1000, interval: 0 };
+      case 'known':
+        return {
+          state: 'review' as FlashcardState,
+          ease: settings.known_ease_threshold / 1000,
+          interval: store.meta.graduatingInterval * DAY_MS,
+        };
+      case 'mastered':
+        return {
+          state: 'review' as FlashcardState,
+          ease: (settings.known_ease_threshold / 1000) * 1.2,
+          interval: store.meta.easyInterval * DAY_MS,
+        };
+    }
+  };
+
+  const applyExamStudyScheduling = (id: string, targetStatus: ExamStudyTargetStatus): void => {
+    const schedule = getExamStudyScheduling(targetStatus);
+    const now = Date.now();
+    updateFlashcard(id, {
+      state: schedule.state,
+      ease: schedule.ease,
+      interval: schedule.interval,
+      dueDate: now + schedule.interval,
+    });
+  };
+
+  const addExamStudyFlashcards = async (
+    words: string[],
+    targetStatus: ExamStudyTargetStatus
+  ): Promise<{ created: number; promoted: number; skipped: number }> => {
+    let created = 0;
+    let promoted = 0;
+    let skipped = 0;
+
+    for (const word of words) {
+      if (!word.trim()) {
+        skipped++;
+        continue;
+      }
+
+      const canonical = getCanonicalForm(word);
+      const wordHash = SRS.hashWordSync(canonical);
+      const lk = langKey(settings.language, wordHash);
+      const suggestion = store.suggestedFlashcards[lk];
+
+      if (suggestion) {
+        const promotedCount = await promoteSuggestedFlashcards([suggestion.id]);
+        if (promotedCount > 0) {
+          const card = findUnpopulatedFlashcardForWord(canonical, settings.language) ?? getCardByWordSync(canonical);
+          if (card) applyExamStudyScheduling(card.id, targetStatus);
+          promoted++;
+        } else {
+          skipped++;
+        }
+        continue;
+      }
+
+      const existingCardIds = store.wordToCardMap[lk] ?? [];
+      if (existingCardIds.some((id) => store.flashcards[id])) {
+        skipped++;
+        continue;
+      }
+
+      const now = Date.now();
+      const schedule = getExamStudyScheduling(targetStatus);
+      const id = SRS.generateUUID();
+      const newCard: Flashcard = {
+        id,
+        content: {
+          type: 'word',
+          front: canonical,
+          back: '',
+          word: canonical,
+          unpopulated: true,
+          userEditedFields: [],
+        },
+        state: schedule.state,
+        ease: schedule.ease,
+        interval: schedule.interval,
+        dueDate: now + schedule.interval,
+        reviews: 0,
+        lapses: 0,
+        learningStep: 0,
+        createdAt: now,
+        lastReviewed: now,
+        lastUpdated: now,
+        language: settings.language,
+      };
+
+      setStore(produce((s) => {
+        s.flashcards[id] = newCard;
+        if (!s.wordToCardMap[lk]) {
+          s.wordToCardMap[lk] = [];
+        }
+        s.wordToCardMap[lk].push(id);
+        const cards = s.wordToCardMap[lk].map((cardId) => s.flashcards[cardId]).filter(Boolean);
+        s.wordStatsMap[lk] = calculateWordStats(cards);
+      }));
+      created++;
+    }
+
+    if (created > 0 || promoted > 0) {
+      refreshQueue();
+      saveFlashcards();
+    }
+
+    return { created, promoted, skipped };
   };
 
   // Ignore a word for the current language and stop tracking it.
@@ -2793,6 +2987,8 @@ Translation: [${targetLang} translation]`;
     getCardsByWordSync,
     isWordIgnoredSync,
     getIgnoredWordsSync,
+    findUnpopulatedFlashcardForWord,
+    populationStats,
     updateMeta,
     pushUndoState,
     undoLastAction,
@@ -2806,6 +3002,7 @@ Translation: [${targetLang} translation]`;
     removeSuggestedFlashcards,
     cleanupKnownSuggestions,
     promoteSuggestedFlashcards,
+    addExamStudyFlashcards,
     trackWordSeen,
     trackWordHovered,
     cancelWordHover,
