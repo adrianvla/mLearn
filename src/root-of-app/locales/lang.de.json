@@ -983,7 +983,14 @@
         },
         "WordSync": {
           "Description": "Bewerten Sie Ihre Vokabelkenntnis",
+          "FilterUnknownOnly": "Nur Unbekannt",
+          "FilterUnknownLearning": "Unbekannt + Lernend",
+          "FilterPassive": "Passiv verfolgt",
           "Title": "Wort-Sync"
+        },
+        "ExamCentricStudy": {
+          "Description": "Word Sync, Character Grid, and Exam Study in one place",
+          "Title": "Exam-centric Study"
         }
       },
       "Errors": {
@@ -1046,6 +1053,66 @@
         "AlreadySatisfied": "Bereits erfüllt",
         "Collecting": "Abhängigkeiten werden gesammelt…",
         "Downloading": "Wird heruntergeladen…"
+      }
+    },
+    "ExamCentricStudy": {
+      "Title": "Exam-centric Study",
+      "Tabs": {
+        "WordSync": "Word Sync",
+        "CharacterGrid": "Character Grid",
+        "ExamStudy": "Exam Study"
+      }
+    },
+    "ExamStudy": {
+      "EmptyState": {
+        "Title": "Prüfungsstudium",
+        "Description": "Lerne Wörter nach Prüfungsstufe organisiert. Verfolge deinen Fortschritt und füge Wörter zu Lernkarten hinzu."
+      },
+      "Coverage": {
+        "Title": "Prüfungswort-Abdeckung",
+        "Words": "Wörter",
+        "Complete": "Alle Prüfungswörter verfolgt!",
+        "Hint": "Klicke auf eine Stufe unten, um Wörter anzusehen und hinzuzufügen"
+      },
+      "PopulationStats": {
+        "Title": "Karteikarten-Anreicherung",
+        "Populated": "{populated} von {total} befüllt",
+        "Complete": "Alle Karteikarten befüllt"
+      },
+      "BulkAdd": {
+        "Button": "Unverfolgte Wörter massenhinzufügen",
+        "UntrackedCount": "{count} unverfolgte Wörter",
+        "Cancel": "Abbrechen",
+        "Adding": "Hinzufügen...",
+        "Confirm": "Alle hinzufügen"
+      },
+      "LevelCard": {
+        "TotalWords": "{count} Wörter",
+        "Known": "Bekannt",
+        "Learning": "Lernend",
+        "Unknown": "Unbekannt",
+        "Untracked": "Nicht verfolgt",
+        "ClickToView": "Zum Anzeigen der Wörter klicken",
+        "ViewWords": "Wörter ansehen"
+      },
+      "DetailModal": {
+        "Title": "Wörter für {levelName}",
+        "SelectAll": "Alle auswählen",
+        "SelectUntracked": "Nicht verfolgte auswählen",
+        "AddFlashcards": "{count} Lernkarten hinzufügen",
+        "AddAs": "Hinzufügen als:",
+        "StatusNew": "Neu",
+        "StatusLearning": "Lernend",
+        "StatusKnown": "Bekannt",
+        "StatusMastered": "Beherrscht",
+        "SliderHint": "Alle Wörter bis zum Status {status} werden hinzugefügt",
+        "NoWords": "Keine Wörter entsprechen dem aktuellen Filter",
+        "WordsAdded": "{count} Lernkarten hinzugefügt",
+        "Selected": "ausgewählt",
+        "ClearSelection": "Auswahl löschen",
+        "Adding": "Hinzufügen...",
+        "LoadMore": "Mehr laden",
+        "Error": "Fehler beim Hinzufügen"
       }
     },
     "KanjiGrid": {
@@ -1987,6 +2054,7 @@
       "Actions": {
         "EditWordDatabase": "Wortdatenbank bearbeiten",
         "OpenAiAnalytics": "KI-Medienanalyse",
+        "OpenExamCentricStudy": "Open Exam-centric Study",
         "ViewKanjiGrid": "Kanji-Raster anzeigen"
       },
       "CurrentlyLearning": "Aktuell lernend",
@@ -2414,6 +2482,7 @@
       },
       "ReviewFlashcards": "Karteikarten wiederholen",
       "Settings": "Einstellungen",
+      "ExamCentricStudy": "Exam-centric Study",
       "ShowKanjiGrid": "Kanji-Raster anzeigen",
       "ShowLearningStatistics": "Lernstatistiken anzeigen",
       "ShowReading": "Lesung anzeigen",

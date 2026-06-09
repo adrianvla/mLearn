@@ -96,3 +96,7 @@
 .word-sync-recheck-btn {
   margin-top: var(--spacing-2);
 }
+
+.word-sync-filter-select {
+  min-width: 180px;
+}

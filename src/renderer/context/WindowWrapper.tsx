@@ -15,6 +15,7 @@ import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
 import { EulaModal } from '../components/common';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
+import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { consumePendingFlashcardMigration, setMigrationListenerReady } from './migrationSignals';
@@ -244,7 +245,12 @@ const GlobalEulaModal: Component = () => {
  * IMPORTANT: MigrationHandler is placed BEFORE FlashcardProvider so that
  * the migration event listener is registered before flashcards are loaded
  */
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; transparent?: boolean }> = (props) => {
+const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean }> = (props) => {
+  const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
+  const needsTitleBar = props.showTitleBar && isElectron();
+
   return (
     <ServerProvider>
       <LocalizationProvider>
@@ -253,15 +259,27 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; transpar
           <SettingsProvider>
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
-            {/*<DevToastTester />*/}
             <LowPowerGateProvider>
             <LanguageProviderBridge>
             <MigrationHandler>
                 <FlashcardProvider>
-                  <Show when={(props.showDragRegion !== false) && isElectron()}>
-                    <WindowDragRegion />
+                  <Show when={needsTitleBar} fallback={
+                    <>
+                      <Show when={needsDragRegion}>
+                        <WindowDragRegion />
+                      </Show>
+                      {props.children}
+                    </>
+                  }>
+                    <div class="window-layout-with-titlebar">
+                      <Show when={isMacOS} fallback={<TitleBar />}>
+                        <div class="window-titlebar-mac" />
+                      </Show>
+                      <div class="window-content-below-titlebar">
+                        {props.children}
+                      </div>
+                    </div>
                   </Show>
-                  {props.children}
                   <FlashcardCreationChoiceModal />
                   <GlobalCloudReLoginModal />
                 </FlashcardProvider>

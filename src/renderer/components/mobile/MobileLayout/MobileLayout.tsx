@@ -28,7 +28,7 @@ const routeTitleKeys: Record<string, string> = {
   '/settings': 'mlearn.Tabs.Settings',
   '/conversation-agent': 'mlearn.ConversationAgent.Title',
   '/word-db-editor': 'mlearn.WordDbEditor.Title',
-  '/kanji-grid': 'mlearn.KanjiGrid.Title',
+  '/exam-centric-study': 'mlearn.ExamCentricStudy.Title',
   '/licenses': 'mlearn.Settings.About.Licenses',
 };
 
@@ -36,7 +36,7 @@ const routeTitleKeys: Record<string, string> = {
 const routeParentTitleKeys: Record<string, string> = {
   '/conversation-agent': 'mlearn.Tabs.Home',
   '/word-db-editor': 'mlearn.Tabs.Settings',
-  '/kanji-grid': 'mlearn.Tabs.Settings',
+  '/exam-centric-study': 'mlearn.Tabs.Settings',
   '/licenses': 'mlearn.Tabs.Settings',
 };
 

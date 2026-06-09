@@ -779,17 +779,12 @@ function setupAppMenu(): void {
           click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
         },
         {
-          label: getLocalizedString('mlearn.Menu.ShowKanjiGrid'),
-          click: () => createChildWindow('kanji-grid' as WindowType, { width: 1200, height: 800 }),
+          label: getLocalizedString('mlearn.Menu.ExamCentricStudy'),
+          click: () => createChildWindow('exam-centric-study' as WindowType, { width: 1200, height: 800 }),
         },
         {
           label: getLocalizedString('mlearn.Menu.EditWordKnowledgeDatabase'),
           click: () => createChildWindow('word-db-editor' as WindowType, { width: 1300, height: 800 }),
-        },
-        { type: 'separator' },
-        {
-          label: getLocalizedString('mlearn.Menu.SyncWithMe'),
-          click: () => createChildWindow('word-sync' as WindowType, { width: 600, height: 500 }),
         },
       ],
     },

@@ -6,7 +6,7 @@ import {
   useLanguage,
   useFlashcards,
 } from '../../context';
-import { Btn, EmptyState, PillLabel, ToggleSwitch, WordWithReading } from '../../components/common';
+import { Btn, EmptyState, PillLabel, Select, WordWithReading } from '../../components/common';
 import { SRS_EASE } from '../../../shared/constants';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { fetchTranslation } from '../../hooks/useTranslation';
@@ -39,7 +39,7 @@ const RATING_EASE: Record<Rating, number> = {
   known: SRS_EASE.DEFAULT_KNOWN,
 };
 
-const WordSyncContent: Component = () => {
+export const WordSyncContent: Component = () => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const langCtx = useLanguage();
@@ -58,7 +58,7 @@ const WordSyncContent: Component = () => {
   const [lastRating, setLastRating] = createSignal<Rating | null>(null);
   const [finished, setFinished] = createSignal(false);
   const [ignoreSeenFilter, setIgnoreSeenFilter] = createSignal(false);
-  const [unknownOnly, setUnknownOnly] = createSignal(false);
+  const [filterMode, setFilterMode] = createSignal<'unknown' | 'unknown-learning' | 'passive'>('unknown');
   const [showTranslation, setShowTranslation] = createSignal(false);
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
@@ -134,11 +134,14 @@ const WordSyncContent: Component = () => {
 
   // ─── Word pool ──────────────────────────────────────
    const wordPool = createMemo(() => {
+    const ankiReady = ankiCacheReady();
+    void ankiReady;
+
     const freq = langCtx.wordFrequency;
     const names = levelNames();
     const target = settings.learningLanguageLevel ?? DEFAULT_SETTINGS.learningLanguageLevel!;
     const skipSeen = !ignoreSeenFilter();
-    const onlyUnknown = unknownOnly();
+    const mode = filterMode();
     const staleDaysMs = settings.wordSyncStaleLearningDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
     const rated = sessionRatedSet();
@@ -162,7 +165,9 @@ const WordSyncContent: Component = () => {
       const knowledge = getWordKnowledge(lk);
       const resolvedStatus = getComprehensiveWordStatusWithSourceSync(word).status;
 
-      if (onlyUnknown && resolvedStatus !== 'unknown') continue;
+      if (mode === 'unknown' && resolvedStatus !== 'unknown') continue;
+      if (mode === 'unknown-learning' && resolvedStatus !== 'unknown' && resolvedStatus !== 'learning') continue;
+      if (mode === 'passive' && !store.wordKnowledge[lk]) continue;
 
       const seenRecently = isSyncSeenRecently(word, prefix);
 
@@ -305,7 +310,7 @@ const WordSyncContent: Component = () => {
 
   // Re-evaluate current word when Anki cache arrives after initial pick
   createEffect(on(ankiCacheReady, (ready) => {
-    if (!ready || !initialized() || !unknownOnly() || !settings.use_anki) return;
+    if (!ready || !initialized() || filterMode() !== 'unknown' || !settings.use_anki) return;
     const word = currentWord();
     if (word) {
       if (getComprehensiveWordStatusWithSourceSync(word.word).status === 'unknown') {
@@ -365,17 +370,21 @@ const WordSyncContent: Component = () => {
               total: String(totalAvailable()),
             })}
           </span>
-          <ToggleSwitch
-            checked={unknownOnly()}
-            onChange={(v) => {
-              setUnknownOnly(v);
+          <Select
+            class="word-sync-filter-select"
+            value={filterMode()}
+            onChange={(e) => {
+              setFilterMode(e.currentTarget.value as 'unknown' | 'unknown-learning' | 'passive');
               levelCursors = new Map();
               setFinished(false);
               setLastRating(null);
               queueMicrotask(() => pickNext());
             }}
-            label={t('mlearn.WordSync.UnknownOnly')}
-          />
+          >
+            <option value="unknown">{t('mlearn.WordSync.FilterUnknownOnly')}</option>
+            <option value="unknown-learning">{t('mlearn.WordSync.FilterUnknownLearning')}</option>
+            <option value="passive">{t('mlearn.WordSync.FilterPassive')}</option>
+          </Select>
           <Show when={currentWord()}>
             <PillLabel level={currentWord()!.level}>
               {levelLabel()}
