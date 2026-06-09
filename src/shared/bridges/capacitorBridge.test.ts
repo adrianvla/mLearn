@@ -931,7 +931,7 @@ describe('Window Bridge', () => {
     expect(typeof bridge.window.onOpenSettings(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenAside(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenWordDbEditor(vi.fn())).toBe('function');
-    expect(typeof bridge.window.onOpenKanjiGrid(vi.fn())).toBe('function');
+    expect(typeof bridge.window.onOpenExamCentricStudy(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenPrompt(vi.fn())).toBe('function');
     expect(typeof bridge.window.onAuthDeepLink(vi.fn())).toBe('function');
     expect(typeof bridge.window.onLookupDeepLink(vi.fn())).toBe('function');
