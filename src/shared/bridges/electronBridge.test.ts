@@ -58,7 +58,7 @@ function createMockIPC() {
     onContextMenuCommand: vi.fn(),
     onReaderContextMenuCommand: vi.fn(),
     onOpenWordDbEditor: vi.fn(),
-    onOpenKanjiGrid: vi.fn(),
+    onOpenExamCentricStudy: vi.fn(),
     onOpenPrompt: vi.fn(),
     onAuthDeepLink: vi.fn(),
     onLookupDeepLink: vi.fn(),
@@ -615,11 +615,11 @@ describe('windowBridge', () => {
     expect(mockIPC.onOpenWordDbEditor).toHaveBeenCalledWith(cb);
   });
 
-  it('onOpenKanjiGrid passes callback to ipc.onOpenKanjiGrid', () => {
+  it('onOpenExamCentricStudy passes callback to ipc.onOpenExamCentricStudy', () => {
     const cb = vi.fn();
     const bridge = createElectronBridge();
-    bridge.window.onOpenKanjiGrid(cb);
-    expect(mockIPC.onOpenKanjiGrid).toHaveBeenCalledWith(cb);
+    bridge.window.onOpenExamCentricStudy(cb);
+    expect(mockIPC.onOpenExamCentricStudy).toHaveBeenCalledWith(cb);
   });
 
   it('onOpenPrompt passes callback to ipc.onOpenPrompt', () => {

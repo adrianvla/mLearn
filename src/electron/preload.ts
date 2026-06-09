@@ -304,8 +304,8 @@ const mLearnIPC = {
   // ========== Stats & Editors ==========
   onOpenWordDbEditor: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, () => callback()),
-  onOpenKanjiGrid: (callback: () => void) =>
-    ipcOn(IPC_CHANNELS.OPEN_KANJI_GRID, () => callback()),
+  onOpenExamCentricStudy: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_EXAM_CENTRIC_STUDY, () => callback()),
 
   // ========== Prompt ==========
   promptOutput: (text: string) => ipcRenderer.send(IPC_CHANNELS.PROMPT_OUTPUT, text),

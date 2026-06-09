@@ -940,7 +940,7 @@ const windowBridge: WindowBridge = {
       statistics: '/statistics',
       'conversation-agent': '/conversation-agent',
       'word-db-editor': '/word-db-editor',
-      'kanji-grid': '/kanji-grid',
+      'exam-centric-study': '/exam-centric-study',
       licenses: '/licenses',
       'connect-qr': '/connect-qr',
     };
@@ -1010,7 +1010,7 @@ const windowBridge: WindowBridge = {
     return () => window.removeEventListener('mlearn-reader-ctx-command', handler);
   },
   onOpenWordDbEditor: noopCleanup,
-  onOpenKanjiGrid: noopCleanup,
+  onOpenExamCentricStudy: noopCleanup,
   onOpenPrompt: noopCleanup,
   onAuthDeepLink: noopCleanup,
   onLookupDeepLink: noopCleanup,

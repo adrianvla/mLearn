@@ -63,6 +63,7 @@ export default defineConfig(({ mode }) => {
         'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
         'plugin-host': resolve(__dirname, 'src/html/plugin-host.html'),
         'word-sync': resolve(__dirname, 'src/html/word-sync.html'),
+        'exam-centric-study': resolve(__dirname, 'src/html/exam-centric-study.html'),
         overlay: resolve(__dirname, 'src/html/overlay.html'),
         diagnostics: resolve(__dirname, 'src/html/diagnostics.html'),
       };
