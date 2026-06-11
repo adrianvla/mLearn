@@ -986,6 +986,7 @@
           "FilterUnknownOnly": "Unknown only",
           "FilterUnknownLearning": "Unknown + Learning",
           "FilterPassive": "Passively tracked",
+          "IgnoreSeen": "Ignore seen filter",
           "Title": "Word Sync"
         },
         "ExamCentricStudy": {
@@ -1570,6 +1571,7 @@
               "Label": "Failed Word Action",
               "Options": {
                 "DecreaseEase": "Decrease Ease",
+                "DecreaseEaseAndFlashcard": "Decrease Ease & Flashcard",
                 "None": "Do Nothing"
               }
             },

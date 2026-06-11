@@ -986,6 +986,7 @@
           "FilterUnknownOnly": "Nur Unbekannt",
           "FilterUnknownLearning": "Unbekannt + Lernend",
           "FilterPassive": "Passiv verfolgt",
+          "IgnoreSeen": "Gesehene ignorieren",
           "Title": "Wort-Sync"
         },
         "ExamCentricStudy": {
@@ -1563,6 +1564,7 @@
               "Label": "Aktion für fehlgeschlagene Wörter",
               "Options": {
                 "DecreaseEase": "Ease verringern",
+                "DecreaseEaseAndFlashcard": "Ease & Flashcard verringern",
                 "None": "Nichts tun"
               }
             },

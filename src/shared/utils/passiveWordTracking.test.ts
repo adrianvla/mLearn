@@ -48,6 +48,11 @@ describe('passive hover fail action', () => {
     expect(shouldDecreaseEaseOnPassiveFailure({ passiveHoverFailAction: 'none' })).toBe(false)
   })
 
+  it('supports the decrease-ease-and-flashcard action', () => {
+    expect(getPassiveHoverFailAction({ passiveHoverFailAction: 'decrease-ease-and-flashcard' })).toBe('decrease-ease-and-flashcard')
+    expect(shouldDecreaseEaseOnPassiveFailure({ passiveHoverFailAction: 'decrease-ease-and-flashcard' })).toBe(true)
+  })
+
   it('clamps invalid ease decrease values', () => {
     expect(getPassiveHoverEaseDecrease({ passiveHoverEaseDecrease: -1 })).toBe(0)
   })

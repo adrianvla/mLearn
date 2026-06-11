@@ -20,7 +20,7 @@ import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskG
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
-import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
+import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure, shouldUpdateFlashcardOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
 import { findAnkiWordMatchInCache } from '../services/ankiWordsCache';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { getWordFormCandidates } from '../utils/wordForms';
@@ -2041,11 +2041,25 @@ export const FlashcardProvider: ParentComponent = (props) => {
             k.lastSeen = now;
             isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
             const wasManuallySetRecently = k.lastStatusChange && (now - k.lastStatusChange) < 300000;
+            const easeDecrease = getPassiveHoverEaseDecrease(settings);
             if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings) && !wasManuallySetRecently) {
-                k.ease = Math.max(SRS.MIN_EASE, k.ease - getPassiveHoverEaseDecrease(settings));
+                k.ease = Math.max(SRS.MIN_EASE, k.ease - easeDecrease);
             }
             nextEase = k.ease;
             nextTimesHovered = hoveredCount;
+
+            if (isFailed && shouldUpdateFlashcardOnPassiveFailure(settings) && !wasManuallySetRecently) {
+                const cardIds = s.wordToCardMap[wordHash];
+                if (cardIds) {
+                    for (const cardId of cardIds) {
+                        const card = s.flashcards[cardId];
+                        if (card) {
+                            card.ease = Math.max(SRS.MIN_EASE, card.ease - easeDecrease);
+                            card.lastUpdated = now;
+                        }
+                    }
+                }
+            }
         }));
       saveFlashcards();
 

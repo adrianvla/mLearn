@@ -6,7 +6,7 @@ import {
   useLanguage,
   useFlashcards,
 } from '../../context';
-import { Btn, EmptyState, PillLabel, Select, WordWithReading } from '../../components/common';
+import { Btn, EmptyState, PillLabel, Select, ToggleSwitch, WordWithReading } from '../../components/common';
 import { SRS_EASE } from '../../../shared/constants';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { fetchTranslation } from '../../hooks/useTranslation';
@@ -385,6 +385,17 @@ export const WordSyncContent: Component = () => {
             <option value="unknown-learning">{t('mlearn.WordSync.FilterUnknownLearning')}</option>
             <option value="passive">{t('mlearn.WordSync.FilterPassive')}</option>
           </Select>
+          <ToggleSwitch
+            checked={ignoreSeenFilter()}
+            onChange={(v) => {
+              setIgnoreSeenFilter(v);
+              levelCursors = new Map();
+              setFinished(false);
+              setLastRating(null);
+              queueMicrotask(() => pickNext());
+            }}
+            label={t('mlearn.WordSync.IgnoreSeen')}
+          />
           <Show when={currentWord()}>
             <PillLabel level={currentWord()!.level}>
               {levelLabel()}

@@ -403,7 +403,7 @@ export type KnowledgeResolutionMode = typeof KNOWLEDGE_RESOLUTION_MODES[number];
 export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as const;
 export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
 
-export const PASSIVE_HOVER_FAIL_ACTIONS = ['decrease-ease', 'none'] as const;
+export const PASSIVE_HOVER_FAIL_ACTIONS = ['decrease-ease', 'decrease-ease-and-flashcard', 'none'] as const;
 export type PassiveHoverFailAction = typeof PASSIVE_HOVER_FAIL_ACTIONS[number];
 
 // Python download URLs

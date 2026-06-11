@@ -28,7 +28,9 @@ export function getPassiveHoverFailCount(settings?: PassiveHoverSettings): numbe
 }
 
 export function getPassiveHoverFailAction(settings?: PassiveHoverSettings): PassiveHoverFailAction {
-  return settings?.passiveHoverFailAction === 'none' ? 'none' : DEFAULT_PASSIVE_HOVER_FAIL_ACTION
+  const action = settings?.passiveHoverFailAction
+  if (action === 'none' || action === 'decrease-ease-and-flashcard') return action
+  return DEFAULT_PASSIVE_HOVER_FAIL_ACTION
 }
 
 export function getPassiveHoverEaseDecrease(settings?: PassiveHoverSettings): number {
@@ -40,7 +42,12 @@ export function hasReachedPassiveHoverFailCount(timesHovered: number, settings?:
 }
 
 export function shouldDecreaseEaseOnPassiveFailure(settings?: PassiveHoverSettings): boolean {
-  return getPassiveHoverFailAction(settings) === 'decrease-ease' && getPassiveHoverEaseDecrease(settings) > 0
+  const action = getPassiveHoverFailAction(settings)
+  return (action === 'decrease-ease' || action === 'decrease-ease-and-flashcard') && getPassiveHoverEaseDecrease(settings) > 0
+}
+
+export function shouldUpdateFlashcardOnPassiveFailure(settings?: PassiveHoverSettings): boolean {
+  return getPassiveHoverFailAction(settings) === 'decrease-ease-and-flashcard'
 }
 
 export function isWordMarkedFailed(entry: FailedWordEntry, settings?: PassiveHoverSettings): boolean {
