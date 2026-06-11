@@ -986,6 +986,7 @@
           "FilterUnknownOnly": "仅未知",
           "FilterUnknownLearning": "未知 + 学习中",
           "FilterPassive": "被动追踪",
+          "IgnoreSeen": "忽略已见",
           "Title": "单词同步"
         },
         "ExamCentricStudy": {
@@ -1570,6 +1571,7 @@
               "Label": "失败单词操作",
               "Options": {
                 "DecreaseEase": "降低难度系数",
+                "DecreaseEaseAndFlashcard": "降低难度系数和闪卡",
                 "None": "不执行操作"
               }
             },

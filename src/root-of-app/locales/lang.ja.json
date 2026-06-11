@@ -986,6 +986,7 @@
           "FilterUnknownOnly": "未知のみ",
           "FilterUnknownLearning": "未知 + 学習中",
           "FilterPassive": "受動的に追跡",
+          "IgnoreSeen": "既出を無視",
           "Title": "単語シンク"
         },
         "ExamCentricStudy": {
@@ -1563,6 +1564,7 @@
               "Label": "失敗時の動作",
               "Options": {
                 "DecreaseEase": "Easeを下げる",
+                "DecreaseEaseAndFlashcard": "Easeとフラッシュカードを下げる",
                 "None": "何もしない"
               }
             },

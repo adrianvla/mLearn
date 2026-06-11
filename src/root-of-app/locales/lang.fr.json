@@ -986,6 +986,7 @@
           "FilterUnknownOnly": "Inconnu seulement",
           "FilterUnknownLearning": "Inconnu + En apprentissage",
           "FilterPassive": "Suivi passivement",
+          "IgnoreSeen": "Ignorer les vus",
           "Title": "Sync des mots"
         },
         "ExamCentricStudy": {
@@ -1563,6 +1564,7 @@
               "Label": "Action sur mot en échec",
               "Options": {
                 "DecreaseEase": "Réduire l'ease",
+                "DecreaseEaseAndFlashcard": "Réduire l'ease et la flashcard",
                 "None": "Ne rien faire"
               }
             },
