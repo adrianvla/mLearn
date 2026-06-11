@@ -34,7 +34,7 @@ export interface WordStatusPillProps {
 
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const { settings, updateSettings } = useSettings();
-  const { getCanonicalForm, getWordVariants } = useLanguage();
+  const { getCanonicalForm } = useLanguage();
   const { trackWordStatusChange, getComprehensiveWordStatusWithSourceSync, setComprehensiveWordStatus } = useFlashcards();
   const { t } = useLocalization();
   const anki = useAnki();
@@ -44,7 +44,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const [pendingStatus, setPendingStatus] = createSignal<WordStatus | null>(null);
   const [pendingSkipAnki, setPendingSkipAnki] = createSignal(false);
 
-  const wordForms = createMemo(() => getWordFormCandidates(props.word, getCanonicalForm, getWordVariants));
+  const wordForms = createMemo(() => getWordFormCandidates(props.word, getCanonicalForm));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
   const matchedAnki = createMemo(() =>
     settings.use_anki ? findAnkiWordMatchInCache(wordForms()) : null

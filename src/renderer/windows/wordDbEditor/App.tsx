@@ -25,7 +25,7 @@ import { getLogger } from '../../../shared/utils/logger';
 const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
-  const { wordFrequency, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
+  const { wordFrequency, getFreqLevelNames, getCanonicalForm } = useLanguage();
   const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
@@ -157,7 +157,7 @@ export const WordDbEditorContent: Component = () => {
     return wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word).status);
   };
 
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm, getWordVariants);
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm);
 
   const ignoredEntries = createMemo<WordEntry[]>(() => {
     return getIgnoredWordsSync()

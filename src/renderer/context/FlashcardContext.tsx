@@ -302,7 +302,7 @@ const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { getCanonicalForm, getWordVariants } = useLanguage();
+  const { getCanonicalForm } = useLanguage();
   const { requestAccess } = useLowPowerGate();
   const newDayHour = () => settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour;
 
@@ -2136,7 +2136,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const getAnkiStatusForWord = (word: string): WordStatus | null => {
     if (!settings.use_anki) return null;
-    const forms = getWordFormCandidates(word, getCanonicalForm, getWordVariants);
+    const forms = getWordFormCandidates(word, getCanonicalForm);
     const match = findAnkiWordMatchInCache(forms);
     if (!match?.cards?.length) return null;
     return getAnkiWordKnowledgeStatus(match.cards, settings.ankiLearningThreshold, settings.ankiKnownThreshold);
