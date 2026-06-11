@@ -163,9 +163,9 @@ export const ReaderRoute: Component = () => {
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
   const anki = useAnki();
-  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm, getWordVariants } = langCtx;
+  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm } = langCtx;
   const { translateWord } = useTranslation({ immediate: true, language: settings.language });
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm, getWordVariants);
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm);
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
     return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;

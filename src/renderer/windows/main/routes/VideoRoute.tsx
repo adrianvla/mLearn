@@ -74,7 +74,7 @@ export const VideoRoute: Component = () => {
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
   const anki = useAnki();
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants);
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm);
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
     return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;

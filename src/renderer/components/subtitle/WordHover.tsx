@@ -81,7 +81,7 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
-  const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
+  const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language });
   const { t } = useLocalization();
   const [wordUuid, setWordUuid] = createSignal<string>('');
@@ -121,7 +121,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return getCardByWordSync(word);
   });
 
-  const wordForms = createMemo(() => getWordFormCandidates(actualWord(), getCanonicalForm, getWordVariants));
+  const wordForms = createMemo(() => getWordFormCandidates(actualWord(), getCanonicalForm));
   
   // REACTIVE: Get current ease from flashcard if tracked
   const currentEase = createMemo(() => {

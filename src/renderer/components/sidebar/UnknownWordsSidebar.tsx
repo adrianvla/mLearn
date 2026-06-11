@@ -70,7 +70,7 @@ const UnknownWordRow: Component<{
 }> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { getFrequency, getLevelName, getLanguageFeatures, getCanonicalForm, getWordVariants } = useLanguage();
+  const { getFrequency, getLevelName, getLanguageFeatures, getCanonicalForm } = useLanguage();
   const { getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word));
@@ -78,7 +78,7 @@ const UnknownWordRow: Component<{
   const currentEase = createMemo(() => currentFlashcard()?.ease);
   const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(props.entry.word));
 
-  const wordForms = createMemo(() => getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants));
+  const wordForms = createMemo(() => getWordFormCandidates(props.entry.word, getCanonicalForm));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.entry.word);
 
   const ankiMatch = createMemo(() => {
