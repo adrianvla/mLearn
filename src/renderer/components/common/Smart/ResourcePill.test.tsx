@@ -37,7 +37,7 @@ vi.mock('../../../context', () => ({
 }));
 
 vi.mock('../AnkiHoverPreview', () => ({
-  AnkiHoverPreview: () => <span>anki-preview</span>,
+  AnkiHoverPreview: (props: { children?: JSX.Element }) => <>{props.children}</>,
 }));
 
 vi.mock('../Button', () => ({

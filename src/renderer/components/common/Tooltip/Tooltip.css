@@ -8,17 +8,6 @@
   z-index: var(--z-tooltip);
   pointer-events: none;
   white-space: nowrap;
-}
-
-.tooltip-content--top {
-  transform: translateX(-50%) translateY(-100%);
-}
-
-.tooltip-content--bottom {
-  transform: translateX(-50%);
-}
-
-.tooltip-text {
   padding: var(--spacing-1) var(--spacing-2);
   background: var(--bg);
   backdrop-filter: var(--backdrop-filter);
@@ -27,4 +16,12 @@
   box-shadow: var(--shadow-md);
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+.tooltip-content--top {
+  transform: translateX(-50%) translateY(-100%);
+}
+
+.tooltip-content--bottom {
+  transform: translateX(-50%);
 }
