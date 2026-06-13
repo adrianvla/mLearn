@@ -21,10 +21,7 @@
 }
 
 .flashcard-choice__preview {
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
   padding: var(--spacing-4);
-  background: var(--bg);
   max-height: 300px;
   overflow-y: auto;
 }
