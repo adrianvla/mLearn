@@ -78,6 +78,8 @@ def LANGUAGE_TOKENIZE(text):
         pos = token.part_of_speech()[0]
         actual_word = token.dictionary_form()
         reading = _katakana_to_hiragana(token.reading_form())
+        if actual_word == surface and pos == "動詞" and not _entries_by_headword_cached(actual_word):
+            actual_word = _resolve_potential_form(surface, reading)
         if surface and pos != "空白":
             token_list.append({
                 'word': surface,
@@ -360,6 +362,45 @@ def _collect_by_headword(word: str) -> _List:
 
 def _collect_by_reading(kana: str) -> _List:
     return list(_entries_by_reading_cached(kana))
+
+
+def _resolve_potential_form(surface: str, reading: str) -> str:
+    """
+    Map godan verb potential forms back to dictionary base forms.
+
+    Some potential forms (e.g. 見せる, 読める) are themselves legitimate
+    dictionary entries and are returned unchanged.  For forms that Sudachi
+    fails to lemmatize (e.g. 治せる → 治す), we derive the base form and
+    verify it exists in the headword cache before returning it.
+    """
+    # If the surface already exists in the dictionary, trust it.
+    if _entries_by_headword_cached(surface):
+        return surface
+
+    # Godan potential-form suffix → base-form suffix mappings.
+    # The potential form replaces the final u-row kana with the
+    # corresponding e-row kana + る.  We reverse that here.
+    _GODAN_POTENTIAL_MAP = {
+        'ける': 'く',
+        'げる': 'ぐ',
+        'せる': 'す',
+        'てる': 'つ',
+        'ねる': 'ぬ',
+        'べる': 'ぶ',
+        'める': 'む',
+        'れる': 'る',
+        'える': 'う',
+    }
+
+    for pot_suffix, base_suffix in _GODAN_POTENTIAL_MAP.items():
+        if surface.endswith(pot_suffix):
+            candidate = surface[:-len(pot_suffix)] + base_suffix
+            if _entries_by_headword_cached(candidate):
+                return candidate
+            break
+
+    # No viable candidate found; return the original surface.
+    return surface
 
 
 def binary_search(word):
