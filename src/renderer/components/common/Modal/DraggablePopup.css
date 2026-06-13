@@ -21,7 +21,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--border-color);
 }
 
 /* Header */

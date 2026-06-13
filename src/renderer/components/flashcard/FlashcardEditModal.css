@@ -7,6 +7,26 @@
   margin-bottom: 1rem;
 }
 
+.flashcard-form-control {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  min-height: 2rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.flashcard-form-control:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
 /* Advanced Editor */
 .flashcard-advanced-editor {
   display: flex;
@@ -63,26 +83,6 @@
   min-height: 2rem;
 }
 
-.flashcard-advanced-field-value textarea {
-  width: 100%;
-  min-height: 2rem;
-  padding: 0.4rem 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
-  font-family: var(--font-mono);
-  line-height: 1.4;
-  resize: vertical;
-  box-sizing: border-box;
-}
-
-.flashcard-advanced-field-value textarea:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-}
-
 .flashcard-advanced-field-actions {
   flex-shrink: 0;
   padding-top: 0.35rem;
@@ -105,46 +105,9 @@
   flex: 0 0 140px;
 }
 
-.flashcard-advanced-extra-key input {
-  width: 100%;
-  padding: 0.4rem 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
-  font-family: var(--font-mono);
-  box-sizing: border-box;
-}
-
-.flashcard-advanced-extra-key input:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-}
-
 .flashcard-advanced-extra-value {
   flex: 1;
   min-width: 0;
-}
-
-.flashcard-advanced-extra-value textarea {
-  width: 100%;
-  min-height: 2rem;
-  padding: 0.4rem 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
-  font-family: var(--font-mono);
-  line-height: 1.4;
-  resize: vertical;
-  box-sizing: border-box;
-}
-
-.flashcard-advanced-extra-value textarea:focus {
-  outline: none;
-  border-color: var(--accent-primary);
 }
 
 .flashcard-advanced-add-row {
@@ -157,43 +120,9 @@
   flex: 0 0 140px;
 }
 
-.flashcard-advanced-add-key input {
-  width: 100%;
-  padding: 0.4rem 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
-  font-family: var(--font-mono);
-  box-sizing: border-box;
-}
-
-.flashcard-advanced-add-key input:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-}
-
 .flashcard-advanced-add-value {
   flex: 1;
   min-width: 0;
-}
-
-.flashcard-advanced-add-value input {
-  width: 100%;
-  padding: 0.4rem 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
-  font-family: var(--font-mono);
-  box-sizing: border-box;
-}
-
-.flashcard-advanced-add-value input:focus {
-  outline: none;
-  border-color: var(--accent-primary);
 }
 
 /* Footer */
@@ -206,9 +135,8 @@
 }
 
 /* Metadata fields (read-only style) */
-.flashcard-advanced-field--readonly textarea {
+.flashcard-advanced-field--readonly .flashcard-form-control {
   opacity: 0.7;
-  background: var(--bg);
 }
 
 @media (max-width: 500px) {

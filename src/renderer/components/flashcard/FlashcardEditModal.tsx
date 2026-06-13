@@ -323,6 +323,7 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                         when={CONTENT_BOOLEAN_FIELDS.has(key)}
                         fallback={
                           <textarea
+                            class="flashcard-form-control"
                             rows={getDraftString(contentDraft()[key]).includes('\n') ? 3 : 1}
                             value={getDraftString(contentDraft()[key])}
                             onInput={(e) => setContentField(key, e.currentTarget.value)}
@@ -358,6 +359,7 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                       <div class="flashcard-advanced-extra-row">
                         <div class="flashcard-advanced-extra-key">
                           <input
+                            class="flashcard-form-control"
                             value={entry.key}
                             onInput={(e) => setExtraField(index(), 'key', e.currentTarget.value)}
                             placeholder={t('mlearn.Flashcards.Modals.EditCard.NewFieldKey')}
@@ -365,6 +367,7 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                         </div>
                         <div class="flashcard-advanced-extra-value">
                           <textarea
+                            class="flashcard-form-control"
                             rows={entry.value.includes('\n') ? 3 : 1}
                             value={entry.value}
                             onInput={(e) => setExtraField(index(), 'value', e.currentTarget.value)}
@@ -389,6 +392,7 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
               <div class="flashcard-advanced-add-row">
                 <div class="flashcard-advanced-add-key">
                   <input
+                    class="flashcard-form-control"
                     value={newKey()}
                     onInput={(e) => setNewKey(e.currentTarget.value)}
                     placeholder={t('mlearn.Flashcards.Modals.EditCard.NewFieldKey')}
@@ -397,6 +401,7 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                 </div>
                 <div class="flashcard-advanced-add-value">
                   <input
+                    class="flashcard-form-control"
                     value={newValue()}
                     onInput={(e) => setNewValue(e.currentTarget.value)}
                     placeholder={t('mlearn.Flashcards.Modals.EditCard.NewFieldValue')}
@@ -427,12 +432,13 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                         <Show
                           when={METADATA_BOOLEAN_FIELDS.has(key)}
                           fallback={
-                            <textarea
-                              rows={1}
-                              value={getDraftString(metaDraft()[key])}
-                              onInput={(e) => setMetaField(key, e.currentTarget.value)}
-                              readOnly={isReadonly}
-                            />
+                          <textarea
+                            class="flashcard-form-control"
+                            rows={1}
+                            value={getDraftString(metaDraft()[key])}
+                            onInput={(e) => setMetaField(key, e.currentTarget.value)}
+                            readOnly={isReadonly}
+                          />
                           }
                         >
                           <ToggleSwitch

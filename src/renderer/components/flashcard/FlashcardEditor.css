@@ -141,9 +141,6 @@
 /* Card Preview Section */
 .card-preview {
   padding: 1rem;
-  background: var(--bg);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
 }
 
 .card-word {
@@ -170,9 +167,6 @@
 /* Stats Section */
 .stats-section {
   padding: 1rem;
-  background: var(--bg);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
 }
 
 .stats-section h3 {
