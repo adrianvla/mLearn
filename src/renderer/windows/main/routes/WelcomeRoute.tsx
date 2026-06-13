@@ -252,11 +252,7 @@ export const WelcomeRoute: Component = () => {
           }
         >
           <Tooltip
-            content={
-              <span class="tooltip-text">
-                {t('mlearn.Home.Cards.AITutor.SetupRequiredTooltip')}
-              </span>
-            }
+            content={t('mlearn.Home.Cards.AITutor.SetupRequiredTooltip')}
           >
             <ActionCard
               icon={<BotIcon size={24} />}

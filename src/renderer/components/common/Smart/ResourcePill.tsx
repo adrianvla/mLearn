@@ -5,7 +5,6 @@ import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview
 import { AnkiHoverPreview } from '../AnkiHoverPreview';
 import { PillBtn } from '../Button';
 import { ClockIcon } from '../Misc';
-import { Tooltip } from '../Tooltip';
 import { EasePill } from './EasePill';
 import { getLogger } from '../../../../shared/utils/logger';
 
@@ -131,15 +130,11 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
         />
       </Match>
       <Match when={props.isInAnki}>
-        <Tooltip
-          content={
-            <AnkiHoverPreview
-              loading={ankiHoverLoading()}
-              fields={ankiHoverCard()}
-              cardInfo={ankiHoverCardInfo()}
-              footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
-            />
-          }
+        <AnkiHoverPreview
+          loading={ankiHoverLoading()}
+          fields={ankiHoverCard()}
+          cardInfo={ankiHoverCardInfo()}
+          footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
           onShow={handleTooltipShow}
         >
           <span onClick={(event: MouseEvent) => props.onAdd(event)}>
@@ -149,7 +144,7 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
               label={t('mlearn.WordHover.InAnki')}
             />
           </span>
-        </Tooltip>
+        </AnkiHoverPreview>
       </Match>
       <Match when={true}>
         <PillBtn

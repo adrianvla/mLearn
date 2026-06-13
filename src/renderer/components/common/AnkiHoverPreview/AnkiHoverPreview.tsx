@@ -1,6 +1,7 @@
 import { Component, Show, JSX, createMemo } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { dueDateToString } from '../../../services/srsAlgorithm';
+import { Tooltip } from '../Tooltip';
 import { getAnkiDueDisplayValue, shouldShowAnkiEase, type AnkiCardSchedulingInfo } from './ankiHoverPreviewLogic';
 import './AnkiHoverPreview.css';
 
@@ -16,6 +17,10 @@ export interface AnkiHoverPreviewProps {
   fields: AnkiCardFields | null;
   cardInfo?: AnkiCardSchedulingInfo | null;
   footer?: JSX.Element;
+  children: JSX.Element;
+  onShow?: () => void;
+  position?: 'top' | 'bottom';
+  class?: string;
 }
 
 export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
@@ -26,7 +31,7 @@ export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
     t('mlearn.Flashcards.Card.Unseen'),
   ));
 
-  return (
+  const tooltipContent = () => (
     <div class="anki-hover-preview">
       <Show when={props.loading}>
         <span class="anki-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
@@ -74,6 +79,16 @@ export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
         {props.footer}
       </Show>
     </div>
+  );
+
+  return (
+    <Tooltip
+      content={tooltipContent()}
+      onShow={props.onShow}
+      position={props.position}
+    >
+      <span class={props.class}>{props.children}</span>
+    </Tooltip>
   );
 };
 

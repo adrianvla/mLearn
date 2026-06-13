@@ -229,7 +229,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
 
   return (
     <>
-      <Tooltip content={<span class="tooltip-text">{statusSourceLabel()}</span>}>
+      <Tooltip content={statusSourceLabel()}>
         <PillBtn
           variant={statusVariant()}
           icon={statusIcon()}

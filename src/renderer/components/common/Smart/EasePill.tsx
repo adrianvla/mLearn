@@ -3,7 +3,6 @@ import { useLocalization } from '../../../context';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
 import { AnkiHoverPreview } from '../AnkiHoverPreview';
 import { PillBtn } from '../Button';
-import { Tooltip } from '../Tooltip';
 import Icon from '../Icons/Icon';
 import { getAnkiEaseForStatus, type WordStatus } from '../../subtitle/wordHoverHelpers';
 import { ANKI_EASE } from '../../../../shared/constants';
@@ -61,15 +60,11 @@ export const EasePill: Component<EasePillProps> = (props) => {
         label={easeLabel()}
       />
     }>
-      <Tooltip
-        content={
-          <AnkiHoverPreview
-            loading={props.ankiHoverLoading}
-            fields={props.ankiHoverCard}
-            cardInfo={props.ankiHoverCardInfo}
-            footer={<div class="anki-hover-preview__footer">{tooltipContent()}</div>}
-          />
-        }
+      <AnkiHoverPreview
+        loading={props.ankiHoverLoading}
+        fields={props.ankiHoverCard}
+        cardInfo={props.ankiHoverCardInfo}
+        footer={<div class="anki-hover-preview__footer">{tooltipContent()}</div>}
         onShow={props.onTooltipShow}
       >
         <PillBtn
@@ -77,7 +72,7 @@ export const EasePill: Component<EasePillProps> = (props) => {
           icon={dualIcon()}
           label={easeLabel()}
         />
-      </Tooltip>
+      </AnkiHoverPreview>
     </Show>
   );
 };

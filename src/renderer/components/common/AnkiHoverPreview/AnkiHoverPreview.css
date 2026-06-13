@@ -1,13 +1,7 @@
 .anki-hover-preview {
   min-width: 220px;
   max-width: 340px;
-  padding: 8px 10px;
-  background: var(--bg-nt-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
   white-space: normal;
-  backdrop-filter: var(--backdrop-filter);
 }
 
 .anki-hover-preview__fields {

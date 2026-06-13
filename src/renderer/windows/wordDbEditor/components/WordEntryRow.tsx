@@ -5,7 +5,7 @@
  */
 
 import { Component, Show, For, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, PitchAccentOverlay, AnkiHoverPreview, Tooltip } from '../../../components/common';
+import { Btn, PillLabel, PitchAccentOverlay, AnkiHoverPreview } from '../../../components/common';
 import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLocalization, useSettings } from '../../../context';
@@ -322,20 +322,16 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={props.entry.tracker === 'anki'} fallback={
           <span class="tracker-label">{trackerLabel()}</span>
         }>
-          <Tooltip
-            content={
-              <AnkiHoverPreview
-                loading={ankiHoverLoading()}
-                fields={ankiHoverCard()}
-                cardInfo={ankiHoverCardInfo()}
-              />
-            }
-            position="bottom"
+          <AnkiHoverPreview
+            loading={ankiHoverLoading()}
+            fields={ankiHoverCard()}
+            cardInfo={ankiHoverCardInfo()}
             onShow={fetchAnkiCard}
+            position="bottom"
             class="tracker-label tracker-label--anki"
           >
             {trackerLabel()}
-          </Tooltip>
+          </AnkiHoverPreview>
         </Show>
         <Show when={props.entry.tracker === 'flashcards'}>
           <Show when={props.onEditFlashcard}>

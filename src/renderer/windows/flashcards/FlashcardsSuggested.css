@@ -227,11 +227,9 @@
   max-width: 100%;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-intense);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-color);
 }
 
 .flashcards-suggested-image {
