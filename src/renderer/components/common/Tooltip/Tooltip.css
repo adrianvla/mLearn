@@ -9,7 +9,7 @@
   pointer-events: none;
   white-space: nowrap;
   padding: var(--spacing-1) var(--spacing-2);
-  background: var(--bg);
+  background: var(--panel-bg);
   backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
