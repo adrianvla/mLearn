@@ -1,6 +1,6 @@
 # mLearn
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/adrianvla/mLearn/releases)
+[![Version](https://img.shields.io/github/package-json/v/adrianvla/mLearn?label=version&color=blue)](https://github.com/adrianvla/mLearn/releases)
 [![License](https://img.shields.io/badge/license-Sustainable%20Use%20License-green)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/adrianvla/mLearn)
 
