@@ -1,4 +1,4 @@
-import { Component, JSX, Show, createMemo } from 'solid-js';
+import { Component, JSX, Show } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { dueDateToString } from '../../../services/srsAlgorithm';
 import type { Flashcard } from '../../../../shared/types';
@@ -17,35 +17,6 @@ export const MlearnHoverPreview: Component<MlearnHoverPreviewProps> = (props) =>
     if (text.length <= maxLen) return text;
     return text.slice(0, maxLen) + '...';
   };
-
-  const metaFooter = createMemo(() => {
-    const card = props.card;
-    if (!card) return null;
-
-    const parts: string[] = [];
-
-    if (card.ease !== undefined) {
-      parts.push(`${t('mlearn.CardEditor.Statistics.Ease')} ${Math.round(card.ease * 100) / 100}`);
-    }
-
-    if (card.dueDate !== null && card.dueDate !== 0) {
-      parts.push(`${t('mlearn.Flashcards.Card.Due')} ${dueDateToString(card.dueDate, t)}`);
-    }
-
-    if (card.state !== undefined) {
-      parts.push(`${t('mlearn.CardEditor.Statistics.State')} ${card.state}`);
-    }
-
-    if (card.reviews !== undefined && card.reviews > 0) {
-      parts.push(`${t('mlearn.CardEditor.Statistics.Reviews')} ${card.reviews}`);
-    }
-
-    if (card.lapses !== undefined && card.lapses > 0) {
-      parts.push(`${t('mlearn.CardEditor.Statistics.Lapses')} ${card.lapses}`);
-    }
-
-    return parts.length > 0 ? parts.join(' | ') : null;
-  });
 
   return (
     <div class="mlearn-hover-preview">
@@ -81,8 +52,39 @@ export const MlearnHoverPreview: Component<MlearnHoverPreviewProps> = (props) =>
                 </div>
               </Show>
             </div>
-            <Show when={metaFooter()}>
-              <div class="mlearn-hover-preview__footer">{metaFooter()}</div>
+            <Show when={card().ease !== undefined || card().dueDate !== undefined || card().state !== undefined || (card().reviews !== undefined && card().reviews > 0) || (card().lapses !== undefined && card().lapses > 0)}>
+              <div class="mlearn-hover-preview__footer">
+                <Show when={card().ease !== undefined}>
+                  <div class="mlearn-hover-preview__footer-field">
+                    <span class="mlearn-hover-preview__label">{t('mlearn.CardEditor.Statistics.Ease')}</span>
+                    <span class="mlearn-hover-preview__value">{Math.round(card().ease * 100) / 100}</span>
+                  </div>
+                </Show>
+                <Show when={card().dueDate !== null && card().dueDate !== 0}>
+                  <div class="mlearn-hover-preview__footer-field">
+                    <span class="mlearn-hover-preview__label">{t('mlearn.Flashcards.Card.Due')}</span>
+                    <span class="mlearn-hover-preview__value">{dueDateToString(card().dueDate, t)}</span>
+                  </div>
+                </Show>
+                <Show when={card().state !== undefined}>
+                  <div class="mlearn-hover-preview__footer-field">
+                    <span class="mlearn-hover-preview__label">{t('mlearn.CardEditor.Statistics.State')}</span>
+                    <span class="mlearn-hover-preview__value">{card().state}</span>
+                  </div>
+                </Show>
+                <Show when={card().reviews !== undefined && card().reviews > 0}>
+                  <div class="mlearn-hover-preview__footer-field">
+                    <span class="mlearn-hover-preview__label">{t('mlearn.CardEditor.Statistics.Reviews')}</span>
+                    <span class="mlearn-hover-preview__value">{card().reviews}</span>
+                  </div>
+                </Show>
+                <Show when={card().lapses !== undefined && card().lapses > 0}>
+                  <div class="mlearn-hover-preview__footer-field">
+                    <span class="mlearn-hover-preview__label">{t('mlearn.CardEditor.Statistics.Lapses')}</span>
+                    <span class="mlearn-hover-preview__value">{card().lapses}</span>
+                  </div>
+                </Show>
+              </div>
             </Show>
             <Show when={props.footer}>
               {props.footer}

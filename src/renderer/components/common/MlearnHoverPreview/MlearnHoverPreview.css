@@ -42,9 +42,26 @@
 }
 
 .mlearn-hover-preview__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid var(--border-color);
+}
+
+.mlearn-hover-preview__footer-field {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
+}
+
+.mlearn-hover-preview__footer-field .mlearn-hover-preview__label {
+  font-size: var(--font-size-xs);
+}
+
+.mlearn-hover-preview__footer-field .mlearn-hover-preview__value {
+  font-size: var(--font-size-xs);
 }
