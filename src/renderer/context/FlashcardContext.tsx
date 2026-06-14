@@ -1967,6 +1967,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     hoverTimers.clear();
   });
 
+  const WORD_SEEN_COUNT_THROTTLE_MS = 500;
+
   // Track that a word was seen (displayed on screen)
   const trackWordSeen = (word: string, reading?: string, easeBump = 0.01) => {
     if (!settings.passiveEaseEnabled) return;
@@ -1977,6 +1979,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const lk = langKey(lang, wordHash);
     if (store.knownUntracked[lk]) return;
     const now = Date.now();
+
+    const existing = store.wordKnowledge[lk];
+    const shouldCount = !existing || now - existing.lastSeen >= WORD_SEEN_COUNT_THROTTLE_MS;
 
     setStore(produce((s) => {
       if (!s.wordKnowledge[lk]) {
@@ -1991,7 +1996,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
         };
       }
       const k = s.wordKnowledge[lk];
-      k.timesSeen++;
+      if (shouldCount) {
+        k.timesSeen++;
+      }
       k.lastSeen = now;
       // Ease bump for passive exposure (configurable per caller)
       k.ease = Math.min(5, k.ease + easeBump);
