@@ -1198,20 +1198,25 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('trackWordSeen does nothing when passiveEaseEnabled is false', async () => {
+  it('trackWordSeen throttles timesSeen increments for rapid calls', async () => {
+    vi.useFakeTimers();
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    const prevEnabled = mockSettings.passiveEaseEnabled;
-    mockSettings.passiveEaseEnabled = false;
 
-    ctx.trackWordSeen('無効');
     const SRS = await import('../services/srsAlgorithm');
-    const hash = SRS.hashWordSync('無効');
+    const hash = SRS.hashWordSync('連打');
     const lk = `ja:${hash}`;
-    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
 
-    mockSettings.passiveEaseEnabled = prevEnabled;
+    for (let i = 0; i < 50; i++) {
+      ctx.trackWordSeen('連打');
+      await vi.advanceTimersByTimeAsync(60);
+    }
+
+    expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBeLessThanOrEqual(10);
+    expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBeGreaterThan(0);
+
     dispose();
+    vi.useRealTimers();
   });
 
   it('trackWordHovered waits for passiveHoverDelayMs before counting an attempt', async () => {
