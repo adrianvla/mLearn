@@ -41,38 +41,44 @@ export const AnkiHoverPreviewContent: Component<AnkiHoverPreviewContentProps> = 
       </Show>
       <Show when={!props.loading && props.fields}>
         {(fields) => (
-          <div class="anki-hover-preview__fields">
-            <Show when={fields().Expression}>
-              <div class="anki-hover-preview__field">
-                <span class="anki-hover-preview__label">Expression</span>
-                <span class="anki-hover-preview__value" innerHTML={fields().Expression!.value} />
+          <>
+            <div class="anki-hover-preview__fields">
+              <Show when={fields().Expression}>
+                <div class="anki-hover-preview__field">
+                  <span class="anki-hover-preview__label">Expression</span>
+                  <span class="anki-hover-preview__value" innerHTML={fields().Expression!.value} />
+                </div>
+              </Show>
+              <Show when={fields().Reading}>
+                <div class="anki-hover-preview__field">
+                  <span class="anki-hover-preview__label">Reading</span>
+                  <span class="anki-hover-preview__value" innerHTML={fields().Reading!.value} />
+                </div>
+              </Show>
+              <Show when={fields().Meaning}>
+                <div class="anki-hover-preview__field">
+                  <span class="anki-hover-preview__label">Meaning</span>
+                  <span class="anki-hover-preview__value" innerHTML={fields().Meaning!.value} />
+                </div>
+              </Show>
+            </div>
+            <Show when={shouldShowAnkiEase(props.cardInfo?.ease) || dueValue()}>
+              <div class="anki-hover-preview__footer">
+                <Show when={shouldShowAnkiEase(props.cardInfo?.ease)}>
+                  <div class="anki-hover-preview__footer-field">
+                    <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Ease')}</span>
+                    <span class="anki-hover-preview__value">{props.cardInfo!.ease}</span>
+                  </div>
+                </Show>
+                <Show when={dueValue()}>
+                  <div class="anki-hover-preview__footer-field">
+                    <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Due')}</span>
+                    <span class="anki-hover-preview__value">{dueValue()!}</span>
+                  </div>
+                </Show>
               </div>
             </Show>
-            <Show when={fields().Reading}>
-              <div class="anki-hover-preview__field">
-                <span class="anki-hover-preview__label">Reading</span>
-                <span class="anki-hover-preview__value" innerHTML={fields().Reading!.value} />
-              </div>
-            </Show>
-            <Show when={fields().Meaning}>
-              <div class="anki-hover-preview__field">
-                <span class="anki-hover-preview__label">Meaning</span>
-                <span class="anki-hover-preview__value" innerHTML={fields().Meaning!.value} />
-              </div>
-            </Show>
-            <Show when={shouldShowAnkiEase(props.cardInfo?.ease)}>
-              <div class="anki-hover-preview__field anki-hover-preview__field--meta">
-                <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Ease')}</span>
-                <span class="anki-hover-preview__value">{props.cardInfo!.ease}</span>
-              </div>
-            </Show>
-            <Show when={dueValue()}>
-              <div class="anki-hover-preview__field anki-hover-preview__field--meta">
-                <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Due')}</span>
-                <span class="anki-hover-preview__value">{dueValue()!}</span>
-              </div>
-            </Show>
-          </div>
+          </>
         )}
       </Show>
       <Show when={!props.loading && !props.fields}>

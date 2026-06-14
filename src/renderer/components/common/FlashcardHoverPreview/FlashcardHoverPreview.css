@@ -27,3 +27,9 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+.flashcard-hover-preview__footer {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
