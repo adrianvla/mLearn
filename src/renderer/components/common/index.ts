@@ -249,10 +249,24 @@ export {
 // AnkiHoverPreview Components
 export {
   AnkiHoverPreview,
+  AnkiHoverPreviewContent,
   type AnkiHoverPreviewProps,
+  type AnkiHoverPreviewContentProps,
   type AnkiCardFields,
   type AnkiCardSchedulingInfo,
 } from './AnkiHoverPreview';
+
+// FlashcardHoverPreview Components
+export {
+  FlashcardHoverPreview,
+  type FlashcardHoverPreviewProps,
+} from './FlashcardHoverPreview';
+
+// MlearnHoverPreview Components
+export {
+  MlearnHoverPreview,
+  type MlearnHoverPreviewProps,
+} from './MlearnHoverPreview';
 
 // Tooltip
 export {

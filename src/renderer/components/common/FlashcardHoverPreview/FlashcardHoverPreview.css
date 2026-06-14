@@ -1,0 +1,29 @@
+.flashcard-hover-preview {
+  display: flex;
+  gap: 12px;
+  max-width: 680px;
+  white-space: normal;
+}
+
+.flashcard-hover-preview__column {
+  min-width: 220px;
+  max-width: 340px;
+  flex: 1;
+}
+
+.flashcard-hover-preview__divider {
+  width: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+.flashcard-hover-preview__column-header {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
