@@ -1,7 +1,8 @@
 import { Component, createMemo, Show } from 'solid-js';
 import { useLocalization } from '../../../context';
+import type { Flashcard } from '../../../../shared/types';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
-import { AnkiHoverPreview } from '../AnkiHoverPreview';
+import { FlashcardHoverPreview } from '../FlashcardHoverPreview';
 import { PillBtn } from '../Button';
 import Icon from '../Icons/Icon';
 import { getAnkiEaseForStatus, type WordStatus } from '../../subtitle/wordHoverHelpers';
@@ -18,6 +19,7 @@ export interface EasePillProps {
   ankiHoverLoading: boolean;
   ankiHoverCard: AnkiCardFields | null;
   ankiHoverCardInfo: AnkiCardSchedulingInfo | null;
+  mlearnCard?: Flashcard | null;
   onTooltipShow?: () => void;
 }
 
@@ -54,16 +56,21 @@ export const EasePill: Component<EasePillProps> = (props) => {
 
   return (
     <Show when={props.isInAnki} fallback={
-      <PillBtn
-        variant="green"
-        icon={ICON_MLEARN}
-        label={easeLabel()}
-      />
+      <FlashcardHoverPreview
+        mlearnCard={props.mlearnCard ?? null}
+      >
+        <PillBtn
+          variant="green"
+          icon={ICON_MLEARN}
+          label={easeLabel()}
+        />
+      </FlashcardHoverPreview>
     }>
-      <AnkiHoverPreview
-        loading={props.ankiHoverLoading}
-        fields={props.ankiHoverCard}
-        cardInfo={props.ankiHoverCardInfo}
+      <FlashcardHoverPreview
+        mlearnCard={props.mlearnCard ?? null}
+        ankiLoading={props.ankiHoverLoading}
+        ankiFields={props.ankiHoverCard}
+        ankiCardInfo={props.ankiHoverCardInfo}
         footer={<div class="anki-hover-preview__footer">{tooltipContent()}</div>}
         onShow={props.onTooltipShow}
       >
@@ -72,7 +79,7 @@ export const EasePill: Component<EasePillProps> = (props) => {
           icon={dualIcon()}
           label={easeLabel()}
         />
-      </AnkiHoverPreview>
+      </FlashcardHoverPreview>
     </Show>
   );
 };

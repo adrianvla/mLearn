@@ -12,18 +12,21 @@ export interface AnkiCardFields {
   [key: string]: { value: string; order: number } | undefined;
 }
 
-export interface AnkiHoverPreviewProps {
+export interface AnkiHoverPreviewContentProps {
   loading: boolean;
   fields: AnkiCardFields | null;
   cardInfo?: AnkiCardSchedulingInfo | null;
   footer?: JSX.Element;
+}
+
+export interface AnkiHoverPreviewProps extends AnkiHoverPreviewContentProps {
   children: JSX.Element;
   onShow?: () => void;
   position?: 'top' | 'bottom';
   class?: string;
 }
 
-export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
+export const AnkiHoverPreviewContent: Component<AnkiHoverPreviewContentProps> = (props) => {
   const { t } = useLocalization();
   const dueValue = createMemo(() => getAnkiDueDisplayValue(
     props.cardInfo,
@@ -31,7 +34,7 @@ export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
     t('mlearn.Flashcards.Card.Unseen'),
   ));
 
-  const tooltipContent = () => (
+  return (
     <div class="anki-hover-preview">
       <Show when={props.loading}>
         <span class="anki-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
@@ -80,14 +83,18 @@ export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
       </Show>
     </div>
   );
+};
+
+export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
+  const { children, onShow, position, class: className, ...contentProps } = props;
 
   return (
     <Tooltip
-      content={tooltipContent()}
-      onShow={props.onShow}
-      position={props.position}
+      content={<AnkiHoverPreviewContent {...contentProps} />}
+      onShow={onShow}
+      position={position}
     >
-      <span class={props.class}>{props.children}</span>
+      <span class={className}>{children}</span>
     </Tooltip>
   );
 };

@@ -1,8 +1,8 @@
 import { Component, Match, Switch, createEffect, createMemo, createSignal } from 'solid-js';
-import { useLocalization, useSettings } from '../../../context';
+import { useFlashcards, useLocalization, useSettings } from '../../../context';
 import type { WordStatus } from '../../subtitle/wordHoverHelpers';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
-import { AnkiHoverPreview } from '../AnkiHoverPreview';
+import { FlashcardHoverPreview } from '../FlashcardHoverPreview';
 import { PillBtn } from '../Button';
 import { ClockIcon } from '../Misc';
 import { EasePill } from './EasePill';
@@ -27,6 +27,8 @@ export interface ResourcePillProps {
 export const ResourcePill: Component<ResourcePillProps> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
+  const { getCardByWordSync } = useFlashcards();
+  const mlearnCard = createMemo(() => getCardByWordSync(props.word));
   const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
   const [ankiHoverCardInfo, setAnkiHoverCardInfo] = createSignal<AnkiCardSchedulingInfo | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
@@ -126,14 +128,16 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
           ankiHoverLoading={ankiHoverLoading()}
           ankiHoverCard={ankiHoverCard()}
           ankiHoverCardInfo={ankiHoverCardInfo()}
+          mlearnCard={mlearnCard()}
           onTooltipShow={handleTooltipShow}
         />
       </Match>
       <Match when={props.isInAnki}>
-        <AnkiHoverPreview
-          loading={ankiHoverLoading()}
-          fields={ankiHoverCard()}
-          cardInfo={ankiHoverCardInfo()}
+        <FlashcardHoverPreview
+          mlearnCard={mlearnCard()}
+          ankiLoading={ankiHoverLoading()}
+          ankiFields={ankiHoverCard()}
+          ankiCardInfo={ankiHoverCardInfo()}
           footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
           onShow={handleTooltipShow}
         >
@@ -144,7 +148,7 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
               label={t('mlearn.WordHover.InAnki')}
             />
           </span>
-        </AnkiHoverPreview>
+        </FlashcardHoverPreview>
       </Match>
       <Match when={true}>
         <PillBtn

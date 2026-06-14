@@ -34,15 +34,23 @@ vi.mock('../../../context', () => ({
   useSettings: () => ({
     settings: settingsState,
   }),
+  useFlashcards: () => ({
+    getCardByWordSync: () => null,
+  }),
 }));
 
 vi.mock('../AnkiHoverPreview', () => ({
   AnkiHoverPreview: (props: { children?: JSX.Element }) => <>{props.children}</>,
+  AnkiHoverPreviewContent: (props: { children?: JSX.Element }) => <>{props.children}</>,
+}));
+
+vi.mock('../FlashcardHoverPreview', () => ({
+  FlashcardHoverPreview: (props: { children?: JSX.Element }) => <>{props.children}</>,
 }));
 
 vi.mock('../Button', () => ({
   PillBtn: (props: { label?: string; children?: JSX.Element; onClick?: (event?: MouseEvent) => void; disabled?: boolean }) => (
-    <button disabled={props.disabled} onClick={props.onClick}>
+    <button type="button" disabled={props.disabled} onClick={props.onClick}>
       {props.label ?? props.children}
     </button>
   ),
