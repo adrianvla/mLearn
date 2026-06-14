@@ -29,7 +29,7 @@ export const FlashcardHoverPreview: Component<FlashcardHoverPreviewProps> = (pro
         <div class="flashcard-hover-preview">
           <div class="flashcard-hover-preview__column">
             <div class="flashcard-hover-preview__column-header">mLearn</div>
-            <MlearnHoverPreview card={props.mlearnCard!} />
+            <MlearnHoverPreview card={props.mlearnCard!} footer={props.footer} />
           </div>
           <div class="flashcard-hover-preview__divider" />
           <div class="flashcard-hover-preview__column">
@@ -45,7 +45,7 @@ export const FlashcardHoverPreview: Component<FlashcardHoverPreviewProps> = (pro
     }
 
     if (hasMlearn()) {
-      return <MlearnHoverPreview card={props.mlearnCard!} />;
+      return <MlearnHoverPreview card={props.mlearnCard!} footer={props.footer} />;
     }
 
     return (
