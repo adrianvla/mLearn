@@ -1199,6 +1199,7 @@
       "Odaka": "尾高型"
     },
     "Reader": {
+      "Title": "阅读器",
       "CollatePages": "合并页面",
       "UncollatePages": "拆分页面",
       "CopyPhrase": "复制短语",

@@ -1342,12 +1342,6 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
         return;
       }
 
-      // Done/complete - full progress
-      if (message.toLowerCase().includes('done') || message.toLowerCase().includes('complete')) {
-        setServerOcrProgress(100);
-        return;
-      }
-
       // Unknown message type - keep previous state
     };
 
