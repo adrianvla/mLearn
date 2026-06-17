@@ -36,18 +36,18 @@ jobs:
             echo "**${COUNT} commits** since ${PREV_TAG}" >> release-notes.md
             echo "" >> release-notes.md
 
-            for section in "feat:🚀 Features" "fix:🐛 Bug Fixes" "refactor:♻️ Refactoring" "legal:⚖️ Legal & Licensing" "docs:📝 Documentation" "chore:🔧 Chores & Maintenance" "test:🧪 Testing" "perf:⚡ Performance" "style:🎨 Styling" "i18n:🌐 Localization"; do
+            for section in "feat:🚀 Features" "fix:🐛 Bug Fixes" "refactor:♻️ Refactoring" "legal:⚖️ Legal & Licensing" "docs:📝 Documentation" "ci:⚙️ CI/CD" "chore:🔧 Chores & Maintenance" "test:🧪 Testing" "perf:⚡ Performance" "style:🎨 Styling" "i18n:🌐 Localization"; do
               prefix="${section%%:*}"
               label="${section#*:}"
               commits=$(git log "${PREV_TAG}..HEAD" --no-merges --pretty=format:"- %s" | grep -i "^\- ${prefix}" || true)
               if [ -n "$commits" ]; then
                 echo "### ${label}" >> release-notes.md
-                echo "$commits" | sed -E 's/^\- [a-zA-Z_-]+(\([^)]*\))?[: ]*/- /' >> release-notes.md
+                echo "$commits" | sed -E 's/(feat|fix|refactor|legal|docs|chore|test|perf|style|i18n|ci)(\([^)]*\))?[: ]+//gI' >> release-notes.md
                 echo "" >> release-notes.md
               fi
             done
 
-            uncategorized=$(git log "${PREV_TAG}..HEAD" --no-merges --pretty=format:"- %s" | grep -vi "^\- feat" | grep -vi "^\- fix" | grep -vi "^\- refactor" | grep -vi "^\- legal" | grep -vi "^\- docs" | grep -vi "^\- chore" | grep -vi "^\- test" | grep -vi "^\- perf" | grep -vi "^\- style" | grep -vi "^\- i18n" || true)
+            uncategorized=$(git log "${PREV_TAG}..HEAD" --no-merges --pretty=format:"- %s" | grep -vi "^\- feat" | grep -vi "^\- fix" | grep -vi "^\- refactor" | grep -vi "^\- legal" | grep -vi "^\- docs" | grep -vi "^\- ci" | grep -vi "^\- chore" | grep -vi "^\- test" | grep -vi "^\- perf" | grep -vi "^\- style" | grep -vi "^\- i18n" || true)
             if [ -n "$uncategorized" ]; then
               echo "### 📦 Other Changes" >> release-notes.md
               echo "$uncategorized" >> release-notes.md
