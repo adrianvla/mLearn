@@ -6,19 +6,17 @@
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry, type PitchData } from '../../../shared/types';
-import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmProvider';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
-import { useTokenizer } from '../../hooks/useTranslation';
+import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, PitchAccentOverlay, Modal, Btn, ToggleSwitch } from '../common';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
-  extractPitchAccentFromTranslationData,
-  extractReadingFromEntries,
+  resolvePitchAccentForHover,
   type WordStatus,
 } from './wordHoverHelpers';
 import { clipVideo } from '../../services/videoClipService';
@@ -442,26 +440,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return entries;
   });
 
-  // Extract pitch accent info from translation data
-  // Server returns: data[2] = ["word", "pitch_type", { pitches: [{ position: N }] }]
   const pitchAccentFromData = createMemo(() => {
-    const features = getLanguageFeatures();
-    if (!features.supportsPitchAccent || !settings.showPitchAccent) return null;
-    
-    const data = props.translationData?.data;
-    if (!data || !Array.isArray(data)) return null;
-    
-    // Get reading from first entry
-    const reading = normalizeReading(extractReadingFromEntries(data));
-    if (!reading || reading.length === 0) return null;
-    
-    // Get pitch position - data[2] is the pitch entry
-    // Format: ["word", "pitch", { pitches: [{ position: N }] }] or just { pitches: [...] }
-    const position = extractPitchAccentFromTranslationData(props.translationData) ?? null;
-    
-    if (position === null) return null;
-    
-    return { position, reading };
+    return resolvePitchAccentForHover({
+      word: actualWord(),
+      reading: props.token.reading,
+      translationData: props.translationData,
+      supportsPitchAccent: getLanguageFeatures().supportsPitchAccent,
+      showPitchAccent: settings.showPitchAccent,
+      getCanonicalForm,
+      getCachedTranslation,
+      language: settings.language,
+    });
   });
 
   // Use provided pitchAccent or extract from translation data

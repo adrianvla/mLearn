@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getAnkiWordKnowledgeStatus,
   numericToWordStatus,
   wordStatusToNumeric,
   getEaseFromWordStatus,
   getAnkiEaseForStatus,
+  resolvePitchAccentForHover,
 } from './wordHoverHelpers';
 import { WORD_STATUS } from '../../../shared/constants';
 
@@ -84,5 +85,91 @@ describe('getAnkiEaseForStatus', () => {
 
   it('returns Anki minimum ease (1300) for unknown status', () => {
     expect(getAnkiEaseForStatus('unknown', 1550, 1800)).toBe(1300);
+  });
+});
+
+describe('resolvePitchAccentForHover', () => {
+  const baseOptions = {
+    supportsPitchAccent: true,
+    showPitchAccent: true,
+    getCanonicalForm: (word: string) => word,
+    getCachedTranslation: () => null,
+  };
+
+  const translationWithPitch = (position: number, reading = 'やっかい') => ({
+    data: [
+      { reading, definitions: ['trouble'] },
+      { reading: '', definitions: [] },
+      { pitches: [{ position }] },
+    ],
+  });
+
+  it('returns null when pitch accent is disabled', () => {
+    expect(resolvePitchAccentForHover({
+      ...baseOptions,
+      word: '厄介',
+      showPitchAccent: false,
+      translationData: translationWithPitch(0),
+    })).toBeNull();
+  });
+
+  it('returns pitch from the current translation data', () => {
+    const result = resolvePitchAccentForHover({
+      ...baseOptions,
+      word: '厄介',
+      translationData: translationWithPitch(0, 'やっかい'),
+    });
+    expect(result).toEqual({ position: 0, reading: 'やっかい' });
+  });
+
+  it('prefers the token reading over the cached reading', () => {
+    const result = resolvePitchAccentForHover({
+      ...baseOptions,
+      word: '厄介',
+      reading: 'やっかい',
+      translationData: translationWithPitch(0, 'cached-reading'),
+    });
+    expect(result).toEqual({ position: 0, reading: 'やっかい' });
+  });
+
+  it('falls back to the canonical form when the hovered word has no pitch data', () => {
+    const result = resolvePitchAccentForHover({
+      ...baseOptions,
+      word: 'やっかい',
+      reading: 'やっかい',
+      getCanonicalForm: (word) => word === 'やっかい' ? '厄介' : word,
+      getCachedTranslation: (word) =>
+        word === '厄介' ? translationWithPitch(0, 'やっかい') : null,
+    });
+    expect(result).toEqual({ position: 0, reading: 'やっかい' });
+  });
+
+  it('does not fallback when the current word already has pitch data', () => {
+    const getCachedTranslation = vi.fn(() => translationWithPitch(1, 'different'));
+    const result = resolvePitchAccentForHover({
+      ...baseOptions,
+      word: 'やっかい',
+      getCanonicalForm: (word) => word === 'やっかい' ? '厄介' : word,
+      getCachedTranslation,
+      translationData: translationWithPitch(0, 'やっかい'),
+    });
+    expect(result).toEqual({ position: 0, reading: 'やっかい' });
+    expect(getCachedTranslation).not.toHaveBeenCalled();
+  });
+
+  it('returns null when no pitch data exists for the word or its canonical form', () => {
+    const result = resolvePitchAccentForHover({
+      ...baseOptions,
+      word: 'やっかい',
+      getCanonicalForm: (word) => word === 'やっかい' ? '厄介' : word,
+      getCachedTranslation: () => ({
+        data: [
+          { reading: 'やっかい', definitions: ['trouble'] },
+          { reading: '', definitions: [] },
+          null,
+        ],
+      }),
+    });
+    expect(result).toBeNull();
   });
 });
