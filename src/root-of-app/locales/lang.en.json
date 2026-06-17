@@ -1416,7 +1416,8 @@
         "KnowledgePriority": "Knowledge Priority",
         "Behaviour": "Behaviour",
         "WordKnowledge": "Word Knowledge",
-        "LanguageProficiency": "Language Proficiency"
+        "LanguageProficiency": "Language Proficiency",
+        "SuggestedFlashcards": "Suggested Flashcards"
       },
       "Keybind": {
         "PressKey": "Press a key...",
@@ -1459,6 +1460,14 @@
           "Label": "Learning Language Level",
           "Description": "When set, suggested flashcards above this level and cards without a level will not be saved. Also affects Word Sync difficulty.",
           "NoLimit": "No limit"
+        },
+        "AutoSuggestFlashcards": {
+          "Label": "Auto-suggest Flashcards",
+          "Description": "Automatically capture new words seen during video or reading as suggested flashcards."
+        },
+        "AutoSuggestUnknownWords": {
+          "Label": "Suggest Non-Dictionary Words",
+          "Description": "Also capture words that are not in the dictionary as suggested flashcards."
         }
       },
       "Performance": {

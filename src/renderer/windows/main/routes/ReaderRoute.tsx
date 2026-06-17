@@ -29,6 +29,7 @@ import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumb
 import { captureElementAndSave } from '../../../services/canvasCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
+import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { getWordStatus } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -513,10 +514,12 @@ export const ReaderRoute: Component = () => {
 
     void (async () => {
       const capturedPages = new Map<string, string | null>();
+      const allowedWords = await filterSuggestedWords(unknown.map(entry => entry.word), settings.language, settings);
       for (const entry of unknown) {
         if (capturedSuggestionWords.has(entry.word)) continue;
-        capturedSuggestionWords.add(entry.word);
         const freq = langCtx.getFrequency(entry.word);
+        if (!allowedWords.has(entry.word)) continue;
+        capturedSuggestionWords.add(entry.word);
         let image = capturedPages.get(entry.pageId);
         if (image === undefined) {
           image = await capturePageImageDataUrl(entry.pageId);

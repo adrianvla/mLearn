@@ -1416,7 +1416,8 @@
         "LiveTranslator": "Live-Wortübersetzer",
         "Behaviour": "Verhalten",
         "WordKnowledge": "Wortkenntnisse",
-        "LanguageProficiency": "Lernsprachniveau"
+        "LanguageProficiency": "Lernsprachniveau",
+        "SuggestedFlashcards": "Vorgeschlagene Lernkarten"
       },
       "Keybind": {
         "PressKey": "Taste drücken...",
@@ -2010,6 +2011,14 @@
           "Label": "Lernsprachniveau",
           "Description": "Wenn festgelegt, werden vorgeschlagene Lernkarten über diesem Niveau und Karten ohne Niveau nicht gespeichert. Betrifft auch die Word Sync-Schwierigkeit.",
           "NoLimit": "Keine Begrenzung"
+        },
+        "AutoSuggestFlashcards": {
+          "Label": "Lernkarten automatisch vorschlagen",
+          "Description": "Neue Wörter während des Videos oder Lesens automatisch als vorgeschlagene Lernkarten erfassen."
+        },
+        "AutoSuggestUnknownWords": {
+          "Label": "Nicht im Wörterbuch enthaltene Wörter vorschlagen",
+          "Description": "Auch Wörter, die nicht im Wörterbuch stehen, als vorgeschlagene Lernkarten erfassen."
         }
       }
     },

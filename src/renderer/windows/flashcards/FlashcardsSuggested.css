@@ -152,6 +152,13 @@
   gap: var(--spacing-2);
 }
 
+.flashcards-suggested-translation {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
 .flashcards-suggested-context {
   display: -webkit-box;
   -webkit-line-clamp: 2;

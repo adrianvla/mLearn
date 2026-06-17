@@ -21,6 +21,7 @@ import { getLogger } from '../../shared/utils/logger';
 const log = getLogger("renderer.hooks.useTranslation");
 
 const TRANSLATION_CACHE_MAX = 5000;
+const TRANSLATION_WARM_CONCURRENCY = 10;
 const translationCache = new Map<string, TranslationResponse>();
 const [cacheVersion, setCacheVersion] = createSignal(0);
 
@@ -191,22 +192,25 @@ export async function warmTranslationCache(
   const backend = getBackend();
   const unique = [...new Set(words)];
   const batchEntries: Array<{ word: string; data: TranslationResponse }> = [];
-  const promises = unique
+  const wordsToWarm = unique
     .filter((w) => w && w.trim())
-    .filter((w) => !translationCache.has(buildTranslationCacheKey(w, language)))
-    .map((word) =>
-      backend.translate(word, language)
-        .then((data) => {
-          setTranslationCache(buildTranslationCacheKey(word, language), data);
-          setCacheVersion((v) => v + 1);
-          batchEntries.push({ word, data });
-        })
-        .catch(() => {
-          // Ignore errors during cache warming
-        }),
-    );
+    .filter((w) => !translationCache.has(buildTranslationCacheKey(w, language)));
 
-  await Promise.all(promises);
+  for (let i = 0; i < wordsToWarm.length; i += TRANSLATION_WARM_CONCURRENCY) {
+    const chunk = wordsToWarm.slice(i, i + TRANSLATION_WARM_CONCURRENCY).map(async (word) => {
+      try {
+        const data = await backend.translate(word, language);
+        setTranslationCache(buildTranslationCacheKey(word, language), data);
+        setCacheVersion((v) => v + 1);
+        batchEntries.push({ word, data });
+      } catch {
+        // Ignore errors during cache warming
+      }
+    });
+
+    await Promise.all(chunk);
+  }
+
   if (batchEntries.length > 0) {
     void setCachedTranslationBatchByLanguageDB(batchEntries, language);
   }

@@ -16,6 +16,10 @@ const updateWordAppearanceCleanup = vi.fn();
 const updateAttemptCleanup = vi.fn();
 const updateCreateCleanup = vi.fn();
 const updateLastWatchedCleanup = vi.fn();
+const mockBackend = vi.hoisted(() => ({
+  ping: vi.fn().mockResolvedValue(true),
+  translate: vi.fn().mockResolvedValue({ data: [] }),
+}));
 
 // ── Mock bridge ──────────────────────────────────────────────────────
 const mockBridge = {
@@ -78,7 +82,7 @@ vi.mock('../../shared/bridges', () => ({
 }));
 
 vi.mock('../../shared/backends', () => ({
-  getBackend: vi.fn(() => ({ ping: vi.fn().mockResolvedValue(true) })),
+  getBackend: vi.fn(() => mockBackend),
 }));
 
 vi.mock('../../shared/platform', () => ({
@@ -213,7 +217,7 @@ type FlashcardCtx = {
   getSuggestedFlashcardsSync: () => Array<{ id: string; word: string; reading?: string; pos?: string; level?: number | null; language: string; contextPhrase?: string; contextHtml?: string; imageUrl?: string; videoUrl?: string; source?: string; sourceMediaHash?: string; createdAt: number; lastSeen: number; count: number }>;
   removeSuggestedFlashcard: (id: string) => void;
   removeSuggestedFlashcards: (ids: string[]) => void;
-  cleanupKnownSuggestions: () => number;
+  cleanupKnownSuggestions: () => Promise<number>;
 };
 
 // ── Mount helper ─────────────────────────────────────────────────────
@@ -303,6 +307,10 @@ describe('FlashcardProvider', () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    mockBackend.ping.mockResolvedValue(true);
+    mockBackend.translate.mockResolvedValue({ data: [] });
+    mockSettings.autoSuggestFlashcards = true;
+    mockSettings.autoSuggestUnknownWords = true;
     setupMockImplementations();
   });
 
@@ -1885,7 +1893,7 @@ describe('FlashcardProvider', () => {
       knownUntracked: { [lk]: true },
     }));
 
-    const removed = ctx.cleanupKnownSuggestions();
+    const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(1);
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
     expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('未知単語');
@@ -1922,7 +1930,7 @@ describe('FlashcardProvider', () => {
       wordToCardMap: { [lk]: ['fc-1'] },
     }));
 
-    const removed = ctx.cleanupKnownSuggestions();
+    const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(1);
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
     expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('未知単語');
@@ -1937,9 +1945,47 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    const removed = ctx.cleanupKnownSuggestions();
+    const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(0);
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions removes non-dictionary suggestions when unknown words are disabled', async () => {
+    mockSettings.autoSuggestUnknownWords = false;
+    mockBackend.translate.mockResolvedValue({ data: [] });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash-nuu': { id: 's-nuu', word: 'ヌウ', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+      },
+    }));
+
+    const removed = await ctx.cleanupKnownSuggestions();
+
+    expect(removed).toBe(1);
+    expect(mockBackend.translate).toHaveBeenCalledWith('ヌウ', 'ja');
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions keeps dictionary suggestions when unknown words are disabled', async () => {
+    mockSettings.autoSuggestUnknownWords = false;
+    mockBackend.translate.mockResolvedValue({
+      data: [{ reading: 'たんご', definitions: 'word; vocabulary' }, { reading: 'たんご', definitions: '<ul data-content="glossary"><li>word</li></ul>' }, {}],
+    });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash-dict': { id: 's-dict', word: '単語', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+      },
+    }));
+
+    const removed = await ctx.cleanupKnownSuggestions();
+
+    expect(removed).toBe(0);
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('単語');
     dispose();
   });
 
