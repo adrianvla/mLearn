@@ -1199,6 +1199,7 @@
       "Odaka": "Odaka (尾高)"
     },
     "Reader": {
+      "Title": "Reader",
       "CollatePages": "Collate pages",
       "UncollatePages": "Uncollate pages",
       "CopyPhrase": "Copy phrase",

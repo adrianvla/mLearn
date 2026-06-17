@@ -1199,6 +1199,7 @@
       "Odaka": "Queue haute (odaka)"
     },
     "Reader": {
+      "Title": "Lecteur",
       "CollatePages": "Assembler les pages",
       "UncollatePages": "Séparer les pages",
       "CopyPhrase": "Copier la phrase",
