@@ -208,6 +208,46 @@ export function extractPitchAccentFromTranslationData(data?: WordHoverTranslatio
   return findPitch(pitchEntry);
 }
 
+export interface ResolvePitchAccentForHoverOptions {
+  word: string;
+  reading?: string | null;
+  translationData?: WordHoverTranslationData;
+  supportsPitchAccent: boolean;
+  showPitchAccent: boolean;
+  getCanonicalForm: (word: string) => string;
+  getCachedTranslation: (word: string, language?: string) => WordHoverTranslationData | null;
+  language?: string;
+}
+
+export function resolvePitchAccentForHover(
+  options: ResolvePitchAccentForHoverOptions,
+): { position: number; reading: string } | null {
+  if (!options.supportsPitchAccent || !options.showPitchAccent) return null;
+
+  let position = extractPitchAccentFromTranslationData(options.translationData) ?? null;
+  let reading = normalizeReading(
+    options.reading || extractReadingFromEntries(options.translationData?.data || []),
+  );
+
+  if (position === null) {
+    const canonical = options.getCanonicalForm(options.word);
+    if (canonical && canonical !== options.word) {
+      const cached = options.getCachedTranslation(canonical, options.language);
+      if (cached) {
+        position = extractPitchAccentFromTranslationData(cached) ?? null;
+        if (!reading) {
+          reading = normalizeReading(extractReadingFromEntries(cached.data || []));
+        }
+      }
+    }
+  }
+
+  if (position === null) return null;
+  if (!reading) reading = options.word;
+
+  return { position, reading };
+}
+
 async function screenshotVideo(cardId: string): Promise<string> {
   const video = document.querySelector('video') as HTMLVideoElement | null;
   if (!video || video.readyState < 2) return '';
