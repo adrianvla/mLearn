@@ -32,7 +32,7 @@ import { FlashcardPitchAccent } from '../../components/flashcard';
 import { useFlashcards, useLocalization, useLanguage, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { cacheVersion, getCachedReading, getCachedTranslation, warmTranslationCache } from '../../hooks/useTranslation';
-import { extractPitchPosition } from '../../utils/translationCacheParsers';
+import { extractFirstDefinition, extractPitchPosition } from '../../utils/translationCacheParsers';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
@@ -42,6 +42,7 @@ import './FlashcardsSuggested.css';
 import { getLogger } from '@shared/utils/logger';
 
 const log = getLogger("renderer.flashcards.flashcardsSuggested");
+const SUGGESTED_CACHE_WARM_DEBOUNCE_MS = 300;
 
 type QuickFilter = 'all' | 'failed' | 'dict';
 
@@ -71,22 +72,7 @@ export const FlashcardsSuggested: Component = () => {
   let virtualScrollRef: HTMLDivElement | undefined;
 
   onMount(() => {
-    let handle: number | ReturnType<typeof setTimeout>;
-    const run = () => {
-      cleanupKnownSuggestions();
-    };
-    if (typeof requestIdleCallback !== 'undefined') {
-      handle = requestIdleCallback(run);
-    } else {
-      handle = setTimeout(run, 0);
-    }
-    onCleanup(() => {
-      if (typeof requestIdleCallback !== 'undefined') {
-        cancelIdleCallback(handle as number);
-      } else {
-        clearTimeout(handle as ReturnType<typeof setTimeout>);
-      }
-    });
+    void cleanupKnownSuggestions();
   });
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.
@@ -164,7 +150,8 @@ export const FlashcardsSuggested: Component = () => {
     return Math.ceil(filtered().length / c);
   });
 
-  const CARD_HEIGHT = 220;
+  // Card height must cover preview content + context phrase + action buttons.
+  const CARD_HEIGHT = 250;
 
   const virtualizer = createMemo(() => {
     const rows = rowCount();
@@ -189,9 +176,15 @@ export const FlashcardsSuggested: Component = () => {
   });
 
   createEffect(() => {
-    const words = filtered().map((suggestion) => suggestion.word).filter((word) => word.trim().length > 0);
+    const words = Object.values(store.suggestedFlashcards)
+      .filter((suggestion) => suggestion.language === settings.language)
+      .map((suggestion) => suggestion.word)
+      .filter((word) => word.trim().length > 0);
     if (words.length === 0) return;
-    void warmTranslationCache(words, undefined, undefined, settings.language);
+    const timeout = setTimeout(() => {
+      void warmTranslationCache(words, undefined, undefined, settings.language);
+    }, SUGGESTED_CACHE_WARM_DEBOUNCE_MS);
+    onCleanup(() => clearTimeout(timeout));
   });
 
   const previewContentById = createMemo(() => {
@@ -204,11 +197,14 @@ export const FlashcardsSuggested: Component = () => {
         ? extractPitchPosition(cachedTranslation.data[2]) ?? undefined
         : undefined;
       const cachedReading = getCachedReading(suggestion.word, settings.language) || undefined;
+      const translation = cachedTranslation?.data
+        ? extractFirstDefinition(cachedTranslation.data) || ''
+        : '';
 
       content.set(suggestion.id, {
         front: suggestion.word,
         reading: suggestion.reading || cachedReading,
-        back: '',
+        back: translation,
         type: 'word',
         pitchAccent,
         pos: suggestion.pos,
@@ -392,20 +388,20 @@ export const FlashcardsSuggested: Component = () => {
               </span>
             </div>
             <div class="flashcards-suggested-bulkbar-right">
-              <label class="flashcards-suggested-toggle">
+              <div class="flashcards-suggested-toggle">
                 <ToggleSwitch
                   checked={useLLM()}
                   onChange={(v) => setUseLLM(v)}
                   label={t('mlearn.Flashcards.Suggested.UseLLM')}
                 />
-              </label>
-              <label class="flashcards-suggested-toggle">
+              </div>
+              <div class="flashcards-suggested-toggle">
                 <ToggleSwitch
                   checked={useTts()}
                   onChange={(v) => setUseTts(v)}
                   label={t('mlearn.Flashcards.Suggested.UseTTS')}
                 />
-              </label>
+              </div>
               <Btn
                 size="sm"
                 variant="secondary"
@@ -510,6 +506,9 @@ export const FlashcardsSuggested: Component = () => {
                               class="flashcards-suggested-card"
                             >
                               <div class="flashcard-translation">
+                                <Show when={previewContent().back}>
+                                  <div class="flashcards-suggested-translation">{previewContent().back}</div>
+                                </Show>
                                 <Show when={s.contextPhrase}>
                                   <div class="flashcards-suggested-context">{s.contextPhrase}</div>
                                 </Show>
@@ -521,7 +520,7 @@ export const FlashcardsSuggested: Component = () => {
                                 </div>
                               </div>
                               <div class="flashcard-footer">
-                                <div class="flashcard-state" onClick={(e) => e.stopPropagation()}>
+                                <div class="flashcard-state">
                                   <WordStatusPill word={s.word} onStatusChange={(status) => handleSuggestedStatusChange(s, status)} />
                                 </div>
                                 <div class="flashcard-actions">

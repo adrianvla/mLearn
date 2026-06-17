@@ -74,3 +74,51 @@ export function extractReadingValue(value: unknown): string | null {
 
   return null;
 }
+
+function stripHtmlTags(raw: string): string {
+  return raw.replace(/<[^>]*>/g, '').trim();
+}
+
+export function hasDefinition(value: unknown): boolean {
+  return extractFirstDefinition(value) !== null;
+}
+
+function collectDefinitions(record: Record<string, unknown>): string[] {
+  const definitions = record.definitions;
+  if (!definitions) return [];
+
+  const raw: string[] = [];
+  if (typeof definitions === 'string') {
+    raw.push(definitions);
+  } else if (Array.isArray(definitions)) {
+    for (const item of definitions) {
+      if (typeof item === 'string') raw.push(item);
+    }
+  }
+
+  return raw.map(stripHtmlTags).filter((d) => d.length > 0);
+}
+
+export function extractFirstDefinition(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const def = extractFirstDefinition(item);
+      if (def) return def;
+    }
+    return null;
+  }
+
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const direct = collectDefinitions(value);
+  if (direct.length > 0) return direct[0];
+
+  for (const child of Object.values(value)) {
+    const def = extractFirstDefinition(child);
+    if (def) return def;
+  }
+
+  return null;
+}

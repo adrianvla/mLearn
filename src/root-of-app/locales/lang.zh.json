@@ -1416,7 +1416,8 @@
         "KnowledgePriority": "知识优先级",
         "Behaviour": "行为",
         "WordKnowledge": "单词知识",
-        "LanguageProficiency": "语言水平"
+        "LanguageProficiency": "语言水平",
+        "SuggestedFlashcards": "推荐闪卡"
       },
       "Keybind": {
         "PressKey": "按一个键…",
@@ -1459,6 +1460,14 @@
           "Label": "学习语言等级",
           "Description": "设置后，高于此等级的推荐闪卡以及无等级的卡片将不会被保存。同时影响单词同步的难度。",
           "NoLimit": "无限制"
+        },
+        "AutoSuggestFlashcards": {
+          "Label": "自动推荐闪卡",
+          "Description": "在观看视频或阅读时自动将遇到的新单词捕获为推荐闪卡。"
+        },
+        "AutoSuggestUnknownWords": {
+          "Label": "推荐非词典单词",
+          "Description": "同时将词典中没有的单词捕获为推荐闪卡。"
         }
       },
       "Performance": {

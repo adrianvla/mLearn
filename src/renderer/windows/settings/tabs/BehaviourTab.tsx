@@ -359,6 +359,29 @@ export const BehaviourTab: Component = () => {
         </SettingGroup>
       </Show>
 
+      <SettingGroup title={t('mlearn.Settings.Groups.SuggestedFlashcards')}>
+        <SettingRow
+          label={t('mlearn.Settings.Behaviour.AutoSuggestFlashcards.Label')}
+          description={t('mlearn.Settings.Behaviour.AutoSuggestFlashcards.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.autoSuggestFlashcards}
+            onChange={(checked) => updateSettings({ autoSuggestFlashcards: checked })}
+          />
+        </SettingRow>
+        <Show when={settings.autoSuggestFlashcards}>
+          <SettingRow
+            label={t('mlearn.Settings.Behaviour.AutoSuggestUnknownWords.Label')}
+            description={t('mlearn.Settings.Behaviour.AutoSuggestUnknownWords.Description')}
+          >
+            <ToggleSwitch
+              checked={settings.autoSuggestUnknownWords}
+              onChange={(checked) => updateSettings({ autoSuggestUnknownWords: checked })}
+            />
+          </SettingRow>
+        </Show>
+      </SettingGroup>
+
       <SettingGroup title={t('mlearn.Settings.Groups.KnowledgePriority')}>
         <SettingRow
           label={t('mlearn.Settings.KnowledgePriority.ResolutionMode.Label')}

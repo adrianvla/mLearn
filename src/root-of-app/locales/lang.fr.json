@@ -1416,7 +1416,8 @@
         "LiveTranslator": "Traducteur de mots en direct",
         "Behaviour": "Comportement",
         "WordKnowledge": "Connaissance des mots",
-        "LanguageProficiency": "Niveau de langue d'apprentissage"
+        "LanguageProficiency": "Niveau de langue d'apprentissage",
+        "SuggestedFlashcards": "Flashcards suggérées"
       },
       "Keybind": {
         "PressKey": "Appuyez sur une touche...",
@@ -2010,6 +2011,14 @@
           "Label": "Niveau de langue d'apprentissage",
           "Description": "Lorsqu'il est défini, les cartes suggérées au-dessus de ce niveau et les cartes sans niveau ne seront pas enregistrées. Affecte également la difficulté de Word Sync.",
           "NoLimit": "Aucune limite"
+        },
+        "AutoSuggestFlashcards": {
+          "Label": "Suggérer automatiquement les flashcards",
+          "Description": "Capturer automatiquement les nouveaux mots vus pendant la vidéo ou la lecture comme flashcards suggérées."
+        },
+        "AutoSuggestUnknownWords": {
+          "Label": "Suggérer les mots hors dictionnaire",
+          "Description": "Capturer également les mots qui ne sont pas dans le dictionnaire comme flashcards suggérées."
         }
       }
     },

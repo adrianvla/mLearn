@@ -26,6 +26,7 @@ import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMedi
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
+import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { tokensToColoredHtml, parseWorkName } from '../../../utils/subtitleParsing';
 import { getWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
@@ -478,9 +479,13 @@ export const VideoRoute: Component = () => {
 
         void (async () => {
           const batchImageId = crypto.randomUUID();
-          const image = await captureVideoFrameDataUrl(batchImageId);
+          const [image, allowedWords] = await Promise.all([
+            captureVideoFrameDataUrl(batchImageId),
+            filterSuggestedWords(newEntries.map(entry => entry.word), settings.language, settings),
+          ]);
           for (const entry of newEntries) {
             const freq = langCtx.getFrequency(entry.word);
+            if (!allowedWords.has(entry.word)) continue;
             void flashcardCtx.captureSuggestedFlashcard({
               word: entry.word,
               reading: freq?.reading,

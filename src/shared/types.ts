@@ -201,6 +201,13 @@ export interface Settings {
    */
   autoSuggestFlashcards: boolean;
   /**
+   * When true, suggested flashcards are captured even when dictionary membership
+   * cannot be confirmed from the translation cache. When false, only words with
+   * cached dictionary definitions are suggested. Does nothing when
+   * autoSuggestFlashcards is false.
+   */
+  autoSuggestUnknownWords: boolean;
+  /**
    * Learning language level for the current language. When set, suggested flashcards
    * above this level (harder) and cards without a level are not captured.
    * Uses the language's raw_level scale (e.g., 2 = JLPT N2, 5 = JLPT N5).
@@ -493,6 +500,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardMediaType: 'image',
   flashcardVideoMargin: 300,
   autoSuggestFlashcards: true,
+  autoSuggestUnknownWords: true,
   learningLanguageLevel: 3,
   devMode: false,
   lowBatteryMode: false,

@@ -31,6 +31,7 @@ import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/text
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore, isWordKnown as checkWordIsKnown } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, isWordKnownComprehensive } from '../utils/comprehensiveKnowledge';
+import { shouldCaptureSuggestedFlashcard, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 
 
 const log = getLogger("renderer.context.flashcard");
@@ -232,7 +233,7 @@ interface FlashcardContextValue {
   /** Remove multiple suggestions in a single batch operation */
   removeSuggestedFlashcards: (ids: string[]) => void;
   /** Remove suggested flashcards whose words have become known. Returns count removed. */
-  cleanupKnownSuggestions: () => number;
+  cleanupKnownSuggestions: () => Promise<number>;
   /** Promote suggestions into full flashcards (runs translation + optional LLM/TTS). Returns number promoted. */
   promoteSuggestedFlashcards: (
     ids: string[],
@@ -1607,11 +1608,41 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
-  const cleanupKnownSuggestions = (): number => {
+  const cleanupKnownSuggestions = async (): Promise<number> => {
     const idsToRemove: string[] = [];
+    const lang = settings.language;
+    const suggestions = Object.values(store.suggestedFlashcards).filter((suggestion) => suggestion.language === lang);
+
+    if (!settings.autoSuggestFlashcards) {
+      const allSuggestionIds = suggestions.map((suggestion) => suggestion.id);
+      if (allSuggestionIds.length > 0) {
+        removeSuggestedFlashcards(allSuggestionIds);
+      }
+      return allSuggestionIds.length;
+    }
+
+    if (!settings.autoSuggestUnknownWords) {
+      const wordsToResolve = suggestions
+        .filter((suggestion) => !shouldCaptureSuggestedFlashcard(suggestion.word, suggestion.language, settings))
+        .map((suggestion) => suggestion.word);
+
+      if (wordsToResolve.length > 0) {
+        await warmDictionaryStatus(wordsToResolve, lang);
+      }
+
+      for (const suggestion of suggestions) {
+        const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language) !== null;
+        if (!hasUnpopulatedCard && !shouldCaptureSuggestedFlashcard(suggestion.word, suggestion.language, settings)) {
+          idsToRemove.push(suggestion.id);
+        }
+      }
+    }
+
     const known = knownWordSet();
     const needsAnkiCheck = settings.use_anki;
     for (const [lk, suggestion] of Object.entries(store.suggestedFlashcards)) {
+      if (suggestion.language !== lang) continue;
+      if (idsToRemove.includes(suggestion.id)) continue;
       const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language) !== null;
       if (known.has(lk) && !hasUnpopulatedCard) {
         idsToRemove.push(suggestion.id);
