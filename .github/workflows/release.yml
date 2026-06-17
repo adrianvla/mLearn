@@ -77,7 +77,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Install dependencies
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: npm install --no-audit --no-fund --prefer-offline
 
       - name: Build Extension
         run: npm run build:extension
@@ -118,7 +126,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Clean node_modules (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+
+      - name: Install dependencies
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: npm install --no-audit --no-fund --prefer-offline
 
       - name: Build Extension
         shell: bash
@@ -166,7 +187,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Install dependencies
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: npm install --no-audit --no-fund --prefer-offline
 
       - name: Build Extension
         run: npm run build:extension
