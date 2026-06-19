@@ -19,7 +19,7 @@ export interface EasePillProps {
   ankiHoverLoading: boolean;
   ankiHoverCard: AnkiCardFields | null;
   ankiHoverCardInfo: AnkiCardSchedulingInfo | null;
-  mlearnCard?: Flashcard | null;
+  builtInCard?: Flashcard | null;
   onTooltipShow?: () => void;
 }
 
@@ -57,7 +57,7 @@ export const EasePill: Component<EasePillProps> = (props) => {
   return (
     <Show when={props.isInAnki} fallback={
       <FlashcardHoverPreview
-        mlearnCard={props.mlearnCard ?? null}
+        builtInCard={props.builtInCard ?? null}
       >
         <PillBtn
           variant="green"
@@ -67,7 +67,7 @@ export const EasePill: Component<EasePillProps> = (props) => {
       </FlashcardHoverPreview>
     }>
       <FlashcardHoverPreview
-        mlearnCard={props.mlearnCard ?? null}
+        builtInCard={props.builtInCard ?? null}
         ankiLoading={props.ankiHoverLoading}
         ankiFields={props.ankiHoverCard}
         ankiCardInfo={props.ankiHoverCardInfo}

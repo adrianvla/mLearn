@@ -287,7 +287,7 @@
 .flashcard-example rt{
   position:relative;
 }
-.flashcard-example .mLearn-pitch-accent{
+.flashcard-example .pitch-accent{
   --pitch-accent-height: 1.5px;
 }
 .flashcard-example .frequency{

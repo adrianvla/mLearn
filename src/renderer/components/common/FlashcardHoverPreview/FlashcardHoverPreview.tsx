@@ -1,13 +1,13 @@
 import { Component, JSX, Show } from 'solid-js';
 import { Tooltip } from '../Tooltip';
 import { AnkiHoverPreviewContent } from '../AnkiHoverPreview/AnkiHoverPreview';
-import { MlearnHoverPreview } from '../MlearnHoverPreview/MlearnHoverPreview';
+import { BuiltInFlashcardHoverPreview } from '../BuiltInFlashcardHoverPreview/BuiltInFlashcardHoverPreview';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview/AnkiHoverPreview';
 import type { Flashcard } from '../../../../shared/types';
 import './FlashcardHoverPreview.css';
 
 export interface FlashcardHoverPreviewProps {
-  mlearnCard?: Flashcard | null;
+  builtInCard?: Flashcard | null;
   ankiLoading?: boolean;
   ankiFields?: AnkiCardFields | null;
   ankiCardInfo?: AnkiCardSchedulingInfo | null;
@@ -37,7 +37,7 @@ const renderExternalFooter = (footer?: JSX.Element) => (
 );
 
 export const FlashcardHoverPreview: Component<FlashcardHoverPreviewProps> = (props) => {
-  const hasMlearn = () => props.mlearnCard != null;
+  const hasMlearn = () => props.builtInCard != null;
   const hasAnki = () => props.ankiFields != null || (props.ankiLoading ?? false);
   const both = () => hasMlearn() && hasAnki();
 
@@ -47,7 +47,7 @@ export const FlashcardHoverPreview: Component<FlashcardHoverPreviewProps> = (pro
         <>
           <div class="flashcard-hover-preview">
             <PreviewColumn title="mLearn">
-              <MlearnHoverPreview card={props.mlearnCard!} />
+              <BuiltInFlashcardHoverPreview card={props.builtInCard!} />
             </PreviewColumn>
             <div class="flashcard-hover-preview__divider" />
             <PreviewColumn title="Anki">
@@ -66,7 +66,7 @@ export const FlashcardHoverPreview: Component<FlashcardHoverPreviewProps> = (pro
     if (hasMlearn()) {
       return (
         <>
-          <MlearnHoverPreview card={props.mlearnCard!} />
+          <BuiltInFlashcardHoverPreview card={props.builtInCard!} />
           {renderExternalFooter(props.footer)}
         </>
       );

@@ -211,7 +211,7 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
       <PillLabel variant="gray" class={`pitch-accent-pill ${props.class || ''}`}>
         <span class="pitch-accent-word">
           {effectiveReading()}{includeParticleBox() ? '✦' : ''}
-          <span class="mLearn-pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
+          <span class="pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
         </span>
         <Show when={props.posLabel}>
           <span class="pitch-pill-pos">{props.posLabel}</span>
@@ -226,7 +226,7 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
       <span class={`pitch-accent-preview ${props.class || ''}`}>
         <span class="pitch-accent-word">
           {effectiveReading()}
-          <span class="mLearn-pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
+          <span class="pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
         </span>
       </span>
     </Show>
@@ -239,7 +239,7 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
       <span class={`pitch-overlay-wrapper ${props.class || ''}`}>
         {resolved()}
         <Show when={pitchHtml()}>
-          <span class="mLearn-pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
+          <span class="pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
         </Show>
       </span>
     );

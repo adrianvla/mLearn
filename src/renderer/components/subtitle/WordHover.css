@@ -204,7 +204,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   padding-bottom: 2px;
 }
 
-.subtitle_hover .pitch-accent-pill .mLearn-pitch-accent {
+.subtitle_hover .pitch-accent-pill .pitch-accent {
   --pitch-accent-height: 2px;
   position: absolute;
   top: 0;

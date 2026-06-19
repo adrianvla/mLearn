@@ -45,7 +45,7 @@
   position: relative;
 }
 
-.edit-translation-dialog__pitch-preview .mLearn-pitch-accent {
+.edit-translation-dialog__pitch-preview .pitch-accent {
   --pitch-accent-height: 3px;
   position: absolute;
   top: 0;

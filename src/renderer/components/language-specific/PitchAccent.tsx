@@ -40,7 +40,7 @@ export const PitchAccent: Component<PitchAccentProps> = (props) => {
         <div class="pitch-accent-word">
           {props.reading}✦
           <div 
-            class="mLearn-pitch-accent" 
+            class="pitch-accent" 
             aria-hidden="true" 
             innerHTML={accentHtml()}
           />

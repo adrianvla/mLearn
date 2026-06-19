@@ -28,7 +28,7 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getCardByWordSync } = useFlashcards();
-  const mlearnCard = createMemo(() => getCardByWordSync(props.word));
+  const builtInCard = createMemo(() => getCardByWordSync(props.word));
   const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
   const [ankiHoverCardInfo, setAnkiHoverCardInfo] = createSignal<AnkiCardSchedulingInfo | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
@@ -128,13 +128,13 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
           ankiHoverLoading={ankiHoverLoading()}
           ankiHoverCard={ankiHoverCard()}
           ankiHoverCardInfo={ankiHoverCardInfo()}
-          mlearnCard={mlearnCard()}
+          builtInCard={builtInCard()}
           onTooltipShow={handleTooltipShow}
         />
       </Match>
       <Match when={props.isInAnki}>
         <FlashcardHoverPreview
-          mlearnCard={mlearnCard()}
+          builtInCard={builtInCard()}
           ankiLoading={ankiHoverLoading()}
           ankiFields={ankiHoverCard()}
           ankiCardInfo={ankiHoverCardInfo()}
