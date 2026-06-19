@@ -80,11 +80,11 @@ body.theme-darker .pitch-accent-container,
 }
 
 /* When inside subtitle hover */
-.subtitle_hover .mLearn-pitch-accent {
+.subtitle_hover .pitch-accent {
     --pitch-accent-height: 2px;
 }
 
-.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
+.subtitle_hover .pill.pitch-accent-pill .pitch-accent {
     --pitch-accent-height: 2px;
 }
 
@@ -92,8 +92,8 @@ body.theme-darker .pitch-accent-container,
     position: relative;
 }
 
-body.theme-darker .subtitle_hover .mLearn-pitch-accent,
-.subtitle_hover.theme-darker .mLearn-pitch-accent {
+body.theme-darker .subtitle_hover .pitch-accent,
+.subtitle_hover.theme-darker .pitch-accent {
     filter: none;
     color: var(--text-primary);
 }

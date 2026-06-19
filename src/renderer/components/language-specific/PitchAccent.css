@@ -18,7 +18,7 @@
 }
 
 /* Pitch accent diagram container */
-.mLearn-pitch-accent {
+.pitch-accent {
   --pitch-accent-height: 2px;
   position: absolute;
   bottom: 0;
@@ -32,7 +32,7 @@
 }
 
 /* Pitch accent box - each mora gets one */
-.mLearn-pitch-accent .box {
+.pitch-accent .box {
   flex: 1 1 0%;
   min-width: 0;
   height: 100%;
@@ -41,7 +41,7 @@
 }
 
 /* Low pitch (bottom line) - uses CSS variable */
-.mLearn-pitch-accent .box.bottom::before {
+.pitch-accent .box.bottom::before {
   content: "";
   position: absolute;
   left: calc(var(--pitch-accent-height) / -2);
@@ -54,7 +54,7 @@
 }
 
 /* High pitch (top line) - uses CSS variable */
-.mLearn-pitch-accent .box.top::before {
+.pitch-accent .box.top::before {
   content: "";
   position: absolute;
   left: calc(var(--pitch-accent-height) / -2);
@@ -67,7 +67,7 @@
 }
 
 /* Transition marker (left vertical line) - gradient */
-.mLearn-pitch-accent .box.left::after {
+.pitch-accent .box.left::after {
   content: "";
   position: absolute;
   top: calc(var(--pitch-accent-height) / -2);
@@ -80,32 +80,32 @@
 }
 
 /* Particle box fade effect */
-.mLearn-pitch-accent .particle-box.box.top::before {
+.pitch-accent .particle-box.box.top::before {
   background: linear-gradient(to right, var(--pitch-accent-high), transparent);
 }
 
-.mLearn-pitch-accent .particle-box.box.bottom::before {
+.pitch-accent .particle-box.box.bottom::before {
   background: linear-gradient(to right, var(--pitch-accent-low), transparent);
 }
 
 /* Remove left border radius when same-type boxes are adjacent */
-.mLearn-pitch-accent .box.top + .box.top::before {
+.pitch-accent .box.top + .box.top::before {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
 
-.mLearn-pitch-accent .box.bottom + .box.bottom::before {
+.pitch-accent .box.bottom + .box.bottom::before {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
 
 /* Drop marker - when transitioning from high to low at end */
-.mLearn-pitch-accent .box.top.left::after {
+.pitch-accent .box.top.left::after {
   /* Gradient from top (high) to bottom (low) */
   background: linear-gradient(to bottom, var(--pitch-accent-high), var(--pitch-accent-low));
 }
 
-.mLearn-pitch-accent .box.bottom.left::after {
+.pitch-accent .box.bottom.left::after {
   /* Gradient from bottom (low) to top (high) */
   background: linear-gradient(to top, var(--pitch-accent-low), var(--pitch-accent-high));
 }
@@ -128,46 +128,46 @@
   position: relative;
   padding-bottom: 2px;
 }
-.pitch-accent-pill .mLearn-pitch-accent{
+.pitch-accent-pill .pitch-accent{
   /*padding-left:var(--pitch-accent-height);*/
 }
 
 /* Variant sizes for pitch accent */
-ruby .mLearn-pitch-accent {
+ruby .pitch-accent {
   --pitch-accent-height: 2px;
 }
 
-span:not(ruby) .mLearn-pitch-accent {
+span:not(ruby) .pitch-accent {
   --pitch-accent-height: 3px;
 }
 
 /* For flashcards, larger pitch accent */
-.flashcard-pitch-container .mLearn-pitch-accent {
+.flashcard-pitch-container .pitch-accent {
   --pitch-accent-height: 3px;
 }
 
-.flashcard-pitch-kana .mLearn-pitch-accent {
+.flashcard-pitch-kana .pitch-accent {
   --pitch-accent-height: 5px;
 }
 
 /* Ensure visibility */
-.mLearn-pitch-accent .box::before,
-.mLearn-pitch-accent .box::after {
+.pitch-accent .box::before,
+.pitch-accent .box::after {
   z-index: 1;
 }
-.mLearn-pitch-accent .box.top::before,
-.mLearn-pitch-accent .box.bottom::before {
+.pitch-accent .box.top::before,
+.pitch-accent .box.bottom::before {
   border-top-right-radius: 50px;
   border-bottom-right-radius: 50px;
 }
 
 /* Remove right radius when followed by same-type */
-.mLearn-pitch-accent .box.top:has(+ .box.top)::before {
+.pitch-accent .box.top:has(+ .box.top)::before {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 
-.mLearn-pitch-accent .box.bottom:has(+ .box.bottom)::before {
+.pitch-accent .box.bottom:has(+ .box.bottom)::before {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -182,7 +182,7 @@ span:not(ruby) .mLearn-pitch-accent {
   position: relative;
 }
 
-.pill.pitch-accent-pill .mLearn-pitch-accent {
+.pill.pitch-accent-pill .pitch-accent {
   --pitch-accent-height: 2px;
 }
 
@@ -204,7 +204,7 @@ span:not(ruby) .mLearn-pitch-accent {
   white-space: nowrap;
 }
 
-.pitch-overlay-wrapper > .mLearn-pitch-accent {
+.pitch-overlay-wrapper > .pitch-accent {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -228,7 +228,7 @@ span:not(ruby) .mLearn-pitch-accent {
   padding-bottom: 4px;
 }
 
-.pitch-accent-preview .mLearn-pitch-accent {
+.pitch-accent-preview .pitch-accent {
   position: absolute;
   bottom: 0;
   left: 0;

@@ -262,11 +262,11 @@ export {
   type FlashcardHoverPreviewProps,
 } from './FlashcardHoverPreview';
 
-// MlearnHoverPreview Components
+// BuiltInFlashcardHoverPreview Components
 export {
-  MlearnHoverPreview,
-  type MlearnHoverPreviewProps,
-} from './MlearnHoverPreview';
+  BuiltInFlashcardHoverPreview,
+  type BuiltInFlashcardHoverPreviewProps,
+} from './BuiltInFlashcardHoverPreview';
 
 // Tooltip
 export {
