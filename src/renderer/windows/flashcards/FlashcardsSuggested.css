@@ -1,14 +1,31 @@
 .flashcards-suggested {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100%;
+  background: var(--bg-opaque);
 }
 
-.flashcards-suggested-header {
+.flashcards-suggested > .collapsible-sticky-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-sticky);
+}
+
+.flashcards-suggested-sticky-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-6) var(--spacing-4);
+  background: var(--bg);
+  backdrop-filter: var(--backdrop-filter);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.flashcards-suggested-title-block {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  padding: var(--spacing-6) var(--spacing-6) var(--spacing-2);
 }
 
 .flashcards-suggested-title-row {
@@ -40,16 +57,6 @@
   gap: var(--spacing-3);
   flex-wrap: wrap;
   align-items: center;
-}
-
-.flashcards-suggested-sticky-controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  padding: var(--spacing-4) var(--spacing-6);
-  background: var(--bg);
-  backdrop-filter: var(--backdrop-filter);
-  border-bottom: 1px solid var(--border-color);
 }
 
 .flashcards-suggested-search {
@@ -113,9 +120,10 @@
 }
 
 .flashcards-suggested-scroll {
-  flex: 1;
+  height: 100%;
   overflow-y: auto;
-  padding: var(--spacing-4) var(--spacing-6);
+  padding: calc(var(--flashcards-suggested-header-height, 0px) + var(--spacing-4) - 1px) var(--spacing-6) var(--spacing-4);
+  transition: padding-top var(--transition-slow);
 }
 
 .flashcards-suggested-virtual-container {
@@ -128,8 +136,16 @@
   gap: var(--spacing-4);
 }
 
+.flashcards-suggested-tooltip-wrapper {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
 .flashcards-suggested-card {
   height: 100%;
+  width: 100%;
+  min-width: 0;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -253,7 +269,15 @@
   font-size: var(--font-size-sm);
 }
 
-.flashcards-suggested-empty,
+.flashcards-suggested-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-6);
+}
+
 .flashcards-suggested-nomatch {
   grid-column: 1 / -1;
   padding: var(--spacing-6);

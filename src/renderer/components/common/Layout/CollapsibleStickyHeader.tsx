@@ -6,6 +6,7 @@ interface CollapsibleStickyHeaderProps {
   class?: string;
   getScrollContainer: () => HTMLElement | undefined;
   collapseThreshold?: number;
+  ref?: (el: HTMLDivElement) => void;
 }
 
 const DEFAULT_COLLAPSE_THRESHOLD = 8;
@@ -82,7 +83,7 @@ export const CollapsibleStickyHeader: Component<CollapsibleStickyHeaderProps> = 
   });
 
   return (
-    <div class={`collapsible-sticky-header ${isCollapsed() ? 'collapsible-sticky-header--collapsed' : ''} ${props.class ?? ''}`.trim()}>
+    <div ref={props.ref} class={`collapsible-sticky-header ${isCollapsed() ? 'collapsible-sticky-header--collapsed' : ''} ${props.class ?? ''}`.trim()}>
       {props.children}
     </div>
   );
