@@ -4,12 +4,20 @@
  */
 
 .word-db-editor {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100vh;
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
+}
+
+.word-db-editor > .collapsible-sticky-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-sticky);
+  backdrop-filter: var(--backdrop-filter);
 }
 
 /* On mobile, fill mobile content area */
@@ -56,9 +64,11 @@
 
 /* Entries list container */
 .entries-list {
-  flex: 1;
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
-  padding: 0.5rem 0;
+  padding: calc(var(--word-db-editor-header-height, 0px) + var(--spacing-4) - 1px) 0 0.5rem 0;
+  transition: padding-top var(--transition-slow);
 }
 
 .virtual-row {

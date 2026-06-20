@@ -4,7 +4,7 @@
  * Ported from adjustWordsByLevel in stats.js
  */
 
-import { Component, createSignal, For, Show, onMount, createEffect, createMemo, on } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, createEffect, createMemo, on, onCleanup } from 'solid-js';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import {
@@ -14,7 +14,7 @@ import { WORD_STATUS } from '../../../shared/constants';
 import type { WordStatus } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
-import { ModalLoadingOverlay, Spinner } from '../../components/common';
+import { ModalLoadingOverlay, Spinner, CollapsibleStickyHeader } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
@@ -486,14 +486,15 @@ export const WordDbEditorContent: Component = () => {
     return !!findAnkiWordMatchInCache(getWordForms(word));
   };
 
-  let entriesListRef: HTMLDivElement | undefined;
+  const [entriesListRef, setEntriesListRef] = createSignal<HTMLDivElement | undefined>(undefined);
+  const [headerRef, setHeaderRef] = createSignal<HTMLDivElement | undefined>(undefined);
   const ROW_HEIGHT = 56;
 
   const virtualizer = createMemo(() => {
     const entries = filteredEntries();
     return createVirtualizer({
       count: entries.length,
-      getScrollElement: () => entriesListRef,
+      getScrollElement: () => entriesListRef(),
       estimateSize: () => ROW_HEIGHT,
       overscan: 5,
       measureDynamic: true,
@@ -509,6 +510,23 @@ export const WordDbEditorContent: Component = () => {
     }, 80);
   });
 
+  createEffect(() => {
+    const header = headerRef();
+    if (!header) return;
+
+    const container = header.parentElement as HTMLElement | null;
+    if (!container) return;
+
+    const updateHeight = () => {
+      container.style.setProperty('--word-db-editor-header-height', `${header.offsetHeight}px`);
+    };
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateHeight) : null;
+    if (ro) ro.observe(header);
+    updateHeight();
+
+    onCleanup(() => { if (ro) ro.disconnect(); });
+  });
+
   return (
       <div class="word-db-editor">
         {/* Loading indicator while initializing or waiting for word frequency data */}
@@ -520,31 +538,33 @@ export const WordDbEditorContent: Component = () => {
         </Show>
 
         <Show when={isInitialized() && (browseMode() === 'ignored' || hasLoadedWords() || isLoading())}>
-          {/* Search Bar */}
-          <SearchBar
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              selectedLevel={selectedLevel}
-              setSelectedLevel={setSelectedLevel}
-              selectedSource={selectedSource}
-              setSelectedSource={setSelectedSource}
-              browseMode={browseMode}
-              setBrowseMode={setBrowseMode}
-              isLoading={isLoading}
-              loadProgress={loadProgress}
-              levelNames={levelNames()}
-              onSearch={handleSearch}
-          />
+          <CollapsibleStickyHeader ref={setHeaderRef} getScrollContainer={entriesListRef} class="word-db-editor-header">
+            {/* Search Bar */}
+            <SearchBar
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                selectedLevel={selectedLevel}
+                setSelectedLevel={setSelectedLevel}
+                selectedSource={selectedSource}
+                setSelectedSource={setSelectedSource}
+                browseMode={browseMode}
+                setBrowseMode={setBrowseMode}
+                isLoading={isLoading}
+                loadProgress={loadProgress}
+                levelNames={levelNames()}
+                onSearch={handleSearch}
+            />
 
-          {/* Table Header */}
-          <EntriesHeader
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-          />
+            {/* Table Header */}
+            <EntriesHeader
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+            />
+          </CollapsibleStickyHeader>
 
           {/* Entries List */}
-          <div class="entries-list" ref={entriesListRef}>
+          <div class="entries-list" ref={setEntriesListRef}>
             <Show when={!isLoading() && filteredEntries().length === 0 && (browseMode() === 'ignored' || hasLoadedWords())}>
               <div class="empty-state">
                 <p>{browseMode() === 'ignored' ? t('mlearn.WordDbEditor.EmptyIgnoredState') : t('mlearn.WordDbEditor.EmptyState')}</p>
