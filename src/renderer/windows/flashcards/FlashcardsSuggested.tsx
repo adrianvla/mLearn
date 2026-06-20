@@ -67,9 +67,8 @@ export const FlashcardsSuggested: Component = () => {
   const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
-
-  let suggestedRef: HTMLDivElement | undefined;
-  let virtualScrollRef: HTMLDivElement | undefined;
+  const [virtualScrollRef, setVirtualScrollRef] = createSignal<HTMLDivElement | undefined>(undefined);
+  const [headerRef, setHeaderRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
   onMount(() => {
     void cleanupKnownSuggestions();
@@ -157,20 +156,37 @@ export const FlashcardsSuggested: Component = () => {
     const rows = rowCount();
     return createVirtualizer({
       count: rows,
-      getScrollElement: () => virtualScrollRef,
+      getScrollElement: () => virtualScrollRef(),
       estimateSize: () => CARD_HEIGHT + CARD_GAP,
       overscan: 3,
     });
   });
 
   createEffect(() => {
-    const el = virtualScrollRef;
+    const el = virtualScrollRef();
     if (!el) return;
 
     const updateWidth = () => setContainerWidth(el.clientWidth);
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateWidth) : null;
     if (ro) ro.observe(el);
     updateWidth();
+
+    onCleanup(() => { if (ro) ro.disconnect(); });
+  });
+
+  createEffect(() => {
+    const header = headerRef();
+    if (!header) return;
+
+    const container = header.parentElement as HTMLElement | null;
+    if (!container) return;
+
+    const updateHeight = () => {
+      container.style.setProperty('--flashcards-suggested-header-height', `${header.offsetHeight}px`);
+    };
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateHeight) : null;
+    if (ro) ro.observe(header);
+    updateHeight();
 
     onCleanup(() => { if (ro) ro.disconnect(); });
   });
@@ -324,33 +340,24 @@ export const FlashcardsSuggested: Component = () => {
   };
 
   return (
-    <div class="flashcards-suggested" ref={(el) => { suggestedRef = el; }}>
-      <div class="flashcards-suggested-header">
-        <div class="flashcards-suggested-title-row">
-          <h2 class="flashcards-suggested-title">
-            {t('mlearn.Flashcards.Suggested.Title')}
-          </h2>
-          <span class="flashcards-suggested-count">
-            {t('mlearn.Flashcards.Suggested.CountLabel', {
-              shown: String(filtered().length),
-              total: String(suggestions().length),
-            })}
-          </span>
+    <div class="flashcards-suggested">
+      <CollapsibleStickyHeader ref={setHeaderRef} getScrollContainer={virtualScrollRef} class="flashcards-suggested-sticky-controls">
+        <div class="flashcards-suggested-title-block">
+          <div class="flashcards-suggested-title-row">
+            <h2 class="flashcards-suggested-title">
+              {t('mlearn.Flashcards.Suggested.Title')}
+            </h2>
+            <span class="flashcards-suggested-count">
+              {t('mlearn.Flashcards.Suggested.CountLabel', {
+                shown: String(filtered().length),
+                total: String(suggestions().length),
+              })}
+            </span>
+          </div>
+          <p class="flashcards-suggested-desc">{t('mlearn.Flashcards.Suggested.Description')}</p>
         </div>
-        <p class="flashcards-suggested-desc">{t('mlearn.Flashcards.Suggested.Description')}</p>
-      </div>
 
-      <Show when={suggestions().length > 0} fallback={
-        <div class="flashcards-suggested-empty">
-          <EmptyState
-            icon={<SparklesIcon size={32} />}
-            title={t('mlearn.Flashcards.Suggested.EmptyTitle')}
-            description={t('mlearn.Flashcards.Suggested.EmptyDescription')}
-            variant="card"
-          />
-        </div>
-      }>
-        <CollapsibleStickyHeader getScrollContainer={() => suggestedRef} class="flashcards-suggested-sticky-controls">
+        <Show when={suggestions().length > 0}>
           <div class="flashcards-suggested-controls">
             <Input
               class="flashcards-suggested-search"
@@ -424,27 +431,38 @@ export const FlashcardsSuggested: Component = () => {
               </Btn>
             </div>
           </div>
-        </CollapsibleStickyHeader>
 
-        <Show when={promoting()}>
-          {(p) => (
-            <div class="flashcards-suggested-progress">
-              <div class="flashcards-suggested-progress-label">
-                {t('mlearn.Flashcards.Suggested.Promoting', {
-                  current: String(p().current),
-                  total: String(p().total),
-                })}
+          <Show when={promoting()}>
+            {(p) => (
+              <div class="flashcards-suggested-progress">
+                <div class="flashcards-suggested-progress-label">
+                  {t('mlearn.Flashcards.Suggested.Promoting', {
+                    current: String(p().current),
+                    total: String(p().total),
+                  })}
+                </div>
+                <ProgressBar
+                  value={p().total > 0 ? (p().current / p().total) * 100 : 0}
+                  variant="primary"
+                  size="sm"
+                />
               </div>
-              <ProgressBar
-                value={p().total > 0 ? (p().current / p().total) * 100 : 0}
-                variant="primary"
-                size="sm"
-              />
-            </div>
-          )}
+            )}
+          </Show>
         </Show>
+      </CollapsibleStickyHeader>
 
-        <div class="flashcards-suggested-scroll" ref={(el) => { virtualScrollRef = el; }}>
+      <Show when={suggestions().length > 0} fallback={
+        <div class="flashcards-suggested-empty">
+          <EmptyState
+            icon={<SparklesIcon size={32} />}
+            title={t('mlearn.Flashcards.Suggested.EmptyTitle')}
+            description={t('mlearn.Flashcards.Suggested.EmptyDescription')}
+            variant="card"
+          />
+        </div>
+      }>
+        <div class="flashcards-suggested-scroll" ref={setVirtualScrollRef}>
           <div class="flashcards-suggested-virtual-container" style={{ height: `${virtualizer().getTotalSize()}px` }}>
             <For each={virtualizer().getVirtualItems()}>
               {(item) => {
