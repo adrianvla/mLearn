@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource } from 'solid-js';
 import {
   WindowWrapper,
   useLocalization,
@@ -6,7 +6,7 @@ import {
   useLanguage,
   useFlashcards,
 } from '../../context';
-import { Btn, EmptyState, PillLabel, Select, ToggleSwitch, WordWithReading } from '../../components/common';
+import { Btn, EmptyState, PillLabel, Select, WordWithReading } from '../../components/common';
 import { SRS_EASE } from '../../../shared/constants';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { fetchTranslation } from '../../hooks/useTranslation';
@@ -14,7 +14,6 @@ import { extractKanjiChars } from '../../../shared/utils/textUtils';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import {
   wasExplicitlySyncRated,
-  shouldIncludeForLevel,
   calculateKanjiBoost,
   calculateWordWeight,
   isWordEligible,
@@ -57,8 +56,12 @@ export const WordSyncContent: Component = () => {
   const [ratedCount, setRatedCount] = createSignal(0);
   const [lastRating, setLastRating] = createSignal<Rating | null>(null);
   const [finished, setFinished] = createSignal(false);
-  const [ignoreSeenFilter, setIgnoreSeenFilter] = createSignal(false);
-  const [filterMode, setFilterMode] = createSignal<'unknown' | 'unknown-learning' | 'passive'>('unknown');
+  type FilterMode = 'all' | 'unknown' | 'unknown-learning' | 'passive';
+  type RecencyMode = 'all' | 'hide-recent';
+  // Defaults preserve previous behavior: status filtered to 'unknown', recency filter active.
+  const [filterMode, setFilterMode] = createSignal<FilterMode>('unknown');
+  const [recencyMode, setRecencyMode] = createSignal<RecencyMode>('hide-recent');
+  const [levelFilter, setLevelFilter] = createSignal<string>('all');
   const [showTranslation, setShowTranslation] = createSignal(false);
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
@@ -139,8 +142,9 @@ export const WordSyncContent: Component = () => {
 
     const freq = langCtx.wordFrequency;
     const names = levelNames();
-    const target = settings.learningLanguageLevel ?? DEFAULT_SETTINGS.learningLanguageLevel!;
-    const skipSeen = !ignoreSeenFilter();
+    const knownLevels = new Set<number>(sortedLevels().map(Number));
+    const lvlFilter = levelFilter();
+    const skipSeen = recencyMode() === 'hide-recent';
     const mode = filterMode();
     const staleDaysMs = settings.wordSyncStaleLearningDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
@@ -153,7 +157,12 @@ export const WordSyncContent: Component = () => {
     const prefix = lang + ':';
 
     for (const [word, entry] of Object.entries(freq)) {
-      if (!shouldIncludeForLevel(entry.raw_level, target)) continue;
+      // Level filter: independent from settings.learningLanguageLevel (used only as a visual marker).
+      if (lvlFilter === 'others') {
+        if (knownLevels.has(entry.raw_level)) continue;
+      } else if (lvlFilter !== 'all') {
+        if (String(entry.raw_level) !== lvlFilter) continue;
+      }
 
       if (rated.has(word)) continue;
 
@@ -165,9 +174,11 @@ export const WordSyncContent: Component = () => {
       const knowledge = getWordKnowledge(lk);
       const resolvedStatus = getComprehensiveWordStatusWithSourceSync(word).status;
 
-      if (mode === 'unknown' && resolvedStatus !== 'unknown') continue;
-      if (mode === 'unknown-learning' && resolvedStatus !== 'unknown' && resolvedStatus !== 'learning') continue;
-      if (mode === 'passive' && !store.wordKnowledge[lk]) continue;
+      if (mode !== 'all') {
+        if (mode === 'unknown' && resolvedStatus !== 'unknown') continue;
+        if (mode === 'unknown-learning' && resolvedStatus !== 'unknown' && resolvedStatus !== 'learning') continue;
+        if (mode === 'passive' && !store.wordKnowledge[lk]) continue;
+      }
 
       const seenRecently = isSyncSeenRecently(word, prefix);
 
@@ -276,7 +287,8 @@ export const WordSyncContent: Component = () => {
   }
 
   function recheckAll() {
-    setIgnoreSeenFilter(true);
+    setRecencyMode('all');
+    setLevelFilter('all');
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
@@ -373,29 +385,64 @@ export const WordSyncContent: Component = () => {
           <Select
             class="word-sync-filter-select"
             value={filterMode()}
+            title={t('mlearn.WordSync.StatusFilterTitle')}
+            aria-label={t('mlearn.WordSync.StatusFilterTitle')}
             onChange={(e) => {
-              setFilterMode(e.currentTarget.value as 'unknown' | 'unknown-learning' | 'passive');
+              setFilterMode(e.currentTarget.value as FilterMode);
               levelCursors = new Map();
               setFinished(false);
               setLastRating(null);
               queueMicrotask(() => pickNext());
             }}
           >
+            <option value="all">{t('mlearn.WordSync.FilterAll')}</option>
             <option value="unknown">{t('mlearn.WordSync.FilterUnknownOnly')}</option>
             <option value="unknown-learning">{t('mlearn.WordSync.FilterUnknownLearning')}</option>
             <option value="passive">{t('mlearn.WordSync.FilterPassive')}</option>
           </Select>
-          <ToggleSwitch
-            checked={ignoreSeenFilter()}
-            onChange={(v) => {
-              setIgnoreSeenFilter(v);
+          <Select
+            class="word-sync-recency-select"
+            value={recencyMode()}
+            title={t('mlearn.WordSync.RecencyFilterTitle')}
+            aria-label={t('mlearn.WordSync.RecencyFilterTitle')}
+            onChange={(e) => {
+              setRecencyMode(e.currentTarget.value as RecencyMode);
               levelCursors = new Map();
               setFinished(false);
               setLastRating(null);
               queueMicrotask(() => pickNext());
             }}
-            label={t('mlearn.WordSync.IgnoreSeen')}
-          />
+          >
+            <option value="all">{t('mlearn.WordSync.RecencyAll')}</option>
+            <option value="hide-recent">{t('mlearn.WordSync.RecencyHideRecent')}</option>
+          </Select>
+          <Select
+            class="word-sync-level-select"
+            value={levelFilter()}
+            title={t('mlearn.WordSync.LevelFilterTitle')}
+            aria-label={t('mlearn.WordSync.LevelFilterTitle')}
+            onChange={(e) => {
+              setLevelFilter(e.currentTarget.value);
+              levelCursors = new Map();
+              setFinished(false);
+              setLastRating(null);
+              queueMicrotask(() => pickNext());
+            }}
+          >
+            <option value="all">{t('mlearn.WordSync.LevelFilterAll')}</option>
+            <For each={sortedLevels()}>{(lvl) => {
+              const name = levelNames()[String(lvl)] ?? `Level ${lvl}`;
+              const targetSetting = settings.learningLanguageLevel ?? DEFAULT_SETTINGS.learningLanguageLevel!;
+              return (
+                <option value={String(lvl)}>
+                  {lvl === targetSetting
+                    ? t('mlearn.WordSync.LevelFilterTargetMarker', { name })
+                    : name}
+                </option>
+              );
+            }}</For>
+            <option value="others">{t('mlearn.WordSync.LevelFilterOthers')}</option>
+          </Select>
           <Show when={currentWord()}>
             <PillLabel level={currentWord()!.level}>
               {levelLabel()}

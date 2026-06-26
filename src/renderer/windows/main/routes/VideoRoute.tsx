@@ -21,7 +21,7 @@ import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
-import { captureElementAndSave } from '../../../services/canvasCapture';
+import { captureVideoFrameForFlashcard } from '../../../services/flashcardImageCapture';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -129,14 +129,6 @@ export const VideoRoute: Component = () => {
 
   const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
   const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || ''));
-
-  /** Capture the current video frame as a low-res JPEG and save it via the bridge.
-   *  Returns the flashcard-image:// URL, or null when unavailable. */
-  async function captureVideoFrameDataUrl(cardId: string): Promise<string | null> {
-    const video = getCurrentVideoElement();
-    if (!video || video.readyState < 2) return null;
-    return await captureElementAndSave(video, cardId);
-  }
 
   const loadSharedVideo = (url: string, name: string) => {
     setVideoSrc(url);
@@ -480,7 +472,7 @@ export const VideoRoute: Component = () => {
         void (async () => {
           const batchImageId = crypto.randomUUID();
           const [image, allowedWords] = await Promise.all([
-            captureVideoFrameDataUrl(batchImageId),
+            captureVideoFrameForFlashcard(batchImageId),
             filterSuggestedWords(newEntries.map(entry => entry.word), settings.language, settings),
           ]);
           for (const entry of newEntries) {
@@ -587,7 +579,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
         log.info('[VideoRoute] addVideoWordFlashcard: skipping video clip — condition not met');
       }
 
-      const imageUrl = await captureVideoFrameDataUrl(cardId);
+      const imageUrl = await captureVideoFrameForFlashcard(cardId);
       if (imageUrl) {
         content.imageUrl = imageUrl;
       }

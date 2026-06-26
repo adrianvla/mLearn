@@ -29,9 +29,9 @@ import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
-import { buildKnownWordSetFromStore, isWordKnown as checkWordIsKnown } from '../utils/knowledgeUtils';
+import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, isWordKnownComprehensive } from '../utils/comprehensiveKnowledge';
-import { shouldCaptureSuggestedFlashcard, warmDictionaryStatus } from '../utils/suggestedFlashcards';
+import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 
 
 const log = getLogger("renderer.context.flashcard");
@@ -1416,7 +1416,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const now = Date.now();
     const unpopulatedCard = findUnpopulatedFlashcardForWord(canonical, lang);
 
-    if (checkWordIsKnown(lk, knownWordSet(), store.wordKnowledge, settings.known_ease_threshold) && !unpopulatedCard) return;
+    const comprehensiveStatus = getComprehensiveWordStatusSync(canonical);
+    const keepSuggestion = shouldKeepSuggestion(
+      { word: canonical, reading: params.reading, pos: params.pos, level: params.level, language: lang },
+      settings,
+      knownWordSet(),
+      settings.learningLanguageLevel,
+      comprehensiveStatus,
+    );
+    if (!keepSuggestion && !unpopulatedCard) return;
 
     let imageUrl = params.imageUrl;
     let newId: string | undefined;
@@ -1490,13 +1498,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return Object.values(store.suggestedFlashcards)
       .filter((s) => {
         if (s.language !== lang) return false;
-        if (userLevel != null) {
-          if (s.level == null || s.level < userLevel) return false;
-        }
-        const lk = langKey(lang, SRS.hashWordSync(s.word));
         const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(s.word, lang) !== null;
-        if (checkWordIsKnown(lk, known, store.wordKnowledge, settings.known_ease_threshold) && !hasUnpopulatedCard) return false;
-        return true;
+        const comprehensiveStatus = getComprehensiveWordStatusSync(s.word);
+        const keep = shouldKeepSuggestion(
+          { word: s.word, reading: s.reading, pos: s.pos, level: s.level, language: s.language },
+          settings,
+          known,
+          userLevel,
+          comprehensiveStatus,
+        );
+        return keep || hasUnpopulatedCard;
       })
       .sort((a, b) => b.createdAt - a.createdAt);
   };
@@ -1611,6 +1622,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const cleanupKnownSuggestions = async (): Promise<number> => {
     const idsToRemove: string[] = [];
     const lang = settings.language;
+    const userLevel = settings.learningLanguageLevel;
     const suggestions = Object.values(store.suggestedFlashcards).filter((suggestion) => suggestion.language === lang);
 
     if (!settings.autoSuggestFlashcards) {
@@ -1621,37 +1633,40 @@ export const FlashcardProvider: ParentComponent = (props) => {
       return allSuggestionIds.length;
     }
 
+    const known = knownWordSet();
+
     if (!settings.autoSuggestUnknownWords) {
       const wordsToResolve = suggestions
-        .filter((suggestion) => !shouldCaptureSuggestedFlashcard(suggestion.word, suggestion.language, settings))
+        .filter((suggestion) => !shouldKeepSuggestion(
+          { word: suggestion.word, reading: suggestion.reading, pos: suggestion.pos, level: suggestion.level, language: suggestion.language },
+          settings,
+          known,
+          null,
+          null,
+        ))
         .map((suggestion) => suggestion.word);
 
       if (wordsToResolve.length > 0) {
         await warmDictionaryStatus(wordsToResolve, lang);
       }
-
-      for (const suggestion of suggestions) {
-        const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language) !== null;
-        if (!hasUnpopulatedCard && !shouldCaptureSuggestedFlashcard(suggestion.word, suggestion.language, settings)) {
-          idsToRemove.push(suggestion.id);
-        }
-      }
     }
 
-    const known = knownWordSet();
-    const needsAnkiCheck = settings.use_anki;
-    for (const [lk, suggestion] of Object.entries(store.suggestedFlashcards)) {
-      if (suggestion.language !== lang) continue;
+    for (const suggestion of suggestions) {
       if (idsToRemove.includes(suggestion.id)) continue;
       const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language) !== null;
-      if (known.has(lk) && !hasUnpopulatedCard) {
-        idsToRemove.push(suggestion.id);
-        continue;
-      }
-      if (needsAnkiCheck && getComprehensiveWordStatusSync(suggestion.word) === 'known' && !hasUnpopulatedCard) {
+      const comprehensiveStatus = getComprehensiveWordStatusSync(suggestion.word);
+      const keep = shouldKeepSuggestion(
+        { word: suggestion.word, reading: suggestion.reading, pos: suggestion.pos, level: suggestion.level, language: suggestion.language },
+        settings,
+        known,
+        userLevel,
+        comprehensiveStatus,
+      );
+      if (!keep && !hasUnpopulatedCard) {
         idsToRemove.push(suggestion.id);
       }
     }
+
     if (idsToRemove.length > 0) {
       removeSuggestedFlashcards(idsToRemove);
     }

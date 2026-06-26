@@ -76,6 +76,7 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
             nextPos={props.nextPos}
             mode="overlay"
             isKanaOnly={false}
+            class="pitch-overlay-wrapper--ruby"
           >
             {props.reading}
           </PitchAccentOverlay>

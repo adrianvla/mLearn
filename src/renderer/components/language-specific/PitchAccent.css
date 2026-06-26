@@ -215,6 +215,16 @@ span:not(ruby) .pitch-accent {
   pointer-events: none;
 }
 
+ruby rt .pitch-overlay-wrapper--ruby {
+  line-height: 1;
+  padding-block: var(--pitch-accent-height);
+}
+
+ruby rt .pitch-overlay-wrapper--ruby > .pitch-accent {
+  bottom: var(--pitch-accent-height);
+  top: var(--pitch-accent-height);
+}
+
 /* Preview mode - standalone pitch accent display */
 .pitch-accent-preview {
   display: inline-flex;

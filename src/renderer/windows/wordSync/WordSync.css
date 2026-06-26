@@ -97,6 +97,8 @@
   margin-top: var(--spacing-2);
 }
 
-.word-sync-filter-select {
+.word-sync-filter-select,
+.word-sync-recency-select,
+.word-sync-level-select {
   min-width: 180px;
 }

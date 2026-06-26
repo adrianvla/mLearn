@@ -26,7 +26,7 @@ import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard,
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages } from '../../../services/pdfService';
 import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
-import { captureElementAndSave } from '../../../services/canvasCapture';
+import { captureReaderImageForFlashcard } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
@@ -498,13 +498,6 @@ export const ReaderRoute: Component = () => {
     return Array.from(deduped.values());
   });
 
-  const capturePageImageDataUrl = async (pageId: string): Promise<string | null> => {
-    const img = imageRefs()[pageId];
-    if (!img || !img.naturalWidth) return null;
-    const cardId = `reader-page-${pageId}-${Date.now()}`;
-    return await captureElementAndSave(img, cardId);
-  };
-
   const capturedSuggestionWords = new Set<string>();
   createEffect(() => {
     if (!settings.autoSuggestFlashcards || !settings.enable_flashcard_creation) return;
@@ -522,7 +515,13 @@ export const ReaderRoute: Component = () => {
         capturedSuggestionWords.add(entry.word);
         let image = capturedPages.get(entry.pageId);
         if (image === undefined) {
-          image = await capturePageImageDataUrl(entry.pageId);
+          const pageImage = imageRefs()[entry.pageId];
+          if (!pageImage) {
+            image = null;
+          } else {
+            const cardId = `reader-page-${entry.pageId}-${Date.now()}`;
+            image = await captureReaderImageForFlashcard(pageImage, cardId);
+          }
           capturedPages.set(entry.pageId, image);
         }
         void flashcardCtx.captureSuggestedFlashcard({
