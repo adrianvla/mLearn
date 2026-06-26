@@ -14,7 +14,19 @@ import { WORD_STATUS } from '../../../shared/constants';
 import type { WordStatus } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
-import { ModalLoadingOverlay, Spinner, CollapsibleStickyHeader } from '../../components/common';
+import {
+  ModalLoadingOverlay,
+  Spinner,
+  CollapsibleStickyHeader,
+  buildEmptyPreset,
+  buildWordDbEditorFields,
+  validateTokens,
+  evaluateAst,
+  parseTokens,
+  type FieldResolver,
+  type FilterToken,
+  type ValidationError,
+} from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
@@ -35,8 +47,7 @@ export const WordDbEditorContent: Component = () => {
   const [filteredEntries, setFilteredEntries] = createSignal<WordEntry[]>([]);
   const [isLoading, setIsLoading] = createSignal(false);
   const [loadProgress, setLoadProgress] = createSignal(0);
-  const [selectedLevel, setSelectedLevel] = createSignal<number | null>(null);
-  const [selectedSource, setSelectedSource] = createSignal<string>('all');
+  const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
   const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
   const [sortKey, setSortKey] = createSignal<string>('word');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
@@ -75,6 +86,39 @@ export const WordDbEditorContent: Component = () => {
     
     return result;
   };
+
+  const filterContext = createMemo(() => buildWordDbEditorFields(getLevelNames(), t));
+
+  const filterAst = createMemo<
+    | { ok: true; ast: ReturnType<typeof parseTokens> | null }
+    | { ok: false; errors: ValidationError[] }
+  >(() => {
+    const tokens = filterTokens();
+    if (tokens.length === 0) return { ok: true, ast: null };
+
+    const validation = validateTokens(tokens);
+    if (!validation.ok) return { ok: false, errors: validation.errors };
+
+    try {
+      return { ok: true, ast: parseTokens(tokens) };
+    } catch {
+      return { ok: false, errors: [{ index: -1, message: 'parse_error' }] };
+    }
+  });
+
+  const filterValidation = createMemo(() => {
+    const result = filterAst();
+    if (result.ok) return { ok: true as const };
+    return { ok: false as const, errors: result.errors };
+  });
+
+  const filterResolvers = createMemo(() => {
+    const resolvers: Record<string, FieldResolver<unknown>> = {};
+    for (const field of filterContext().fields) {
+      resolvers[field.field] = field.resolver;
+    }
+    return resolvers;
+  });
 
   // Load words from storage on mount
   onMount(async () => {
@@ -125,14 +169,11 @@ export const WordDbEditorContent: Component = () => {
 
   const buildFilteredEntries = (sourceEntries: WordEntry[]): WordEntry[] => {
     const query = searchQuery().toLowerCase().trim();
-    const level = selectedLevel();
-    const source = selectedSource();
+    const ast = filterAst();
+    const resolvers = filterResolvers();
 
     return sourceEntries.filter((entry) => {
-      if (level !== null && entry.level !== level) {
-        return false;
-      }
-      if (source !== 'all' && entry.knowledgeSource !== source) {
+      if (ast.ok && ast.ast && !evaluateAst(ast.ast, entry, resolvers)) {
         return false;
       }
       if (!query) {
@@ -179,7 +220,7 @@ export const WordDbEditorContent: Component = () => {
       .sort((a, b) => (b.ignoredAt ?? 0) - (a.ignoredAt ?? 0) || a.word.localeCompare(b.word));
   });
 
-  createEffect(on([entries, ignoredEntries, selectedLevel, selectedSource, browseMode, hasLoadedWords], () => {
+  createEffect(on([entries, ignoredEntries, filterTokens, browseMode, hasLoadedWords], () => {
     if (browseMode() === 'all' && !hasLoadedWords()) {
       return;
     }
@@ -543,16 +584,17 @@ export const WordDbEditorContent: Component = () => {
             <SearchBar
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
-                selectedLevel={selectedLevel}
-                setSelectedLevel={setSelectedLevel}
-                selectedSource={selectedSource}
-                setSelectedSource={setSelectedSource}
                 browseMode={browseMode}
                 setBrowseMode={setBrowseMode}
                 isLoading={isLoading}
                 loadProgress={loadProgress}
                 levelNames={levelNames()}
                 onSearch={handleSearch}
+                filterTokens={filterTokens}
+                setFilterTokens={setFilterTokens}
+                filterFields={filterContext().fields}
+                filterPaletteItems={filterContext().paletteItems}
+                filterEvaluation={filterValidation()}
             />
 
             {/* Table Header */}

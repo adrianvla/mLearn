@@ -461,7 +461,7 @@
       "TriggerLongHover": "长按悬停",
       "Voice": {
         "BackendAuthError": "语音后端连接失败。请重试。",
-      "Aftermath": {
+        "Aftermath": {
           "Duration": "时长",
           "Messages": "消息数",
           "Mistakes": "记录的错误",
@@ -2330,7 +2330,8 @@
         "IgnoredWords": "已忽略的单词",
         "Srs": "SRS",
         "PassiveTracking": "被动追踪",
-        "None": "无来源"
+        "None": "无来源",
+        "Anki": "Anki"
       },
       "Columns": {
         "Level": "等级",
@@ -2367,7 +2368,8 @@
         "Ignored": "已忽略",
         "Nothing": "未追踪"
       },
-      "Title": "单词数据库"
+      "Title": "单词数据库",
+      "AdvancedFilters": "Advanced Filters"
     },
     "WordHover": {
       "AddToAnki": "添加到 Anki",
@@ -2546,6 +2548,52 @@
       "Loading": "Loading...",
       "AgreeLabel": "I have read and agree to the End User License Agreement",
       "AcceptButton": "Accept & Continue"
+    },
+    "FilterBuilder": {
+      "Palette": "Available filters",
+      "FilterBox": "Filter expression",
+      "FilterBoxEmpty": "Drag filters here to build your expression",
+      "Remove": "Remove",
+      "MoveUp": "Move up",
+      "MoveDown": "Move down",
+      "Op": {
+        "And": "AND",
+        "Or": "OR",
+        "Not": "NOT"
+      },
+      "Comparison": {
+        "Eq": "is",
+        "Neq": "is not"
+      },
+      "Paren": {
+        "Open": "(",
+        "Close": ")"
+      },
+      "Error": {
+        "ExpectedOperand": "Expected a filter value here",
+        "ExpectedOperator": "Expected AND or OR here",
+        "UnbalancedParens": "Parentheses are not balanced",
+        "EmptySubexpression": "Empty group — add a filter inside the parentheses",
+        "TrailingOperator": "Expression ends with an operator — add a filter value"
+      },
+      "Field": {
+        "Status": "Status",
+        "Level": "Level",
+        "Source": "Source",
+        "Recency": "Recency"
+      },
+      "Status": {
+        "Unknown": "Unknown",
+        "Learning": "Learning",
+        "Known": "Known"
+      },
+      "Recency": {
+        "Recent": "Recently seen",
+        "NotRecent": "Not recently seen"
+      },
+      "TokenAdded": "Filter added",
+      "TokenRemoved": "Filter removed",
+      "TokenMoved": "Filter moved"
     }
   }
 }

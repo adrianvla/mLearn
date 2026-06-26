@@ -1,0 +1,283 @@
+/**
+ * FilterBuilder Component Styles
+ * Drag-and-drop visual filter expression builder.
+ * Palette (available source tokens) → Filter box (drop target / expression area).
+ * Theming is driven entirely by CSS variables defined in styles/index.css.
+ */
+
+/* ============ Root Container ============ */
+.filter-builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  width: 100%;
+  -webkit-app-region: no-drag;
+}
+
+/* ============ Palette (Source) ============ */
+.filter-builder-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.filter-builder-palette-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+/* flex-basis:100% puts the heading on its own line so pills wrap below */
+.filter-builder-palette-label {
+  flex-basis: 100%;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.filter-builder-palette-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--bg-intense);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  user-select: none;
+  cursor: grab;
+  transition: background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.filter-builder-palette-pill:hover {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--bg-intense));
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  color: var(--color-primary);
+}
+
+.filter-builder-palette-pill:active {
+  cursor: grabbing;
+}
+
+.filter-builder-palette-pill.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* ============ Filter Box (Drop Target) ============ */
+.filter-builder-filterbox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: 3rem;
+  padding: var(--spacing-2);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.filter-builder-filterbox.empty {
+  border-style: dashed;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+/* Mirrors DropZone.css .dragging */
+.filter-builder-filterbox.dragging {
+  background: var(--bg-intense);
+  border-color: var(--color-primary);
+  border-style: solid;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 40%, transparent),
+    var(--shadow-sm);
+}
+
+/* ============ Tokens ============ */
+.filter-builder-token {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--bg-intense);
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  user-select: none;
+  transition: background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.filter-builder-token.operand {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--bg-intense));
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  color: var(--color-primary);
+}
+
+.filter-builder-token.operator {
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.filter-builder-token.not {
+  background: var(--bg-danger);
+  border-color: var(--border-danger);
+  color: var(--color-error);
+  font-weight: var(--font-weight-semibold);
+}
+
+.filter-builder-token.paren {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  padding: 0 var(--spacing-1);
+}
+
+/* Class lives on the token (not the button) when its remove control is hovered */
+.filter-builder-token.remove-hover {
+  background: var(--bg-danger);
+  border-color: var(--border-danger);
+}
+
+.filter-builder-token-label {
+  font: inherit;
+  color: inherit;
+}
+
+.filter-builder-token-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  padding: 0;
+  margin-left: var(--spacing-1);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.filter-builder-token-remove:hover {
+  background: var(--bg-danger);
+  color: var(--color-error);
+}
+
+/* Hidden until token hover/focus so keyboard users can reach them */
+.filter-builder-token-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.filter-builder-token:hover .filter-builder-token-move,
+.filter-builder-token:focus-within .filter-builder-token-move {
+  opacity: 1;
+}
+
+.filter-builder-token-move:hover,
+.filter-builder-token-move:focus-visible {
+  background: var(--bg-intense);
+  color: var(--text-primary);
+}
+
+/* ============ Drop Insertion Indicator ============ */
+.filter-builder-drop-indicator {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 2px;
+  min-height: 1.5rem;
+  margin: 0 1px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--color-primary) 60%, transparent);
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+/* before/after: small gap on the insertion side */
+.filter-builder-drop-indicator.before {
+  margin-right: var(--spacing-1);
+}
+
+.filter-builder-drop-indicator.after {
+  margin-left: var(--spacing-1);
+}
+
+/* ============ Validation Error ============ */
+.filter-builder-error {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--bg-danger);
+  border-left: 3px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+/* ============ Screen Reader Only (a11y live region) ============ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

@@ -33,3 +33,39 @@
 .load-progress {
   width: 150px;
 }
+
+.search-bar-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-1) var(--spacing-3);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.search-bar-advanced-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-color-intense);
+}
+
+.search-bar-advanced-toggle[aria-expanded="true"] {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.search-bar-advanced-chevron {
+  font-size: var(--font-size-xs);
+  line-height: 1;
+}
+
+.search-bar-advanced-content {
+  flex-basis: 100%;
+  app-region: no-drag;
+}
