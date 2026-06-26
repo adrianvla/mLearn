@@ -269,7 +269,8 @@
   font-size: var(--font-size-sm);
 }
 
-.flashcards-suggested-empty {
+.flashcards-suggested-empty,
+.flashcards-suggested-loading {
   position: absolute;
   inset: 0;
   display: flex;

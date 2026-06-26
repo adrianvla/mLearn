@@ -365,6 +365,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
               nextPos={props.lookAheadPos}
               mode="overlay"
               isKanaOnly={false}
+              class="pitch-overlay-wrapper--ruby"
             >
               {getFuriganaReading()}
             </PitchAccentOverlay>

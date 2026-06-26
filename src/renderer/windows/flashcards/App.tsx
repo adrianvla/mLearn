@@ -86,7 +86,7 @@ export const FlashcardsContent: Component = () => {
     intervalToString,
     generateExampleSentenceWithLLM,
     translateExampleSentence,
-    getSuggestedFlashcardsSync,
+    store,
     isLoading,
   } = useFlashcards();
   const { t } = useLocalization();
@@ -428,7 +428,9 @@ export const FlashcardsContent: Component = () => {
 
   // Queue counts for UI
   const counts = createMemo(() => queueCounts());
-  const suggestedCount = createMemo(() => getSuggestedFlashcardsSync().length);
+  const suggestedCount = createMemo(() =>
+    Object.values(store.suggestedFlashcards).filter((s) => s.language === settings.language).length
+  );
 
   const handleDeleteCard = async () => {
     const cardId = selectedCard();
@@ -893,8 +895,9 @@ export const FlashcardsContent: Component = () => {
               <p class="flashcards-generate-description">{t('mlearn.Flashcards.Bulk.GenerateDescription')}</p>
 
               <div class="flashcards-generate-option">
-                <label class="flashcards-generate-label">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
+                <label class="flashcards-generate-label" for="flashcards-generate-mode">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
                 <Select
+                  id="flashcards-generate-mode"
                   options={bulkModeOptions()}
                   value={bulkMode()}
                   onChange={(e) => setBulkMode(e.currentTarget.value as 'onlyEmpty' | 'replaceAll' | 'olderThan')}
@@ -904,8 +907,9 @@ export const FlashcardsContent: Component = () => {
 
               <Show when={bulkMode() === 'olderThan'}>
                 <div class="flashcards-generate-option">
-                  <label class="flashcards-generate-label">{t('mlearn.Flashcards.Bulk.OlderThanDate')}</label>
+                  <label class="flashcards-generate-label" for="flashcards-generate-older-than">{t('mlearn.Flashcards.Bulk.OlderThanDate')}</label>
                   <Input
+                    id="flashcards-generate-older-than"
                     type="date"
                     value={bulkOlderThanDate()}
                     onInput={(e) => setBulkOlderThanDate(e.currentTarget.value)}
@@ -924,8 +928,9 @@ export const FlashcardsContent: Component = () => {
                     <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.TtsTooltip')}</p>
 
                     <div class="flashcards-generate-option">
-                      <label class="flashcards-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}</label>
+                      <label class="flashcards-generate-label" for="flashcards-generate-tts-provider">{t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}</label>
                       <Select
+                        id="flashcards-generate-tts-provider"
                         options={ttsProviderOptions()}
                         value={bulkTtsProvider()}
                         onChange={(e) => setBulkTtsProvider(e.currentTarget.value as TTSProvider)}
@@ -935,7 +940,7 @@ export const FlashcardsContent: Component = () => {
 
                     <Show when={bulkTtsProvider() !== 'kokoro' && bulkTtsProvider() !== 'cloud'}>
                       <div class="flashcards-generate-option">
-                        <label class="flashcards-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}</label>
+                        <span class="flashcards-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}</span>
                         <VoiceSamplePicker
                           value={settings.flashcardVoiceSampleId}
                           onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })}

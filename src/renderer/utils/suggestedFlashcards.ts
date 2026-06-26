@@ -1,10 +1,23 @@
+import { DEFAULT_SETTINGS } from '../../shared/types';
+import { hashWordSync } from '../services/srsAlgorithm';
 import { getCachedTranslation, warmTranslationCache } from '../hooks/useTranslation';
 import { hasDefinition } from './translationCacheParsers';
 
 export interface SuggestedFlashcardFilterSettings {
   autoSuggestFlashcards: boolean;
   autoSuggestUnknownWords: boolean;
+  learningLanguageLevel?: number | null;
 }
+
+export interface SuggestedFlashcardInput {
+  word: string;
+  reading?: string;
+  pos?: string;
+  level?: number | null;
+  language: string;
+}
+
+export type ComprehensiveWordStatus = 'known' | 'learning' | 'unknown' | null;
 
 export function isWordInDictionary(
   word: string,
@@ -17,14 +30,53 @@ export function isWordInDictionary(
   return false;
 }
 
+/**
+ * Pure, synchronous predicate for whether a suggested flashcard should be kept/created.
+ *
+ * `userLevel`: pass `null` to skip the level check, or `undefined` to use
+ * `settings.learningLanguageLevel`.
+ */
+export function shouldKeepSuggestion(
+  input: SuggestedFlashcardInput,
+  settings: SuggestedFlashcardFilterSettings,
+  knownWordSet: Set<string>,
+  userLevel?: number | null,
+  comprehensiveStatus?: ComprehensiveWordStatus,
+): boolean {
+  const autoSuggest = settings.autoSuggestFlashcards ?? DEFAULT_SETTINGS.autoSuggestFlashcards;
+  if (!autoSuggest) return false;
+
+  const allowUnknown = settings.autoSuggestUnknownWords ?? DEFAULT_SETTINGS.autoSuggestUnknownWords;
+  if (!allowUnknown && !isWordInDictionary(input.word, input.language)) return false;
+
+  const settingsLevel = settings.learningLanguageLevel === undefined
+    ? DEFAULT_SETTINGS.learningLanguageLevel
+    : settings.learningLanguageLevel;
+  const effectiveUserLevel = userLevel === undefined ? settingsLevel : userLevel;
+  if (effectiveUserLevel != null && (input.level == null || input.level < effectiveUserLevel)) {
+    return false;
+  }
+
+  const wordHash = hashWordSync(input.word);
+  const lk = `${input.language}:${wordHash}`;
+  if (knownWordSet.has(lk)) return false;
+  if (comprehensiveStatus === 'known') return false;
+
+  return true;
+}
+
 export function shouldCaptureSuggestedFlashcard(
   word: string,
   language: string,
   settings: SuggestedFlashcardFilterSettings,
 ): boolean {
-  if (!settings.autoSuggestFlashcards) return false;
-  if (settings.autoSuggestUnknownWords) return true;
-  return isWordInDictionary(word, language);
+  return shouldKeepSuggestion(
+    { word, language },
+    settings,
+    new Set<string>(),
+    null,
+    null,
+  );
 }
 
 export async function warmDictionaryStatus(
@@ -39,7 +91,7 @@ export async function filterSuggestedWords(
   language: string,
   settings: SuggestedFlashcardFilterSettings,
 ): Promise<Set<string>> {
-  if (!settings.autoSuggestFlashcards) {
+  if (!(settings.autoSuggestFlashcards ?? DEFAULT_SETTINGS.autoSuggestFlashcards)) {
     return new Set<string>();
   }
 
@@ -47,11 +99,19 @@ export async function filterSuggestedWords(
     new Set(words.map((word) => word.trim()).filter(Boolean)),
   );
 
-  if (!settings.autoSuggestUnknownWords) {
+  if (!(settings.autoSuggestUnknownWords ?? DEFAULT_SETTINGS.autoSuggestUnknownWords)) {
     await warmDictionaryStatus(allowedWords, language);
   }
 
   return new Set(
-    allowedWords.filter((word) => shouldCaptureSuggestedFlashcard(word, language, settings)),
+    allowedWords.filter((word) =>
+      shouldKeepSuggestion(
+        { word, language },
+        settings,
+        new Set<string>(),
+        null,
+        null,
+      ),
+    ),
   );
 }
