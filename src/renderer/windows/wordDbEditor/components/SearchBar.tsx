@@ -2,8 +2,19 @@
  * Search Bar Component for Word Database Editor
  */
 
-import { Component, For, Show, Accessor, Setter } from 'solid-js';
-import { Btn, ProgressBar, HintText, Select, Input } from '../../../components/common';
+import { Component, Show, Accessor, Setter, createSignal } from 'solid-js';
+import {
+  Btn,
+  ProgressBar,
+  HintText,
+  Select,
+  Input,
+  FilterBuilder,
+  type FieldConfig,
+  type FilterToken,
+  type PaletteItem,
+  type ValidationResult,
+} from '../../../components/common';
 import { useLocalization } from '../../../context';
 import './SearchBar.css';
 
@@ -12,20 +23,22 @@ export type WordDbBrowseMode = 'all' | 'ignored';
 export interface SearchBarProps {
   searchQuery: Accessor<string>;
   setSearchQuery: Setter<string>;
-  selectedLevel: Accessor<number | null>;
-  setSelectedLevel: Setter<number | null>;
-  selectedSource: Accessor<string>;
-  setSelectedSource: Setter<string>;
   browseMode: Accessor<WordDbBrowseMode>;
   setBrowseMode: Setter<WordDbBrowseMode>;
   isLoading: Accessor<boolean>;
   loadProgress: Accessor<number>;
   levelNames: Record<number, string>;
   onSearch: () => void;
+  filterTokens: Accessor<FilterToken[]>;
+  setFilterTokens: Setter<FilterToken[]>;
+  filterFields: FieldConfig<unknown>[];
+  filterPaletteItems: PaletteItem[];
+  filterEvaluation: ValidationResult;
 }
 
 export const SearchBar: Component<SearchBarProps> = (props) => {
   const { t } = useLocalization();
+  const [showAdvanced, setShowAdvanced] = createSignal(false);
   
   return (
     <div class="search-bar">
@@ -48,18 +61,27 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         <option value="ignored">{t('mlearn.WordDbEditor.BrowseMode.IgnoredWords')}</option>
       </Select>
 
-      <Select
-        class="source-select"
-        value={props.selectedSource()}
-        onChange={(e) => props.setSelectedSource(e.currentTarget.value)}
+      <button
+        type="button"
+        class="search-bar-advanced-toggle"
+        onClick={() => setShowAdvanced((v) => !v)}
+        aria-expanded={showAdvanced()}
       >
-        <option value="all">{t('mlearn.WordDbEditor.SourceFilter.AllSources')}</option>
-        <option value="KnownWordsList">{t('mlearn.WordDbEditor.SourceFilter.KnownWordsList')}</option>
-        <option value="IgnoredWords">{t('mlearn.WordDbEditor.SourceFilter.IgnoredWords')}</option>
-        <option value="Srs">{t('mlearn.WordDbEditor.SourceFilter.Srs')}</option>
-        <option value="PassiveTracking">{t('mlearn.WordDbEditor.SourceFilter.PassiveTracking')}</option>
-        <option value="None">{t('mlearn.WordDbEditor.SourceFilter.None')}</option>
-      </Select>
+        {t('mlearn.WordDbEditor.AdvancedFilters')}
+        <span class="search-bar-advanced-chevron">{showAdvanced() ? '\u25BE' : '\u25B8'}</span>
+      </button>
+
+      <Show when={showAdvanced()}>
+        <div class="search-bar-advanced-content">
+          <FilterBuilder
+            fields={props.filterFields}
+            paletteItems={props.filterPaletteItems}
+            tokens={props.filterTokens()}
+            onChange={props.setFilterTokens}
+            evaluation={props.filterEvaluation}
+          />
+        </div>
+      </Show>
 
       <Show when={props.isLoading()}>
         <ProgressBar 
@@ -71,20 +93,6 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
           animated
         />
       </Show>
-      
-      <Select
-        class="level-select"
-        placeholder={t('mlearn.WordDbEditor.AllLevels')}
-        value={props.selectedLevel()?.toString() ?? ''}
-        onChange={(e) => {
-          const val = e.currentTarget.value;
-          props.setSelectedLevel(val ? parseInt(val) : null);
-        }}
-      >
-        <For each={Object.entries(props.levelNames)}>
-          {([level, name]) => <option value={level}>{name}</option>}
-        </For>
-      </Select>
       
       <HintText>
         {t('mlearn.WordDbEditor.SearchHintDetailed')}

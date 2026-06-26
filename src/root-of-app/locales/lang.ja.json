@@ -461,7 +461,7 @@
       "TriggerLongHover": "長押しホバー",
       "Voice": {
         "BackendAuthError": "音声バックエンドへの接続に失敗しました。もう一度お試しください。",
-      "Aftermath": {
+        "Aftermath": {
           "Duration": "所要時間",
           "Messages": "メッセージ数",
           "Mistakes": "指摘されたミス",
@@ -2330,7 +2330,8 @@
         "IgnoredWords": "無視した単語",
         "Srs": "SRS",
         "PassiveTracking": "パッシブトラッキング",
-        "None": "ソースなし"
+        "None": "ソースなし",
+        "Anki": "Anki"
       },
       "Columns": {
         "Level": "レベル",
@@ -2367,7 +2368,8 @@
         "Ignored": "無視済み",
         "Nothing": "未追跡"
       },
-      "Title": "単語データベース"
+      "Title": "単語データベース",
+      "AdvancedFilters": "Advanced Filters"
     },
     "WordHover": {
       "AddToAnki": "Ankiに追加",
@@ -2546,6 +2548,52 @@
       "Loading": "Loading...",
       "AgreeLabel": "I have read and agree to the End User License Agreement",
       "AcceptButton": "Accept & Continue"
+    },
+    "FilterBuilder": {
+      "Palette": "Available filters",
+      "FilterBox": "Filter expression",
+      "FilterBoxEmpty": "Drag filters here to build your expression",
+      "Remove": "Remove",
+      "MoveUp": "Move up",
+      "MoveDown": "Move down",
+      "Op": {
+        "And": "AND",
+        "Or": "OR",
+        "Not": "NOT"
+      },
+      "Comparison": {
+        "Eq": "is",
+        "Neq": "is not"
+      },
+      "Paren": {
+        "Open": "(",
+        "Close": ")"
+      },
+      "Error": {
+        "ExpectedOperand": "Expected a filter value here",
+        "ExpectedOperator": "Expected AND or OR here",
+        "UnbalancedParens": "Parentheses are not balanced",
+        "EmptySubexpression": "Empty group — add a filter inside the parentheses",
+        "TrailingOperator": "Expression ends with an operator — add a filter value"
+      },
+      "Field": {
+        "Status": "Status",
+        "Level": "Level",
+        "Source": "Source",
+        "Recency": "Recency"
+      },
+      "Status": {
+        "Unknown": "Unknown",
+        "Learning": "Learning",
+        "Known": "Known"
+      },
+      "Recency": {
+        "Recent": "Recently seen",
+        "NotRecent": "Not recently seen"
+      },
+      "TokenAdded": "Filter added",
+      "TokenRemoved": "Filter removed",
+      "TokenMoved": "Filter moved"
     }
   }
 }
