@@ -345,6 +345,16 @@ describe('setupSettingsIPC', () => {
     mod.setupSettingsIPC();
     expect(mockIpcListeners.has('get-lang-data')).toBe(true);
   });
+
+  it('registers listener for GET_LANGUAGE_DATA_CATALOG channel', () => {
+    mod.setupSettingsIPC();
+    expect(mockIpcListeners.has('get-language-data-catalog')).toBe(true);
+  });
+
+  it('registers listener for INSTALL_LANGUAGE_DATA channel', () => {
+    mod.setupSettingsIPC();
+    expect(mockIpcListeners.has('install-language-data')).toBe(true);
+  });
 });
 
 describe('GET_SETTINGS IPC handler', () => {
@@ -423,5 +433,123 @@ describe('GET_LANG_DATA IPC handler', () => {
     const event = makeEvent();
     for (const h of handlers) h(event);
     expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({ zz: expect.any(Object) }));
+  });
+});
+
+describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
+  it('replies with install status for every language', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    const installedDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.mkdirSync(installedDir, { recursive: true });
+    fs.writeFileSync(path.join(installedDir, 'aa.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
+    fs.writeFileSync(
+      path.join(langsDir, 'aa.json'),
+      JSON.stringify({
+        name: 'Alpha',
+        languageData: {
+          assets: [{ id: 'freq', path: 'languages/aa.freq.json', sizeBytes: 9 }],
+        },
+      }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(langsDir, 'zz.json'),
+      JSON.stringify({
+        name: 'Zeta',
+        languageData: {
+          assets: [{ id: 'freq', path: 'languages/zz.freq.json', sizeBytes: 12 }],
+        },
+      }),
+      'utf-8',
+    );
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('get-language-data-catalog') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) h(event);
+
+    expect(event.reply).toHaveBeenCalledWith('language-data-catalog', [
+      expect.objectContaining({
+        language: 'aa',
+        name: 'Alpha',
+        installed: true,
+        missingRequiredAssets: [],
+      }),
+      expect.objectContaining({
+        language: 'zz',
+        name: 'Zeta',
+        installed: false,
+        missingRequiredAssets: ['freq'],
+      }),
+    ]);
+  });
+});
+
+describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
+  it('installs required language assets and replies with refreshed status', async () => {
+    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    const bundledDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.mkdirSync(bundledDir, { recursive: true });
+    fs.writeFileSync(path.join(bundledDir, 'aa.freq.json'), JSON.stringify({ freq: [['alpha', 'alpha']] }), 'utf-8');
+    fs.writeFileSync(
+      path.join(langsDir, 'aa.json'),
+      JSON.stringify({
+        name: 'Alpha',
+        languageData: {
+          assets: [{
+            id: 'frequency',
+            path: 'languages/aa.freq.json',
+            bundledPath: 'languages/aa.freq.json',
+            sizeBytes: 9,
+          }],
+        },
+      }),
+      'utf-8',
+    );
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('install-language-data') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) await h(event, 'aa');
+
+    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'aa.freq.json'))).toBe(true);
+    expect(event.reply).toHaveBeenCalledWith('language-data-installed', expect.objectContaining({
+      language: 'aa',
+      installed: true,
+      missingRequiredAssets: [],
+    }));
+    expect(event.reply).toHaveBeenCalledWith('language-data-catalog', [
+      expect.objectContaining({
+        language: 'aa',
+        installed: true,
+      }),
+    ]);
+  });
+
+  it('replies with install errors without throwing', async () => {
+    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(langsDir, 'aa.json'),
+      JSON.stringify({
+        name: 'Alpha',
+        languageData: {
+          assets: [{ id: 'missing', path: 'languages/missing.freq.json' }],
+        },
+      }),
+      'utf-8',
+    );
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('install-language-data') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) await h(event, 'aa');
+
+    expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({
+      language: 'aa',
+      error: expect.stringContaining('No download URL'),
+    }));
   });
 });

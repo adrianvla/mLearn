@@ -1,12 +1,23 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 let langDataCb: (data: unknown) => void;
+let languageDataCatalogCb: (data: unknown) => void;
+let languageDataInstalledCb: (data: unknown) => void;
+let languageDataInstallErrorCb: (data: unknown) => void;
 const langDataCleanup = vi.fn();
+const languageDataCatalogCleanup = vi.fn();
+const languageDataInstalledCleanup = vi.fn();
+const languageDataInstallErrorCleanup = vi.fn();
 
 const mockBridge = {
   localization: {
     getLangData: vi.fn(),
     onLangData: vi.fn(),
+    getLanguageDataCatalog: vi.fn(),
+    onLanguageDataCatalog: vi.fn(),
+    installLanguageData: vi.fn(),
+    onLanguageDataInstalled: vi.fn(),
+    onLanguageDataInstallError: vi.fn(),
   },
 };
 
@@ -16,6 +27,20 @@ function setupMockImplementations() {
     return langDataCleanup;
   });
   mockBridge.localization.getLangData.mockReturnValue(undefined);
+  mockBridge.localization.onLanguageDataCatalog.mockImplementation((cb: (data: unknown) => void) => {
+    languageDataCatalogCb = cb;
+    return languageDataCatalogCleanup;
+  });
+  mockBridge.localization.getLanguageDataCatalog.mockReturnValue(undefined);
+  mockBridge.localization.installLanguageData.mockReturnValue(undefined);
+  mockBridge.localization.onLanguageDataInstalled.mockImplementation((cb: (data: unknown) => void) => {
+    languageDataInstalledCb = cb;
+    return languageDataInstalledCleanup;
+  });
+  mockBridge.localization.onLanguageDataInstallError.mockImplementation((cb: (data: unknown) => void) => {
+    languageDataInstallErrorCb = cb;
+    return languageDataInstallErrorCleanup;
+  });
 }
 
 vi.mock('../../shared/bridges', () => ({
@@ -42,6 +67,10 @@ type LangCtx = {
   getGrammarLevelName: (level: number) => string;
   getGrammarLevelNames: () => Record<string, string>;
   getCanonicalForm: (word: string) => string;
+  languageDataCatalog: () => Array<Record<string, unknown>>;
+  getLanguageDataStatus: (language: string) => Record<string, unknown> | undefined;
+  installLanguageData: (language: string) => void;
+  languageDataInstallError: () => { language: string; error: string } | null;
 };
 
 async function mountProvider(props?: { language?: string }) {
@@ -175,6 +204,37 @@ describe('LanguageContext - provider behavior', () => {
     dispose();
   });
 
+  it('registers language-data catalog listeners before requesting catalog status', async () => {
+    const callOrder: string[] = [];
+    mockBridge.localization.onLanguageDataCatalog.mockImplementation((cb: (data: unknown) => void) => {
+      languageDataCatalogCb = cb;
+      callOrder.push('onLanguageDataCatalog');
+      return languageDataCatalogCleanup;
+    });
+    mockBridge.localization.onLanguageDataInstalled.mockImplementation((cb: (data: unknown) => void) => {
+      languageDataInstalledCb = cb;
+      callOrder.push('onLanguageDataInstalled');
+      return languageDataInstalledCleanup;
+    });
+    mockBridge.localization.onLanguageDataInstallError.mockImplementation((cb: (data: unknown) => void) => {
+      languageDataInstallErrorCb = cb;
+      callOrder.push('onLanguageDataInstallError');
+      return languageDataInstallErrorCleanup;
+    });
+    mockBridge.localization.getLanguageDataCatalog.mockImplementation(() => {
+      callOrder.push('getLanguageDataCatalog');
+    });
+
+    const { dispose } = await mountProvider();
+    expect(callOrder).toEqual([
+      'onLanguageDataCatalog',
+      'onLanguageDataInstalled',
+      'onLanguageDataInstallError',
+      'getLanguageDataCatalog',
+    ]);
+    dispose();
+  });
+
   // ── Language data loading ────────────────────────────────────────────────────
 
   it('after IPC callback: isLoading=false', async () => {
@@ -217,6 +277,59 @@ describe('LanguageContext - provider behavior', () => {
     };
     langDataCb(updatedData);
     expect(ctx.supportedLanguages()).toContain('de');
+    dispose();
+  });
+
+  it('stores language-data catalog status from the bridge', async () => {
+    const { ctx, dispose } = await mountProvider();
+    languageDataCatalogCb([
+      { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
+      { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
+    ]);
+
+    expect(ctx.languageDataCatalog()).toEqual([
+      expect.objectContaining({ language: 'de', installed: false }),
+      expect.objectContaining({ language: 'ja', installed: true }),
+    ]);
+    expect(ctx.getLanguageDataStatus('de')).toEqual(expect.objectContaining({
+      language: 'de',
+      installed: false,
+    }));
+    dispose();
+  });
+
+  it('installLanguageData delegates to the localization bridge and clears previous errors', async () => {
+    const { ctx, dispose } = await mountProvider();
+    languageDataInstallErrorCb({ language: 'de', error: 'previous failure' });
+
+    ctx.installLanguageData('ja');
+
+    expect(ctx.languageDataInstallError()).toBeNull();
+    expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja');
+    dispose();
+  });
+
+  it('language-data installed events update one catalog row', async () => {
+    const { ctx, dispose } = await mountProvider();
+    languageDataCatalogCb([
+      { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
+    ]);
+
+    languageDataInstalledCb({ language: 'de', name: 'German', installed: true, missingRequiredAssets: [] });
+
+    expect(ctx.getLanguageDataStatus('de')).toEqual(expect.objectContaining({
+      language: 'de',
+      installed: true,
+      missingRequiredAssets: [],
+    }));
+    dispose();
+  });
+
+  it('language-data install errors are exposed by language', async () => {
+    const { ctx, dispose } = await mountProvider();
+    languageDataInstallErrorCb({ language: 'de', error: 'No download URL' });
+
+    expect(ctx.languageDataInstallError()).toEqual({ language: 'de', error: 'No download URL' });
     dispose();
   });
 

@@ -1030,17 +1030,18 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "Choose the components you want to install, then click Install.",
+        "ChooseComponents": "Choose your language and components, then click Install.",
         "ClickToBegin": "Click Install to begin.",
         "DownloadNote": "All downloads are handled automatically. A stable connection is recommended.",
         "ForgetSomething": "Components cannot be added after installation. Select everything you need now.",
-        "LanguageUnlocks": "Language selection unlocks after setup finishes."
+        "LanguageUnlocks": "Only the selected language data is downloaded during setup."
       },
       "Status": {
-        "Complete": "Installation complete! Choose your language to finish setup.",
+        "Complete": "Installation complete! Continue to install the selected language data.",
         "CouldNotStart": "Could not start the installation process.",
         "ErrorOccurred": "An error occurred. Check the log below.",
         "Installing": "Installing, please wait...",
+        "InstallingLanguageData": "Installing language data...",
         "InstallingPackages": "Installing packages...",
         "LanguageInstalledRestarting": "Language installed! Restarting...",
         "LlmSkip": "Skipping local AI model dependencies.",
@@ -1456,6 +1457,12 @@
         "LearningLanguage": {
           "Description": "Select the language you are learning",
           "Label": "Learning Language"
+        },
+        "LanguageData": {
+          "Install": "Install language data",
+          "Installed": "Language data installed",
+          "InstallFailed": "Language data install failed",
+          "MissingRequired": "Language data required"
         }
       },
       "Behaviour": {
@@ -2525,9 +2532,63 @@
       "Window": "Window"
     },
     "ComponentsTab": {
-      "Description": "Manage installed components. Toggle modules on or off and reinstall to apply changes.",
+      "Description": "Review installed components individually. Keep a group enabled to include it during reinstall.",
       "Reinstall": "Reinstall Components",
-      "RestartNote": "The app will restart after installation completes."
+      "RestartNote": "The app will restart after installation completes.",
+      "Enabled": "Enabled",
+      "Disabled": "Disabled",
+      "Groups": {
+        "AI": {
+          "Title": "AI components",
+          "Description": "Local model runtime and Python model tooling."
+        },
+        "Reader": {
+          "Title": "Reader and OCR components",
+          "Description": "Image text recognition models used by reader OCR."
+        },
+        "Voice": {
+          "Title": "Voice components",
+          "Description": "Speech recognition, speech synthesis, and voice activity detection."
+        }
+      },
+      "Items": {
+        "BuiltinChatRuntime": {
+          "Title": "Built-in chat model runtime",
+          "Description": "Runs downloaded GGUF chat models locally."
+        },
+        "TransformersSupport": {
+          "Title": "Transformers and PyTorch support",
+          "Description": "Python model dependencies used by legacy local LLM tooling."
+        },
+        "RapidOCR": {
+          "Title": "RapidOCR models",
+          "Description": "Fast OCR recognition for reader screenshots."
+        },
+        "PaddleOCR": {
+          "Title": "PaddleOCR models",
+          "Description": "Accurate OCR recognition and detection models."
+        },
+        "MangaOCR": {
+          "Title": "MangaOCR model",
+          "Description": "Japanese manga and vertical-text recognition."
+        },
+        "WhisperSmall": {
+          "Title": "Whisper small STT model",
+          "Description": "Local speech-to-text for voice conversations."
+        },
+        "KokoroTts": {
+          "Title": "Kokoro TTS model",
+          "Description": "Local text-to-speech for supported languages."
+        },
+        "SileroVad": {
+          "Title": "Silero VAD model",
+          "Description": "Voice activity detection for hands-free calls."
+        },
+        "QwenTts": {
+          "Title": "Qwen3 TTS model",
+          "Description": "Optional local voice cloning and multilingual TTS."
+        }
+      }
     },
     "Diagnostics": {
       "Title": "mLearn Diagnostics",

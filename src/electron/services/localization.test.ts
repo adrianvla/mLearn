@@ -166,6 +166,23 @@ describe('localization', () => {
 
       expect(result).toEqual(deData);
     });
+
+    it('loads locale from source root-of-app when running from dist-electron in development', async () => {
+      const distDir = path.join(tempDir.tmpDir, 'dist-electron');
+      const sourceLocalesDir = path.join(tempDir.tmpDir, 'src', 'root-of-app', 'locales');
+      const enData = { mlearn: { ComponentsTab: { Groups: { AI: { Title: 'AI components' } } } } };
+      writeLocaleFile(sourceLocalesDir, 'en', enData);
+
+      const platform = await import('../utils/platform');
+      (platform.getAppPath as ReturnType<typeof vi.fn>).mockReturnValue(distDir);
+      (platform.getResourcePath as ReturnType<typeof vi.fn>).mockReturnValue(distDir);
+
+      const { loadLocalization } = await import('./localization');
+
+      const result = loadLocalization('en');
+
+      expect(result).toEqual(enData);
+    });
   });
 
   describe('getCurrentLocaleData', () => {

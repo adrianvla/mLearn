@@ -10,6 +10,7 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types';
 import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
 import { setUILanguage } from './localization';
+import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.settings');
@@ -237,5 +238,26 @@ export function setupSettingsIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_LANG_DATA, (event) => {
     const langData = loadLangData();
     event.reply(IPC_CHANNELS.LANG_DATA, langData);
+  });
+
+  ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, (event) => {
+    const langData = loadLangData();
+    event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData));
+  });
+
+  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string) => {
+    try {
+      const langData = loadLangData();
+      await ensureLanguageDataInstalled(language, langData);
+      const catalog = getLanguageDataCatalogStatus(loadLangData());
+      const installedStatus = catalog.find((status) => status.language === language);
+      event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
+      event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);
+    } catch (error) {
+      event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_ERROR, {
+        language,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 }

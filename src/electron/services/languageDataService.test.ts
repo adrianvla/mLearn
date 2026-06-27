@@ -58,6 +58,84 @@ describe('languageDataService', () => {
     expect(status.dataRoot).toBe(path.join(tempDir.tmpDir, 'language-data'));
   });
 
+  it('reports catalog install status for every known language without downloading assets', () => {
+    const installedDictionary = path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'aa', 'dictionary.db');
+    fs.mkdirSync(path.dirname(installedDictionary), { recursive: true });
+    fs.writeFileSync(installedDictionary, 'installed bytes');
+
+    const langData: LanguageDataMap = {
+      zz: makeLangData({
+        name: 'Zulu Test',
+        languageData: {
+          assets: [
+            {
+              id: 'dictionary',
+              path: 'dictionaries/zz/dictionary.db',
+              sizeBytes: 100,
+              required: true,
+            },
+            {
+              id: 'frequency',
+              path: 'languages/zz.freq.json',
+              sizeBytes: 20,
+              required: false,
+            },
+          ],
+        },
+      }).zz,
+      aa: makeLangData({
+        name: 'Afar Test',
+        name_translated: 'Afar Local',
+        languageData: {
+          assets: [
+            {
+              id: 'dictionary',
+              path: 'dictionaries/aa/dictionary.db',
+              sizeBytes: 15,
+              required: true,
+            },
+          ],
+        },
+      }).zz,
+      bb: {
+        name: 'Bare Metadata',
+        translatable: [],
+        colour_codes: {},
+        fixed_settings: {},
+      },
+    };
+
+    const statuses = mod.getLanguageDataCatalogStatus(langData);
+
+    expect(statuses.map((status) => status.language)).toEqual(['aa', 'bb', 'zz']);
+    expect(statuses[0]).toMatchObject({
+      language: 'aa',
+      name: 'Afar Test',
+      nameTranslated: 'Afar Local',
+      installed: true,
+      totalBytes: 15,
+      installedBytes: 15,
+      missingRequiredAssets: [],
+    });
+    expect(statuses[1]).toMatchObject({
+      language: 'bb',
+      name: 'Bare Metadata',
+      installed: true,
+      totalBytes: 0,
+      installedBytes: 0,
+      missingRequiredAssets: [],
+    });
+    expect(statuses[2]).toMatchObject({
+      language: 'zz',
+      name: 'Zulu Test',
+      installed: false,
+      totalBytes: 120,
+      installedBytes: 0,
+      missingRequiredAssets: ['dictionary'],
+    });
+    expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
+  });
+
   it('copies bundled development assets into userData on demand', async () => {
     const bundled = path.join(tempDir.tmpDir, 'resources', 'root-of-app', 'dictionaries', 'zz', 'dictionary.db');
     fs.mkdirSync(path.dirname(bundled), { recursive: true });

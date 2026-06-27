@@ -308,6 +308,23 @@ async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
   return status;
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function emitModelDownloadProgress(
+  language: string,
+  emitProgress: (status: VoiceModelStatus) => void,
+): Promise<void> {
+  const status = await checkModelStatus(language);
+  emitProgress({
+    ...status,
+    downloading: true,
+    progress: Math.min(0.5 + status.progress * 0.5, 0.99),
+    statusMessage: 'Downloading voice models…',
+  });
+}
+
 // ============================================================================
 // WebSocket Session Management
 // ============================================================================
@@ -724,7 +741,7 @@ async function generateTTS(
         sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
           generating: true,
           playing: false,
-          modelLoading: !(s.loaded as boolean),
+          modelLoading: !(s.loaded as boolean) || ((s.downloading as boolean) ?? false),
           downloadProgress: s.progress as number ?? 0,
         });
       } catch (e) {
@@ -896,7 +913,20 @@ export function setupVoiceIPC(): void {
         ttsModelName: 'Kokoro-82M',
       });
 
-      await postJson(API_ENDPOINTS.voiceModelsDownload, {});
+      let downloadComplete = false;
+      const downloadPromise = postJson(API_ENDPOINTS.voiceModelsDownload, {})
+        .finally(() => {
+          downloadComplete = true;
+        });
+      const downloadSettled = downloadPromise.then(() => undefined, () => undefined);
+
+      while (!downloadComplete) {
+        await Promise.race([downloadSettled, wait(1000)]);
+        if (!downloadComplete) {
+          await emitModelDownloadProgress(language, emitProgress);
+        }
+      }
+      await downloadPromise;
 
       const finalStatus = await checkModelStatus(language);
       if (!finalStatus.sttDownloaded || !finalStatus.ttsDownloaded) {

@@ -253,6 +253,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   tempDir.cleanup();
 });
 
@@ -901,6 +902,63 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
 
     const progressCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-model-download-progress');
     expect(progressCalls.length).toBeGreaterThan(1);
+  });
+
+  it('polls Python model status while model download is still running', async () => {
+    vi.useFakeTimers();
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    let httpGetCallCount = 0;
+    httpGetFn.mockImplementation((_url: string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      httpGetCallCount++;
+      const isPoll = httpGetCallCount > 2 && httpGetCallCount <= 4;
+      const body = JSON.stringify({
+        downloaded: true,
+        downloading: isPoll,
+        progress: isPoll ? 0.4 : 1,
+      });
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      Promise.resolve().then(() => {
+        fakeRes._emit('data', body);
+        fakeRes._emit('end');
+      });
+      return { on: vi.fn() };
+    });
+
+    httpRequestFn.mockImplementation((_opts: unknown, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const body = JSON.stringify({ success: true });
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      return {
+        write: vi.fn(),
+        end: vi.fn(() => {
+          setTimeout(() => {
+            fakeRes._emit('data', Buffer.from(body));
+            fakeRes._emit('end');
+          }, 1500);
+        }),
+        on: vi.fn(),
+      };
+    });
+
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
+    await flushMicrotasks();
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushMicrotasks();
+
+    expect(event.sender.send).toHaveBeenCalledWith(
+      'voice-model-download-progress',
+      expect.objectContaining({
+        downloading: true,
+        progress: 0.7,
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(500);
+    await handlerPromise;
   });
 });
 

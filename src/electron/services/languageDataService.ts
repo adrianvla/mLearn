@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { getResourcePath, getUserDataPath } from '../utils/platform';
 import { downloadFileWithProgress, type ProgressCallback } from '../utils/downloadManager';
-import type { LanguageDataAsset, LanguageDataMap } from '../../shared/types';
+import type { LanguageDataAsset, LanguageDataCatalogStatus, LanguageDataMap } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.languageData');
@@ -94,6 +94,35 @@ export function getLanguageDataStatus(language: string, langData: LanguageDataMa
     missingAssets,
     assets: assetStatuses,
   };
+}
+
+export function getLanguageDataCatalogStatus(langData: LanguageDataMap): LanguageDataCatalogStatus[] {
+  return Object.entries(langData)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([language, metadata]) => {
+      const status = getLanguageDataStatus(language, langData);
+      const assets = getAssets(language, langData);
+      const totalBytes = assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0);
+      const installedBytes = assets.reduce((sum, asset) => {
+        const installedPath = getInstalledLanguageAssetPath(asset);
+        if (!fs.existsSync(installedPath)) {
+          return sum;
+        }
+        return sum + fs.statSync(installedPath).size;
+      }, 0);
+
+      return {
+        language,
+        name: metadata.name,
+        nameTranslated: metadata.name_translated,
+        dataRoot: status.dataRoot,
+        installed: status.installed,
+        totalBytes,
+        installedBytes,
+        missingRequiredAssets: status.missingAssets,
+        assets: status.assets,
+      };
+    });
 }
 
 async function installAsset(asset: LanguageDataAsset, onProgress?: ProgressCallback): Promise<void> {

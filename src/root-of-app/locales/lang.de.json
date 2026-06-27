@@ -1030,17 +1030,18 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "Wählen Sie die zu installierenden Komponenten und klicken Sie auf Installieren.",
+        "ChooseComponents": "Wählen Sie Ihre Sprache und Komponenten und klicken Sie auf Installieren.",
         "ClickToBegin": "Klicken Sie auf Installieren, um zu beginnen.",
         "DownloadNote": "Alle Downloads werden automatisch verarbeitet. Eine stabile Verbindung wird empfohlen.",
         "ForgetSomething": "Falls Sie etwas vergessen haben zu installieren, löschen Sie mLearn und starten Sie das Installationsprogramm neu.",
-        "LanguageUnlocks": "Die Sprachauswahl wird nach Abschluss der Einrichtung verfügbar."
+        "LanguageUnlocks": "Während der Einrichtung werden nur die Daten der ausgewählten Sprache heruntergeladen."
       },
       "Status": {
-        "Complete": "Installation abgeschlossen! Wählen Sie eine Sprache, um die Einrichtung abzuschließen.",
+        "Complete": "Installation abgeschlossen! Fahren Sie fort, um die Daten der ausgewählten Sprache zu installieren.",
         "CouldNotStart": "Der Installationsprozess konnte nicht gestartet werden.",
         "ErrorOccurred": "Ein Fehler ist aufgetreten. Überprüfen Sie das Protokoll unten.",
         "Installing": "Installation läuft, bitte warten...",
+        "InstallingLanguageData": "Sprachdaten werden installiert...",
         "InstallingPackages": "Pakete werden installiert...",
         "LanguageInstalledRestarting": "Sprache installiert! Neustart...",
         "LlmSkip": "Abhängigkeiten für das lokale KI-Modell werden übersprungen.",
@@ -1456,6 +1457,12 @@
         "LearningLanguage": {
           "Description": "Wählen Sie die Sprache, die Sie lernen",
           "Label": "Lernsprache"
+        },
+        "LanguageData": {
+          "Install": "Sprachdaten installieren",
+          "Installed": "Sprachdaten installiert",
+          "InstallFailed": "Installation der Sprachdaten fehlgeschlagen",
+          "MissingRequired": "Sprachdaten erforderlich"
         }
       },
       "Performance": {
@@ -2525,9 +2532,63 @@
       "Window": "Fenster"
     },
     "ComponentsTab": {
-      "Description": "Verwalten Sie installierte Komponenten. Schalten Sie Module ein oder aus und installieren Sie sie erneut, um Änderungen anzuwenden.",
+      "Description": "Prüfen Sie installierte Komponenten einzeln. Lassen Sie eine Gruppe aktiviert, um sie bei der Neuinstallation einzuschließen.",
       "Reinstall": "Komponenten neu installieren",
-      "RestartNote": "Die App wird nach Abschluss der Installation neu gestartet."
+      "RestartNote": "Die App wird nach Abschluss der Installation neu gestartet.",
+      "Enabled": "Aktiviert",
+      "Disabled": "Deaktiviert",
+      "Groups": {
+        "AI": {
+          "Title": "AI-Komponenten",
+          "Description": "Lokale Modell-Laufzeit und Python-Modellwerkzeuge."
+        },
+        "Reader": {
+          "Title": "Reader- und OCR-Komponenten",
+          "Description": "Texterkennungsmodelle für Reader-OCR."
+        },
+        "Voice": {
+          "Title": "Sprachkomponenten",
+          "Description": "Spracherkennung, Sprachsynthese und Spracherkennung für Aktivität."
+        }
+      },
+      "Items": {
+        "BuiltinChatRuntime": {
+          "Title": "Integrierte Chat-Modell-Laufzeit",
+          "Description": "Führt heruntergeladene GGUF-Chatmodelle lokal aus."
+        },
+        "TransformersSupport": {
+          "Title": "Transformers- und PyTorch-Unterstützung",
+          "Description": "Python-Modellabhängigkeiten für ältere lokale LLM-Werkzeuge."
+        },
+        "RapidOCR": {
+          "Title": "RapidOCR-Modelle",
+          "Description": "Schnelle OCR-Erkennung für Reader-Screenshots."
+        },
+        "PaddleOCR": {
+          "Title": "PaddleOCR-Modelle",
+          "Description": "Genaue OCR-Erkennungs- und Detektionsmodelle."
+        },
+        "MangaOCR": {
+          "Title": "MangaOCR-Modell",
+          "Description": "Erkennung für japanische Manga- und Vertikaltexte."
+        },
+        "WhisperSmall": {
+          "Title": "Whisper-small-STT-Modell",
+          "Description": "Lokale Sprache-zu-Text-Erkennung für Sprachgespräche."
+        },
+        "KokoroTts": {
+          "Title": "Kokoro-TTS-Modell",
+          "Description": "Lokale Text-zu-Sprache-Ausgabe für unterstützte Sprachen."
+        },
+        "SileroVad": {
+          "Title": "Silero-VAD-Modell",
+          "Description": "Sprachaktivitätserkennung für Freisprechgespräche."
+        },
+        "QwenTts": {
+          "Title": "Qwen3-TTS-Modell",
+          "Description": "Optionale lokale Stimmklonung und mehrsprachige TTS."
+        }
+      }
     },
     "Diagnostics": {
       "Title": "mLearn Diagnostics",

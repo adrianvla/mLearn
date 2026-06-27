@@ -75,6 +75,11 @@ export const IPC_CHANNELS = {
   // Language data
   GET_LANG_DATA: 'get-lang-data',
   LANG_DATA: 'lang-data',
+  GET_LANGUAGE_DATA_CATALOG: 'get-language-data-catalog',
+  LANGUAGE_DATA_CATALOG: 'language-data-catalog',
+  INSTALL_LANGUAGE_DATA: 'install-language-data',
+  LANGUAGE_DATA_INSTALLED: 'language-data-installed',
+  LANGUAGE_DATA_INSTALL_ERROR: 'language-data-install-error',
   INSTALL_LANG: 'install-lang',
   LANG_INSTALLED: 'lang-installed',
   LANG_INSTALL_ERROR: 'lang-install-error',

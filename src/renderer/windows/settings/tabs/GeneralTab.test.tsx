@@ -9,8 +9,14 @@ const saveSettingsMock = vi.fn();
 const restartBackendMock = vi.fn();
 const onSettingsSavedMock = vi.fn();
 const settingsSavedCleanupMock = vi.fn();
+const installLanguageDataMock = vi.fn();
 
 let settingsSavedHandler: (() => void) | undefined;
+let mockLanguageDataCatalog = [
+  { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
+  { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
+];
+let mockLanguageDataInstallError: { language: string; error: string } | null = null;
 
 const testSettings = {
   uiLanguage: 'en',
@@ -36,6 +42,10 @@ vi.mock('../../../context', () => ({
   useLanguage: () => ({
     langData: mockLangData,
     supportedLanguages: () => Object.keys(mockLangData),
+    languageDataCatalog: () => mockLanguageDataCatalog,
+    getLanguageDataStatus: (language: string) => mockLanguageDataCatalog.find((status) => status.language === language),
+    installLanguageData: installLanguageDataMock,
+    languageDataInstallError: () => mockLanguageDataInstallError,
   }),
 }));
 
@@ -79,8 +89,15 @@ describe('GeneralTab', () => {
     saveSettingsMock.mockReset();
     restartBackendMock.mockReset();
     onSettingsSavedMock.mockReset();
+    installLanguageDataMock.mockReset();
     settingsSavedCleanupMock.mockReset();
     settingsSavedHandler = undefined;
+    testSettings.language = 'ja';
+    mockLanguageDataCatalog = [
+      { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
+      { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
+    ];
+    mockLanguageDataInstallError = null;
     onSettingsSavedMock.mockImplementation((callback: () => void) => {
       settingsSavedHandler = callback;
       return settingsSavedCleanupMock;
@@ -114,6 +131,22 @@ describe('GeneralTab', () => {
 
     expect(settingsSavedCleanupMock).toHaveBeenCalledOnce();
     expect(restartBackendMock).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('offers to install missing language data for the selected learning language', async () => {
+    testSettings.language = 'de';
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    const installButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Settings.Language.LanguageData.Install');
+    expect(installButton).toBeDefined();
+
+    installButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(installLanguageDataMock).toHaveBeenCalledWith('de');
+    testSettings.language = 'ja';
     dispose();
   });
 });

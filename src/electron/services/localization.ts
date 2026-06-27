@@ -30,6 +30,10 @@ function getLocalesDir(): string | null {
     path.join(resourcePath, 'locales'),
     path.join(appPath, 'root-of-app', 'locales'),
     path.join(resourcePath, 'root-of-app', 'locales'),
+    path.join(appPath, 'src', 'root-of-app', 'locales'),
+    path.join(resourcePath, 'src', 'root-of-app', 'locales'),
+    path.join(appPath, '..', 'src', 'root-of-app', 'locales'),
+    path.join(resourcePath, '..', 'src', 'root-of-app', 'locales'),
   ];
   
   return candidateDirs.find((dir) => fs.existsSync(dir)) ?? null;
