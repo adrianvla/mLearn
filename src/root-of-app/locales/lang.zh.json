@@ -1327,7 +1327,10 @@
           "GlassLight": "毛玻璃浅色",
           "Label": "主题",
           "Light": "浅色",
-          "LightHighContrast": "浅色高对比度"
+          "LightHighContrast": "浅色高对比度",
+      "Custom": "自定义",
+      "CustomCssDescription": "编辑自定义主题的 CSS。更改实时应用。",
+      "CustomCssLabel": "自定义 CSS"
         }
       },
       "BlurEffect": {

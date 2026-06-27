@@ -1327,7 +1327,10 @@
           "GlassLight": "Glass Light",
           "Label": "Theme",
           "Light": "Light",
-          "LightHighContrast": "Light High Contrast"
+          "LightHighContrast": "Light High Contrast",
+      "Custom": "Custom",
+      "CustomCssDescription": "Edit the CSS for your custom theme. Changes apply live.",
+      "CustomCssLabel": "Custom CSS"
         }
       },
       "BlurEffect": {

@@ -1327,7 +1327,10 @@
           "GlassLight": "グラスライト",
           "Label": "テーマ",
           "Light": "ライト",
-          "LightHighContrast": "ライト高コントラスト"
+          "LightHighContrast": "ライト高コントラスト",
+      "Custom": "カスタム",
+      "CustomCssDescription": "カスタムテーマのCSSを編集します。変更はリアルタイムで適用されます。",
+      "CustomCssLabel": "カスタムCSS"
         }
       },
       "BlurEffect": {

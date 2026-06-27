@@ -3,6 +3,7 @@
  */
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES } from './constants';
+import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
 import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction } from './constants';
 
 // Re-export WindowType
@@ -124,6 +125,7 @@ export interface Settings {
   theme: AppTheme;
   /** Custom CSS color overrides that apply globally regardless of theme */
   customColors?: CustomColorOverrides;
+  customThemeCSS: string;
 
   // Language settings
   language: string;
@@ -436,6 +438,7 @@ export const DEFAULT_SETTINGS: Settings = {
   colour_codes: {},
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
+  customThemeCSS: DEFAULT_CUSTOM_THEME_CSS,
   hover_known_get_from_dictionary: false,
   showDictionary: true,
   show_pos: true,
