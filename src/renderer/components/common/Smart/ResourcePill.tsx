@@ -76,7 +76,7 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
         poor: boolean;
       };
 
-      if (!result.error && !result.poor && result.cards.length > 0) {
+      if (!result.error && result.cards.length > 0) {
         const card = result.cards[0];
         setAnkiHoverCard(card.fields || null);
         setAnkiHoverCardInfo({
