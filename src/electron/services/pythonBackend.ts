@@ -22,7 +22,8 @@ import {
   getPythonDownloadUrl,
   isWindows 
 } from '../utils/platform';
-import { loadSettings } from './settings';
+import { loadLangData, loadSettings } from './settings';
+import { ensureLanguageDataInstalled, getLanguageDataRoot } from './languageDataService';
 import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
 
@@ -692,17 +693,17 @@ function killProcessesOnPort(port: number): void {
   }
 }
 
-function pythonFound(): void {
+async function pythonFound(): Promise<boolean> {
   if (pythonChildProcess && pythonChildProcess.exitCode === null) {
     log.info('Python backend already running, skipping restart');
-    return;
+    return true;
   }
 
   log.info('Python found, starting backend...');
 
   killProcessesOnPort(PYTHON_BACKEND_PORT);
 
-  if (isFirstTimeSetup) return;
+  if (isFirstTimeSetup) return false;
 
   const settings = loadSettings();
   const pythonExecutable = resolvePythonExecutablePath();
@@ -710,6 +711,29 @@ function pythonFound(): void {
 
   const llmEnabled = settings.llmEnabled !== false;
   const ocrEnabled = settings.ocrEnabled !== false;
+
+  try {
+    sendStatusUpdate(`Preparing ${settings.language} language data...`);
+    await ensureLanguageDataInstalled(settings.language, loadLangData(), (progress) => {
+      if (progress.expectedBytes > 0) {
+        sendStatusUpdate(
+          `Downloading ${settings.language} language data: ${Math.round(progress.progress * 100)}%`
+        );
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const errorMsg = `Failed to prepare language data for ${settings.language}: ${message}`;
+    log.error(errorMsg);
+    pendingCriticalError = errorMsg;
+    try {
+      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, errorMsg);
+    } catch (e) {
+      log.error("error", e);
+    }
+    sendStatusUpdate(`ERROR: ${errorMsg}`);
+    return false;
+  }
 
   pendingCriticalError = null;
   pendingStartupStatusMessage = null;
@@ -841,6 +865,7 @@ function pythonFound(): void {
     llmEnabled ? 'true' : 'false',
     ocrEnabled ? 'true' : 'false',
     userDataPath,
+    getLanguageDataRoot(),
   ];
 
   if (isWindows) {
@@ -872,6 +897,7 @@ function pythonFound(): void {
   pythonChildProcess.stdout?.on('data', handleSTDOUT);
   pythonChildProcess.stderr?.on('data', handleSTDERR);
   pythonChildProcess.on('close', handleClose);
+  return true;
 }
 
 // Find Python installation
@@ -939,8 +965,7 @@ export async function findPython(): Promise<boolean> {
         }
 
         pythonSuccessInstall = true;
-        pythonFound();
-        return true;
+        return await pythonFound();
       }
       log.warn('Python binary exists but is not healthy:', pythonPath);
     }
@@ -1022,7 +1047,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
       if (pipRequirements.length === 0) {
         installInProgress = false;
         pythonSuccessInstall = true;
-        pythonFound();
+        await pythonFound();
         return;
       }
 
@@ -1176,7 +1201,7 @@ export function restartPythonBackend(): void {
     if (attempts <= 0 || !pythonChildProcess || pythonChildProcess.killed) {
       pythonChildProcess = null;
       // Re-launch the backend
-      pythonFound();
+      void pythonFound();
       return;
     }
     setTimeout(() => waitForExit(attempts - 1), 200);

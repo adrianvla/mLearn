@@ -247,6 +247,20 @@ describe('loadLangData', () => {
     expect(langData['en'].name).toBe('English');
   });
 
+  it('merges per-user custom language metadata with bundled language metadata', () => {
+    const customLangsDir = path.join(tempDir.tmpDir, 'languages');
+    const bundledLangsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    fs.mkdirSync(customLangsDir, { recursive: true });
+    fs.mkdirSync(bundledLangsDir, { recursive: true });
+    fs.writeFileSync(path.join(customLangsDir, 'zz.json'), JSON.stringify({ name: 'Custom', translatable: [] }), 'utf-8');
+    fs.writeFileSync(path.join(bundledLangsDir, 'ja.json'), JSON.stringify({ name: 'Japanese', translatable: [] }), 'utf-8');
+
+    const langData = mod.loadLangData();
+
+    expect(langData['zz']?.name).toBe('Custom');
+    expect(langData['ja']?.name).toBe('Japanese');
+  });
+
   it('skips corrupt JSON files in the languages directory', () => {
     const langsDir = path.join(tempDir.tmpDir, 'languages');
     fs.mkdirSync(langsDir, { recursive: true });

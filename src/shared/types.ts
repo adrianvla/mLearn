@@ -594,6 +594,30 @@ export interface GrammarPoint {
   level: number;
 }
 
+export interface LanguageDataAsset {
+  /** Stable asset id, e.g. "dictionary". */
+  id: string;
+  /** Relative destination under the per-user language data root. */
+  path: string;
+  /** Remote URL used by packaged apps to install this asset on demand. */
+  url?: string;
+  /** Optional relative path under root-of-app used by development/local builds. */
+  bundledPath?: string;
+  /** Expected file size, used for UI/status display. */
+  sizeBytes?: number;
+  /** Optional SHA-256 checksum for downloaded/copied payload verification. */
+  sha256?: string;
+  /** Whether backend startup requires this asset for the language. */
+  required?: boolean;
+}
+
+export interface LanguageDataManifest {
+  /** Data payload version independent from app version. */
+  version?: string;
+  /** Files needed by this language, installed on demand into userData. */
+  assets: LanguageDataAsset[];
+}
+
 export interface LanguageData {
   name: string;
   name_translated?: string;
@@ -630,6 +654,8 @@ export interface LanguageData {
   hasHonorifics?: boolean;
   /** Frequency boundaries for level assignment [level5Max, level4Max, level3Max, level2Max] */
   freq_level_boundaries?: number[];
+  /** Heavy per-language payloads, installed into userData on demand. */
+  languageData?: LanguageDataManifest;
 }
 
 export interface LanguageDataMap {

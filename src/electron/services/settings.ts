@@ -90,30 +90,33 @@ export function loadLangData(): LanguageDataMap {
   const appPath = getAppPath();
   const resourcePath = getResourcePath();
   const candidateDirs = [
-    path.join(appPath, 'languages'),
-    path.join(resourcePath, 'languages'),
     path.join(appPath, 'root-of-app', 'languages'),
     path.join(resourcePath, 'root-of-app', 'languages'),
+    path.join(appPath, 'languages'),
+    path.join(resourcePath, 'languages'),
+    path.join(getUserDataPath(), 'languages'),
   ];
-  const languagesDir = candidateDirs.find((dir) => fs.existsSync(dir));
+  const languagesDirs = candidateDirs.filter((dir, index, dirs) => fs.existsSync(dir) && dirs.indexOf(dir) === index);
 
   try {
-    if (!languagesDir) {
+    if (languagesDirs.length === 0) {
       log.warn('Languages directory not found:', candidateDirs.join(', '));
       return getDefaultLangData();
     }
 
-    const files = fs.readdirSync(languagesDir);
-    
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        const langCode = path.basename(file, '.json');
-        const filePath = path.join(languagesDir, file);
-        try {
-          const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-          langData[langCode] = data;
-        } catch (e) {
-          log.error(`Failed to load language file ${file}:`, e);
+    for (const languagesDir of languagesDirs) {
+      const files = fs.readdirSync(languagesDir);
+
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const langCode = path.basename(file, '.json');
+          const filePath = path.join(languagesDir, file);
+          try {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            langData[langCode] = data;
+          } catch (e) {
+            log.error(`Failed to load language file ${file}:`, e);
+          }
         }
       }
     }

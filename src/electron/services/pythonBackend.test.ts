@@ -60,6 +60,22 @@ vi.mock('./settings', () => ({
     llmEnabled: true,
     ocrEnabled: true,
   })),
+  loadLangData: vi.fn(() => ({
+    ja: {
+      name: 'Japanese',
+      translatable: [],
+      colour_codes: {},
+      fixed_settings: {},
+    },
+  })),
+}));
+
+const mockEnsureLanguageDataInstalled = vi.fn(() => Promise.resolve());
+const mockGetLanguageDataRoot = vi.fn(() => '/tmp/test-userdata/language-data');
+
+vi.mock('./languageDataService', () => ({
+  ensureLanguageDataInstalled: mockEnsureLanguageDataInstalled,
+  getLanguageDataRoot: mockGetLanguageDataRoot,
 }));
 
 type MockReqCallbacks = Record<string, ((...args: unknown[]) => void)[]>;
@@ -222,6 +238,52 @@ describe('pythonBackend', () => {
 
       const result = await mod.findPython();
       expect(result).toBe(true);
+    });
+
+    it('installs selected language data before starting the backend', async () => {
+      const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+
+      Object.defineProperty(process, 'resourcesPath', {
+        value: tempDir.tmpDir,
+        writable: true,
+        configurable: true,
+      });
+
+      const backendMockProcess = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        kill: vi.fn(),
+        killed: false,
+      };
+
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        if (args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return backendMockProcess;
+      });
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      await mod.findPython();
+
+      expect(mockEnsureLanguageDataInstalled).toHaveBeenCalledWith('ja', expect.any(Object), expect.any(Function));
+      const backendSpawn = mockSpawn.mock.calls.find((call) => call[0] === '/bin/sh');
+      expect(backendSpawn?.[1]).toEqual(expect.arrayContaining([
+        expect.stringContaining('/tmp/test-userdata/language-data'),
+      ]));
     });
 
     it('sends INSTALLER_AWAITING_CHOICE when python not found', async () => {
