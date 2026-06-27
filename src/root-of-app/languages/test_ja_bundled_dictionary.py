@@ -39,3 +39,13 @@ def test_packaged_app_excludes_language_dictionary_payloads():
     )
 
     assert "!dictionaries/**" in root_resource["filter"]
+    assert "!languages/*.freq.json" in root_resource["filter"]
+
+
+def test_word_frequency_is_split_from_language_metadata():
+    metadata = json.loads((ROOT_OF_APP / "languages" / "ja.json").read_text(encoding="utf-8"))
+    frequency = json.loads((ROOT_OF_APP / "languages" / "ja.freq.json").read_text(encoding="utf-8"))
+
+    assert "freq" not in metadata
+    assert isinstance(frequency.get("freq"), list)
+    assert len(frequency["freq"]) > 1000

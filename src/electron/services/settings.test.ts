@@ -281,6 +281,47 @@ describe('loadLangData', () => {
     expect(langData['ja']).toBeDefined();
   });
 
+  it('loads split word frequency files without registering them as languages', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(langsDir, 'ja.json'),
+      JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, fixed_settings: {} }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(langsDir, 'ja.freq.json'),
+      JSON.stringify({ freq: [['行く', 'いく']] }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ja']?.freq).toEqual([['行く', 'いく']]);
+    expect(langData['ja.freq']).toBeUndefined();
+  });
+
+  it('loads installed frequency files from the language-data directory', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.mkdirSync(installedFreqDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(langsDir, 'ja.json'),
+      JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, fixed_settings: {} }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ja.freq.json'),
+      JSON.stringify({ freq: [['食べる', 'たべる']] }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ja']?.freq).toEqual([['食べる', 'たべる']]);
+  });
+
   it('returns default lang data when languages directory is empty', () => {
     const langsDir = path.join(tempDir.tmpDir, 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
