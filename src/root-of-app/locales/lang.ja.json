@@ -586,8 +586,6 @@
       }
     },
     "ErrorModal": {
-      "AnkiDisablePermanent": "Ankiを恒久的に無効にする",
-      "AnkiDisableSession": "このセッションのみAnkiを無効にする",
       "Copied": "コピーしました！",
       "CopyError": "エラーをコピー",
       "HideDetails": "詳細を非表示",

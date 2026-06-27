@@ -1061,11 +1061,6 @@ describe('Server Bridge', () => {
     expect(typeof bridge.server.onVersionReceive(vi.fn())).toBe('function');
   });
 
-  it('restartBackendAnkiOverride is a noop', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    expect(() => bridge.server.restartBackendAnkiOverride(true)).not.toThrow();
-  });
 });
 
 // ============================================================================

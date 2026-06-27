@@ -586,8 +586,6 @@
       }
     },
     "ErrorModal": {
-      "AnkiDisablePermanent": "Отключить Anki навсегда",
-      "AnkiDisableSession": "Отключить Anki для этой сессии",
       "Copied": "Скопировано!",
       "CopyError": "Копировать ошибку",
       "HideDetails": "Скрыть подробности",

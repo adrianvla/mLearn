@@ -156,7 +156,6 @@ export interface ServerBridge {
   onServerStatusUpdate: (callback: (message: string) => void) => () => void;
   onServerCriticalError: (callback: (message: string) => void) => () => void;
   onAnkiConnectionError: (callback: (reason: string) => void) => () => void;
-  restartBackendAnkiOverride: (disableAnki: boolean) => void;
   onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
   sendLogRecord: (record: unknown) => void;
   restartApp: () => void;

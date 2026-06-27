@@ -198,8 +198,6 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.SERVER_CRITICAL_ERROR, (_event, message) => callback(message)),
   onAnkiConnectionError: (callback: (reason: string) => void) =>
     ipcOn(IPC_CHANNELS.ANKI_CONNECTION_ERROR, (_event, reason) => callback(reason)),
-  restartBackendAnkiOverride: (disableAnki: boolean) =>
-    ipcRenderer.send(IPC_CHANNELS.RESTART_BACKEND_ANKI_OVERRIDE, disableAnki),
   onOcrStatusUpdate: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.OCR_STATUS_UPDATE, (_event, message) => callback(message)),
 

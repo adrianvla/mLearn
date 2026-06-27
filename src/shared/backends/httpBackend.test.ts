@@ -268,7 +268,7 @@ describe('HttpBackend', () => {
   });
 
   describe('getCard', () => {
-    const backend = new HttpBackend('http://127.0.0.1:7752');
+    const backend = new HttpBackend('http://127.0.0.1:7752', { ankiBaseUrl: 'http://127.0.0.1:7753' });
 
     it('returns parsed JSON on success', async () => {
       const card = { front: 'hello', back: 'world' };
@@ -278,7 +278,7 @@ describe('HttpBackend', () => {
 
       expect(result).toEqual(card);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:7752/getCard',
+        'http://127.0.0.1:7753/api/anki/card',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ word: 'hello' }),
@@ -304,7 +304,7 @@ describe('HttpBackend', () => {
   });
 
   describe('getAnkiWords', () => {
-    const backend = new HttpBackend('http://127.0.0.1:7752');
+    const backend = new HttpBackend('http://127.0.0.1:7752', { ankiBaseUrl: 'http://127.0.0.1:7753' });
 
     it('returns words array from data.words on success', async () => {
       mockFetch.mockResolvedValueOnce(makeOkResponse({ words: ['apple', 'banana'], cards: [] }));
@@ -313,7 +313,7 @@ describe('HttpBackend', () => {
 
       expect(result).toEqual(['apple', 'banana']);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:7752/ankiWords',
+        'http://127.0.0.1:7753/api/anki/words',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -328,7 +328,7 @@ describe('HttpBackend', () => {
   });
 
   describe('getAnkiWordStatuses', () => {
-    const backend = new HttpBackend('http://127.0.0.1:7752');
+    const backend = new HttpBackend('http://127.0.0.1:7752', { ankiBaseUrl: 'http://127.0.0.1:7753' });
 
     it('returns cached scheduling records from data.cards on success', async () => {
       const cards = [{ word: 'apple', factor: 2300, queue: 2, type: 2, due: 1325 }];
@@ -338,7 +338,7 @@ describe('HttpBackend', () => {
 
       expect(result).toEqual(cards);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:7752/ankiWords',
+        'http://127.0.0.1:7753/api/anki/words',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -349,6 +349,30 @@ describe('HttpBackend', () => {
       const result = await backend.getAnkiWordStatuses();
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('reloadAnkiCache', () => {
+    const backend = new HttpBackend('http://127.0.0.1:7752', { ankiBaseUrl: 'http://127.0.0.1:7753' });
+
+    it('POSTs the Anki reload route on the node server', async () => {
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ response: 'Reloaded' }));
+
+      const result = await backend.reloadAnkiCache();
+
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:7753/api/anki/reload',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it('returns false when reload fails', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(503));
+
+      const result = await backend.reloadAnkiCache();
+
+      expect(result).toBe(false);
     });
   });
 

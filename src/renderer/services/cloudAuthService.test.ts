@@ -35,7 +35,6 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     automaticFlashcardCreation: false,
     flashcard_deck: null,
     flashcards_add_picture: true,
-    getCardUrl: 'http://127.0.0.1:7752/getCard',
     tokeniserUrl: 'http://127.0.0.1:7752/tokenize',
     getTranslationUrl: 'http://127.0.0.1:7752/translate',
     ankiUrl: 'http://127.0.0.1:7753/api/fwd-to-anki',

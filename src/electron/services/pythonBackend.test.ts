@@ -56,8 +56,6 @@ vi.mock('./windowManager', () => ({
 
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({
-    ankiConnectUrl: 'http://127.0.0.1:8765',
-    use_anki: true,
     language: 'ja',
     llmEnabled: true,
     ocrEnabled: true,
@@ -348,7 +346,7 @@ describe('pythonBackend', () => {
       expect(mockIpcListeners.has('start-install')).toBe(true);
       expect(mockIpcListeners.has('installer-state-request')).toBe(true);
       expect(mockIpcListeners.has('restart-backend')).toBe(true);
-      expect(mockIpcListeners.has('restart-backend-anki-override')).toBe(true);
+      expect(mockIpcListeners.has('restart-backend-anki-override')).toBe(false);
     });
 
     it('IS_SUCCESSFUL_INSTALL replies with pythonSuccessInstall status', () => {
@@ -479,11 +477,5 @@ describe('pythonBackend', () => {
       expect(() => listeners[0]({})).not.toThrow();
     });
 
-    it('RESTART_BACKEND_ANKI_OVERRIDE sets anki override and restarts without throwing', () => {
-      mod.setupPythonBackendIPC();
-
-      const listeners = mockIpcListeners.get('restart-backend-anki-override') || [];
-      expect(() => listeners[0]({}, true)).not.toThrow();
-    });
   });
 });

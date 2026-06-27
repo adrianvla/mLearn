@@ -2,7 +2,7 @@
  * Dictionary Diagnostics Suite
  */
 
-import { PYTHON_BACKEND_PORT } from '../../../../shared/constants';
+import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT } from '../../../../shared/constants';
 import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
 import { loadLangData } from '../../settings';
@@ -45,14 +45,14 @@ registerDiagnosticSuite({
       timeoutMs: 10_000,
       async fn() {
         const { status, body } = await httpPost(
-          `http://127.0.0.1:${PYTHON_BACKEND_PORT}/getCard`,
+          `http://127.0.0.1:${PROXY_SERVER_PORT}/api/anki/card`,
           { word: 'hello', language: 'en' },
         );
         if (status !== 200) {
           throw new Error(`Dictionary lookup returned status ${status}`);
         }
         const data = JSON.parse(body);
-        // /getCard returns { cards: [...], error: boolean, poor: boolean }
+        // /api/anki/card returns { cards: [...], error: boolean, poor: boolean }
         if (!data || !Array.isArray(data.cards)) {
           throw new Error('Dictionary lookup returned unexpected format');
         }

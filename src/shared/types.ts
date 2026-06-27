@@ -217,7 +217,6 @@ export interface Settings {
   learningLanguageLevel: number | null;
 
   // API URLs
-  getCardUrl: string;
   tokeniserUrl: string;
   getTranslationUrl: string;
   ankiUrl: string;
@@ -460,7 +459,6 @@ export const DEFAULT_SETTINGS: Settings = {
   automaticFlashcardCreation: false,
   flashcard_deck: null,
   flashcards_add_picture: true,
-  getCardUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/getCard`,
   tokeniserUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
   getTranslationUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
   ankiUrl: `http://127.0.0.1:${PROXY_SERVER_PORT}/api/fwd-to-anki`,

@@ -33,7 +33,7 @@ config.QUIT_TOKEN = secrets.token_hex(32)
 log.info(f"::QUIT_TOKEN::{config.QUIT_TOKEN}")
 
 # ── Route modules ──
-from routes import anki, nlp, ocr, llm, voice
+from routes import nlp, ocr, llm, voice
 
 # ── FastAPI app ──
 app = FastAPI()
@@ -47,7 +47,6 @@ app.add_middleware(
 )
 
 # Mount routers
-app.include_router(anki.router)
 app.include_router(nlp.router)
 app.include_router(ocr.router)
 app.include_router(llm.router)
@@ -83,18 +82,8 @@ async def health():
 
 @app.on_event("startup")
 async def startup_event():
-    log.info("Getting all cards")
     _process_stats("startup")
     log.info(f"Runtime info: {config.get_runtime_info()}")
-
-    resp = anki.get_all_cards()
-    if not resp:
-        log.info("Anki is offline, loading from Cache")
-        if anki.get_all_cards_CACHE():
-            log.info("Loaded from cache")
-        else:
-            log.error("Failed to load from cache")
-            log.error("ANKI_ERROR connection_failed")
 
     # Faulthandler for crash diagnostics
     try:

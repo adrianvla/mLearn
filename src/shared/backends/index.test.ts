@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getBackend, resetBackend, resolveCloudLoginUrl, resolveCloudApiUrl } from './index';
 import { HttpBackend } from './httpBackend';
-import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 
 function expectHttpBackend(backend: ReturnType<typeof getBackend>): HttpBackend {
   expect(backend).toBeInstanceOf(HttpBackend);
@@ -16,6 +16,7 @@ describe('getBackend', () => {
   it('returns HttpBackend with local default URL when called with no options', () => {
     const backend = expectHttpBackend(getBackend());
     expect(backend.getBaseUrl()).toBe(`http://127.0.0.1:${PYTHON_BACKEND_PORT}`);
+    expect(backend.getAnkiBaseUrl()).toBe(`http://127.0.0.1:${PROXY_SERVER_PORT}`);
   });
 
   it('returns HttpBackend with local URL when mode is local', () => {
@@ -26,6 +27,13 @@ describe('getBackend', () => {
   it('returns HttpBackend with provided URL in tethered mode', () => {
     const backend = expectHttpBackend(getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752' }));
     expect(backend.getBaseUrl()).toBe('http://192.168.1.10:7752');
+    expect(backend.getAnkiBaseUrl()).toBe('http://192.168.1.10:7753');
+  });
+
+  it('uses provided node server URL for both backend and Anki when tethered URL targets 7753', () => {
+    const backend = expectHttpBackend(getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7753' }));
+    expect(backend.getBaseUrl()).toBe('http://192.168.1.10:7753');
+    expect(backend.getAnkiBaseUrl()).toBe('http://192.168.1.10:7753');
   });
 
   it('falls back to default local URL in tethered mode when no url provided', () => {

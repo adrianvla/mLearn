@@ -69,7 +69,6 @@ function createMockIPC() {
     onServerStatusUpdate: vi.fn(),
     onServerCriticalError: vi.fn(),
     onAnkiConnectionError: vi.fn(),
-    restartBackendAnkiOverride: vi.fn(),
     onOcrStatusUpdate: vi.fn(),
     restartApp: vi.fn(),
     forceRestartApp: vi.fn(),
@@ -689,12 +688,6 @@ describe('serverBridge', () => {
     const bridge = createElectronBridge();
     bridge.server.onAnkiConnectionError(cb);
     expect(mockIPC.onAnkiConnectionError).toHaveBeenCalledWith(cb);
-  });
-
-  it('restartBackendAnkiOverride passes disableAnki to ipc.restartBackendAnkiOverride', () => {
-    const bridge = createElectronBridge();
-    bridge.server.restartBackendAnkiOverride(true);
-    expect(mockIPC.restartBackendAnkiOverride).toHaveBeenCalledWith(true);
   });
 
   it('onOcrStatusUpdate passes callback to ipc.onOcrStatusUpdate', () => {

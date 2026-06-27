@@ -115,9 +115,13 @@ export function isAnkiCacheFetched(): boolean {
 
 /** Force a refresh of the Anki words cache */
 export async function refreshAnkiWordsCache(): Promise<Set<string>> {
+  clearAnkiWordsCache();
+  return fetchAnkiWordsCache();
+}
+
+export function clearAnkiWordsCache(): void {
   fetched = false;
   fetchPromise = null;
   ankiWordsSet = new Set();
   ankiWordCardsMap = new Map();
-  return fetchAnkiWordsCache();
 }

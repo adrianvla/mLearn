@@ -5,7 +5,7 @@
  * Cached per base URL — call `resetBackend()` when settings change.
  */
 
-import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 import type { BackendAdapter, BackendMode } from './types';
 import { HttpBackend } from './httpBackend';
 
@@ -48,6 +48,20 @@ function resolveBaseUrl(mode: BackendMode, userUrl?: string): string {
   }
 }
 
+function resolveAnkiBaseUrl(mode: BackendMode, userUrl?: string): string {
+  if (mode === 'tethered' && userUrl) {
+    const trimmed = userUrl.replace(/\/+$/, '');
+    try {
+      const parsed = new URL(trimmed);
+      parsed.port = String(PROXY_SERVER_PORT);
+      return parsed.toString().replace(/\/+$/, '');
+    } catch {
+      return trimmed;
+    }
+  }
+  return `http://127.0.0.1:${PROXY_SERVER_PORT}`;
+}
+
 export interface GetBackendOptions {
   mode?: BackendMode;
   url?: string;
@@ -69,12 +83,16 @@ export interface GetBackendOptions {
 export function getBackend(opts: GetBackendOptions = {}): BackendAdapter {
   const mode = opts.mode || 'local';
   const baseUrl = resolveBaseUrl(mode, opts.url);
+  const ankiBaseUrl = resolveAnkiBaseUrl(mode, opts.url);
   const authToken = opts.authToken || '';
-  const key = `${baseUrl}::${authToken}`;
+  const key = `${baseUrl}::${ankiBaseUrl}::${authToken}`;
 
   if (cached && cachedKey === key) return cached;
 
-  cached = new HttpBackend(baseUrl, { authToken: authToken || undefined });
+  cached = new HttpBackend(baseUrl, {
+    authToken: authToken || undefined,
+    ankiBaseUrl,
+  });
   cachedKey = key;
   return cached;
 }

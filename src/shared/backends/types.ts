@@ -79,6 +79,8 @@ export interface BackendAdapter {
   getAnkiWords(): Promise<string[]>;
   /** Get cached Anki scheduling metadata keyed by expression value */
   getAnkiWordStatuses(): Promise<AnkiWordStatusRecord[]>;
+  /** Refresh the Anki cache/index when settings that affect Anki change */
+  reloadAnkiCache(): Promise<boolean>;
   /** Ping the backend to check if it's alive */
   ping(): Promise<boolean>;
 }
