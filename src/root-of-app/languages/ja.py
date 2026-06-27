@@ -98,8 +98,8 @@ def LANGUAGE_TOKENIZE(text):
     return token_list
 
 
-def _db_path(resource_dir: Path) -> Path:
-    return resource_dir / "dictionaries" / DICTIONARY_DIRNAME / DB_FILENAME
+def _db_path(language_data_dir: Path) -> Path:
+    return language_data_dir / "dictionaries" / DICTIONARY_DIRNAME / DB_FILENAME
 
 
 def _deserialize_entry(blob: bytes):
@@ -124,13 +124,13 @@ def _clear_entry_caches():
     _pitch_entry_cached.cache_clear()
 
 
-def _initialize_dictionary(resource_dir: Path) -> None:
+def _initialize_dictionary(language_data_dir: Path) -> None:
     global _DB_CONN, _atexit_registered
-    db_path = _db_path(resource_dir)
+    db_path = _db_path(language_data_dir)
     if not db_path.is_file():
         raise FileNotFoundError(
             f"Japanese dictionary database not found at {db_path}. "
-            "Run npm run build:japanese-dict before packaging."
+            "Install Japanese language data before starting the backend."
         )
 
     db_uri = f"file:{db_path.as_posix()}?mode=ro"
@@ -159,8 +159,9 @@ def _initialize_dictionary(resource_dir: Path) -> None:
             pass
 
 
-def load_dictionary(resource_folder, _cache_folder=None):
-    _initialize_dictionary(Path(resource_folder))
+def load_dictionary(resource_folder, language_data_folder=None):
+    language_data_dir = Path(language_data_folder) if language_data_folder else Path(resource_folder)
+    _initialize_dictionary(language_data_dir)
 
 
 def _require_db_conn() -> sqlite3.Connection:

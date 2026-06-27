@@ -22,14 +22,15 @@ _DB_LOCK = threading.RLock()
 _atexit_registered = False
 
 
-def LOAD_MODULE(folder):
+def LOAD_MODULE(folder, language_data_folder=None):
     global nlp
     try:
         nlp = spacy.load("de_core_news_sm")
     except:
         spacy.cli.download("de_core_news_sm")
         nlp = spacy.load("de_core_news_sm")
-    _initialize_dictionary(Path(folder))
+    dictionary_root = Path(language_data_folder) if language_data_folder else Path(folder)
+    _initialize_dictionary(dictionary_root)
 
 
 def LANGUAGE_TOKENIZE(text):
@@ -85,7 +86,8 @@ def _initialize_dictionary(base_dir: Path) -> None:
         raise RuntimeError(f"German dictionary database is missing: {db_path}")
 
     expected_version = _expected_db_version(base_dir)
-    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    db_uri = f"file:{db_path.as_posix()}?mode=ro"
+    conn = sqlite3.connect(db_uri, uri=True, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA query_only=1")
 

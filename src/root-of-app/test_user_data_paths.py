@@ -52,3 +52,10 @@ def test_server_faulthandler_uses_configured_crash_log_path():
 
     assert "get_crash_log_path()" in startup_source
     assert 'os.path.join(config.RESPATH, "python_crash.log")' not in startup_source
+
+
+def test_user_language_modules_are_searched_before_builtin_modules():
+    paths = config._language_module_search_paths("/users/adrian/AppData")
+
+    assert paths[0] == "/users/adrian/AppData/languages"
+    assert paths[-1].endswith("src/root-of-app/languages")
