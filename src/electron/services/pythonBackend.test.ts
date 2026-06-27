@@ -188,6 +188,7 @@ describe('pythonBackend', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     tempDir.cleanup();
   });
 
@@ -284,6 +285,69 @@ describe('pythonBackend', () => {
       expect(backendSpawn?.[1]).toEqual(expect.arrayContaining([
         expect.stringContaining('/tmp/test-userdata/language-data'),
       ]));
+    });
+
+    it('marks the backend loaded when the health endpoint is ready', async () => {
+      vi.useFakeTimers();
+      const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+
+      Object.defineProperty(process, 'resourcesPath', {
+        value: tempDir.tmpDir,
+        writable: true,
+        configurable: true,
+      });
+
+      const webContents = { send: vi.fn() };
+      mockGetMainWindow.mockReturnValue({ webContents });
+
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        if (args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return {
+          stdout: { on: vi.fn() },
+          stderr: { on: vi.fn() },
+          on: vi.fn(),
+          kill: vi.fn(),
+          killed: false,
+        };
+      });
+
+      mockHttpRequest.mockImplementation((options, callback) => {
+        const req = createMockHttpReq();
+        req.end.mockImplementation(() => {
+          const res = createMockHttpRes(200);
+          callback(res);
+          res._callbacks.data?.forEach((handler) => handler(Buffer.from('{"status":"ok"}')));
+          res._callbacks.end?.forEach((handler) => handler());
+        });
+        return req;
+      });
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      await mod.findPython();
+      await vi.advanceTimersByTimeAsync(750);
+
+      expect(mockHttpRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/health',
+          method: 'GET',
+        }),
+        expect.any(Function),
+      );
+      expect(webContents.send).toHaveBeenCalledWith('server-load', 'Python server running');
     });
 
     it('sends INSTALLER_AWAITING_CHOICE when python not found', async () => {

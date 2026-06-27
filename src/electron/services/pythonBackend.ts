@@ -583,29 +583,18 @@ function pingPythonServer(callback: (running: boolean) => void): void {
   const options = {
     hostname: '127.0.0.1',
     port: PYTHON_BACKEND_PORT,
-    path: '/control',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    path: '/health',
+    method: 'GET',
     timeout: 3000,
   };
 
   const req = http.request(options, (res) => {
-    let data = '';
-    res.on('data', (chunk) => { data += chunk; });
-    res.on('end', () => {
-      if (res.statusCode === 200 && data.includes('"response":"pong"')) {
-        callback(true);
-      } else {
-        callback(false);
-      }
-    });
+    res.resume();
+    callback(res.statusCode === 200);
   });
 
   req.on('error', () => callback(false));
   req.on('timeout', () => { req.destroy(); callback(false); });
-  req.write(JSON.stringify({ function: 'ping' }));
   req.end();
 }
 

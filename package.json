@@ -145,6 +145,7 @@
           "!**/*.pyc",
           "!dictionary_cache.sqlite3",
           "!dictionaries/**",
+          "!languages/*.freq.json",
           "!*.bak",
           "!*.pkl"
         ]

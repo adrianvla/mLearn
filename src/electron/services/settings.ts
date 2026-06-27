@@ -97,6 +97,10 @@ export function loadLangData(): LanguageDataMap {
     path.join(getUserDataPath(), 'languages'),
   ];
   const languagesDirs = candidateDirs.filter((dir, index, dirs) => fs.existsSync(dir) && dirs.indexOf(dir) === index);
+  const frequencyDirs = [
+    ...languagesDirs,
+    path.join(getUserDataPath(), 'language-data', 'languages'),
+  ].filter((dir, index, dirs) => fs.existsSync(dir) && dirs.indexOf(dir) === index);
 
   try {
     if (languagesDirs.length === 0) {
@@ -108,7 +112,7 @@ export function loadLangData(): LanguageDataMap {
       const files = fs.readdirSync(languagesDir);
 
       for (const file of files) {
-        if (file.endsWith('.json')) {
+        if (file.endsWith('.json') && !file.endsWith('.freq.json')) {
           const langCode = path.basename(file, '.json');
           const filePath = path.join(languagesDir, file);
           try {
@@ -117,6 +121,27 @@ export function loadLangData(): LanguageDataMap {
           } catch (e) {
             log.error(`Failed to load language file ${file}:`, e);
           }
+        }
+      }
+    }
+
+    for (const frequencyDir of frequencyDirs) {
+      const files = fs.readdirSync(frequencyDir);
+
+      for (const file of files) {
+        if (!file.endsWith('.freq.json')) continue;
+        const langCode = file.slice(0, -'.freq.json'.length);
+        const filePath = path.join(frequencyDir, file);
+        try {
+          const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          if (Array.isArray(data.freq)) {
+            langData[langCode] = {
+              ...(langData[langCode] ?? getDefaultLangData()[langCode] ?? {}),
+              freq: data.freq,
+            } as LanguageDataMap[string];
+          }
+        } catch (e) {
+          log.error(`Failed to load language frequency file ${file}:`, e);
         }
       }
     }
