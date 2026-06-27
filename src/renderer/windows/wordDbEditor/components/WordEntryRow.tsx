@@ -4,7 +4,7 @@
  * Lazily fetches translation from backend when visible
  */
 
-import { Component, Show, For, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
+import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { Btn, PillLabel, PitchAccentOverlay, AnkiHoverPreview } from '../../../components/common';
 import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
@@ -186,6 +186,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const [ankiHoverCardInfo, setAnkiHoverCardInfo] = createSignal<AnkiCardSchedulingInfo | null>(null);
   let ankiHoverFetched = false;
 
+  createEffect(() => {
+    props.entry.word;
+    props.entry.tracker;
+    ankiHoverFetched = false;
+    setAnkiHoverCard(null);
+    setAnkiHoverCardInfo(null);
+    setAnkiHoverLoading(false);
+  });
+
   const fetchAnkiCard = async () => {
     if (props.entry.tracker !== 'anki') return;
     if (ankiHoverFetched) return;
@@ -206,7 +215,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         error: boolean;
         poor: boolean;
       };
-      if (!result.error && !result.poor && result.cards.length > 0) {
+      if (!result.error && result.cards.length > 0) {
         const card = result.cards[0];
         setAnkiHoverCard(card.fields || null);
         setAnkiHoverCardInfo({
