@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import importlib
+import inspect
 import platform
 
 import plugin_registry
@@ -24,6 +25,7 @@ LLM_ALLOWED = True
 OCR_ALLOWED = True
 RESPATH = ""
 USER_DATA_PATH = ""
+CACHE_PATH = ""
 LANGUAGE_DIR_PATH = ""
 
 OCR_RAM_SAVER = False
@@ -33,6 +35,27 @@ QUIT_TOKEN = ""
 
 # Lazily populated heavy imports (avoid startup cost)
 torch = None  # type: ignore
+
+
+def _load_language_module(language_module, resource_path: str, cache_path: str) -> None:
+    """Load a language module, passing a mutable cache path when it supports one."""
+    load_module = language_module.LOAD_MODULE
+    signature = inspect.signature(load_module)
+    accepts_varargs = any(
+        param.kind == inspect.Parameter.VAR_POSITIONAL
+        for param in signature.parameters.values()
+    )
+    positional_params = [
+        param
+        for param in signature.parameters.values()
+        if param.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+
+    if accepts_varargs or len(positional_params) >= 2:
+        load_module(resource_path, cache_path)
+    else:
+        load_module(resource_path)
 
 
 def _raise_fd_limit():
@@ -85,7 +108,7 @@ def init():
     Must be called once at process startup before any route modules.
     """
     global LANGUAGE, LLM_ALLOWED, OCR_ALLOWED
-    global RESPATH, USER_DATA_PATH, LANGUAGE_DIR_PATH
+    global RESPATH, USER_DATA_PATH, CACHE_PATH, LANGUAGE_DIR_PATH
     global OCR_RAM_SAVER, SUPPORTS_VERTICAL_TEXT
 
     _raise_fd_limit()
@@ -103,6 +126,12 @@ def init():
 
     if len(arguments) >= 5:
         USER_DATA_PATH = arguments[4]
+
+    CACHE_PATH = (
+        os.path.join(USER_DATA_PATH, "cache")
+        if USER_DATA_PATH
+        else os.path.join(os.path.expanduser("~"), ".mlearn", "cache")
+    )
 
     # Read OCR config from settings.json
     if USER_DATA_PATH:
@@ -140,7 +169,7 @@ def init():
     if LANGUAGE_DIR_PATH not in sys.path:
         sys.path.append(LANGUAGE_DIR_PATH)
     _lang_mod = importlib.import_module(LANGUAGE)
-    _lang_mod.LOAD_MODULE(ROOT_OF_APP_DIR)
+    _load_language_module(_lang_mod, ROOT_OF_APP_DIR, CACHE_PATH)
     plugin_registry.register_language(LANGUAGE, _lang_mod)
     plugin_registry.set_active(LANGUAGE)
     log.info(f"[config] Registered built-in language: {LANGUAGE}")

@@ -21,7 +21,13 @@ import config
 config.init()
 
 # ── Logging ──
-from logging_utils import get_logger, install_crash_handler, set_log_dir, _process_stats
+from logging_utils import (
+    get_crash_log_path,
+    get_logger,
+    install_crash_handler,
+    set_log_dir,
+    _process_stats,
+)
 
 install_crash_handler(config.USER_DATA_PATH)
 set_log_dir(config.USER_DATA_PATH)
@@ -90,9 +96,15 @@ async def startup_event():
         import faulthandler
         import signal
 
-        crash_log_path = os.path.join(config.RESPATH, "python_crash.log")
+        crash_log_path = get_crash_log_path()
+        if not crash_log_path:
+            fallback_user_data = config.USER_DATA_PATH or os.path.join(
+                os.path.expanduser("~"), ".mlearn"
+            )
+            crash_log_path = os.path.join(fallback_user_data, "logs", "python_crash.log")
+        os.makedirs(os.path.dirname(crash_log_path), exist_ok=True)
         global _crash_log
-        _crash_log = open(crash_log_path, "a")
+        _crash_log = open(crash_log_path, "a", encoding="utf-8")
         faulthandler.enable(_crash_log)
         for _sig in (
             getattr(signal, n, None)

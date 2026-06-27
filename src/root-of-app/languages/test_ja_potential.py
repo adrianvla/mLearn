@@ -1,7 +1,24 @@
 import sys
+import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+if "sudachipy" not in sys.modules:
+    sudachipy = types.ModuleType("sudachipy")
+    tokenizer = types.ModuleType("sudachipy.tokenizer")
+
+    class Tokenizer:
+        class SplitMode:
+            C = object()
+
+    tokenizer.Tokenizer = Tokenizer
+    sudachi_dictionary = types.ModuleType("sudachipy.dictionary")
+    sudachipy.tokenizer = tokenizer
+    sudachipy.dictionary = sudachi_dictionary
+    sys.modules["sudachipy"] = sudachipy
+    sys.modules["sudachipy.tokenizer"] = tokenizer
+    sys.modules["sudachipy.dictionary"] = sudachi_dictionary
 
 from languages import ja
 
