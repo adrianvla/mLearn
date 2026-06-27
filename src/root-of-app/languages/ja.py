@@ -13,7 +13,8 @@ from sudachipy import tokenizer
 from sudachipy import dictionary as sudachi_dictionary
 
 
-DB_FILENAME = "dictionary_cache.sqlite3"
+DICTIONARY_DIRNAME = "ja"
+DB_FILENAME = "dictionary.db"
 SCHEMA_VERSION = "1"
 ENTRY_CACHE_SIZE = 4096
 READING_CACHE_SIZE = 4096
@@ -97,127 +98,12 @@ def LANGUAGE_TOKENIZE(text):
     return token_list
 
 
-def _db_path(folder: Path) -> Path:
-    return folder / DB_FILENAME
-
-
-def _read_revision(path: Path) -> str:
-    if not path.exists():
-        return "missing"
-    try:
-        with path.open('r', encoding='utf-8') as handle:
-            payload = json.load(handle)
-        return str(payload.get('revision', 'unknown'))
-    except Exception:
-        return "unknown"
-
-
-def _expected_db_version(base_dir: Path) -> str:
-    dictionaries_dir = base_dir / 'dictionaries' / 'jitendex-yomitan'
-    dict_revision = _read_revision(dictionaries_dir / 'index.json')
-    meta_revision = _read_revision(dictionaries_dir / 'index_.json')
-    return f"{SCHEMA_VERSION}:{dict_revision}:{meta_revision}"
-
-
-def _compress_entry(entry) -> bytes:
-    data = json.dumps(entry, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-    return zlib.compress(data)
+def _db_path(resource_dir: Path) -> Path:
+    return resource_dir / "dictionaries" / DICTIONARY_DIRNAME / DB_FILENAME
 
 
 def _deserialize_entry(blob: bytes):
     return json.loads(zlib.decompress(blob).decode('utf-8'))
-
-
-def _safe_index(path: Path) -> int:
-    match = re.search(r'(\d+)$', path.stem)
-    return int(match.group(1)) if match else 0
-
-
-def _populate_entries(conn: sqlite3.Connection, dictionaries_dir: Path) -> None:
-    term_files = sorted(dictionaries_dir.glob('term_bank_*.json'), key=_safe_index)
-    if not term_files:
-        return
-    conn.execute("BEGIN")
-    try:
-        for term_path in term_files:
-            with term_path.open('r', encoding='utf-8') as handle:
-                bucket = json.load(handle)
-            batch = []
-            for entry in bucket:
-                if not entry:
-                    continue
-                headword = entry[0]
-                reading = entry[1] if len(entry) > 1 else ''
-                batch.append((headword, reading, sqlite3.Binary(_compress_entry(entry))))
-            if batch:
-                conn.executemany(
-                    "INSERT INTO entries (headword, reading, data) VALUES (?, ?, ?)",
-                    batch
-                )
-            batch.clear()
-            bucket.clear()
-    finally:
-        conn.commit()
-
-
-def _populate_pitch(conn: sqlite3.Connection, dictionaries_dir: Path) -> None:
-    meta_files = sorted(dictionaries_dir.glob('term_meta_bank_*.json'), key=_safe_index)
-    if not meta_files:
-        return
-    conn.execute("BEGIN")
-    try:
-        for meta_path in meta_files:
-            with meta_path.open('r', encoding='utf-8') as handle:
-                bucket = json.load(handle)
-            batch = []
-            for entry in bucket:
-                if not entry:
-                    continue
-                headword = entry[0]
-                batch.append((headword, sqlite3.Binary(_compress_entry(entry))))
-            if batch:
-                conn.executemany(
-                    "INSERT OR REPLACE INTO pitch (headword, data) VALUES (?, ?)",
-                    batch
-                )
-            batch.clear()
-            bucket.clear()
-    finally:
-        conn.commit()
-
-
-def _rebuild_database(conn: sqlite3.Connection, base_dir: Path, expected_version: str) -> None:
-    dictionaries_dir = base_dir / 'dictionaries' / 'jitendex-yomitan'
-    conn.executescript(
-        """
-        DROP TABLE IF EXISTS entries;
-        DROP TABLE IF EXISTS pitch;
-        DROP TABLE IF EXISTS meta;
-        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
-        CREATE TABLE entries (
-            headword TEXT NOT NULL,
-            reading TEXT,
-            data BLOB NOT NULL
-        );
-        CREATE TABLE pitch (
-            headword TEXT PRIMARY KEY,
-            data BLOB NOT NULL
-        );
-        """
-    )
-    _populate_entries(conn, dictionaries_dir)
-    _populate_pitch(conn, dictionaries_dir)
-    conn.executescript(
-        """
-        CREATE INDEX IF NOT EXISTS idx_entries_headword ON entries(headword);
-        CREATE INDEX IF NOT EXISTS idx_entries_reading ON entries(reading);
-        """
-    )
-    conn.execute(
-        "INSERT OR REPLACE INTO meta (key, value) VALUES ('version', ?)",
-        (expected_version,)
-    )
-    conn.commit()
 
 
 def _close_db():
@@ -238,27 +124,25 @@ def _clear_entry_caches():
     _pitch_entry_cached.cache_clear()
 
 
-def _initialize_dictionary(base_dir: Path) -> None:
+def _initialize_dictionary(resource_dir: Path) -> None:
     global _DB_CONN, _atexit_registered
-    base_dir.mkdir(parents=True, exist_ok=True)
-    db_path = _db_path(base_dir)
-    expected_version = _expected_db_version(base_dir)
+    db_path = _db_path(resource_dir)
+    if not db_path.is_file():
+        raise FileNotFoundError(
+            f"Japanese dictionary database not found at {db_path}. "
+            "Run npm run build:japanese-dict before packaging."
+        )
 
-    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    db_uri = f"file:{db_path.as_posix()}?mode=ro"
+    conn = sqlite3.connect(db_uri, uri=True, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=OFF")
-    conn.execute("PRAGMA synchronous=OFF")
+    conn.execute("PRAGMA query_only=1")
     conn.execute("PRAGMA temp_store=MEMORY")
 
-    needs_rebuild = True
-    try:
-        row = conn.execute("SELECT value FROM meta WHERE key='version'").fetchone()
-        needs_rebuild = row is None or row['value'] != expected_version
-    except sqlite3.DatabaseError:
-        needs_rebuild = True
-
-    if needs_rebuild:
-        _rebuild_database(conn, base_dir, expected_version)
+    row = conn.execute("SELECT value FROM meta WHERE key='version'").fetchone()
+    if row is None or not str(row["value"]).startswith(f"{SCHEMA_VERSION}:"):
+        conn.close()
+        raise RuntimeError(f"Japanese dictionary database has an incompatible schema: {db_path}")
 
     previous = _DB_CONN
     _DB_CONN = conn
@@ -275,8 +159,8 @@ def _initialize_dictionary(base_dir: Path) -> None:
             pass
 
 
-def load_dictionary(folder):
-    _initialize_dictionary(Path(folder))
+def load_dictionary(resource_folder, _cache_folder=None):
+    _initialize_dictionary(Path(resource_folder))
 
 
 def _require_db_conn() -> sqlite3.Connection:
@@ -445,8 +329,8 @@ def create_html_element(element):
     return f"<{tag}{attrs}>{content_html}</{tag}>"
 
 
-def LOAD_MODULE(folder):
-    load_dictionary(folder)
+def LOAD_MODULE(resource_folder, cache_folder=None):
+    load_dictionary(resource_folder, cache_folder)
 
 
 def LANGUAGE_TRANSLATE(word):
