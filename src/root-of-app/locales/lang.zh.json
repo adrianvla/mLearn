@@ -1030,17 +1030,18 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "选择要安装的组件，然后点击安装。",
+        "ChooseComponents": "选择语言和组件，然后点击安装。",
         "ClickToBegin": "点击安装开始。",
         "DownloadNote": "所有下载将自动处理。建议使用稳定的网络连接。",
         "ForgetSomething": "安装完成后无法添加组件。请现在选择所有需要的组件。",
-        "LanguageUnlocks": "设置完成后可进行语言选择。"
+        "LanguageUnlocks": "设置期间只会下载所选语言的数据。"
       },
       "Status": {
-        "Complete": "安装完成！选择您的语言完成设置。",
+        "Complete": "安装完成！继续安装所选语言的数据。",
         "CouldNotStart": "无法启动安装过程。",
         "ErrorOccurred": "发生错误。请查看下方日志。",
         "Installing": "正在安装，请稍候…",
+        "InstallingLanguageData": "正在安装语言数据…",
         "InstallingPackages": "正在安装包…",
         "LanguageInstalledRestarting": "语言已安装！正在重启…",
         "LlmSkip": "正在跳过本地 AI 模型依赖。",
@@ -1456,6 +1457,12 @@
         "LearningLanguage": {
           "Description": "选择您正在学习的语言",
           "Label": "学习语言"
+        },
+        "LanguageData": {
+          "Install": "安装语言数据",
+          "Installed": "语言数据已安装",
+          "InstallFailed": "语言数据安装失败",
+          "MissingRequired": "需要语言数据"
         }
       },
       "Behaviour": {
@@ -2525,9 +2532,63 @@
       "Window": "窗口"
     },
     "ComponentsTab": {
-      "Description": "管理已安装的组件。切换模块的开启或关闭，重新安装以应用更改。",
+      "Description": "逐项查看已安装的组件。保持某个分组启用，即可在重新安装时包含它。",
       "Reinstall": "重新安装组件",
-      "RestartNote": "安装完成后应用将重启。"
+      "RestartNote": "安装完成后应用将重启。",
+      "Enabled": "已启用",
+      "Disabled": "已停用",
+      "Groups": {
+        "AI": {
+          "Title": "AI 组件",
+          "Description": "本地模型运行时和 Python 模型工具。"
+        },
+        "Reader": {
+          "Title": "阅读器和 OCR 组件",
+          "Description": "阅读器 OCR 使用的图像文字识别模型。"
+        },
+        "Voice": {
+          "Title": "语音组件",
+          "Description": "语音识别、语音合成和语音活动检测。"
+        }
+      },
+      "Items": {
+        "BuiltinChatRuntime": {
+          "Title": "内置聊天模型运行时",
+          "Description": "在本地运行已下载的 GGUF 聊天模型。"
+        },
+        "TransformersSupport": {
+          "Title": "Transformers 和 PyTorch 支持",
+          "Description": "旧版本地 LLM 工具使用的 Python 模型依赖。"
+        },
+        "RapidOCR": {
+          "Title": "RapidOCR 模型",
+          "Description": "用于阅读器截图的快速 OCR 识别。"
+        },
+        "PaddleOCR": {
+          "Title": "PaddleOCR 模型",
+          "Description": "高精度 OCR 识别和检测模型。"
+        },
+        "MangaOCR": {
+          "Title": "MangaOCR 模型",
+          "Description": "日语漫画和竖排文字识别。"
+        },
+        "WhisperSmall": {
+          "Title": "Whisper small STT 模型",
+          "Description": "用于语音对话的本地语音转文字。"
+        },
+        "KokoroTts": {
+          "Title": "Kokoro TTS 模型",
+          "Description": "用于支持语言的本地文本转语音。"
+        },
+        "SileroVad": {
+          "Title": "Silero VAD 模型",
+          "Description": "用于免按键通话的语音活动检测。"
+        },
+        "QwenTts": {
+          "Title": "Qwen3 TTS 模型",
+          "Description": "可选的本地语音克隆和多语言 TTS。"
+        }
+      }
     },
     "Diagnostics": {
       "Title": "mLearn 诊断",

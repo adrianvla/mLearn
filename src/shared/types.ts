@@ -662,6 +662,23 @@ export interface LanguageDataMap {
   [langCode: string]: LanguageData;
 }
 
+export interface LanguageDataCatalogStatus {
+  language: string;
+  name: string;
+  nameTranslated?: string;
+  dataRoot: string;
+  installed: boolean;
+  totalBytes: number;
+  installedBytes: number;
+  missingRequiredAssets: string[];
+  assets: Array<{
+    id: string;
+    path: string;
+    installed: boolean;
+    sizeBytes?: number;
+  }>;
+}
+
 // ============================================================================
 // Token Types
 // ============================================================================

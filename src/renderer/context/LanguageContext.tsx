@@ -5,7 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isAllKana, katakanaToHiragana, containsKanji } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
@@ -60,6 +60,10 @@ interface LanguageContextValue {
   getLevelName: (level: number) => string;
   getFreqLevelNames: () => Record<string, string>;
   isLoading: () => boolean;
+  languageDataCatalog: () => LanguageDataCatalogStatus[];
+  getLanguageDataStatus: (language: string) => LanguageDataCatalogStatus | undefined;
+  installLanguageData: (language: string) => void;
+  languageDataInstallError: () => { language: string; error: string } | null;
   isTranslatable: (pos: string) => boolean;
   translatableTypes: () => string[];
   /** Get language feature capabilities */
@@ -97,6 +101,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createStore<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
+  const [languageDataCatalog, setLanguageDataCatalog] = createSignal<LanguageDataCatalogStatus[]>([]);
+  const [languageDataInstallError, setLanguageDataInstallError] = createSignal<{ language: string; error: string } | null>(null);
   // Maps hiragana reading → canonical kanji form (first/most-common entry from freq data)
   let readingToCanonical: Record<string, string> = {};
   let readingToVariants: Record<string, string[]> = {};
@@ -119,6 +125,26 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       setIsLoading(false);
     }));
     bridge.localization.getLangData();
+  };
+
+  const loadLanguageDataCatalog = () => {
+    const bridge = getBridge();
+    ipcCleanups.push(bridge.localization.onLanguageDataCatalog((data) => {
+      setLanguageDataCatalog(data);
+    }));
+    ipcCleanups.push(bridge.localization.onLanguageDataInstalled((status) => {
+      if (!status) return;
+      setLanguageDataCatalog((previous) => {
+        const next = previous.filter((item) => item.language !== status.language);
+        next.push(status);
+        return next.sort((left, right) => left.language.localeCompare(right.language));
+      });
+      setLanguageDataInstallError(null);
+    }));
+    ipcCleanups.push(bridge.localization.onLanguageDataInstallError((payload) => {
+      setLanguageDataInstallError(payload);
+    }));
+    bridge.localization.getLanguageDataCatalog();
   };
 
   // Parse word frequency data
@@ -200,6 +226,14 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   // Get supported languages
   const supportedLanguages = () => Object.keys(langData);
+
+  const getLanguageDataStatus = (language: string): LanguageDataCatalogStatus | undefined =>
+    languageDataCatalog().find((status) => status.language === language);
+
+  const installLanguageData = (language: string): void => {
+    setLanguageDataInstallError(null);
+    getBridge().localization.installLanguageData(language);
+  };
 
   // Get current language data
   const currentLangData = () => langData[currentLang()] || null;
@@ -425,6 +459,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   onMount(() => {
     loadLangData();
+    loadLanguageDataCatalog();
   });
 
   createEffect(() => {
@@ -448,6 +483,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     getLevelName,
     getFreqLevelNames,
     isLoading,
+    languageDataCatalog,
+    getLanguageDataStatus,
+    installLanguageData,
+    languageDataInstallError,
     isTranslatable,
     translatableTypes,
     getLanguageFeatures,

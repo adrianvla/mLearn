@@ -36,7 +36,13 @@ function resolveInitialLanguageCode(preferredLanguage: string | undefined, avail
 const WelcomeContent: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { langData, supportedLanguages } = useLanguage();
+  const {
+    langData,
+    supportedLanguages,
+    getLanguageDataStatus,
+    installLanguageData,
+    languageDataInstallError,
+  } = useLanguage();
 
   const availableLanguageCodes = createMemo(() => supportedLanguages());
   const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => ({
@@ -57,6 +63,8 @@ const WelcomeContent: Component = () => {
   const [includeVoice, setIncludeVoice] = createSignal(true);
 
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
+  const [pendingLanguageInstall, setPendingLanguageInstall] = createSignal<string | null>(null);
+  const [isFinalizingSetup, setIsFinalizingSetup] = createSignal(false);
 
   const [welcomeTextIndex, setWelcomeTextIndex] = createSignal(0);
   const [welcomeFading, setWelcomeFading] = createSignal(false);
@@ -115,10 +123,9 @@ const WelcomeContent: Component = () => {
     setOverallStatus(t('mlearn.Installer.Status.NotStarted'));
   };
 
-  const handleContinue = () => {
-    const languageCode = selectedLanguage();
-    if (!installationCompleted() || !languageCode) return;
-
+  const saveSetupSettingsAndRestart = (languageCode: string) => {
+    if (isFinalizingSetup()) return;
+    setIsFinalizingSetup(true);
     const settingsToSave: Partial<Settings> = {
       language: languageCode,
       llmEnabled: includeLLM(),
@@ -153,6 +160,23 @@ const WelcomeContent: Component = () => {
         bridge.server.forceRestartApp();
       }, 3000);
     });
+  };
+
+  const handleContinue = () => {
+    const languageCode = selectedLanguage();
+    if (!installationCompleted() || !languageCode || pendingLanguageInstall()) return;
+
+    const status = getLanguageDataStatus(languageCode);
+    if (!status || status.installed) {
+      saveSetupSettingsAndRestart(languageCode);
+      return;
+    }
+
+    setPendingLanguageInstall(languageCode);
+    setProgress(96);
+    setOverallStatus(t('mlearn.Installer.Status.InstallingLanguageData'));
+    logInfo(t('mlearn.Installer.Status.InstallingLanguageData'));
+    installLanguageData(languageCode);
   };
 
   const handleCancelRestart = () => {
@@ -300,6 +324,25 @@ const WelcomeContent: Component = () => {
   });
 
   createEffect(() => {
+    const languageCode = pendingLanguageInstall();
+    if (!languageCode) return;
+
+    const error = languageDataInstallError();
+    if (error?.language === languageCode) {
+      setNetworkError(error.error);
+      setOverallStatus(t('mlearn.Installer.Status.ErrorOccurred'));
+      setPendingLanguageInstall(null);
+      return;
+    }
+
+    const status = getLanguageDataStatus(languageCode);
+    if (status?.installed) {
+      setPendingLanguageInstall(null);
+      saveSetupSettingsAndRestart(languageCode);
+    }
+  });
+
+  createEffect(() => {
     const interval = setInterval(() => {
       setWelcomeFading(true);
       setTimeout(() => {
@@ -374,7 +417,7 @@ const WelcomeContent: Component = () => {
           </div>
         </Show>
 
-        <Show when={installationCompleted()}>
+        <Show when={!installationStarted()}>
           <div class="welcome-window__languages">
             <For each={availableLanguages()}>
               {(lang) => (
@@ -433,8 +476,19 @@ const WelcomeContent: Component = () => {
           <Show when={!installationStarted() || installationCompleted()}>
             <Btn
               variant="primary"
-              onClick={installationCompleted() ? handleContinue : handleInstall}
-              disabled={(installationStarted() && !installationCompleted()) || (installationCompleted() && !selectedLanguage())}
+              onClick={() => {
+                if (installationCompleted()) {
+                  handleContinue();
+                } else {
+                  void handleInstall();
+                }
+              }}
+              disabled={
+                (installationStarted() && !installationCompleted()) ||
+                !selectedLanguage() ||
+                Boolean(pendingLanguageInstall()) ||
+                isFinalizingSetup()
+              }
               class="welcome-window__action"
             >
               <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>

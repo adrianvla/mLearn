@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 
 const cleanup = () => undefined;
@@ -10,9 +11,10 @@ const translations: Record<string, string> = {
   'mlearn.Installer.Instructions.ClickToBegin': 'Click Install to begin.',
   'mlearn.Installer.Status.NotStarted': 'Waiting to start installation...',
   'mlearn.Installer.Status.Complete': 'Installation complete! Choose your language to finish setup.',
+  'mlearn.Installer.Status.InstallingLanguageData': 'Installing language data...',
   'mlearn.Installer.Status.Installing': 'Installing, please wait...',
-  'mlearn.Installer.Instructions.ChooseComponents': 'Choose the components you want to install, then click Install.',
-  'mlearn.Installer.Instructions.LanguageUnlocks': 'Language selection unlocks after setup finishes.',
+  'mlearn.Installer.Instructions.ChooseComponents': 'Choose your language and components, then click Install.',
+  'mlearn.Installer.Instructions.LanguageUnlocks': 'Only the selected language data is downloaded during setup.',
   'mlearn.Installer.Instructions.ForgetSomething': 'If you forget to install something, delete mLearn and restart the installer again.',
   'mlearn.Installer.Instructions.DownloadNote': 'All downloads are handled automatically. A stable connection is recommended.',
   'mlearn.Installer.Components.ExplainAi.Title': 'Install mLearn Explain AI Module',
@@ -34,13 +36,17 @@ type TestSettings = {
 };
 
 type LanguageRecord = Record<string, { name: string; name_translated?: string }>;
+type LanguageDataStatus = { language: string; name: string; installed: boolean; missingRequiredAssets: string[] };
 
 let testSettings: TestSettings;
 let testLanguages: LanguageRecord;
+let languageDataCatalog: () => LanguageDataStatus[];
+let setLanguageDataCatalog: (value: LanguageDataStatus[]) => LanguageDataStatus[];
 let installerStateHandler: ((state: { success?: boolean; inProgress?: boolean; waiting?: boolean; options?: { includeLLM?: boolean; includeOCR?: boolean; includeVoice?: boolean } }) => void) | undefined;
 let settingsHandler: ((settings: TestSettings) => void) | undefined;
 const saveSettingsMock = vi.fn();
 const updateSettingsMock = vi.fn();
+const installLanguageDataMock = vi.fn();
 
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <>{props.children}</>,
@@ -54,6 +60,10 @@ vi.mock('../../context', () => ({
   useLanguage: () => ({
     langData: testLanguages,
     supportedLanguages: () => Object.keys(testLanguages),
+    languageDataCatalog,
+    getLanguageDataStatus: (language: string) => languageDataCatalog().find((status) => status.language === language),
+    installLanguageData: installLanguageDataMock,
+    languageDataInstallError: () => null,
   }),
 }));
 
@@ -118,10 +128,15 @@ describe('WelcomeApp', () => {
       ja: { name: 'Japanese', name_translated: '日本語' },
       de: { name: 'German', name_translated: 'Deutsch' },
     };
+    [languageDataCatalog, setLanguageDataCatalog] = createSignal([
+      { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
+      { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
+    ]);
     installerStateHandler = undefined;
     settingsHandler = undefined;
     saveSettingsMock.mockReset();
     updateSettingsMock.mockReset();
+    installLanguageDataMock.mockReset();
     vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 1 as unknown as ReturnType<typeof setInterval>);
     vi.spyOn(globalThis, 'clearInterval').mockImplementation(() => undefined);
     vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 1 as unknown as ReturnType<typeof setTimeout>);
@@ -132,12 +147,11 @@ describe('WelcomeApp', () => {
     container.remove();
   });
 
-  it('shows only languages that are actually supported by language data after installation completes', async () => {
+  it('shows only languages that are actually supported by language data before installation starts', async () => {
     const { default: WelcomeApp } = await import('./App');
     const dispose = render(() => <WelcomeApp />, container);
 
     settingsHandler?.(testSettings);
-    installerStateHandler?.({ success: true });
 
     await vi.waitFor(() => {
       expect(container.textContent).toContain('Japanese');
@@ -163,6 +177,44 @@ describe('WelcomeApp', () => {
       const continueButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Continue'));
       expect(continueButton).toBeTruthy();
       expect(continueButton?.disabled).toBe(true);
+    });
+
+    dispose();
+  });
+
+  it('installs only the selected language data before saving settings and restarting', async () => {
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+    installerStateHandler?.({ success: true });
+
+    const germanCard = Array.from(container.querySelectorAll('[role="button"]'))
+      .find((card) => card.textContent?.includes('German'));
+    expect(germanCard).toBeDefined();
+    (germanCard as HTMLElement | undefined)?.click();
+    expect(germanCard?.getAttribute('aria-pressed')).toBe('true');
+
+    let continueButton: HTMLButtonElement | undefined;
+    await vi.waitFor(() => {
+      continueButton = Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent?.includes('Continue'));
+      expect(continueButton).toBeDefined();
+      expect(continueButton?.disabled).toBe(false);
+    });
+    continueButton?.click();
+
+    expect(installLanguageDataMock).toHaveBeenCalledWith('de');
+    expect(installLanguageDataMock).not.toHaveBeenCalledWith('ja');
+    expect(updateSettingsMock).not.toHaveBeenCalled();
+
+    setLanguageDataCatalog([
+      { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
+      { language: 'de', name: 'German', installed: true, missingRequiredAssets: [] },
+    ]);
+
+    await vi.waitFor(() => {
+      expect(updateSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ language: 'de' }));
     });
 
     dispose();

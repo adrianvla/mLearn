@@ -25,7 +25,13 @@ function assignImportedSetting<K extends keyof Settings>(
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
   const { t } = useLocalization();
-  const { langData, supportedLanguages } = useLanguage();
+  const {
+    langData,
+    supportedLanguages,
+    getLanguageDataStatus,
+    installLanguageData,
+    languageDataInstallError,
+  } = useLanguage();
   const [exportError, setExportError] = createSignal<string | null>(null);
   const [importError, setImportError] = createSignal<string | null>(null);
   const [dataExportError, setDataExportError] = createSignal<string | null>(null);
@@ -50,6 +56,11 @@ export const GeneralTab: Component = () => {
     value: code,
     label: langData[code]?.name_translated ?? langData[code]?.name ?? code.toUpperCase(),
   })));
+  const selectedLanguageDataStatus = createMemo(() => getLanguageDataStatus(settings.language));
+  const selectedLanguageInstallError = createMemo(() => {
+    const error = languageDataInstallError();
+    return error?.language === settings.language ? error.error : null;
+  });
 
   const handleExportSettings = async () => {
     setExportError(null);
@@ -207,6 +218,31 @@ export const GeneralTab: Component = () => {
             }}
             options={learningLanguageOptions()}
           />
+          <Show when={selectedLanguageDataStatus()}>
+            {(status) => (
+              <span class={`setting-hint language-data-status ${status().installed ? 'installed' : 'missing'}`}>
+                {status().installed
+                  ? t('mlearn.Settings.Language.LanguageData.Installed')
+                  : t('mlearn.Settings.Language.LanguageData.MissingRequired')}
+              </span>
+            )}
+          </Show>
+          <Show when={selectedLanguageDataStatus() && !selectedLanguageDataStatus()?.installed}>
+            <Btn
+              size="sm"
+              variant="secondary"
+              onClick={() => installLanguageData(settings.language)}
+            >
+              {t('mlearn.Settings.Language.LanguageData.Install')}
+            </Btn>
+          </Show>
+          <Show when={selectedLanguageInstallError()}>
+            {(error) => (
+              <span class="setting-error">
+                {t('mlearn.Settings.Language.LanguageData.InstallFailed')}: {error()}
+              </span>
+            )}
+          </Show>
         </SettingRow>
       </SettingGroup>
 

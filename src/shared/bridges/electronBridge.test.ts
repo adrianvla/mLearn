@@ -27,6 +27,11 @@ function createMockIPC() {
     changeUILanguage: vi.fn(),
     getLangData: vi.fn(),
     onLangData: vi.fn(),
+    getLanguageDataCatalog: vi.fn(),
+    onLanguageDataCatalog: vi.fn(),
+    installLanguageData: vi.fn(),
+    onLanguageDataInstalled: vi.fn(),
+    onLanguageDataInstallError: vi.fn(),
     installLanguage: vi.fn(),
     onLanguageInstalled: vi.fn(),
     onLanguageInstallError: vi.fn(),
@@ -415,6 +420,39 @@ describe('localizationBridge', () => {
     const bridge = createElectronBridge();
     bridge.localization.onLangData(cb);
     expect(mockIPC.onLangData).toHaveBeenCalledWith(cb);
+  });
+
+  it('getLanguageDataCatalog delegates to ipc.getLanguageDataCatalog', () => {
+    const bridge = createElectronBridge();
+    bridge.localization.getLanguageDataCatalog();
+    expect(mockIPC.getLanguageDataCatalog).toHaveBeenCalledOnce();
+  });
+
+  it('onLanguageDataCatalog passes callback to ipc.onLanguageDataCatalog', () => {
+    const cb = vi.fn();
+    const bridge = createElectronBridge();
+    bridge.localization.onLanguageDataCatalog(cb);
+    expect(mockIPC.onLanguageDataCatalog).toHaveBeenCalledWith(cb);
+  });
+
+  it('installLanguageData passes language to ipc.installLanguageData', () => {
+    const bridge = createElectronBridge();
+    bridge.localization.installLanguageData('de');
+    expect(mockIPC.installLanguageData).toHaveBeenCalledWith('de');
+  });
+
+  it('onLanguageDataInstalled passes callback to ipc.onLanguageDataInstalled', () => {
+    const cb = vi.fn();
+    const bridge = createElectronBridge();
+    bridge.localization.onLanguageDataInstalled(cb);
+    expect(mockIPC.onLanguageDataInstalled).toHaveBeenCalledWith(cb);
+  });
+
+  it('onLanguageDataInstallError passes callback to ipc.onLanguageDataInstallError', () => {
+    const cb = vi.fn();
+    const bridge = createElectronBridge();
+    bridge.localization.onLanguageDataInstallError(cb);
+    expect(mockIPC.onLanguageDataInstallError).toHaveBeenCalledWith(cb);
   });
 
   it('installLanguage passes url to ipc.installLanguage', () => {

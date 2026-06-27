@@ -42,6 +42,18 @@
   white-space: nowrap;
 }
 
+.language-data-status {
+  font-style: normal;
+}
+
+.language-data-status.installed {
+  color: var(--color-success);
+}
+
+.language-data-status.missing {
+  color: var(--color-warning);
+}
+
 /* Color input */
 .color-input-wrapper {
   display: flex;

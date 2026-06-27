@@ -233,13 +233,15 @@ def _ensure_vad_loaded():
 
 
 def _ensure_stt_loaded():
-    global _voice_stt_model
+    global _voice_stt_model, _voice_stt_downloading, _voice_stt_progress
     if _voice_stt_model is not None:
         return _voice_stt_model
     with _voice_stt_lock:
         if _voice_stt_model is not None:
             return _voice_stt_model
         try:
+            _voice_stt_downloading = True
+            _voice_stt_progress = max(_voice_stt_progress, 0.05)
             log.info("Loading faster-whisper STT model (small)...")
             from faster_whisper import WhisperModel
 
@@ -252,21 +254,27 @@ def _ensure_stt_loaded():
             )
             log.info(f"faster-whisper loaded on {device}")
             _voice_touch()
+            _voice_stt_progress = 1.0
+            _voice_stt_downloading = False
             return _voice_stt_model
         except Exception as e:
+            _voice_stt_progress = 0.0
+            _voice_stt_downloading = False
             log.error(f"Failed to load STT: {e}", exc_info=True)
             raise
 
 
 def _ensure_tts_loaded():
     """Load the local Kokoro TTS pipeline (lazy, thread-safe)."""
-    global _voice_tts_pipeline
+    global _voice_tts_pipeline, _voice_tts_downloading, _voice_tts_progress
     if _voice_tts_pipeline is not None:
         return _voice_tts_pipeline
     with _voice_tts_lock:
         if _voice_tts_pipeline is not None:
             return _voice_tts_pipeline
         try:
+            _voice_tts_downloading = True
+            _voice_tts_progress = max(_voice_tts_progress, 0.05)
             log.info("Loading Kokoro-82M TTS pipeline...")
             from kokoro import KPipeline
 
@@ -277,8 +285,12 @@ def _ensure_tts_loaded():
             )
             log.info(f"Kokoro TTS pipeline loaded (lang={lang_code})")
             _voice_touch()
+            _voice_tts_progress = 1.0
+            _voice_tts_downloading = False
             return _voice_tts_pipeline
         except Exception as e:
+            _voice_tts_progress = 0.0
+            _voice_tts_downloading = False
             log.error(f"Failed to load Kokoro TTS: {e}", exc_info=True)
             raise
 
@@ -467,11 +479,22 @@ async def _generate_tts_kokoro(req: TTSRequest):
         # Recreate pipeline if language changed
         active_pipeline = pipeline
         if active_pipeline.lang_code != lang_code:
-            from kokoro import KPipeline
+            global _voice_tts_downloading, _voice_tts_progress
 
-            active_pipeline = KPipeline(
-                lang_code=lang_code, repo_id="hexgrad/Kokoro-82M"
-            )
+            try:
+                _voice_tts_downloading = True
+                _voice_tts_progress = max(_voice_tts_progress, 0.05)
+                from kokoro import KPipeline
+
+                active_pipeline = KPipeline(
+                    lang_code=lang_code, repo_id="hexgrad/Kokoro-82M"
+                )
+                _voice_tts_progress = 1.0
+                _voice_tts_downloading = False
+            except Exception:
+                _voice_tts_progress = 0.0
+                _voice_tts_downloading = False
+                raise
 
         all_audio = []
         sentence_boundaries = []
@@ -599,7 +622,7 @@ def _ensure_qwen3_tts_loaded():
         if _qwen3_tts_model is not None:
             return _qwen3_tts_model
         _qwen3_model_loading = True
-        _voice_tts_progress = 0.0
+        _voice_tts_progress = 0.05
         stop_monitor = threading.Event()
         try:
             _install_sox_shim()

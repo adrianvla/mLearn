@@ -4,33 +4,87 @@ import { getBridge } from '../../../../shared/bridges';
 import { Panel, Btn, AlertBanner } from '../../../components/common';
 import './ComponentsTab.css';
 
+type InstalledComponentGroup = {
+  key: string;
+  title: string;
+  description: string;
+  enabled: () => boolean;
+  toggle: (value: boolean) => void;
+  items: Array<{
+    title: string;
+    description: string;
+  }>;
+};
+
 export const ComponentsTab: Component = () => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
   const [installing, setInstalling] = createSignal(false);
   const [installError, setInstallError] = createSignal<string | null>(null);
 
-  const components = [
+  const componentGroups: InstalledComponentGroup[] = [
     {
       key: 'llm',
-      title: t('mlearn.Installer.Components.ExplainAi.Title'),
-      description: t('mlearn.Installer.Components.ExplainAi.Description'),
+      title: t('mlearn.ComponentsTab.Groups.AI.Title'),
+      description: t('mlearn.ComponentsTab.Groups.AI.Description'),
       enabled: () => settings.llmEnabled,
       toggle: (v: boolean) => updateSettings({ llmEnabled: v }),
+      items: [
+        {
+          title: t('mlearn.ComponentsTab.Items.BuiltinChatRuntime.Title'),
+          description: t('mlearn.ComponentsTab.Items.BuiltinChatRuntime.Description'),
+        },
+        {
+          title: t('mlearn.ComponentsTab.Items.TransformersSupport.Title'),
+          description: t('mlearn.ComponentsTab.Items.TransformersSupport.Description'),
+        },
+      ],
     },
     {
       key: 'ocr',
-      title: t('mlearn.Installer.Components.Reader.Title'),
-      description: t('mlearn.Installer.Components.Reader.Description'),
+      title: t('mlearn.ComponentsTab.Groups.Reader.Title'),
+      description: t('mlearn.ComponentsTab.Groups.Reader.Description'),
       enabled: () => settings.ocrEnabled,
       toggle: (v: boolean) => updateSettings({ ocrEnabled: v }),
+      items: [
+        {
+          title: t('mlearn.ComponentsTab.Items.RapidOCR.Title'),
+          description: t('mlearn.ComponentsTab.Items.RapidOCR.Description'),
+        },
+        {
+          title: t('mlearn.ComponentsTab.Items.PaddleOCR.Title'),
+          description: t('mlearn.ComponentsTab.Items.PaddleOCR.Description'),
+        },
+        {
+          title: t('mlearn.ComponentsTab.Items.MangaOCR.Title'),
+          description: t('mlearn.ComponentsTab.Items.MangaOCR.Description'),
+        },
+      ],
     },
     {
       key: 'voice',
-      title: t('mlearn.Installer.Components.Voice.Title'),
-      description: t('mlearn.Installer.Components.Voice.Description'),
+      title: t('mlearn.ComponentsTab.Groups.Voice.Title'),
+      description: t('mlearn.ComponentsTab.Groups.Voice.Description'),
       enabled: () => settings.voiceEnabled,
       toggle: (v: boolean) => updateSettings({ voiceEnabled: v }),
+      items: [
+        {
+          title: t('mlearn.ComponentsTab.Items.WhisperSmall.Title'),
+          description: t('mlearn.ComponentsTab.Items.WhisperSmall.Description'),
+        },
+        {
+          title: t('mlearn.ComponentsTab.Items.KokoroTts.Title'),
+          description: t('mlearn.ComponentsTab.Items.KokoroTts.Description'),
+        },
+        {
+          title: t('mlearn.ComponentsTab.Items.SileroVad.Title'),
+          description: t('mlearn.ComponentsTab.Items.SileroVad.Description'),
+        },
+        {
+          title: t('mlearn.ComponentsTab.Items.QwenTts.Title'),
+          description: t('mlearn.ComponentsTab.Items.QwenTts.Description'),
+        },
+      ],
     },
   ];
 
@@ -58,22 +112,43 @@ export const ComponentsTab: Component = () => {
           {t('mlearn.ComponentsTab.Description')}
         </p>
 
-        <div class="components-tab__list">
-          {components.map((comp) => (
-            <div class="components-tab__item">
-              <div class="components-tab__item-header">
-                <span class="components-tab__item-title">{comp.title}</span>
+        <div class="components-tab__groups">
+          {componentGroups.map((group) => (
+            <section class="components-tab__group">
+              <div class="components-tab__group-header">
+                <div>
+                  <h3 class="components-tab__group-title">{group.title}</h3>
+                  <p class="components-tab__group-desc">{group.description}</p>
+                </div>
                 <label class="components-tab__toggle">
                   <input
                     type="checkbox"
-                    checked={comp.enabled()}
-                    onChange={(e) => comp.toggle(e.currentTarget.checked)}
+                    checked={group.enabled()}
+                    aria-label={group.enabled()
+                      ? t('mlearn.ComponentsTab.Enabled')
+                      : t('mlearn.ComponentsTab.Disabled')}
+                    onChange={(e) => group.toggle(e.currentTarget.checked)}
                   />
                   <span class="components-tab__toggle-slider" />
                 </label>
               </div>
-              <p class="components-tab__item-desc">{comp.description}</p>
-            </div>
+
+              <div class="components-tab__item-list">
+                {group.items.map((item) => (
+                  <div class="components-tab__item">
+                    <div class="components-tab__item-copy">
+                      <span class="components-tab__item-title">{item.title}</span>
+                      <p class="components-tab__item-desc">{item.description}</p>
+                    </div>
+                    <span class={`components-tab__status ${group.enabled() ? 'components-tab__status--enabled' : 'components-tab__status--disabled'}`}>
+                      {group.enabled()
+                        ? t('mlearn.ComponentsTab.Enabled')
+                        : t('mlearn.ComponentsTab.Disabled')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
 

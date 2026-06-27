@@ -1030,17 +1030,18 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "インストールするコンポーネントを選択して、インストールをクリックしてください。",
+        "ChooseComponents": "言語とコンポーネントを選択して、インストールをクリックしてください。",
         "ClickToBegin": "インストールをクリックして開始します。",
         "DownloadNote": "すべてのダウンロードは自動的に処理されます。安定した接続を推奨します。",
         "ForgetSomething": "インストールし忘れた場合、mLearnを削除してインストーラーを再起動してください。",
-        "LanguageUnlocks": "セットアップ完了後に言語選択が可能になります。"
+        "LanguageUnlocks": "セットアップ中にダウンロードされるのは、選択した言語データのみです。"
       },
       "Status": {
-        "Complete": "インストール完了！言語を選択してセットアップを完了してください。",
+        "Complete": "インストール完了！続行して選択した言語データをインストールしてください。",
         "CouldNotStart": "インストールプロセスを開始できませんでした。",
         "ErrorOccurred": "エラーが発生しました。下のログを確認してください。",
         "Installing": "インストール中、お待ちください...",
+        "InstallingLanguageData": "言語データをインストール中...",
         "InstallingPackages": "パッケージをインストール中...",
         "LanguageInstalledRestarting": "言語がインストールされました！再起動中...",
         "LlmSkip": "ローカルAIモデルの依存関係をスキップします。",
@@ -1456,6 +1457,12 @@
         "LearningLanguage": {
           "Description": "学習する言語を選択",
           "Label": "学習言語"
+        },
+        "LanguageData": {
+          "Install": "言語データをインストール",
+          "Installed": "言語データはインストール済み",
+          "InstallFailed": "言語データのインストールに失敗しました",
+          "MissingRequired": "言語データが必要です"
         }
       },
       "Performance": {
@@ -2525,9 +2532,63 @@
       "Window": "ウィンドウ"
     },
     "ComponentsTab": {
-      "Description": "インストール済みのコンポーネントを管理します。モジュールをオンまたはオフに切り替え、変更を適用するために再インストールします。",
+      "Description": "インストール済みコンポーネントを個別に確認できます。再インストールに含めるグループは有効のままにしてください。",
       "Reinstall": "コンポーネントを再インストール",
-      "RestartNote": "インストールが完了すると、アプリが再起動します。"
+      "RestartNote": "インストールが完了すると、アプリが再起動します。",
+      "Enabled": "有効",
+      "Disabled": "無効",
+      "Groups": {
+        "AI": {
+          "Title": "AIコンポーネント",
+          "Description": "ローカルモデル実行環境とPythonモデル用ツール。"
+        },
+        "Reader": {
+          "Title": "リーダーとOCRコンポーネント",
+          "Description": "リーダーOCRで使う画像テキスト認識モデル。"
+        },
+        "Voice": {
+          "Title": "音声コンポーネント",
+          "Description": "音声認識、音声合成、音声区間検出。"
+        }
+      },
+      "Items": {
+        "BuiltinChatRuntime": {
+          "Title": "内蔵チャットモデル実行環境",
+          "Description": "ダウンロード済みのGGUFチャットモデルをローカルで実行します。"
+        },
+        "TransformersSupport": {
+          "Title": "Transformers / PyTorchサポート",
+          "Description": "従来のローカルLLMツールで使うPythonモデル依存関係。"
+        },
+        "RapidOCR": {
+          "Title": "RapidOCRモデル",
+          "Description": "リーダーのスクリーンショット向け高速OCR認識。"
+        },
+        "PaddleOCR": {
+          "Title": "PaddleOCRモデル",
+          "Description": "高精度なOCR認識と検出モデル。"
+        },
+        "MangaOCR": {
+          "Title": "MangaOCRモデル",
+          "Description": "日本語マンガと縦書きテキストの認識。"
+        },
+        "WhisperSmall": {
+          "Title": "Whisper small STTモデル",
+          "Description": "音声会話向けのローカル音声認識。"
+        },
+        "KokoroTts": {
+          "Title": "Kokoro TTSモデル",
+          "Description": "対応言語向けのローカル音声合成。"
+        },
+        "SileroVad": {
+          "Title": "Silero VADモデル",
+          "Description": "ハンズフリー通話向けの音声区間検出。"
+        },
+        "QwenTts": {
+          "Title": "Qwen3 TTSモデル",
+          "Description": "任意のローカル音声クローンと多言語TTS。"
+        }
+      }
     },
     "Diagnostics": {
       "Title": "mLearn Diagnostics",
