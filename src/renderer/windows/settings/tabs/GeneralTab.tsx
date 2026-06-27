@@ -2,9 +2,9 @@
  * General Settings Tab
  */
 
-import { Component, createMemo, createSignal } from 'solid-js';
+import { Component, createMemo, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon, Textarea } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
 import { type AppTheme } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
@@ -40,6 +40,7 @@ export const GeneralTab: Component = () => {
     { value: 'dark-high-contrast', label: t('mlearn.Settings.Appearance.Theme.DarkHighContrast') },
     { value: 'glass-light', label: t('mlearn.Settings.Appearance.Theme.GlassLight') },
     { value: 'glass-dark', label: t('mlearn.Settings.Appearance.Theme.GlassDark') },
+    { value: 'custom', label: t('mlearn.Settings.Appearance.Theme.Custom') },
   ]);
   const uiLanguageOptions = createMemo(() => getBundledLocaleCodes().map((code) => ({
     value: code,
@@ -221,6 +222,22 @@ export const GeneralTab: Component = () => {
             onChange={(e) => updateSettings({ theme: e.currentTarget.value as AppTheme })}
           />
         </SettingRow>
+
+        <Show when={settings.theme === 'custom'}>
+          <SettingRow
+            label={t('mlearn.Settings.Appearance.Theme.CustomCssLabel')}
+            description={t('mlearn.Settings.Appearance.Theme.CustomCssDescription')}
+          >
+            <Textarea
+              class="custom-theme-textarea"
+              value={settings.customThemeCSS}
+              onInput={(e) => updateSettings({ customThemeCSS: e.currentTarget.value })}
+              rows={15}
+              spellcheck={false}
+              fullWidth
+            />
+          </SettingRow>
+        </Show>
 
         <SettingRow
           label={t('mlearn.Settings.Performance.DevMode.Label')}

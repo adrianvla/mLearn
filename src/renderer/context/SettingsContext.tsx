@@ -147,6 +147,21 @@ export const SettingsProvider: ParentComponent = (props) => {
       document.body.classList.add(`theme-${s.theme}`);
     }
 
+    // Custom theme: inject user-edited CSS into a dedicated <style> element
+    const CUSTOM_STYLE_ID = 'mlearn-custom-theme-css';
+    const existingCustomStyle = document.getElementById(CUSTOM_STYLE_ID);
+    if (s.theme === 'custom' && s.customThemeCSS) {
+      let styleEl = existingCustomStyle as HTMLStyleElement | null;
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = CUSTOM_STYLE_ID;
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent = s.customThemeCSS;
+    } else if (existingCustomStyle) {
+      existingCustomStyle.remove();
+    }
+
     // Update status bar text color on Capacitor (light text for dark themes, dark text for light themes)
     if (isCapacitor()) {
       const isDark = s.theme === 'dark' || s.theme === 'glass-dark' || s.theme === 'dark-high-contrast' || s.theme === 'darker';

@@ -1327,7 +1327,10 @@
           "GlassLight": "Glas hell",
           "Label": "Theme",
           "Light": "Hell",
-          "LightHighContrast": "Hell hoher Kontrast"
+          "LightHighContrast": "Hell hoher Kontrast",
+      "Custom": "Benutzerdefiniert",
+      "CustomCssDescription": "Bearbeiten Sie das CSS für Ihr benutzerdefiniertes Design. Änderungen werden live angewendet.",
+      "CustomCssLabel": "Benutzerdefiniertes CSS"
         }
       },
       "BlurEffect": {

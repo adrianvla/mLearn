@@ -88,3 +88,10 @@
   white-space: nowrap;
   line-height: 2.5rem;
 }
+
+.custom-theme-textarea {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-xs);
+  min-height: 200px;
+  resize: vertical;
+}

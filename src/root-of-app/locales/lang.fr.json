@@ -1327,7 +1327,10 @@
           "GlassLight": "Verre clair",
           "Label": "Thème",
           "Light": "Clair",
-          "LightHighContrast": "Clair contrasté"
+          "LightHighContrast": "Clair contrasté",
+      "Custom": "Personnalisé",
+      "CustomCssDescription": "Modifiez le CSS de votre thème personnalisé. Les changements s'appliquent en direct.",
+      "CustomCssLabel": "CSS personnalisé"
         }
       },
       "BlurEffect": {
