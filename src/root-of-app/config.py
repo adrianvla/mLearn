@@ -20,17 +20,12 @@ ROOT_OF_APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── Defaults (overridden by CLI args) ──
 LANGUAGE = ""
-FETCH_ANKI = True
-ANKI_CONNECT_URL = "http://127.0.0.1:8765"
 LLM_ALLOWED = True
 OCR_ALLOWED = True
 RESPATH = ""
 USER_DATA_PATH = ""
 LANGUAGE_DIR_PATH = ""
 
-ANKI_FIELD_EXPRESSION = "Expression"
-ANKI_FIELD_READING = "Reading"
-ANKI_FIELD_MEANING = "Meaning"
 OCR_RAM_SAVER = False
 SUPPORTS_VERTICAL_TEXT = False
 
@@ -89,9 +84,8 @@ def init():
 
     Must be called once at process startup before any route modules.
     """
-    global LANGUAGE, FETCH_ANKI, ANKI_CONNECT_URL, LLM_ALLOWED, OCR_ALLOWED
+    global LANGUAGE, LLM_ALLOWED, OCR_ALLOWED
     global RESPATH, USER_DATA_PATH, LANGUAGE_DIR_PATH
-    global ANKI_FIELD_EXPRESSION, ANKI_FIELD_READING, ANKI_FIELD_MEANING
     global OCR_RAM_SAVER, SUPPORTS_VERTICAL_TEXT
 
     _raise_fd_limit()
@@ -100,42 +94,29 @@ def init():
     arguments = sys.argv[1:]
     log.info(f"Arguments:  {arguments}")
 
-    ANKI_CONNECT_URL = arguments[0]
-    FETCH_ANKI = arguments[1] == "true"
-    LANGUAGE = arguments[2]
-    RESPATH = arguments[3]
+    LANGUAGE = arguments[0]
+    RESPATH = arguments[1]
+    if len(arguments) >= 3:
+        LLM_ALLOWED = str(arguments[2]).lower() == "true"
+    if len(arguments) >= 4:
+        OCR_ALLOWED = str(arguments[3]).lower() == "true"
+
     if len(arguments) >= 5:
-        LLM_ALLOWED = str(arguments[4]).lower() == "true"
-    if len(arguments) >= 6:
-        OCR_ALLOWED = str(arguments[5]).lower() == "true"
+        USER_DATA_PATH = arguments[4]
 
-    if len(arguments) >= 7:
-        USER_DATA_PATH = arguments[6]
-
-    # Read Anki field mappings and OCR config from settings.json
+    # Read OCR config from settings.json
     if USER_DATA_PATH:
         settings_path = os.path.join(USER_DATA_PATH, "settings.json")
         if os.path.exists(settings_path):
             try:
                 with open(settings_path, "r", encoding="utf-8") as f:
                     settings = json.load(f)
-                    ANKI_FIELD_EXPRESSION = settings.get(
-                        "anki_field_expression", "Expression"
-                    )
-                    ANKI_FIELD_READING = settings.get("anki_field_reading", "Reading")
-                    ANKI_FIELD_MEANING = settings.get("anki_field_meaning", "Meaning")
                     OCR_RAM_SAVER = settings.get("ocrRamSaver", False)
-                    log.info(
-                        f"Loaded Anki field mappings: Expression="
-                        f"'{ANKI_FIELD_EXPRESSION}', Reading="
-                        f"'{ANKI_FIELD_READING}', Meaning="
-                        f"'{ANKI_FIELD_MEANING}'"
-                    )
                     log.info(f"OCR Ram Saver: {OCR_RAM_SAVER}")
             except Exception as e:
                 log.error(f"Error reading settings.json: {e}", exc_info=True)
 
-    log.info(f"Arguments:  {ANKI_CONNECT_URL} {FETCH_ANKI} {LANGUAGE}")
+    log.info(f"Arguments:  {LANGUAGE}")
     log.info(f"LLM allowed: {LLM_ALLOWED}")
     log.info(f"OCR allowed: {OCR_ALLOWED}")
 
@@ -170,8 +151,6 @@ def get_runtime_info() -> dict:
     return {
         "LANGUAGE": LANGUAGE,
         "RESPATH": RESPATH,
-        "ANKI_CONNECT_URL": ANKI_CONNECT_URL,
-        "FETCH_ANKI": FETCH_ANKI,
         "python": platform.python_version(),
         "platform": platform.platform(),
     }

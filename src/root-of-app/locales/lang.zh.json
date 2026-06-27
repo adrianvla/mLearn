@@ -586,8 +586,6 @@
       }
     },
     "ErrorModal": {
-      "AnkiDisablePermanent": "永久禁用 Anki",
-      "AnkiDisableSession": "禁用此会话的 Anki",
       "Copied": "已复制！",
       "CopyError": "复制错误",
       "HideDetails": "隐藏详情",

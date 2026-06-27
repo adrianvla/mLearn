@@ -117,15 +117,11 @@ let installInProgress = false;
 let waitingForInstallChoice = false;
 let pendingInstallOptions: InstallOptions = { includeLLM: true, includeOCR: true, includeVoice: true };
 let serverLoadCheckInterval: NodeJS.Timeout | null = null;
-let lastExitWasAnkiError = false;
-let ankiErrorSent = false;
-let ankiOverrideDisable = false;
 
 let quitToken: string | null = null;
 
 // Buffered error state so the renderer can retrieve it even if it mounts
-// after the Python process exits (race condition: fast Anki connection-refused)
-let pendingAnkiError: string | null = null;
+// after the Python process exits.
 let pendingCriticalError: string | null = null;
 let pendingStartupStatusMessage: string | null = null;
 let activePipProcess: ChildProcess | null = null;
@@ -715,16 +711,8 @@ function pythonFound(): void {
   const llmEnabled = settings.llmEnabled !== false;
   const ocrEnabled = settings.ocrEnabled !== false;
 
-  // Apply session-only Anki override if set
-  const useAnki = ankiOverrideDisable ? false : settings.use_anki;
-
-  // Reset Anki error flag for this launch
-  lastExitWasAnkiError = false;
-  ankiErrorSent = false;
-  pendingAnkiError = null;
   pendingCriticalError = null;
   pendingStartupStatusMessage = null;
-  let ankiErrorReason = '';
   const recentLogTail: string[] = [];
   const TAIL_MAX = 40;
 
@@ -764,25 +752,10 @@ function pythonFound(): void {
         log.error("error", e);
       }
     }
-    if (module === 'anki' && msg.startsWith('ANKI_ERROR')) {
-      lastExitWasAnkiError = true;
-      ankiErrorReason = msg.replace('ANKI_ERROR', '').trim();
-      if (!ankiErrorSent) {
-        ankiErrorSent = true;
-        getMainWindow()?.webContents.send(
-          IPC_CHANNELS.ANKI_CONNECTION_ERROR,
-          ankiErrorReason
-        );
-      }
-    }
     forwardStatusToRenderer(msg);
   };
 
   const handleV1Record = (channel: string, message: string): void => {
-    if (message.startsWith('ANKI_ERROR')) {
-      lastExitWasAnkiError = true;
-      ankiErrorReason = message.replace('ANKI_ERROR', '').trim();
-    }
     if (channel.startsWith('OCR')) {
       try {
         getMainWindow()?.webContents.send(IPC_CHANNELS.OCR_STATUS_UPDATE, message);
@@ -852,22 +825,9 @@ function pythonFound(): void {
       serverLoadCheckInterval = null;
     }
 
-    if (lastExitWasAnkiError && !ankiErrorSent) {
-      const reason = ankiErrorReason || 'connection_failed';
-      pendingAnkiError = reason;
-      pendingCriticalError = null;
-      ankiErrorSent = true;
-      getMainWindow()?.webContents.send(
-        IPC_CHANNELS.ANKI_CONNECTION_ERROR,
-        reason
-      );
-      return;
-    }
-
     const errorMsg = buildCrashSummary(code, signal, recentLogTail);
     lifecycleLog.error(errorMsg);
     pendingCriticalError = errorMsg;
-    pendingAnkiError = null;
     getMainWindow()?.webContents.send(
       IPC_CHANNELS.SERVER_CRITICAL_ERROR,
       errorMsg
@@ -876,8 +836,6 @@ function pythonFound(): void {
 
   const args = [
     serverPath,
-    settings.ankiConnectUrl,
-    String(useAnki),
     settings.language,
     resPath,
     llmEnabled ? 'true' : 'false',
@@ -1243,10 +1201,7 @@ export function setupPythonBackendIPC(): void {
       pendingStartupStatusMessage = null;
     }
 
-    if (!serverLoaded && pendingAnkiError) {
-      // Re-send buffered Anki error (renderer may have mounted after the event)
-      event.sender.send(IPC_CHANNELS.ANKI_CONNECTION_ERROR, pendingAnkiError);
-    } else if (!serverLoaded && pendingCriticalError) {
+    if (!serverLoaded && pendingCriticalError) {
       // Re-send buffered critical error
       event.sender.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, pendingCriticalError);
     }
@@ -1286,11 +1241,6 @@ export function setupPythonBackendIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.RESTART_BACKEND, () => {
-    restartPythonBackend();
-  });
-
-  ipcMain.on(IPC_CHANNELS.RESTART_BACKEND_ANKI_OVERRIDE, (_event, disableAnki: boolean) => {
-    ankiOverrideDisable = disableAnki;
     restartPythonBackend();
   });
 }

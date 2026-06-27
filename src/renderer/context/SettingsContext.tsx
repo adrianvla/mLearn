@@ -18,6 +18,7 @@ import {
   registerCloudSessionController,
   syncCloudSessionState,
 } from '../services/cloudSessionManager';
+import { clearAnkiWordsCache } from '../services/ankiWordsCache';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.context.settings");
@@ -194,6 +195,15 @@ export const SettingsProvider: ParentComponent = (props) => {
     'overrideCloudEndpointUrl',
   ]);
 
+  const ANKI_BACKEND_KEYS = new Set<keyof Settings>([
+    'use_anki',
+    'ankiConnectUrl',
+    'anki_field_expression',
+    'anki_field_reading',
+    'anki_field_meaning',
+    'language',
+  ]);
+
   // Reconfigure backend adapter if needed
   const maybeReconfigureBackend = (nextSettings: Settings, changedKeys?: Set<keyof Settings>) => {
     if (!changedKeys || [...changedKeys].some(k => BACKEND_KEYS.has(k))) {
@@ -203,6 +213,12 @@ export const SettingsProvider: ParentComponent = (props) => {
         url: resolveBackendUrl(nextSettings),
         authToken: resolveCloudAccessToken(nextSettings),
       });
+    }
+  };
+
+  const maybeClearAnkiCache = (changedKeys?: Set<keyof Settings>) => {
+    if (!changedKeys || [...changedKeys].some(k => ANKI_BACKEND_KEYS.has(k))) {
+      clearAnkiWordsCache();
     }
   };
 
@@ -217,6 +233,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, new Set([key]));
+    maybeClearAnkiCache(new Set([key]));
 
     if (!hasLoaded()) {
       pendingSettingsSnapshot = { ...pendingSettingsSnapshot, [key]: value };
@@ -236,7 +253,9 @@ export const SettingsProvider: ParentComponent = (props) => {
     setSettings(reconcile(nextSettings));
     syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
-    maybeReconfigureBackend(nextSettings, new Set(Object.keys(partial) as (keyof Settings)[]));
+    const changedKeys = new Set(Object.keys(partial) as (keyof Settings)[]);
+    maybeReconfigureBackend(nextSettings, changedKeys);
+    maybeClearAnkiCache(changedKeys);
 
     if (!hasLoaded()) {
       pendingSettingsSnapshot = { ...pendingSettingsSnapshot, ...partial };

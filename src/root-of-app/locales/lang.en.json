@@ -586,8 +586,6 @@
       }
     },
     "ErrorModal": {
-      "AnkiDisablePermanent": "Disable Anki permanently",
-      "AnkiDisableSession": "Disable Anki for this session",
       "Copied": "Copied!",
       "CopyError": "Copy error",
       "HideDetails": "Hide details",

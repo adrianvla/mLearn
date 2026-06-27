@@ -27,7 +27,6 @@ export const PORTS = {
 export const API_ENDPOINTS = {
   tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
   translate: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
-  getCard: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/getCard`,
   /** @deprecated LLM moved to unified LLM backend */
   llm: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm`,
   /** @deprecated LLM moved to unified LLM backend */
@@ -48,8 +47,9 @@ export const API_ENDPOINTS = {
 export const API_PATHS = {
   tokenize: '/tokenize',
   translate: '/translate',
-  getCard: '/getCard',
-  ankiWords: '/ankiWords',
+  ankiCard: '/api/anki/card',
+  ankiWords: '/api/anki/words',
+  ankiReload: '/api/anki/reload',
   llm: '/llm',
   llmStatus: '/llm/status',
   ocr: '/ocr',
@@ -124,7 +124,6 @@ export const IPC_CHANNELS = {
   SERVER_CRITICAL_ERROR: 'server-critical-error',
   LOG_RECORD: 'log-record',
   ANKI_CONNECTION_ERROR: 'anki-connection-error',
-  RESTART_BACKEND_ANKI_OVERRIDE: 'restart-backend-anki-override',
   OCR_STATUS_UPDATE: 'ocr-status-update',
   
   // Installation

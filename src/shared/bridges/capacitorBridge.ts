@@ -1059,10 +1059,6 @@ const serverBridge: ServerBridge = {
     return emitter.on('anki-connection-error', callback as Listener);
   },
 
-  restartBackendAnkiOverride() {
-    // No-op on Capacitor — Anki is only available on desktop
-  },
-
   onOcrStatusUpdate(callback) {
     return emitter.on('ocr-status-update', callback as Listener);
   },

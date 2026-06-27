@@ -22,6 +22,8 @@ const log = getLogger("shared.backends.http");
 export interface HttpBackendOptions {
   /** Bearer token for auth (optional) */
   authToken?: string;
+  /** Base URL for the Electron Node server that owns Anki cache/index routes. */
+  ankiBaseUrl?: string;
 }
 
 class HttpBackendStatusError extends Error {
@@ -36,11 +38,13 @@ class HttpBackendStatusError extends Error {
 
 export class HttpBackend implements BackendAdapter {
   private readonly baseUrl: string;
+  private readonly ankiBaseUrl: string;
   private readonly authToken?: string;
 
   constructor(baseUrl: string, options?: HttpBackendOptions) {
     // Strip trailing slash
     this.baseUrl = baseUrl.replace(/\/+$/, '');
+    this.ankiBaseUrl = (options?.ankiBaseUrl || this.baseUrl).replace(/\/+$/, '');
     this.authToken = options?.authToken;
   }
 
@@ -48,9 +52,18 @@ export class HttpBackend implements BackendAdapter {
     return this.baseUrl;
   }
 
+  getAnkiBaseUrl(): string {
+    return this.ankiBaseUrl;
+  }
+
   private buildUrl(path: string): string {
     const p = path.startsWith('/') ? path : `/${path}`;
     return `${this.baseUrl}${p}`;
+  }
+
+  private buildAnkiUrl(path: string): string {
+    const p = path.startsWith('/') ? path : `/${path}`;
+    return `${this.ankiBaseUrl}${p}`;
   }
 
   private headers(extra?: Record<string, string>): Record<string, string> {
@@ -153,7 +166,7 @@ export class HttpBackend implements BackendAdapter {
   }
 
   async getCard(params: Record<string, unknown>): Promise<unknown> {
-    const res = await fetch(this.buildUrl(API_PATHS.getCard), {
+    const res = await fetch(this.buildAnkiUrl(API_PATHS.ankiCard), {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(params),
@@ -165,7 +178,7 @@ export class HttpBackend implements BackendAdapter {
   }
 
   private async getAnkiWordsPayload(): Promise<{ words?: string[]; cards?: AnkiWordStatusRecord[] }> {
-    const res = await fetch(this.buildUrl(API_PATHS.ankiWords), {
+    const res = await fetch(this.buildAnkiUrl(API_PATHS.ankiWords), {
       method: 'GET',
       headers: this.headers(),
       signal: AbortSignal.timeout(10_000),
@@ -186,6 +199,16 @@ export class HttpBackend implements BackendAdapter {
   async getAnkiWordStatuses(): Promise<AnkiWordStatusRecord[]> {
     const data = await this.getAnkiWordsPayload();
     return data.cards || [];
+  }
+
+  async reloadAnkiCache(): Promise<boolean> {
+    const res = await fetch(this.buildAnkiUrl(API_PATHS.ankiReload), {
+      method: 'POST',
+      headers: this.headers({ 'Content-Type': 'application/json' }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    return res.ok;
   }
 
   async ping(): Promise<boolean> {

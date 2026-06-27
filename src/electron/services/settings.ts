@@ -20,6 +20,17 @@ function getSettingsPath(): string {
   return path.join(getUserDataPath(), 'settings.json');
 }
 
+function didAnkiSettingsChange(prevSettings: Settings, nextSettings: Settings): boolean {
+  return (
+    prevSettings.use_anki !== nextSettings.use_anki ||
+    prevSettings.ankiConnectUrl !== nextSettings.ankiConnectUrl ||
+    prevSettings.anki_field_expression !== nextSettings.anki_field_expression ||
+    prevSettings.anki_field_reading !== nextSettings.anki_field_reading ||
+    prevSettings.anki_field_meaning !== nextSettings.anki_field_meaning ||
+    prevSettings.language !== nextSettings.language
+  );
+}
+
 export function loadSettings(): Settings {
   try {
     const settingsPath = getSettingsPath();
@@ -187,6 +198,11 @@ export function setupSettingsIPC(): void {
 
     if (settings.uiLanguage && settings.uiLanguage !== prevSettings.uiLanguage) {
       setUILanguage(settings.uiLanguage);
+    }
+
+    if (didAnkiSettingsChange(prevSettings, settings)) {
+      const { refreshAnkiCards } = await import('./ankiService');
+      await refreshAnkiCards(settings);
     }
   });
 
