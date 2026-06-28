@@ -22,7 +22,7 @@ import {
   getPythonDownloadUrl,
   isWindows 
 } from '../utils/platform';
-import { loadLanguageCatalogData, loadSettings } from './settings';
+import { loadLanguagePackageCatalog, loadSettings } from './settings';
 import { ensureLanguageDataInstalled, getLanguageDataRoot } from './languageDataService';
 import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
@@ -703,7 +703,7 @@ async function pythonFound(): Promise<boolean> {
 
   try {
     sendStatusUpdate(`Preparing ${settings.language} language data...`);
-    await ensureLanguageDataInstalled(settings.language, await loadLanguageCatalogData(settings), (progress) => {
+    await ensureLanguageDataInstalled(settings.language, await loadLanguagePackageCatalog(settings), (progress) => {
       if (progress.expectedBytes > 0) {
         sendStatusUpdate(
           `Downloading ${settings.language} language data: ${Math.round(progress.progress * 100)}%`

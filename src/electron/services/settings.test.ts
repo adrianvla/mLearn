@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+import * as tar from 'tar';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
 
@@ -31,6 +33,12 @@ vi.mock('./localization', () => ({
   setUILanguage: vi.fn(),
 }));
 
+const mockDownloadFileWithProgress = vi.fn();
+
+vi.mock('../utils/downloadManager', () => ({
+  downloadFileWithProgress: mockDownloadFileWithProgress,
+}));
+
 let tempDir: TempDir;
 
 vi.mock('../utils/platform', () => ({
@@ -44,6 +52,7 @@ let setUILanguageMock: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
   tempDir = createTempDir();
+  mockDownloadFileWithProgress.mockReset();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: false,
     status: 404,
@@ -63,6 +72,10 @@ afterEach(() => {
 
 function makeEvent(): MockIpcEvent {
   return { reply: vi.fn() };
+}
+
+function sha256(value: string | Buffer): string {
+  return crypto.createHash('sha256').update(value).digest('hex');
 }
 
 function deferred<T>() {
@@ -338,26 +351,33 @@ describe('loadLangData', () => {
 });
 
 describe('loadLanguageCatalogData', () => {
-  it('merges a remote language catalog from the configured URL and resolves relative asset hrefs', async () => {
+  it('loads runtime language data only from local files', async () => {
+    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(langsDir, 'ja.json'),
+      JSON.stringify({
+        name: 'Japanese',
+        translatable: ['名詞'],
+        colour_codes: {},
+        fixed_settings: {},
+      }),
+      'utf-8',
+    );
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
         languages: {
-          es: {
-            name: 'Spanish',
-            name_translated: 'Español',
-            translatable: ['NOUN'],
-            colour_codes: {},
-            fixed_settings: {},
-            languageData: {
-              assets: [{
-                id: 'dictionary',
-                path: 'dictionaries/es/dictionary.db',
-                href: './assets/es-dictionary.db',
-                sizeBytes: 123,
-                sha256: 'abc123',
-              }],
+          ja: {
+            name: 'Japanese package',
+            nameTranslated: '日本語',
+            version: 'ja-package-v1',
+            bundle: {
+              href: './language-data/language-ja-v1.tar.gz',
+              sizeBytes: 456,
+              sha256: 'f'.repeat(64),
             },
+            files: [],
           },
         },
       }),
@@ -369,114 +389,19 @@ describe('loadLanguageCatalogData', () => {
       languageCatalogUrl: 'https://pages.example.com/catalog/languages.json',
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('https://pages.example.com/catalog/languages.json', expect.objectContaining({
-      headers: expect.objectContaining({ Accept: 'application/json' }),
-    }));
-    expect(langData['ja']).toBeDefined();
-    expect(langData['es']).toMatchObject({
-      name: 'Spanish',
-      name_translated: 'Español',
-      languageData: {
-        assets: [
-          expect.objectContaining({
-            id: 'dictionary',
-            url: 'https://pages.example.com/catalog/assets/es-dictionary.db',
-          }),
-        ],
-      },
-    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(langData['ja']?.name).toBe('Japanese');
+    expect(langData['ja']?.translatable).toEqual(['名詞']);
+    expect(langData['ja']?.languageData).toBeUndefined();
   });
+});
 
-  it('loads language manifests referenced by the remote catalog index', async () => {
-    const fetchMock = vi.fn((url: string) => {
-      if (url === 'https://pages.example.com/language-catalog.json') {
-        return Promise.resolve({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            languages: {
-              es: { url: './language-catalog/es.json' },
-              fr: 'https://pages.example.com/language-catalog/fr.json',
-            },
-          }),
-        });
-      }
-      if (url === 'https://pages.example.com/language-catalog/es.json') {
-        return Promise.resolve({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            name: 'Spanish',
-            name_translated: 'Español',
-            translatable: ['NOUN'],
-            colour_codes: {},
-            fixed_settings: {},
-            languageData: {
-              assets: [{
-                id: 'dictionary',
-                path: 'dictionaries/es/dictionary.db',
-                href: '../assets/es-dictionary.db',
-                sizeBytes: 123,
-                sha256: 'abc123',
-              }],
-            },
-          }),
-        });
-      }
-      if (url === 'https://pages.example.com/language-catalog/fr.json') {
-        return Promise.resolve({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            name: 'French',
-            name_translated: 'Français',
-            translatable: ['NOUN'],
-            colour_codes: {},
-            fixed_settings: {},
-            languageData: {
-              assets: [{
-                id: 'dictionary',
-                path: 'dictionaries/fr/dictionary.db',
-                url: 'https://cdn.example.com/fr-dictionary.db',
-              }],
-            },
-          }),
-        });
-      }
-      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const langData = await mod.loadLanguageCatalogData({
-      ...mod.loadSettings(),
-      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
-    });
-
-    expect(langData['es']).toMatchObject({
-      name: 'Spanish',
-      languageData: {
-        assets: [
-          expect.objectContaining({
-            id: 'dictionary',
-            url: 'https://pages.example.com/assets/es-dictionary.db',
-          }),
-        ],
-      },
-    });
-    expect(langData['fr']).toMatchObject({
-      name: 'French',
-      languageData: {
-        assets: [
-          expect.objectContaining({
-            id: 'dictionary',
-            url: 'https://cdn.example.com/fr-dictionary.db',
-          }),
-        ],
-      },
-    });
-  });
-
-  it('loads bundled language package entries from the remote catalog without fetching per-language manifests', async () => {
+describe('loadLanguagePackageCatalog', () => {
+  it('loads package entries from the configured catalog URL and resolves bundle hrefs', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
+        generatedAt: '2026-06-28T12:00:00.000Z',
         languages: {
           es: {
             name: 'Spanish',
@@ -500,12 +425,15 @@ describe('loadLanguageCatalogData', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const langData = await mod.loadLanguageCatalogData({
+    const langData = await mod.loadLanguagePackageCatalog({
       ...mod.loadSettings(),
       languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('https://pages.example.com/language-catalog.json', expect.objectContaining({
+      headers: expect.objectContaining({ Accept: 'application/json' }),
+    }));
     expect(langData['es']).toMatchObject({
       name: 'Spanish',
       name_translated: 'Español',
@@ -525,19 +453,62 @@ describe('loadLanguageCatalogData', () => {
     });
   });
 
-  it('keeps bundled language data when the remote catalog is unavailable', async () => {
+  it('ignores legacy embedded metadata and per-language manifest links', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          legacy: {
+            name: 'Legacy Metadata',
+            translatable: ['NOUN'],
+            colour_codes: {},
+            fixed_settings: {},
+          },
+          fr: './language-catalog/fr.json',
+          es: {
+            name: 'Spanish',
+            nameTranslated: 'Español',
+            version: 'es-package-v1',
+            bundle: {
+              href: './language-data/language-es-package-v1.tar.gz',
+              sizeBytes: 456,
+              sha256: 'f'.repeat(64),
+            },
+            files: [{
+              id: 'dictionary',
+              path: 'dictionaries/es/dictionary.db',
+              sizeBytes: 123,
+              sha256: 'a'.repeat(64),
+              required: true,
+            }],
+          },
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(Object.keys(langData)).toEqual(['es']);
+  });
+
+  it('returns an empty package catalog when the configured catalog is unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 503,
       statusText: 'Service Unavailable',
     }));
 
-    const langData = await mod.loadLanguageCatalogData({
+    const langData = await mod.loadLanguagePackageCatalog({
       ...mod.loadSettings(),
       languageCatalogUrl: 'https://pages.example.com/catalog/languages.json',
     });
 
-    expect(langData['ja']).toBeDefined();
+    expect(langData).toEqual({});
   });
 });
 
@@ -646,7 +617,7 @@ describe('GET_LANG_DATA IPC handler', () => {
     expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({ zz: expect.any(Object) }));
   });
 
-  it('includes languages from the configured remote catalog', async () => {
+  it('does not include uninstalled languages from the package catalog', async () => {
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify({
       languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
@@ -657,9 +628,14 @@ describe('GET_LANG_DATA IPC handler', () => {
         languages: {
           it: {
             name: 'Italian',
-            translatable: [],
-            colour_codes: {},
-            fixed_settings: {},
+            nameTranslated: 'Italiano',
+            version: 'it-package-v1',
+            bundle: {
+              href: './language-data/language-it-package-v1.tar.gz',
+              sizeBytes: 1,
+              sha256: 'f'.repeat(64),
+            },
+            files: [],
           },
         },
       }),
@@ -670,39 +646,41 @@ describe('GET_LANG_DATA IPC handler', () => {
     const event = makeEvent();
     for (const h of handlers) await h(event);
 
-    expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({
-      it: expect.objectContaining({ name: 'Italian' }),
+    expect(event.reply).toHaveBeenCalledWith('lang-data', expect.not.objectContaining({
+      it: expect.anything(),
     }));
   });
 });
 
 describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
   it('replies with install status for every language', async () => {
-    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
     const installedDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
-    fs.mkdirSync(langsDir, { recursive: true });
     fs.mkdirSync(installedDir, { recursive: true });
     fs.writeFileSync(path.join(installedDir, 'aa.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
-    fs.writeFileSync(
-      path.join(langsDir, 'aa.json'),
-      JSON.stringify({
-        name: 'Alpha',
-        languageData: {
-          assets: [{ id: 'freq', path: 'languages/aa.freq.json', sizeBytes: 9 }],
+
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    }), 'utf-8');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          aa: {
+            name: 'Alpha',
+            version: 'aa-package-v1',
+            bundle: { href: './aa.tar.gz', sizeBytes: 10, sha256: 'a'.repeat(64) },
+            files: [{ id: 'freq', path: 'languages/aa.freq.json', sizeBytes: 9 }],
+          },
+          zz: {
+            name: 'Zeta',
+            version: 'zz-package-v1',
+            bundle: { href: './zz.tar.gz', sizeBytes: 12, sha256: 'b'.repeat(64) },
+            files: [{ id: 'freq', path: 'languages/zz.freq.json', sizeBytes: 12 }],
+          },
         },
       }),
-      'utf-8',
-    );
-    fs.writeFileSync(
-      path.join(langsDir, 'zz.json'),
-      JSON.stringify({
-        name: 'Zeta',
-        languageData: {
-          assets: [{ id: 'freq', path: 'languages/zz.freq.json', sizeBytes: 12 }],
-        },
-      }),
-      'utf-8',
-    );
+    }));
 
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('get-language-data-catalog') ?? [];
@@ -728,26 +706,66 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
 
 describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
   it('installs required language assets and replies with refreshed status', async () => {
-    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
-    const bundledDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
-    fs.mkdirSync(langsDir, { recursive: true });
-    fs.mkdirSync(bundledDir, { recursive: true });
-    fs.writeFileSync(path.join(bundledDir, 'aa.freq.json'), JSON.stringify({ freq: [['alpha', 'alpha']] }), 'utf-8');
-    fs.writeFileSync(
-      path.join(langsDir, 'aa.json'),
-      JSON.stringify({
-        name: 'Alpha',
-        languageData: {
-          assets: [{
-            id: 'frequency',
-            path: 'languages/aa.freq.json',
-            bundledPath: 'languages/aa.freq.json',
-            sizeBytes: 9,
-          }],
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'aa.tar.gz');
+    const frequencyBytes = JSON.stringify({ freq: [['alpha', 'alpha']] });
+    const metadataBytes = JSON.stringify({
+      name: 'Alpha',
+      translatable: ['NOUN'],
+      colour_codes: {},
+      fixed_settings: {},
+    });
+    const manifestFiles = [
+      {
+        id: 'frequency',
+        path: 'languages/aa.freq.json',
+        sizeBytes: Buffer.byteLength(frequencyBytes),
+        sha256: sha256(frequencyBytes),
+        required: true,
+      },
+      {
+        id: 'language-metadata',
+        path: 'languages/aa.json',
+        sizeBytes: Buffer.byteLength(metadataBytes),
+        sha256: sha256(metadataBytes),
+        required: true,
+      },
+    ];
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify({
+      schemaVersion: 1,
+      language: 'aa',
+      version: 'aa-package-v1',
+      files: manifestFiles,
+    }), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'aa.freq.json'), frequencyBytes, 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'aa.json'), metadataBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    }), 'utf-8');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          aa: {
+            name: 'Alpha',
+            version: 'aa-package-v1',
+            bundle: {
+              href: './aa.tar.gz',
+              sizeBytes: fs.statSync(archivePath).size,
+              sha256: sha256(fs.readFileSync(archivePath)),
+            },
+            files: manifestFiles,
+          },
         },
       }),
-      'utf-8',
-    );
+    }));
 
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('install-language-data') ?? [];
@@ -769,18 +787,26 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
   });
 
   it('replies with install errors without throwing', async () => {
-    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
-    fs.mkdirSync(langsDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(langsDir, 'aa.json'),
-      JSON.stringify({
-        name: 'Alpha',
-        languageData: {
-          assets: [{ id: 'missing', path: 'languages/missing.freq.json' }],
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    }), 'utf-8');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          aa: {
+            name: 'Alpha',
+            version: 'aa-package-v1',
+            bundle: {
+              sizeBytes: 10,
+              sha256: 'f'.repeat(64),
+            },
+            files: [{ id: 'missing', path: 'languages/missing.freq.json' }],
+          },
         },
       }),
-      'utf-8',
-    );
+    }));
 
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('install-language-data') ?? [];
@@ -789,7 +815,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
 
     expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({
       language: 'aa',
-      error: expect.stringContaining('No download URL'),
+      error: expect.stringContaining('No download URL for language data bundle'),
     }));
   });
 });

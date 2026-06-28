@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import * as tar from 'tar';
-import { getResourcePath, getUserDataPath } from '../utils/platform';
+import { getUserDataPath } from '../utils/platform';
 import { downloadFileWithProgress, type ProgressCallback } from '../utils/downloadManager';
 import type { LanguageDataAsset, LanguageDataBundle, LanguageDataCatalogStatus, LanguageDataMap } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
@@ -55,17 +55,6 @@ function assertSafeArchivePath(relativePath: string): void {
 export function getInstalledLanguageAssetPath(asset: LanguageDataAsset): string {
   assertSafeRelativePath(asset.path);
   return path.join(getLanguageDataRoot(), asset.path);
-}
-
-function getBundledAssetCandidates(asset: LanguageDataAsset): string[] {
-  const relativePath = asset.bundledPath ?? asset.path;
-  assertSafeRelativePath(relativePath);
-  const resourcePath = getResourcePath();
-  return [
-    path.join(resourcePath, 'root-of-app', relativePath),
-    path.join(resourcePath, relativePath),
-    path.join(process.cwd(), 'src', 'root-of-app', relativePath),
-  ];
 }
 
 function computeSha256(filePath: string): string {
@@ -176,31 +165,6 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
     });
 }
 
-async function installAsset(asset: LanguageDataAsset, onProgress?: ProgressCallback): Promise<void> {
-  const installedPath = getInstalledLanguageAssetPath(asset);
-  if (fs.existsSync(installedPath)) {
-    verifyChecksum(asset, installedPath);
-    return;
-  }
-
-  fs.mkdirSync(path.dirname(installedPath), { recursive: true });
-
-  const bundledPath = getBundledAssetCandidates(asset).find((candidate) => fs.existsSync(candidate));
-  if (bundledPath) {
-    fs.copyFileSync(bundledPath, installedPath);
-    verifyChecksum(asset, installedPath);
-    return;
-  }
-
-  if (!asset.url) {
-    throw new Error(`No download URL for language data asset ${asset.id}`);
-  }
-
-  log.info(`Downloading language data asset ${asset.id} from ${asset.url}`);
-  await downloadFileWithProgress(asset.url, installedPath, onProgress);
-  verifyChecksum(asset, installedPath);
-}
-
 async function installBundle(
   language: string,
   bundle: LanguageDataBundle,
@@ -265,12 +229,13 @@ export async function ensureLanguageDataInstalled(
 ): Promise<LanguageDataStatus> {
   const assets = getAssets(language, langData).filter((asset) => asset.required !== false);
   const bundle = getBundle(language, langData);
-  if (bundle && assets.some((asset) => !fs.existsSync(getInstalledLanguageAssetPath(asset)))) {
-    await installBundle(language, bundle, onProgress);
+  const missingAssets = assets.filter((asset) => !fs.existsSync(getInstalledLanguageAssetPath(asset)));
+  if (missingAssets.length === 0) {
     return getLanguageDataStatus(language, langData);
   }
-  for (const asset of assets) {
-    await installAsset(asset, onProgress);
+  if (!bundle) {
+    throw new Error(`No language data bundle is available for ${language}`);
   }
+  await installBundle(language, bundle, onProgress);
   return getLanguageDataStatus(language, langData);
 }

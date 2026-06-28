@@ -683,20 +683,17 @@ export interface LanguageDataMap {
 }
 
 export interface LanguageCatalogEntry {
-  /** URL to a per-language manifest. Relative URLs resolve against the catalog URL. */
-  url?: string;
-  /** Provider-neutral alias for url. */
-  href?: string;
-  name?: string;
+  name: string;
   nameTranslated?: string;
-  version?: string;
-  bundle?: LanguageDataBundle;
-  files?: LanguageDataAsset[];
+  version: string;
+  bundle: LanguageDataBundle;
+  files: LanguageDataAsset[];
 }
 
 export interface LanguageCatalogManifest {
-  version?: string;
-  languages: Record<string, LanguageData | LanguageCatalogEntry | string>;
+  schemaVersion?: number;
+  generatedAt?: string;
+  languages: Record<string, LanguageCatalogEntry>;
 }
 
 export interface LanguageDataCatalogStatus {

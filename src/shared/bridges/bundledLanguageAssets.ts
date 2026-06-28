@@ -16,6 +16,9 @@ function extractLocaleCode(modulePath: string): string | null {
 }
 
 function extractLanguageCode(modulePath: string): string | null {
+  if (modulePath.endsWith('.freq.json')) {
+    return null;
+  }
   const match = modulePath.match(/\/([^/]+)\.json$/);
   return match?.[1] ?? null;
 }
