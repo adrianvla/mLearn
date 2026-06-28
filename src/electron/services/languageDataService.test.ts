@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+import * as tar from 'tar';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import type { LanguageDataMap } from '../../shared/types';
 
@@ -38,6 +40,10 @@ function makeLangData(overrides: Partial<LanguageDataMap[string]> = {}): Languag
       ...overrides,
     },
   };
+}
+
+function sha256(value: string | Buffer): string {
+  return crypto.createHash('sha256').update(value).digest('hex');
 }
 
 describe('languageDataService', () => {
@@ -163,6 +169,64 @@ describe('languageDataService', () => {
       installed,
       undefined,
     );
+  });
+
+  it('downloads and extracts a verified language bundle archive', async () => {
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'zz.tar.gz');
+    const dictionaryBytes = 'bundle dictionary bytes';
+    const frequencyBytes = JSON.stringify({ freq: [['zeta', 'zeta']] });
+    const manifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      version: 'bundle-v1',
+      files: [
+        {
+          id: 'dictionary',
+          path: 'dictionaries/zz/dictionary.db',
+          sizeBytes: Buffer.byteLength(dictionaryBytes),
+          sha256: sha256(dictionaryBytes),
+          required: true,
+        },
+        {
+          id: 'frequency',
+          path: 'languages/zz.freq.json',
+          sizeBytes: Buffer.byteLength(frequencyBytes),
+          sha256: sha256(frequencyBytes),
+          required: true,
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'dictionaries', 'zz'), { recursive: true });
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'dictionaries', 'zz', 'dictionary.db'), dictionaryBytes, 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'zz.freq.json'), frequencyBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+
+    await mod.ensureLanguageDataInstalled('zz', makeLangData({
+      languageData: {
+        version: 'bundle-v1',
+        bundle: {
+          url: 'https://example.com/language-data/zz.tar.gz',
+          sizeBytes: fs.statSync(archivePath).size,
+          sha256: sha256(fs.readFileSync(archivePath)),
+        },
+        assets: manifest.files,
+      },
+    }));
+
+    expect(mockDownloadFileWithProgress).toHaveBeenCalledWith(
+      'https://example.com/language-data/zz.tar.gz',
+      expect.stringContaining('zz.tar.gz'),
+      undefined,
+    );
+    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.freq.json'), 'utf-8')).toBe(frequencyBytes);
   });
 
   it('rejects language asset paths that escape the language data root', async () => {

@@ -16,6 +16,7 @@ export const LOG_PATTERN_VERSION = 'v2';
 // Cloud service URLs
 export const DEFAULT_CLOUD_LOGIN_URL = 'https://mlearn.kikan.net';
 export const DEFAULT_CLOUD_API_URL = 'https://mlearn-cloud.kikan.net';
+export const DEFAULT_LANGUAGE_CATALOG_URL = 'https://mlearn.kikan.net/language-catalog.json';
 
 // Ports object for hooks
 export const PORTS = {

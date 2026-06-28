@@ -270,6 +270,11 @@
       "DesktopCode": "Code à usage unique du bureau",
       "HintLocal": "Utilise le backend Python local sur cette machine.",
       "HintTethered": "Se connecte au backend Python sur votre ordinateur.",
+      "LanguageCatalog": {
+        "Description": "URL du manifeste pour les métadonnées linguistiques et les liens de ressources téléchargeables.",
+        "Title": "Catalogue de langues",
+        "Url": "URL du catalogue"
+      },
       "Mode": "Mode",
       "ModeLocal": "Local",
       "ModeTethered": "Relié",

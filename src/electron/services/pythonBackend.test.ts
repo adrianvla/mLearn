@@ -54,12 +54,22 @@ vi.mock('./windowManager', () => ({
   getMainWindow: mockGetMainWindow,
 }));
 
+const mockLoadLanguageCatalogData = vi.fn(() => Promise.resolve({
+  ja: {
+    name: 'Japanese',
+    translatable: [],
+    colour_codes: {},
+    fixed_settings: {},
+  },
+}));
+
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({
     language: 'ja',
     llmEnabled: true,
     ocrEnabled: true,
   })),
+  loadLanguageCatalogData: mockLoadLanguageCatalogData,
   loadLangData: vi.fn(() => ({
     ja: {
       name: 'Japanese',
@@ -280,6 +290,7 @@ describe('pythonBackend', () => {
 
       await mod.findPython();
 
+      expect(mockLoadLanguageCatalogData).toHaveBeenCalledOnce();
       expect(mockEnsureLanguageDataInstalled).toHaveBeenCalledWith('ja', expect.any(Object), expect.any(Function));
       const backendSpawn = mockSpawn.mock.calls.find((call) => call[0] === '/bin/sh');
       expect(backendSpawn?.[1]).toEqual(expect.arrayContaining([

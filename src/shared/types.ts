@@ -2,7 +2,7 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES } from './constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES, DEFAULT_LANGUAGE_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
 import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction } from './constants';
 
@@ -226,6 +226,8 @@ export interface Settings {
   backendMode: 'local' | 'tethered';
   /** Base URL when mode is 'tethered' (e.g. http://192.168.1.10:7752) */
   backendUrl: string;
+  /** Single provider-agnostic manifest URL describing downloadable language data. */
+  languageCatalogUrl: string;
   /** Bearer token for cloud backend auth */
   cloudAuthToken: string;
   /** Session access token for signed-in cloud account */
@@ -465,6 +467,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ankiConnectUrl: 'http://127.0.0.1:8765',
   backendMode: 'local' as const,
   backendUrl: '',
+  languageCatalogUrl: DEFAULT_LANGUAGE_CATALOG_URL,
   cloudAuthToken: '',
   cloudAuthAccessToken: '',
   cloudAuthRefreshToken: '',
@@ -601,6 +604,8 @@ export interface LanguageDataAsset {
   path: string;
   /** Remote URL used by packaged apps to install this asset on demand. */
   url?: string;
+  /** Provider-neutral link alias accepted in remote language catalogs. */
+  href?: string;
   /** Optional relative path under root-of-app used by development/local builds. */
   bundledPath?: string;
   /** Expected file size, used for UI/status display. */
@@ -611,9 +616,24 @@ export interface LanguageDataAsset {
   required?: boolean;
 }
 
+export interface LanguageDataBundle {
+  /** Remote archive URL used to install all required files for a language in one download. */
+  url?: string;
+  /** Provider-neutral link alias accepted in remote language catalogs. */
+  href?: string;
+  /** Expected archive size, used for UI/status display. */
+  sizeBytes?: number;
+  /** Optional SHA-256 checksum for archive verification before extraction. */
+  sha256?: string;
+}
+
 export interface LanguageDataManifest {
   /** Data payload version independent from app version. */
   version?: string;
+  /** Source/component versions that make up this language package. */
+  sourceVersions?: Record<string, string>;
+  /** Optional archive containing all files listed in assets. */
+  bundle?: LanguageDataBundle;
   /** Files needed by this language, installed on demand into userData. */
   assets: LanguageDataAsset[];
 }
@@ -660,6 +680,23 @@ export interface LanguageData {
 
 export interface LanguageDataMap {
   [langCode: string]: LanguageData;
+}
+
+export interface LanguageCatalogEntry {
+  /** URL to a per-language manifest. Relative URLs resolve against the catalog URL. */
+  url?: string;
+  /** Provider-neutral alias for url. */
+  href?: string;
+  name?: string;
+  nameTranslated?: string;
+  version?: string;
+  bundle?: LanguageDataBundle;
+  files?: LanguageDataAsset[];
+}
+
+export interface LanguageCatalogManifest {
+  version?: string;
+  languages: Record<string, LanguageData | LanguageCatalogEntry | string>;
 }
 
 export interface LanguageDataCatalogStatus {

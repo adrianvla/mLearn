@@ -270,6 +270,11 @@
       "DesktopCode": "Desktop-Einmalcode",
       "HintLocal": "Verwendet das lokale Python-Backend auf diesem Gerät.",
       "HintTethered": "Verbindet sich mit dem Python-Backend auf Ihrem Desktop.",
+      "LanguageCatalog": {
+        "Description": "Manifest-URL für herunterladbare Sprachmetadaten und Asset-Links.",
+        "Title": "Sprachkatalog",
+        "Url": "Katalog-URL"
+      },
       "Mode": "Modus",
       "ModeLocal": "Lokal",
       "ModeTethered": "Angebunden",
