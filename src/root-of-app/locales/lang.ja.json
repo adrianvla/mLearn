@@ -270,6 +270,11 @@
       "DesktopCode": "デスクトップ用ワンタイムコード",
       "HintLocal": "このマシンのローカルPythonバックエンドを使用します。",
       "HintTethered": "デスクトップで実行中のPythonバックエンドに接続します。",
+      "LanguageCatalog": {
+        "Description": "ダウンロード可能な言語メタデータとアセットリンクのマニフェストURL。",
+        "Title": "言語カタログ",
+        "Url": "カタログURL"
+      },
       "Mode": "モード",
       "ModeLocal": "ローカル",
       "ModeTethered": "テザリング",

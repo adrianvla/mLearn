@@ -7,13 +7,14 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types';
+import { Settings, DEFAULT_SETTINGS, LanguageCatalogEntry, LanguageCatalogManifest, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap } from '../../shared/types';
 import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
 import { setUILanguage } from './localization';
 import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.settings');
+const LANGUAGE_CATALOG_FETCH_TIMEOUT_MS = 5000;
 
 let settingsSaveQueue: Promise<void> = Promise.resolve();
 
@@ -96,6 +97,7 @@ export function loadLangData(): LanguageDataMap {
     path.join(appPath, 'languages'),
     path.join(resourcePath, 'languages'),
     path.join(getUserDataPath(), 'languages'),
+    path.join(getUserDataPath(), 'language-data', 'languages'),
   ];
   const languagesDirs = candidateDirs.filter((dir, index, dirs) => fs.existsSync(dir) && dirs.indexOf(dir) === index);
   const frequencyDirs = [
@@ -155,6 +157,204 @@ export function loadLangData(): LanguageDataMap {
   }
 
   return langData;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeLanguageData(base: LanguageDataMap, overlay: LanguageDataMap): LanguageDataMap {
+  const merged: LanguageDataMap = { ...base };
+  for (const [language, metadata] of Object.entries(overlay)) {
+    merged[language] = {
+      ...(merged[language] ?? {}),
+      ...metadata,
+      languageData: metadata.languageData ?? merged[language]?.languageData,
+      freq: metadata.freq ?? merged[language]?.freq,
+      grammar: metadata.grammar ?? merged[language]?.grammar,
+    } as LanguageData;
+  }
+  return merged;
+}
+
+function normalizeRemoteAsset(asset: LanguageDataAsset, catalogUrl: string): LanguageDataAsset {
+  const assetUrl = asset.url ?? asset.href;
+  if (!assetUrl) {
+    return asset;
+  }
+
+  return {
+    ...asset,
+    url: new URL(assetUrl, catalogUrl).toString(),
+  };
+}
+
+function normalizeRemoteBundle(bundle: LanguageDataBundle | undefined, catalogUrl: string): LanguageDataBundle | undefined {
+  if (!bundle) {
+    return undefined;
+  }
+  const bundleUrl = bundle.url ?? bundle.href;
+  if (!bundleUrl) {
+    return bundle;
+  }
+  return {
+    ...bundle,
+    url: new URL(bundleUrl, catalogUrl).toString(),
+  };
+}
+
+function normalizeRemoteLanguageData(langData: LanguageDataMap, catalogUrl: string): LanguageDataMap {
+  const normalized: LanguageDataMap = {};
+  for (const [language, metadata] of Object.entries(langData)) {
+    normalized[language] = {
+      ...metadata,
+      languageData: metadata.languageData
+        ? {
+          ...metadata.languageData,
+          bundle: normalizeRemoteBundle(metadata.languageData.bundle, catalogUrl),
+          assets: metadata.languageData.assets.map((asset) => normalizeRemoteAsset(asset, catalogUrl)),
+        }
+        : undefined,
+    };
+  }
+  return normalized;
+}
+
+function parseLanguageCatalogManifest(value: unknown): LanguageCatalogManifest | null {
+  if (!isRecord(value) || !isRecord(value.languages)) {
+    return null;
+  }
+
+  const languages: LanguageCatalogManifest['languages'] = {};
+  for (const [language, metadata] of Object.entries(value.languages)) {
+    if (typeof metadata === 'string') {
+      languages[language] = metadata;
+      continue;
+    }
+    if (!isRecord(metadata)) {
+      continue;
+    }
+    if (typeof metadata.name === 'string' || typeof metadata.url === 'string' || typeof metadata.href === 'string' || isRecord(metadata.bundle)) {
+      languages[language] = metadata as unknown as LanguageData | LanguageCatalogEntry;
+    }
+  }
+
+  return { languages };
+}
+
+function getLanguageManifestUrl(entry: LanguageCatalogEntry | string, catalogUrl: string): string | null {
+  const manifestUrl = typeof entry === 'string' ? entry : entry.url ?? entry.href;
+  if (!manifestUrl) {
+    return null;
+  }
+  return new URL(manifestUrl, catalogUrl).toString();
+}
+
+function isLanguageData(value: unknown): value is LanguageData {
+  return isRecord(value) && typeof value.name === 'string';
+}
+
+function isBundledCatalogEntry(value: unknown): value is LanguageCatalogEntry {
+  return isRecord(value) && isRecord(value.bundle);
+}
+
+function languageDataFromCatalogEntry(
+  language: string,
+  entry: LanguageCatalogEntry,
+  catalogUrl: string,
+): LanguageData {
+  const assets = Array.isArray(entry.files) ? entry.files.map((asset) => normalizeRemoteAsset(asset, catalogUrl)) : [];
+  return {
+    name: entry.name ?? language,
+    name_translated: entry.nameTranslated,
+    translatable: [],
+    colour_codes: {},
+    fixed_settings: {},
+    languageData: {
+      version: entry.version,
+      bundle: normalizeRemoteBundle(entry.bundle, catalogUrl),
+      assets,
+    },
+  };
+}
+
+async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`Language catalog request failed: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+}
+
+async function loadRemoteLanguageEntry(
+  language: string,
+  entry: LanguageCatalogManifest['languages'][string],
+  catalogUrl: string,
+  signal: AbortSignal,
+): Promise<[string, LanguageData] | null> {
+  if (isLanguageData(entry)) {
+    if (isBundledCatalogEntry(entry) && !entry.languageData) {
+      return [language, languageDataFromCatalogEntry(language, entry as LanguageCatalogEntry, catalogUrl)];
+    }
+    return [language, normalizeRemoteLanguageData({ [language]: entry }, catalogUrl)[language]];
+  }
+
+  if (typeof entry !== 'string' && !isRecord(entry)) {
+    return null;
+  }
+
+  if (isBundledCatalogEntry(entry)) {
+    return [language, languageDataFromCatalogEntry(language, entry as LanguageCatalogEntry, catalogUrl)];
+  }
+
+  const manifestUrl = getLanguageManifestUrl(entry as LanguageCatalogEntry | string, catalogUrl);
+  if (!manifestUrl) {
+    return null;
+  }
+
+  const manifest = await fetchJson(manifestUrl, signal);
+  if (!isLanguageData(manifest)) {
+    throw new Error(`Language manifest is invalid for ${language}`);
+  }
+  return [language, normalizeRemoteLanguageData({ [language]: manifest }, manifestUrl)[language]];
+}
+
+async function fetchRemoteLanguageCatalog(catalogUrl: string): Promise<LanguageDataMap> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LANGUAGE_CATALOG_FETCH_TIMEOUT_MS);
+  try {
+    const manifest = parseLanguageCatalogManifest(await fetchJson(catalogUrl, controller.signal));
+    if (!manifest) {
+      throw new Error('Language catalog manifest is invalid');
+    }
+    const entries = await Promise.all(
+      Object.entries(manifest.languages).map(([language, entry]) => (
+        loadRemoteLanguageEntry(language, entry, catalogUrl, controller.signal)
+      )),
+    );
+    return Object.fromEntries(entries.filter((entry): entry is [string, LanguageData] => entry !== null));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function loadLanguageCatalogData(settings: Settings = loadSettings()): Promise<LanguageDataMap> {
+  const localData = loadLangData();
+  const catalogUrl = settings.languageCatalogUrl?.trim();
+  if (!catalogUrl) {
+    return localData;
+  }
+
+  try {
+    const remoteData = await fetchRemoteLanguageCatalog(catalogUrl);
+    return mergeLanguageData(localData, remoteData);
+  } catch (error) {
+    log.warn('Failed to load remote language catalog:', error);
+    return localData;
+  }
 }
 
 function getDefaultLangData(): LanguageDataMap {
@@ -235,21 +435,21 @@ export function setupSettingsIPC(): void {
     }
   });
 
-  ipcMain.on(IPC_CHANNELS.GET_LANG_DATA, (event) => {
-    const langData = loadLangData();
+  ipcMain.on(IPC_CHANNELS.GET_LANG_DATA, async (event) => {
+    const langData = await loadLanguageCatalogData();
     event.reply(IPC_CHANNELS.LANG_DATA, langData);
   });
 
-  ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, (event) => {
-    const langData = loadLangData();
+  ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, async (event) => {
+    const langData = await loadLanguageCatalogData();
     event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData));
   });
 
   ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string) => {
     try {
-      const langData = loadLangData();
+      const langData = await loadLanguageCatalogData();
       await ensureLanguageDataInstalled(language, langData);
-      const catalog = getLanguageDataCatalogStatus(loadLangData());
+      const catalog = getLanguageDataCatalogStatus(await loadLanguageCatalogData());
       const installedStatus = catalog.find((status) => status.language === language);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);

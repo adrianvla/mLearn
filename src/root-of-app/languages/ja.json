@@ -27,13 +27,17 @@
   },
   "fixed_settings": {},
   "languageData": {
-    "version": "2024.10.07.0-pitch1",
+    "version": "ja-package-2026.06.28",
+    "sourceVersions": {
+      "dictionary": "jitendex-2024.10.07.0",
+      "pitchAccent": "pitch1"
+    },
     "assets": [
       {
         "id": "dictionary",
         "path": "dictionaries/ja/dictionary.db",
         "bundledPath": "dictionaries/ja/dictionary.db",
-        "url": "https://github.com/adrianvla/mLearn/releases/download/v2.3.2/language-ja-dictionary.db",
+        "url": "https://cdn.kikan.net/mlearn/language-data/language-ja-dictionary.db",
         "sizeBytes": 269688832,
         "sha256": "6af20fd1e9d0804f0cc92b5400d8b7617b1090334d303aaf07fdcee8ae14cedf",
         "required": true
@@ -42,7 +46,7 @@
         "id": "frequency",
         "path": "languages/ja.freq.json",
         "bundledPath": "languages/ja.freq.json",
-        "url": "https://github.com/adrianvla/mLearn/releases/download/v2.3.2/language-ja-frequency.json",
+        "url": "https://cdn.kikan.net/mlearn/language-data/language-ja-frequency.json",
         "sizeBytes": 1209652,
         "sha256": "21521374ae4fd56f1a3d700181defe469c502b8e510c5150313c2896193db822",
         "required": true

@@ -44,6 +44,11 @@ let setUILanguageMock: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
   tempDir = createTempDir();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: false,
+    status: 404,
+    statusText: 'Not Found',
+  }));
   vi.resetModules();
   mockIpcListeners.clear();
   mod = await import('./settings');
@@ -53,6 +58,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   tempDir.cleanup();
+  vi.unstubAllGlobals();
 });
 
 function makeEvent(): MockIpcEvent {
@@ -75,6 +81,7 @@ describe('loadSettings', () => {
     expect(settings).toBeDefined();
     expect(typeof settings).toBe('object');
     expect(settings.language).toBeDefined();
+    expect(settings.languageCatalogUrl).toBe('https://mlearn.kikan.net/language-catalog.json');
   });
 
   it('loads settings from an existing file', () => {
@@ -330,6 +337,210 @@ describe('loadLangData', () => {
   });
 });
 
+describe('loadLanguageCatalogData', () => {
+  it('merges a remote language catalog from the configured URL and resolves relative asset hrefs', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          es: {
+            name: 'Spanish',
+            name_translated: 'Español',
+            translatable: ['NOUN'],
+            colour_codes: {},
+            fixed_settings: {},
+            languageData: {
+              assets: [{
+                id: 'dictionary',
+                path: 'dictionaries/es/dictionary.db',
+                href: './assets/es-dictionary.db',
+                sizeBytes: 123,
+                sha256: 'abc123',
+              }],
+            },
+          },
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguageCatalogData({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/catalog/languages.json',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://pages.example.com/catalog/languages.json', expect.objectContaining({
+      headers: expect.objectContaining({ Accept: 'application/json' }),
+    }));
+    expect(langData['ja']).toBeDefined();
+    expect(langData['es']).toMatchObject({
+      name: 'Spanish',
+      name_translated: 'Español',
+      languageData: {
+        assets: [
+          expect.objectContaining({
+            id: 'dictionary',
+            url: 'https://pages.example.com/catalog/assets/es-dictionary.db',
+          }),
+        ],
+      },
+    });
+  });
+
+  it('loads language manifests referenced by the remote catalog index', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url === 'https://pages.example.com/language-catalog.json') {
+        return Promise.resolve({
+          ok: true,
+          json: vi.fn().mockResolvedValue({
+            languages: {
+              es: { url: './language-catalog/es.json' },
+              fr: 'https://pages.example.com/language-catalog/fr.json',
+            },
+          }),
+        });
+      }
+      if (url === 'https://pages.example.com/language-catalog/es.json') {
+        return Promise.resolve({
+          ok: true,
+          json: vi.fn().mockResolvedValue({
+            name: 'Spanish',
+            name_translated: 'Español',
+            translatable: ['NOUN'],
+            colour_codes: {},
+            fixed_settings: {},
+            languageData: {
+              assets: [{
+                id: 'dictionary',
+                path: 'dictionaries/es/dictionary.db',
+                href: '../assets/es-dictionary.db',
+                sizeBytes: 123,
+                sha256: 'abc123',
+              }],
+            },
+          }),
+        });
+      }
+      if (url === 'https://pages.example.com/language-catalog/fr.json') {
+        return Promise.resolve({
+          ok: true,
+          json: vi.fn().mockResolvedValue({
+            name: 'French',
+            name_translated: 'Français',
+            translatable: ['NOUN'],
+            colour_codes: {},
+            fixed_settings: {},
+            languageData: {
+              assets: [{
+                id: 'dictionary',
+                path: 'dictionaries/fr/dictionary.db',
+                url: 'https://cdn.example.com/fr-dictionary.db',
+              }],
+            },
+          }),
+        });
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguageCatalogData({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    });
+
+    expect(langData['es']).toMatchObject({
+      name: 'Spanish',
+      languageData: {
+        assets: [
+          expect.objectContaining({
+            id: 'dictionary',
+            url: 'https://pages.example.com/assets/es-dictionary.db',
+          }),
+        ],
+      },
+    });
+    expect(langData['fr']).toMatchObject({
+      name: 'French',
+      languageData: {
+        assets: [
+          expect.objectContaining({
+            id: 'dictionary',
+            url: 'https://cdn.example.com/fr-dictionary.db',
+          }),
+        ],
+      },
+    });
+  });
+
+  it('loads bundled language package entries from the remote catalog without fetching per-language manifests', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          es: {
+            name: 'Spanish',
+            nameTranslated: 'Español',
+            version: 'es-package-v1',
+            bundle: {
+              href: './language-data/language-es-package-v1.tar.gz',
+              sizeBytes: 456,
+              sha256: 'f'.repeat(64),
+            },
+            files: [{
+              id: 'dictionary',
+              path: 'dictionaries/es/dictionary.db',
+              sizeBytes: 123,
+              sha256: 'a'.repeat(64),
+              required: true,
+            }],
+          },
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguageCatalogData({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(langData['es']).toMatchObject({
+      name: 'Spanish',
+      name_translated: 'Español',
+      languageData: {
+        version: 'es-package-v1',
+        bundle: {
+          url: 'https://pages.example.com/language-data/language-es-package-v1.tar.gz',
+          sizeBytes: 456,
+        },
+        assets: [
+          expect.objectContaining({
+            id: 'dictionary',
+            path: 'dictionaries/es/dictionary.db',
+          }),
+        ],
+      },
+    });
+  });
+
+  it('keeps bundled language data when the remote catalog is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+    }));
+
+    const langData = await mod.loadLanguageCatalogData({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/catalog/languages.json',
+    });
+
+    expect(langData['ja']).toBeDefined();
+  });
+});
+
 describe('setupSettingsIPC', () => {
   it('registers listener for GET_SETTINGS channel', () => {
     mod.setupSettingsIPC();
@@ -416,28 +627,57 @@ describe('SAVE_SETTINGS IPC handler', () => {
 });
 
 describe('GET_LANG_DATA IPC handler', () => {
-  it('replies with lang data on GET_LANG_DATA', () => {
+  it('replies with lang data on GET_LANG_DATA', async () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('get-lang-data') ?? [];
     const event = makeEvent();
-    for (const h of handlers) h(event);
+    for (const h of handlers) await h(event);
     expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({ ja: expect.any(Object) }));
   });
 
-  it('replies with lang data loaded from custom languages directory', () => {
+  it('replies with lang data loaded from custom languages directory', async () => {
     const langsDir = path.join(tempDir.tmpDir, 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(path.join(langsDir, 'zz.json'), JSON.stringify({ name: 'TestLang' }), 'utf-8');
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('get-lang-data') ?? [];
     const event = makeEvent();
-    for (const h of handlers) h(event);
+    for (const h of handlers) await h(event);
     expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({ zz: expect.any(Object) }));
+  });
+
+  it('includes languages from the configured remote catalog', async () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    }), 'utf-8');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          it: {
+            name: 'Italian',
+            translatable: [],
+            colour_codes: {},
+            fixed_settings: {},
+          },
+        },
+      }),
+    }));
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('get-lang-data') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) await h(event);
+
+    expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({
+      it: expect.objectContaining({ name: 'Italian' }),
+    }));
   });
 });
 
 describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
-  it('replies with install status for every language', () => {
+  it('replies with install status for every language', async () => {
     const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
     const installedDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
@@ -467,7 +707,7 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('get-language-data-catalog') ?? [];
     const event = makeEvent();
-    for (const h of handlers) h(event);
+    for (const h of handlers) await h(event);
 
     expect(event.reply).toHaveBeenCalledWith('language-data-catalog', [
       expect.objectContaining({
