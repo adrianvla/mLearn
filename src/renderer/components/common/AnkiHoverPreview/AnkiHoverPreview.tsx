@@ -1,4 +1,4 @@
-import { Component, Show, JSX, createMemo } from 'solid-js';
+import { Component, Show, JSX, createMemo, splitProps } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { dueDateToString } from '../../../services/srsAlgorithm';
 import { Tooltip } from '../Tooltip';
@@ -92,15 +92,15 @@ export const AnkiHoverPreviewContent: Component<AnkiHoverPreviewContentProps> = 
 };
 
 export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
-  const { children, onShow, position, class: className, ...contentProps } = props;
+  const [local, contentProps] = splitProps(props, ['children', 'onShow', 'position', 'class']);
 
   return (
     <Tooltip
       content={<AnkiHoverPreviewContent {...contentProps} />}
-      onShow={onShow}
-      position={position}
+      onShow={local.onShow}
+      position={local.position}
     >
-      <span class={className}>{children}</span>
+      <span class={local.class}>{local.children}</span>
     </Tooltip>
   );
 };

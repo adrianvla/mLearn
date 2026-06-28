@@ -101,6 +101,8 @@ export interface WordEntry {
   ignoredAt?: number;
   /** Additional readings for words that have multiple independent senses */
   alternateReadings?: string[];
+  /** Expression that matched the Anki cache, if it differs from the displayed dictionary word. */
+  ankiLookupWord?: string;
 }
 
 export interface WordEntryRowProps {
@@ -188,6 +190,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
 
   createEffect(() => {
     props.entry.word;
+    props.entry.ankiLookupWord;
     props.entry.tracker;
     ankiHoverFetched = false;
     setAnkiHoverCard(null);
@@ -202,7 +205,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     setAnkiHoverLoading(true);
     try {
       const { getBackend } = await import('../../../../shared/backends');
-      const result = await getBackend().getCard({ word: props.entry.word }) as {
+      const lookupWord = props.entry.ankiLookupWord || props.entry.word;
+      const result = await getBackend().getCard({ word: lookupWord }) as {
         cards: Array<{
           fields: AnkiCardFields;
           factor?: number;
