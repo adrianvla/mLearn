@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import { Settings, DEFAULT_SETTINGS, LanguageCatalogEntry, LanguageCatalogManifest, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap } from '../../shared/types';
+import { Settings, DEFAULT_SETTINGS, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap } from '../../shared/types';
 import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
 import { setUILanguage } from './localization';
 import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus } from './languageDataService';
@@ -163,119 +163,90 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function mergeLanguageData(base: LanguageDataMap, overlay: LanguageDataMap): LanguageDataMap {
-  const merged: LanguageDataMap = { ...base };
-  for (const [language, metadata] of Object.entries(overlay)) {
-    merged[language] = {
-      ...(merged[language] ?? {}),
-      ...metadata,
-      languageData: metadata.languageData ?? merged[language]?.languageData,
-      freq: metadata.freq ?? merged[language]?.freq,
-      grammar: metadata.grammar ?? merged[language]?.grammar,
-    } as LanguageData;
+function normalizeCatalogAsset(value: unknown): LanguageDataAsset | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.path !== 'string') {
+    return null;
   }
-  return merged;
-}
-
-function normalizeRemoteAsset(asset: LanguageDataAsset, catalogUrl: string): LanguageDataAsset {
-  const assetUrl = asset.url ?? asset.href;
-  if (!assetUrl) {
-    return asset;
-  }
-
   return {
-    ...asset,
-    url: new URL(assetUrl, catalogUrl).toString(),
+    id: value.id,
+    path: value.path,
+    bundledPath: typeof value.bundledPath === 'string' ? value.bundledPath : undefined,
+    url: typeof value.url === 'string' ? value.url : undefined,
+    href: typeof value.href === 'string' ? value.href : undefined,
+    sizeBytes: typeof value.sizeBytes === 'number' ? value.sizeBytes : undefined,
+    sha256: typeof value.sha256 === 'string' ? value.sha256 : undefined,
+    required: typeof value.required === 'boolean' ? value.required : undefined,
   };
 }
 
-function normalizeRemoteBundle(bundle: LanguageDataBundle | undefined, catalogUrl: string): LanguageDataBundle | undefined {
+function normalizeCatalogBundle(value: unknown, catalogUrl: string): LanguageDataBundle | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const bundle: LanguageDataBundle = {
+    sizeBytes: typeof value.sizeBytes === 'number' ? value.sizeBytes : undefined,
+    sha256: typeof value.sha256 === 'string' ? value.sha256 : undefined,
+  };
+  if (typeof value.href === 'string') {
+    bundle.href = value.href;
+  }
+  if (typeof value.url === 'string') {
+    bundle.url = new URL(value.url, catalogUrl).toString();
+  } else if (typeof value.href === 'string') {
+    bundle.url = new URL(value.href, catalogUrl).toString();
+  }
+  return bundle;
+}
+
+function normalizeCatalogEntry(language: string, value: unknown, catalogUrl: string): LanguageCatalogEntry | null {
+  if (!isRecord(value) || !isRecord(value.bundle) || !Array.isArray(value.files)) {
+    return null;
+  }
+  const bundle = normalizeCatalogBundle(value.bundle, catalogUrl);
   if (!bundle) {
-    return undefined;
+    return null;
   }
-  const bundleUrl = bundle.url ?? bundle.href;
-  if (!bundleUrl) {
-    return bundle;
-  }
+  const files = value.files
+    .map((asset) => normalizeCatalogAsset(asset))
+    .filter((asset): asset is LanguageDataAsset => asset !== null);
   return {
-    ...bundle,
-    url: new URL(bundleUrl, catalogUrl).toString(),
+    name: typeof value.name === 'string' ? value.name : language,
+    nameTranslated: typeof value.nameTranslated === 'string' ? value.nameTranslated : undefined,
+    version: typeof value.version === 'string' ? value.version : `${language}-v1`,
+    bundle,
+    files,
   };
 }
 
-function normalizeRemoteLanguageData(langData: LanguageDataMap, catalogUrl: string): LanguageDataMap {
-  const normalized: LanguageDataMap = {};
-  for (const [language, metadata] of Object.entries(langData)) {
-    normalized[language] = {
-      ...metadata,
-      languageData: metadata.languageData
-        ? {
-          ...metadata.languageData,
-          bundle: normalizeRemoteBundle(metadata.languageData.bundle, catalogUrl),
-          assets: metadata.languageData.assets.map((asset) => normalizeRemoteAsset(asset, catalogUrl)),
-        }
-        : undefined,
-    };
-  }
-  return normalized;
-}
-
-function parseLanguageCatalogManifest(value: unknown): LanguageCatalogManifest | null {
-  if (!isRecord(value) || !isRecord(value.languages)) {
-    return null;
-  }
-
-  const languages: LanguageCatalogManifest['languages'] = {};
-  for (const [language, metadata] of Object.entries(value.languages)) {
-    if (typeof metadata === 'string') {
-      languages[language] = metadata;
-      continue;
-    }
-    if (!isRecord(metadata)) {
-      continue;
-    }
-    if (typeof metadata.name === 'string' || typeof metadata.url === 'string' || typeof metadata.href === 'string' || isRecord(metadata.bundle)) {
-      languages[language] = metadata as unknown as LanguageData | LanguageCatalogEntry;
-    }
-  }
-
-  return { languages };
-}
-
-function getLanguageManifestUrl(entry: LanguageCatalogEntry | string, catalogUrl: string): string | null {
-  const manifestUrl = typeof entry === 'string' ? entry : entry.url ?? entry.href;
-  if (!manifestUrl) {
-    return null;
-  }
-  return new URL(manifestUrl, catalogUrl).toString();
-}
-
-function isLanguageData(value: unknown): value is LanguageData {
-  return isRecord(value) && typeof value.name === 'string';
-}
-
-function isBundledCatalogEntry(value: unknown): value is LanguageCatalogEntry {
-  return isRecord(value) && isRecord(value.bundle);
-}
-
-function languageDataFromCatalogEntry(
-  language: string,
-  entry: LanguageCatalogEntry,
-  catalogUrl: string,
-): LanguageData {
-  const assets = Array.isArray(entry.files) ? entry.files.map((asset) => normalizeRemoteAsset(asset, catalogUrl)) : [];
+function languageDataFromCatalogEntry(entry: LanguageCatalogEntry): LanguageData {
   return {
-    name: entry.name ?? language,
+    name: entry.name,
     name_translated: entry.nameTranslated,
     translatable: [],
     colour_codes: {},
     fixed_settings: {},
     languageData: {
       version: entry.version,
-      bundle: normalizeRemoteBundle(entry.bundle, catalogUrl),
-      assets,
+      bundle: entry.bundle,
+      assets: entry.files,
     },
   };
+}
+
+function parseLanguageCatalogManifest(value: unknown, catalogUrl: string): LanguageDataMap | null {
+  if (!isRecord(value) || !isRecord(value.languages)) {
+    return null;
+  }
+
+  const languages: LanguageDataMap = {};
+  for (const [language, metadata] of Object.entries(value.languages)) {
+    const entry = normalizeCatalogEntry(language, metadata, catalogUrl);
+    if (entry) {
+      languages[language] = languageDataFromCatalogEntry(entry);
+    }
+  }
+
+  return languages;
 }
 
 async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
@@ -289,72 +260,36 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
   return response.json();
 }
 
-async function loadRemoteLanguageEntry(
-  language: string,
-  entry: LanguageCatalogManifest['languages'][string],
-  catalogUrl: string,
-  signal: AbortSignal,
-): Promise<[string, LanguageData] | null> {
-  if (isLanguageData(entry)) {
-    if (isBundledCatalogEntry(entry) && !entry.languageData) {
-      return [language, languageDataFromCatalogEntry(language, entry as LanguageCatalogEntry, catalogUrl)];
-    }
-    return [language, normalizeRemoteLanguageData({ [language]: entry }, catalogUrl)[language]];
-  }
-
-  if (typeof entry !== 'string' && !isRecord(entry)) {
-    return null;
-  }
-
-  if (isBundledCatalogEntry(entry)) {
-    return [language, languageDataFromCatalogEntry(language, entry as LanguageCatalogEntry, catalogUrl)];
-  }
-
-  const manifestUrl = getLanguageManifestUrl(entry as LanguageCatalogEntry | string, catalogUrl);
-  if (!manifestUrl) {
-    return null;
-  }
-
-  const manifest = await fetchJson(manifestUrl, signal);
-  if (!isLanguageData(manifest)) {
-    throw new Error(`Language manifest is invalid for ${language}`);
-  }
-  return [language, normalizeRemoteLanguageData({ [language]: manifest }, manifestUrl)[language]];
-}
-
 async function fetchRemoteLanguageCatalog(catalogUrl: string): Promise<LanguageDataMap> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LANGUAGE_CATALOG_FETCH_TIMEOUT_MS);
   try {
-    const manifest = parseLanguageCatalogManifest(await fetchJson(catalogUrl, controller.signal));
+    const manifest = parseLanguageCatalogManifest(await fetchJson(catalogUrl, controller.signal), catalogUrl);
     if (!manifest) {
       throw new Error('Language catalog manifest is invalid');
     }
-    const entries = await Promise.all(
-      Object.entries(manifest.languages).map(([language, entry]) => (
-        loadRemoteLanguageEntry(language, entry, catalogUrl, controller.signal)
-      )),
-    );
-    return Object.fromEntries(entries.filter((entry): entry is [string, LanguageData] => entry !== null));
+    return manifest;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export async function loadLanguageCatalogData(settings: Settings = loadSettings()): Promise<LanguageDataMap> {
-  const localData = loadLangData();
+export async function loadLanguagePackageCatalog(settings: Settings = loadSettings()): Promise<LanguageDataMap> {
   const catalogUrl = settings.languageCatalogUrl?.trim();
   if (!catalogUrl) {
-    return localData;
+    return {};
   }
 
   try {
-    const remoteData = await fetchRemoteLanguageCatalog(catalogUrl);
-    return mergeLanguageData(localData, remoteData);
+    return await fetchRemoteLanguageCatalog(catalogUrl);
   } catch (error) {
     log.warn('Failed to load remote language catalog:', error);
-    return localData;
+    return {};
   }
+}
+
+export async function loadLanguageCatalogData(_settings: Settings = loadSettings()): Promise<LanguageDataMap> {
+  return loadLangData();
 }
 
 function getDefaultLangData(): LanguageDataMap {
@@ -436,20 +371,20 @@ export function setupSettingsIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.GET_LANG_DATA, async (event) => {
-    const langData = await loadLanguageCatalogData();
+    const langData = loadLangData();
     event.reply(IPC_CHANNELS.LANG_DATA, langData);
   });
 
   ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, async (event) => {
-    const langData = await loadLanguageCatalogData();
+    const langData = await loadLanguagePackageCatalog();
     event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData));
   });
 
   ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string) => {
     try {
-      const langData = await loadLanguageCatalogData();
+      const langData = await loadLanguagePackageCatalog();
       await ensureLanguageDataInstalled(language, langData);
-      const catalog = getLanguageDataCatalogStatus(await loadLanguageCatalogData());
+      const catalog = getLanguageDataCatalogStatus(await loadLanguagePackageCatalog());
       const installedStatus = catalog.find((status) => status.language === language);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);

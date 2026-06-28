@@ -270,6 +270,11 @@
       "DesktopCode": "桌面一次性代码",
       "HintLocal": "使用本机上的本地 Python 后端。",
       "HintTethered": "连接到您桌面上运行的 Python 后端。",
+      "LanguageCatalog": {
+        "Description": "可下载语言元数据和资源链接的清单 URL。",
+        "Title": "语言目录",
+        "Url": "目录 URL"
+      },
       "Mode": "模式",
       "ModeLocal": "本地",
       "ModeTethered": "绑定模式",

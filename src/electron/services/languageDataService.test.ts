@@ -142,33 +142,11 @@ describe('languageDataService', () => {
     expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
   });
 
-  it('copies bundled development assets into userData on demand', async () => {
-    const bundled = path.join(tempDir.tmpDir, 'resources', 'root-of-app', 'dictionaries', 'zz', 'dictionary.db');
-    fs.mkdirSync(path.dirname(bundled), { recursive: true });
-    fs.writeFileSync(bundled, 'sqlite bytes');
-
-    await mod.ensureLanguageDataInstalled('zz', makeLangData());
-
-    const installed = path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db');
-    expect(fs.readFileSync(installed, 'utf-8')).toBe('sqlite bytes');
-    expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
-  });
-
-  it('downloads assets when no bundled source exists', async () => {
-    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
-      fs.mkdirSync(path.dirname(destPath), { recursive: true });
-      fs.writeFileSync(destPath, 'downloaded bytes');
-    });
-
-    await mod.ensureLanguageDataInstalled('zz', makeLangData());
-
-    const installed = path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db');
-    expect(fs.readFileSync(installed, 'utf-8')).toBe('downloaded bytes');
-    expect(mockDownloadFileWithProgress).toHaveBeenCalledWith(
-      'https://example.com/language-data/zz/dictionary.db',
-      installed,
-      undefined,
+  it('rejects missing required assets when the package catalog has no bundle', async () => {
+    await expect(mod.ensureLanguageDataInstalled('zz', makeLangData())).rejects.toThrow(
+      'No language data bundle is available for zz',
     );
+    expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
   });
 
   it('downloads and extracts a verified language bundle archive', async () => {
