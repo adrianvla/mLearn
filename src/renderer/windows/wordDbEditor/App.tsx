@@ -256,7 +256,7 @@ export const WordDbEditorContent: Component = () => {
         const uuid = word; // Use word as UUID for consistency
         const status = knowledgeStatusToNumeric(word);
         const isTracked = hasWordSync(word);
-        const inAnki = !!findAnkiWordMatchInCache(getWordForms(word));
+        const ankiMatch = findAnkiWordMatchInCache(getWordForms(word));
         const comprehensive = getComprehensiveWordStatusWithSourceSync(word);
 
         wordEntries.push({
@@ -265,10 +265,11 @@ export const WordDbEditorContent: Component = () => {
           translation: '', // Would need API call to get translation
           reading: freqEntry.reading || '',
           level: freqEntry.raw_level ?? -1,
-          tracker: isTracked ? 'flashcards' : inAnki ? 'anki' : 'nothing',
+          tracker: isTracked ? 'flashcards' : ankiMatch ? 'anki' : 'nothing',
           status,
           knowledgeSource: comprehensive.source,
           alternateReadings: freqEntry.alternateReadings,
+          ankiLookupWord: ankiMatch?.word,
         });
 
         // Update progress every 100 words
@@ -671,7 +672,7 @@ export const WordDbEditorContent: Component = () => {
           {/* Anki Card Preview Modal */}
           <Show when={ankiPreviewOpen() && ankiPreviewEntry()}>
             <AnkiCardPreviewModal
-                word={ankiPreviewEntry()!.word}
+                word={ankiPreviewEntry()!.ankiLookupWord || ankiPreviewEntry()!.word}
                 isOpen={ankiPreviewOpen()}
                 onClose={() => {
                   setAnkiPreviewOpen(false);

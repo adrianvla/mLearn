@@ -72,7 +72,7 @@ vi.mock('../../../components/common/Smart', () => ({
   WordStatusPill: () => <span data-testid="word-status-pill" />,
 }));
 
-function makeEntry(word: string): WordEntry {
+function makeEntry(word: string, overrides: Partial<WordEntry> = {}): WordEntry {
   return {
     uuid: word,
     word,
@@ -81,6 +81,7 @@ function makeEntry(word: string): WordEntry {
     level: 0,
     tracker: 'anki',
     status: 0,
+    ...overrides,
   };
 }
 
@@ -164,6 +165,35 @@ describe('WordEntryRow', () => {
     expect(mockGetCard).toHaveBeenCalledTimes(2);
     expect(mockGetCard).toHaveBeenLastCalledWith({ word: '明るい' });
     expect(container.querySelector('[data-testid="anki-hover-content"]')?.textContent).toBe('明るい');
+
+    dispose();
+  });
+
+  it('uses the matched Anki expression for hover card lookup', async () => {
+    mockGetCard.mockResolvedValue({
+      error: false,
+      poor: false,
+      cards: [{ fields: { Expression: { value: '会う', order: 0 } } }],
+    });
+    const { WordEntryRow } = await import('./WordEntryRow');
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('逢う', { ankiLookupWord: '会う' })}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="anki-hover-trigger"]');
+    expect(trigger).not.toBeNull();
+    trigger!.click();
+    await flushAsync();
+
+    expect(mockGetCard).toHaveBeenCalledWith({ word: '会う' });
+    expect(container.querySelector('[data-testid="anki-hover-content"]')?.textContent).toBe('会う');
 
     dispose();
   });
