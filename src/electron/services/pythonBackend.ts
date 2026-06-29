@@ -22,8 +22,8 @@ import {
   getPythonDownloadUrl,
   isWindows 
 } from '../utils/platform';
-import { loadLanguagePackageCatalog, loadSettings } from './settings';
-import { ensureLanguageDataInstalled, getLanguageDataRoot } from './languageDataService';
+import { hasSettingsFile, loadLanguagePackageCatalog, loadSettings } from './settings';
+import { ensureLanguageDataInstalled, getLanguageDataRoot, resolveDictionaryTargetLanguage } from './languageDataService';
 import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
 
@@ -695,6 +695,7 @@ async function pythonFound(): Promise<boolean> {
   if (isFirstTimeSetup) return false;
 
   const settings = loadSettings();
+  let activeDictionaryTargetLanguage: string | undefined;
   const pythonExecutable = resolvePythonExecutablePath();
   const serverPath = resolveExternalResourceFilePath('server.py');
 
@@ -703,13 +704,30 @@ async function pythonFound(): Promise<boolean> {
 
   try {
     sendStatusUpdate(`Preparing ${settings.language} language data...`);
-    await ensureLanguageDataInstalled(settings.language, await loadLanguagePackageCatalog(settings), (progress) => {
+    const languagePackageCatalog = await loadLanguagePackageCatalog(settings);
+    await ensureLanguageDataInstalled(settings.language, languagePackageCatalog, (progress) => {
       if (progress.expectedBytes > 0) {
         sendStatusUpdate(
           `Downloading ${settings.language} language data: ${Math.round(progress.progress * 100)}%`
         );
       }
     });
+    const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(
+      settings.language,
+      languagePackageCatalog,
+      settings.dictionaryTargetLanguages?.[settings.language],
+    );
+    activeDictionaryTargetLanguage = dictionaryTargetLanguage;
+    if (dictionaryTargetLanguage) {
+      sendStatusUpdate(`Preparing ${settings.language}->${dictionaryTargetLanguage} dictionary data...`);
+      await ensureLanguageDataInstalled(settings.language, languagePackageCatalog, (progress) => {
+        if (progress.expectedBytes > 0) {
+          sendStatusUpdate(
+            `Downloading ${settings.language}->${dictionaryTargetLanguage} dictionary data: ${Math.round(progress.progress * 100)}%`
+          );
+        }
+      }, dictionaryTargetLanguage);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const errorMsg = `Failed to prepare language data for ${settings.language}: ${message}`;
@@ -867,7 +885,12 @@ async function pythonFound(): Promise<boolean> {
       ...args.map(a => a.includes(' ') ? `"${a}"` : a),
     ].join(' ');
 
-    pythonChildProcess = exec(command);
+    pythonChildProcess = exec(command, {
+      env: {
+        ...process.env,
+        ...(activeDictionaryTargetLanguage ? { MLEARN_DICTIONARY_TARGET_LANGUAGE: activeDictionaryTargetLanguage } : {}),
+      },
+    });
   } else {
     // Raise the per-process FD limit before exec-ing Python.
     // ML libs (torch, transformers, ONNX) open thousands of files;
@@ -877,7 +900,10 @@ async function pythonFound(): Promise<boolean> {
       '-c',
       `ulimit -n 65536 2>/dev/null; exec env '${pythonExecutable}' ${quotedArgs}`,
     ], {
-      env: process.env,
+      env: {
+        ...process.env,
+        ...(activeDictionaryTargetLanguage ? { MLEARN_DICTIONARY_TARGET_LANGUAGE: activeDictionaryTargetLanguage } : {}),
+      },
     });
   }
 
@@ -932,24 +958,28 @@ export async function findPython(): Promise<boolean> {
       if (healthy) {
         log.info('Python found and healthy at:', pythonPath);
 
-        // Only enforce version check for Python installed in userData path
-        // (persistent across app updates). Dev Python in project resources
-        // doesn't have version tracking.
+        // UserData Python persists across binary updates. Existing profiles should
+        // keep using a healthy runtime instead of being sent back through onboarding.
         if (pythonPath.startsWith(userDataPath)) {
           const installedVersion = getInstalledPythonVersion();
           const currentVersion = app.getVersion();
           if (installedVersion !== currentVersion) {
-            log.info(`Python was installed with version ${installedVersion ?? 'unknown'}, current app version is ${currentVersion}. Showing installer for update/reinstall.`);
-            try { fs.unlinkSync(pythonVersionPath); } catch {}
-            waitingForInstallChoice = true;
-            isFirstTimeSetup = true;
-            sendStatusUpdate('Select the components you want and click Install to continue.');
-            try {
-              getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
-            } catch (e) {
-              log.error('error', e);
+            if (hasSettingsFile()) {
+              log.info(`Python was installed with version ${installedVersion ?? 'unknown'}, current app version is ${currentVersion}. Reusing healthy runtime for existing profile.`);
+              setInstalledPythonVersion(currentVersion);
+            } else {
+              log.info(`Python was installed with version ${installedVersion ?? 'unknown'}, current app version is ${currentVersion}. Showing installer for update/reinstall.`);
+              try { fs.unlinkSync(pythonVersionPath); } catch {}
+              waitingForInstallChoice = true;
+              isFirstTimeSetup = true;
+              sendStatusUpdate('Select the components you want and click Install to continue.');
+              try {
+                getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+              } catch (e) {
+                log.error('error', e);
+              }
+              return false;
             }
-            return false;
           }
         }
 

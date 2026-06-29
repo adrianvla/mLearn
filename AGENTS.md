@@ -61,7 +61,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 ```bash
 npm run dev              # Vite (3000) + Electron concurrent
 npm run typecheck        # CRITICAL: both tsconfigs before commit
-npm run build            # Production build (runs prebuild → german-dict + clean-cache)
+npm run build            # Production build (runs prebuild → clean-cache)
 npm run bundle:preload   # esbuild preload.js with --external:electron
 npm run dist:mac         # Package macOS
 npm run dist:win         # Package Windows
@@ -86,7 +86,7 @@ npm run build:extension  # ⚠️ macOS-only (uses sed -i '')
 - Python backend bundled via `electron-builder` `extraResources` to `resources/root-of-app/`.
 - Python environment in dev is at `./dist-electron/env/`.
 - Python deps are declared in `src/root-of-app/pip_requirements.json` (grouped: core, ocr, llm, voice, qwen3-tts), not a standard `requirements.txt`.
-- `prebuild` automatically runs `clean:dist-electron-cache` and `build:german-dict` (via `python3 src/root-of-app/languages/de/build_dict.py`).
+- Dictionary build and language-data packaging scripts live in `~/Desktop/projects/mlearn-website`; the app consumes the generated language catalog.
 - Custom protocols: `flashcard-image://`, `flashcard-audio://`, `local-media://`.
 - Tethered mode: desktop web server on 7753 proxies Python calls for browser/mobile and provides REST sync API.
 - LLM routing: `builtin` (node-llama-cpp in main) / `ollama` / `cloud` (HTTP). Mobile uses `CloudLLMAdapter` directly.

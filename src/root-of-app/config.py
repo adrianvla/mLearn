@@ -58,12 +58,12 @@ def _load_language_module(language_module, resource_path: str, language_data_pat
         load_module(resource_path)
 
 
-def _language_module_search_paths(user_data_path: str) -> list[str]:
-    paths = []
-    if user_data_path:
-        paths.append(os.path.join(user_data_path, "languages"))
-    paths.append(os.path.join(ROOT_OF_APP_DIR, "languages"))
-    return paths
+def _language_module_search_paths(language_data_path: str) -> list[str]:
+    return [os.path.join(language_data_path, "languages")]
+
+
+def _language_metadata_path(language_data_path: str, language: str) -> str:
+    return os.path.join(language_data_path, "languages", f"{language}.json")
 
 
 def _raise_fd_limit():
@@ -160,10 +160,10 @@ def init():
     log.info(f"LLM allowed: {LLM_ALLOWED}")
     log.info(f"OCR allowed: {OCR_ALLOWED}")
 
-    LANGUAGE_DIR_PATH = os.path.join(ROOT_OF_APP_DIR, "languages")
+    LANGUAGE_DIR_PATH = os.path.join(LANGUAGE_DATA_PATH, "languages")
 
-    # Read language-specific config from the JSON file next to the .py module.
-    _lang_json_path = os.path.join(LANGUAGE_DIR_PATH, f"{LANGUAGE}.json")
+    # Read language-specific config from installed on-demand language data.
+    _lang_json_path = _language_metadata_path(LANGUAGE_DATA_PATH, LANGUAGE)
     if os.path.isfile(_lang_json_path):
         try:
             with open(_lang_json_path, "r", encoding="utf-8") as _lf:
@@ -176,8 +176,8 @@ def init():
     log.info(f"Supports vertical text: {SUPPORTS_VERTICAL_TEXT}")
     log.info(f"Language dir path:  {LANGUAGE_DIR_PATH}")
 
-    # Load and register built-in language module
-    for language_path in reversed(_language_module_search_paths(USER_DATA_PATH)):
+    # Load and register the installed on-demand language module.
+    for language_path in reversed(_language_module_search_paths(LANGUAGE_DATA_PATH)):
         if os.path.isdir(language_path) and language_path not in sys.path:
             sys.path.insert(0, language_path)
     _lang_mod = importlib.import_module(LANGUAGE)

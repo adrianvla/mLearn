@@ -302,10 +302,10 @@ describe('LanguageContext - provider behavior', () => {
     const { ctx, dispose } = await mountProvider();
     languageDataInstallErrorCb({ language: 'de', error: 'previous failure' });
 
-    ctx.installLanguageData('ja');
+    ctx.installLanguageData('ja', 'fr');
 
     expect(ctx.languageDataInstallError()).toBeNull();
-    expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja');
+    expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja', 'fr');
     dispose();
   });
 

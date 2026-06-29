@@ -16,6 +16,8 @@ from sudachipy import dictionary as sudachi_dictionary
 DICTIONARY_DIRNAME = "ja"
 DB_FILENAME = "dictionary.db"
 SCHEMA_VERSION = "1"
+DEFAULT_DICTIONARY_TARGET_LANGUAGE = "en"
+DICTIONARY_TARGET_ENV = "MLEARN_DICTIONARY_TARGET_LANGUAGE"
 ENTRY_CACHE_SIZE = 4096
 READING_CACHE_SIZE = 4096
 PITCH_CACHE_SIZE = 2048
@@ -98,8 +100,20 @@ def LANGUAGE_TOKENIZE(text):
     return token_list
 
 
+def _dictionary_target_language() -> str:
+    target = os.environ.get(DICTIONARY_TARGET_ENV, DEFAULT_DICTIONARY_TARGET_LANGUAGE)
+    target = re.sub(r"[^a-zA-Z0-9_-]+", "", target).lower()
+    return target or DEFAULT_DICTIONARY_TARGET_LANGUAGE
+
+
 def _db_path(language_data_dir: Path) -> Path:
-    return language_data_dir / "dictionaries" / DICTIONARY_DIRNAME / DB_FILENAME
+    target = _dictionary_target_language()
+    target_path = language_data_dir / "dictionaries" / DICTIONARY_DIRNAME / target / DB_FILENAME
+    if target_path.is_file():
+        return target_path
+    if target == DEFAULT_DICTIONARY_TARGET_LANGUAGE:
+        return language_data_dir / "dictionaries" / DICTIONARY_DIRNAME / DB_FILENAME
+    return target_path
 
 
 def _deserialize_entry(blob: bytes):

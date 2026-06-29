@@ -131,6 +131,8 @@ export interface Settings {
   language: string;
 
   // Dictionary settings
+  /** Preferred definition/gloss language per learning language, e.g. { ja: "fr" }. */
+  dictionaryTargetLanguages: Record<string, string>;
   hover_known_get_from_dictionary: boolean;
   show_pos: boolean;
   furigana: boolean;
@@ -444,6 +446,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showDictionary: true,
   show_pos: true,
   language: 'ja',
+  dictionaryTargetLanguages: {},
   use_anki: false,
   flashcardSkipAnkiChoice: false,
   skipAnkiDuplicateWarning: false,
@@ -627,6 +630,19 @@ export interface LanguageDataBundle {
   sha256?: string;
 }
 
+export interface LanguageDictionaryPack {
+  /** Definition/gloss language for this dictionary pack, e.g. "en", "fr", "de". */
+  targetLanguage: string;
+  /** Human-readable target language name shown in setup/settings. */
+  name: string;
+  /** Dictionary payload version independent from app version. */
+  version?: string;
+  /** Optional archive containing all files listed in assets. */
+  bundle?: LanguageDataBundle;
+  /** Files needed by this dictionary pack, installed on demand into userData. */
+  assets: LanguageDataAsset[];
+}
+
 export interface LanguageDataManifest {
   /** Data payload version independent from app version. */
   version?: string;
@@ -636,6 +652,8 @@ export interface LanguageDataManifest {
   bundle?: LanguageDataBundle;
   /** Files needed by this language, installed on demand into userData. */
   assets: LanguageDataAsset[];
+  /** Optional dictionary payloads keyed by definition/gloss language. */
+  dictionaryPacks?: Record<string, LanguageDictionaryPack>;
 }
 
 export interface LanguageData {
@@ -688,6 +706,7 @@ export interface LanguageCatalogEntry {
   version: string;
   bundle: LanguageDataBundle;
   files: LanguageDataAsset[];
+  dictionaryPacks?: Record<string, LanguageDictionaryPack>;
 }
 
 export interface LanguageCatalogManifest {
@@ -710,6 +729,21 @@ export interface LanguageDataCatalogStatus {
     path: string;
     installed: boolean;
     sizeBytes?: number;
+  }>;
+  dictionaryPacks?: Array<{
+    targetLanguage: string;
+    name: string;
+    version?: string;
+    installed: boolean;
+    totalBytes: number;
+    installedBytes: number;
+    missingRequiredAssets: string[];
+    assets: Array<{
+      id: string;
+      path: string;
+      installed: boolean;
+      sizeBytes?: number;
+    }>;
   }>;
 }
 

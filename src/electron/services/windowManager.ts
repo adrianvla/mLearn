@@ -15,6 +15,7 @@ import { queueCommand } from './webServer';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
+let welcomeWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let currentWindow: BrowserWindow | null = null;
 const childWindows: Map<string, BrowserWindow> = new Map();
@@ -43,6 +44,11 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function getCurrentWindow(): BrowserWindow | null {
   return currentWindow;
+}
+
+function focusWindow(window: BrowserWindow): void {
+  if (window.isDestroyed()) return;
+  window.focus();
 }
 
 export function getOverlayWindow(): BrowserWindow | null {
@@ -254,6 +260,20 @@ function openSettingsWindow(section?: string): BrowserWindow {
 
 // Create the main window
 export function createMainWindow(): BrowserWindow {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    focusWindow(mainWindow);
+    return mainWindow;
+  }
+
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+    const closingWelcomeWindow = welcomeWindow;
+    welcomeWindow = null;
+    if (currentWindow === closingWelcomeWindow) {
+      currentWindow = null;
+    }
+    closingWelcomeWindow.close();
+  }
+
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: 1200,
     height: 700,
@@ -289,8 +309,11 @@ export function createMainWindow(): BrowserWindow {
   });
 
   mainWindow.on('closed', () => {
+    const closedWindow = mainWindow;
     mainWindow = null;
-    currentWindow = null;
+    if (currentWindow === closedWindow) {
+      currentWindow = null;
+    }
   });
 
   setupAppMenu();
@@ -300,7 +323,12 @@ export function createMainWindow(): BrowserWindow {
 
 // Create welcome/installer window
 export function createWelcomeWindow(): BrowserWindow {
-  const welcomeWindow = new BrowserWindow({
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+    focusWindow(welcomeWindow);
+    return welcomeWindow;
+  }
+
+  welcomeWindow = new BrowserWindow({
     width: 800,
     height: 900,
     webPreferences: {
@@ -321,6 +349,13 @@ export function createWelcomeWindow(): BrowserWindow {
   } else {
     welcomeWindow.loadFile(getWindowHtmlPath('welcome'));
   }
+
+  welcomeWindow.on('closed', () => {
+    if (currentWindow === welcomeWindow) {
+      currentWindow = null;
+    }
+    welcomeWindow = null;
+  });
 
   return welcomeWindow;
 }

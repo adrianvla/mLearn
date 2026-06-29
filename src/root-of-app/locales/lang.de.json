@@ -1018,7 +1018,9 @@
         "Installing": "Installiere...",
         "StartInstallation": "Installation starten",
         "CancelInstall": "Cancel Installation",
-        "CancelRestart": "Cancel Restart"
+        "CancelRestart": "Cancel Restart",
+        "InstallLanguageData": "Ausgewählte Sprachdaten installieren",
+        "FinishSetup": "Einrichtung abschließen"
       },
       "Components": {
         "ExplainAi": {
@@ -1035,11 +1037,16 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "Wählen Sie Ihre Sprache und Komponenten und klicken Sie auf Installieren.",
+        "ChooseComponents": "Wählen Sie, was Sie lernen möchten und welche Sprache mLearn verwenden soll.",
         "ClickToBegin": "Klicken Sie auf Installieren, um zu beginnen.",
         "DownloadNote": "Alle Downloads werden automatisch verarbeitet. Eine stabile Verbindung wird empfohlen.",
         "ForgetSomething": "Falls Sie etwas vergessen haben zu installieren, löschen Sie mLearn und starten Sie das Installationsprogramm neu.",
-        "LanguageUnlocks": "Während der Einrichtung werden nur die Daten der ausgewählten Sprache heruntergeladen."
+        "LanguageUnlocks": "Sprachdaten werden erst installiert, wenn Sie es ausdrücklich starten."
+      },
+      "DictionaryTarget": {
+        "Label": "Wörterbuchsprache",
+        "ChooseAvailable": "Verfügbare Wörterbuchsprache auswählen",
+        "Unavailable": "Für diese Lernsprache ist kein Wörterbuch auf {language} verfügbar. Wählen Sie eine verfügbare Wörterbuchsprache: {available}."
       },
       "Status": {
         "Complete": "Installation abgeschlossen! Fahren Sie fort, um die Daten der ausgewählten Sprache zu installieren.",
@@ -1059,6 +1066,21 @@
         "AlreadySatisfied": "Bereits erfüllt",
         "Collecting": "Abhängigkeiten werden gesammelt…",
         "Downloading": "Wird heruntergeladen…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "Ich möchte lernen",
+        "AppLanguagePrefix": "mit mLearn auf",
+        "AppLanguageSuffix": ".",
+        "DictionaryPrefix": "Wörterbuchdefinitionen sollen sein auf"
+      },
+      "Advanced": {
+        "Title": "Erweitert"
+      },
+      "Summary": {
+        "LearningLanguage": "Lernsprache: {language}",
+        "DisplayLanguage": "Anzeigesprache: {language}",
+        "DictionaryLanguage": "Wörterbuchsprache: {language}",
+        "NotAvailable": "nicht verfügbar"
       }
     },
     "ExamCentricStudy": {
@@ -1332,9 +1354,9 @@
           "Label": "Theme",
           "Light": "Hell",
           "LightHighContrast": "Hell hoher Kontrast",
-      "Custom": "Benutzerdefiniert",
-      "CustomCssDescription": "Bearbeiten Sie das CSS für Ihr benutzerdefiniertes Design. Änderungen werden live angewendet.",
-      "CustomCssLabel": "Benutzerdefiniertes CSS"
+          "Custom": "Benutzerdefiniert",
+          "CustomCssDescription": "Bearbeiten Sie das CSS für Ihr benutzerdefiniertes Design. Änderungen werden live angewendet.",
+          "CustomCssLabel": "Benutzerdefiniertes CSS"
         }
       },
       "BlurEffect": {
@@ -1468,6 +1490,10 @@
           "Installed": "Sprachdaten installiert",
           "InstallFailed": "Installation der Sprachdaten fehlgeschlagen",
           "MissingRequired": "Sprachdaten erforderlich"
+        },
+        "DictionaryTarget": {
+          "Description": "Wählen Sie die Sprache für Wörterbuchdefinitionen",
+          "Label": "Wörterbuchsprache"
         }
       },
       "Performance": {
@@ -2554,6 +2580,10 @@
         "Voice": {
           "Title": "Sprachkomponenten",
           "Description": "Spracherkennung, Sprachsynthese und Spracherkennung für Aktivität."
+        },
+        "Dictionaries": {
+          "Title": "Installierte Wörterbücher",
+          "Description": "Heruntergeladene Wörterbuchpakete auf diesem Computer."
         }
       },
       "Items": {
@@ -2592,6 +2622,9 @@
         "QwenTts": {
           "Title": "Qwen3-TTS-Modell",
           "Description": "Optionale lokale Stimmklonung und mehrsprachige TTS."
+        },
+        "DictionaryPack": {
+          "Description": "Definitionen für {language}."
         }
       }
     },

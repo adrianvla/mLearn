@@ -1018,7 +1018,9 @@
         "Installing": "インストール中...",
         "StartInstallation": "インストール開始",
         "CancelInstall": "Cancel Installation",
-        "CancelRestart": "Cancel Restart"
+        "CancelRestart": "Cancel Restart",
+        "InstallLanguageData": "選択した言語データをインストール",
+        "FinishSetup": "セットアップを完了"
       },
       "Components": {
         "ExplainAi": {
@@ -1035,11 +1037,16 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "言語とコンポーネントを選択して、インストールをクリックしてください。",
+        "ChooseComponents": "学習する言語と、mLearnで表示する言語を選択してください。",
         "ClickToBegin": "インストールをクリックして開始します。",
         "DownloadNote": "すべてのダウンロードは自動的に処理されます。安定した接続を推奨します。",
         "ForgetSomething": "インストールし忘れた場合、mLearnを削除してインストーラーを再起動してください。",
-        "LanguageUnlocks": "セットアップ中にダウンロードされるのは、選択した言語データのみです。"
+        "LanguageUnlocks": "言語データは、明示的に開始した場合にのみインストールされます。"
+      },
+      "DictionaryTarget": {
+        "Label": "辞書の言語",
+        "ChooseAvailable": "利用可能な辞書言語を選択",
+        "Unavailable": "この学習言語では {language} の辞書は利用できません。利用可能な辞書言語を選択してください: {available}"
       },
       "Status": {
         "Complete": "インストール完了！続行して選択した言語データをインストールしてください。",
@@ -1059,6 +1066,21 @@
         "AlreadySatisfied": "既にインストール済み",
         "Collecting": "依存関係を収集中…",
         "Downloading": "ダウンロード中…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "学習したい言語は",
+        "AppLanguagePrefix": "mLearnの表示言語は",
+        "AppLanguageSuffix": "です。",
+        "DictionaryPrefix": "辞書の定義言語は"
+      },
+      "Advanced": {
+        "Title": "詳細設定"
+      },
+      "Summary": {
+        "LearningLanguage": "学習言語: {language}",
+        "DisplayLanguage": "表示言語: {language}",
+        "DictionaryLanguage": "辞書言語: {language}",
+        "NotAvailable": "利用できません"
       }
     },
     "ExamCentricStudy": {
@@ -1332,9 +1354,9 @@
           "Label": "テーマ",
           "Light": "ライト",
           "LightHighContrast": "ライト高コントラスト",
-      "Custom": "カスタム",
-      "CustomCssDescription": "カスタムテーマのCSSを編集します。変更はリアルタイムで適用されます。",
-      "CustomCssLabel": "カスタムCSS"
+          "Custom": "カスタム",
+          "CustomCssDescription": "カスタムテーマのCSSを編集します。変更はリアルタイムで適用されます。",
+          "CustomCssLabel": "カスタムCSS"
         }
       },
       "BlurEffect": {
@@ -1468,6 +1490,10 @@
           "Installed": "言語データはインストール済み",
           "InstallFailed": "言語データのインストールに失敗しました",
           "MissingRequired": "言語データが必要です"
+        },
+        "DictionaryTarget": {
+          "Description": "辞書の定義に使う言語を選択",
+          "Label": "辞書の言語"
         }
       },
       "Performance": {
@@ -2554,6 +2580,10 @@
         "Voice": {
           "Title": "音声コンポーネント",
           "Description": "音声認識、音声合成、音声区間検出。"
+        },
+        "Dictionaries": {
+          "Title": "インストール済み辞書",
+          "Description": "このコンピューターで利用できるダウンロード済み辞書パック。"
         }
       },
       "Items": {
@@ -2592,6 +2622,9 @@
         "QwenTts": {
           "Title": "Qwen3 TTSモデル",
           "Description": "任意のローカル音声クローンと多言語TTS。"
+        },
+        "DictionaryPack": {
+          "Description": "{language} の定義。"
         }
       }
     },

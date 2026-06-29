@@ -325,6 +325,16 @@ describe('windowManager', () => {
       expect(win).toBeDefined();
       expect(win.loadURL ?? win.loadFile).toBeDefined();
     });
+
+    it('reuses the existing main window instead of creating duplicates', async () => {
+      const { createMainWindow } = await import('./windowManager');
+      const first = createMainWindow();
+      const second = createMainWindow();
+
+      expect(second).toBe(first);
+      expect(createdWindows).toHaveLength(1);
+      expect(first.focus).toHaveBeenCalled();
+    });
   });
 
   describe('createWelcomeWindow', () => {
@@ -333,6 +343,16 @@ describe('windowManager', () => {
       const win = createWelcomeWindow();
       expect(win).toBeDefined();
       expect(createdWindows.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('reuses the existing welcome window instead of creating duplicates', async () => {
+      const { createWelcomeWindow } = await import('./windowManager');
+      const first = createWelcomeWindow();
+      const second = createWelcomeWindow();
+
+      expect(second).toBe(first);
+      expect(createdWindows).toHaveLength(1);
+      expect(first.focus).toHaveBeenCalled();
     });
 
     it('sets currentWindow to the welcome window', async () => {
@@ -363,6 +383,15 @@ describe('windowManager', () => {
       expect(win.loadURL).not.toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
+  });
+
+  it('closes the welcome window when the main window is created', async () => {
+    const { createWelcomeWindow, createMainWindow, getCurrentWindow } = await import('./windowManager');
+    const welcome = createWelcomeWindow();
+    const main = createMainWindow();
+
+    expect(welcome.close).toHaveBeenCalled();
+    expect(getCurrentWindow()).toBe(main);
   });
 
   describe('createChildWindow', () => {

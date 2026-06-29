@@ -1018,7 +1018,9 @@
         "CancelRestart": "取消重启",
         "Continue": "继续",
         "Installing": "安装中…",
-        "StartInstallation": "开始安装"
+        "StartInstallation": "开始安装",
+        "InstallLanguageData": "安装所选语言数据",
+        "FinishSetup": "完成设置"
       },
       "Components": {
         "ExplainAi": {
@@ -1035,11 +1037,16 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "选择语言和组件，然后点击安装。",
+        "ChooseComponents": "选择你想学习的语言，以及 mLearn 使用的显示语言。",
         "ClickToBegin": "点击安装开始。",
         "DownloadNote": "所有下载将自动处理。建议使用稳定的网络连接。",
         "ForgetSomething": "安装完成后无法添加组件。请现在选择所有需要的组件。",
-        "LanguageUnlocks": "设置期间只会下载所选语言的数据。"
+        "LanguageUnlocks": "只有在你明确开始时，才会安装语言数据。"
+      },
+      "DictionaryTarget": {
+        "Label": "词典语言",
+        "ChooseAvailable": "选择可用的词典语言",
+        "Unavailable": "此学习语言没有 {language} 词典。请选择可用的词典语言：{available}。"
       },
       "Status": {
         "Complete": "安装完成！继续安装所选语言的数据。",
@@ -1059,6 +1066,21 @@
         "AlreadySatisfied": "已满足",
         "Collecting": "正在收集依赖项…",
         "Downloading": "正在下载…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "我想学习",
+        "AppLanguagePrefix": "并使用 mLearn 的显示语言",
+        "AppLanguageSuffix": "。",
+        "DictionaryPrefix": "词典释义语言为"
+      },
+      "Advanced": {
+        "Title": "高级设置"
+      },
+      "Summary": {
+        "LearningLanguage": "学习语言：{language}",
+        "DisplayLanguage": "显示语言：{language}",
+        "DictionaryLanguage": "词典语言：{language}",
+        "NotAvailable": "不可用"
       }
     },
     "ExamCentricStudy": {
@@ -1332,9 +1354,9 @@
           "Label": "主题",
           "Light": "浅色",
           "LightHighContrast": "浅色高对比度",
-      "Custom": "自定义",
-      "CustomCssDescription": "编辑自定义主题的 CSS。更改实时应用。",
-      "CustomCssLabel": "自定义 CSS"
+          "Custom": "自定义",
+          "CustomCssDescription": "编辑自定义主题的 CSS。更改实时应用。",
+          "CustomCssLabel": "自定义 CSS"
         }
       },
       "BlurEffect": {
@@ -1468,6 +1490,10 @@
           "Installed": "语言数据已安装",
           "InstallFailed": "语言数据安装失败",
           "MissingRequired": "需要语言数据"
+        },
+        "DictionaryTarget": {
+          "Description": "选择词典释义使用的语言",
+          "Label": "词典语言"
         }
       },
       "Behaviour": {
@@ -2554,6 +2580,10 @@
         "Voice": {
           "Title": "语音组件",
           "Description": "语音识别、语音合成和语音活动检测。"
+        },
+        "Dictionaries": {
+          "Title": "已安装词典",
+          "Description": "此电脑上可用的已下载词典包。"
         }
       },
       "Items": {
@@ -2592,6 +2622,9 @@
         "QwenTts": {
           "Title": "Qwen3 TTS 模型",
           "Description": "可选的本地语音克隆和多语言 TTS。"
+        },
+        "DictionaryPack": {
+          "Description": "{language} 的释义。"
         }
       }
     },

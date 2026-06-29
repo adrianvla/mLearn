@@ -40,7 +40,6 @@ import type {
   FlashcardStore,
   LanguageData,
   LanguageDataCatalogStatus,
-  LanguageDataMap,
   MediaStats,
   LLMModelStatus,
   VoiceModelStatus,
@@ -49,7 +48,7 @@ import type {
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
-import { loadBundledLanguageData, loadBundledLocaleStrings } from './bundledLanguageAssets';
+import { loadBundledLocaleStrings } from './bundledLanguageAssets';
 import { getLogger } from '../utils/logger';
 import eulaMd from '../../../EULA.md?raw';
 
@@ -723,32 +722,23 @@ const localizationBridge: LocalizationBridge = {
   },
 
   getLangData() {
-    // Load bundled language data (always works offline)
-    const loadBundled = async () => {
-      try {
-        const langData = await loadBundledLanguageData();
-        emitter.emit('lang-data', langData as unknown as LanguageData);
-      } catch (e) {
-        log.error("error", e);
-        emitter.emit('lang-data', {} as LanguageData);
-      }
-    };
-
     // Check if a tethered/cloud server URL has been explicitly configured
     const serverUrl = localStorage.getItem('mlearn-node-server-url');
     if (!serverUrl) {
-      // No server configured — load bundled directly (default on mobile)
-      loadBundled();
+      emitter.emit('lang-data', {} as LanguageData);
       return;
     }
 
-    // Try Node server with a short timeout; fall back to bundled
+    // Try Node server with a short timeout; language data is not bundled in mobile builds.
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
     fetch(`${serverUrl}/api/lang-data`, { signal: controller.signal })
       .then(res => { clearTimeout(timeout); return res.json(); })
       .then(data => emitter.emit('lang-data', data))
-      .catch(() => { clearTimeout(timeout); loadBundled(); });
+      .catch(() => {
+        clearTimeout(timeout);
+        emitter.emit('lang-data', {} as LanguageData);
+      });
   },
 
   onLangData(callback) {
@@ -756,49 +746,14 @@ const localizationBridge: LocalizationBridge = {
   },
 
   getLanguageDataCatalog() {
-    const loadBundled = async () => {
-      try {
-        const langData = await loadBundledLanguageData();
-        const statuses = Object.entries(langData as LanguageDataMap)
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([language, metadata]): LanguageDataCatalogStatus => {
-            const assets = metadata.languageData?.assets ?? [];
-            const missingRequiredAssets = assets
-              .filter((asset) => asset.required !== false)
-              .map((asset) => asset.id);
-
-            return {
-              language,
-              name: metadata.name,
-              nameTranslated: metadata.name_translated,
-              dataRoot: '',
-              installed: missingRequiredAssets.length === 0,
-              totalBytes: assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0),
-              installedBytes: 0,
-              missingRequiredAssets,
-              assets: assets.map((asset) => ({
-                id: asset.id,
-                path: asset.path,
-                installed: false,
-                sizeBytes: asset.sizeBytes,
-              })),
-            };
-          });
-        emitter.emit('language-data-catalog', statuses);
-      } catch (e) {
-        log.error("error", e);
-        emitter.emit('language-data-catalog', [] satisfies LanguageDataCatalogStatus[]);
-      }
-    };
-
-    loadBundled();
+    emitter.emit('language-data-catalog', [] satisfies LanguageDataCatalogStatus[]);
   },
 
   onLanguageDataCatalog(callback) {
     return emitter.on('language-data-catalog', callback as Listener);
   },
 
-  installLanguageData(language: string) {
+  installLanguageData(language: string, _dictionaryTargetLanguage?: string) {
     emitter.emit('language-data-install-error', {
       language,
       error: 'Language data installation is not supported on mobile',

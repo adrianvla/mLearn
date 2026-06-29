@@ -62,8 +62,10 @@ const mockLoadLanguagePackageCatalog = vi.fn(() => Promise.resolve({
     fixed_settings: {},
   },
 }));
+const mockHasSettingsFile = vi.fn(() => false);
 
 vi.mock('./settings', () => ({
+  hasSettingsFile: mockHasSettingsFile,
   loadSettings: vi.fn(() => ({
     language: 'ja',
     llmEnabled: true,
@@ -82,10 +84,12 @@ vi.mock('./settings', () => ({
 
 const mockEnsureLanguageDataInstalled = vi.fn(() => Promise.resolve());
 const mockGetLanguageDataRoot = vi.fn(() => '/tmp/test-userdata/language-data');
+const mockResolveDictionaryTargetLanguage = vi.fn(() => undefined as string | undefined);
 
 vi.mock('./languageDataService', () => ({
   ensureLanguageDataInstalled: mockEnsureLanguageDataInstalled,
   getLanguageDataRoot: mockGetLanguageDataRoot,
+  resolveDictionaryTargetLanguage: mockResolveDictionaryTargetLanguage,
 }));
 
 type MockReqCallbacks = Record<string, ((...args: unknown[]) => void)[]>;
@@ -190,7 +194,9 @@ describe('pythonBackend', () => {
 
     mockGetCurrentWindow.mockReturnValue(null);
     mockGetMainWindow.mockReturnValue(null);
+    mockHasSettingsFile.mockReturnValue(false);
 
+    fs.rmSync('/tmp/test-userdata', { recursive: true, force: true });
     fs.mkdirSync('/tmp/test-userdata', { recursive: true });
     fs.writeFileSync('/tmp/test-userdata/python-version.txt', '1.0.0');
 
@@ -251,7 +257,7 @@ describe('pythonBackend', () => {
       expect(result).toBe(true);
     });
 
-    it('installs selected language data before starting the backend', async () => {
+    it('installs selected language and dictionary data before starting the backend', async () => {
       const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
       fs.mkdirSync(envBin, { recursive: true });
       fs.writeFileSync(path.join(envBin, 'python3'), '');
@@ -284,6 +290,7 @@ describe('pythonBackend', () => {
         }
         return backendMockProcess;
       });
+      mockResolveDictionaryTargetLanguage.mockReturnValue('fr');
 
       vi.resetModules();
       mod = await import('./pythonBackend');
@@ -292,10 +299,17 @@ describe('pythonBackend', () => {
 
       expect(mockLoadLanguagePackageCatalog).toHaveBeenCalledOnce();
       expect(mockEnsureLanguageDataInstalled).toHaveBeenCalledWith('ja', expect.any(Object), expect.any(Function));
+      expect(mockResolveDictionaryTargetLanguage).toHaveBeenCalledWith('ja', expect.any(Object), undefined);
+      expect(mockEnsureLanguageDataInstalled).toHaveBeenCalledWith('ja', expect.any(Object), expect.any(Function), 'fr');
       const backendSpawn = mockSpawn.mock.calls.find((call) => call[0] === '/bin/sh');
       expect(backendSpawn?.[1]).toEqual(expect.arrayContaining([
         expect.stringContaining('/tmp/test-userdata/language-data'),
       ]));
+      expect(backendSpawn?.[2]).toEqual(expect.objectContaining({
+        env: expect.objectContaining({
+          MLEARN_DICTIONARY_TARGET_LANGUAGE: 'fr',
+        }),
+      }));
     });
 
     it('marks the backend loaded when the health endpoint is ready', async () => {
@@ -367,6 +381,86 @@ describe('pythonBackend', () => {
 
       await mod.findPython();
 
+      expect(mockWebContents.send).toHaveBeenCalledWith('installer-awaiting-choice');
+    });
+
+    it('reuses a healthy userData Python runtime on app update when settings already exist', async () => {
+      const envBin = path.join('/tmp/test-userdata', 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+      fs.writeFileSync('/tmp/test-userdata/python-version.txt', '0.9.0', 'utf-8');
+      mockHasSettingsFile.mockReturnValue(true);
+
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+      const backendMockProcess = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        kill: vi.fn(),
+        killed: false,
+      };
+
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        if (args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return backendMockProcess;
+      });
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      const result = await mod.findPython();
+
+      expect(result).toBe(true);
+      expect(mockWebContents.send).not.toHaveBeenCalledWith('installer-awaiting-choice');
+      expect(fs.readFileSync('/tmp/test-userdata/python-version.txt', 'utf-8')).toBe('1.0.0');
+    });
+
+    it('keeps showing installer on app update when no settings profile exists', async () => {
+      const envBin = path.join('/tmp/test-userdata', 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+      fs.writeFileSync('/tmp/test-userdata/python-version.txt', '0.9.0', 'utf-8');
+
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        if (args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return {
+          stdout: { on: vi.fn() },
+          stderr: { on: vi.fn() },
+          on: vi.fn(),
+          kill: vi.fn(),
+          killed: false,
+        };
+      });
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      const result = await mod.findPython();
+
+      expect(result).toBe(false);
       expect(mockWebContents.send).toHaveBeenCalledWith('installer-awaiting-choice');
     });
   });

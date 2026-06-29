@@ -8,10 +8,6 @@
     "dev": "concurrently -k \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
     "dev:electron": "wait-on tcp:3000 && tsc -p src/electron/tsconfig.json && npm run bundle:preload && cross-env NODE_ENV=development electron .",
-    "build:german-dict": "python3 src/root-of-app/languages/de/build_dict.py",
-    "build:japanese-dict": "python3 src/root-of-app/languages/ja/build_dict.py",
-    "package:language-data": "node scripts/package-language-data.js",
-    "build:language-data": "npm run build:german-dict && npm run build:japanese-dict && npm run package:language-data",
     "clean:dist-electron-cache": "rm -f dist-electron/dictionary_cache.sqlite3 dist-electron/anki-cache.json",
     "clean:release": "rm -rf release",
     "prebuild": "npm run clean:dist-electron-cache",
@@ -145,7 +141,7 @@
           "!**/*.pyc",
           "!dictionary_cache.sqlite3",
           "!dictionaries/**",
-          "!languages/*.freq.json",
+          "!languages/**",
           "!*.bak",
           "!*.pkl"
         ]

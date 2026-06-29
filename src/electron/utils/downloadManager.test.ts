@@ -131,7 +131,6 @@ describe('downloadFileWithProgress', () => {
 
     it('removes temp file and renames to final destination atomically', async () => {
       const destPath = path.join(tempDir.tmpDir, 'output.tar.gz');
-      const tempPath = destPath + '.downloading';
       const content = Buffer.from('data');
 
       httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
@@ -142,8 +141,31 @@ describe('downloadFileWithProgress', () => {
 
       await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
 
-      expect(fs.existsSync(tempPath)).toBe(false);
+      expect(fs.readdirSync(path.dirname(destPath)).some((file) => file.endsWith('.downloading'))).toBe(false);
       expect(fs.existsSync(destPath)).toBe(true);
+    });
+
+    it('allows concurrent downloads to the same destination without temp-file collisions', async () => {
+      const destPath = path.join(tempDir.tmpDir, 'shared.tar.gz');
+      const firstContent = Buffer.from('first');
+      const secondContent = Buffer.from('second');
+      let callCount = 0;
+
+      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        callCount++;
+        const content = callCount === 1 ? firstContent : secondContent;
+        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
+        callback(res);
+        return createMockRequest();
+      });
+
+      await Promise.all([
+        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
+        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
+      ]);
+
+      expect(fs.existsSync(destPath)).toBe(true);
+      expect(fs.readdirSync(path.dirname(destPath)).some((file) => file.endsWith('.downloading'))).toBe(false);
     });
 
     it('resolves without onProgress if no callback provided', async () => {
@@ -446,6 +468,32 @@ describe('downloadFileWithProgress', () => {
   });
 
   describe('write errors', () => {
+    it('rejects instead of throwing when the temp file disappears before rename', async () => {
+      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
+      const content = Buffer.from('hello');
+
+      mockCreateWriteStream = vi.fn((filePath: string) => {
+        const createWriteStreamMock = mockCreateWriteStream;
+        mockCreateWriteStream = null;
+        const stream = fs.createWriteStream(filePath);
+        mockCreateWriteStream = createWriteStreamMock;
+        stream.on('finish', () => {
+          try { fs.unlinkSync(filePath); } catch {}
+        });
+        return stream;
+      });
+
+      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
+        callback(res);
+        return createMockRequest();
+      });
+
+      await expect(
+        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
+      ).rejects.toThrow('ENOENT');
+    });
+
     it('rejects when write stream emits an error', async () => {
       const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
       const content = Buffer.from('hello');

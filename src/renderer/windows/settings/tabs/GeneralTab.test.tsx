@@ -14,13 +14,20 @@ const installLanguageDataMock = vi.fn();
 let settingsSavedHandler: (() => void) | undefined;
 let mockLanguageDataCatalog = [
   { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
-  { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
+  {
+    language: 'de',
+    name: 'German',
+    installed: false,
+    missingRequiredAssets: ['language-metadata'],
+    dictionaryPacks: [{ targetLanguage: 'en', name: 'German -> English', installed: false }],
+  },
 ];
 let mockLanguageDataInstallError: { language: string; error: string } | null = null;
 
 const testSettings = {
   uiLanguage: 'en',
   language: 'ja',
+  dictionaryTargetLanguages: {} as Record<string, string>,
   theme: 'light',
   devMode: false,
 };
@@ -75,7 +82,12 @@ vi.mock('../../../components/common', () => ({
   ToggleSwitch: () => <div />,
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
-  Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props}>{props.children}</select>,
+  Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string }> }) => (
+    <select {...props}>
+      {props.children}
+      {props.options?.map((option) => <option value={option.value}>{option.label}</option>)}
+    </select>
+  ),
   SettingsIcon: () => <div />,
 }));
 
@@ -93,9 +105,16 @@ describe('GeneralTab', () => {
     settingsSavedCleanupMock.mockReset();
     settingsSavedHandler = undefined;
     testSettings.language = 'ja';
+    testSettings.dictionaryTargetLanguages = {};
     mockLanguageDataCatalog = [
       { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
-      { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
+      {
+        language: 'de',
+        name: 'German',
+        installed: false,
+        missingRequiredAssets: ['language-metadata'],
+        dictionaryPacks: [{ targetLanguage: 'en', name: 'German -> English', installed: false }],
+      },
     ];
     mockLanguageDataInstallError = null;
     onSettingsSavedMock.mockImplementation((callback: () => void) => {
@@ -145,7 +164,7 @@ describe('GeneralTab', () => {
 
     installButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    expect(installLanguageDataMock).toHaveBeenCalledWith('de');
+    expect(installLanguageDataMock).toHaveBeenCalledWith('de', 'en');
     testSettings.language = 'ja';
     dispose();
   });

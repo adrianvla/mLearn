@@ -4,10 +4,11 @@ import path from 'path';
 import * as tar from 'tar';
 import { getUserDataPath } from '../utils/platform';
 import { downloadFileWithProgress, type ProgressCallback } from '../utils/downloadManager';
-import type { LanguageDataAsset, LanguageDataBundle, LanguageDataCatalogStatus, LanguageDataMap } from '../../shared/types';
+import type { LanguageDataAsset, LanguageDataBundle, LanguageDataCatalogStatus, LanguageDataManifest, LanguageDataMap } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.languageData');
+const inFlightInstalls = new Map<string, Promise<void>>();
 
 export interface LanguageDataStatus {
   language: string;
@@ -26,12 +27,46 @@ export function getLanguageDataRoot(): string {
   return path.join(getUserDataPath(), 'language-data');
 }
 
-function getAssets(language: string, langData: LanguageDataMap): LanguageDataAsset[] {
-  return langData[language]?.languageData?.assets ?? [];
+function getInstallManifest(
+  language: string,
+  langData: LanguageDataMap,
+  dictionaryTargetLanguage?: string,
+): Pick<LanguageDataManifest, 'assets' | 'bundle'> | undefined {
+  const manifest = langData[language]?.languageData;
+  if (!dictionaryTargetLanguage) {
+    return manifest;
+  }
+  return manifest?.dictionaryPacks?.[dictionaryTargetLanguage];
 }
 
-function getBundle(language: string, langData: LanguageDataMap): LanguageDataBundle | undefined {
-  return langData[language]?.languageData?.bundle;
+function getAssets(
+  language: string,
+  langData: LanguageDataMap,
+  dictionaryTargetLanguage?: string,
+): LanguageDataAsset[] {
+  return getInstallManifest(language, langData, dictionaryTargetLanguage)?.assets ?? [];
+}
+
+function getBundle(
+  language: string,
+  langData: LanguageDataMap,
+  dictionaryTargetLanguage?: string,
+): LanguageDataBundle | undefined {
+  return getInstallManifest(language, langData, dictionaryTargetLanguage)?.bundle;
+}
+
+export function resolveDictionaryTargetLanguage(
+  language: string,
+  langData: LanguageDataMap,
+  preferredTargetLanguage?: string,
+): string | undefined {
+  const packs = langData[language]?.languageData?.dictionaryPacks;
+  if (!packs) return undefined;
+  if (preferredTargetLanguage && packs[preferredTargetLanguage]) {
+    return preferredTargetLanguage;
+  }
+  if (packs.en) return 'en';
+  return Object.keys(packs).sort()[0];
 }
 
 function assertSafeRelativePath(relativePath: string): void {
@@ -52,9 +87,21 @@ function assertSafeArchivePath(relativePath: string): void {
   }
 }
 
+function isIgnoredArchiveMetadataPath(relativePath: string): boolean {
+  const normalized = path.posix.normalize(relativePath.split(path.sep).join('/'));
+  if (normalized === '__MACOSX' || normalized.startsWith('__MACOSX/')) {
+    return true;
+  }
+  return normalized.split('/').some((segment) => segment === '.DS_Store' || segment.startsWith('._'));
+}
+
 export function getInstalledLanguageAssetPath(asset: LanguageDataAsset): string {
   assertSafeRelativePath(asset.path);
   return path.join(getLanguageDataRoot(), asset.path);
+}
+
+function getInstallKey(language: string, dictionaryTargetLanguage?: string): string {
+  return dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
 }
 
 function computeSha256(filePath: string): string {
@@ -69,16 +116,16 @@ function verifyChecksum(asset: LanguageDataAsset, filePath: string): void {
   const actual = computeSha256(filePath);
   if (actual !== asset.sha256) {
     try { fs.unlinkSync(filePath); } catch {}
-    throw new Error(`Checksum mismatch for language data asset ${asset.id}`);
+    throw new Error(`Checksum mismatch for language data asset ${asset.id}: expected ${asset.sha256}, got ${actual}`);
   }
 }
 
-function verifyBundleChecksum(bundle: LanguageDataBundle, filePath: string): void {
+function verifyBundleChecksum(bundle: LanguageDataBundle, filePath: string, bundleLabel: string): void {
   if (!bundle.sha256) return;
   const actual = computeSha256(filePath);
   if (actual !== bundle.sha256) {
     try { fs.unlinkSync(filePath); } catch {}
-    throw new Error('Checksum mismatch for language data bundle');
+    throw new Error(`Checksum mismatch for language data bundle ${bundleLabel}: expected ${bundle.sha256}, got ${actual}`);
   }
 }
 
@@ -110,8 +157,7 @@ function parseBundleManifest(extractDir: string, language: string): { files: Lan
   return { files };
 }
 
-export function getLanguageDataStatus(language: string, langData: LanguageDataMap): LanguageDataStatus {
-  const assets = getAssets(language, langData);
+function getAssetStatuses(assets: LanguageDataAsset[]) {
   const assetStatuses = assets.map((asset) => {
     const installedPath = getInstalledLanguageAssetPath(asset);
     const installed = fs.existsSync(installedPath);
@@ -122,6 +168,28 @@ export function getLanguageDataStatus(language: string, langData: LanguageDataMa
       sizeBytes: asset.sizeBytes,
     };
   });
+  return assetStatuses;
+}
+
+function getMissingRequiredAssets(assets: LanguageDataAsset[], assetStatuses: ReturnType<typeof getAssetStatuses>): string[] {
+  return assets
+    .filter((asset, index) => asset.required !== false && !assetStatuses[index]?.installed)
+    .map((asset) => asset.id);
+}
+
+function getInstalledBytes(assets: LanguageDataAsset[]): number {
+  return assets.reduce((sum, asset) => {
+    const installedPath = getInstalledLanguageAssetPath(asset);
+    if (!fs.existsSync(installedPath)) {
+      return sum;
+    }
+    return sum + fs.statSync(installedPath).size;
+  }, 0);
+}
+
+export function getLanguageDataStatus(language: string, langData: LanguageDataMap): LanguageDataStatus {
+  const assets = getAssets(language, langData);
+  const assetStatuses = getAssetStatuses(assets);
   const missingAssets = assets
     .filter((asset, index) => asset.required !== false && !assetStatuses[index]?.installed)
     .map((asset) => asset.id);
@@ -143,13 +211,26 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
       const assets = getAssets(language, langData);
       const bundle = metadata.languageData?.bundle;
       const totalBytes = bundle?.sizeBytes ?? assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0);
-      const installedBytes = assets.reduce((sum, asset) => {
-        const installedPath = getInstalledLanguageAssetPath(asset);
-        if (!fs.existsSync(installedPath)) {
-          return sum;
-        }
-        return sum + fs.statSync(installedPath).size;
-      }, 0);
+      const installedBytes = getInstalledBytes(assets);
+      const dictionaryPacks = metadata.languageData?.dictionaryPacks
+        ? Object.values(metadata.languageData.dictionaryPacks)
+          .sort((left, right) => left.targetLanguage.localeCompare(right.targetLanguage))
+          .map((pack) => {
+            const packAssets = pack.assets;
+            const packAssetStatuses = getAssetStatuses(packAssets);
+            const missingRequiredAssets = getMissingRequiredAssets(packAssets, packAssetStatuses);
+            return {
+              targetLanguage: pack.targetLanguage,
+              name: pack.name,
+              version: pack.version,
+              installed: missingRequiredAssets.length === 0,
+              totalBytes: pack.bundle?.sizeBytes ?? packAssets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0),
+              installedBytes: getInstalledBytes(packAssets),
+              missingRequiredAssets,
+              assets: packAssetStatuses,
+            };
+          })
+        : undefined;
 
       return {
         language,
@@ -161,6 +242,7 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
         installedBytes,
         missingRequiredAssets: status.missingAssets,
         assets: status.assets,
+        dictionaryPacks,
       };
     });
 }
@@ -169,6 +251,7 @@ async function installBundle(
   language: string,
   bundle: LanguageDataBundle,
   onProgress?: ProgressCallback,
+  workKey: string = language,
 ): Promise<void> {
   const bundleUrl = bundle.url ?? bundle.href;
   if (!bundleUrl) {
@@ -176,8 +259,8 @@ async function installBundle(
   }
 
   const dataRoot = getLanguageDataRoot();
-  const workRoot = path.join(dataRoot, '.downloads', language);
-  const archivePath = path.join(workRoot, `${language}.tar.gz`);
+  const workRoot = path.join(dataRoot, '.downloads', workKey);
+  const archivePath = path.join(workRoot, `${workKey}.tar.gz`);
   const extractDir = path.join(workRoot, 'extract');
   fs.rmSync(workRoot, { recursive: true, force: true });
   fs.mkdirSync(extractDir, { recursive: true });
@@ -185,12 +268,15 @@ async function installBundle(
   try {
     log.info(`Downloading language data bundle ${language} from ${bundleUrl}`);
     await downloadFileWithProgress(bundleUrl, archivePath, onProgress);
-    verifyBundleChecksum(bundle, archivePath);
+    verifyBundleChecksum(bundle, archivePath, `${workKey} (${bundleUrl})`);
 
     await tar.x({
       file: archivePath,
       cwd: extractDir,
       filter: (entryPath, entry) => {
+        if (isIgnoredArchiveMetadataPath(entryPath)) {
+          return false;
+        }
         assertSafeArchivePath(entryPath);
         const entryType = 'type' in entry ? entry.type : undefined;
         if (entryType !== undefined && entryType !== 'File' && entryType !== 'Directory') {
@@ -226,16 +312,37 @@ export async function ensureLanguageDataInstalled(
   language: string,
   langData: LanguageDataMap,
   onProgress?: ProgressCallback,
+  dictionaryTargetLanguage?: string,
 ): Promise<LanguageDataStatus> {
-  const assets = getAssets(language, langData).filter((asset) => asset.required !== false);
-  const bundle = getBundle(language, langData);
+  const assets = getAssets(language, langData, dictionaryTargetLanguage).filter((asset) => asset.required !== false);
+  const bundle = getBundle(language, langData, dictionaryTargetLanguage);
   const missingAssets = assets.filter((asset) => !fs.existsSync(getInstalledLanguageAssetPath(asset)));
   if (missingAssets.length === 0) {
     return getLanguageDataStatus(language, langData);
   }
   if (!bundle) {
-    throw new Error(`No language data bundle is available for ${language}`);
+    throw new Error(`No language data bundle is available for ${language}${dictionaryTargetLanguage ? `:${dictionaryTargetLanguage}` : ''}`);
   }
-  await installBundle(language, bundle, onProgress);
+  const installKey = getInstallKey(language, dictionaryTargetLanguage);
+  const existingInstall = inFlightInstalls.get(installKey);
+  if (existingInstall) {
+    await existingInstall;
+    return getLanguageDataStatus(language, langData);
+  }
+
+  const installPromise = installBundle(
+    language,
+    bundle,
+    onProgress,
+    dictionaryTargetLanguage ? `${language}-${dictionaryTargetLanguage}-dictionary` : language,
+  );
+  inFlightInstalls.set(installKey, installPromise);
+  try {
+    await installPromise;
+  } finally {
+    if (inFlightInstalls.get(installKey) === installPromise) {
+      inFlightInstalls.delete(installKey);
+    }
+  }
   return getLanguageDataStatus(language, langData);
 }

@@ -89,6 +89,15 @@ function deferred<T>() {
 }
 
 describe('loadSettings', () => {
+  it('reports whether the settings file exists', () => {
+    expect(mod.hasSettingsFile()).toBe(false);
+
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({ language: 'de' }), 'utf-8');
+
+    expect(mod.hasSettingsFile()).toBe(true);
+  });
+
   it('returns DEFAULT_SETTINGS when settings file does not exist', () => {
     const settings = mod.loadSettings();
     expect(settings).toBeDefined();
@@ -250,16 +259,13 @@ describe('saveSettings', () => {
 });
 
 describe('loadLangData', () => {
-  it('returns default lang data when no languages directory exists', () => {
+  it('returns no runtime language data when no downloaded language data exists', () => {
     const langData = mod.loadLangData();
-    expect(langData).toBeDefined();
-    expect(typeof langData).toBe('object');
-    expect(langData['ja']).toBeDefined();
-    expect(langData['de']).toBeDefined();
+    expect(langData).toEqual({});
   });
 
-  it('loads JSON files from a languages directory when it exists', () => {
-    const langsDir = path.join(tempDir.tmpDir, 'languages');
+  it('loads JSON files from the downloaded language-data directory', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(path.join(langsDir, 'en.json'), JSON.stringify({ name: 'English', translatable: [] }), 'utf-8');
     const langData = mod.loadLangData();
@@ -267,7 +273,7 @@ describe('loadLangData', () => {
     expect(langData['en'].name).toBe('English');
   });
 
-  it('merges per-user custom language metadata with bundled language metadata', () => {
+  it('ignores legacy user and bundled language directories', () => {
     const customLangsDir = path.join(tempDir.tmpDir, 'languages');
     const bundledLangsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
     fs.mkdirSync(customLangsDir, { recursive: true });
@@ -277,12 +283,11 @@ describe('loadLangData', () => {
 
     const langData = mod.loadLangData();
 
-    expect(langData['zz']?.name).toBe('Custom');
-    expect(langData['ja']?.name).toBe('Japanese');
+    expect(langData).toEqual({});
   });
 
-  it('skips corrupt JSON files in the languages directory', () => {
-    const langsDir = path.join(tempDir.tmpDir, 'languages');
+  it('skips corrupt JSON files in the downloaded language-data directory', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(path.join(langsDir, 'bad.json'), '{ broken', 'utf-8');
     fs.writeFileSync(path.join(langsDir, 'en.json'), JSON.stringify({ name: 'English' }), 'utf-8');
@@ -291,8 +296,8 @@ describe('loadLangData', () => {
     expect(langData['en']).toBeDefined();
   });
 
-  it('ignores non-JSON files in the languages directory', () => {
-    const langsDir = path.join(tempDir.tmpDir, 'languages');
+  it('ignores non-JSON files in the downloaded language-data directory', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(path.join(langsDir, 'readme.txt'), 'ignore me', 'utf-8');
     fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
@@ -302,7 +307,7 @@ describe('loadLangData', () => {
   });
 
   it('loads split word frequency files without registering them as languages', () => {
-    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(
       path.join(langsDir, 'ja.json'),
@@ -322,12 +327,10 @@ describe('loadLangData', () => {
   });
 
   it('loads installed frequency files from the language-data directory', () => {
-    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
     const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
-    fs.mkdirSync(langsDir, { recursive: true });
     fs.mkdirSync(installedFreqDir, { recursive: true });
     fs.writeFileSync(
-      path.join(langsDir, 'ja.json'),
+      path.join(installedFreqDir, 'ja.json'),
       JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, fixed_settings: {} }),
       'utf-8',
     );
@@ -342,17 +345,17 @@ describe('loadLangData', () => {
     expect(langData['ja']?.freq).toEqual([['食べる', 'たべる']]);
   });
 
-  it('returns default lang data when languages directory is empty', () => {
-    const langsDir = path.join(tempDir.tmpDir, 'languages');
+  it('returns no runtime language data when downloaded language-data directory is empty', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     const langData = mod.loadLangData();
-    expect(langData['ja']).toBeDefined();
+    expect(langData).toEqual({});
   });
 });
 
 describe('loadLanguageCatalogData', () => {
   it('loads runtime language data only from local files', async () => {
-    const langsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(
       path.join(langsDir, 'ja.json'),
@@ -450,6 +453,73 @@ describe('loadLanguagePackageCatalog', () => {
           }),
         ],
       },
+    });
+  });
+
+  it('loads dictionary packs from language package catalog entries', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          ja: {
+            name: 'Japanese',
+            nameTranslated: '日本語',
+            version: 'ja-core-v1',
+            bundle: {
+              href: './language-data/language-ja-core-v1.tar.gz',
+              sizeBytes: 100,
+              sha256: 'a'.repeat(64),
+            },
+            files: [{
+              id: 'language-metadata',
+              path: 'languages/ja.json',
+              sizeBytes: 10,
+              sha256: 'b'.repeat(64),
+              required: true,
+            }],
+            dictionaryPacks: {
+              fr: {
+                targetLanguage: 'fr',
+                name: 'French',
+                version: 'jmdict-fr-v1',
+                bundle: {
+                  href: './language-data/dictionary-ja-fr-v1.tar.gz',
+                  sizeBytes: 200,
+                  sha256: 'c'.repeat(64),
+                },
+                assets: [{
+                  id: 'dictionary',
+                  path: 'dictionaries/ja/dictionary.db',
+                  sizeBytes: 20,
+                  sha256: 'd'.repeat(64),
+                  required: true,
+                }],
+              },
+            },
+          },
+        },
+      }),
+    }));
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    });
+
+    expect(langData.ja.languageData?.dictionaryPacks?.fr).toMatchObject({
+      targetLanguage: 'fr',
+      name: 'French',
+      version: 'jmdict-fr-v1',
+      bundle: {
+        url: 'https://pages.example.com/language-data/dictionary-ja-fr-v1.tar.gz',
+        sizeBytes: 200,
+      },
+      assets: [
+        expect.objectContaining({
+          id: 'dictionary',
+          path: 'dictionaries/ja/dictionary.db',
+        }),
+      ],
     });
   });
 
@@ -598,16 +668,16 @@ describe('SAVE_SETTINGS IPC handler', () => {
 });
 
 describe('GET_LANG_DATA IPC handler', () => {
-  it('replies with lang data on GET_LANG_DATA', async () => {
+  it('replies with empty lang data when no downloaded language data exists', async () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('get-lang-data') ?? [];
     const event = makeEvent();
     for (const h of handlers) await h(event);
-    expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({ ja: expect.any(Object) }));
+    expect(event.reply).toHaveBeenCalledWith('lang-data', {});
   });
 
-  it('replies with lang data loaded from custom languages directory', async () => {
-    const langsDir = path.join(tempDir.tmpDir, 'languages');
+  it('replies with lang data loaded from downloaded language-data directory', async () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(path.join(langsDir, 'zz.json'), JSON.stringify({ name: 'TestLang' }), 'utf-8');
     mod.setupSettingsIPC();

@@ -1018,7 +1018,9 @@
         "Installing": "Installation...",
         "StartInstallation": "Démarrer l'installation",
         "CancelInstall": "Cancel Installation",
-        "CancelRestart": "Cancel Restart"
+        "CancelRestart": "Cancel Restart",
+        "InstallLanguageData": "Installer les données linguistiques sélectionnées",
+        "FinishSetup": "Terminer la configuration"
       },
       "Components": {
         "ExplainAi": {
@@ -1035,11 +1037,16 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "Choisissez votre langue et les composants, puis cliquez sur Installer.",
+        "ChooseComponents": "Choisissez ce que vous voulez apprendre et la langue utilisée par mLearn.",
         "ClickToBegin": "Cliquez sur Installer pour commencer.",
         "DownloadNote": "Tous les téléchargements sont gérés automatiquement. Une connexion stable est recommandée.",
         "ForgetSomething": "Si vous avez oublié d'installer quelque chose, supprimez mLearn et relancez l'installateur.",
-        "LanguageUnlocks": "Seules les données de la langue sélectionnée sont téléchargées pendant la configuration."
+        "LanguageUnlocks": "Les données linguistiques ne sont installées que lorsque vous le demandez explicitement."
+      },
+      "DictionaryTarget": {
+        "Label": "Langue du dictionnaire",
+        "ChooseAvailable": "Choisir une langue de dictionnaire disponible",
+        "Unavailable": "Aucun dictionnaire en {language} n'est disponible pour cette langue apprise. Choisissez une langue de dictionnaire disponible : {available}."
       },
       "Status": {
         "Complete": "Installation terminée ! Continuez pour installer les données de la langue sélectionnée.",
@@ -1059,6 +1066,21 @@
         "AlreadySatisfied": "Déjà satisfait",
         "Collecting": "Collecte des dépendances…",
         "Downloading": "Téléchargement…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "Je veux apprendre",
+        "AppLanguagePrefix": "avec mLearn en",
+        "AppLanguageSuffix": ".",
+        "DictionaryPrefix": "Les définitions du dictionnaire doivent être en"
+      },
+      "Advanced": {
+        "Title": "Avancé"
+      },
+      "Summary": {
+        "LearningLanguage": "Langue apprise : {language}",
+        "DisplayLanguage": "Langue de l'application : {language}",
+        "DictionaryLanguage": "Langue du dictionnaire : {language}",
+        "NotAvailable": "non disponible"
       }
     },
     "ExamCentricStudy": {
@@ -1332,9 +1354,9 @@
           "Label": "Thème",
           "Light": "Clair",
           "LightHighContrast": "Clair contrasté",
-      "Custom": "Personnalisé",
-      "CustomCssDescription": "Modifiez le CSS de votre thème personnalisé. Les changements s'appliquent en direct.",
-      "CustomCssLabel": "CSS personnalisé"
+          "Custom": "Personnalisé",
+          "CustomCssDescription": "Modifiez le CSS de votre thème personnalisé. Les changements s'appliquent en direct.",
+          "CustomCssLabel": "CSS personnalisé"
         }
       },
       "BlurEffect": {
@@ -1468,6 +1490,10 @@
           "Installed": "Données linguistiques installées",
           "InstallFailed": "Échec de l'installation des données linguistiques",
           "MissingRequired": "Données linguistiques requises"
+        },
+        "DictionaryTarget": {
+          "Description": "Choisissez la langue utilisée pour les définitions du dictionnaire",
+          "Label": "Langue du dictionnaire"
         }
       },
       "Performance": {
@@ -2554,6 +2580,10 @@
         "Voice": {
           "Title": "Composants vocaux",
           "Description": "Reconnaissance vocale, synthèse vocale et détection d’activité vocale."
+        },
+        "Dictionaries": {
+          "Title": "Dictionnaires installés",
+          "Description": "Packs de dictionnaires téléchargés disponibles sur cet ordinateur."
         }
       },
       "Items": {
@@ -2592,6 +2622,9 @@
         "QwenTts": {
           "Title": "Modèle TTS Qwen3",
           "Description": "Clonage vocal local optionnel et TTS multilingue."
+        },
+        "DictionaryPack": {
+          "Description": "Définitions pour {language}."
         }
       }
     },
