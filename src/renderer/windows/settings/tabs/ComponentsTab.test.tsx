@@ -26,6 +26,8 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.Groups.Reader.Description': 'Image text recognition models used by reader OCR.',
   'mlearn.ComponentsTab.Groups.Voice.Title': 'Voice components',
   'mlearn.ComponentsTab.Groups.Voice.Description': 'Speech recognition, speech synthesis, and voice activity detection.',
+  'mlearn.ComponentsTab.Groups.Dictionaries.Title': 'Installed dictionaries',
+  'mlearn.ComponentsTab.Groups.Dictionaries.Description': 'Downloaded dictionary packs available on this computer.',
   'mlearn.ComponentsTab.Items.BuiltinChatRuntime.Title': 'Built-in chat model runtime',
   'mlearn.ComponentsTab.Items.BuiltinChatRuntime.Description': 'Runs downloaded GGUF chat models locally.',
   'mlearn.ComponentsTab.Items.TransformersSupport.Title': 'Transformers and PyTorch support',
@@ -44,6 +46,7 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.Items.SileroVad.Description': 'Voice activity detection for hands-free calls.',
   'mlearn.ComponentsTab.Items.QwenTts.Title': 'Qwen3 TTS model',
   'mlearn.ComponentsTab.Items.QwenTts.Description': 'Optional local voice cloning and multilingual TTS.',
+  'mlearn.ComponentsTab.Items.DictionaryPack.Description': 'Definitions for {language}.',
   'mlearn.Installer.Buttons.Installing': 'Installing...',
   'mlearn.Installer.Alerts.NetworkError': 'Network error',
   'mlearn.Installer.Status.CouldNotStart': 'Could not start installation.',
@@ -51,11 +54,31 @@ const translations: Record<string, string> = {
 
 vi.mock('../../../context', () => ({
   useLocalization: () => ({
-    t: (key: string) => translations[key] ?? key,
+    t: (key: string, params?: Record<string, string | number>) => {
+      const translation = translations[key] ?? key;
+      return translation.replace(/\{(\w+)\}/g, (_, name) => (
+        params?.[name] === undefined ? `{${name}}` : String(params[name])
+      ));
+    },
   }),
   useSettings: () => ({
     settings: testSettings,
     updateSettings: updateSettingsMock,
+  }),
+  useLanguage: () => ({
+    languageDataCatalog: () => [
+      {
+        language: 'ja',
+        name: 'Japanese',
+        nameTranslated: '日本語',
+        installed: true,
+        missingRequiredAssets: [],
+        dictionaryPacks: [
+          { targetLanguage: 'en', name: 'Japanese -> English', installed: true },
+          { targetLanguage: 'fr', name: 'Japanese -> French', installed: false },
+        ],
+      },
+    ],
   }),
 }));
 
@@ -101,7 +124,12 @@ describe('ComponentsTab', () => {
     expect(container.textContent).toContain('Built-in chat model runtime');
     expect(container.textContent).toContain('PaddleOCR models');
     expect(container.textContent).toContain('Whisper small STT model');
+    expect(container.textContent).toContain('Installed dictionaries');
+    expect(container.textContent).toContain('Japanese -> English');
+    expect(container.textContent).toContain('Definitions for 日本語.');
+    expect(container.textContent).not.toContain('Japanese -> French');
     expect(container.textContent).not.toContain('mlearn.Installer.Components');
+    expect(container.textContent).not.toContain('mlearn.ComponentsTab');
 
     dispose();
   });

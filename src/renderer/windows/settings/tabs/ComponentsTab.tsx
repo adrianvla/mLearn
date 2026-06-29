@@ -1,5 +1,5 @@
-import { Component, createSignal, Show } from 'solid-js';
-import { useLocalization, useSettings } from '../../../context';
+import { Component, createMemo, createSignal, Show } from 'solid-js';
+import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { Panel, Btn, AlertBanner } from '../../../components/common';
 import './ComponentsTab.css';
@@ -9,20 +9,37 @@ type InstalledComponentGroup = {
   title: string;
   description: string;
   enabled: () => boolean;
-  toggle: (value: boolean) => void;
+  toggle?: (value: boolean) => void;
   items: Array<{
     title: string;
     description: string;
+    enabled?: () => boolean;
   }>;
 };
 
 export const ComponentsTab: Component = () => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
+  const { languageDataCatalog } = useLanguage();
   const [installing, setInstalling] = createSignal(false);
   const [installError, setInstallError] = createSignal<string | null>(null);
 
-  const componentGroups: InstalledComponentGroup[] = [
+  const installedDictionaryItems = createMemo(() => (
+    languageDataCatalog().flatMap((status) => (
+      (status.dictionaryPacks ?? [])
+        .filter((pack) => pack.installed)
+        .map((pack) => ({
+          title: pack.name,
+          description: t('mlearn.ComponentsTab.Items.DictionaryPack.Description', {
+            language: status.nameTranslated ?? status.name,
+          }),
+          enabled: () => true,
+        }))
+    ))
+  ));
+
+  const componentGroups = createMemo<InstalledComponentGroup[]>(() => {
+    const groups: InstalledComponentGroup[] = [
     {
       key: 'llm',
       title: t('mlearn.ComponentsTab.Groups.AI.Title'),
@@ -86,7 +103,21 @@ export const ComponentsTab: Component = () => {
         },
       ],
     },
-  ];
+    ];
+
+    const dictionaryItems = installedDictionaryItems();
+    if (dictionaryItems.length > 0) {
+      groups.push({
+        key: 'dictionaries',
+        title: t('mlearn.ComponentsTab.Groups.Dictionaries.Title'),
+        description: t('mlearn.ComponentsTab.Groups.Dictionaries.Description'),
+        enabled: () => true,
+        items: dictionaryItems,
+      });
+    }
+
+    return groups;
+  });
 
   const handleReinstall = () => {
     setInstalling(true);
@@ -113,24 +144,28 @@ export const ComponentsTab: Component = () => {
         </p>
 
         <div class="components-tab__groups">
-          {componentGroups.map((group) => (
+          {componentGroups().map((group) => (
             <section class="components-tab__group">
               <div class="components-tab__group-header">
                 <div>
                   <h3 class="components-tab__group-title">{group.title}</h3>
                   <p class="components-tab__group-desc">{group.description}</p>
                 </div>
-                <label class="components-tab__toggle">
-                  <input
-                    type="checkbox"
-                    checked={group.enabled()}
-                    aria-label={group.enabled()
-                      ? t('mlearn.ComponentsTab.Enabled')
-                      : t('mlearn.ComponentsTab.Disabled')}
-                    onChange={(e) => group.toggle(e.currentTarget.checked)}
-                  />
-                  <span class="components-tab__toggle-slider" />
-                </label>
+                <Show when={group.toggle}>
+                  {(toggle) => (
+                    <label class="components-tab__toggle">
+                      <input
+                        type="checkbox"
+                        checked={group.enabled()}
+                        aria-label={group.enabled()
+                          ? t('mlearn.ComponentsTab.Enabled')
+                          : t('mlearn.ComponentsTab.Disabled')}
+                        onChange={(e) => toggle()(e.currentTarget.checked)}
+                      />
+                      <span class="components-tab__toggle-slider" />
+                    </label>
+                  )}
+                </Show>
               </div>
 
               <div class="components-tab__item-list">
@@ -140,8 +175,8 @@ export const ComponentsTab: Component = () => {
                       <span class="components-tab__item-title">{item.title}</span>
                       <p class="components-tab__item-desc">{item.description}</p>
                     </div>
-                    <span class={`components-tab__status ${group.enabled() ? 'components-tab__status--enabled' : 'components-tab__status--disabled'}`}>
-                      {group.enabled()
+                    <span class={`components-tab__status ${(item.enabled?.() ?? group.enabled()) ? 'components-tab__status--enabled' : 'components-tab__status--disabled'}`}>
+                      {(item.enabled?.() ?? group.enabled())
                         ? t('mlearn.ComponentsTab.Enabled')
                         : t('mlearn.ComponentsTab.Disabled')}
                     </span>

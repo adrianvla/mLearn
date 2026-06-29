@@ -165,12 +165,8 @@ cd mLearn
 # Install dependencies
 npm install
 
-# Download language dictionaries (not included in the repo due to size)
-# Japanese: Place Yomitan-format dictionaries in src/root-of-app/dictionaries/jitendex-yomitan/
-#   The app will build a SQLite cache from them on first run.
-#   Get compatible dictionaries from the Yomitan project (e.g. Jitendex).
-# German: The German dictionary is built automatically from the source data
-#   when you run `npm run build` (via the `build:german-dict` script).
+# Language dictionaries are downloaded on demand from the cloud language catalog.
+# Dictionary build and language-data packaging scripts live in mlearn-website.
 
 # Development mode (Vite + Electron)
 npm run dev

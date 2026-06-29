@@ -4,18 +4,22 @@
  * Uses real IPC to install Python backend and configure language
  */
 
-import { Component, Show, For, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import type { Settings, InstallOptions, InstallerState, PipProgress } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallerState, type PipProgress } from '../../../shared/types';
 import { PROXY_SERVER_PORT } from '../../../shared/constants';
-import { Panel, Btn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, ProgressBar } from '../../components/common';
+import { Panel, Btn, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
 import { getLogger } from '../../../shared/utils/logger';
+import { getBundledLocaleCodes } from '../../../shared/bridges/bundledLanguageAssets';
 
 const log = getLogger("renderer.welcome.app");
+const CLICK_TO_BEGIN_KEY = 'mlearn.Installer.Instructions.ClickToBegin';
+const NOT_STARTED_KEY = 'mlearn.Installer.Status.NotStarted';
+const COMPLETE_KEY = 'mlearn.Installer.Status.Complete';
 
 interface LanguageOption {
   code: string;
@@ -33,29 +37,51 @@ function resolveInitialLanguageCode(preferredLanguage: string | undefined, avail
   return availableLanguageCodes[0] ?? '';
 }
 
+function resolveInitialUILanguageCode(preferredLanguage: string | undefined, availableLanguageCodes: readonly string[]): string {
+  if (preferredLanguage && availableLanguageCodes.includes(preferredLanguage)) {
+    return preferredLanguage;
+  }
+
+  if (availableLanguageCodes.includes(DEFAULT_SETTINGS.uiLanguage)) {
+    return DEFAULT_SETTINGS.uiLanguage;
+  }
+
+  return availableLanguageCodes[0] ?? DEFAULT_SETTINGS.uiLanguage;
+}
+
 const WelcomeContent: Component = () => {
   const { settings, updateSettings } = useSettings();
-  const { t } = useLocalization();
+  const { t, changeLanguage, isLoaded: isLocalizationLoaded } = useLocalization();
   const {
     langData,
     supportedLanguages,
+    languageDataCatalog,
     getLanguageDataStatus,
     installLanguageData,
     languageDataInstallError,
   } = useLanguage();
 
-  const availableLanguageCodes = createMemo(() => supportedLanguages());
+  const catalogLanguageCodes = createMemo(() => languageDataCatalog().map((status) => status.language));
+  const availableLanguageCodes = createMemo(() => {
+    const catalogCodes = catalogLanguageCodes();
+    return catalogCodes.length > 0 ? catalogCodes : supportedLanguages();
+  });
   const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => ({
     code,
-    name: langData[code]?.name ?? code.toUpperCase(),
-    nativeName: langData[code]?.name_translated ?? langData[code]?.name ?? code.toUpperCase(),
+    name: langData[code]?.name ?? getLanguageDataStatus(code)?.name ?? code.toUpperCase(),
+    nativeName: langData[code]?.name_translated ?? getLanguageDataStatus(code)?.nameTranslated ?? getLanguageDataStatus(code)?.name ?? code.toUpperCase(),
+  })));
+  const uiLanguageCodes = getBundledLocaleCodes();
+  const uiLanguageOptions = createMemo(() => uiLanguageCodes.map((code) => ({
+    value: code,
+    label: t(`mlearn.LocaleNames.${code}`),
   })));
 
   const [installationStarted, setInstallationStarted] = createSignal(false);
   const [installationCompleted, setInstallationCompleted] = createSignal(false);
   const [progress, setProgress] = createSignal(0);
-  const [statusLogs, setStatusLogs] = createSignal<LogEntry[]>([{ message: t('mlearn.Installer.Instructions.ClickToBegin'), level: 'info' }]);
-  const [overallStatus, setOverallStatus] = createSignal(t('mlearn.Installer.Status.NotStarted'));
+  const [statusLogs, setStatusLogs] = createSignal<LogEntry[]>([{ message: t(CLICK_TO_BEGIN_KEY), level: 'info' }]);
+  const [overallStatus, setOverallStatus] = createSignal(t(NOT_STARTED_KEY));
   const [networkError, setNetworkError] = createSignal<string | null>(null);
 
   const [includeLLM, setIncludeLLM] = createSignal(true);
@@ -63,6 +89,9 @@ const WelcomeContent: Component = () => {
   const [includeVoice, setIncludeVoice] = createSignal(true);
 
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
+  const [selectedUILanguage, setSelectedUILanguage] = createSignal<string>(resolveInitialUILanguageCode(settings.uiLanguage, uiLanguageCodes));
+  const [selectedDictionaryTargetLanguage, setSelectedDictionaryTargetLanguage] = createSignal('');
+  const [isAdvancedOpen, setIsAdvancedOpen] = createSignal(false);
   const [pendingLanguageInstall, setPendingLanguageInstall] = createSignal<string | null>(null);
   const [isFinalizingSetup, setIsFinalizingSetup] = createSignal(false);
 
@@ -76,19 +105,24 @@ const WelcomeContent: Component = () => {
   };
 
   const installCompleted = () => {
+    if (installationCompleted()) return;
     setInstallationCompleted(true);
     setInstallationStarted(false);
     setProgress(100);
-    setOverallStatus(t('mlearn.Installer.Status.Complete'));
-    logInfo(t('mlearn.Installer.Status.Complete'));
+    setOverallStatus(t(COMPLETE_KEY));
+    const waitingMessages = new Set([CLICK_TO_BEGIN_KEY, t(CLICK_TO_BEGIN_KEY)]);
+    setStatusLogs((prev) => [
+      ...prev.filter((entry) => !waitingMessages.has(entry.message)),
+      { message: t(COMPLETE_KEY) },
+    ]);
   };
 
   const setWaitingState = (opts?: InstallOptions) => {
     if (installationCompleted()) return;
     setInstallationStarted(false);
     setProgress(0);
-    setOverallStatus(t('mlearn.Installer.Status.NotStarted'));
-    setStatusLogs([{ message: t('mlearn.Installer.Instructions.ClickToBegin'), level: 'info' }]);
+    setOverallStatus(t(NOT_STARTED_KEY));
+    setStatusLogs([{ message: t(CLICK_TO_BEGIN_KEY), level: 'info' }]);
     if (opts) {
       setIncludeLLM(opts.includeLLM ?? true);
       setIncludeOCR(opts.includeOCR ?? true);
@@ -123,15 +157,76 @@ const WelcomeContent: Component = () => {
     setOverallStatus(t('mlearn.Installer.Status.NotStarted'));
   };
 
+  const selectedLanguageDataStatus = createMemo(() => getLanguageDataStatus(selectedLanguage()));
+  const dictionaryTargetOptions = createMemo(() => selectedLanguageDataStatus()?.dictionaryPacks ?? []);
+  const isDictionaryTargetRequired = createMemo(() => dictionaryTargetOptions().length > 0);
+  const hasValidDictionaryTargetSelection = createMemo(() => {
+    if (!isDictionaryTargetRequired()) return true;
+    const target = selectedDictionaryTargetLanguage();
+    return Boolean(target && dictionaryTargetOptions().some((pack) => pack.targetLanguage === target));
+  });
+  const isPreferredDictionaryTargetAvailable = createMemo(() => {
+    const target = selectedUILanguage();
+    return Boolean(target && dictionaryTargetOptions().some((pack) => pack.targetLanguage === target));
+  });
+  const shouldShowDictionaryTargetWarning = createMemo(() => (
+    isDictionaryTargetRequired() &&
+    Boolean(selectedUILanguage()) &&
+    !isPreferredDictionaryTargetAvailable()
+  ));
+  const availableDictionaryTargetLabels = createMemo(() => (
+    dictionaryTargetOptions().map((pack) => pack.name).join(', ')
+  ));
+  const selectedDictionaryPackStatus = createMemo(() => {
+    const target = selectedDictionaryTargetLanguage();
+    return dictionaryTargetOptions().find((pack) => pack.targetLanguage === target);
+  });
+  const selectedLanguageOption = createMemo(() => availableLanguages().find((lang) => lang.code === selectedLanguage()));
+  const selectedUILanguageLabel = createMemo(() => uiLanguageOptions().find((lang) => lang.value === selectedUILanguage())?.label ?? selectedUILanguage().toUpperCase());
+  const selectedDictionaryTargetLabel = createMemo(() => {
+    const target = selectedDictionaryTargetLanguage();
+    if (!target) return t('mlearn.Installer.Summary.NotAvailable');
+    const localeName = t(`mlearn.LocaleNames.${target}`);
+    return localeName === `mlearn.LocaleNames.${target}` ? target.toUpperCase() : localeName;
+  });
+  const selectedDictionaryRoute = createMemo(() => {
+    const source = selectedLanguageOption()?.name ?? selectedLanguage().toUpperCase();
+    const target = selectedDictionaryTargetLabel();
+    return `${source}\u2192${target}`;
+  });
+  const isSelectedLanguageDataReady = (languageCode: string): boolean => {
+    const status = getLanguageDataStatus(languageCode);
+    const dictionaryTarget = selectedDictionaryTargetLanguage();
+    const dictionaryPack = status?.dictionaryPacks?.find((pack) => pack.targetLanguage === dictionaryTarget);
+    return Boolean((!status || status.installed) && hasValidDictionaryTargetSelection() && (!dictionaryTarget || dictionaryPack?.installed));
+  };
+  const primaryActionLabel = createMemo(() => {
+    if (!installationCompleted()) {
+      return t('mlearn.Installer.Buttons.StartInstallation');
+    }
+    if (isSelectedLanguageDataReady(selectedLanguage())) {
+      return t('mlearn.Installer.Buttons.FinishSetup');
+    }
+    return t('mlearn.Installer.Buttons.InstallLanguageData');
+  });
+
   const saveSetupSettingsAndRestart = (languageCode: string) => {
     if (isFinalizingSetup()) return;
     setIsFinalizingSetup(true);
+    const dictionaryTarget = selectedDictionaryTargetLanguage();
     const settingsToSave: Partial<Settings> = {
       language: languageCode,
+      uiLanguage: selectedUILanguage(),
       llmEnabled: includeLLM(),
       ocrEnabled: includeOCR(),
       voiceEnabled: includeVoice(),
     };
+    if (dictionaryTarget) {
+      settingsToSave.dictionaryTargetLanguages = {
+        ...(settings.dictionaryTargetLanguages ?? DEFAULT_SETTINGS.dictionaryTargetLanguages),
+        [languageCode]: dictionaryTarget,
+      };
+    }
 
     updateSettings(settingsToSave);
 
@@ -165,9 +260,16 @@ const WelcomeContent: Component = () => {
   const handleContinue = () => {
     const languageCode = selectedLanguage();
     if (!installationCompleted() || !languageCode || pendingLanguageInstall()) return;
+    if (!hasValidDictionaryTargetSelection()) {
+      setIsAdvancedOpen(true);
+      setOverallStatus(t('mlearn.Installer.DictionaryTarget.Unavailable', {
+        language: selectedUILanguageLabel(),
+        available: availableDictionaryTargetLabels(),
+      }));
+      return;
+    }
 
-    const status = getLanguageDataStatus(languageCode);
-    if (!status || status.installed) {
+    if (isSelectedLanguageDataReady(languageCode)) {
       saveSetupSettingsAndRestart(languageCode);
       return;
     }
@@ -176,7 +278,19 @@ const WelcomeContent: Component = () => {
     setProgress(96);
     setOverallStatus(t('mlearn.Installer.Status.InstallingLanguageData'));
     logInfo(t('mlearn.Installer.Status.InstallingLanguageData'));
-    installLanguageData(languageCode);
+    installLanguageData(languageCode, selectedDictionaryTargetLanguage() || undefined);
+  };
+
+  const handleUILanguageChange = (languageCode: string) => {
+    setSelectedUILanguage(languageCode);
+    const matchingPack = dictionaryTargetOptions().find((pack) => pack.targetLanguage === languageCode);
+    if (matchingPack) {
+      setSelectedDictionaryTargetLanguage(languageCode);
+    } else if (dictionaryTargetOptions().length > 0) {
+      setSelectedDictionaryTargetLanguage('');
+      setIsAdvancedOpen(true);
+    }
+    changeLanguage(languageCode);
   };
 
   const handleCancelRestart = () => {
@@ -286,6 +400,7 @@ const WelcomeContent: Component = () => {
 
     ipcCleanups.push(bridge.settings.onSettings((settings: Settings) => {
       setSelectedLanguage(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
+      setSelectedUILanguage(resolveInitialUILanguageCode(settings.uiLanguage, uiLanguageCodes));
       if (settings.llmEnabled !== undefined) {
         setIncludeLLM(settings.llmEnabled !== false);
       }
@@ -324,6 +439,42 @@ const WelcomeContent: Component = () => {
   });
 
   createEffect(() => {
+    if (!isLocalizationLoaded() || installationStarted() || installationCompleted()) return;
+
+    setOverallStatus(t(NOT_STARTED_KEY));
+    setStatusLogs((prev) => {
+      if (prev.length !== 1 || prev[0]?.message !== CLICK_TO_BEGIN_KEY) {
+        return prev;
+      }
+      return [{ message: t(CLICK_TO_BEGIN_KEY), level: 'info' }];
+    });
+  });
+
+  createEffect(() => {
+    const options = dictionaryTargetOptions();
+    if (options.length === 0) {
+      if (selectedDictionaryTargetLanguage()) {
+        setSelectedDictionaryTargetLanguage('');
+      }
+      return;
+    }
+
+    const preferredTarget = selectedUILanguage();
+    const currentTarget = selectedDictionaryTargetLanguage();
+    if (currentTarget && options.some((option) => option.targetLanguage === currentTarget)) {
+      return;
+    }
+
+    if (preferredTarget && options.some((option) => option.targetLanguage === preferredTarget)) {
+      setSelectedDictionaryTargetLanguage(preferredTarget);
+      return;
+    }
+
+    setSelectedDictionaryTargetLanguage('');
+    setIsAdvancedOpen(true);
+  });
+
+  createEffect(() => {
     const languageCode = pendingLanguageInstall();
     if (!languageCode) return;
 
@@ -335,8 +486,7 @@ const WelcomeContent: Component = () => {
       return;
     }
 
-    const status = getLanguageDataStatus(languageCode);
-    if (status?.installed) {
+    if (isSelectedLanguageDataReady(languageCode)) {
       setPendingLanguageInstall(null);
       saveSetupSettingsAndRestart(languageCode);
     }
@@ -379,12 +529,6 @@ const WelcomeContent: Component = () => {
         <p class="welcome-window__info">
           <Show when={!installationStarted() && !installationCompleted()}>
             {t('mlearn.Installer.Instructions.ChooseComponents')}
-            <br />
-            {t('mlearn.Installer.Instructions.LanguageUnlocks')}
-            <br />
-            {t('mlearn.Installer.Instructions.ForgetSomething')}
-            <br />
-            <strong>{t('mlearn.Installer.Instructions.DownloadNote')}</strong>
           </Show>
           <Show when={installationStarted() && !installationCompleted()}>
             {t('mlearn.Installer.Status.Installing')}
@@ -418,19 +562,73 @@ const WelcomeContent: Component = () => {
         </Show>
 
         <Show when={!installationStarted()}>
-          <div class="welcome-window__languages">
-            <For each={availableLanguages()}>
-              {(lang) => (
-                <SelectableCard
-                  selected={selectedLanguage() === lang.code}
-                  onClick={() => setSelectedLanguage(lang.code)}
-                  icon={<span class="welcome-window__language-code">{lang.code.toUpperCase()}</span>}
-                  title={lang.name}
-                  subtitle={lang.nativeName}
-                />
-              )}
-            </For>
+          <div class="welcome-window__setup-sentence">
+            <span>{t('mlearn.Installer.SetupSentence.LearnPrefix')}</span>
+            <Select
+              class="welcome-window__sentence-select"
+              value={selectedLanguage()}
+              onChange={(event) => setSelectedLanguage(event.currentTarget.value)}
+              options={availableLanguages().map((lang) => ({
+                value: lang.code,
+                label: `${lang.name} (${lang.nativeName})`,
+              }))}
+            />
+            <span>{t('mlearn.Installer.SetupSentence.AppLanguagePrefix')}</span>
+            <Select
+              class="welcome-window__sentence-select"
+              value={selectedUILanguage()}
+              onChange={(event) => handleUILanguageChange(event.currentTarget.value)}
+              options={uiLanguageOptions()}
+            />
+            <span>{t('mlearn.Installer.SetupSentence.AppLanguageSuffix')}</span>
           </div>
+          <div class="welcome-window__summary">
+            <span>{t('mlearn.Installer.Summary.LearningLanguage', { language: selectedLanguageOption()?.name ?? selectedLanguage().toUpperCase() })}</span>
+            <span>{t('mlearn.Installer.Summary.DisplayLanguage', { language: selectedUILanguageLabel() })}</span>
+            <span>{t('mlearn.Installer.Summary.DictionaryLanguage', { language: selectedDictionaryRoute() })}</span>
+          </div>
+          <Show when={dictionaryTargetOptions().length > 0}>
+            <details
+              class="welcome-window__advanced"
+              open={isAdvancedOpen()}
+              onToggle={(event) => setIsAdvancedOpen(event.currentTarget.open)}
+            >
+              <summary>{t('mlearn.Installer.Advanced.Title')}</summary>
+              <div class="welcome-window__dictionary-target">
+                <span>{t('mlearn.Installer.SetupSentence.DictionaryPrefix')}</span>
+                <Select
+                  class="welcome-window__sentence-select"
+                  value={selectedDictionaryTargetLanguage()}
+                  placeholder={t('mlearn.Installer.DictionaryTarget.ChooseAvailable')}
+                  onChange={(event) => setSelectedDictionaryTargetLanguage(event.currentTarget.value)}
+                  options={dictionaryTargetOptions().map((pack) => ({
+                    value: pack.targetLanguage,
+                    label: pack.name,
+                  }))}
+                />
+                <Show when={shouldShowDictionaryTargetWarning()}>
+                  <p class="welcome-window__dictionary-target-warning">
+                    {t('mlearn.Installer.DictionaryTarget.Unavailable', {
+                      language: selectedUILanguageLabel(),
+                      available: availableDictionaryTargetLabels(),
+                    })}
+                  </p>
+                </Show>
+                <Show when={selectedDictionaryPackStatus()}>
+                  {(pack) => (
+                    <span class={`welcome-window__dictionary-target-status ${pack().installed ? 'installed' : 'missing'}`}>
+                      {pack().installed
+                        ? t('mlearn.Settings.Language.LanguageData.Installed')
+                        : t('mlearn.Settings.Language.LanguageData.MissingRequired')}
+                    </span>
+                  )}
+                </Show>
+              </div>
+            </details>
+          </Show>
+          <p class="welcome-window__download-note">
+            {t('mlearn.Installer.Instructions.LanguageUnlocks')}
+          </p>
         </Show>
 
         <Show when={installationStarted() || installationCompleted()}>
@@ -486,13 +684,13 @@ const WelcomeContent: Component = () => {
               disabled={
                 (installationStarted() && !installationCompleted()) ||
                 !selectedLanguage() ||
+                !hasValidDictionaryTargetSelection() ||
                 Boolean(pendingLanguageInstall()) ||
                 isFinalizingSetup()
               }
               class="welcome-window__action"
             >
-              <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>
-              <Show when={installationCompleted()}>{t('mlearn.Installer.Buttons.Continue')}</Show>
+              {primaryActionLabel()}
             </Btn>
           </Show>
         </Show>

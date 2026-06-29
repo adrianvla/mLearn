@@ -435,10 +435,10 @@ describe('localizationBridge', () => {
     expect(mockIPC.onLanguageDataCatalog).toHaveBeenCalledWith(cb);
   });
 
-  it('installLanguageData passes language to ipc.installLanguageData', () => {
+  it('installLanguageData passes language and dictionary target to ipc.installLanguageData', () => {
     const bridge = createElectronBridge();
-    bridge.localization.installLanguageData('de');
-    expect(mockIPC.installLanguageData).toHaveBeenCalledWith('de');
+    bridge.localization.installLanguageData('de', 'fr');
+    expect(mockIPC.installLanguageData).toHaveBeenCalledWith('de', 'fr');
   });
 
   it('onLanguageDataInstalled passes callback to ipc.onLanguageDataInstalled', () => {

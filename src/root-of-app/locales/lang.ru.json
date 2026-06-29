@@ -1018,7 +1018,9 @@
         "Installing": "Установка...",
         "StartInstallation": "Начать установку",
         "CancelInstall": "Cancel Installation",
-        "CancelRestart": "Cancel Restart"
+        "CancelRestart": "Cancel Restart",
+        "InstallLanguageData": "Установить выбранные языковые данные",
+        "FinishSetup": "Завершить настройку"
       },
       "Components": {
         "ExplainAi": {
@@ -1035,11 +1037,16 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "Выберите язык и компоненты, затем нажмите «Установить».",
+        "ChooseComponents": "Выберите, что вы хотите изучать и на каком языке mLearn должен отображаться.",
         "ClickToBegin": "Нажмите «Установить» для начала.",
         "DownloadNote": "Все загрузки обрабатываются автоматически. Рекомендуется стабильное подключение.",
         "ForgetSomething": "Если вы забыли что-то установить, удалите mLearn и перезапустите установщик.",
-        "LanguageUnlocks": "Во время настройки скачиваются только данные выбранного языка."
+        "LanguageUnlocks": "Языковые данные устанавливаются только после вашего явного запуска."
+      },
+      "DictionaryTarget": {
+        "Label": "Язык словаря",
+        "ChooseAvailable": "Выберите доступный язык словаря",
+        "Unavailable": "Для этого изучаемого языка нет словаря на {language}. Выберите один из доступных языков словаря: {available}."
       },
       "Status": {
         "Complete": "Установка завершена! Продолжите, чтобы установить данные выбранного языка.",
@@ -1059,6 +1066,21 @@
         "AlreadySatisfied": "Уже установлено",
         "Collecting": "Сбор зависимостей…",
         "Downloading": "Загрузка…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "Я хочу изучать",
+        "AppLanguagePrefix": "с интерфейсом mLearn на",
+        "AppLanguageSuffix": ".",
+        "DictionaryPrefix": "Определения словаря должны быть на"
+      },
+      "Advanced": {
+        "Title": "Дополнительно"
+      },
+      "Summary": {
+        "LearningLanguage": "Язык изучения: {language}",
+        "DisplayLanguage": "Язык интерфейса: {language}",
+        "DictionaryLanguage": "Язык словаря: {language}",
+        "NotAvailable": "недоступно"
       }
     },
     "ExamCentricStudy": {
@@ -1332,9 +1354,9 @@
           "Label": "Тема",
           "Light": "Светлая",
           "LightHighContrast": "Светлая высококонтрастная",
-      "Custom": "Пользовательская",
-      "CustomCssDescription": "Редактируйте CSS для пользовательской темы. Изменения применяются в реальном времени.",
-      "CustomCssLabel": "Пользовательский CSS"
+          "Custom": "Пользовательская",
+          "CustomCssDescription": "Редактируйте CSS для пользовательской темы. Изменения применяются в реальном времени.",
+          "CustomCssLabel": "Пользовательский CSS"
         }
       },
       "BlurEffect": {
@@ -1468,6 +1490,10 @@
           "Installed": "Языковые данные установлены",
           "InstallFailed": "Не удалось установить языковые данные",
           "MissingRequired": "Требуются языковые данные"
+        },
+        "DictionaryTarget": {
+          "Description": "Выберите язык определений в словаре",
+          "Label": "Язык словаря"
         }
       },
       "Performance": {
@@ -2554,6 +2580,10 @@
         "Voice": {
           "Title": "Голосовые компоненты",
           "Description": "Распознавание речи, синтез речи и определение голосовой активности."
+        },
+        "Dictionaries": {
+          "Title": "Установленные словари",
+          "Description": "Загруженные словарные пакеты, доступные на этом компьютере."
         }
       },
       "Items": {
@@ -2592,6 +2622,9 @@
         "QwenTts": {
           "Title": "TTS-модель Qwen3",
           "Description": "Дополнительное локальное клонирование голоса и многоязычный TTS."
+        },
+        "DictionaryPack": {
+          "Description": "Определения для {language}."
         }
       }
     },

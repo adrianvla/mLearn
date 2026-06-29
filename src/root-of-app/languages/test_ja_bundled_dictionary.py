@@ -24,8 +24,10 @@ def test_japanese_runtime_uses_on_demand_sqlite_read_only():
 def test_language_dictionary_builds_are_not_part_of_app_prebuild():
     package_json = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))
 
-    assert "build:japanese-dict" in package_json["scripts"]
-    assert "build:language-data" in package_json["scripts"]
+    assert "build:japanese-dict" not in package_json["scripts"]
+    assert "build:german-dict" not in package_json["scripts"]
+    assert "build:language-data" not in package_json["scripts"]
+    assert "package:language-data" not in package_json["scripts"]
     assert "build:japanese-dict" not in package_json["scripts"]["prebuild"]
     assert "build:german-dict" not in package_json["scripts"]["prebuild"]
 
@@ -39,7 +41,7 @@ def test_packaged_app_excludes_language_dictionary_payloads():
     )
 
     assert "!dictionaries/**" in root_resource["filter"]
-    assert "!languages/*.freq.json" in root_resource["filter"]
+    assert "!languages/**" in root_resource["filter"]
 
 
 def test_word_frequency_is_split_from_language_metadata():

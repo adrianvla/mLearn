@@ -50,8 +50,6 @@ vi.mock('../platform', () => ({
 // Dynamic locale import mock
 vi.mock('../../root-of-app/locales/lang.en.json', () => ({ default: { 'mlearn.App.Title': 'mLearn' } }));
 vi.mock('../../root-of-app/locales/lang.de.json', () => ({ default: { 'mlearn.App.Title': 'mLearn DE' } }));
-vi.mock('../../root-of-app/languages/ja.json', () => ({ default: { name: 'Japanese', code: 'ja' } }));
-vi.mock('../../root-of-app/languages/de.json', () => ({ default: { name: 'German', code: 'de' } }));
 
 // ============================================================================
 // Helper: build a minimal FlashcardStore
@@ -611,17 +609,14 @@ describe('Localization Bridge', () => {
     expect(typeof cleanup).toBe('function');
   });
 
-  it('getLangData emits lang-data without server URL', async () => {
+  it('getLangData emits empty language data without server URL', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
     const cb = vi.fn();
     bridge.localization.onLangData(cb);
     bridge.localization.getLangData();
     await vi.waitFor(() => expect(cb).toHaveBeenCalledOnce(), { timeout: 5000 });
-    expect(cb).toHaveBeenCalledWith(expect.objectContaining({
-      ja: expect.objectContaining({ name: 'Japanese' }),
-      de: expect.objectContaining({ name: 'German' }),
-    }));
+    expect(cb).toHaveBeenCalledWith({});
   });
 
   it('installLanguage emits lang-install-error on mobile', async () => {

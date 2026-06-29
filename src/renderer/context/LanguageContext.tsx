@@ -62,7 +62,7 @@ interface LanguageContextValue {
   isLoading: () => boolean;
   languageDataCatalog: () => LanguageDataCatalogStatus[];
   getLanguageDataStatus: (language: string) => LanguageDataCatalogStatus | undefined;
-  installLanguageData: (language: string) => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
   languageDataInstallError: () => { language: string; error: string } | null;
   isTranslatable: (pos: string) => boolean;
   translatableTypes: () => string[];
@@ -140,6 +140,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
         return next.sort((left, right) => left.language.localeCompare(right.language));
       });
       setLanguageDataInstallError(null);
+      bridge.localization.getLangData();
     }));
     ipcCleanups.push(bridge.localization.onLanguageDataInstallError((payload) => {
       setLanguageDataInstallError(payload);
@@ -230,9 +231,9 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const getLanguageDataStatus = (language: string): LanguageDataCatalogStatus | undefined =>
     languageDataCatalog().find((status) => status.language === language);
 
-  const installLanguageData = (language: string): void => {
+  const installLanguageData = (language: string, dictionaryTargetLanguage?: string): void => {
     setLanguageDataInstallError(null);
-    getBridge().localization.installLanguageData(language);
+    getBridge().localization.installLanguageData(language, dictionaryTargetLanguage);
   };
 
   // Get current language data

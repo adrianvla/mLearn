@@ -1018,7 +1018,9 @@
         "CancelRestart": "Cancel Restart",
         "Continue": "Continue",
         "Installing": "Installing...",
-        "StartInstallation": "Start Installation"
+        "StartInstallation": "Start Installation",
+        "InstallLanguageData": "Install Selected Language Data",
+        "FinishSetup": "Finish Setup"
       },
       "Components": {
         "ExplainAi": {
@@ -1035,11 +1037,16 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "Choose your language and components, then click Install.",
+        "ChooseComponents": "Choose what you want to learn and how mLearn should speak to you.",
         "ClickToBegin": "Click Install to begin.",
         "DownloadNote": "All downloads are handled automatically. A stable connection is recommended.",
         "ForgetSomething": "Components cannot be added after installation. Select everything you need now.",
-        "LanguageUnlocks": "Only the selected language data is downloaded during setup."
+        "LanguageUnlocks": "Language data is installed only after you explicitly request it."
+      },
+      "DictionaryTarget": {
+        "Label": "Dictionary language",
+        "ChooseAvailable": "Choose an available dictionary language",
+        "Unavailable": "No {language} dictionary is available for this learning language. Choose one of the available dictionary languages: {available}."
       },
       "Status": {
         "Complete": "Installation complete! Continue to install the selected language data.",
@@ -1059,6 +1066,21 @@
         "AlreadySatisfied": "Already satisfied",
         "Collecting": "Collecting dependencies…",
         "Downloading": "Downloading…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "I want to learn",
+        "AppLanguagePrefix": "with mLearn in",
+        "AppLanguageSuffix": ".",
+        "DictionaryPrefix": "Dictionary definitions should be in"
+      },
+      "Advanced": {
+        "Title": "Advanced"
+      },
+      "Summary": {
+        "LearningLanguage": "Learning language: {language}",
+        "DisplayLanguage": "Display language: {language}",
+        "DictionaryLanguage": "Dictionary language: {language}",
+        "NotAvailable": "not available"
       }
     },
     "ExamCentricStudy": {
@@ -1332,9 +1354,9 @@
           "Label": "Theme",
           "Light": "Light",
           "LightHighContrast": "Light High Contrast",
-      "Custom": "Custom",
-      "CustomCssDescription": "Edit the CSS for your custom theme. Changes apply live.",
-      "CustomCssLabel": "Custom CSS"
+          "Custom": "Custom",
+          "CustomCssDescription": "Edit the CSS for your custom theme. Changes apply live.",
+          "CustomCssLabel": "Custom CSS"
         }
       },
       "BlurEffect": {
@@ -1468,6 +1490,10 @@
           "Installed": "Language data installed",
           "InstallFailed": "Language data install failed",
           "MissingRequired": "Language data required"
+        },
+        "DictionaryTarget": {
+          "Description": "Select the language used for dictionary definitions",
+          "Label": "Dictionary Language"
         }
       },
       "Behaviour": {
@@ -2554,6 +2580,10 @@
         "Voice": {
           "Title": "Voice components",
           "Description": "Speech recognition, speech synthesis, and voice activity detection."
+        },
+        "Dictionaries": {
+          "Title": "Installed dictionaries",
+          "Description": "Downloaded dictionary packs available on this computer."
         }
       },
       "Items": {
@@ -2592,6 +2622,9 @@
         "QwenTts": {
           "Title": "Qwen3 TTS model",
           "Description": "Optional local voice cloning and multilingual TTS."
+        },
+        "DictionaryPack": {
+          "Description": "Definitions for {language}."
         }
       }
     },

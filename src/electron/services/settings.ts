@@ -7,10 +7,10 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import { Settings, DEFAULT_SETTINGS, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap } from '../../shared/types';
-import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
+import { Settings, DEFAULT_SETTINGS, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack } from '../../shared/types';
+import { getUserDataPath } from '../utils/platform';
 import { setUILanguage } from './localization';
-import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus } from './languageDataService';
+import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus, resolveDictionaryTargetLanguage } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.settings');
@@ -20,6 +20,10 @@ let settingsSaveQueue: Promise<void> = Promise.resolve();
 
 function getSettingsPath(): string {
   return path.join(getUserDataPath(), 'settings.json');
+}
+
+export function hasSettingsFile(): boolean {
+  return fs.existsSync(getSettingsPath());
 }
 
 function didAnkiSettingsChange(prevSettings: Settings, nextSettings: Settings): boolean {
@@ -89,26 +93,15 @@ export async function saveSettings(settings: Settings): Promise<void> {
 
 export function loadLangData(): LanguageDataMap {
   const langData: LanguageDataMap = {};
-  const appPath = getAppPath();
-  const resourcePath = getResourcePath();
   const candidateDirs = [
-    path.join(appPath, 'root-of-app', 'languages'),
-    path.join(resourcePath, 'root-of-app', 'languages'),
-    path.join(appPath, 'languages'),
-    path.join(resourcePath, 'languages'),
-    path.join(getUserDataPath(), 'languages'),
     path.join(getUserDataPath(), 'language-data', 'languages'),
   ];
   const languagesDirs = candidateDirs.filter((dir, index, dirs) => fs.existsSync(dir) && dirs.indexOf(dir) === index);
-  const frequencyDirs = [
-    ...languagesDirs,
-    path.join(getUserDataPath(), 'language-data', 'languages'),
-  ].filter((dir, index, dirs) => fs.existsSync(dir) && dirs.indexOf(dir) === index);
 
   try {
     if (languagesDirs.length === 0) {
-      log.warn('Languages directory not found:', candidateDirs.join(', '));
-      return getDefaultLangData();
+      log.info('No installed language data found:', candidateDirs.join(', '));
+      return {};
     }
 
     for (const languagesDir of languagesDirs) {
@@ -128,7 +121,7 @@ export function loadLangData(): LanguageDataMap {
       }
     }
 
-    for (const frequencyDir of frequencyDirs) {
+    for (const frequencyDir of languagesDirs) {
       const files = fs.readdirSync(frequencyDir);
 
       for (const file of files) {
@@ -137,9 +130,9 @@ export function loadLangData(): LanguageDataMap {
         const filePath = path.join(frequencyDir, file);
         try {
           const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-          if (Array.isArray(data.freq)) {
+          if (Array.isArray(data.freq) && langData[langCode]) {
             langData[langCode] = {
-              ...(langData[langCode] ?? getDefaultLangData()[langCode] ?? {}),
+              ...langData[langCode],
               freq: data.freq,
             } as LanguageDataMap[string];
           }
@@ -150,10 +143,6 @@ export function loadLangData(): LanguageDataMap {
     }
   } catch (error) {
     log.error('Failed to load language data:', error);
-  }
-
-  if (Object.keys(langData).length === 0) {
-    return getDefaultLangData();
   }
 
   return langData;
@@ -198,6 +187,35 @@ function normalizeCatalogBundle(value: unknown, catalogUrl: string): LanguageDat
   return bundle;
 }
 
+function normalizeDictionaryPacks(value: unknown, catalogUrl: string): Record<string, LanguageDictionaryPack> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const packs: Record<string, LanguageDictionaryPack> = {};
+  for (const [targetLanguage, packValue] of Object.entries(value)) {
+    if (!isRecord(packValue) || !Array.isArray(packValue.assets)) {
+      continue;
+    }
+    const bundle = normalizeCatalogBundle(packValue.bundle, catalogUrl);
+    if (!bundle) {
+      continue;
+    }
+    const assets = packValue.assets
+      .map((asset) => normalizeCatalogAsset(asset))
+      .filter((asset): asset is LanguageDataAsset => asset !== null);
+    packs[targetLanguage] = {
+      targetLanguage: typeof packValue.targetLanguage === 'string' ? packValue.targetLanguage : targetLanguage,
+      name: typeof packValue.name === 'string' ? packValue.name : targetLanguage.toUpperCase(),
+      version: typeof packValue.version === 'string' ? packValue.version : undefined,
+      bundle,
+      assets,
+    };
+  }
+
+  return Object.keys(packs).length > 0 ? packs : undefined;
+}
+
 function normalizeCatalogEntry(language: string, value: unknown, catalogUrl: string): LanguageCatalogEntry | null {
   if (!isRecord(value) || !isRecord(value.bundle) || !Array.isArray(value.files)) {
     return null;
@@ -215,6 +233,7 @@ function normalizeCatalogEntry(language: string, value: unknown, catalogUrl: str
     version: typeof value.version === 'string' ? value.version : `${language}-v1`,
     bundle,
     files,
+    dictionaryPacks: normalizeDictionaryPacks(value.dictionaryPacks, catalogUrl),
   };
 }
 
@@ -229,6 +248,7 @@ function languageDataFromCatalogEntry(entry: LanguageCatalogEntry): LanguageData
       version: entry.version,
       bundle: entry.bundle,
       assets: entry.files,
+      dictionaryPacks: entry.dictionaryPacks,
     },
   };
 }
@@ -292,63 +312,6 @@ export async function loadLanguageCatalogData(_settings: Settings = loadSettings
   return loadLangData();
 }
 
-function getDefaultLangData(): LanguageDataMap {
-  return {
-    ja: {
-      name: 'Japanese',
-      name_translated: '日本語',
-      translatable: ['名詞', '動詞', '形状詞', '副詞', '副詞節', '形容詞'],
-      colour_codes: {
-        '名詞': '#ebccfd',
-        '動詞': '#d6cefd',
-        '助詞': '#f5d7b8',
-        '助動詞': '#ffefd1',
-        '形状詞': '#def6ff',
-        '副詞': '#b8cdf5',
-        '接尾辞': '#aac8c4',
-        '感動詞': '#eacbcb',
-        '代名詞': '#f1ccfd',
-        '補助記号': '#8fc99d',
-        '連体詞': '#def6ff',
-        '形容詞': '#def6ff',
-        '形容動詞': '#def6ff',
-        '記号': '#8fc99d',
-      },
-      fixed_settings: {},
-      freq_level_names: {
-        '5': 'N5',
-        '4': 'N4',
-        '3': 'N3',
-        '2': 'N2',
-        '1': 'N1',
-      },
-    },
-    de: {
-      name: 'German',
-      name_translated: 'Deutsch',
-      translatable: ['NOUN', 'VERB', 'ADJ', 'ADV'],
-      colour_codes: {
-        'NOUN': '#ebccfd',
-        'PROPN': '#ebccfd',
-        'PRON': '#fdccd3',
-        'VERB': '#ffefd1',
-        'SCONJ': '#f5d7b8',
-        'PART': '#f5d7b8',
-        'DET': '#cef5b8',
-        'ADP': '#b8f5de',
-        'AUX': '#ffefd1',
-        'ADJ': '#def6ff',
-        'ADV': '#b8cdf5',
-        'PUNCT': '#8fc99d',
-      },
-      fixed_settings: {
-        furigana: false,
-        showPitchAccent: false,
-      },
-    },
-  };
-}
-
 export function setupSettingsIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_SETTINGS, (event) => {
     const settings = loadSettings();
@@ -380,10 +343,14 @@ export function setupSettingsIPC(): void {
     event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData));
   });
 
-  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string) => {
+  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string) => {
     try {
       const langData = await loadLanguagePackageCatalog();
       await ensureLanguageDataInstalled(language, langData);
+      const resolvedDictionaryTarget = resolveDictionaryTargetLanguage(language, langData, dictionaryTargetLanguage);
+      if (resolvedDictionaryTarget) {
+        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget);
+      }
       const catalog = getLanguageDataCatalogStatus(await loadLanguagePackageCatalog());
       const installedStatus = catalog.find((status) => status.language === language);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);

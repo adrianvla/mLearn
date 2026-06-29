@@ -54,8 +54,7 @@ def test_server_faulthandler_uses_configured_crash_log_path():
     assert 'os.path.join(config.RESPATH, "python_crash.log")' not in startup_source
 
 
-def test_user_language_modules_are_searched_before_builtin_modules():
-    paths = config._language_module_search_paths("/users/adrian/AppData")
+def test_language_modules_are_loaded_from_installed_language_data_only():
+    paths = config._language_module_search_paths("/users/adrian/AppData/language-data")
 
-    assert paths[0] == "/users/adrian/AppData/languages"
-    assert paths[-1].endswith("src/root-of-app/languages")
+    assert paths == ["/users/adrian/AppData/language-data/languages"]
