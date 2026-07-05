@@ -22,26 +22,26 @@
   gap: 0.5rem;
 }
 
-/* Pitch Accent Row */
-.pitch-row {
+/* Prosody row */
+.prosody-row {
   display: grid;
   grid-template-columns: 140px 1fr 1fr;
   gap: 1rem;
   align-items: center;
 }
 
-.pitch-input-group {
+.prosody-input-group {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.pitch-input-group label {
+.prosody-input-group label {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
-.pitch-input {
+.prosody-position-input {
   width: 100%;
   padding: 0.5rem;
   background: var(--bg);
@@ -51,23 +51,57 @@
   font-size: 0.9rem;
 }
 
-.pitch-input:focus {
+.prosody-position-input:focus {
   outline: none;
   border-color: var(--accent-primary);
 }
 
-.pitch-name {
+.prosody-category-name {
   font-size: 0.85rem;
   color: var(--text-secondary);
   opacity: 0.9;
 }
 
-.pitch-preview {
+.prosody-overlay-preview {
   position: relative;
   display: flex;
   align-items: center;
   gap: 0.25rem;
   min-height: 24px;
+}
+
+.prosody-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.2;
+}
+
+.prosody-preview-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prosody-preview-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--bg-intense);
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .pronunciation-preview {
@@ -220,7 +254,7 @@
 
 /* Responsive */
 @media (max-width: 500px) {
-  .pitch-row {
+  .prosody-row {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }

@@ -14,6 +14,10 @@ import { getLogger } from '../../../../shared/utils/logger';
 
 const log = getLogger("renderer.settings.general");
 
+function uniqueLanguageCodes(...groups: Array<readonly string[]>): string[] {
+  return [...new Set(groups.flat().filter(Boolean))];
+}
+
 function assignImportedSetting<K extends keyof Settings>(
   target: Partial<Settings>,
   key: K,
@@ -25,7 +29,15 @@ function assignImportedSetting<K extends keyof Settings>(
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
   const { t } = useLocalization();
-  const { langData, supportedLanguages } = useLanguage();
+  const {
+    langData,
+    supportedLanguages,
+    languageDataCatalog,
+    getLanguageDataStatus,
+    installLanguageData,
+    isLanguageDataInstalling,
+    languageDataInstallError,
+  } = useLanguage();
   const [exportError, setExportError] = createSignal<string | null>(null);
   const [importError, setImportError] = createSignal<string | null>(null);
   const [dataExportError, setDataExportError] = createSignal<string | null>(null);
@@ -46,10 +58,40 @@ export const GeneralTab: Component = () => {
     value: code,
     label: t(`mlearn.LocaleNames.${code}`),
   })));
-  const learningLanguageOptions = createMemo(() => supportedLanguages().map((code) => ({
+  const availableLanguageCodes = createMemo(() => {
+    const catalogCodes = languageDataCatalog().map((status) => status.language);
+    return uniqueLanguageCodes(catalogCodes, supportedLanguages());
+  });
+  const learningLanguageOptions = createMemo(() => availableLanguageCodes().map((code) => ({
     value: code,
-    label: langData[code]?.name_translated ?? langData[code]?.name ?? code.toUpperCase(),
+    label: langData[code]?.name_translated ?? getLanguageDataStatus(code)?.nameTranslated ?? getLanguageDataStatus(code)?.name ?? code.toUpperCase(),
   })));
+  const selectedLanguageDataStatus = createMemo(() => getLanguageDataStatus(settings.language));
+  const selectedLanguageInstalling = createMemo(() => isLanguageDataInstalling(settings.language));
+  const dictionaryTargetOptions = createMemo(() => selectedLanguageDataStatus()?.dictionaryPacks ?? []);
+  const selectedDictionaryTargetLanguage = createMemo(() => {
+    const options = dictionaryTargetOptions();
+    const configured = (settings.dictionaryTargetLanguages ?? DEFAULT_SETTINGS.dictionaryTargetLanguages)[settings.language];
+    if (configured && options.some((option) => option.targetLanguage === configured)) {
+      return configured;
+    }
+    if (settings.uiLanguage && options.some((option) => option.targetLanguage === settings.uiLanguage)) {
+      return settings.uiLanguage;
+    }
+    return options[0]?.targetLanguage ?? '';
+  });
+  const selectedDictionaryPackStatus = createMemo(() => {
+    const target = selectedDictionaryTargetLanguage();
+    return dictionaryTargetOptions().find((pack) => pack.targetLanguage === target);
+  });
+  const selectedDictionaryInstalling = createMemo(() => {
+    const target = selectedDictionaryTargetLanguage();
+    return target ? isLanguageDataInstalling(settings.language, target) : false;
+  });
+  const selectedLanguageInstallError = createMemo(() => {
+    const error = languageDataInstallError();
+    return error?.language === settings.language ? error.error : null;
+  });
 
   const handleExportSettings = async () => {
     setExportError(null);
@@ -197,17 +239,86 @@ export const GeneralTab: Component = () => {
             onChange={async (e) => {
               const language = e.currentTarget.value;
               updateSettings({ language });
-
-              const cleanup = getBridge().settings.onSettingsSaved(() => {
-                cleanup();
-                getBridge().server.restartBackend();
-              });
-
-              saveSettings();
             }}
             options={learningLanguageOptions()}
           />
+          <Show when={selectedLanguageDataStatus()}>
+            {(status) => (
+              <span class={`setting-hint language-data-status ${status().installed ? 'installed' : 'missing'}`}>
+                {status().installed
+                  ? t('mlearn.Settings.Language.LanguageData.Installed')
+                  : t('mlearn.Settings.Language.LanguageData.MissingRequired')}
+              </span>
+            )}
+          </Show>
+          <Show when={selectedLanguageDataStatus() && !selectedLanguageDataStatus()?.installed}>
+            <Btn
+              size="sm"
+              variant="secondary"
+              loading={selectedLanguageInstalling()}
+              disabled={selectedLanguageInstalling()}
+              onClick={() => installLanguageData(settings.language)}
+            >
+              {selectedLanguageInstalling()
+                ? t('mlearn.Settings.Language.LanguageData.Installing')
+                : t('mlearn.Settings.Language.LanguageData.Install')}
+            </Btn>
+          </Show>
+          <Show when={selectedLanguageInstallError()}>
+            {(error) => (
+              <span class="setting-error">
+                {t('mlearn.Settings.Language.LanguageData.InstallFailed')}: {error()}
+              </span>
+            )}
+          </Show>
         </SettingRow>
+
+        <Show when={dictionaryTargetOptions().length > 0}>
+          <SettingRow
+            label={t('mlearn.Settings.Language.DictionaryTarget.Label')}
+            description={t('mlearn.Settings.Language.DictionaryTarget.Description')}
+          >
+            <Select
+              class="setting-select"
+              value={selectedDictionaryTargetLanguage()}
+              onChange={(e) => {
+                const targetLanguage = e.currentTarget.value;
+                updateSettings({
+                  dictionaryTargetLanguages: {
+                    ...(settings.dictionaryTargetLanguages ?? DEFAULT_SETTINGS.dictionaryTargetLanguages),
+                    [settings.language]: targetLanguage,
+                  },
+                });
+              }}
+              options={dictionaryTargetOptions().map((pack) => ({
+                value: pack.targetLanguage,
+                label: pack.name,
+              }))}
+            />
+            <Show when={selectedDictionaryPackStatus()}>
+              {(pack) => (
+                <span class={`setting-hint language-data-status ${pack().installed ? 'installed' : 'missing'}`}>
+                  {pack().installed
+                    ? t('mlearn.Settings.Language.LanguageData.Installed')
+                    : t('mlearn.Settings.Language.LanguageData.MissingRequired')}
+                </span>
+              )}
+            </Show>
+            <Show when={selectedDictionaryPackStatus() && !selectedDictionaryPackStatus()?.installed}>
+              <Btn
+                size="sm"
+                variant="secondary"
+                loading={selectedDictionaryInstalling()}
+                disabled={selectedDictionaryInstalling()}
+                onClick={() => installLanguageData(settings.language, selectedDictionaryTargetLanguage())}
+              >
+                {selectedDictionaryInstalling()
+                  ? t('mlearn.Settings.Language.LanguageData.Installing')
+                  : t('mlearn.Settings.Language.LanguageData.Install')}
+              </Btn>
+            </Show>
+          </SettingRow>
+        </Show>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.Appearance')}>

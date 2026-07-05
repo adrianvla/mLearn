@@ -3,6 +3,7 @@
  */
 
 import { Component, For, Show, createMemo } from 'solid-js';
+import type { JSX } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, TabContent, Select, Btn } from '../../../components/common';
 import Icon from '../../../components/common/Icons/Icon';
@@ -10,6 +11,7 @@ import type { SubtitleTheme } from '@shared/constants';
 import '../SettingsForm.css';
 import './CustomizationTab.css';
 import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
+import type { ColorCodes, LanguageData } from '@shared/types';
 
 /** Labels for CSS variables (user-friendly names) */
 const CSS_VAR_LABELS: Record<string, { label: string; description: string }> = {
@@ -22,6 +24,51 @@ const CSS_VAR_LABELS: Record<string, { label: string; description: string }> = {
   'border-color': { label: 'Border Color', description: 'Standard border color' },
   'border-color-intense': { label: 'Border Color (Intense)', description: 'More visible border color' },
 };
+
+interface PartOfSpeechColorEntry {
+  pos: string;
+  userColor: string;
+  defaultColor: string;
+  aliases: string[];
+  isTranslatable: boolean;
+}
+
+export function buildPartOfSpeechColorEntries(
+  langData: LanguageData | null | undefined,
+  userCodes: ColorCodes = {},
+): PartOfSpeechColorEntry[] {
+  const partOfSpeech = langData?.textProcessing?.partOfSpeech;
+  const defaultColors = partOfSpeech?.colors ?? {};
+  const translatable = partOfSpeech?.translatable ?? [];
+  const aliases = partOfSpeech?.aliases ?? {};
+
+  const orderedPos = new Set([
+    ...translatable,
+    ...Object.keys(defaultColors),
+    ...Object.keys(userCodes),
+  ]);
+  const translatableOrder = new Map(translatable.map((pos, index) => [pos, index]));
+
+  return [...orderedPos]
+    .sort((left, right) => {
+      const leftOrder = translatableOrder.get(left);
+      const rightOrder = translatableOrder.get(right);
+      if (leftOrder !== undefined || rightOrder !== undefined) {
+        return (leftOrder ?? Number.MAX_SAFE_INTEGER) - (rightOrder ?? Number.MAX_SAFE_INTEGER);
+      }
+      return left.localeCompare(right);
+    })
+    .map((pos) => ({
+      pos,
+      userColor: userCodes[pos] || '',
+      defaultColor: defaultColors[pos] || '',
+      aliases: Object.entries(aliases)
+        .filter(([, canonical]) => canonical === pos)
+        .map(([alias]) => alias)
+        .sort((left, right) => left.localeCompare(right)),
+      isTranslatable: translatable.includes(pos),
+    }));
+}
 
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -55,16 +102,7 @@ export const CustomizationTab: Component = () => {
 
   /** Get all POS tags available from the current language data */
   const posEntries = createMemo(() => {
-    const langData = currentLangData();
-    const langCodes = langData?.colour_codes || {};
-    const userCodes = settings.colour_codes || {};
-    // Merge lang defaults with user overrides to show all known POS tags
-    const allPos = new Set([...Object.keys(langCodes), ...Object.keys(userCodes)]);
-    return [...allPos].map((pos) => ({
-      pos,
-      userColor: userCodes[pos] || '',
-      defaultColor: langCodes[pos] || '',
-    }));
+    return buildPartOfSpeechColorEntries(currentLangData(), settings.colour_codes || {});
   });
 
   /** Update a single POS color override */
@@ -159,8 +197,11 @@ export const CustomizationTab: Component = () => {
             type="number"
             class="setting-input"
             value={settings.subsOffsetTime}
-            step={100}
-            onChange={(e) => updateSettings({ subsOffsetTime: parseInt(e.currentTarget.value) })}
+            step={0.1}
+            onChange={(e) => {
+              const parsed = parseFloat(e.currentTarget.value);
+              updateSettings({ subsOffsetTime: Number.isNaN(parsed) ? 0 : parsed });
+            }}
           />
         </SettingRow>
       </SettingGroup>
@@ -205,40 +246,61 @@ export const CustomizationTab: Component = () => {
             {t('mlearn.Settings.WordStatus.PosColors.Description')}
           </p>
 
-          <For each={posEntries()}>
-            {(entry) => {
-              const effectiveColor = () => entry.userColor || entry.defaultColor;
+          <div class="pos-colors__grid">
+            <For each={posEntries()}>
+              {(entry) => {
+                const effectiveColor = () => entry.userColor || entry.defaultColor;
+                const cardStyle = (): JSX.CSSProperties => ({
+                  '--pos-color': effectiveColor() || '#000000',
+                });
 
-              return (
-                <SettingRow label={entry.pos}>
-                  <div class="pos-colors__row">
-                    <input
-                      type="color"
-                      class="pos-colors__color-input"
-                      value={effectiveColor() || '#000000'}
-                      onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value)}
-                    />
-                    <input
-                      type="text"
-                      class="setting-input pos-colors__text-input"
-                      placeholder={entry.defaultColor || '#000000'}
-                      value={entry.userColor}
-                      onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value || null)}
-                    />
-                    <Show when={entry.userColor}>
-                      <Btn
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => updatePosColor(entry.pos, null)}
-                      >
-                        {t('mlearn.Settings.WordStatus.PosColors.Reset')}
-                      </Btn>
-                    </Show>
+                return (
+                  <div
+                    class="pos-colors__card"
+                    classList={{
+                      'pos-colors__card--lookup': entry.isTranslatable,
+                      'pos-colors__card--custom': Boolean(entry.userColor),
+                    }}
+                    style={cardStyle()}
+                  >
+                    <div class="pos-colors__card-header">
+                      <span class="pos-colors__swatch" />
+                      <div class="pos-colors__label-stack">
+                        <span class="pos-colors__label">{entry.pos}</span>
+                        <Show when={entry.aliases.length > 0}>
+                          <span class="pos-colors__aliases">{entry.aliases.join(' / ')}</span>
+                        </Show>
+                      </div>
+                    </div>
+                    <div class="pos-colors__controls">
+                      <input
+                        type="color"
+                        class="pos-colors__color-input"
+                        value={effectiveColor() || '#000000'}
+                        onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value)}
+                      />
+                      <input
+                        type="text"
+                        class="setting-input pos-colors__text-input"
+                        placeholder={entry.defaultColor || '#000000'}
+                        value={entry.userColor}
+                        onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value || null)}
+                      />
+                      <Show when={entry.userColor}>
+                        <Btn
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => updatePosColor(entry.pos, null)}
+                        >
+                          {t('mlearn.Settings.WordStatus.PosColors.Reset')}
+                        </Btn>
+                      </Show>
+                    </div>
                   </div>
-                </SettingRow>
-              );
-            }}
-          </For>
+                );
+              }}
+            </For>
+          </div>
 
           <Show when={hasPosColorOverrides()}>
             <div class="pos-colors__reset-row">

@@ -64,7 +64,7 @@ export const SyncProvider: ParentComponent = (props) => {
               const existing = flashcardCtx.store.flashcards[id];
               if (!existing) {
                 // New card from remote — add via context
-                void flashcardCtx.addFlashcard(card.content, undefined, true);
+                void flashcardCtx.addFlashcard(card.content, undefined, true, card.language);
               } else if ((card.lastUpdated || 0) > (existing.lastUpdated || 0)) {
                 flashcardCtx.updateFlashcard(id, card);
               }

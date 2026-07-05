@@ -2,6 +2,8 @@ import { createRoot } from 'solid-js';
 import {
   sendImageForOCR,
   prepareBlobForOCR,
+  assertOcrLanguageDataReady,
+  getOcrLanguageDataReadinessError,
   MAX_OCR_AREA_TURBO,
   MAX_OCR_AREA_ACCURATE,
 } from './useOCR';
@@ -50,10 +52,12 @@ vi.mock('../../shared/backends', () => ({
 
 let mockIsConnected = vi.fn(() => true);
 let mockRequestAccess = vi.fn(() => Promise.resolve(true));
+let mockCurrentLangData = vi.fn(() => null);
 
 vi.mock('../context', () => ({
   useServer: () => ({ isConnected: () => mockIsConnected() }),
   useLowPowerGate: () => ({ requestAccess: (...args: unknown[]) => mockRequestAccess(...args) }),
+  useLanguage: () => ({ currentLangData: () => mockCurrentLangData() }),
 }));
 
 let mockSettings: Record<string, unknown> = {
@@ -63,6 +67,22 @@ let mockSettings: Record<string, unknown> = {
   cloudAuthAccessToken: '',
   cloudAuthToken: '',
 };
+
+function makeInstalledLanguageData(overrides: Record<string, unknown> = {}) {
+  return {
+    name: 'Japanese',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: { scriptProfile: { acceptedScripts: ['Han', 'Hira', 'Kana'] } },
+    runtime: {
+      ocr: {
+        recognitionEngine: 'rapidocr',
+        rapidLangType: 'JAPAN',
+      },
+    },
+    ...overrides,
+  };
+}
 
 const mockEnsureCloudAccessToken = vi.fn(async () => {
   const accessToken = typeof mockSettings.cloudAuthAccessToken === 'string'
@@ -132,6 +152,44 @@ describe('OCR constants', () => {
 
   it('turbo area is smaller than accurate area', () => {
     expect(MAX_OCR_AREA_TURBO).toBeLessThan(MAX_OCR_AREA_ACCURATE);
+  });
+});
+
+describe('OCR language data readiness', () => {
+  it('reports missing selected language data without throwing from the helper', () => {
+    expect(getOcrLanguageDataReadinessError('ja', null)).toBe('Language data is required before running OCR for ja');
+    expect(() => assertOcrLanguageDataReady('ja', null)).toThrow('Language data is required before running OCR for ja');
+  });
+
+  it('reports stale language data that has no OCR runtime engine', () => {
+    expect(getOcrLanguageDataReadinessError('ja', {
+      name: 'Unconfigured Japanese metadata',
+      colour_codes: {},
+      settings: { fixed: {} },
+    })).toBe('OCR runtime language data is required for ja');
+  });
+
+  it('accepts installed language data with a runtime OCR engine', () => {
+    const languageData = makeInstalledLanguageData();
+
+    expect(getOcrLanguageDataReadinessError('ja', languageData)).toBeNull();
+    expect(() => assertOcrLanguageDataReady('ja', languageData)).not.toThrow();
+  });
+
+  it('accepts installed language data with a custom runtime OCR engine name', () => {
+    const languageData = {
+      name: 'Future OCR Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      runtime: {
+        ocr: {
+          recognitionEngine: 'arabic-transformer-ocr',
+        },
+      },
+    };
+
+    expect(getOcrLanguageDataReadinessError('ar', languageData)).toBeNull();
+    expect(() => assertOcrLanguageDataReady('ar', languageData)).not.toThrow();
   });
 });
 
@@ -277,6 +335,22 @@ describe('sendImageForOCR', () => {
     expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({ turbo: false });
   });
 
+  it('passes the learning language through to the backend adapter', async () => {
+    const blob = makePngBlob();
+    setupImageBitmapMock(100, 100);
+    setupBackendOCRResponse({ text: '日本語' });
+
+    await sendImageForOCR(blob, {
+      language: 'ja',
+      turbo: true,
+    });
+
+    expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({
+      language: 'ja',
+      turbo: true,
+    });
+  });
+
   it('passes ram saver and dev options to the backend adapter', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
@@ -286,16 +360,35 @@ describe('sendImageForOCR', () => {
       turbo: false,
       ramSaver: true,
       devMode: true,
-      paddleScale: 50,
+      detectionScale: 50,
     });
 
     expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({
       turbo: false,
       ramSaver: true,
       devMode: true,
-      paddleMaxWidth: 50,
-      paddleMaxHeight: 50,
+      detectionMaxWidth: 50,
+      detectionMaxHeight: 50,
     });
+  });
+
+  it('does not apply dev Paddle downscale dimensions in turbo mode', async () => {
+    const blob = makePngBlob();
+    setupImageBitmapMock(100, 100);
+    setupBackendOCRResponse({ text: 'hello' });
+
+    await sendImageForOCR(blob, {
+      turbo: true,
+      devMode: true,
+      detectionScale: 50,
+    });
+
+    expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({
+      turbo: true,
+      devMode: true,
+    });
+    expect(mockBackend.ocr.mock.calls[0][1]).not.toHaveProperty('detectionMaxWidth');
+    expect(mockBackend.ocr.mock.calls[0][1]).not.toHaveProperty('detectionMaxHeight');
   });
 
   it('returns OCR result with text', async () => {
@@ -372,6 +465,7 @@ describe('useOCR', () => {
     mockConvertToBlob.mockReset();
     mockIsConnected = vi.fn(() => true);
     mockRequestAccess = vi.fn(() => Promise.resolve(true));
+    mockCurrentLangData = vi.fn(() => makeInstalledLanguageData());
     mockCloudRecognize.mockReset();
     mockEnsureCloudAccessToken.mockClear();
     mockBackend.ocr.mockReset();
@@ -410,7 +504,7 @@ describe('useOCR', () => {
       expect(ocr.error()).toBeNull();
       expect(mockBackend.ocr).toHaveBeenCalledWith(
         expect.any(Blob),
-        expect.objectContaining({ turbo: true }),
+        expect.objectContaining({ language: 'ja', turbo: true }),
       );
       dispose();
     });
@@ -426,6 +520,44 @@ describe('useOCR', () => {
       expect(result).toBeNull();
       expect(ocr.error()).toBe('Backend not connected');
       expect(mockBackend.ocr).not.toHaveBeenCalled();
+      dispose();
+    });
+  });
+
+  it('recognize refuses to run OCR before selected language data is loaded', async () => {
+    mockCurrentLangData = vi.fn(() => null);
+    const blob = makePngBlob();
+    setupImageBitmapMock(100, 100);
+
+    await createRoot(async (dispose) => {
+      const ocr = useOCR();
+      const result = await ocr.recognize(blob);
+
+      expect(result).toBeNull();
+      expect(ocr.error()).toBe('Language data is required before running OCR for ja');
+      expect(mockBackend.ocr).not.toHaveBeenCalled();
+      expect(mockCloudRecognize).not.toHaveBeenCalled();
+      dispose();
+    });
+  });
+
+  it('recognize refuses stale language data without OCR runtime metadata', async () => {
+    mockCurrentLangData = vi.fn(() => ({
+      name: 'Unconfigured Japanese metadata',
+      colour_codes: {},
+      settings: { fixed: {} },
+    }));
+    const blob = makePngBlob();
+    setupImageBitmapMock(100, 100);
+
+    await createRoot(async (dispose) => {
+      const ocr = useOCR();
+      const result = await ocr.recognize(blob);
+
+      expect(result).toBeNull();
+      expect(ocr.error()).toBe('OCR runtime language data is required for ja');
+      expect(mockBackend.ocr).not.toHaveBeenCalled();
+      expect(mockCloudRecognize).not.toHaveBeenCalled();
       dispose();
     });
   });
@@ -652,8 +784,70 @@ describe('useOCR', () => {
 
       expect(result).not.toBeNull();
       expect(result!.text).toBe('cloud result');
-      expect(mockCloudRecognize).toHaveBeenCalled();
+      expect(mockCloudRecognize).toHaveBeenCalledWith(expect.any(Blob), 'ja', 'rapid');
       expect(mockFetch).not.toHaveBeenCalled();
+      dispose();
+    });
+  });
+
+  it('cloud OCR requests MangaOCR when language runtime uses MangaOCR recognition', async () => {
+    mockSettings = {
+      ocrProvider: 'cloud',
+      ocrTurboMode: true,
+      language: 'ja',
+      cloudAuthAccessToken: 'my-token',
+      cloudAuthToken: '',
+    };
+    mockCurrentLangData = vi.fn(() => ({
+      name: 'Japanese',
+      colour_codes: {},
+      settings: { fixed: {} },
+      runtime: {
+        ocr: {
+          recognitionEngine: 'mangaocr',
+        },
+      },
+    }));
+
+    const blob = makePngBlob();
+    setupImageBitmapMock(100, 100);
+    mockCloudRecognize.mockResolvedValue({ text: '漫画', boxes: [] });
+
+    await createRoot(async (dispose) => {
+      const ocr = useOCR();
+      const result = await ocr.recognize(blob);
+
+      expect(result).not.toBeNull();
+      expect(mockCloudRecognize).toHaveBeenCalledWith(expect.any(Blob), 'ja', 'manga-ocr');
+      dispose();
+    });
+  });
+
+  it('cloud OCR refuses stale language data without OCR runtime metadata', async () => {
+    mockSettings = {
+      ocrProvider: 'cloud',
+      ocrTurboMode: true,
+      language: 'ja',
+      cloudAuthAccessToken: 'my-token',
+      cloudAuthToken: '',
+    };
+    mockCurrentLangData = vi.fn(() => ({
+      name: 'Unconfigured Japanese metadata',
+      colour_codes: {},
+      settings: { fixed: {} },
+    }));
+
+    const blob = makePngBlob();
+    setupImageBitmapMock(100, 100);
+    mockCloudRecognize.mockResolvedValue({ text: 'should not run', boxes: [] });
+
+    await createRoot(async (dispose) => {
+      const ocr = useOCR();
+      const result = await ocr.recognize(blob);
+
+      expect(result).toBeNull();
+      expect(ocr.error()).toBe('OCR runtime language data is required for ja');
+      expect(mockCloudRecognize).not.toHaveBeenCalled();
       dispose();
     });
   });

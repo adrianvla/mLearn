@@ -13,6 +13,9 @@ const log = getLogger("renderer.context.server");
 // Server status types
 type ServerStatus = 'loading' | 'connected' | 'error' | 'installing';
 
+const INSTALLER_REQUIRED_MESSAGE =
+  'The local Python runtime is not installed. Install required components before using the local backend.';
+
 interface ServerContextValue {
   status: () => ServerStatus;
   statusMessage: () => string;
@@ -77,11 +80,15 @@ export const ServerProvider: ParentComponent = (props) => {
 
     const bridge = getBridge();
 
+    const markRuntimeInstalledAwaitingServer = () => {
+      if (status() === 'connected') return;
+      setStatus('loading');
+      setStatusMessage('Starting backend...');
+      setError(null);
+    };
+
     // Migrate localStorage → KV store, then send KV data to main process
     migrateLocalStorageToKVStore().then(() => sendKVStoreToMain());
-
-    // Request initial status
-    bridge.server.isLoaded();
 
     // Listen for server load
     ipcCleanups.push(bridge.server.onServerLoad((message) => {
@@ -108,14 +115,45 @@ export const ServerProvider: ParentComponent = (props) => {
     ipcCleanups.push(bridge.installer.onInstallStarted(() => {
       setStatus('installing');
       setStatusMessage('Installing components...');
+      setError(null);
     }));
 
     ipcCleanups.push(bridge.installer.onPythonSuccess((success) => {
       if (success) {
-        setStatus('connected');
-        setStatusMessage('Installation complete');
+        markRuntimeInstalledAwaitingServer();
       }
     }));
+
+    ipcCleanups.push(bridge.installer.onInstallerAwaitingChoice(() => {
+      if (status() === 'connected') return;
+      setStatus('error');
+      setStatusMessage(INSTALLER_REQUIRED_MESSAGE);
+      setError(INSTALLER_REQUIRED_MESSAGE);
+    }));
+
+    ipcCleanups.push(bridge.installer.onInstallerState((state) => {
+      if (state.success) {
+        markRuntimeInstalledAwaitingServer();
+        return;
+      }
+
+      if (state.inProgress) {
+        setStatus('installing');
+        setStatusMessage('Installing components...');
+        setError(null);
+        return;
+      }
+
+      if (state.waiting) {
+        if (status() === 'connected') return;
+        setStatus('error');
+        setStatusMessage(INSTALLER_REQUIRED_MESSAGE);
+        setError(INSTALLER_REQUIRED_MESSAGE);
+      }
+    }));
+
+    bridge.installer.requestInstallerState();
+    bridge.server.isLoaded();
   };
 
   const restart = () => {

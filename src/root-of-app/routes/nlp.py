@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 import plugin_registry
+import config
+from generic_language import dictionary_target_language_override
 from logging_utils import get_logger
 
 log = get_logger("nlp")
@@ -23,9 +25,7 @@ router = APIRouter()
 def _resolve_module(language: Optional[str]):
     """Return the requested language module, falling back to the active one."""
     if language:
-        mod = plugin_registry.get_language(language)
-        if mod is not None:
-            return mod
+        return config.get_or_load_language(language)
     return plugin_registry.get_active()
 
 
@@ -41,6 +41,11 @@ class TokenizeResponse(BaseModel):
 class TranslationRequest(BaseModel):
     word: str = Field(..., max_length=1000)
     language: Optional[str] = Field(default=None, max_length=32)
+    dictionary_target_language: Optional[str] = Field(default=None, max_length=32)
+    dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
+
+    def requested_dictionary_target_language(self) -> Optional[str]:
+        return self.dictionary_target_language or self.dictionaryTargetLanguage
 
 
 class TranslationResponse(BaseModel):
@@ -63,4 +68,9 @@ def get_translation(req: TranslationRequest):
     mod = _resolve_module(req.language)
     if mod is None:
         return {"data": []}
+    target_language = req.requested_dictionary_target_language()
+    if target_language:
+        language = req.language or getattr(mod, "language", None)
+        with dictionary_target_language_override(language, target_language):
+            return mod.LANGUAGE_TRANSLATE(req.word)
     return mod.LANGUAGE_TRANSLATE(req.word)

@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type WordCandidate, type WordStats, type FlashcardState } from '../../shared/types';
+import type { FlashcardStore, Flashcard, WordCandidate, WordStats, FlashcardState } from '../../shared/types';
 import { SRS_EASE } from '../../shared/constants';
 
 const CHUNK_SIZE = 16000;
@@ -176,7 +176,7 @@ export async function mergeFlashcards(
     const word = card.content.front;
     if (word) {
       const wordHash = await toUniqueIdentifier(word);
-      const lang = card.language || DEFAULT_SETTINGS.language;
+      const lang = card.language || 'und';
       const lk = lang + ':' + wordHash;
       if (!newWordToCardMap[lk]) {
         newWordToCardMap[lk] = [];

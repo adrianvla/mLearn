@@ -21,14 +21,20 @@ import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.localStorageMigration');
 
-// Migration status
+/**
+ * @deprecated Result object for the file:// localStorage importer. The app now
+ * uses file/KV-backed storage instead of renderer localStorage.
+ */
 interface MigrationResult {
   success: boolean;
   migratedKeys: string[];
   error?: string;
 }
 
-// Storage for migrated data
+/**
+ * @deprecated Snapshot of old renderer localStorage keys. Do not add new
+ * persistence to this shape.
+ */
 interface MigratedLocalStorage {
   knownAdjustment?: Record<string, number>;
   recentlyWatched?: Array<{ name: string; screenshotUrl?: string }>;
@@ -38,18 +44,24 @@ interface MigratedLocalStorage {
   [key: string]: unknown;
 }
 
-// Path to the migration data file
+/**
+ * @deprecated Path used only by the one-time localStorage importer.
+ */
 function getMigrationDataPath(): string {
   return path.join(getUserDataPath(), 'localStorage_migration.json');
 }
 
-// Path to migration status file (tracks if migration was attempted)
+/**
+ * @deprecated Path used only by the one-time localStorage importer.
+ */
 function getMigrationStatusPath(): string {
   return path.join(getUserDataPath(), 'localStorage_migration_status.json');
 }
 
 /**
  * Check if migration has already been performed
+ *
+ * @deprecated Only for the old file:// localStorage importer.
  */
 export function hasMigrationBeenAttempted(): boolean {
   const statusPath = getMigrationStatusPath();
@@ -58,6 +70,8 @@ export function hasMigrationBeenAttempted(): boolean {
 
 /**
  * Mark migration as attempted
+ *
+ * @deprecated Only for the old file:// localStorage importer.
  */
 function markMigrationAttempted(result: MigrationResult): void {
   const statusPath = getMigrationStatusPath();
@@ -69,6 +83,8 @@ function markMigrationAttempted(result: MigrationResult): void {
 
 /**
  * Get migrated localStorage data
+ *
+ * @deprecated Read from the current storage services instead.
  */
 export function getMigratedLocalStorage(): MigratedLocalStorage | null {
   const dataPath = getMigrationDataPath();
@@ -84,6 +100,8 @@ export function getMigratedLocalStorage(): MigratedLocalStorage | null {
 
 /**
  * Get a specific item from migrated localStorage
+ *
+ * @deprecated Read from the current storage services instead.
  */
 export function getMigratedItem<T = unknown>(key: string): T | null {
   const data = getMigratedLocalStorage();
@@ -96,6 +114,8 @@ export function getMigratedItem<T = unknown>(key: string): T | null {
 /**
  * Create a hidden window to access file:// localStorage
  * This is necessary because in dev mode we run on localhost which has different localStorage
+ *
+ * @deprecated Only supports importing data from the old file:// app.
  */
 async function createMigrationWindow(): Promise<BrowserWindow> {
   const migrationWindow = new BrowserWindow({
@@ -155,6 +175,8 @@ async function createMigrationWindow(): Promise<BrowserWindow> {
 
 /**
  * Extract localStorage from the migration window
+ *
+ * @deprecated Only supports importing data from the old file:// app.
  */
 async function extractLocalStorage(window: BrowserWindow): Promise<Record<string, unknown>> {
   try {
@@ -193,6 +215,8 @@ async function extractLocalStorage(window: BrowserWindow): Promise<Record<string
 
 /**
  * Process and organize the raw localStorage data
+ *
+ * @deprecated Only supports importing data from the old file:// app.
  */
 function processMigratedData(rawData: Record<string, unknown>): MigratedLocalStorage {
   const processed: MigratedLocalStorage = {};
@@ -233,6 +257,9 @@ function processMigratedData(rawData: Record<string, unknown>): MigratedLocalSto
 
 /**
  * Perform the localStorage migration
+ *
+ * @deprecated One-time importer for the old file:// app. New installs should
+ * start from file/KV-backed stores.
  */
 export async function migrateLocalStorage(): Promise<MigrationResult> {
   log.info('[Migration] Starting localStorage migration...');
@@ -313,6 +340,8 @@ export async function migrateLocalStorage(): Promise<MigrationResult> {
 
 /**
  * Get knownAdjustment data (word statuses) from migration
+ *
+ * @deprecated Word status should come from the current stats/flashcard stores.
  */
 export function getKnownAdjustmentFromMigration(): Record<string, number> | null {
   return getMigratedItem<Record<string, number>>('knownAdjustment');
@@ -320,6 +349,8 @@ export function getKnownAdjustmentFromMigration(): Record<string, number> | null
 
 /**
  * Setup IPC handlers for migration
+ *
+ * @deprecated IPC surface for the old file:// localStorage importer.
  */
 export function setupMigrationIPC(): void {
   // Get migrated localStorage data

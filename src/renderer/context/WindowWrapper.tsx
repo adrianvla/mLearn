@@ -33,12 +33,14 @@ installRendererLogSink();
 const ankiCacheToastGate = createAnkiCacheToastGate();
 
 const LanguageProviderBridge: Component<{ children?: JSX.Element }> = (props) => {
-  const { settings } = useSettings();
+  const { settings, isLoading } = useSettings();
 
   return (
-    <LanguageProvider language={settings.language}>
-      {props.children}
-    </LanguageProvider>
+    <Show when={!isLoading()}>
+      <LanguageProvider language={settings.language}>
+        {props.children}
+      </LanguageProvider>
+    </Show>
   );
 };
 

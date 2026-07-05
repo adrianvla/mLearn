@@ -19,15 +19,17 @@ import { useTokenizer, useTranslation, getCachedTranslation } from '../../hooks/
 import { useWatchTogether } from '../../hooks/useWatchTogether';
 import { cleanContextPhrase } from '../../utils/phraseExtraction';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
-import { getWordStatus } from '../../services/statsService';
+import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../components/subtitle/wordHoverHelpers';
-import { getWordFormCandidates } from '../../utils/wordForms';
+import { getTokenLookupWord, getWordFormCandidates } from '../../utils/wordForms';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { WORD_STATUS, ANKI_EASE } from '../../../shared/constants';
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { getLogger } from '../../../shared/utils/logger';
+import { clipVideo } from '../../services/videoClipService';
 
 interface TextModeLookupData {
   word: string;
@@ -58,6 +60,16 @@ const INTERACTIVE_SELECTORS = [
   '.subtitle-sync-btn',
   '.panel-header',
 ];
+
+function isYouTubeUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com' || host === 'youtu.be';
+  } catch {
+    return false;
+  }
+}
 
 function isOverInteractiveRegion(e: MouseEvent): boolean {
   const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -91,8 +103,20 @@ export const App: Component = () => {
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const anki = useAnki();
-  const { tokenize } = useTokenizer({ language: settings.language });
-  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const wordLookupOptions = {
+    getCanonicalForm: langCtx.getCanonicalForm,
+    getWordVariants: langCtx.getWordVariants,
+    getReadingVariants: langCtx.getReadingVariants,
+    dictionaryTargetLanguage,
+    languageData: langCtx.currentLangData,
+  };
+  const { translateWord } = useTranslation({
+    immediate: true,
+    language: settings.language,
+    ...wordLookupOptions,
+  });
 
   const [videoState, setVideoState] = createSignal<OverlayVideoState | null>(null);
   const [lastVideoUrl, setLastVideoUrl] = createSignal('');
@@ -107,6 +131,7 @@ export const App: Component = () => {
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
   const seenWords = new Set<string>();
+  const tokenizerCapabilities = createMemo(() => langCtx.getLanguageFeatures().tokenizerCapabilities);
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
   const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
@@ -148,7 +173,14 @@ export const App: Component = () => {
   const currentTime = createMemo(() => videoState()?.currentTime ?? 0);
   const duration = createMemo(() => videoState()?.duration ?? 0);
   const isPlaying = createMemo(() => videoState()?.isPlaying ?? false);
-  const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || ''));
+  const offsetControlMode = createMemo(() => (
+    isYouTubeUrl(videoState()?.url ?? lastVideoUrl()) ? 'nudge' : 'snap'
+  ));
+  const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || '', langCtx.currentLangData()));
+  const ankiCacheOptions = createMemo(() => ({
+    language: settings.language,
+    languageData: langCtx.currentLangData(),
+  }));
 
   const watchTogether = useWatchTogether({
     getVideo: () => null,
@@ -157,10 +189,14 @@ export const App: Component = () => {
     getCurrentTime: () => currentTime(),
   });
 
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm);
+  const getWordForms = (word: string): string[] => (
+    getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants, {
+      languageData: langCtx.currentLangData(),
+    })
+  );
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
-    return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
+    return findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())?.word ?? null;
   };
 
   onMount(() => {
@@ -168,7 +204,6 @@ export const App: Component = () => {
 
     cleanups.push(
       bridge.overlay.onOverlayVideoState((state: OverlayVideoState) => {
-        console.log('[Overlay] videoState update: url=', state.url, 'time=', state.currentTime);
         setVideoState(state);
         setLastSyncAt(Date.now());
         setIsConnected(true);
@@ -196,29 +231,22 @@ export const App: Component = () => {
     cleanups.push(
       bridge.overlay.onOverlaySubtitleTracks((tracks: OverlaySubtitleTracks) => {
         const currentUrl = videoState()?.url;
-        console.log('[Overlay] onOverlaySubtitleTracks: tracks.url=', tracks.url, 'currentUrl=', currentUrl, 'textTracks.length=', tracks.textTracks.length, 'timestamp=', tracks.timestamp);
         if (tracks.url && currentUrl && tracks.url !== currentUrl) {
-          console.log('[Overlay] Subtitle track URL mismatch, ignoring');
           return;
         }
         const msgTs = tracks.timestamp ?? 0;
         if (msgTs > 0 && msgTs < lastSubtitleTimestamp) {
-          console.log('[Overlay] Ignoring out-of-order subtitle track, timestamp=', msgTs, 'last=', lastSubtitleTimestamp);
           return;
         }
         lastSubtitleTimestamp = msgTs;
         if (tracks.textTracks.length > 0) {
           const newText = tracks.textTracks[0].text;
           if (newText === subtitleContent()) {
-            console.log('[Overlay] Subtitle content unchanged, skipping reload');
             return;
           }
-          if (settings.showSubtitles ?? true) {
-            console.log('[Overlay] Loading subtitle track, text length=', newText.length);
+          if (settings.showSubtitles ?? DEFAULT_SETTINGS.showSubtitles!) {
             setSubtitleContent(newText);
           }
-        } else {
-          console.log('[Overlay] No textTracks in subtitle tracks payload');
         }
       })
     );
@@ -231,14 +259,11 @@ export const App: Component = () => {
 
     cleanups.push(
       bridge.overlay.onOverlayActiveUrlChanged((url: string) => {
-        console.log('[Overlay] active-url-changed received:', url, '| current lastVideoUrl:', lastVideoUrl());
         const prevUrl = lastVideoUrl();
         const strip = (u: string) => u.replace(/^https?:\/\//i, '').toLowerCase();
         const current = strip(url);
         const previous = strip(prevUrl);
-        console.log('[Overlay] stripped: current=', current, 'previous=', previous);
         if (current !== previous) {
-          console.log('[Overlay] URL differs, switching site state from', previous, 'to', current);
           if (prevUrl) saveSiteOverlayState(strip(prevUrl));
           setSubtitleContent('');
           subtitles.clearSubtitles();
@@ -247,17 +272,13 @@ export const App: Component = () => {
           setLastVideoUrl(url);
           loadSiteOverlayState(current);
           bridge.overlay.requestOverlaySync();
-        } else {
-          console.log('[Overlay] URL same, skipping state switch');
         }
       })
     );
 
     cleanups.push(
       bridge.overlay.onOverlayTextModeLookup((payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => {
-        console.log('[Overlay] 🏁 textModeLookup: word=', payload.word, 'x=', payload.x, 'y=', payload.y, 'contextText length=', payload.contextText?.length, 'screen=', window.screen.width, 'x', window.screen.height, 'inner=', window.innerWidth, 'x', window.innerHeight);
         updateSetting('overlayTextMode', true);
-        console.log('[Overlay] 📏 sending overlaySetBounds to fullscreen');
         bridge.overlay.overlaySetBounds({
           x: 0, y: 0,
           width: window.screen.width,
@@ -313,7 +334,6 @@ export const App: Component = () => {
 
     bridge.overlay.overlayGetBounds().then((bounds) => {
       if (bounds) {
-        console.log('[Overlay] initial bounds:', bounds);
         setLastSyncAt(Date.now());
         setIsConnected(true);
       }
@@ -324,7 +344,6 @@ export const App: Component = () => {
         x: window.innerWidth / window.screen.width,
         y: window.innerHeight / window.screen.height,
       });
-      console.log('[Overlay] 📐 window resize: inner=', window.innerWidth, 'x', window.innerHeight);
     };
     window.addEventListener('resize', handleResize);
     cleanups.push(() => window.removeEventListener('resize', handleResize));
@@ -415,7 +434,7 @@ export const App: Component = () => {
       clearTimeout(subtitleDebounceTimer);
       subtitleDebounceTimer = null;
     }
-    if (content && (settings.showSubtitles ?? true)) {
+    if (content && (settings.showSubtitles ?? DEFAULT_SETTINGS.showSubtitles!)) {
       subtitleDebounceTimer = setTimeout(() => {
         subtitleDebounceTimer = null;
         subtitles.loadSubtitles(content);
@@ -516,7 +535,6 @@ export const App: Component = () => {
     if (!buffer) return;
 
     const text = new TextDecoder('utf-8').decode(buffer);
-    console.log('[Overlay] handleOpenSubtitleFile: loaded text length=', text.length);
     setSubtitleContent(text);
   };
 
@@ -542,15 +560,8 @@ export const App: Component = () => {
     if (!ext || !['srt', 'vtt', 'ass', 'ssa'].includes(ext)) return;
 
     const text = await file.text();
-    console.log('[Overlay] handleDrop: loaded text length=', text.length);
     setSubtitleContent(text);
   };
-
-  createEffect(() => {
-    if (!settings.showSubtitles) {
-      console.log('[Overlay] showSubtitles is FALSE');
-    }
-  });
 
   const clearTextModeLookup = () => {
     setTextModeLookup(null);
@@ -560,7 +571,7 @@ export const App: Component = () => {
   };
 
   const handleToggleSubtitles = () => {
-    const next = !(settings.showSubtitles ?? true);
+    const next = !(settings.showSubtitles ?? DEFAULT_SETTINGS.showSubtitles!);
     updateSetting('showSubtitles', next);
     if (next) {
       subtitles.updateTime(currentTime());
@@ -681,8 +692,8 @@ export const App: Component = () => {
 
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
-      if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      return flashcardCtx.getComprehensiveWordStatusSync(entry.word) !== 'known';
+      if (flashcardCtx.isWordIgnoredSync(entry.word, settings.language)) return false;
+      return flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language) !== 'known';
     });
   });
 
@@ -692,14 +703,14 @@ export const App: Component = () => {
     setAddingSidebarWords(prev => { const next = new Set(prev); next.add(entry.key); return next; });
     try {
       const word = entry.word;
-      const cached = getCachedTranslation(word, settings.language);
+      const cached = getCachedTranslation(word, settings.language, wordLookupOptions);
       let translationData = cached;
       if (!translationData) {
         try { translationData = await translateWord(word); } catch (e) { log.error('Translation failed', e); }
       }
       const freq = langCtx.getFrequency(word);
-      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(word);
-      const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
+      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
+      const colourCodes = settings.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
@@ -707,19 +718,18 @@ export const App: Component = () => {
         translationData: translationData || undefined,
         contextPhrase: entry.contextPhrase,
         isOcr: false,
-        level: freq?.raw_level ?? -1,
+        level: freq?.raw_level,
         wordStatus,
         colourCodes,
+        languageData: langCtx.currentLangData(),
         tokenize,
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
-srsLearningEase: settings.srsLearningThreshold / 1000,
-          srsKnownEase: settings.known_ease_threshold / 1000,
+        srsLearningEase: settings.srsLearningThreshold / 1000,
+        srsKnownEase: settings.known_ease_threshold / 1000,
         screenshotDataUrl: lastScreenshot() || undefined,
       });
 
       if (settings.flashcardMediaType === 'video' && (videoState()?.videoSrc || videoState()?.url) && entry.subtitleStart != null && entry.subtitleEnd != null) {
-        const { clipVideo } = await import('../../services/videoClipService');
-        const { toUniqueIdentifier } = await import('../../services/statsService');
         const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
         const start = Math.max(0, entry.subtitleStart - margin);
         const end = entry.subtitleEnd + margin;
@@ -738,7 +748,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
         }
       }
 
-      await flashcardCtx.addFlashcard(content, ease);
+      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
     } catch (err) {
       log.error('Failed to add flashcard from overlay sidebar:', err);
     } finally {
@@ -767,7 +777,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
           try {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
-            await refreshAnkiWordsCache();
+            await refreshAnkiWordsCache(ankiCacheOptions());
           } catch (err) {
             log.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
@@ -933,13 +943,13 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     const newEntries: VideoWordEntry[] = [];
 
     for (const token of tokens) {
-      const word = token.actual_word ?? token.surface ?? token.word;
-      if (!word || !langCtx.isTranslatable(token.type)) continue;
-      if (!isWordInLanguageScript(word, settings.language)) continue;
+      const word = getTokenLookupWord(token, tokenizerCapabilities());
+      if (!word || !langCtx.isTokenTranslatable(token)) continue;
+      if (!isWordInLanguageScript(word, settings.language, langCtx.currentLangData())) continue;
       if (seenWords.has(word)) continue;
-      if (flashcardCtx.isWordIgnoredSync(word)) continue;
+      if (flashcardCtx.isWordIgnoredSync(word, settings.language)) continue;
 
-      if (flashcardCtx.getComprehensiveWordStatusSync(word) === 'known') continue;
+      if (flashcardCtx.getComprehensiveWordStatusSync(word, settings.language) === 'known') continue;
 
       seenWords.add(word);
       newEntries.push({
@@ -979,24 +989,22 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     const lookup = textModeLookup();
     if (!lookup) return;
 
-    console.log('[Overlay] ⚡ textModeLookup effect firing, word=', lookup.word, 'contextText length=', lookup.contextText?.length, 'offset=', lookup.offset, 'inner=', window.innerWidth, 'x', window.innerHeight);
     setTextModeLoading(true);
     const word = lookup.word;
     const contextText = lookup.contextText;
     const offset = lookup.offset;
 
-    // If we have full context from the extension, tokenize the full text
-    // so the backend can properly split CJK text (which doesn't use spaces between words).
+    // If we have full context from the extension, tokenize the full text so the
+    // backend can recover word boundaries for segmentless or compact scripts.
     // Then find the clicked word in the tokenized results.
     const textToTokenize = contextText || word;
 
     tokenize(textToTokenize).then((tokens) => {
-      console.log('[Overlay] ✅ tokenize complete, will setTextModeToken, inner=', window.innerWidth, 'x', window.innerHeight);
       let selectedToken: Token | null = null;
 
       if (tokens && tokens.length > 0) {
-        // Prefer offset-based matching for CJK and other languages where
-        // the extension cannot reliably determine word boundaries.
+        // Prefer offset-based matching when the extension cannot reliably
+        // determine word boundaries from the raw selected text.
         if (contextText && offset !== undefined && offset >= 0) {
           selectedToken = findTokenByOffset(tokens, contextText, offset);
         }
@@ -1023,8 +1031,8 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
       setTextModeToken(selectedToken);
 
-      const lookupWord = selectedToken.actual_word ?? selectedToken.surface ?? selectedToken.word;
-      const cached = getCachedTranslation(lookupWord, settings.language);
+      const lookupWord = getTokenLookupWord(selectedToken, tokenizerCapabilities());
+      const cached = getCachedTranslation(lookupWord, settings.language, wordLookupOptions);
       if (cached) {
         setTextModeTranslation(cached);
         setTextModeLoading(false);
@@ -1137,12 +1145,13 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
             <OverlayControls
               isConnected={isConnected()}
               hasSubtitles={hasSubtitles()}
-              showSubtitles={settings.showSubtitles !== false}
+              showSubtitles={settings.showSubtitles ?? DEFAULT_SETTINGS.showSubtitles!}
               subtitleOffset={settings.subsOffsetTime}
               autoPositionEnabled={autoPositionEnabled()}
               showWordSidebar={showWordSidebar()}
               showLiveTranslator={settings.showLiveTranslator}
               isWatchTogetherActive={watchTogether.isActive()}
+              offsetControlMode={offsetControlMode()}
               currentVideoTime={() => currentTime()}
               subtitles={subtitles.subtitles()}
               onOffsetChange={handleOffsetChange}
@@ -1257,7 +1266,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       <Show when={textModeToken() && textModeLookup()}>
         <WordHover
           token={textModeToken()!}
-          word={textModeToken()!.actual_word ?? textModeToken()!.surface ?? textModeToken()!.word}
+          word={getTokenLookupWord(textModeToken()!, tokenizerCapabilities())}
           position={textModeScaledPosition()}
           translationData={textModeTranslation() as never}
           isLoading={textModeLoading()}

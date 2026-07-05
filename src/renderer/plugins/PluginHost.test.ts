@@ -6,6 +6,7 @@ const mockPluginKVGet = vi.fn<(pluginId: string, key: string) => Promise<{ value
 const mockPluginKVSet = vi.fn<(pluginId: string, key: string, value: string) => Promise<void>>();
 const mockPluginKVRemove = vi.fn<(pluginId: string, key: string) => Promise<void>>();
 const mockCloseWindow = vi.fn<() => void>();
+const mockTranslate = vi.fn();
 
 vi.mock('../../shared/bridges', () => ({
   getBridge: () => ({
@@ -17,6 +18,12 @@ vi.mock('../../shared/bridges', () => ({
     window: {
       closeWindow: mockCloseWindow,
     },
+  }),
+}));
+
+vi.mock('../../shared/backends', () => ({
+  getBackend: () => ({
+    translate: mockTranslate,
   }),
 }));
 
@@ -40,6 +47,7 @@ describe('PluginHost', () => {
     mockPluginKVSet.mockReset();
     mockPluginKVRemove.mockReset();
     mockCloseWindow.mockReset();
+    mockTranslate.mockReset();
   });
 
   afterEach(() => {
@@ -174,6 +182,39 @@ describe('PluginHost', () => {
     expect(mockPluginKVSet).toHaveBeenCalledWith('demo.plugin', 'word', 'inu');
     expect(mockPluginKVRemove).toHaveBeenCalledWith('demo.plugin', 'word');
     expect(mockCloseWindow).toHaveBeenCalledOnce();
+  });
+
+  it('scopes plugin translation helper to the host language and dictionary target', async () => {
+    const { PluginHost } = await import('./PluginHost');
+    mockTranslate.mockResolvedValue({ data: [{ definitions: 'cat' }] });
+
+    render(() => PluginHost({
+      hostContext: {
+        pluginId: 'demo.plugin',
+        pluginName: 'Demo Plugin',
+        initialContext: {
+          __mlearnLanguage: 'ja',
+          __mlearnDictionaryTargetLanguage: 'fr',
+        },
+        ui: {
+          type: 'component',
+          componentPath: 'dist/window.js',
+          componentUrl: 'plugin-ui:///plugins/demo.plugin/dist/window.js',
+        },
+      },
+      loadComponent: async () => (props: {
+        host: {
+          translate: (word: string) => Promise<unknown>;
+        };
+      }) => {
+        void props.host.translate('猫');
+        return 'Translator';
+      },
+    }), container);
+
+    await waitFor(() => mockTranslate.mock.calls.length > 0);
+
+    expect(mockTranslate).toHaveBeenCalledWith('猫', 'ja', { dictionaryTargetLanguage: 'fr' });
   });
 
   it('shows an alert when a plugin component throws during render', async () => {

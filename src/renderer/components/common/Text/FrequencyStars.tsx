@@ -7,9 +7,11 @@ import { Component, For, Show, createMemo } from 'solid-js';
 import './FrequencyStars.css';
 
 export interface FrequencyStarsProps {
-  /** The frequency level (1-7) */
+  /** Raw language-specific frequency/proficiency level. */
   level: number;
-  /** Maximum stars to display */
+  /** Bounded visual rank used for star count and color palette. Defaults to level. */
+  visualLevel?: number;
+  /** Maximum stars to display. */
   maxStars?: number;
   /** Additional class name */
   class?: string;
@@ -30,9 +32,11 @@ export interface FrequencyStarsProps {
  * - Level 7: Gray (most common)
  */
 export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
+  const visualLevel = createMemo(() => props.visualLevel ?? props.level);
+
   const starCount = createMemo(() => {
     const max = props.maxStars ?? 7;
-    return Math.min(Math.max(props.level || 0, 0), max);
+    return Math.min(Math.max(visualLevel() || 0, 0), max);
   });
 
   const stars = createMemo(() => {
@@ -49,7 +53,8 @@ export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
     <Show when={starCount() > 0}>
       <span 
         class={`frequency ${sizeClass()} ${props.class || ''}`}
-        data-level={props.level}
+        data-level={visualLevel()}
+        data-raw-level={props.level}
       >
         <For each={stars()}>
           {() => <span class="star" />}

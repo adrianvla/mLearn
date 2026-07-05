@@ -9,7 +9,7 @@ export { useIPC } from './useIPC';
 // Media
 export { useVideo, useVideoKeyboard } from './useVideo';
 export { useSubtitles } from './useSubtitles';
-export { useOCR, prepareBlobForOCR } from './useOCR';
+export { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError } from './useOCR';
 
 // Language & Learning
 export { 

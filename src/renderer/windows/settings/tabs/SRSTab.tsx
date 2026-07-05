@@ -372,7 +372,7 @@ export const SRSTab: Component = () => {
                 <div class="anki-field-preview__grid">
                   <span class="anki-field-preview__label">{settings.anki_field_expression}:</span>
                   <span class="anki-field-preview__value">
-                    {(settings.ankiTemplateExpression || '{word}')
+                    {(settings.ankiTemplateExpression || DEFAULT_SETTINGS.ankiTemplateExpression)
                       .replace(/\{word\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Word'))
                       .replace(/\{reading\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Reading'))
                       .replace(/\{meaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Meaning'))
@@ -382,7 +382,7 @@ export const SRSTab: Component = () => {
                   <Show when={settings.anki_field_reading}>
                     <span class="anki-field-preview__label">{settings.anki_field_reading}:</span>
                     <span class="anki-field-preview__value">
-                      {(settings.ankiTemplateReading || '{reading}')
+                      {(settings.ankiTemplateReading || DEFAULT_SETTINGS.ankiTemplateReading)
                         .replace(/\{word\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Word'))
                         .replace(/\{reading\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Reading'))
                         .replace(/\{meaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Meaning'))
@@ -392,7 +392,7 @@ export const SRSTab: Component = () => {
                   </Show>
                   <span class="anki-field-preview__label">{settings.anki_field_meaning}:</span>
                   <span class="anki-field-preview__value">
-                    {(settings.ankiTemplateMeaning || '{meaning}')
+                    {(settings.ankiTemplateMeaning || DEFAULT_SETTINGS.ankiTemplateMeaning)
                       .replace(/\{word\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Word'))
                       .replace(/\{reading\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Reading'))
                       .replace(/\{meaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Meaning'))
@@ -493,17 +493,17 @@ export const SRSTab: Component = () => {
 
         <Show when={hasFreqLevels()}>
           <SettingRow
-            label={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Label')}
-            description={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Description')}
+            label={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Label')}
+            description={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Description')}
           >
             <input
               type="number"
               class="setting-input"
-              value={settings.proportionOfExamCards}
+              value={settings.proportionOfLevelCards}
               min={0}
               max={1}
               step={0.1}
-              onChange={(e) => updateSettings({ proportionOfExamCards: parseFloat(e.currentTarget.value) })}
+              onChange={(e) => updateSettings({ proportionOfLevelCards: parseFloat(e.currentTarget.value) })}
             />
           </SettingRow>
 

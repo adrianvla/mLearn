@@ -14,6 +14,7 @@ import traceback
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # ── Bootstrap configuration (CLI args, settings.json, language module) ──
 import config
@@ -21,7 +22,13 @@ import config
 config.init()
 
 # ── Logging ──
-from logging_utils import get_logger, install_crash_handler, set_log_dir, _process_stats
+from logging_utils import (
+    get_crash_log_path,
+    get_logger,
+    install_crash_handler,
+    set_log_dir,
+    _process_stats,
+)
 
 install_crash_handler(config.USER_DATA_PATH)
 set_log_dir(config.USER_DATA_PATH)
@@ -33,25 +40,27 @@ config.QUIT_TOKEN = secrets.token_hex(32)
 log.info(f"::QUIT_TOKEN::{config.QUIT_TOKEN}")
 
 # ── Route modules ──
-from routes import anki, nlp, ocr, llm, voice
+from routes import nlp, ocr, llm, voice
 
 # ── FastAPI app ──
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Mount routers
-app.include_router(anki.router)
 app.include_router(nlp.router)
 app.include_router(ocr.router)
 app.include_router(llm.router)
 app.include_router(voice.router)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    log.error("Unhandled HTTP exception:", exc_info=True)
+    response = JSONResponse(status_code=500, content={"detail": str(exc)})
+    if request.headers.get("origin"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 
 # ── Middleware ──
@@ -69,6 +78,15 @@ async def log_requests(request: Request, call_next):
         raise
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 # ── Health endpoint ──
 
 
@@ -83,27 +101,23 @@ async def health():
 
 @app.on_event("startup")
 async def startup_event():
-    log.info("Getting all cards")
     _process_stats("startup")
     log.info(f"Runtime info: {config.get_runtime_info()}")
-
-    resp = anki.get_all_cards()
-    if not resp:
-        log.info("Anki is offline, loading from Cache")
-        if anki.get_all_cards_CACHE():
-            log.info("Loaded from cache")
-        else:
-            log.error("Failed to load from cache")
-            log.error("ANKI_ERROR connection_failed")
 
     # Faulthandler for crash diagnostics
     try:
         import faulthandler
         import signal
 
-        crash_log_path = os.path.join(config.RESPATH, "python_crash.log")
+        crash_log_path = get_crash_log_path()
+        if not crash_log_path:
+            fallback_user_data = config.USER_DATA_PATH or os.path.join(
+                os.path.expanduser("~"), ".mlearn"
+            )
+            crash_log_path = os.path.join(fallback_user_data, "logs", "python_crash.log")
+        os.makedirs(os.path.dirname(crash_log_path), exist_ok=True)
         global _crash_log
-        _crash_log = open(crash_log_path, "a")
+        _crash_log = open(crash_log_path, "a", encoding="utf-8")
         faulthandler.enable(_crash_log)
         for _sig in (
             getattr(signal, n, None)
@@ -120,9 +134,8 @@ async def startup_event():
     except Exception as e:
         log.error(f"Failed to enable faulthandler: {e}", exc_info=True)
 
-    # Mark transformers preimport as not yet done; it will be triggered
-    # lazily via POST /ocr/warmup when the reader is first opened,
-    # avoiding unnecessary CPU usage on startup.
+    # Mark transformer-based OCR preimport as not yet done; /ocr/warmup
+    # starts it lazily only for languages whose OCR metadata needs it.
     preimport_event = ocr.get_transformers_preimport_event()
     if not config.OCR_ALLOWED:
         preimport_event.set()

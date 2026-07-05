@@ -7,7 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS, SRS_EASE } from '../../shared/constants';
-import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats } from '../../shared/types';
+import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData } from '../../shared/types';
+import { createProsodyForPosition, getLanguageProsodyType } from '../../shared/languageFeatures';
 import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
 import { getLogger } from '../../shared/utils/logger';
@@ -38,13 +39,7 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   suggestedFlashcards: {},
   wordSyncSeen: {},
   meta: {
-    perLanguage: {
-      ja: {
-        newCardsToday: 0,
-        reviewsToday: 0,
-        newCardsDate: getTodayDateString(),
-      },
-    },
+    perLanguage: {},
     maxNewCardsPerDay: 10,
     maxNewCardsPerDayLearning: 20,
     maxReviewsPerDay: -1,
@@ -68,6 +63,45 @@ function enqueueWrite(fn: () => Promise<void>): Promise<void> {
 
 function getFlashcardsPath(): string {
   return path.join(getUserDataPath(), 'flashcards.json');
+}
+
+function getSettingsPath(): string {
+  return path.join(getUserDataPath(), 'settings.json');
+}
+
+function inferSingleInstalledLanguage(): string {
+  const languagesDir = path.join(getUserDataPath(), 'language-data', 'languages');
+  if (!fs.existsSync(languagesDir)) return '';
+
+  try {
+    const languageCodes = fs.readdirSync(languagesDir)
+      .filter((file) => file.endsWith('.json') && !file.endsWith('.freq.json'))
+      .map((file) => path.basename(file, '.json'))
+      .sort();
+    return languageCodes.length === 1 ? languageCodes[0] : '';
+  } catch (error) {
+    log.warn('[flashcardStorage] Failed to infer installed language for flashcard migration:', error);
+    return '';
+  }
+}
+
+function resolveMigrationDefaultLanguage(): string {
+  try {
+    const settingsPath = getSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const language = (parsed as { language?: unknown }).language;
+        if (typeof language === 'string' && language.trim()) {
+          return language.trim();
+        }
+      }
+    }
+  } catch (error) {
+    log.warn('[flashcardStorage] Failed to read settings language for flashcard migration:', error);
+  }
+
+  return inferSingleInstalledLanguage();
 }
 
 function compareStates(a: FlashcardState, b: FlashcardState): number {
@@ -113,6 +147,95 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
     bestInterval,
     bestState,
   };
+}
+
+const languageProsodyMigrationCache = new Map<string, NonNullable<FlashcardContent['prosody']>['type'] | null>();
+
+/**
+ * @deprecated Compatibility helper for flashcards created before language packages
+ * stored generic prosody payloads. New flashcards should carry `content.prosody`
+ * from dictionary/language data directly.
+ */
+function getInstalledLanguageProsodyType(language: string | undefined): NonNullable<FlashcardContent['prosody']>['type'] | null {
+  const normalizedLanguage = language?.trim();
+  if (!normalizedLanguage) return null;
+
+  const cached = languageProsodyMigrationCache.get(normalizedLanguage);
+  if (cached !== undefined) return cached;
+
+  try {
+    const languagePath = path.join(getUserDataPath(), 'language-data', 'languages', `${normalizedLanguage}.json`);
+    const data = JSON.parse(fs.readFileSync(languagePath, 'utf-8')) as LanguageData;
+    const result = getLanguageProsodyType(data) ?? null;
+    languageProsodyMigrationCache.set(normalizedLanguage, result);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @deprecated Used only while upgrading legacy `pitchAccent`/`pitchAccentPosition`
+ * flashcard payloads into generic `FlashcardContent.prosody`.
+ */
+function resolveLegacyProsodyMigrationType(
+  language: string | undefined,
+  legacyProsody: FlashcardContent['prosody'] | undefined,
+): NonNullable<FlashcardContent['prosody']>['type'] | undefined {
+  return legacyProsody?.type ?? getInstalledLanguageProsodyType(language) ?? undefined;
+}
+
+/**
+ * @deprecated One-way migration from old Japanese-specific pitch fields to the
+ * package-defined generic prosody model. Do not call for newly created cards.
+ */
+function migrateLegacyFlashcardContent(content: FlashcardContent, language?: string): FlashcardContent {
+  const legacyContent = content as FlashcardContent & { pitchAccent?: unknown };
+  const legacyPitchAccent = legacyContent.pitchAccent;
+  const { pitchAccent: _pitchAccent, ...contentWithoutPitchAccent } = legacyContent;
+  const normalized: FlashcardContent = { ...contentWithoutPitchAccent };
+  const legacyProsody = normalized.prosody as (FlashcardContent['prosody'] & { pitchAccentPosition?: unknown }) | undefined;
+  const legacyProsodyPosition = legacyProsody?.pitchAccentPosition;
+
+  if (legacyProsody && 'pitchAccentPosition' in legacyProsody) {
+    const { pitchAccentPosition: _legacyProsodyPosition, ...prosodyWithoutLegacyPosition } = legacyProsody;
+    normalized.prosody = prosodyWithoutLegacyPosition;
+  }
+
+  const migratedPosition = typeof legacyPitchAccent === 'number' && Number.isFinite(legacyPitchAccent)
+    ? legacyPitchAccent
+    : typeof legacyProsodyPosition === 'number' && Number.isFinite(legacyProsodyPosition)
+      ? legacyProsodyPosition
+      : undefined;
+
+  if (
+    migratedPosition !== undefined &&
+    normalized.prosody?.position === undefined
+  ) {
+    const migratedProsody = createProsodyForPosition(
+      resolveLegacyProsodyMigrationType(language, normalized.prosody),
+      migratedPosition,
+      normalized.prosody
+    );
+    if (migratedProsody) normalized.prosody = migratedProsody;
+  }
+
+  return normalized;
+}
+
+/**
+ * @deprecated One-way cleanup for stores that still contain legacy pitch fields.
+ * New stores should already persist normalized `FlashcardContent.prosody`.
+ */
+function migrateLegacyFlashcardStore(store: FlashcardStore): FlashcardStore {
+  const flashcards: Record<string, Flashcard> = {};
+  for (const [id, card] of Object.entries(store.flashcards)) {
+    flashcards[id] = {
+      ...card,
+      content: migrateLegacyFlashcardContent(card.content, card.language),
+    };
+  }
+  return { ...store, flashcards };
 }
 
 function generateUUID(): string {
@@ -237,20 +360,22 @@ function migrateV6ToV7(store: FlashcardStore, defaultLanguage: string): Flashcar
   log.info('[flashcardStorage] Migrating store from v6 to v7 (per-language meta and dailyStats)...');
 
   const meta = { ...store.meta };
-  if (!meta.perLanguage) {
-    meta.perLanguage = {
-      [defaultLanguage]: {
-        newCardsToday: (meta as any).newCardsToday ?? 0,
-        reviewsToday: (meta as any).reviewsToday ?? 0,
-        newCardsDate: (meta as any).newCardsDate ?? getTodayDateString(),
-      }
-    };
+  if (!meta.perLanguage || Object.keys(meta.perLanguage).length === 0) {
+    meta.perLanguage = defaultLanguage
+      ? {
+          [defaultLanguage]: {
+            newCardsToday: (meta as any).newCardsToday ?? 0,
+            reviewsToday: (meta as any).reviewsToday ?? 0,
+            newCardsDate: (meta as any).newCardsDate ?? getTodayDateString(),
+          }
+        }
+      : {};
   }
 
   const dailyStats: Record<string, Record<string, DailyStudyStats>> = {};
   for (const [date, stat] of Object.entries((store.dailyStats as any) || {})) {
     if (stat && typeof stat === 'object' && 'newCardsStudied' in stat) {
-      dailyStats[date] = { [defaultLanguage]: stat as DailyStudyStats };
+      dailyStats[date] = defaultLanguage ? { [defaultLanguage]: stat as DailyStudyStats } : {};
     } else {
       dailyStats[date] = stat as Record<string, DailyStudyStats>;
     }
@@ -258,12 +383,16 @@ function migrateV6ToV7(store: FlashcardStore, defaultLanguage: string): Flashcar
 
   const flashcards = { ...store.flashcards };
   for (const card of Object.values(flashcards)) {
-    if (!card.language) card.language = defaultLanguage;
+    if (!card.language && defaultLanguage) card.language = defaultLanguage;
   }
 
   return { ...store, meta, dailyStats, flashcards, version: CURRENT_VERSION };
 }
 
+/**
+ * @deprecated Shape of the pre-v2 flashcard payload. Keep only for importing
+ * existing files; do not use for new persistence code.
+ */
 interface V1FlashcardContent {
   word: string;
   pitchAccent?: number;
@@ -277,6 +406,9 @@ interface V1FlashcardContent {
   level?: number;
 }
 
+/**
+ * @deprecated Shape of pre-v2 cards imported by `migrateV1ToV2`.
+ */
 interface V1Flashcard {
   content: V1FlashcardContent;
   dueDate: number;
@@ -286,6 +418,9 @@ interface V1Flashcard {
   reviews: number;
 }
 
+/**
+ * @deprecated Shape of the old array-based flashcard store.
+ */
 interface V1FlashcardStore {
   flashcards: V1Flashcard[];
   wordCandidates: Record<string, number | { count: number; lastSeen: number; word: string }>;
@@ -297,12 +432,18 @@ interface V1FlashcardStore {
   };
 }
 
+/**
+ * @deprecated Version probe for the old array-based flashcard store.
+ */
 function isV1Store(store: any): store is V1FlashcardStore {
   return Array.isArray(store.flashcards) || 
          store.alreadyCreated !== undefined || 
          store.knownUnTracked !== undefined;
 }
 
+/**
+ * @deprecated Backup helper for the one-way v1 flashcard migration path.
+ */
 function createBackup(originalPath: string): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = originalPath.replace('.json', `-backup-v1-${timestamp}.json`);
@@ -316,6 +457,10 @@ function createBackup(originalPath: string): string {
   return backupPath;
 }
 
+/**
+ * @deprecated Imports the pre-v2 flashcard store into the current normalized
+ * schema. New migrations should be versioned from the current store format.
+ */
 function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardStore {
   log.info('Migrating flashcard store from v1 (old app) to v3...');
   
@@ -329,6 +474,7 @@ function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardSt
   const wordToCardMap: Record<string, string[]> = {};
   const wordStatsMap: Record<string, WordStats> = {};
   const newWordCandidates: Record<string, WordCandidate> = {};
+  const migrationLanguage = resolveMigrationDefaultLanguage();
   
   for (const v1Card of store.flashcards || []) {
     if (!v1Card.content?.word) continue;
@@ -352,6 +498,13 @@ function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardSt
       }
     }
     
+    const legacyPitchAccentProsody = typeof v1Card.content.pitchAccent === 'number'
+      ? createProsodyForPosition(
+          resolveLegacyProsodyMigrationType(migrationLanguage || undefined, undefined),
+          v1Card.content.pitchAccent
+        )
+      : undefined;
+
     const newContent: FlashcardContent = {
       type: 'word',
       front: word,
@@ -359,7 +512,7 @@ function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardSt
         ? v1Card.content.translation.join('; ') 
         : v1Card.content.translation || '',
       reading: v1Card.content.pronunciation,
-      pitchAccent: v1Card.content.pitchAccent,
+      prosody: legacyPitchAccentProsody,
       pos: v1Card.content.pos,
       level: v1Card.content.level,
       example: v1Card.content.example !== '-' ? v1Card.content.example : undefined,
@@ -453,9 +606,11 @@ function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardSt
   };
 
   result = migrateV4ToV5(result);
-  result = migrateV6ToV7(result, 'ja');
+  // The old v1 store did not record a card language, so use the user's current
+  // profile language instead of assigning a language-specific default.
+  result = migrateV6ToV7(result, migrationLanguage);
 
-  return result;
+  return migrateLegacyFlashcardStore(result);
 }
 
 function isValidFlashcardStore(value: unknown): value is FlashcardStore {
@@ -494,7 +649,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     version: CURRENT_VERSION,
   };
 
-  return result;
+  return migrateLegacyFlashcardStore(result);
 }
 
 export async function loadFlashcards(): Promise<FlashcardStore> {

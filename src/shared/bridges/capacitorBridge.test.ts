@@ -50,8 +50,6 @@ vi.mock('../platform', () => ({
 // Dynamic locale import mock
 vi.mock('../../root-of-app/locales/lang.en.json', () => ({ default: { 'mlearn.App.Title': 'mLearn' } }));
 vi.mock('../../root-of-app/locales/lang.de.json', () => ({ default: { 'mlearn.App.Title': 'mLearn DE' } }));
-vi.mock('../../root-of-app/languages/ja.json', () => ({ default: { name: 'Japanese', code: 'ja' } }));
-vi.mock('../../root-of-app/languages/de.json', () => ({ default: { name: 'German', code: 'de' } }));
 
 // ============================================================================
 // Helper: build a minimal FlashcardStore
@@ -611,17 +609,14 @@ describe('Localization Bridge', () => {
     expect(typeof cleanup).toBe('function');
   });
 
-  it('getLangData emits lang-data without server URL', async () => {
+  it('getLangData emits empty language data without server URL', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
     const cb = vi.fn();
     bridge.localization.onLangData(cb);
     bridge.localization.getLangData();
     await vi.waitFor(() => expect(cb).toHaveBeenCalledOnce(), { timeout: 5000 });
-    expect(cb).toHaveBeenCalledWith(expect.objectContaining({
-      ja: expect.objectContaining({ name: 'Japanese' }),
-      de: expect.objectContaining({ name: 'German' }),
-    }));
+    expect(cb).toHaveBeenCalledWith({});
   });
 
   it('installLanguage emits lang-install-error on mobile', async () => {
@@ -877,7 +872,7 @@ describe('Window Bridge', () => {
     const bridge = createCapacitorBridge();
     const events: Event[] = [];
     window.addEventListener('mlearn-ctx-menu', e => events.push(e));
-    bridge.window.showReaderCtxMenu({ furiganaHiderEnabled: false, hasContextPhrase: true });
+    bridge.window.showReaderCtxMenu({ readingAnnotationHiderEnabled: false, hasContextPhrase: true });
     expect(events.length).toBe(1);
     expect((events[0] as CustomEvent).detail.type).toBe('reader');
   });
@@ -931,7 +926,7 @@ describe('Window Bridge', () => {
     expect(typeof bridge.window.onOpenSettings(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenAside(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenWordDbEditor(vi.fn())).toBe('function');
-    expect(typeof bridge.window.onOpenExamCentricStudy(vi.fn())).toBe('function');
+    expect(typeof bridge.window.onOpenLevelStudy(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenPrompt(vi.fn())).toBe('function');
     expect(typeof bridge.window.onAuthDeepLink(vi.fn())).toBe('function');
     expect(typeof bridge.window.onLookupDeepLink(vi.fn())).toBe('function');
@@ -1061,11 +1056,6 @@ describe('Server Bridge', () => {
     expect(typeof bridge.server.onVersionReceive(vi.fn())).toBe('function');
   });
 
-  it('restartBackendAnkiOverride is a noop', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    expect(() => bridge.server.restartBackendAnkiOverride(true)).not.toThrow();
-  });
 });
 
 // ============================================================================
@@ -1301,6 +1291,7 @@ describe('Speech Bridge', () => {
       (window as unknown as Record<string, unknown>).SpeechSynthesisUtterance = class {
         text: string;
         lang = '';
+        voice: SpeechSynthesisVoice | null = null;
         onend: (() => void) | null = null;
         onerror: (() => void) | null = null;
         onboundary: (() => void) | null = null;
@@ -1316,6 +1307,23 @@ describe('Speech Bridge', () => {
     bridge.speech.ttsSpeak('hello', 'en');
     expect(speakSpy).toHaveBeenCalledOnce();
     speakSpy.mockRestore();
+  });
+
+  it('ttsSpeak applies language-package Web Speech metadata when provided', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const voice = { name: 'Microsoft Naayf Desktop', lang: 'ar-SA' } as SpeechSynthesisVoice;
+    vi.spyOn(speechSynthesis, 'getVoices').mockReturnValue([voice]);
+    const speakSpy = vi.spyOn(speechSynthesis, 'speak').mockImplementation(() => {});
+
+    bridge.speech.ttsSpeak('سلام', 'ar', {
+      speechSynthesisLang: 'ar-SA',
+      speechSynthesisVoice: 'Microsoft Naayf Desktop',
+    });
+
+    const utterance = speakSpy.mock.calls[0]?.[0] as SpeechSynthesisUtterance;
+    expect(utterance.lang).toBe('ar-SA');
+    expect(utterance.voice).toBe(voice);
   });
 
   it('ttsSpeak emits tts-status with speaking: true', async () => {

@@ -9,7 +9,7 @@
   bottom: 120px;
   width: 100%;
   text-align: center;
-  font-family: var(--font-family-japanese);
+  font-family: var(--font-family-subtitle);
   font-size: var(--subtitle-font-size);
   font-weight: var(--subtitle-font-weight);
   line-height: 1.6;
@@ -48,7 +48,6 @@ body.hide-cursor .subtitles {
 
 .subtitles.theme-shadow {
   text-shadow: 0 0 1px #000000, 0 0 3px #000000, 0 0 5px #000000, 1px 1px 0 rgba(0, 0, 0, 0.4);
-  font-family: "Helvetica Neue", "Noto Sans JP", sans-serif;
 }
 
 .subtitles.theme-background {
@@ -56,7 +55,6 @@ body.hide-cursor .subtitles {
   border-radius: 10px;
   padding: 10px;
   box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.4);
-  font-family: "Helvetica Neue", "Noto Sans JP", sans-serif;
 }
 
 .subtitles.theme-marker {

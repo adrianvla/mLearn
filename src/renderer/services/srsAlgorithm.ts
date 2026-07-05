@@ -220,13 +220,7 @@ export function dueDateToString(dueDate: number, t?: (key: string, params?: Reco
 export function getDefaultMeta(newDayHour: number = 4): FlashcardMeta {
     const today = getTodayDateString(newDayHour);
     return {
-        perLanguage: {
-            ja: {
-                newCardsToday: 0,
-                reviewsToday: 0,
-                newCardsDate: today,
-            },
-        },
+        perLanguage: {},
         newCardsToday: 0,
         reviewsToday: 0,
         newCardsDate: today,

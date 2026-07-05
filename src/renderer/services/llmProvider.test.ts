@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { LLMStreamChunk, LLMToolCall, Settings } from '../../shared/types';
+import type { LanguageData, LLMStreamChunk, LLMToolCall, Settings } from '../../shared/types';
 
 // ============================================================================
 // Mock setup
@@ -487,6 +487,31 @@ describe('llmProvider', () => {
       expect(messages[1].content).toContain('Bonjour le monde');
     });
 
+    it('uses installed language metadata names in explainer prompts', async () => {
+      const { streamExplanation } = await import('./llmProvider');
+      const arabicData = {
+        name: 'Arabic',
+        name_translated: 'العربية',
+        colour_codes: {},
+        settings: { fixed: {} },
+      } as LanguageData;
+
+      streamExplanation('سلام', 'سلام دنیا', 'ar', {
+        onChunk: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn(),
+        onToolCall: vi.fn(),
+      }, { languageData: arabicData });
+
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0] as [
+        Array<{ role: string; content: string }>,
+        unknown,
+      ];
+      expect(messages[0].content).toContain('Arabic (العربية)');
+      expect(messages[0].content).not.toContain('for ar.');
+    });
+
     it('omits the word explanation tool in phrase mode', async () => {
       const { streamExplanation } = await import('./llmProvider');
 
@@ -611,6 +636,43 @@ describe('llmProvider', () => {
         'show_explanation',
         'show_grammar_points',
       ]);
+    });
+
+    it('uses installed language metadata names in explainer repair prompts', async () => {
+      const { streamExplanation } = await import('./llmProvider');
+      const arabicData = {
+        name: 'Arabic',
+        name_translated: 'العربية',
+        colour_codes: {},
+        settings: { fixed: {} },
+      } as LanguageData;
+
+      streamExplanation('سلام', 'سلام دنیا', 'ar', {
+        onChunk: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn(),
+        onToolCall: vi.fn(),
+      }, { languageData: arabicData });
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-translation',
+          name: 'show_translation',
+          arguments: {
+            phrase: 'سلام دنیا',
+            translation: 'Hello world',
+          },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2);
+      const [repairMessages] = mockBridge.llm.llmStream.mock.calls[1] as [
+        Array<{ role: string; content: string }>,
+        unknown,
+      ];
+      expect(repairMessages[0].content).toContain('Arabic (العربية)');
+      expect(repairMessages[0].content).not.toContain('for ar.');
     });
 
     it('repairs incomplete phrase explanations by requesting the missing grammar tool only', async () => {

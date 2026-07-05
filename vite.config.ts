@@ -2,6 +2,7 @@ import { defineConfig, Plugin } from 'vite';
 import { resolve } from 'path';
 import { renameSync, existsSync, unlinkSync, cpSync } from 'fs';
 import solidPlugin from 'vite-plugin-solid';
+import { PYTHON_BACKEND_PORT } from './src/shared/constants';
 
 /**
  * Vite plugin to move the mobile entry HTML to index.html at the output root.
@@ -43,6 +44,17 @@ function capacitorHtmlPlugin(): Plugin {
   };
 }
 
+function appManualChunks(id: string): string | undefined {
+  const normalized = id.replace(/\\/g, '/');
+  if (
+    normalized.includes('/src/renderer/') ||
+    normalized.includes('/src/shared/')
+  ) {
+    return 'app';
+  }
+  return undefined;
+}
+
 export default defineConfig(({ mode }) => {
   const isCapacitor = mode === 'capacitor';
   const input: Record<string, string> = isCapacitor
@@ -56,14 +68,14 @@ export default defineConfig(({ mode }) => {
         settings: resolve(__dirname, 'src/html/settings.html'),
         statistics: resolve(__dirname, 'src/html/statistics.html'),
         'word-db-editor': resolve(__dirname, 'src/html/word-db-editor.html'),
-        'kanji-grid': resolve(__dirname, 'src/html/kanji-grid.html'),
+        'character-grid': resolve(__dirname, 'src/html/character-grid.html'),
         licenses: resolve(__dirname, 'src/html/licenses.html'),
         'connect-qr': resolve(__dirname, 'src/html/connect-qr.html'),
         'conversation-agent': resolve(__dirname, 'src/html/conversation-agent.html'),
         'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
         'plugin-host': resolve(__dirname, 'src/html/plugin-host.html'),
         'word-sync': resolve(__dirname, 'src/html/word-sync.html'),
-        'exam-centric-study': resolve(__dirname, 'src/html/exam-centric-study.html'),
+        'level-study': resolve(__dirname, 'src/html/level-study.html'),
         overlay: resolve(__dirname, 'src/html/overlay.html'),
         diagnostics: resolve(__dirname, 'src/html/diagnostics.html'),
       };
@@ -74,6 +86,18 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       strictPort: true,
+      proxy: {
+        '/tokenize': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+        '/translate': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+        '/ocr': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+        '/llm': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+        '/voice': {
+          target: `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+          ws: true,
+        },
+        '/control': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+        '/health': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+      },
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -101,6 +125,9 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input,
         external: isCapacitor ? ['electron'] : [],
+        output: {
+          manualChunks: appManualChunks,
+        },
       },
     },
     resolve: {

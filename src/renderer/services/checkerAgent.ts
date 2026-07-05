@@ -14,6 +14,7 @@ import type {
 } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
+import type { LanguageFeatures } from '../context/LanguageContext';
 
 const log = getLogger("renderer.services.checkerAgent");
 
@@ -31,6 +32,7 @@ export interface CheckerMessageOptions {
   speakerRole?: 'user' | 'assistant';
   includeCorrections?: boolean;
   includeSafety?: boolean;
+  languageFeatures?: LanguageFeatures;
 }
 
 export interface CheckerAgentInstance {
@@ -142,6 +144,19 @@ const SAFE_TOOL: LLMToolDefinition = {
 // System Prompt
 // ============================================================================
 
+function getRegisterAwareCorrectionGuidelines(features?: LanguageFeatures): string[] {
+  return [
+    ...(features?.supportsDeferentialRegister
+      ? [
+        'Do not correct valid casual register, dropped politeness markers, or casual sentence endings merely because a polite form also exists.',
+        'Be lenient with casual, colloquial, or informal speech when those forms are valid for the requested context.',
+      ]
+      : []),
+    ...(features?.correctionPromptGuidelines ?? []),
+    ...(features?.mistakeCheckerPromptGuidelines ?? []),
+  ];
+}
+
 function buildCheckerPrompt(
   langName: string,
   customInstructions?: string,
@@ -150,6 +165,7 @@ function buildCheckerPrompt(
   const speakerRole = options.speakerRole === 'assistant' ? 'assistant' : 'learner';
   const includeCorrections = options.includeCorrections ?? options.speakerRole !== 'assistant';
   const includeSafety = options.includeSafety ?? true;
+  const correctionGuidelines = getRegisterAwareCorrectionGuidelines(options.languageFeatures);
 
   let prompt = `You are a language review assistant for ${langName}. You are reviewing a ${speakerRole}'s message.`;
 
@@ -194,7 +210,6 @@ function buildCheckerPrompt(
 - Provide alternatives when there are multiple valid ways to express the same thing.
 - Do NOT correct text that is not in ${langName} — the message may mix languages occasionally.
 - Do NOT correct names.
-- Do NOT correct formality.
 - Do NOT correct anything if it's just to rewrite the sentence.`;
   }
 
@@ -207,15 +222,12 @@ function buildCheckerPrompt(
   }
 
   prompt += `
+${includeCorrections && correctionGuidelines.length > 0 ? `## Language-Specific Correction Guidance
+${correctionGuidelines.map((guideline) => `- ${guideline}`).join('\n')}
 
-## Casual Speech Policy
-- Be LENIENT with casual, colloquial, or informal speech. Casual register is VALID and should NOT be corrected.
-- Do NOT correct informal contractions, slang, casual sentence endings, omission of particles in casual speech, or dropping of politeness markers.
-- Only correct things that are actually WRONG (incorrect grammar, wrong word usage, typos) — not things that are simply informal.
-- A native speaker using casual speech with friends would say it the same way? Then it is NOT a mistake.
-
+` : ''}
 ## Error Types
-- Use "grammar" for grammatical errors (wrong conjugation, particles, word order, etc.).
+- Use "grammar" for grammatical errors (wrong inflection, agreement, case marking, adpositions, word order, etc.).
 - Use "word" for wrong word choice or vocabulary errors.
 - Use "typo" for obvious spelling mistakes or typos.
 - Use "unnatural" for phrasing that is technically correct but sounds awkward or unnatural to a native speaker. Only flag clearly unnatural phrasing, not stylistic preferences. Do NOT flag casual speech as "unnatural".

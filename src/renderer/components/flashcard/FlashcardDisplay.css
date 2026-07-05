@@ -10,8 +10,6 @@
  *   position:absolute on faces for the duration of the animation.
  */
 
-/* Import pitch accent styles */
-@import url('../language-specific/PitchAccent.css');
 @import url('../common/Label/Label.css');
 
 /* Container — perspective lives here so the card wrapper rotates inside it */
@@ -286,9 +284,6 @@
 }
 .flashcard-example rt{
   position:relative;
-}
-.flashcard-example .pitch-accent{
-  --pitch-accent-height: 1.5px;
 }
 .flashcard-example .frequency{
   display:none;

@@ -5,24 +5,30 @@
  */
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry, type PitchData } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmProvider';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, PitchAccentOverlay, Modal, Btn, ToggleSwitch } from '../common';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch } from '../common';
+import { ProsodyOverlay } from '../language-specific';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
-  resolvePitchAccentForHover,
+  resolveProsodyForHover,
   type WordStatus,
+  type WordHoverTranslationData,
 } from './wordHoverHelpers';
 import { clipVideo } from '../../services/videoClipService';
 import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
-import { getWordFormCandidates } from '../../utils/wordForms';
+import { getTokenLookupWord, getTokenWordFormCandidates } from '../../utils/wordForms';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { extractReadingValue } from '../../utils/translationCacheParsers';
+import { getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import { prosodyVisible } from '../../../shared/prosodySettings';
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -45,8 +51,7 @@ export interface WordHoverProps {
   position: { x: number; y: number };
   anchorRect?: DOMRect;
   dictionaryEntries?: DictionaryEntry[];
-  translationData?: { data?: (TranslationEntry | PitchData | null | undefined)[] };
-  pitchAccent?: { position?: number; reading?: string };
+  translationData?: WordHoverTranslationData;
   isLoading?: boolean;
   status?: WordStatus;
   level?: number;
@@ -79,9 +84,10 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
-  const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm } = useLanguage();
-  const { tokenize } = useTokenizer({ language: settings.language });
+  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const [wordUuid, setWordUuid] = createSignal<string>('');
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
@@ -93,9 +99,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   // Helper to get display word - track token changes
   const displayWord = createMemo(() => props.word || props.token.surface || props.token.word);
+  const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   
   // Track the actual word being displayed for reactive updates
-  const actualWord = createMemo(() => props.token.actual_word || displayWord());
+  const actualWord = createMemo(() => getTokenLookupWord({
+    ...props.token,
+    word: props.word || props.token.word,
+  }, tokenizerCapabilities()) || displayWord());
 
   const isShown = createMemo(() => props.visible !== false);
   
@@ -109,17 +119,23 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     if (!word) return props.isInSRS ?? false;
     
     // Use sync method for proper reactivity with store
-    return hasWordSync(word) || (props.isInSRS ?? false);
+    return hasWordSync(word, settings.language) || (props.isInSRS ?? false);
   });
   
   // REACTIVE: Get flashcard for the word (if tracked)
   const currentFlashcard = createMemo(() => {
     const word = actualWord();
     if (!word) return null;
-    return getCardByWordSync(word);
+    return getCardByWordSync(word, settings.language);
   });
 
-  const wordForms = createMemo(() => getWordFormCandidates(actualWord(), getCanonicalForm));
+  const wordForms = createMemo(() => getTokenWordFormCandidates({
+    ...props.token,
+    word: props.word || props.token.word,
+  }, getCanonicalForm, getWordVariants, {
+    tokenizerCapabilities: tokenizerCapabilities(),
+    languageData: currentLangData(),
+  }));
   
   // REACTIVE: Get current ease from flashcard if tracked
   const currentEase = createMemo(() => {
@@ -349,9 +365,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           ocrImageElement: props.ocrImageElement,
           anchorRect: props.anchorRect,
           wordUuid: wordUuid(),
-          level: freq?.raw_level ?? props.level ?? -1,
+          level: freq?.raw_level ?? props.level,
           wordStatus: effectiveStatus(),
-          colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
+          colourCodes: settings.colour_codes || {},
+          languageData: currentLangData(),
           ocrCropPadding: settings.ocr_crop_padding,
           tokenize,
           flashcardMediaType: isVideoMode ? 'video' : 'image',
@@ -380,7 +397,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           }
         }
 
-        await addFlashcard(content, ease);
+        await addFlashcard(content, ease, undefined, settings.language);
         // isInSRS and currentEase are now reactive memos that will update automatically
         // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
@@ -440,25 +457,29 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return entries;
   });
 
-  const pitchAccentFromData = createMemo(() => {
-    return resolvePitchAccentForHover({
+  const entryReading = (entry: unknown) => extractReadingValue(entry, currentLangData()) ?? '';
+
+  const hoverProsody = createMemo(() => {
+    return resolveProsodyForHover({
       word: actualWord(),
       reading: props.token.reading,
       translationData: props.translationData,
-      supportsPitchAccent: getLanguageFeatures().supportsPitchAccent,
-      showPitchAccent: settings.showPitchAccent,
+      showProsody: prosodyVisible(settings),
       getCanonicalForm,
+      getWordVariants,
       getCachedTranslation,
       language: settings.language,
+      languageData: currentLangData(),
+      dictionaryTargetLanguage,
+      fallbackLabel: t('mlearn.CardEditor.Fields.ProsodyPosition'),
     });
   });
 
-  // Use provided pitchAccent or extract from translation data
-  const effectivePitchAccent = createMemo(() => {
-    return props.pitchAccent ?? pitchAccentFromData();
-  });
-
   const posType = createMemo(() => props.token.partOfSpeech || props.token.type || '');
+  const ankiCacheOptions = createMemo(() => ({
+    language: settings.language,
+    languageData: currentLangData(),
+  }));
 
   // Get level from word frequency (like old app's wordFreq[word].level)
   // Using actualWord() to properly track token changes
@@ -468,12 +489,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   // Anki hover preview state
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
+  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
 
   // Fetch Anki words cache once when use_anki is enabled
   createEffect(() => {
-    if (settings.use_anki && !isAnkiCacheFetched()) {
-      fetchAnkiWordsCache().then(() => setAnkiCacheReady(true));
+    const options = ankiCacheOptions();
+    if (settings.use_anki && !isAnkiCacheFetched(options)) {
+      fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true));
     }
   });
 
@@ -481,18 +503,18 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const wordInAnki = createMemo(() => {
     if (!settings.use_anki) return false;
     void ankiCacheReady();
-    return !!findAnkiWordMatchInCache(wordForms());
+    return !!findAnkiWordMatchInCache(wordForms(), ankiCacheOptions());
   });
 
   const ankiMatch = createMemo(() => {
     if (!settings.use_anki) return null;
     void ankiCacheReady();
-    return findAnkiWordMatchInCache(wordForms());
+    return findAnkiWordMatchInCache(wordForms(), ankiCacheOptions());
   });
 
-  const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(actualWord()));
+  const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(actualWord(), settings.language));
 
-  // Level pill showing JLPT/frequency level from langdata (not hardcoded!)
+  // Level pill showing the language-defined frequency/proficiency level.
   // Must reactively update when word changes - use createMemo for full reactivity
   const levelPillData = createMemo(() => {
     // Force reactive tracking of the current word by accessing actualWord()
@@ -503,14 +525,22 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const freq = getFrequency(word);
     if (freq) {
       // freq.level already contains the name from langdata (set in LanguageContext.parseWordFrequency)
-      return { level: freq.raw_level, name: freq.level };
+      return {
+        level: freq.raw_level,
+        visualLevel: getFrequencyLevelVisualRank(freq.raw_level, getFreqLevelNames(), currentLangData()),
+        name: freq.level,
+      };
     }
     
     // Fallback to props.level if provided - use getLevelName from langdata
     const level = props.level;
     if (level === undefined || level < 0) return null;
     const levelName = getLevelName(level);
-    return { level, name: levelName };
+    return {
+      level,
+      visualLevel: getFrequencyLevelVisualRank(level, getFreqLevelNames(), currentLangData()),
+      name: levelName,
+    };
   });
 
   const POSPill = () => {
@@ -569,17 +599,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     );
   };
 
-  // Pitch accent data for PitchAccentOverlay pill
-  const pitchPillReading = createMemo(() => {
-    const pitch = effectivePitchAccent();
-    return pitch?.reading || '';
-  });
-
-  const pitchPillPosition = createMemo(() => {
-    const pitch = effectivePitchAccent();
-    return pitch?.position ?? null;
-  });
-
   return (
     <div
       class="word-hover-container"
@@ -618,8 +637,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                         <hr />
                       </Show>
                       <div class="hover_translation" innerHTML={Array.isArray(entry.definitions) ? entry.definitions.join('; ') : String(entry.definitions) || ''} />
-                      <Show when={entry.reading}>
-                        <div class="hover_reading">{entry.reading}</div>
+                      <Show when={entryReading(entry)}>
+                        {(reading) => <div class="hover_reading">{reading()}</div>}
                       </Show>
                     </>
                   )}
@@ -634,8 +653,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                         <hr />
                       </Show>
                       <div class="hover_translation" innerHTML={entry.meanings ? entry.meanings.join('; ') : ''} />
-                      <Show when={entry.reading}>
-                        <div class="hover_reading">{entry.reading}</div>
+                      <Show when={entryReading(entry)}>
+                        {(reading) => <div class="hover_reading">{reading()}</div>}
                       </Show>
                     </>
                   )}
@@ -651,30 +670,45 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           {/* Footer with pills */}
           <div class="footer">
             <div class="pills">
-              {/* Pitch accent pill */}
-              <PitchAccentOverlay
-                word={actualWord()}
-                reading={pitchPillReading()}
-                pitchPosition={pitchPillPosition()}
-                pos={posType()}
-                mode="pill"
-                showParticleBox={true}
-                homogenous={true}
-              />
+              <Show when={hoverProsody()?.renderer === 'inline-overlay' ? hoverProsody() : null}>
+                {(prosody) => (
+                  <ProsodyOverlay
+                    word={actualWord()}
+                    reading={prosody().reading}
+                    prosodyPosition={prosody().position}
+                    prosodyType={prosody().type}
+                    languageData={currentLangData()}
+                    pos={posType()}
+                    mode="pill"
+                    showParticleBox={true}
+                    homogenous={true}
+                  />
+                )}
+              </Show>
+              <Show when={hoverProsody()?.renderer === 'label' ? hoverProsody() : null}>
+                {(prosody) => (
+                  <PillLabel variant="gray" class="prosody-position-pill">
+                    <span class="prosody-position-pill__label">{prosody().label}</span>
+                    <span class="prosody-position-pill__value">{prosody().value}</span>
+                  </PillLabel>
+                )}
+              </Show>
               {/* Level pill - reactive via Show + createMemo */}
               <Show when={levelPillData()}>
                 {(data) => (
-                  <PillLabel level={data().level}>{data().name}</PillLabel>
+                  <PillLabel level={data().level} visualLevel={data().visualLevel}>{data().name}</PillLabel>
                 )}
               </Show>
               <POSPill />
               <WordStatusPill
                 word={actualWord()}
+                language={settings.language}
                 onStatusChange={props.onStatusChange}
                 onModalOpenChange={setIsStatusModalOpen}
               />
               <ResourcePill
                 word={actualWord()}
+                language={settings.language}
                 isTracked={isTracked()}
                 isAdding={isAddingFlashcard()}
                 isInAnki={wordInAnki()}

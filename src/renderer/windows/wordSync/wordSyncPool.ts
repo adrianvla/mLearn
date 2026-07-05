@@ -1,30 +1,34 @@
 import { SRS_EASE } from '../../../shared/constants';
-import { extractKanjiChars } from '../../../shared/utils/textUtils';
+import { extractUniqueStudyCharacters, isFrequencyLevelAtOrEasierThanTarget } from '../../../shared/languageFeatures';
+import type { LanguageData } from '../../../shared/types';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** Checks dedicated marker first, falls back to legacy heuristic
- *  (lastStatusChange set + statusChangedAtSeen absent → sync rating). */
+/**
+ * Checks dedicated marker first, falls back to the old heuristic
+ * (lastStatusChange set + statusChangedAtSeen absent → sync rating).
+ *
+ * @deprecated The fallback heuristic exists only for pre-`wordSyncRatedAt`
+ * records. New writes must set `wordSyncRatedAt`.
+ */
 export function wasExplicitlySyncRated(knowledge: { wordSyncRatedAt?: number; lastStatusChange?: number; statusChangedAtSeen?: number } | undefined): boolean {
   if (!knowledge) return false;
   if (knowledge.wordSyncRatedAt !== undefined) return true;
   return knowledge.lastStatusChange !== undefined && knowledge.statusChangedAtSeen === undefined;
 }
 
-/** raw_level uses descending scale: 5=easiest, 1=hardest.
- *  target=2 → include 2,3,4,5; target=0 → include all. */
-export function shouldIncludeForLevel(rawLevel: number, target: number): boolean {
-  if (target <= 0) return true;
-  return rawLevel >= target;
+/** Include entries at or easier than the selected learner level. */
+export function shouldIncludeForLevel(rawLevel: number, target: number, languageData?: LanguageData | null): boolean {
+  return isFrequencyLevelAtOrEasierThanTarget(rawLevel, target, languageData);
 }
 
-/** +0.25 per matching kanji, capped at 3 (max 1.75x). Returns 1.0 when no match. */
-export function calculateKanjiBoost(word: string, knownKanjiSet: Set<string>): number {
-  if (knownKanjiSet.size === 0) return 1.0;
-  const wordKanji = extractKanjiChars(word);
+/** +0.25 per matching study character, capped at 3 (max 1.75x). Returns 1.0 when no match. */
+export function calculateCharacterStudyBoost(word: string, knownCharacterSet: Set<string>, studyScripts: readonly string[]): number {
+  if (knownCharacterSet.size === 0 || studyScripts.length === 0) return 1.0;
+  const studyChars = extractUniqueStudyCharacters(word, studyScripts);
   let matchCount = 0;
-  for (const ch of wordKanji) {
-    if (knownKanjiSet.has(ch)) matchCount++;
+  for (const ch of studyChars) {
+    if (knownCharacterSet.has(ch)) matchCount++;
   }
   if (matchCount === 0) return 1.0;
   return 1 + Math.min(matchCount, 3) * 0.25;
@@ -69,9 +73,9 @@ export function isWordEligible(
 
 /** Weight that prioritizes unknown/low-ease words over high-ease/known ones.
  *  No knowledge → 2.0 (highest), ease 1.3 → 1.7, ease 2.5 → 0.5 (lowest). */
-export function calculateWordWeight(ease: number | undefined, kanjiBoost: number): number {
+export function calculateWordWeight(ease: number | undefined, characterStudyBoost: number): number {
   const basePriority = ease === undefined ? 2.0 : Math.max(0.5, 3.0 - ease);
-  return basePriority * kanjiBoost;
+  return basePriority * characterStudyBoost;
 }
 
 export { THIRTY_DAYS_MS };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getVisiblePageIndices } from './readerPageLayout';
+import { getSpreadPageSideClass, getVisiblePageIndices } from './readerPageLayout';
 
 describe('getVisiblePageIndices', () => {
   it('returns only the current page in single-page mode', () => {
@@ -16,5 +16,22 @@ describe('getVisiblePageIndices', () => {
 
   it('returns only the last page when no trailing spread page exists', () => {
     expect(getVisiblePageIndices(5, 4, 'double', false)).toEqual([4]);
+  });
+});
+
+describe('getSpreadPageSideClass', () => {
+  it('keeps the first spread page visually on the right for right-to-left spreads', () => {
+    expect(getSpreadPageSideClass(0, 2, 'right-to-left')).toBe('page-right');
+    expect(getSpreadPageSideClass(1, 2, 'right-to-left')).toBe('page-left');
+  });
+
+  it('places the first spread page visually on the left for left-to-right spreads', () => {
+    expect(getSpreadPageSideClass(0, 2, 'left-to-right')).toBe('page-left');
+    expect(getSpreadPageSideClass(1, 2, 'left-to-right')).toBe('page-right');
+  });
+
+  it('does not assign side classes outside a two-page spread', () => {
+    expect(getSpreadPageSideClass(0, 1, 'right-to-left')).toBe('');
+    expect(getSpreadPageSideClass(2, 2, 'right-to-left')).toBe('');
   });
 });

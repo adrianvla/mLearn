@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -35,6 +35,15 @@ const mLearnIPC = {
   getLangData: () => ipcRenderer.send(IPC_CHANNELS.GET_LANG_DATA),
   onLangData: (callback: (data: Record<string, unknown>) => void) =>
     ipcOn(IPC_CHANNELS.LANG_DATA, (_event, data) => callback(data)),
+  getLanguageDataCatalog: () => ipcRenderer.send(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG),
+  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) =>
+    ipcOn(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, (_event, data) => callback(data)),
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, language, dictionaryTargetLanguage),
+  onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) =>
+    ipcOn(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, (_event, status) => callback(status)),
+  onLanguageDataInstallError: (callback: (payload: { language: string; error: string }) => void) =>
+    ipcOn(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_ERROR, (_event, payload) => callback(payload)),
   installLanguage: (url: string) => ipcRenderer.send(IPC_CHANNELS.INSTALL_LANG, url),
   onLanguageInstalled: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.LANG_INSTALLED, () => callback()),
@@ -162,7 +171,7 @@ const mLearnIPC = {
   showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU, options),
   onContextMenuCommand: (callback: (command: string) => void) =>
     ipcOn(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command)),
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => {
+  showReaderCtxMenu: (options: { readingAnnotationHiderEnabled: boolean; hasContextPhrase: boolean; canToggleReadingHider?: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => {
     ipcRenderer.send(IPC_CHANNELS.SHOW_READER_CTX_MENU, options);
   },
   onReaderContextMenuCommand: (callback: (command: string) => void) =>
@@ -198,8 +207,6 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.SERVER_CRITICAL_ERROR, (_event, message) => callback(message)),
   onAnkiConnectionError: (callback: (reason: string) => void) =>
     ipcOn(IPC_CHANNELS.ANKI_CONNECTION_ERROR, (_event, reason) => callback(reason)),
-  restartBackendAnkiOverride: (disableAnki: boolean) =>
-    ipcRenderer.send(IPC_CHANNELS.RESTART_BACKEND_ANKI_OVERRIDE, disableAnki),
   onOcrStatusUpdate: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.OCR_STATUS_UPDATE, (_event, message) => callback(message)),
 
@@ -304,8 +311,8 @@ const mLearnIPC = {
   // ========== Stats & Editors ==========
   onOpenWordDbEditor: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, () => callback()),
-  onOpenExamCentricStudy: (callback: () => void) =>
-    ipcOn(IPC_CHANNELS.OPEN_EXAM_CENTRIC_STUDY, () => callback()),
+  onOpenLevelStudy: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_LEVEL_STUDY, () => callback()),
 
   // ========== Prompt ==========
   promptOutput: (text: string) => ipcRenderer.send(IPC_CHANNELS.PROMPT_OUTPUT, text),
@@ -458,8 +465,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_DELETE, id),
   voiceSampleRename: (id: string, newName: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_RENAME, id, newName),
-  voiceSampleTranscribe: (id: string): Promise<{ text: string; language: string }> =>
-    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE, id),
+  voiceSampleTranscribe: (id: string, language?: string): Promise<{ text: string; language: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE, id, language),
   voiceSampleGetPath: (id: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_GET_PATH, id),
 

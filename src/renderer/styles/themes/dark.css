@@ -32,12 +32,13 @@ body.theme-dark .subtitle_hover_alt_c,
 
 
 /* === Start index.css === */
-body.theme-dark {
+body.theme-dark,
+.theme-dark {
     /*--bg-opaque: #0a0a0a;*/
     --bg-opaque: #000;
     --bg-nt-primary: rgb(26,26,26);
     --bg-nt-secondary: rgb(38,38,38);
-    --kanji-grid-unknown-bg: #616161;
+    --character-grid-unknown-bg: #616161;
     --text-primary: #f0f0f0;
     --text-secondary: #a0a0a0;
     --text-tertiary: rgba(255, 255, 255, 0.4);
@@ -52,6 +53,14 @@ body.theme-dark {
 
     /* Dark mode flashcard highlight */
     --flashcard-highlight: #ff5ec7;
+    --pill-default-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-1-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-2-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-3-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-4-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-5-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-6-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-7-filter: invert(1) hue-rotate(180deg) saturate(200%);
 
     --panel-bg: rgba(60,60,60, 0.5);
     --panel-bg-hover: var(--bg-intense);
@@ -69,40 +78,80 @@ body.theme-dark {
 /* === End index.css === */
 
 
-/* === PitchAccent.css === */
-body.theme-dark .pitch-accent-container,
-.theme-dark .pitch-accent-container {
+/* === Prosody renderer === */
+body.theme-dark .prosody-overlay-wrapper,
+.theme-dark .prosody-overlay-wrapper {
     color: var(--text-primary);
 }
 
 /* When inside subtitle hover */
-.subtitle_hover .pitch-accent {
-    --pitch-accent-height: 2px;
+.subtitle_hover {
+    --prosody-overlay-height: 2px;
 }
 
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent {
-    --pitch-accent-height: 2px;
-}
-
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+.subtitle_hover .pill {
     position: relative;
 }
 
-body.theme-dark .subtitle_hover .pitch-accent,
-.subtitle_hover.theme-dark .pitch-accent {
+body.theme-dark .subtitle_hover .prosody-overlay-wrapper,
+.subtitle_hover.theme-dark .prosody-overlay-wrapper {
     filter: none;
     color: var(--text-primary);
 }
 
-/* === End PitchAccent.css === */
+/* === End Prosody renderer === */
 
 /* === Start Pill.css === */
-body.theme-dark .label-pill,
+body.theme-dark .label-pill {
+    box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
 body.theme-dark .btn-pill,
 body.theme-dark .label-status {
     filter: invert(1) hue-rotate(180deg) saturate(200%);
     box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+body.theme-dark .label-pill,
+.theme-dark .label-pill {
+    filter: var(--pill-default-filter);
+}
+
+body.theme-dark .label-pill[data-level="1"],
+.theme-dark .label-pill[data-level="1"] {
+    filter: var(--pill-level-1-filter);
+}
+
+body.theme-dark .label-pill[data-level="2"],
+.theme-dark .label-pill[data-level="2"] {
+    filter: var(--pill-level-2-filter);
+}
+
+body.theme-dark .label-pill[data-level="3"],
+.theme-dark .label-pill[data-level="3"] {
+    filter: var(--pill-level-3-filter);
+}
+
+body.theme-dark .label-pill[data-level="4"],
+.theme-dark .label-pill[data-level="4"] {
+    filter: var(--pill-level-4-filter);
+}
+
+body.theme-dark .label-pill[data-level="5"],
+.theme-dark .label-pill[data-level="5"] {
+    filter: var(--pill-level-5-filter);
+}
+
+body.theme-dark .label-pill[data-level="6"],
+.theme-dark .label-pill[data-level="6"] {
+    filter: var(--pill-level-6-filter);
+}
+
+body.theme-dark .label-pill[data-level="7"],
+.theme-dark .label-pill[data-level="7"] {
+    filter: var(--pill-level-7-filter);
 }
 
 /* Ensure icons inside pills are not double-inverted (applies to both img and SVG) */

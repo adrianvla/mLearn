@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { LLMStreamChunk } from '../../shared/types';
+import type { LanguageFeatures } from '../context/LanguageContext';
 
 let streamCallback: ((chunk: LLMStreamChunk) => void) | null = null;
 const mockCleanup = vi.fn();
@@ -14,6 +15,35 @@ const mockBridge = {
     llmStream: vi.fn(),
     llmStreamAbort: vi.fn(),
   },
+};
+
+const CHECKER_LANGUAGE_FEATURES: LanguageFeatures = {
+  supportsReadings: false,
+  prosodyRenderer: undefined,
+  supportsProsody: false,
+  isLogographic: false,
+  isRTL: false,
+  supportsColorCodes: false,
+  usesLatinScript: true,
+  supportsFrequencyLevels: false,
+  hasFixedSettings: false,
+  fixedSettingKeys: [],
+  supportsCharacterNames: false,
+  supportsVerticalText: false,
+  supportsOcrRamSaver: false,
+  supportsGrammar: false,
+  supportsDeferentialRegister: false,
+  tokenizerCapabilities: {
+    segmentsText: true,
+    segmentationQuality: 'linguistic',
+    providesLemmas: true,
+    providesPartOfSpeech: true,
+    providesReadings: false,
+    allowsRoughFallback: false,
+  },
+  tutorPromptGuidelines: [],
+  correctionPromptGuidelines: [],
+  mistakeCheckerPromptGuidelines: [],
 };
 
 vi.mock('../../shared/bridges', () => ({
@@ -652,6 +682,75 @@ describe('checkerAgent', () => {
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0] as [{ role: string; content: string }[], unknown];
       expect(messages[0].content).not.toContain('Session Instructions');
+    });
+
+    it('does not add register policy when language metadata does not declare one', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Test', 'English');
+      streamCallback!({ done: true });
+      await promise;
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0] as [{ role: string; content: string }[], unknown];
+      expect(messages[0].content).not.toContain('## Casual Speech Policy');
+      expect(messages[0].content).not.toContain('Do NOT correct formality');
+      expect(messages[0].content).not.toContain('informal wording');
+      expect(messages[0].content).not.toContain('contractions');
+      expect(messages[0].content).not.toContain('omission of particles');
+      expect(messages[0].content).not.toContain('Language-Specific Correction Guidance');
+    });
+
+    it('adds register guidance when language features declare deferential forms', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Test', 'Japanese', undefined, {
+        languageFeatures: {
+          ...CHECKER_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: true,
+        },
+      });
+      streamCallback!({ done: true });
+      await promise;
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0] as [{ role: string; content: string }[], unknown];
+      expect(messages[0].content).toContain('Language-Specific Correction Guidance');
+      expect(messages[0].content).toContain('dropped politeness markers');
+    });
+
+    it('adds checker guidance supplied by language metadata', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Test', 'Chinese', undefined, {
+        languageFeatures: {
+          ...CHECKER_LANGUAGE_FEATURES,
+          mistakeCheckerPromptGuidelines: ['Do not correct tone-number pinyin when the learner is practicing typing.'],
+        },
+      });
+      streamCallback!({ done: true });
+      await promise;
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0] as [{ role: string; content: string }[], unknown];
+      expect(messages[0].content).toContain('Do not correct tone-number pinyin');
+    });
+
+    it('adds shared correction guidance supplied by language metadata', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Test', 'Arabic', undefined, {
+        languageFeatures: {
+          ...CHECKER_LANGUAGE_FEATURES,
+          correctionPromptGuidelines: ['Accept learner messages written with or without short vowel marks.'],
+        },
+      });
+      streamCallback!({ done: true });
+      await promise;
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0] as [{ role: string; content: string }[], unknown];
+      expect(messages[0].content).toContain('Accept learner messages written with or without short vowel marks.');
     });
 
     it('ignores tool calls for names other than suggest_corrections', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Token } from '../../shared/types';
+import type { LanguageData, Token } from '../../shared/types';
 import {
     tokensToPlainText,
     tokensToColoredHtml,
@@ -12,6 +12,64 @@ import {
 function token(word: string, type: string = '', overrides: Partial<Token> = {}): Token {
     return { word, actual_word: word, type, ...overrides };
 }
+
+const hanPinyinLanguage: LanguageData = {
+    name: 'Han Pinyin Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+        lexemeNormalization: {
+            type: 'reading',
+            surfaceScripts: ['Han'],
+            readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+            type: 'script-reading',
+            annotationScripts: ['Han'],
+            stripParentheticalReadings: true,
+        },
+    },
+};
+
+const latinLanguage: LanguageData = {
+    name: 'Latin Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: { acceptedScripts: ['Latn'] },
+        lexemeNormalization: {
+            type: 'identity',
+        },
+        readingAnnotation: {
+            type: 'none',
+            stripParentheticalReadings: false,
+        },
+    },
+};
+
+const thaiLanguage: LanguageData = {
+    name: 'Thai Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: { acceptedScripts: ['Thai'] },
+    },
+    };
+
+const kanaKanjiLanguage: LanguageData = {
+    name: 'Kana Kanji Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        lexemeNormalization: {
+            type: 'surface-reading',
+            surfaceScripts: ['Han'],
+            readingScripts: ['Hira', 'Kana'],
+            readingNormalizer: 'kana-to-hiragana',
+        },
+    },
+};
 
 describe('tokensToPlainText', () => {
     it('returns empty string for empty array', () => {
@@ -32,6 +90,11 @@ describe('tokensToPlainText', () => {
 
     it('joins multiple tokens without separator', () => {
         expect(tokensToPlainText([token('foo'), token('bar'), token('baz')])).toBe('foobarbaz');
+    });
+
+    it('joins multiple tokens with language metadata separators', () => {
+        expect(tokensToPlainText([token('foo'), token('bar'), token('baz')], latinLanguage)).toBe('foo bar baz');
+        expect(tokensToPlainText([token('日本'), token('語'), token('を')], kanaKanjiLanguage)).toBe('日本語を');
     });
 
     it('mixes surface and word across tokens', () => {
@@ -70,6 +133,27 @@ describe('tokensToColoredHtml', () => {
         expect(result).toBe('<span class="subtitle_word" style="color: #ff0000;">走る</span>');
     });
 
+    it('renders inline style through metadata POS aliases', () => {
+        const result = tokensToColoredHtml(
+            [token('hello', 'NOUN')],
+            { noun: '#112233' },
+            undefined,
+            {
+                ...latinLanguage,
+                textProcessing: {
+                    ...latinLanguage.textProcessing,
+                    partOfSpeech: {
+                        aliases: {
+                            NOUN: 'noun',
+                        },
+                    },
+                },
+            },
+        );
+
+        expect(result).toBe('<span class="subtitle_word" style="color: #112233;">hello</span>');
+    });
+
     it('adds defined class when targetWord matches actual_word', () => {
         const t = token('走る', '動詞');
         const result = tokensToColoredHtml([t], {}, '走る');
@@ -92,6 +176,16 @@ describe('tokensToColoredHtml', () => {
         const result = tokensToColoredHtml(tokens);
         expect(result).toBe(
             '<span class="subtitle_word">foo</span><span class="subtitle_word">bar</span>'
+        );
+    });
+
+    it('renders multiple tokens with language metadata separators', () => {
+        const tokens = [token('foo', ''), token('bar', '')];
+        expect(tokensToColoredHtml(tokens, {}, undefined, latinLanguage)).toBe(
+            '<span class="subtitle_word">foo</span> <span class="subtitle_word">bar</span>'
+        );
+        expect(tokensToColoredHtml([token('日本', ''), token('語', '')], {}, undefined, kanaKanjiLanguage)).toBe(
+            '<span class="subtitle_word">日本</span><span class="subtitle_word">語</span>'
         );
     });
 
@@ -149,12 +243,12 @@ describe('cleanContextPhrase', () => {
         expect(cleanContextPhrase(null as unknown as string)).toBe('');
     });
 
-    it('strips parenthesized hiragana furigana', () => {
-        expect(cleanContextPhrase('漢字(かんじ)')).toBe('漢字');
+    it('keeps parenthesized hiragana without language metadata', () => {
+        expect(cleanContextPhrase('漢字(かんじ)')).toBe('漢字(かんじ)');
     });
 
-    it('strips parenthesized katakana furigana', () => {
-        expect(cleanContextPhrase('漢字（かんじ）')).toBe('漢字');
+    it('keeps full-width parenthesized readings without language metadata', () => {
+        expect(cleanContextPhrase('漢字（かんじ）')).toBe('漢字（かんじ）');
     });
 
     it('normalizes multiple spaces to single space', () => {
@@ -169,9 +263,18 @@ describe('cleanContextPhrase', () => {
         expect(cleanContextPhrase('simple text')).toBe('simple text');
     });
 
-    it('handles mixed furigana and whitespace together', () => {
+    it('handles metadata-free parenthetical readings and whitespace together', () => {
         const result = cleanContextPhrase('  漢字(かんじ)  を  読む(よむ)  ');
-        expect(result).toBe('漢字 を 読む');
+        expect(result).toBe('漢字(かんじ) を 読む(よむ)');
+    });
+
+    it('uses language metadata to strip non-kana reading annotations', () => {
+        expect(cleanContextPhrase('你好(ni hao)', hanPinyinLanguage)).toBe('你好');
+    });
+
+    it('preserves parenthetical text when language metadata disables reading stripping', () => {
+        expect(cleanContextPhrase('hello (friendly note)', latinLanguage)).toBe('hello (friendly note)');
+        expect(cleanContextPhrase('Example(かな)', latinLanguage)).toBe('Example(かな)');
     });
 });
 
@@ -184,8 +287,8 @@ describe('getContextPhrase', () => {
         expect(getContextPhrase(undefined, '  hello  ')).toBe('hello');
     });
 
-    it('returns cleaned context when context is provided', () => {
-        expect(getContextPhrase('漢字(かんじ)')).toBe('漢字');
+    it('returns metadata-free context without stripping parenthetical readings', () => {
+        expect(getContextPhrase('漢字(かんじ)')).toBe('漢字(かんじ)');
     });
 
     it('prefers context over fallback when both are provided', () => {
@@ -202,8 +305,12 @@ describe('getContextPhrase', () => {
 });
 
 describe('formatForClipboard', () => {
-    it('cleans furigana from phrase', () => {
-        expect(formatForClipboard('漢字(かんじ)')).toBe('漢字');
+    it('formats metadata-free parenthetical readings without stripping them', () => {
+        expect(formatForClipboard('漢字(かんじ)')).toBe('漢字(かんじ)');
+    });
+
+    it('preserves parenthetical text for languages without reading annotations', () => {
+        expect(formatForClipboard('word(noun)', latinLanguage)).toBe('word(noun)');
     });
 
     it('removes HTML tags', () => {
@@ -257,6 +364,18 @@ describe('truncatePhrase', () => {
         expect(result).toBe('あ'.repeat(100) + '…');
     });
 
+    it('truncates segmentless languages at maxLength from metadata', () => {
+        const phrase = 'ก'.repeat(75) + ' ' + 'ข'.repeat(40);
+        const result = truncatePhrase(phrase, 100, thaiLanguage, 'th');
+        expect(result).toBe(phrase.slice(0, 100) + '…');
+    });
+
+    it('infers segmentless script truncation when metadata is unavailable', () => {
+        const phrase = 'က'.repeat(75) + ' ' + 'ခ'.repeat(40);
+        const result = truncatePhrase(phrase, 100);
+        expect(result).toBe(phrase.slice(0, 100) + '…');
+    });
+
     it('uses single ellipsis character not three dots', () => {
         const phrase = 'あ'.repeat(110);
         const result = truncatePhrase(phrase, 100);
@@ -269,6 +388,12 @@ describe('truncatePhrase', () => {
         const phrase = 'a'.repeat(75) + ' ' + 'b'.repeat(25);
         const result = truncatePhrase(phrase, 100);
         expect(result).toBe('a'.repeat(75) + '…');
+    });
+
+    it('uses the language profile over incidental segmentless characters', () => {
+        const phrase = 'a'.repeat(75) + ' 漢字 ' + 'b'.repeat(25);
+        const result = truncatePhrase(phrase, 100, latinLanguage, 'en');
+        expect(result).toBe('a'.repeat(75) + ' 漢字…');
     });
 
     it('truncates Latin text at hard limit when no good word boundary exists', () => {

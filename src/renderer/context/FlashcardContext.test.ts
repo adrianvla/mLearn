@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { FlashcardStore, Flashcard, FlashcardMeta, ReviewQueue, Settings } from '../../shared/types';
+import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
@@ -16,6 +16,7 @@ const updateWordAppearanceCleanup = vi.fn();
 const updateAttemptCleanup = vi.fn();
 const updateCreateCleanup = vi.fn();
 const updateLastWatchedCleanup = vi.fn();
+const mockStreamChat = vi.hoisted(() => vi.fn());
 const mockBackend = vi.hoisted(() => ({
   ping: vi.fn().mockResolvedValue(true),
   translate: vi.fn().mockResolvedValue({ data: [] }),
@@ -98,8 +99,52 @@ vi.mock('./LocalizationContext', () => ({
 }));
 
 const mockGetCanonicalForm = vi.fn((word: string) => word);
+const mockGetWordVariants = vi.fn((_word: string) => [] as string[]);
+const mockGetCanonicalFormForLanguage = vi.fn((_language: string, word: string) => word);
+const mockGetWordVariantsForLanguage = vi.fn((_language: string, _word: string) => [] as string[]);
+const mockGetFrequencyForLanguage = vi.fn((_language: string, _word: string) => null as { raw_level: number; level: string; reading: string } | null);
+const mockLangData = vi.hoisted(() => ({
+  ar: {
+    name: 'Arabic',
+    name_translated: 'العربية',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: {
+        acceptedScripts: ['Arab'],
+        wordScriptValidation: 'only-accepted',
+      },
+    },
+  },
+  ja: {
+    name: 'Japanese',
+    name_translated: '日本語',
+    colour_codes: {},
+    settings: { fixed: {} },
+  },
+  fr: {
+    name: 'French',
+    name_translated: 'français',
+    colour_codes: {},
+    settings: { fixed: {} },
+  },
+  de: {
+    name: 'German',
+    name_translated: 'Deutsch',
+    colour_codes: {},
+    settings: { fixed: {} },
+  },
+}));
 vi.mock('./LanguageContext', () => ({
-  useLanguage: () => ({ getCanonicalForm: mockGetCanonicalForm }),
+  useLanguage: () => ({
+    langData: mockLangData,
+    getCanonicalForm: mockGetCanonicalForm,
+    getWordVariants: mockGetWordVariants,
+    getCanonicalFormForLanguage: mockGetCanonicalFormForLanguage,
+    getWordVariantsForLanguage: mockGetWordVariantsForLanguage,
+    getFrequencyForLanguage: mockGetFrequencyForLanguage,
+    currentLangData: () => null,
+  }),
 }));
 
 const mockSettings: Settings = {
@@ -150,13 +195,25 @@ vi.mock('../services/statsService', () => ({
 }));
 
 vi.mock('../services/llmProvider', () => ({
-  streamChat: vi.fn(),
+  streamChat: mockStreamChat,
   checkAvailability: vi.fn().mockResolvedValue({ available: false }),
 }));
 
 vi.mock('../../shared/utils/textUtils', () => ({
   stripHtmlForTts: (s: string) => s.replace(/<[^>]*>/g, ''),
   getLanguageDisplayName: (lang: string) => lang,
+  getReadingExtraCharacters: () => [],
+  normalizeReading: (raw: string) => raw.replace(/<[^>]*>/g, '').replace(/\s+/g, ''),
+  isWordInLanguageScript: (
+    word: string,
+    _language: string,
+    languageData?: { textProcessing?: { scriptProfile?: { acceptedScripts?: string[] } } } | null,
+  ) => {
+    if (languageData?.textProcessing?.scriptProfile?.acceptedScripts?.includes('Arab')) {
+      return /[\u0600-\u06FF]/u.test(word);
+    }
+    return true;
+  },
 }));
 
 vi.mock('../components/common/TaskProgress/TaskProgress', () => ({
@@ -169,7 +226,7 @@ type FlashcardCtx = {
   isLoading: () => boolean;
   queue: () => ReviewQueue;
   queueCounts: () => { new: number; learning: number; review: number; total: number };
-  addFlashcard: (content: Partial<{ type: string; front: string; back: string; reading?: string; pitchAccent?: number; pos?: string; level?: number; example?: string; exampleMeaning?: string; imageUrl?: string; videoUrl?: string; skipExampleTts?: boolean; audioUrl?: string; context?: string; source?: string; extra?: string; word?: string; pronunciation?: string; translation?: string[]; definition?: string[]; screenshotUrl?: string; contextPhrase?: string }> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean) => Promise<string>;
+  addFlashcard: (content: Partial<{ type: string; front: string; back: string; reading?: string; prosody?: FlashcardContent['prosody']; pos?: string; level?: number; example?: string; exampleMeaning?: string; imageUrl?: string; videoUrl?: string; skipExampleTts?: boolean; audioUrl?: string; context?: string; source?: string; extra?: string; word?: string; pronunciation?: string; translation?: string[]; definition?: string[]; screenshotUrl?: string; contextPhrase?: string }> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean, language?: string) => Promise<string>;
   removeFlashcard: (id: string, neverShowAgain?: boolean) => Promise<boolean>;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   updateFlashcardContent: (id: string, content: Partial<Record<string, unknown>>) => void;
@@ -180,33 +237,41 @@ type FlashcardCtx = {
   getCurrentCard: () => Flashcard | null;
   getAllCards: () => Flashcard[];
   getCardById: (id: string) => Flashcard | null;
-  getCardsByWord: (word: string) => Promise<Flashcard[]>;
-  getCardByWord: (word: string) => Promise<Flashcard | null>;
-  hasWord: (word: string) => Promise<boolean>;
+  getCardsByWord: (word: string, language?: string) => Promise<Flashcard[]>;
+  getCardByWord: (word: string, language?: string) => Promise<Flashcard | null>;
+  hasWord: (word: string, language?: string) => Promise<boolean>;
+  getWordStats: (word: string, language?: string) => Promise<WordStats | null>;
   getDueCount: () => number;
   getNewCount: () => number;
-  hasWordSync: (word: string) => boolean;
-  getCardByWordSync: (word: string) => Flashcard | null;
-  getCardsByWordSync: (word: string) => Flashcard[];
-  isWordIgnoredSync: (word: string) => boolean;
+  hasWordSync: (word: string, language?: string) => boolean;
+  getCardByWordSync: (word: string, language?: string) => Flashcard | null;
+  getCardsByWordSync: (word: string, language?: string) => Flashcard[];
+  isWordIgnoredSync: (word: string, language?: string) => boolean;
   getIgnoredWordsSync: () => Array<{ word: string; reading?: string; language: string; ignoredAt: number }>;
+  findUnpopulatedFlashcardForWord: (word: string, language?: string) => Flashcard | null;
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
   pushUndoState: (options?: { type?: string; restore?: () => void | Promise<void> }) => void;
   undoLastAction: () => void;
   canUndo: () => boolean;
   trackWordAppearance: (word: string, reading?: string) => Promise<void>;
-  ignoreWordForLanguage: (word: string, reading?: string) => Promise<void>;
-  unignoreWordForLanguage: (word: string) => Promise<void>;
-  trackWordSeen: (word: string, reading?: string, easeBump?: number) => void;
-  trackWordHovered: (word: string, reading?: string) => void;
-  cancelWordHover: (word: string) => void;
+  ignoreWordForLanguage: (word: string, reading?: string, language?: string) => Promise<void>;
+  unignoreWordForLanguage: (word: string, language?: string) => Promise<void>;
+  trackWordSeen: (word: string, reading?: string, easeBump?: number, language?: string) => void;
+  trackWordHovered: (word: string, reading?: string, language?: string) => void;
+  cancelWordHover: (word: string, language?: string) => void;
   getWordKnowledge: (wordHash: string) => { ease: number; lastSeen: number; timesSeen: number; timesHovered: number; word: string; reading?: string; language?: string } | undefined;
   isWordKnown: (wordHash: string) => boolean;
-  isWordKnownByText: (word: string) => boolean;
-  trackGrammarEncountered: (pattern: string, level?: number) => void;
-  setWordBankStatus: (word: string, status: 'unknown' | 'learning' | 'known', bank: string, options?: { reading?: string; content?: Partial<Record<string, unknown>> & { front: string; back: string } }) => Promise<void>;
-  trackGrammarFailed: (pattern: string, level?: number) => void;
-  getGrammarKnowledge: (pattern: string) => { pattern: string; ease: number; timesEncountered: number; timesFailed: number; lastSeen: number; level: number; language: string } | undefined;
+  isWordKnownByText: (word: string, language?: string) => boolean;
+  isWordLearningByText: (word: string, language?: string) => boolean;
+  getComprehensiveWordStatusSync: (word: string, language?: string) => 'unknown' | 'learning' | 'known';
+  isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
+  trackGrammarEncountered: (pattern: string, level?: number, language?: string) => void;
+  setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
+  setComprehensiveWordStatus: (word: string, status: 'unknown' | 'learning' | 'known', language?: string) => void;
+  setWordBankStatus: (word: string, status: 'unknown' | 'learning' | 'known', bank: string, options?: { reading?: string; language?: string; content?: Partial<Record<string, unknown>> & { front: string; back: string } }) => Promise<void>;
+  markWordSyncSeen: (word: string, language?: string) => void;
+  trackGrammarFailed: (pattern: string, level?: number, language?: string) => void;
+  getGrammarKnowledge: (pattern: string, language?: string) => { pattern: string; ease: number; timesEncountered: number; timesFailed: number; lastSeen: number; level: number; language: string } | undefined;
   startSession: () => void;
   refreshQueue: () => void;
   resetSRS: () => void;
@@ -218,6 +283,9 @@ type FlashcardCtx = {
   removeSuggestedFlashcard: (id: string) => void;
   removeSuggestedFlashcards: (ids: string[]) => void;
   cleanupKnownSuggestions: () => Promise<number>;
+  promoteSuggestedFlashcards: (ids: string[], options?: { useLLM?: boolean; useTts?: boolean; onProgress?: (done: number, total: number) => void }) => Promise<number>;
+  generateExampleSentenceWithLLM: (word: string, definition: string, language: string) => Promise<{ sentence: string; meaning: string }>;
+  translateExampleSentence: (sentence: string, sourceLanguage: string, language?: string) => Promise<string>;
 };
 
 // ── Mount helper ─────────────────────────────────────────────────────
@@ -309,8 +377,18 @@ describe('FlashcardProvider', () => {
     vi.restoreAllMocks();
     mockBackend.ping.mockResolvedValue(true);
     mockBackend.translate.mockResolvedValue({ data: [] });
+    mockGetCanonicalForm.mockImplementation((word: string) => word);
+    mockGetWordVariants.mockImplementation((_word: string) => []);
+    mockGetCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
+    mockGetWordVariantsForLanguage.mockImplementation((_language: string, _word: string) => []);
+    mockGetFrequencyForLanguage.mockImplementation((_language: string, _word: string) => null);
     mockSettings.autoSuggestFlashcards = true;
     mockSettings.autoSuggestUnknownWords = true;
+    mockSettings.learningLanguageLevels = {};
+    mockSettings.language = 'ja';
+    mockSettings.uiLanguage = DEFAULT_SETTINGS.uiLanguage;
+    mockSettings.dictionaryTargetLanguages = {};
+    mockStreamChat.mockReset();
     setupMockImplementations();
   });
 
@@ -468,6 +546,93 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('generateExampleSentenceWithLLM uses the card language dictionary target, not the UI language', async () => {
+    mockSettings.uiLanguage = 'en';
+    mockSettings.dictionaryTargetLanguages = { ja: 'fr' };
+    mockStreamChat.mockImplementation((_messages, _tools, callbacks) => {
+      queueMicrotask(() => callbacks.onDone("Sentence: 赤い花です。\nTranslation: C'est une fleur rouge."));
+      return { abort: vi.fn() };
+    });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    const result = await ctx.generateExampleSentenceWithLLM('赤い', 'red', 'ja');
+
+    expect(result).toEqual({ sentence: '赤い花です。', meaning: "C'est une fleur rouge." });
+    const messages = mockStreamChat.mock.calls[0][0] as Array<{ role: string; content: string }>;
+    expect(messages[1].content).toContain('Japanese (日本語)');
+    expect(messages[1].content).toContain('French (français) translation');
+    expect(messages[1].content).not.toContain('English translation');
+    dispose();
+  });
+
+  it('generateExampleSentenceWithLLM uses installed language metadata names for third-party-style languages', async () => {
+    mockSettings.uiLanguage = 'en';
+    mockSettings.dictionaryTargetLanguages = { ar: 'fr' };
+    mockStreamChat.mockImplementation((_messages, _tools, callbacks) => {
+      queueMicrotask(() => callbacks.onDone('Sentence: السلام عليكم.\nTranslation: Bonjour.'));
+      return { abort: vi.fn() };
+    });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    const result = await ctx.generateExampleSentenceWithLLM('سلام', 'peace', 'ar');
+
+    expect(result).toEqual({ sentence: 'السلام عليكم.', meaning: 'Bonjour.' });
+    const messages = mockStreamChat.mock.calls[0][0] as Array<{ role: string; content: string }>;
+    expect(messages[1].content).toContain('Arabic (العربية)');
+    expect(messages[1].content).toContain('French (français) translation');
+    expect(messages[1].content).not.toContain('in ar');
+    dispose();
+  });
+
+  it('translateExampleSentence uses the explicit card language dictionary target', async () => {
+    mockSettings.uiLanguage = 'en';
+    mockSettings.dictionaryTargetLanguages = { ja: 'de' };
+    mockStreamChat.mockImplementation((_messages, _tools, callbacks) => {
+      queueMicrotask(() => callbacks.onDone('Das ist eine rote Blume.'));
+      return { abort: vi.fn() };
+    });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    const result = await ctx.translateExampleSentence('赤い花です。', 'ja', 'ja');
+
+    expect(result).toBe('Das ist eine rote Blume.');
+    const messages = mockStreamChat.mock.calls[0][0] as Array<{ role: string; content: string }>;
+    expect(messages[0].content).toContain('German (Deutsch)');
+    expect(messages[1].content).toContain('Japanese (日本語)');
+    expect(messages[1].content).toContain('to German (Deutsch)');
+    expect(messages[1].content).not.toContain('to English');
+    dispose();
+  });
+
+  it('post-create example translation uses the card language code for prompt metadata lookup', async () => {
+    mockSettings.llmEnabled = true;
+    mockSettings.uiLanguage = 'de';
+    mockSettings.dictionaryTargetLanguages = { ar: 'fr' };
+    mockStreamChat.mockImplementation((_messages, _tools, callbacks) => {
+      queueMicrotask(() => callbacks.onDone('Bonjour.'));
+      return { abort: vi.fn() };
+    });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard(
+      { front: 'سلام', back: 'peace', example: 'السلام عليكم.' },
+      undefined,
+      false,
+      'ar',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const messages = mockStreamChat.mock.calls[0][0] as Array<{ role: string; content: string }>;
+    expect(messages[1].content).toContain('Arabic (العربية)');
+    expect(messages[1].content).toContain('to French (français)');
+    expect(messages[1].content).not.toContain('to German');
+    dispose();
+  });
+
   // ─── Priority 1: updateFlashcard ──────────────────────────────────
   it('updateFlashcard modifies card fields', async () => {
     const { ctx, dispose } = await mountProvider();
@@ -515,6 +680,27 @@ describe('FlashcardProvider', () => {
     const lk = `ja:${hash}`;
 
     await ctx.removeFlashcard(id, true);
+    expect(ctx.store.knownUntracked[lk]).toBe(true);
+    expect(ctx.store.ignoredWords[lk]).toBeDefined();
+    dispose();
+  });
+
+  it('removeFlashcard indexes non-active-language cards with the card language', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    mockGetCanonicalForm.mockImplementation((word: string) => `ja:${word}`);
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => `${language}:${word}`);
+    flashcardsCb(makeEmptyStore());
+
+    const id = await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
+    const storageWord = 'ar:سلام';
+    const hash = await SRS.hashWord(storageWord);
+    const lk = `ar:${hash}`;
+    expect(ctx.store.wordToCardMap[lk]).toContain(id);
+
+    await ctx.removeFlashcard(id, true);
+
+    expect(ctx.store.wordToCardMap[lk]).toBeUndefined();
     expect(ctx.store.knownUntracked[lk]).toBe(true);
     expect(ctx.store.ignoredWords[lk]).toBeDefined();
     dispose();
@@ -680,6 +866,50 @@ describe('FlashcardProvider', () => {
     const untouchedReview = ctx.store.flashcards['card-review'];
     expect(answeredNew.state).not.toBe('new');
     expect(untouchedReview.state).toBe('review');
+    dispose();
+  });
+
+  it('answerCard recalculates explicit non-active language stats with that language primary form', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const cardId = 'card-ar-review';
+    const card = makeCard({
+      id: cardId,
+      language: 'ar',
+      content: { type: 'word', front: 'يكتب', back: 'he writes' },
+      state: 'review',
+      interval: 86400000,
+      dueDate: Date.now() - 1000,
+      reviews: 5,
+    });
+    flashcardsCb(makeEmptyStore({
+      flashcards: { [cardId]: card },
+      wordToCardMap: { [primaryKey]: [cardId] },
+      wordStatsMap: {
+        [primaryKey]: {
+          cardCount: 1,
+          bestEase: 2.5,
+          totalReviews: 0,
+          totalLapses: 0,
+          lastReviewed: 0,
+          bestInterval: 0,
+          bestState: 'review',
+        },
+      },
+    }));
+
+    ctx.answerCard('good', cardId);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ctx.store.wordStatsMap[primaryKey]?.totalReviews).toBe(6);
     dispose();
   });
 
@@ -954,6 +1184,112 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('getCardByWordSync finds cards through language-provided variants', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'иду' ? ['идти', 'иду'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'идти', back: 'to go' }, undefined, true);
+    const card = ctx.getCardByWordSync('иду');
+
+    expect(card).not.toBeNull();
+    expect(card!.content.front).toBe('идти');
+    expect(ctx.hasWordSync('иду')).toBe(true);
+    dispose();
+  });
+
+  it('addFlashcard stores inflected words under the language primary form key', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'иду' ? ['идти', 'иду'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'иду', back: 'I go' }, undefined, true);
+
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ja:${await SRS.hashWord('идти')}`;
+    const inflectedKey = `ja:${await SRS.hashWord('иду')}`;
+    expect(ctx.store.wordToCardMap[primaryKey]).toHaveLength(1);
+    expect(ctx.store.wordToCardMap[inflectedKey]).toBeUndefined();
+    expect(ctx.getCardByWordSync('идти')?.content.front).toBe('иду');
+    dispose();
+  });
+
+  it('addFlashcard stores explicit non-active language cards under that language primary form key', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'يكتب', back: 'he writes' }, undefined, true, 'ar');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ar:${await SRS.hashWord('كتب')}`;
+    const inflectedKey = `ar:${await SRS.hashWord('يكتب')}`;
+    const activeKey = `ja:${await SRS.hashWord('كتب')}`;
+    expect(ctx.store.wordToCardMap[primaryKey]).toHaveLength(1);
+    expect(ctx.store.wordToCardMap[inflectedKey]).toBeUndefined();
+    expect(ctx.store.wordToCardMap[activeKey]).toBeUndefined();
+    expect(ctx.getAllCards()[0].language).toBe('ar');
+    dispose();
+  });
+
+  it('addFlashcard skips explicit non-active language variants marked known by canonical form', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.ignoreWordForLanguage('كتب', undefined, 'ar');
+    const createdId = await ctx.addFlashcard({ front: 'يكتب', back: 'he writes' }, undefined, true, 'ar');
+
+    expect(createdId).toBe('');
+    expect(ctx.getAllCards()).toHaveLength(0);
+    dispose();
+  });
+
+  it('sync card lookups can target a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
+
+    expect(ctx.hasWordSync('سلام')).toBe(false);
+    expect(ctx.getCardByWordSync('سلام')).toBeNull();
+    expect(ctx.hasWordSync('سلام', 'ar')).toBe(true);
+    expect(ctx.getCardByWordSync('سلام', 'ar')?.content.front).toBe('سلام');
+    expect(ctx.getCardsByWordSync('سلام', 'ar')).toHaveLength(1);
+    dispose();
+  });
+
+  it('findUnpopulatedFlashcardForWord uses explicit language forms', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'كتب', back: 'write', unpopulated: true }, undefined, true, 'ar');
+
+    expect(ctx.findUnpopulatedFlashcardForWord('يكتب')).toBeNull();
+    expect(ctx.findUnpopulatedFlashcardForWord('يكتب', 'ar')?.content.front).toBe('كتب');
+    dispose();
+  });
+
   it('getCardsByWordSync returns all cards for a word', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -981,6 +1317,53 @@ describe('FlashcardProvider', () => {
     await ctx.addFlashcard({ front: '星', back: 'star' }, undefined, true);
     const result = await ctx.hasWord('星');
     expect(result).toBe(true);
+    dispose();
+  });
+
+  it('hasWord and getCardsByWord find cards through language-provided variants', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'كتب', back: 'write' }, undefined, true);
+
+    expect(await ctx.hasWord('يكتب')).toBe(true);
+    const cards = await ctx.getCardsByWord('يكتب');
+    expect(cards).toHaveLength(1);
+    expect(cards[0].content.front).toBe('كتب');
+    dispose();
+  });
+
+  it('async word lookups can target a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
+
+    expect(await ctx.hasWord('سلام')).toBe(false);
+    expect(await ctx.getCardByWord('سلام')).toBeNull();
+    expect(await ctx.hasWord('سلام', 'ar')).toBe(true);
+    expect((await ctx.getCardByWord('سلام', 'ar'))?.content.front).toBe('سلام');
+    expect(await ctx.getCardsByWord('سلام', 'ar')).toHaveLength(1);
+    dispose();
+  });
+
+  it('getWordStats can target a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'يكتب', back: 'he writes' }, undefined, true, 'ar');
+
+    expect(await ctx.getWordStats('يكتب')).toBeNull();
+    expect(await ctx.getWordStats('يكتب', 'ar')).toMatchObject({ cardCount: 1 });
     dispose();
   });
 
@@ -1019,6 +1402,120 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('isWordIgnoredSync finds ignored words through language-provided variants', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === '食べた' ? ['食べる', '食べた'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.ignoreWordForLanguage('食べる');
+
+    expect(ctx.isWordIgnoredSync('食べた')).toBe(true);
+    dispose();
+  });
+
+  it('ignoreWordForLanguage can target a non-active stored word language', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.language = 'ja';
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = await SRS.hashWord('سلام');
+    const arKey = `ar:${hash}`;
+    const jaKey = `ja:${hash}`;
+
+    await ctx.ignoreWordForLanguage('سلام', undefined, 'ar');
+
+    expect(ctx.store.knownUntracked[arKey]).toBe(true);
+    expect(ctx.store.ignoredWords[arKey]).toMatchObject({
+      word: 'سلام',
+      language: 'ar',
+    });
+    expect(ctx.store.knownUntracked[jaKey]).toBeUndefined();
+    expect(ctx.store.ignoredWords[jaKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('ignoreWordForLanguage stores explicit non-active inflections under that language primary form', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const inflectedKey = `ar:${SRS.hashWordSync('يكتب')}`;
+
+    await ctx.ignoreWordForLanguage('يكتب', undefined, 'ar');
+
+    expect(ctx.store.knownUntracked[primaryKey]).toBe(true);
+    expect(ctx.store.ignoredWords[primaryKey]).toMatchObject({
+      word: 'كتب',
+      language: 'ar',
+    });
+    expect(ctx.store.knownUntracked[inflectedKey]).toBeUndefined();
+    expect(ctx.store.ignoredWords[inflectedKey]).toBeUndefined();
+    expect(ctx.isWordIgnoredSync('يكتب', 'ar')).toBe(true);
+    dispose();
+  });
+
+  it('isWordIgnoredSync can read a non-active stored word language explicitly', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.language = 'ja';
+
+    await ctx.ignoreWordForLanguage('سلام', undefined, 'ar');
+
+    expect(ctx.isWordIgnoredSync('سلام')).toBe(false);
+    expect(ctx.isWordIgnoredSync('سلام', 'ar')).toBe(true);
+    dispose();
+  });
+
+  it('setComprehensiveWordStatus can target a non-active stored word language', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.language = 'ja';
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('سلام');
+    const arKey = `ar:${hash}`;
+    const jaKey = `ja:${hash}`;
+
+    ctx.setComprehensiveWordStatus('سلام', 'known', 'ar');
+
+    expect(ctx.store.wordKnowledge[arKey]).toMatchObject({
+      word: 'سلام',
+      language: 'ar',
+    });
+    expect(ctx.store.wordKnowledge[arKey]?.ease).toBeGreaterThanOrEqual(mockSettings.easeThresholdKnown);
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('getComprehensiveWordStatusSync can read a non-active stored word language explicitly', async () => {
+    const { ctx, dispose } = await mountProvider();
+    mockSettings.language = 'ja';
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('سلام')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [arKey]: {
+          word: 'سلام',
+          language: 'ar',
+          ease: mockSettings.easeThresholdKnown,
+          lastSeen: 1,
+          timesSeen: 1,
+          timesHovered: 0,
+        },
+      },
+    }));
+
+    expect(ctx.getComprehensiveWordStatusSync('سلام')).toBe('unknown');
+    expect(ctx.getComprehensiveWordStatusSync('سلام', 'ar')).toBe('known');
+    dispose();
+  });
+
   it('unignoreWordForLanguage removes ignored status', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -1027,6 +1524,30 @@ describe('FlashcardProvider', () => {
     expect(ctx.isWordIgnoredSync('サンプル')).toBe(true);
     await ctx.unignoreWordForLanguage('サンプル');
     expect(ctx.isWordIgnoredSync('サンプル')).toBe(false);
+    dispose();
+  });
+
+  it('unignoreWordForLanguage removes explicit non-active inflections by language primary form', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ar:${SRS.hashWordSync('كتب')}`;
+
+    await ctx.ignoreWordForLanguage('كتب', undefined, 'ar');
+    expect(ctx.store.ignoredWords[primaryKey]).toBeDefined();
+
+    await ctx.unignoreWordForLanguage('يكتب', 'ar');
+
+    expect(ctx.store.knownUntracked[primaryKey]).toBeUndefined();
+    expect(ctx.store.ignoredWords[primaryKey]).toBeUndefined();
+    expect(ctx.isWordIgnoredSync('يكتب', 'ar')).toBe(false);
     dispose();
   });
 
@@ -1043,6 +1564,42 @@ describe('FlashcardProvider', () => {
     expect(knowledge).toBeDefined();
     expect(knowledge.timesSeen).toBe(1);
     expect(knowledge.ease).toBeCloseTo(SRS.MIN_EASE + 0.05, 2);
+    dispose();
+  });
+
+  it('trackWordSeen stores inflected active-language words under the language primary form key', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.trackWordSeen('يكتب', undefined, 0.05);
+
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
+    const inflectedKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[primaryKey]?.word).toBe('كتب');
+    expect(ctx.store.wordKnowledge[primaryKey]?.timesSeen).toBe(1);
+    expect(ctx.store.wordKnowledge[inflectedKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('trackWordSeen can write a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.trackWordSeen('يكتب', undefined, 0.05, 'ar');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[arKey]?.word).toBe('كتب');
+    expect(ctx.store.wordKnowledge[arKey]?.language).toBe('ar');
+    expect(ctx.store.wordKnowledge[arKey]?.timesSeen).toBe(1);
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
     dispose();
   });
 
@@ -1094,6 +1651,42 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('setWordBankStatus stores inflected passive status under the language primary form key', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('يكتب', 'known', 'passive');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
+    const inflectedKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[primaryKey]?.word).toBe('كتب');
+    expect(ctx.store.wordKnowledge[primaryKey]?.ease).toBe(mockSettings.known_ease_threshold / 1000);
+    expect(ctx.store.wordKnowledge[inflectedKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus can target a non-active passive word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('يكتب', 'known', 'passive', { language: 'ar' });
+
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[arKey]?.word).toBe('كتب');
+    expect(ctx.store.wordKnowledge[arKey]?.language).toBe('ar');
+    expect(ctx.store.wordKnowledge[arKey]?.ease).toBe(mockSettings.known_ease_threshold / 1000);
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
+    dispose();
+  });
+
   it('setWordBankStatus passive bank removes entry for unknown', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
@@ -1116,6 +1709,29 @@ describe('FlashcardProvider', () => {
 
     await ctx.setWordBankStatus('学校', 'known', 'ignored');
     expect(ctx.isWordIgnoredSync('学校')).toBe(true);
+    dispose();
+  });
+
+  it('setWordBankStatus can target a non-active ignored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('يكتب', 'known', 'ignored', { language: 'ar' });
+
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.ignoredWords[arKey]?.word).toBe('كتب');
+    expect(ctx.store.ignoredWords[arKey]?.language).toBe('ar');
+    expect(ctx.store.ignoredWords[jaKey]).toBeUndefined();
+    expect(ctx.isWordIgnoredSync('يكتب', 'ar')).toBe(true);
     dispose();
   });
 
@@ -1251,6 +1867,93 @@ describe('FlashcardProvider', () => {
     vi.useRealTimers();
   });
 
+  it('trackWordHovered stores inflected active-language words under the language primary form key', async () => {
+    vi.useFakeTimers();
+    mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.trackWordHovered('يكتب');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
+    const inflectedKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[primaryKey]?.word).toBe('كتب');
+    expect(ctx.store.wordKnowledge[primaryKey]?.timesHovered).toBe(1);
+    expect(ctx.store.wordKnowledge[inflectedKey]).toBeUndefined();
+
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered can write a non-active stored word language explicitly', async () => {
+    vi.useFakeTimers();
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.trackWordHovered('يكتب', undefined, 'ar');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[arKey]?.word).toBe('كتب');
+    expect(ctx.store.wordKnowledge[arKey]?.language).toBe('ar');
+    expect(ctx.store.wordKnowledge[arKey]?.timesHovered).toBe(1);
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
+
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('cancelWordHover cancels inflected active-language hover timers through the primary form key', async () => {
+    vi.useFakeTimers();
+    mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.trackWordHovered('يكتب');
+    ctx.cancelWordHover('يكتب');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
+    const inflectedKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[primaryKey]).toBeUndefined();
+    expect(ctx.store.wordKnowledge[inflectedKey]).toBeUndefined();
+
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('cancelWordHover can cancel a non-active stored word language explicitly', async () => {
+    vi.useFakeTimers();
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.trackWordHovered('يكتب', undefined, 'ar');
+    ctx.cancelWordHover('يكتب', 'ar');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[arKey]).toBeUndefined();
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
+
+    dispose();
+    vi.useRealTimers();
+  });
+
   it('trackWordHovered counts attempts before lowering ease', async () => {
     vi.useFakeTimers();
     const { ctx, dispose } = await mountProvider();
@@ -1320,6 +2023,46 @@ describe('FlashcardProvider', () => {
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
 
     mockSettings.passiveHoverEaseDecrease = prevDecrease;
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered lowers indexed flashcard ease on passive failure using the primary language key', async () => {
+    vi.useFakeTimers();
+    mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
+    const cardId = 'card-inflected-hover';
+    const prevAction = mockSettings.passiveHoverFailAction;
+    mockSettings.passiveHoverFailAction = 'decrease-ease-and-flashcard';
+    flashcardsCb(makeEmptyStore({
+      flashcards: {
+        [cardId]: {
+          id: cardId,
+          content: { type: 'word', front: 'يكتب', back: 'he writes' },
+          state: 'review',
+          ease: 2.5,
+          interval: 0,
+          dueDate: 0,
+          reviews: 0,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 0,
+          lastUpdated: 1,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [primaryKey]: [cardId] },
+    }));
+
+    ctx.trackWordHovered('يكتب');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    expect(ctx.store.flashcards[cardId]?.ease).toBeCloseTo(2.45, 2);
+
+    mockSettings.passiveHoverFailAction = prevAction;
     dispose();
     vi.useRealTimers();
   });
@@ -1416,6 +2159,48 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('grammar tracking can target a non-active stored language explicitly', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.trackGrammarEncountered('verb-case:genitive', 4, 'ru');
+    ctx.trackGrammarFailed('verb-case:genitive', 4, 'ru');
+
+    const ruGrammar = ctx.getGrammarKnowledge('verb-case:genitive', 'ru');
+    const jaGrammar = ctx.getGrammarKnowledge('verb-case:genitive', 'ja');
+    expect(ruGrammar?.language).toBe('ru');
+    expect(ruGrammar?.level).toBe(4);
+    expect(ruGrammar?.timesEncountered).toBe(1);
+    expect(ruGrammar?.timesFailed).toBe(1);
+    expect(jaGrammar).toBeUndefined();
+    expect(ctx.store.grammarKnowledge['ru:verb-case:genitive']).toBeDefined();
+    expect(ctx.store.grammarKnowledge['ja:verb-case:genitive']).toBeUndefined();
+    dispose();
+  });
+
+  it('getGrammarKnowledge can read a non-active stored language explicitly', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      grammarKnowledge: {
+        'ar:idafa': {
+          pattern: 'idafa',
+          ease: 2.7,
+          timesEncountered: 5,
+          timesFailed: 1,
+          lastSeen: Date.now(),
+          level: 2,
+          language: 'ar',
+        },
+      },
+    }));
+
+    expect(ctx.getGrammarKnowledge('idafa', 'ar')?.language).toBe('ar');
+    expect(ctx.getGrammarKnowledge('idafa')).toBeUndefined();
+    dispose();
+  });
+
   // ─── Priority 2: Word appearance tracking ─────────────────────────
   it('trackWordAppearance tracks word candidates', async () => {
     const { ctx, dispose } = await mountProvider();
@@ -1443,6 +2228,22 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('trackWordAppearance increments an existing candidate through language-provided variants', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'иду' ? ['идти', 'иду'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.trackWordAppearance('идти');
+    await ctx.trackWordAppearance('иду');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const lemmaKey = `ja:${await SRS.hashWord('идти')}`;
+    const inflectedKey = `ja:${await SRS.hashWord('иду')}`;
+    expect(ctx.store.wordCandidates[lemmaKey].count).toBe(2);
+    expect(ctx.store.wordCandidates[inflectedKey]).toBeUndefined();
+    dispose();
+  });
+
   it('trackWordAppearance skips words that already have flashcards', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -1454,6 +2255,20 @@ describe('FlashcardProvider', () => {
     const hash = await SRS.hashWord('既存');
     const lk = `ja:${hash}`;
     expect(ctx.store.wordCandidates[lk]).toBeUndefined();
+    dispose();
+  });
+
+  it('trackWordAppearance skips variants that already have flashcards', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.addFlashcard({ front: 'كتب', back: 'write' }, undefined, true);
+    await ctx.trackWordAppearance('يكتب');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const key = `ja:${await SRS.hashWord('يكتب')}`;
+    expect(ctx.store.wordCandidates[key]).toBeUndefined();
     dispose();
   });
 
@@ -1503,6 +2318,27 @@ describe('FlashcardProvider', () => {
     ctx.updateFlashcardContent(id, { back: 'book (also: origin)' });
 
     expect(ctx.store.flashcards[id].content.back).toBe('book (also: origin)');
+    dispose();
+  });
+
+  it('updateFlashcardContent moves word indexes using the card language when the front changes', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    mockGetCanonicalForm.mockImplementation((word: string) => `ja:${word}`);
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => `${language}:${word}`);
+    flashcardsCb(makeEmptyStore());
+
+    const id = await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
+    const oldKey = `ar:${await SRS.hashWord('ar:سلام')}`;
+    const newKey = `ar:${await SRS.hashWord('ar:كتاب')}`;
+    expect(ctx.store.wordToCardMap[oldKey]).toContain(id);
+
+    ctx.updateFlashcardContent(id, { front: 'كتاب' });
+
+    expect(ctx.store.wordToCardMap[oldKey]).toBeUndefined();
+    expect(ctx.store.wordToCardMap[newKey]).toContain(id);
+    expect(ctx.hasWordSync('سلام', 'ar')).toBe(false);
+    expect(ctx.hasWordSync('كتاب', 'ar')).toBe(true);
     dispose();
   });
 
@@ -1592,6 +2428,102 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('isWordKnownByText can target a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [arKey]: {
+          ease: 4.5,
+          lastSeen: Date.now(),
+          timesSeen: 10,
+          timesHovered: 0,
+          word: 'كتب',
+          language: 'ar',
+        },
+      },
+    }));
+
+    expect(ctx.isWordKnownByText('يكتب', 'ar')).toBe(true);
+    expect(ctx.isWordKnownByText('يكتب')).toBe(false);
+    dispose();
+  });
+
+  it('setWordKnowledgeEase can write a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    flashcardsCb(makeEmptyStore());
+
+    ctx.setWordKnowledgeEase('يكتب', 4.5, undefined, 'ar');
+
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordKnowledge[arKey]?.word).toBe('كتب');
+    expect(ctx.store.wordKnowledge[arKey]?.language).toBe('ar');
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
+    expect(ctx.isWordKnownByText('يكتب', 'ar')).toBe(true);
+    dispose();
+  });
+
+  it('markWordSyncSeen can write a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    flashcardsCb(makeEmptyStore());
+
+    ctx.markWordSyncSeen('يكتب', 'ar');
+
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    expect(ctx.store.wordSyncSeen[arKey]).toEqual(expect.any(Number));
+    expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('isWordKnownComprehensiveSync can target a non-active stored word language explicitly', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [arKey]: {
+          word: 'كتب',
+          language: 'ar',
+          ease: mockSettings.easeThresholdKnown,
+          lastSeen: 1,
+          timesSeen: 1,
+          timesHovered: 0,
+        },
+      },
+    }));
+
+    expect(ctx.isWordKnownComprehensiveSync('يكتب')).toBe(false);
+    expect(ctx.isWordKnownComprehensiveSync('يكتب', 'ar')).toBe(true);
+    dispose();
+  });
+
   // ─── Priority 2: getIgnoredWordsSync ──────────────────────────────
   it('getIgnoredWordsSync returns only current language entries', async () => {
     const { ctx, dispose } = await mountProvider();
@@ -1669,6 +2601,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     mockSettings.learningLanguageLevel = null;
+    mockSettings.learningLanguageLevels = { ja: null };
 
     await ctx.captureSuggestedFlashcard({ word: '単語', level: 3 });
 
@@ -1680,7 +2613,7 @@ describe('FlashcardProvider', () => {
   it('captureSuggestedFlashcard skips words above user level', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    mockSettings.learningLanguageLevel = 3;
+    mockSettings.learningLanguageLevels = { ja: 3 };
 
     await ctx.captureSuggestedFlashcard({ word: '難単語', level: 2 });
 
@@ -1691,7 +2624,7 @@ describe('FlashcardProvider', () => {
   it('captureSuggestedFlashcard saves words at or below user level', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    mockSettings.learningLanguageLevel = 3;
+    mockSettings.learningLanguageLevels = { ja: 3 };
 
     await ctx.captureSuggestedFlashcard({ word: '易単語1', level: 3 });
     await ctx.captureSuggestedFlashcard({ word: '易単語2', level: 5 });
@@ -1703,10 +2636,111 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('captureSuggestedFlashcard validates explicit suggestion language with that language metadata', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevels = { ar: null };
+
+    await ctx.captureSuggestedFlashcard({ word: 'hello', language: 'ar', level: 5 });
+
+    expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(0);
+    dispose();
+  });
+
+  it('promoteSuggestedFlashcards preserves the suggestion language when active language differs', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.language = 'ja';
+    mockSettings.learningLanguageLevels = { ar: null };
+    mockBackend.translate.mockResolvedValue({
+      data: [
+        { definitions: ['peace'], reading: 'salaam' },
+      ],
+    });
+
+    await ctx.captureSuggestedFlashcard({ word: 'سلام', language: 'ar', level: 5 });
+    const suggestion = Object.values(ctx.store.suggestedFlashcards)[0];
+    expect(suggestion).toBeDefined();
+
+    const promoted = await ctx.promoteSuggestedFlashcards([suggestion.id], { useLLM: false, useTts: false });
+
+    expect(promoted).toBe(1);
+    const card = ctx.getAllCards()[0];
+    expect(card.language).toBe('ar');
+    expect(card.content.front).toBe('سلام');
+    expect(card.content.reading).toBe('salaam');
+    expect(Object.keys(ctx.store.wordToCardMap)[0]).toMatch(/^ar:/);
+    expect(Object.keys(ctx.store.wordToCardMap)[0]).not.toMatch(/^ja:/);
+    dispose();
+  });
+
+  it('promoteSuggestedFlashcards preserves a captured suggestion reading over backend readings', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.language = 'ja';
+    mockSettings.learningLanguageLevels = { zh: null };
+    mockBackend.translate.mockResolvedValue({
+      data: [
+        { definitions: ['hello'], reading: 'backend-reading' },
+      ],
+    });
+
+    await ctx.captureSuggestedFlashcard({
+      word: '你好',
+      reading: 'ni hao',
+      language: 'zh',
+      level: 5,
+    });
+    const suggestion = Object.values(ctx.store.suggestedFlashcards)[0];
+    expect(suggestion).toBeDefined();
+
+    const promoted = await ctx.promoteSuggestedFlashcards([suggestion.id], { useLLM: false, useTts: false });
+
+    expect(promoted).toBe(1);
+    const card = ctx.getAllCards()[0];
+    expect(card.language).toBe('zh');
+    expect(card.content.reading).toBe('ni hao');
+    expect(card.content.pronunciation).toBe('ni hao');
+    dispose();
+  });
+
+  it('promoteSuggestedFlashcards derives missing levels from installed suggestion language frequency data', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.language = 'ja';
+    mockSettings.learningLanguageLevels = { de: null };
+    mockBackend.translate.mockResolvedValue({
+      data: [
+        { definitions: ['house'], reading: 'Haus' },
+      ],
+    });
+    mockGetFrequencyForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'de' && word === 'Haus'
+        ? { raw_level: 1, level: 'A1', reading: 'Haus' }
+        : null
+    ));
+
+    await ctx.captureSuggestedFlashcard({
+      word: 'Haus',
+      language: 'de',
+      level: null,
+    });
+    const suggestion = Object.values(ctx.store.suggestedFlashcards)[0];
+    expect(suggestion).toBeDefined();
+
+    const promoted = await ctx.promoteSuggestedFlashcards([suggestion.id], { useLLM: false, useTts: false });
+
+    expect(promoted).toBe(1);
+    const card = ctx.getAllCards()[0];
+    expect(card.language).toBe('de');
+    expect(card.content.level).toBe(1);
+    dispose();
+  });
+
   it('captureSuggestedFlashcard skips words without level when user level is set', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    mockSettings.learningLanguageLevel = 3;
+    mockSettings.learningLanguageLevels = { ja: 3 };
 
     await ctx.captureSuggestedFlashcard({ word: '無レベル' });
 
@@ -1724,11 +2758,33 @@ describe('FlashcardProvider', () => {
         'ja:hash4': { id: 's4', word: '無レベル', level: null, language: 'ja', createdAt: 4, lastSeen: 4, count: 1 },
       },
     }));
-    mockSettings.learningLanguageLevel = 3;
+    mockSettings.learningLanguageLevels = { ja: 3 };
 
     const suggestions = ctx.getSuggestedFlashcardsSync();
     expect(suggestions).toHaveLength(1);
     expect(suggestions[0].word).toBe('N3単語');
+    dispose();
+  });
+
+  it('getSuggestedFlashcardsSync derives missing suggestion levels from installed language frequency data', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash-derived': { id: 's-derived', word: '派生レベル', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash-missing': { id: 's-missing', word: '無レベル', level: null, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+      },
+    }));
+    mockSettings.learningLanguageLevels = { ja: 3 };
+    mockGetFrequencyForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ja' && word === '派生レベル'
+        ? { raw_level: 3, level: 'JLPT N3', reading: 'はせいレベル' }
+        : null
+    ));
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].word).toBe('派生レベル');
     dispose();
   });
 
@@ -1741,6 +2797,7 @@ describe('FlashcardProvider', () => {
       },
     }));
     mockSettings.learningLanguageLevel = null;
+    mockSettings.learningLanguageLevels = { ja: null };
 
     const suggestions = ctx.getSuggestedFlashcardsSync();
     expect(suggestions).toHaveLength(2);
@@ -1816,6 +2873,68 @@ describe('FlashcardProvider', () => {
     await ctx.captureSuggestedFlashcard({ word: '手動既知', level: 5 });
 
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard deduplicates language-provided word variants', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'иду' ? ['идти', 'иду'] : []);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.captureSuggestedFlashcard({ word: 'идти', level: 5, contextPhrase: 'lemma' });
+    await ctx.captureSuggestedFlashcard({ word: 'иду', level: 5, contextPhrase: 'inflected' });
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].word).toBe('идти');
+    expect(suggestions[0].count).toBe(2);
+    expect(suggestions[0].contextPhrase).toBe('lemma');
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard deduplicates explicit non-active language variants', async () => {
+    mockSettings.language = 'ja';
+    mockSettings.learningLanguageLevels = { ar: null };
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.captureSuggestedFlashcard({ word: 'كتب', language: 'ar', level: 5, contextPhrase: 'lemma' });
+    await ctx.captureSuggestedFlashcard({ word: 'يكتب', language: 'ar', level: 5, contextPhrase: 'inflected' });
+
+    const suggestions = Object.values(ctx.store.suggestedFlashcards);
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].word).toBe('كتب');
+    expect(suggestions[0].language).toBe('ar');
+    expect(suggestions[0].count).toBe(2);
+    expect(Object.keys(ctx.store.suggestedFlashcards)[0]).toBe(`ar:${SRS.hashWordSync('كتب')}`);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard stores explicit non-active inflections under that language primary form', async () => {
+    mockSettings.language = 'ja';
+    mockSettings.learningLanguageLevels = { ar: null };
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
+    ));
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.captureSuggestedFlashcard({ word: 'يكتب', language: 'ar', level: 5, contextPhrase: 'inflected first' });
+
+    const key = Object.keys(ctx.store.suggestedFlashcards)[0];
+    const suggestion = Object.values(ctx.store.suggestedFlashcards)[0];
+    expect(key).toBe(`ar:${SRS.hashWordSync('كتب')}`);
+    expect(suggestion.word).toBe('كتب');
+    expect(suggestion.language).toBe('ar');
     dispose();
   });
 
@@ -1900,6 +3019,28 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('cleanupKnownSuggestions removes known suggestions for non-active languages', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    mockSettings.language = 'ja';
+    const germanHash = SRS.hashWordSync('Haus');
+    const germanKey = `de:${germanHash}`;
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        [germanKey]: { id: 's-de-known', word: 'Haus', level: 1, language: 'de', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:hash-ok': { id: 's-ja-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+      },
+      knownUntracked: { [germanKey]: true },
+    }));
+
+    const removed = await ctx.cleanupKnownSuggestions();
+
+    expect(removed).toBe(1);
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('未知単語');
+    dispose();
+  });
+
   it('cleanupKnownSuggestions removes suggestions with SRS review cards (fast path)', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
@@ -1951,7 +3092,65 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('cleanupKnownSuggestions removes non-dictionary suggestions when unknown words are disabled', async () => {
+  it('cleanupKnownSuggestions preserves suggestions with only incidental passive known ease', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('見ただけ');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        [lk]: { id: 's-passive', word: '見ただけ', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+      },
+      wordKnowledge: {
+        [lk]: {
+          ease: mockSettings.known_ease_threshold / 1000,
+          lastSeen: 1,
+          timesSeen: 12,
+          timesHovered: 0,
+          word: '見ただけ',
+          language: 'ja',
+        },
+      },
+    }));
+
+    const removed = await ctx.cleanupKnownSuggestions();
+
+    expect(removed).toBe(0);
+    expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(1);
+    expect(ctx.store.suggestedFlashcards[lk]?.word).toBe('見ただけ');
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions removes suggestions with explicitly rated passive known status', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('評価済み');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        [lk]: { id: 's-rated', word: '評価済み', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+      },
+      wordKnowledge: {
+        [lk]: {
+          ease: mockSettings.known_ease_threshold / 1000,
+          lastSeen: 1,
+          timesSeen: 12,
+          timesHovered: 0,
+          word: '評価済み',
+          language: 'ja',
+          lastStatusChange: 2,
+        },
+      },
+    }));
+
+    const removed = await ctx.cleanupKnownSuggestions();
+
+    expect(removed).toBe(1);
+    expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(0);
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions preserves hidden non-dictionary suggestions when unknown words are disabled', async () => {
     mockSettings.autoSuggestUnknownWords = false;
     mockBackend.translate.mockResolvedValue({ data: [] });
     const { ctx, dispose } = await mountProvider();
@@ -1963,13 +3162,32 @@ describe('FlashcardProvider', () => {
 
     const removed = await ctx.cleanupKnownSuggestions();
 
-    expect(removed).toBe(1);
-    expect(mockBackend.translate).toHaveBeenCalledWith('ヌウ', 'ja');
+    expect(removed).toBe(0);
+    expect(mockBackend.translate).not.toHaveBeenCalled();
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(1);
+    expect(ctx.store.suggestedFlashcards['ja:hash-nuu']?.word).toBe('ヌウ');
     dispose();
   });
 
-  it('cleanupKnownSuggestions keeps dictionary suggestions when unknown words are disabled', async () => {
+  it('cleanupKnownSuggestions preserves suggestions when auto-suggest is disabled', async () => {
+    mockSettings.autoSuggestFlashcards = false;
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:hash-preserved': { id: 's-preserved', word: '保存', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+      },
+    }));
+
+    const removed = await ctx.cleanupKnownSuggestions();
+
+    expect(removed).toBe(0);
+    expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(1);
+    expect(ctx.store.suggestedFlashcards['ja:hash-preserved']?.word).toBe('保存');
+    dispose();
+  });
+
+  it('cleanupKnownSuggestions preserves dictionary suggestions when unknown words are disabled', async () => {
     mockSettings.autoSuggestUnknownWords = false;
     mockBackend.translate.mockResolvedValue({
       data: [{ reading: 'たんご', definitions: 'word; vocabulary' }, { reading: 'たんご', definitions: '<ul data-content="glossary"><li>word</li></ul>' }, {}],
@@ -1984,8 +3202,9 @@ describe('FlashcardProvider', () => {
     const removed = await ctx.cleanupKnownSuggestions();
 
     expect(removed).toBe(0);
-    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
-    expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('単語');
+    expect(mockBackend.translate).not.toHaveBeenCalled();
+    expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(1);
+    expect(ctx.store.suggestedFlashcards['ja:hash-dict']?.word).toBe('単語');
     dispose();
   });
 

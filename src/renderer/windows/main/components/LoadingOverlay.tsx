@@ -6,12 +6,32 @@
 
 import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
-import { LoadingOverlay as BaseLoadingOverlay, ErrorModal } from '../../../components/common/Modal';
+import { LoadingOverlay as BaseLoadingOverlay } from '../../../components/common/Modal/LoadingOverlay';
+import { ErrorModal } from '../../../components/common/Modal/ErrorModal';
+import { Btn } from '../../../components/common/Button/Button';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getBridge } from '../../../../shared/bridges';
+import { DEFAULT_SETTINGS, type InstallOptions, type Settings } from '../../../../shared/types';
 import { getLogger } from '../../../../shared/utils/logger';
 
 const log = getLogger("renderer.main.loadingOverlay");
+const INSTALLER_REQUIRED_FRAGMENT = 'Python runtime is not installed';
+
+export function isInstallerRequiredError(message: string | null | undefined): boolean {
+  return Boolean(message?.includes(INSTALLER_REQUIRED_FRAGMENT));
+}
+
+export function buildInstallOptionsFromSettings(settings: Settings): InstallOptions {
+  return {
+    includeLLM: settings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled,
+    includeOCR: settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled,
+    includeVoice: settings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled,
+  };
+}
+
+export function startRequiredComponentRepair(settings: Settings): void {
+  getBridge().installer.startInstall(buildInstallOptionsFromSettings(settings));
+}
 
 export const LoadingOverlay: Component = () => {
   const server = useServer();
@@ -21,6 +41,20 @@ export const LoadingOverlay: Component = () => {
   
   // Track critical errors from the server
   const [criticalError, setCriticalError] = createSignal<{ message: string; details?: string } | null>(null);
+
+  const displayedError = createMemo(() => {
+    const explicitError = criticalError();
+    if (explicitError) return explicitError;
+    if (server.status() !== 'error') return null;
+    return {
+      message: server.error() || server.statusMessage() || t('mlearn.ErrorModal.Messages.BackendStopped'),
+      details: server.error() ? server.statusMessage() : undefined,
+    };
+  });
+
+  const isInstallerRequired = createMemo(() => (
+    isInstallerRequiredError(server.error()) || isInstallerRequiredError(server.statusMessage())
+  ));
 
   const isLoading = createMemo(
     () => !server.isConnected() || settings.isLoading() || language.isLoading()
@@ -106,6 +140,11 @@ export const LoadingOverlay: Component = () => {
     server.restartBackend();
   };
 
+  const handleInstallComponents = () => {
+    setCriticalError(null);
+    startRequiredComponentRepair(settings.settings);
+  };
+
   const handleQuit = () => {
     getBridge().window.closeWindow();
   };
@@ -113,24 +152,34 @@ export const LoadingOverlay: Component = () => {
   return (
     <>
       {/* Error modal - shown when there's a critical error */}
-      <Show when={criticalError()}>
+      <Show when={displayedError()}>
         {(error) => (
           <ErrorModal
             isOpen={true}
-            severity="fatal"
-            title={t('mlearn.ErrorModal.Title.StartupError')}
+            severity={isInstallerRequired() ? 'warning' : 'fatal'}
+            title={isInstallerRequired()
+              ? t('mlearn.Installer.Title.ComponentsRequired')
+              : t('mlearn.ErrorModal.Title.StartupError')}
             message={error().message}
             details={error().details}
             onRetry={handleRetry}
             onQuit={handleQuit}
-            showRetry={true}
+            showRetry={!isInstallerRequired()}
             showQuit={true}
+            actions={isInstallerRequired() && (
+              <Btn
+                variant="primary"
+                onClick={handleInstallComponents}
+              >
+                {t('mlearn.Installer.Buttons.InstallRequiredComponents')}
+              </Btn>
+            )}
           />
         )}
       </Show>
 
       {/* Loading overlay - shown during initialization when no error */}
-      <Show when={!criticalError()}>
+      <Show when={!displayedError()}>
         <BaseLoadingOverlay
           isOpen={isLoading()}
           title={t('mlearn.Global.AppName')}

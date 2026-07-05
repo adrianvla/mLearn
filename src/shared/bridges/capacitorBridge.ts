@@ -39,6 +39,7 @@ import type {
   Settings,
   FlashcardStore,
   LanguageData,
+  LanguageDataCatalogStatus,
   MediaStats,
   LLMModelStatus,
   VoiceModelStatus,
@@ -47,7 +48,7 @@ import type {
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
-import { loadBundledLanguageData, loadBundledLocaleStrings } from './bundledLanguageAssets';
+import { loadBundledLocaleStrings } from './bundledLanguageAssets';
 import { getLogger } from '../utils/logger';
 import eulaMd from '../../../EULA.md?raw';
 
@@ -397,6 +398,10 @@ const FLASHCARD_SHARD_COUNT = 16;
 const FLASHCARD_META_KEY = 'flashcards_meta';
 const FLASHCARD_CARDS_SHARD_PREFIX = 'flashcards_cards_shard_';
 const FLASHCARD_STATS_SHARD_PREFIX = 'flashcards_stats_shard_';
+/**
+ * @deprecated Pre-sharding Capacitor flashcard storage key. New writes must use
+ * the sharded `FLASHCARD_META_KEY`/`FLASHCARD_*_SHARD_PREFIX` stores.
+ */
 const FLASHCARD_LEGACY_KEY = 'flashcards';
 
 function getShardIndex(hexKey: string): number {
@@ -721,36 +726,50 @@ const localizationBridge: LocalizationBridge = {
   },
 
   getLangData() {
-    // Load bundled language data (always works offline)
-    const loadBundled = async () => {
-      try {
-        const langData = await loadBundledLanguageData();
-        emitter.emit('lang-data', langData as unknown as LanguageData);
-      } catch (e) {
-        log.error("error", e);
-        emitter.emit('lang-data', {} as LanguageData);
-      }
-    };
-
     // Check if a tethered/cloud server URL has been explicitly configured
     const serverUrl = localStorage.getItem('mlearn-node-server-url');
     if (!serverUrl) {
-      // No server configured — load bundled directly (default on mobile)
-      loadBundled();
+      emitter.emit('lang-data', {} as LanguageData);
       return;
     }
 
-    // Try Node server with a short timeout; fall back to bundled
+    // Try Node server with a short timeout; language data is not bundled in mobile builds.
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
     fetch(`${serverUrl}/api/lang-data`, { signal: controller.signal })
       .then(res => { clearTimeout(timeout); return res.json(); })
       .then(data => emitter.emit('lang-data', data))
-      .catch(() => { clearTimeout(timeout); loadBundled(); });
+      .catch(() => {
+        clearTimeout(timeout);
+        emitter.emit('lang-data', {} as LanguageData);
+      });
   },
 
   onLangData(callback) {
     return emitter.on('lang-data', callback as Listener);
+  },
+
+  getLanguageDataCatalog() {
+    emitter.emit('language-data-catalog', [] satisfies LanguageDataCatalogStatus[]);
+  },
+
+  onLanguageDataCatalog(callback) {
+    return emitter.on('language-data-catalog', callback as Listener);
+  },
+
+  installLanguageData(language: string, _dictionaryTargetLanguage?: string) {
+    emitter.emit('language-data-install-error', {
+      language,
+      error: 'Language data installation is not supported on mobile',
+    });
+  },
+
+  onLanguageDataInstalled(callback) {
+    return emitter.on('language-data-installed', callback as Listener);
+  },
+
+  onLanguageDataInstallError(callback) {
+    return emitter.on('language-data-install-error', callback as Listener);
   },
 
   installLanguage(_url: string) {
@@ -940,7 +959,7 @@ const windowBridge: WindowBridge = {
       statistics: '/statistics',
       'conversation-agent': '/conversation-agent',
       'word-db-editor': '/word-db-editor',
-      'exam-centric-study': '/exam-centric-study',
+      'level-study': '/level-study',
       licenses: '/licenses',
       'connect-qr': '/connect-qr',
     };
@@ -1010,7 +1029,7 @@ const windowBridge: WindowBridge = {
     return () => window.removeEventListener('mlearn-reader-ctx-command', handler);
   },
   onOpenWordDbEditor: noopCleanup,
-  onOpenExamCentricStudy: noopCleanup,
+  onOpenLevelStudy: noopCleanup,
   onOpenPrompt: noopCleanup,
   onAuthDeepLink: noopCleanup,
   onLookupDeepLink: noopCleanup,
@@ -1057,10 +1076,6 @@ const serverBridge: ServerBridge = {
 
   onAnkiConnectionError(callback) {
     return emitter.on('anki-connection-error', callback as Listener);
-  },
-
-  restartBackendAnkiOverride() {
-    // No-op on Capacitor — Anki is only available on desktop
   },
 
   onOcrStatusUpdate(callback) {
@@ -1374,9 +1389,15 @@ const speechBridge: SpeechBridge = {
     return emitter.on('stt-result', callback as Listener);
   },
 
-  ttsSpeak(text: string, language: string) {
+  ttsSpeak(text: string, language: string, options) {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language;
+    utterance.lang = options?.speechSynthesisLang || language;
+    if (options?.speechSynthesisVoice) {
+      const voice = speechSynthesis.getVoices().find((candidate) => candidate.name === options.speechSynthesisVoice);
+      if (voice) {
+        utterance.voice = voice;
+      }
+    }
     utterance.onend = () => emitter.emit('tts-status', { speaking: false, progress: 1 });
     utterance.onerror = (event) => {
       log.error('[CapacitorBridge] SpeechSynthesis error:', event);

@@ -24,14 +24,16 @@ registerDiagnosticSuite({
       timeoutMs: 5_000,
       async fn() {
         const original = loadSettings();
-        const testValue = `__diag_${Date.now()}`;
-        const modified = { ...original, __diag_test: testValue };
-        await saveSettings(modified as any);
-        const reloaded = loadSettings();
-        if ((reloaded as any).__diag_test !== testValue) {
-          throw new Error('Settings round-trip failed');
+        const testValue = !original.blur_words;
+        try {
+          await saveSettings({ ...original, blur_words: testValue });
+          const reloaded = loadSettings();
+          if (reloaded.blur_words !== testValue) {
+            throw new Error('Settings round-trip failed');
+          }
+        } finally {
+          await saveSettings(original);
         }
-        await saveSettings(original);
       },
     },
     {

@@ -14,10 +14,11 @@ import { Component, JSX, Show, createMemo, createSignal, createEffect, createCom
 import type { Flashcard } from '../../../shared/types';
 import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
-import { FlashcardPitchAccent } from './FlashcardPitchAccent';
+import { FlashcardWordTitle } from './FlashcardWordTitle';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
 import { isElectron } from '../../../shared/platform';
+import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { findWordInAnkiCache, fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import './FlashcardDisplay.css';
@@ -37,7 +38,16 @@ export interface FlashcardDisplayProps {
 
 export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const { settings } = useSettings();
-  const { getLevelName, getCanonicalForm } = useLanguage();
+  const {
+    langData,
+    getLevelName,
+    getFrequencyForLanguage,
+    getCanonicalForm,
+    getWordVariants,
+    getCanonicalFormForLanguage,
+    getWordVariantsForLanguage,
+    currentLangData,
+  } = useLanguage();
   const { t } = useLocalization();
 
   // Track whether we should animate the current flip or instant-switch
@@ -46,6 +56,10 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const [isEntering, setIsEntering] = createSignal(false);
 
   const content = () => props.flashcard.content;
+  const cardLanguage = () => props.flashcard.language || settings.language;
+  const cardLanguageData = createMemo(() => (
+    langData[cardLanguage()] ?? (cardLanguage() === settings.language ? currentLangData() : null)
+  ));
   const displayWord = () => content().front;
   const meaning = () => content().back;
   const isFlipped = createMemo(() => props.showAnswer ?? false);
@@ -69,17 +83,38 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   });
 
   // Ensure the Anki words cache is populated so the duplicate indicator works
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
-  if (settings.use_anki && !isAnkiCacheFetched()) {
-    fetchAnkiWordsCache().then(() => setAnkiCacheReady(true));
-  }
+  const ankiCacheOptions = createMemo(() => ({
+    language: cardLanguage(),
+    languageData: cardLanguageData(),
+  }));
+  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
+  createEffect(() => {
+    const options = ankiCacheOptions();
+    if (!settings.use_anki) {
+      setAnkiCacheReady(false);
+      return;
+    }
+    if (isAnkiCacheFetched(options)) {
+      setAnkiCacheReady(true);
+      return;
+    }
+    fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true));
+  });
 
   // Check if this card's word exists in Anki (for duplicate indicator)
   const isAnkiDuplicate = createMemo(() => {
     if (!settings.use_anki) return false;
     // Access ankiCacheReady to re-evaluate when cache finishes loading
     ankiCacheReady();
-    return !!findWordInAnkiCache(getWordFormCandidates(content().front, getCanonicalForm));
+    const wordCandidates = cardLanguage() === settings.language
+      ? getWordFormCandidates(content().front, getCanonicalForm, getWordVariants, { languageData: cardLanguageData() })
+      : getWordFormCandidates(
+        content().front,
+        (value) => getCanonicalFormForLanguage(cardLanguage(), value),
+        (value) => getWordVariantsForLanguage(cardLanguage(), value),
+        { languageData: cardLanguageData() },
+      );
+    return !!findWordInAnkiCache(wordCandidates, ankiCacheOptions());
   });
 
   // Whether media (image/video) should be hidden in stealth mode
@@ -128,9 +163,18 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   ));
 
   const levelInfo = createMemo(() => {
-    const level = content().level;
-    if (level === undefined || level === null || level < 0) return null;
-    return { level, name: getLevelName(level) };
+    const frequencyEntry = getFrequencyForLanguage(cardLanguage(), content().front);
+    const level = content().level ?? frequencyEntry?.raw_level;
+    const levelNames = cardLanguageData()?.frequencyLevels?.names ?? {};
+    if (!isDisplayableFrequencyLevel(level, levelNames, cardLanguageData())) return null;
+    const matchingFrequencyLabel = frequencyEntry?.raw_level === level ? frequencyEntry.level : undefined;
+    const metadataLabel = levelNames[String(level)]
+      || (cardLanguage() === settings.language ? getLevelName(level) : getFrequencyLevelLabel(level, levelNames, cardLanguageData()));
+    return {
+      level,
+      visualLevel: getFrequencyLevelVisualRank(level, levelNames, cardLanguageData()),
+      name: matchingFrequencyLabel || metadataLabel,
+    };
   });
 
   const handleFlip = () => {
@@ -206,7 +250,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
         >
           <Show when={levelInfo()}>
             {(info) => (
-              <PillLabel level={info().level} class="flashcard-level-pill">
+              <PillLabel level={info().level} visualLevel={info().visualLevel} class="flashcard-level-pill">
                 {info().name}
               </PillLabel>
             )}
@@ -298,7 +342,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
         >
           <Show when={levelInfo()}>
             {(info) => (
-              <PillLabel level={info().level} class="flashcard-level-pill">
+              <PillLabel level={info().level} visualLevel={info().visualLevel} class="flashcard-level-pill">
                 {info().name}
               </PillLabel>
             )}
@@ -313,7 +357,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <div class="flashcard-word-header">
-            <FlashcardPitchAccent content={content()} />
+            <FlashcardWordTitle content={content()} language={props.flashcard.language} />
             <Show when={props.onPlayTts}>
               <IconBtn
                 icon="volume"

@@ -4,6 +4,7 @@ import {
   filterNarrowBoxes,
   buildOcrContextMap,
   processOcrBoxes,
+  processOcrBoxesForLanguage,
   getBoundingRect,
 } from '@renderer/utils/ocrUtils';
 import type { BoxMetrics } from '@renderer/utils/ocrUtils';
@@ -201,7 +202,7 @@ describe('filterNarrowBoxes', () => {
     expect(result).toBe(boxes);
   });
 
-  it('returns input unchanged when no furigana candidates exist', () => {
+  it('returns input unchanged when no reading annotation candidates exist', () => {
     // All same-sized boxes — none should be filtered
     const boxes = [
       makeBox(0, 0, 30, 100, '一', true),
@@ -212,20 +213,20 @@ describe('filterNarrowBoxes', () => {
     expect(result).toHaveLength(3);
   });
 
-  it('filters a narrow furigana box next to a larger neighbor in a vertical zone', () => {
+  it('filters a narrow reading annotation box next to a larger neighbor in a vertical zone', () => {
     // Main vertical text boxes (wide enough to be dominant)
     const main1 = makeBox(40, 0, 30, 80, '漢', true);
     const main2 = makeBox(40, 90, 30, 80, '字', true);
-    // Furigana: narrow width, adjacent horizontally, overlaps vertically
-    const furigana = makeBox(75, 5, 10, 70, 'かん', true);
+    // Reading annotation: narrow width, adjacent horizontally, overlaps vertically
+    const annotation = makeBox(75, 5, 10, 70, 'かん', true);
 
-    const boxes = [main1, main2, furigana];
+    const boxes = [main1, main2, annotation];
     const result = filterNarrowBoxes(boxes, {
       ratio: 1.5,
       zoneDeltaThreshold: 60,
     });
 
-    expect(result).not.toContain(furigana);
+    expect(result).not.toContain(annotation);
     expect(result).toContain(main1);
     expect(result).toContain(main2);
   });
@@ -241,12 +242,12 @@ describe('filterNarrowBoxes', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('preserves all boxes when ratio is very large (nothing qualifies as furigana)', () => {
+  it('preserves all boxes when ratio is very large (nothing qualifies as a reading annotation)', () => {
     const boxes = [
       makeBox(0, 0, 30, 100, '一', true),
       makeBox(35, 0, 15, 90, 'いち', true),
     ];
-    // ratio=100 means furiganaThreshold = dominant/100 ≈ near zero, nothing removed
+    // ratio=100 means annotation threshold = dominant/100 ≈ near zero, nothing removed
     const result = filterNarrowBoxes(boxes, { ratio: 100, zoneDeltaThreshold: 50 });
     expect(result).toHaveLength(2);
   });
@@ -272,19 +273,19 @@ describe('filterNarrowBoxes', () => {
     expect(debugCalled).toBe(true);
   });
 
-  it('filters horizontal furigana (smaller height above a wide box)', () => {
+  it('filters a horizontal reading annotation (smaller height above a wide box)', () => {
     // Wide horizontal main text
     const main = makeBox(0, 30, 200, 40, 'Hello World', false);
-    // Furigana-like: narrow height, above main text, overlapping horizontally
-    const furigana = makeBox(10, 5, 180, 15, 'small', false);
+    // Annotation-like: narrow height, above main text, overlapping horizontally
+    const annotation = makeBox(10, 5, 180, 15, 'small', false);
 
-    const boxes = [main, furigana];
+    const boxes = [main, annotation];
     const result = filterNarrowBoxes(boxes, {
       ratio: 1.5,
       zoneDeltaThreshold: 50,
     });
 
-    expect(result).not.toContain(furigana);
+    expect(result).not.toContain(annotation);
     expect(result).toContain(main);
   });
 });
@@ -417,17 +418,17 @@ describe('buildOcrContextMap', () => {
 
 describe('processOcrBoxes', () => {
   it('returns both filtered boxes and context map in a single pass', () => {
-    // Vertical zone: two main kanji boxes + one narrow furigana
+    // Vertical zone: two main text boxes + one narrow reading annotation
     const main1 = makeBox(40, 0, 30, 80, '漢', true);
     const main2 = makeBox(40, 90, 30, 80, '字', true);
-    const furigana = makeBox(75, 5, 10, 70, 'かん', true);
+    const annotation = makeBox(75, 5, 10, 70, 'かん', true);
 
-    const boxes = [main1, main2, furigana];
+    const boxes = [main1, main2, annotation];
     const { filtered, contextMap } = processOcrBoxes(boxes, {
       ratio: 1.5,
       zoneDeltaThreshold: 60,
     });
-    // Furigana box should be filtered out
+    // Reading annotation box should be filtered out
     expect(filtered.length).toBe(2);
     expect(filtered.map(b => b.text)).toEqual(['漢', '字']);
     // Context map keyed by original index — both surviving boxes share a phrase
@@ -436,7 +437,7 @@ describe('processOcrBoxes', () => {
     expect(contextMap.get(0)).toBe(contextMap.get(1));
     expect(contextMap.get(0)).toContain('漢');
     expect(contextMap.get(0)).toContain('字');
-    // Filtered-out furigana box should NOT be in context map
+    // Filtered-out reading annotation box should NOT be in context map
     expect(contextMap.has(2)).toBe(false);
   });
 
@@ -452,5 +453,72 @@ describe('processOcrBoxes', () => {
     const { filtered, contextMap } = processOcrBoxes([]);
     expect(filtered).toEqual([]);
     expect(contextMap.size).toBe(0);
+  });
+});
+
+// ============================================================================
+// processOcrBoxesForLanguage
+// ============================================================================
+
+describe('processOcrBoxesForLanguage', () => {
+  it('preserves narrow boxes for languages without reading annotations', () => {
+    const main1 = makeBox(40, 0, 30, 80, 'A', true);
+    const main2 = makeBox(40, 90, 30, 80, 'B', true);
+    const narrow = makeBox(75, 5, 10, 70, 'i', true);
+
+    const { filtered, contextMap } = processOcrBoxesForLanguage([main1, main2, narrow], {
+      supportsReadingAnnotations: false,
+      filterReadingAnnotations: true,
+      ratio: 1.5,
+      zoneDeltaThreshold: 60,
+    });
+
+    expect(filtered.map((box) => box.text)).toEqual(['A', 'B', 'i']);
+    expect(contextMap.get(0)).toContain('A');
+    expect(contextMap.get(0)).toContain('B');
+    expect(contextMap.get(0)).toContain('i');
+  });
+
+  it('filters narrow reading annotations only when the language supports them', () => {
+    const main1 = makeBox(40, 0, 30, 80, '漢', true);
+    const main2 = makeBox(40, 90, 30, 80, '字', true);
+    const annotation = makeBox(75, 5, 10, 70, 'かん', true);
+
+    const { filtered } = processOcrBoxesForLanguage([main1, main2, annotation], {
+      supportsReadingAnnotations: true,
+      filterReadingAnnotations: true,
+      ratio: 1.5,
+      zoneDeltaThreshold: 60,
+    });
+
+    expect(filtered.map((box) => box.text)).toEqual(['漢', '字']);
+  });
+
+  it('preserves reading annotations when the user disables annotation filtering', () => {
+    const main = makeBox(40, 0, 30, 80, '漢', true);
+    const annotation = makeBox(75, 5, 10, 70, 'かん', true);
+
+    const { filtered } = processOcrBoxesForLanguage([main, annotation], {
+      supportsReadingAnnotations: true,
+      filterReadingAnnotations: false,
+      ratio: 1.5,
+      zoneDeltaThreshold: 60,
+    });
+
+    expect(filtered.map((box) => box.text)).toEqual(['漢', 'かん']);
+  });
+
+  it('ignores the deprecated narrow-annotation option', () => {
+    const main = makeBox(40, 0, 30, 80, '漢', true);
+    const annotation = makeBox(75, 5, 10, 70, 'かん', true);
+
+    const { filtered } = processOcrBoxes([main, annotation], {
+      // @ts-expect-error Deprecated compatibility option must not be accepted by runtime callers.
+      filterNarrowAnnotations: false,
+      ratio: 1.5,
+      zoneDeltaThreshold: 60,
+    });
+
+    expect(filtered.map((box) => box.text)).toEqual(['漢']);
   });
 });

@@ -27,6 +27,11 @@ function createMockIPC() {
     changeUILanguage: vi.fn(),
     getLangData: vi.fn(),
     onLangData: vi.fn(),
+    getLanguageDataCatalog: vi.fn(),
+    onLanguageDataCatalog: vi.fn(),
+    installLanguageData: vi.fn(),
+    onLanguageDataInstalled: vi.fn(),
+    onLanguageDataInstallError: vi.fn(),
     installLanguage: vi.fn(),
     onLanguageInstalled: vi.fn(),
     onLanguageInstallError: vi.fn(),
@@ -58,7 +63,7 @@ function createMockIPC() {
     onContextMenuCommand: vi.fn(),
     onReaderContextMenuCommand: vi.fn(),
     onOpenWordDbEditor: vi.fn(),
-    onOpenExamCentricStudy: vi.fn(),
+    onOpenLevelStudy: vi.fn(),
     onOpenPrompt: vi.fn(),
     onAuthDeepLink: vi.fn(),
     onLookupDeepLink: vi.fn(),
@@ -69,7 +74,6 @@ function createMockIPC() {
     onServerStatusUpdate: vi.fn(),
     onServerCriticalError: vi.fn(),
     onAnkiConnectionError: vi.fn(),
-    restartBackendAnkiOverride: vi.fn(),
     onOcrStatusUpdate: vi.fn(),
     restartApp: vi.fn(),
     forceRestartApp: vi.fn(),
@@ -418,6 +422,39 @@ describe('localizationBridge', () => {
     expect(mockIPC.onLangData).toHaveBeenCalledWith(cb);
   });
 
+  it('getLanguageDataCatalog delegates to ipc.getLanguageDataCatalog', () => {
+    const bridge = createElectronBridge();
+    bridge.localization.getLanguageDataCatalog();
+    expect(mockIPC.getLanguageDataCatalog).toHaveBeenCalledOnce();
+  });
+
+  it('onLanguageDataCatalog passes callback to ipc.onLanguageDataCatalog', () => {
+    const cb = vi.fn();
+    const bridge = createElectronBridge();
+    bridge.localization.onLanguageDataCatalog(cb);
+    expect(mockIPC.onLanguageDataCatalog).toHaveBeenCalledWith(cb);
+  });
+
+  it('installLanguageData passes language and dictionary target to ipc.installLanguageData', () => {
+    const bridge = createElectronBridge();
+    bridge.localization.installLanguageData('de', 'fr');
+    expect(mockIPC.installLanguageData).toHaveBeenCalledWith('de', 'fr');
+  });
+
+  it('onLanguageDataInstalled passes callback to ipc.onLanguageDataInstalled', () => {
+    const cb = vi.fn();
+    const bridge = createElectronBridge();
+    bridge.localization.onLanguageDataInstalled(cb);
+    expect(mockIPC.onLanguageDataInstalled).toHaveBeenCalledWith(cb);
+  });
+
+  it('onLanguageDataInstallError passes callback to ipc.onLanguageDataInstallError', () => {
+    const cb = vi.fn();
+    const bridge = createElectronBridge();
+    bridge.localization.onLanguageDataInstallError(cb);
+    expect(mockIPC.onLanguageDataInstallError).toHaveBeenCalledWith(cb);
+  });
+
   it('installLanguage passes url to ipc.installLanguage', () => {
     const bridge = createElectronBridge();
     bridge.localization.installLanguage('https://example.com/lang.zip');
@@ -537,8 +574,8 @@ describe('windowBridge', () => {
 
   it('showReaderCtxMenu passes options to ipc.showReaderCtxMenu', () => {
     const bridge = createElectronBridge();
-    bridge.window.showReaderCtxMenu({ furiganaHiderEnabled: true, hasContextPhrase: false });
-    expect(mockIPC.showReaderCtxMenu).toHaveBeenCalledWith({ furiganaHiderEnabled: true, hasContextPhrase: false });
+    bridge.window.showReaderCtxMenu({ readingAnnotationHiderEnabled: true, hasContextPhrase: false });
+    expect(mockIPC.showReaderCtxMenu).toHaveBeenCalledWith({ readingAnnotationHiderEnabled: true, hasContextPhrase: false });
   });
 
   it('showContact delegates to ipc.showContact', () => {
@@ -615,11 +652,11 @@ describe('windowBridge', () => {
     expect(mockIPC.onOpenWordDbEditor).toHaveBeenCalledWith(cb);
   });
 
-  it('onOpenExamCentricStudy passes callback to ipc.onOpenExamCentricStudy', () => {
+  it('onOpenLevelStudy passes callback to ipc.onOpenLevelStudy', () => {
     const cb = vi.fn();
     const bridge = createElectronBridge();
-    bridge.window.onOpenExamCentricStudy(cb);
-    expect(mockIPC.onOpenExamCentricStudy).toHaveBeenCalledWith(cb);
+    bridge.window.onOpenLevelStudy(cb);
+    expect(mockIPC.onOpenLevelStudy).toHaveBeenCalledWith(cb);
   });
 
   it('onOpenPrompt passes callback to ipc.onOpenPrompt', () => {
@@ -689,12 +726,6 @@ describe('serverBridge', () => {
     const bridge = createElectronBridge();
     bridge.server.onAnkiConnectionError(cb);
     expect(mockIPC.onAnkiConnectionError).toHaveBeenCalledWith(cb);
-  });
-
-  it('restartBackendAnkiOverride passes disableAnki to ipc.restartBackendAnkiOverride', () => {
-    const bridge = createElectronBridge();
-    bridge.server.restartBackendAnkiOverride(true);
-    expect(mockIPC.restartBackendAnkiOverride).toHaveBeenCalledWith(true);
   });
 
   it('onOcrStatusUpdate passes callback to ipc.onOcrStatusUpdate', () => {
@@ -1067,10 +1098,10 @@ describe('voiceBridge', () => {
     expect(mockIPC.voiceSampleRename).toHaveBeenCalledWith('sample-id', 'New Name');
   });
 
-  it('voiceSampleTranscribe passes id to ipc.voiceSampleTranscribe', () => {
+  it('voiceSampleTranscribe passes id and language to ipc.voiceSampleTranscribe', () => {
     const bridge = createElectronBridge();
-    bridge.voice.voiceSampleTranscribe('sample-id');
-    expect(mockIPC.voiceSampleTranscribe).toHaveBeenCalledWith('sample-id');
+    bridge.voice.voiceSampleTranscribe('sample-id', 'fa');
+    expect(mockIPC.voiceSampleTranscribe).toHaveBeenCalledWith('sample-id', 'fa');
   });
 
   it('voiceSampleGetPath passes id to ipc.voiceSampleGetPath', () => {

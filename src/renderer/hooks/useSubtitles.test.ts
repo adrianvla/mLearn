@@ -7,10 +7,26 @@ const mockParseSubtitle = vi.fn((text: string) => ({
   readingOverrides: [],
 }));
 const mockShouldRemoveParentheticalContent = vi.fn((language: string) => language === 'ja');
+const mockStripSpeakerNamePrefixes = vi.fn((text: string) => text);
 
 vi.mock('../context', () => ({
   useSettings: vi.fn(() => ({
     settings: { language: 'ja', subsOffsetTime: 0 },
+  })),
+  useLanguage: vi.fn(() => ({
+    currentLangData: () => ({
+      name: 'Japanese',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: { scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] } },
+      runtime: {
+        nlp: {
+          tokenizer: {
+            type: 'unicode-word',
+          },
+        },
+      },
+    }),
   })),
 }));
 
@@ -23,6 +39,7 @@ vi.mock('./useTranslation', () => ({
 vi.mock('../utils/subtitleParsing', () => ({
   parseSubtitle: (...args: unknown[]) => mockParseSubtitle(...(args as [string, string])),
   shouldRemoveParentheticalContent: (...args: unknown[]) => mockShouldRemoveParentheticalContent(...(args as [string])),
+  stripSpeakerNamePrefixes: (...args: unknown[]) => mockStripSpeakerNamePrefixes(...(args as [string, string, unknown])),
 }));
 
 const SRT_CONTENT = `1
@@ -70,6 +87,7 @@ describe('useSubtitles', () => {
     mockTokenize.mockResolvedValue([]);
     mockParseSubtitle.mockImplementation((text: string) => ({ text, readingOverrides: [] }));
     mockShouldRemoveParentheticalContent.mockImplementation((language: string) => language === 'ja');
+    mockStripSpeakerNamePrefixes.mockImplementation((text: string) => text);
   });
 
   // ========================================================================
@@ -537,13 +555,19 @@ Hallo (leise)
     });
   });
 
-  it('removes parenthetical subtitle content for Japanese when removal is enabled', async () => {
+  it('lets parseSubtitle preserve reading overrides when parenthetical removal is enabled', async () => {
     const { useSettings } = await import('../context');
     vi.mocked(useSettings).mockReturnValueOnce({
       settings: { language: 'ja', subsOffsetTime: 0, removeParentheses: true, removeSpeakerNames: false },
     } as never);
 
-    mockParseSubtitle.mockImplementation((text: string) => ({ text, readingOverrides: [] }));
+    mockParseSubtitle.mockImplementation((text: string) => {
+      expect(text).toBe('漢字(かんじ)');
+      return { text: '漢字', readingOverrides: [{ word: '漢字', reading: 'かんじ' }] };
+    });
+    mockTokenize.mockResolvedValue([
+      { word: '漢字', actual_word: '漢字', type: 'noun', surface: '漢字', reading: undefined },
+    ]);
 
     await createRoot(async (dispose) => {
       const hook = useSubtitles();
@@ -553,11 +577,57 @@ Hallo (leise)
 `, 'srt');
       await hook.updateTime(2.0);
       expect(mockTokenize).toHaveBeenCalledWith('漢字');
+      expect(hook.tokens()[0].reading).toBe('かんじ');
+      dispose();
+    });
+  });
+
+  it('removes speaker-name prefixes through language metadata helper', async () => {
+    const { useSettings, useLanguage } = await import('../context');
+    vi.mocked(useSettings).mockReturnValueOnce({
+      settings: { language: 'ru', subsOffsetTime: 0, removeParentheses: false, removeSpeakerNames: true },
+    } as never);
+    const ruData = {
+      name: 'Russian',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: { scriptProfile: { acceptedScripts: ['Cyrl'] } },
+    };
+    vi.mocked(useLanguage).mockReturnValueOnce({
+      currentLangData: () => ruData,
+    } as never);
+    mockStripSpeakerNamePrefixes.mockReturnValueOnce('Привет');
+
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(`1
+00:00:01,000 --> 00:00:03,000
+Анна: Привет
+`, 'srt');
+      await hook.updateTime(2.0);
+      expect(mockStripSpeakerNamePrefixes).toHaveBeenCalledWith('Анна: Привет', 'ru', ruData);
+      expect(mockTokenize).toHaveBeenCalledWith('Привет');
       dispose();
     });
   });
 
   it('updateTime uses fallback tokens when tokenize returns empty', async () => {
+    const { useLanguage } = await import('../context');
+    vi.mocked(useLanguage).mockReturnValueOnce({
+      currentLangData: () => ({
+        name: 'English',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'unicode-word',
+            },
+          },
+        },
+      }),
+    } as never);
     mockTokenize.mockResolvedValue([]);
     await createRoot(async (dispose) => {
       const hook = useSubtitles();
@@ -588,6 +658,22 @@ Hallo (leise)
   });
 
   it('updateTime uses fallback tokens when tokenize throws', async () => {
+    const { useLanguage } = await import('../context');
+    vi.mocked(useLanguage).mockReturnValueOnce({
+      currentLangData: () => ({
+        name: 'English',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'unicode-word',
+            },
+          },
+        },
+      }),
+    } as never);
     mockTokenize.mockRejectedValue(new Error('tokenize failed'));
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -598,6 +684,110 @@ Hallo (leise)
       const tokens = hook.tokens();
       expect(tokens.length).toBe(2);
       expect(tokens[0].word).toBe('Hello');
+      dispose();
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it('updateTime fallback tokens use cleaned subtitle text when tokenization throws', async () => {
+    const { useLanguage, useSettings } = await import('../context');
+    vi.mocked(useSettings).mockReturnValueOnce({
+      settings: { language: 'en', subsOffsetTime: 0, removeSpeakerNames: true },
+    } as never);
+    vi.mocked(useLanguage).mockReturnValueOnce({
+      currentLangData: () => ({
+        name: 'English',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'unicode-word',
+            },
+          },
+        },
+      }),
+    } as never);
+    mockStripSpeakerNamePrefixes.mockReturnValueOnce('Hello world');
+    mockTokenize.mockRejectedValue(new Error('tokenize failed'));
+
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(`1
+00:00:01,000 --> 00:00:03,000
+Speaker: Hello world
+`, 'srt');
+      await hook.updateTime(2.0);
+      expect(mockStripSpeakerNamePrefixes).toHaveBeenCalledWith('Speaker: Hello world', 'en', expect.anything());
+      expect(hook.tokens().map((token) => token.word)).toEqual(['Hello', 'world']);
+      dispose();
+    });
+  });
+
+  it('updateTime does not create fallback tokens when tokenizer fallback is disabled', async () => {
+    const { useLanguage } = await import('../context');
+    vi.mocked(useLanguage).mockReturnValueOnce({
+      currentLangData: () => ({
+        name: 'Japanese',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: { scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] } },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'sudachi',
+              required: true,
+            },
+          },
+        },
+      }),
+    } as never);
+    mockTokenize.mockRejectedValue(new Error('tokenize failed'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(SRT_CONTENT, 'srt');
+      await hook.updateTime(2.0);
+      expect(hook.tokens()).toEqual([]);
+      expect(hook.error()).toBe('Tokenization failed');
+      dispose();
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it('updateTime treats empty rough fallback tokens as tokenization failure', async () => {
+    const { useLanguage } = await import('../context');
+    vi.mocked(useLanguage).mockReturnValueOnce({
+      currentLangData: () => ({
+        name: 'Latin fallback language',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'unicode-word',
+            },
+          },
+        },
+      }),
+    } as never);
+    mockTokenize.mockRejectedValue(new Error('tokenize failed'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(`1
+00:00:01,000 --> 00:00:03,000
+漢字
+`, 'srt');
+      await hook.updateTime(2.0);
+      expect(hook.tokens()).toEqual([]);
+      expect(hook.error()).toBe('Tokenization failed');
       dispose();
     });
 

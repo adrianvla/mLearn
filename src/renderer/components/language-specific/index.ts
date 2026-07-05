@@ -1,9 +1,8 @@
 /**
  * Language-Specific Components Barrel Export
- * Components for script-specific rendering: ruby/furigana, pitch accent, etc.
+ * Components for script-specific rendering: reading annotations, prosody, etc.
  */
 
-export { PitchAccent, type PitchAccentProps } from './PitchAccent';
-export { PitchAccentOverlay, type PitchAccentOverlayProps } from './PitchAccentOverlay';
-export { RubyText, type RubyTextProps } from './RubyText';
+export { JapanesePitchAccentOverlay, type JapanesePitchAccentOverlayProps } from './JapanesePitchAccentOverlay';
+export { ProsodyOverlay, type ProsodyOverlayProps } from './ProsodyOverlay';
 export { WordWithReading, type WordWithReadingProps } from './WordWithReading';

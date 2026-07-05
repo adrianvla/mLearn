@@ -9,9 +9,17 @@
 
 import type {
   FlashcardStore,
+  LanguageData,
   WordFrequencyEntry,
   WordFrequencyMap,
 } from '../../shared/types';
+import {
+  compareFrequencyLevelsForDisplay,
+  getFrequencyLevelLabel,
+  isDisplayableFrequencyLevel,
+  resolveLanguageFrequencyPayload,
+  sortFrequencyLevelsByDifficulty,
+} from '../../shared/languageFeatures';
 import { hashWordSync } from '../services/srsAlgorithm';
 import { buildKnownWordSet, buildTrackedWordSet } from './knowledgeUtils';
 
@@ -43,7 +51,7 @@ export interface ComprehensiveWordStats {
   };
 }
 
-export interface ExamLevelStats {
+export interface LevelStats {
   level: number;
   name: string;
   total: number;
@@ -118,15 +126,15 @@ function buildFrequencyHashSet(
   return set;
 }
 
-export type WordExamStatus = 'known' | 'learning' | 'unknown' | 'untracked';
+export type WordLevelStatus = 'known' | 'learning' | 'unknown' | 'untracked';
 
-export function getWordExamStatus(
+export function getWordLevelStatus(
   word: string,
   language: string,
   knownSet: Set<string>,
   learningSet: Set<string>,
   trackedSet: Set<string>,
-): WordExamStatus {
+): WordLevelStatus {
   const lk = langKey(language, hashWordSync(word));
 
   if (knownSet.has(lk)) return 'known';
@@ -139,12 +147,15 @@ function roundPct(count: number, total: number): number {
   return total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
 }
 
-function buildExamLevelBuckets(
+function buildLevelBuckets(
   wordFrequency: WordFrequencyMap,
+  levelNames: Record<string, string>,
+  languageData?: LanguageData | null,
 ): Map<number, Array<[string, WordFrequencyEntry]>> {
   const buckets = new Map<number, Array<[string, WordFrequencyEntry]>>();
 
   for (const [word, entry] of Object.entries(wordFrequency)) {
+    if (!isDisplayableFrequencyLevel(entry.raw_level, levelNames, languageData)) continue;
     const bucket = buckets.get(entry.raw_level) ?? [];
     bucket.push([word, entry]);
     buckets.set(entry.raw_level, bucket);
@@ -153,15 +164,109 @@ function buildExamLevelBuckets(
   return buckets;
 }
 
-export function computeExamLevelStats(
+function defaultFreqBoundaries(totalEntries: number, levelCount = 5): number[] {
+  const safeLevelCount = Math.max(levelCount, 1);
+  const step = Math.floor(totalEntries / safeLevelCount);
+  return Array.from({ length: Math.max(safeLevelCount - 1, 0) }, (_, idx) => step * (idx + 1));
+}
+
+export function buildWordFrequencyMapFromLanguageData(
+  languageData?: LanguageData | null,
+): WordFrequencyMap {
+  const { rows, languageData: effectiveLanguageData } = resolveLanguageFrequencyPayload(languageData);
+  if (!Array.isArray(rows) || rows.length === 0) return {};
+
+  const levelNames = effectiveLanguageData?.frequencyLevels?.names ?? {};
+  const declaredLevels = Object.keys(levelNames).map(Number).filter((level) => Number.isFinite(level));
+  const levelsByDifficulty = sortFrequencyLevelsByDifficulty(declaredLevels, effectiveLanguageData);
+  const rowLevelIndex = Number.isInteger(effectiveLanguageData?.frequencyLevels?.rowLevelIndex)
+    && (effectiveLanguageData?.frequencyLevels?.rowLevelIndex ?? -1) >= 2
+    ? effectiveLanguageData?.frequencyLevels?.rowLevelIndex
+    : undefined;
+  const boundaries = declaredLevels.length > 0
+    ? effectiveLanguageData?.frequencyLevels?.boundaries ?? defaultFreqBoundaries(rows.length, levelsByDifficulty.length)
+    : [];
+
+  const frequency: WordFrequencyMap = {};
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const [surface, reading] = row;
+    if (typeof surface !== 'string' || typeof reading !== 'string' || !surface) continue;
+
+    const rowLevel = rowLevelIndex !== undefined ? Number(row[rowLevelIndex]) : Number.NaN;
+    let level = Number.isFinite(rowLevel)
+      ? rowLevel
+      : levelsByDifficulty[levelsByDifficulty.length - 1] ?? -1;
+
+    if (!Number.isFinite(rowLevel)) {
+      for (let boundaryIndex = 0; boundaryIndex < boundaries.length; boundaryIndex += 1) {
+        if (index <= boundaries[boundaryIndex]) {
+          level = levelsByDifficulty[boundaryIndex] ?? level;
+          break;
+        }
+      }
+    }
+
+    const levelLabel = isDisplayableFrequencyLevel(level, levelNames, effectiveLanguageData)
+      ? getFrequencyLevelLabel(level, levelNames, effectiveLanguageData)
+      : '';
+    const existing = frequency[surface];
+    if (existing) {
+      if (reading !== existing.reading) {
+        existing.alternateReadings = existing.alternateReadings ?? [];
+        if (!existing.alternateReadings.includes(reading)) {
+          existing.alternateReadings.push(reading);
+        }
+      }
+      continue;
+    }
+
+    frequency[surface] = {
+      reading,
+      level: levelLabel,
+      raw_level: level,
+    };
+  }
+
+  return frequency;
+}
+
+export function resolveLevelStudyWordFrequency(
+  wordFrequency: WordFrequencyMap,
+  languageData?: LanguageData | null,
+): WordFrequencyMap {
+  return Object.keys(wordFrequency).length > 0
+    ? wordFrequency
+    : buildWordFrequencyMapFromLanguageData(languageData);
+}
+
+function getSortedFrequencyLevels(
+  wordFrequency: WordFrequencyMap,
+  levelNames: Record<string, string>,
+  languageData?: LanguageData | null,
+): number[] {
+  const levels = new Set<number>();
+  for (const level of Object.keys(levelNames).map(Number)) {
+    if (isDisplayableFrequencyLevel(level, levelNames, languageData)) levels.add(level);
+  }
+  for (const entry of Object.values(wordFrequency)) {
+    if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, languageData)) levels.add(entry.raw_level);
+  }
+  return Array.from(levels).sort((a, b) => compareFrequencyLevelsForDisplay(a, b, languageData));
+}
+
+export function computeLevelStats(
   store: FlashcardStore,
   wordFrequency: WordFrequencyMap,
   language: string,
   knownThreshold: number,
   learningThreshold: number,
   levelNames: Record<string, string>,
-): ExamLevelStats[] {
-  const levelBuckets = buildExamLevelBuckets(wordFrequency);
+  languageData?: LanguageData | null,
+): LevelStats[] {
+  const levelBuckets = buildLevelBuckets(wordFrequency, levelNames, languageData);
   if (levelBuckets.size === 0) return [];
 
   const knownSet = buildKnownWordSet(
@@ -176,7 +281,7 @@ export function computeExamLevelStats(
   const trackedSet = buildTrackedWordSet(store, language);
 
   return [...levelBuckets.entries()]
-    .sort(([a], [b]) => b - a)
+    .sort(([a], [b]) => compareFrequencyLevelsForDisplay(a, b, languageData))
     .map(([level, entries]) => {
       let known = 0;
       let learning = 0;
@@ -199,7 +304,7 @@ export function computeExamLevelStats(
 
       return {
         level,
-        name: levelNames[String(level)] || `Level ${level}`,
+        name: getFrequencyLevelLabel(level, levelNames, languageData),
         total,
         known,
         learning,
@@ -230,6 +335,7 @@ export function computeWordLevelStats(
   knownThreshold: number,
   learningThreshold: number,
   levelNames: Record<string, string>,
+  languageData?: LanguageData | null,
 ): ComprehensiveWordStats {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -245,9 +351,7 @@ export function computeWordLevelStats(
 
   // Bucket frequency words by level
   const levelBuckets = new Map<number, { total: number; known: number; learning: number; unknown: number }>();
-  const sortedLevels = Object.keys(levelNames)
-    .map(Number)
-    .sort((a, b) => b - a);
+  const sortedLevels = getSortedFrequencyLevels(wordFrequency, levelNames, languageData);
 
   for (const level of sortedLevels) {
     levelBuckets.set(level, { total: 0, known: 0, learning: 0, unknown: 0 });
@@ -272,7 +376,7 @@ export function computeWordLevelStats(
     const b = levelBuckets.get(level) ?? { total: 0, known: 0, learning: 0, unknown: 0 };
     return {
       level,
-      name: levelNames[String(level)] || `Level ${level}`,
+      name: getFrequencyLevelLabel(level, levelNames, languageData),
       totalDictionaryWords: b.total,
       known: b.known,
       learning: b.learning,
@@ -331,6 +435,7 @@ export function computeLevelCoverage(
   language: string,
   knownThreshold: number,
   levelNames: Record<string, string>,
+  languageData?: LanguageData | null,
 ): Array<{ level: number; name: string; total: number; known: number; pct: number }> {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -343,9 +448,7 @@ export function computeLevelCoverage(
 
   const levelTotals = new Map<number, number>();
   const levelKnown = new Map<number, number>();
-  const sortedLevels = Object.keys(levelNames)
-    .map(Number)
-    .sort((a, b) => b - a);
+  const sortedLevels = getSortedFrequencyLevels(wordFrequency, levelNames, languageData);
 
   for (const level of sortedLevels) {
     levelTotals.set(level, 0);
@@ -368,7 +471,7 @@ export function computeLevelCoverage(
     const known = levelKnown.get(level) ?? 0;
     return {
       level,
-      name: levelNames[String(level)] || `Level ${level}`,
+      name: getFrequencyLevelLabel(level, levelNames, languageData),
       total,
       known,
       pct: total > 0 ? Math.round((known / total) * 100) : 0,

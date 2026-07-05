@@ -16,6 +16,7 @@ export const LOG_PATTERN_VERSION = 'v2';
 // Cloud service URLs
 export const DEFAULT_CLOUD_LOGIN_URL = 'https://mlearn.kikan.net';
 export const DEFAULT_CLOUD_API_URL = 'https://mlearn-cloud.kikan.net';
+export const DEFAULT_LANGUAGE_CATALOG_URL = 'https://mlearn.kikan.net/language-catalog.json';
 
 // Ports object for hooks
 export const PORTS = {
@@ -27,7 +28,6 @@ export const PORTS = {
 export const API_ENDPOINTS = {
   tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
   translate: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
-  getCard: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/getCard`,
   /** @deprecated LLM moved to unified LLM backend */
   llm: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm`,
   /** @deprecated LLM moved to unified LLM backend */
@@ -48,8 +48,9 @@ export const API_ENDPOINTS = {
 export const API_PATHS = {
   tokenize: '/tokenize',
   translate: '/translate',
-  getCard: '/getCard',
-  ankiWords: '/ankiWords',
+  ankiCard: '/api/anki/card',
+  ankiWords: '/api/anki/words',
+  ankiReload: '/api/anki/reload',
   llm: '/llm',
   llmStatus: '/llm/status',
   ocr: '/ocr',
@@ -75,6 +76,11 @@ export const IPC_CHANNELS = {
   // Language data
   GET_LANG_DATA: 'get-lang-data',
   LANG_DATA: 'lang-data',
+  GET_LANGUAGE_DATA_CATALOG: 'get-language-data-catalog',
+  LANGUAGE_DATA_CATALOG: 'language-data-catalog',
+  INSTALL_LANGUAGE_DATA: 'install-language-data',
+  LANGUAGE_DATA_INSTALLED: 'language-data-installed',
+  LANGUAGE_DATA_INSTALL_ERROR: 'language-data-install-error',
   INSTALL_LANG: 'install-lang',
   LANG_INSTALLED: 'lang-installed',
   LANG_INSTALL_ERROR: 'lang-install-error',
@@ -124,7 +130,6 @@ export const IPC_CHANNELS = {
   SERVER_CRITICAL_ERROR: 'server-critical-error',
   LOG_RECORD: 'log-record',
   ANKI_CONNECTION_ERROR: 'anki-connection-error',
-  RESTART_BACKEND_ANKI_OVERRIDE: 'restart-backend-anki-override',
   OCR_STATUS_UPDATE: 'ocr-status-update',
   
   // Installation
@@ -194,7 +199,7 @@ export const IPC_CHANNELS = {
   
   // Stats & editors
   OPEN_WORD_DB_EDITOR: 'open-word-db-editor',
-  OPEN_EXAM_CENTRIC_STUDY: 'open-exam-centric-study',
+  OPEN_LEVEL_STUDY: 'open-level-study',
   
   // Prompt
   OPEN_PROMPT: 'open-prompt',
@@ -332,7 +337,7 @@ export const WINDOW_TYPES = {
   FLASHCARDS: 'flashcards',
   PROMPT: 'prompt',
   UPDATE: 'update',
-  KANJI_GRID: 'kanji-grid',
+  CHARACTER_GRID: 'character-grid',
   WORD_DB_EDITOR: 'word-db-editor',
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
@@ -341,7 +346,7 @@ export const WINDOW_TYPES = {
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',
   WORD_SYNC: 'word-sync',
-  EXAM_CENTRIC_STUDY: 'exam-centric-study',
+  LEVEL_STUDY: 'level-study',
   OVERLAY: 'overlay',
   DIAGNOSTICS: 'diagnostics',
 } as const;

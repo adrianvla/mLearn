@@ -41,14 +41,24 @@ export const PluginHost: Component<PluginHostProps> = (props) => {
     };
   });
 
-const host = createMemo<PluginHostApi>(() => ({
-    kvGet: async (key) => (await bridge.plugins.pluginKVGet(props.hostContext.pluginId, key)).value,
-    kvSet: (key, value) => bridge.plugins.pluginKVSet(props.hostContext.pluginId, key, value),
-    kvRemove: (key) => bridge.plugins.pluginKVRemove(props.hostContext.pluginId, key),
-    closeWindow: () => bridge.window.closeWindow(),
-    components: pluginComponentLibrary as unknown as PluginComponentLibraryRef,
-    translate: (word: string) => getBackend().translate(word),
-  }));
+  const host = createMemo<PluginHostApi>(() => {
+    const context = mergedContext();
+    const language = typeof context.__mlearnLanguage === 'string' ? context.__mlearnLanguage : undefined;
+    const dictionaryTargetLanguage = typeof context.__mlearnDictionaryTargetLanguage === 'string'
+      ? context.__mlearnDictionaryTargetLanguage
+      : undefined;
+
+    return {
+      kvGet: async (key) => (await bridge.plugins.pluginKVGet(props.hostContext.pluginId, key)).value,
+      kvSet: (key, value) => bridge.plugins.pluginKVSet(props.hostContext.pluginId, key, value),
+      kvRemove: (key) => bridge.plugins.pluginKVRemove(props.hostContext.pluginId, key),
+      closeWindow: () => bridge.window.closeWindow(),
+      components: pluginComponentLibrary as unknown as PluginComponentLibraryRef,
+      translate: (word: string) => dictionaryTargetLanguage
+        ? getBackend().translate(word, language, { dictionaryTargetLanguage })
+        : getBackend().translate(word, language),
+    };
+  });
 
   const componentUrl = createMemo(() => {
     const ui = props.hostContext.ui;

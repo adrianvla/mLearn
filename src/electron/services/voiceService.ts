@@ -100,6 +100,16 @@ function fetchJson(url: string): Promise<Record<string, unknown>> {
   });
 }
 
+function withQuery(url: string, params: Record<string, string | undefined>): string {
+  const parsed = new URL(url);
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      parsed.searchParams.set(key, value);
+    }
+  }
+  return parsed.toString();
+}
+
 function postJson(
   url: string,
   body: Record<string, unknown>,
@@ -111,7 +121,7 @@ function postJson(
       {
         hostname: urlObj.hostname,
         port: urlObj.port,
-        path: urlObj.pathname,
+        path: `${urlObj.pathname}${urlObj.search}`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -277,7 +287,7 @@ let ttsAbortController: AbortController | null = null;
 // Model Status Check
 // ============================================================================
 
-async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
+async function checkModelStatus(language: string): Promise<VoiceModelStatus> {
   const status: VoiceModelStatus = {
     sttDownloaded: false,
     ttsDownloaded: false,
@@ -291,7 +301,7 @@ async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
   try {
     const [sttRes, ttsRes] = await Promise.all([
       fetchJson(API_ENDPOINTS.voiceSttStatus),
-      fetchJson(API_ENDPOINTS.voiceTtsStatus),
+      fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language })),
     ]);
     status.sttDownloaded = (sttRes.downloaded as boolean) ?? false;
     status.ttsDownloaded = (ttsRes.downloaded as boolean) ?? false;
@@ -306,6 +316,23 @@ async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
   }
 
   return status;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function emitModelDownloadProgress(
+  language: string,
+  emitProgress: (status: VoiceModelStatus) => void,
+): Promise<void> {
+  const status = await checkModelStatus(language);
+  emitProgress({
+    ...status,
+    downloading: true,
+    progress: Math.min(0.5 + status.progress * 0.5, 0.99),
+    statusMessage: 'Downloading voice models…',
+  });
 }
 
 // ============================================================================
@@ -702,7 +729,7 @@ async function generateTTS(
   // Check if TTS model is loaded — if not, signal that model loading is in progress
   let modelLoading = false;
   try {
-    const ttsStatus = await fetchJson(API_ENDPOINTS.voiceTtsStatus);
+    const ttsStatus = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
     modelLoading = !(ttsStatus.loaded as boolean);
   } catch (e) {
     log.error("error", e);
@@ -720,11 +747,11 @@ async function generateTTS(
         return;
       }
       try {
-        const s = await fetchJson(API_ENDPOINTS.voiceTtsStatus);
+        const s = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
         sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
           generating: true,
           playing: false,
-          modelLoading: !(s.loaded as boolean),
+          modelLoading: !(s.loaded as boolean) || ((s.downloading as boolean) ?? false),
           downloadProgress: s.progress as number ?? 0,
         });
       } catch (e) {
@@ -896,7 +923,23 @@ export function setupVoiceIPC(): void {
         ttsModelName: 'Kokoro-82M',
       });
 
-      await postJson(API_ENDPOINTS.voiceModelsDownload, {});
+      let downloadComplete = false;
+      const downloadPromise = postJson(
+        withQuery(API_ENDPOINTS.voiceModelsDownload, { language }),
+        {},
+      )
+        .finally(() => {
+          downloadComplete = true;
+        });
+      const downloadSettled = downloadPromise.then(() => undefined, () => undefined);
+
+      while (!downloadComplete) {
+        await Promise.race([downloadSettled, wait(1000)]);
+        if (!downloadComplete) {
+          await emitModelDownloadProgress(language, emitProgress);
+        }
+      }
+      await downloadPromise;
 
       const finalStatus = await checkModelStatus(language);
       if (!finalStatus.sttDownloaded || !finalStatus.ttsDownloaded) {
@@ -1034,15 +1077,19 @@ export function setupVoiceIPC(): void {
   // Transcribe a voice sample via Python STT
   ipcMain.handle(
     IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE,
-    async (_event, id: string) => {
+    async (_event, id: string, language?: string) => {
       const samples = loadSamplesManifest();
       const sample = samples.find((s) => s.id === id);
       if (!sample) throw new Error('Voice sample not found');
 
       const samplePath = getVoiceSamplePath(sample);
-      const { data } = await postJson(API_ENDPOINTS.voiceTranscribe, {
+      const payload: { voiceSamplePath: string; language?: string } = {
         voiceSamplePath: samplePath,
-      });
+      };
+      if (language) {
+        payload.language = language;
+      }
+      const { data } = await postJson(API_ENDPOINTS.voiceTranscribe, payload);
       const parsed = JSON.parse(data.toString('utf-8'));
       if (parsed.detail) {
         throw new Error(typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail));

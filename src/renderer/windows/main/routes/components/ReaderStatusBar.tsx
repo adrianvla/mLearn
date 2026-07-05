@@ -8,6 +8,7 @@ import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../.
 import { StatusBar, formatKeybindDisplay, RangeInput, BatteryLowIcon } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
 import { DEFAULT_SETTINGS } from '../../../../../shared/types';
+import { ocrReadingAnnotationFilteringEnabled } from '../../../../../shared/readingAnnotationSettings';
 import type { OcrProcessingTimes } from '../../../../components/reader';
 import './ReaderStatusBar.css';
 
@@ -26,8 +27,8 @@ interface ReaderStatusBarProps {
   debugOcr?: Accessor<boolean>;
   onToggleDebugOcr?: () => void;
   lastOcrTiming?: Accessor<OcrProcessingTimes | null>;
-  paddleOcrScale?: Accessor<number>;
-  onPaddleOcrScaleChange?: (value: number) => void;
+  ocrDetectionScale?: Accessor<number>;
+  onOcrDetectionScaleChange?: (value: number) => void;
   zoneDeltaThreshold?: Accessor<number>;
   onZoneDeltaThresholdChange?: (value: number) => void;
 }
@@ -35,7 +36,7 @@ interface ReaderStatusBarProps {
 export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { currentLangData } = useLanguage();
+  const { getLanguageFeatures } = useLanguage();
   const { isActive: isLowPowerActive } = useLowPowerGate();
 
   /** Get label for hover trigger mode - dynamically includes the configured key for key-hover mode */
@@ -80,15 +81,18 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   };
 
   const isTurbo = () => settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
-  const isFuriganaDetection = () => settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection!;
-  const hasFurigana = () => currentLangData()?.hasFurigana ?? false;
+  const isReadingAnnotationDetection = () => ocrReadingAnnotationFilteringEnabled(settings);
+  const supportsReadingDetection = () => getLanguageFeatures().supportsReadings;
 
   const toggleTurbo = () => {
     updateSettings({ ocrTurboMode: !isTurbo() });
   };
 
-  const toggleFuriganaDetection = () => {
-    updateSettings({ ocrFuriganaDetection: !isFuriganaDetection() });
+  const toggleReadingAnnotationDetection = () => {
+    const enabled = !isReadingAnnotationDetection();
+    updateSettings({
+      ocrReadingAnnotationFiltering: enabled,
+    });
   };
 
   const timingSummary = createMemo(() => {
@@ -149,16 +153,16 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.TurboModeOff')}
             </button>
           </Show>
-          <Show when={settings.ocrEnabled && hasFurigana()}>
+          <Show when={settings.ocrEnabled && supportsReadingDetection()}>
             <button
               class="statusbar-toggle"
-              classList={{ 'active': isFuriganaDetection() }}
-              onClick={toggleFuriganaDetection}
-              title={t('mlearn.Settings.Reader.OcrSettings.FuriganaDetection.Description')}
+              classList={{ 'active': isReadingAnnotationDetection() }}
+              onClick={toggleReadingAnnotationDetection}
+              title={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description')}
             >
-              {isFuriganaDetection()
-                ? t('mlearn.Reader.StatusBar.FuriganaDetectionOn')
-                : t('mlearn.Reader.StatusBar.FuriganaDetectionOff')}
+              {isReadingAnnotationDetection()
+                ? t('mlearn.Reader.StatusBar.ReadingAnnotationDetectionOn')
+                : t('mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff')}
             </button>
           </Show>
           <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr && props.onToggleDebugOcr}>
@@ -173,24 +177,24 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.DebugOverlayOff')}
             </button>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && !isTurbo() && props.paddleOcrScale && props.onPaddleOcrScaleChange}>
-            <div class="paddle-downscale-section" title={t('mlearn.Reader.StatusBar.PaddleDownscaleTitle')}>
-              <span class="paddle-downscale-label">
-                {t('mlearn.Reader.StatusBar.PaddleDownscaleLabel', { value: String(props.paddleOcrScale!()) })}
+          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && !isTurbo() && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
+            <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.DetectionScaleTitle')}>
+              <span class="ocr-detection-scale-label">
+                {t('mlearn.Reader.StatusBar.DetectionScaleLabel', { value: String(props.ocrDetectionScale!()) })}
               </span>
               <RangeInput
                 min={10}
                 max={100}
                 step={5}
-                value={props.paddleOcrScale!()}
-                onChange={props.onPaddleOcrScaleChange!}
-                class="paddle-downscale-slider"
+                value={props.ocrDetectionScale!()}
+                onChange={props.onOcrDetectionScaleChange!}
+                class="ocr-detection-scale-slider"
               />
             </div>
           </Show>
           <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
-            <div class="paddle-downscale-section" title={t('mlearn.Reader.StatusBar.ZoneDeltaTitle')}>
-              <span class="paddle-downscale-label">
+            <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.ZoneDeltaTitle')}>
+              <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.ZoneDeltaLabel', { value: props.zoneDeltaThreshold!().toFixed(0) })}
               </span>
               <RangeInput
@@ -199,7 +203,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 step={1}
                 value={props.zoneDeltaThreshold!()}
                 onChange={props.onZoneDeltaThresholdChange!}
-                class="paddle-downscale-slider"
+                class="ocr-detection-scale-slider"
               />
             </div>
           </Show>

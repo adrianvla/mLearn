@@ -7,13 +7,14 @@ import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, SortableList } from '../../../components/common';
 import type { SortableListItem } from '../../../components/common';
 import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
+import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../../shared/languageFeatures';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, getPassiveHoverFailAction, getPassiveHoverFailCount } from '@shared/utils/passiveWordTracking';
 import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { getFreqLevelNames, getLanguageFeatures } = useLanguage();
+  const { currentLangData, getFreqLevelNames, getLanguageFeatures, getWordFrequency } = useLanguage();
 
   const passiveHoverDelayMs = () => getPassiveHoverDelayMs(settings);
   const passiveHoverFailCount = () => getPassiveHoverFailCount(settings);
@@ -60,10 +61,21 @@ export const BehaviourTab: Component = () => {
 
   const freqLevels = createMemo(() => {
     const names = getFreqLevelNames();
-    return Object.entries(names).sort((a, b) => Number(b[0]) - Number(a[0]));
+    const languageData = currentLangData();
+    const levels = new Set<number>();
+    for (const level of Object.keys(names).map(Number)) {
+      if (isDisplayableFrequencyLevel(level, names, languageData)) levels.add(level);
+    }
+    for (const entry of Object.values(getWordFrequency())) {
+      if (isDisplayableFrequencyLevel(entry.raw_level, names, languageData)) levels.add(entry.raw_level);
+    }
+
+    return sortFrequencyLevelsForDisplay(Array.from(levels), languageData)
+      .map((level) => [String(level), getFrequencyLevelLabel(level, names, currentLangData())] as [string, string]);
   });
 
   const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
+  const selectedLearningLanguageLevel = createMemo(() => getLearningLanguageLevelForLanguage(settings, settings.language));
 
   const passiveExposures = (ease: number) => {
     const bump = 0.01;
@@ -342,10 +354,17 @@ export const BehaviourTab: Component = () => {
           >
             <Select
               class="setting-select"
-              value={settings.learningLanguageLevel != null ? String(settings.learningLanguageLevel) : ''}
+              value={selectedLearningLanguageLevel() != null ? String(selectedLearningLanguageLevel()) : ''}
               onChange={(e) => {
                 const val = e.currentTarget.value;
-                updateSettings({ learningLanguageLevel: val ? parseInt(val) : null });
+                const parsed = Number(val);
+                const level = val && Number.isFinite(parsed) ? parsed : null;
+                updateSettings({
+                  learningLanguageLevels: {
+                    ...(settings.learningLanguageLevels ?? {}),
+                    [settings.language]: level,
+                  },
+                });
               }}
             >
               <option value="">{t('mlearn.Settings.Behaviour.LearningLanguageLevel.NoLimit')}</option>

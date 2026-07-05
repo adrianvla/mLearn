@@ -1,21 +1,24 @@
 import { Component, Show, For, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import type { TranslationEntry, Token } from '../../../shared/types';
 import { WINDOW_TYPES } from '../../../shared/constants';
-import { normalizeReading } from '../../../shared/utils/textUtils';
 import { WindowWrapper, useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { toUniqueIdentifier } from '../../services/statsService';
-import { fetchTranslation } from '../../hooks/useTranslation';
+import { fetchTranslation, getCachedTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, PitchAccentOverlay, Spinner, ClockIcon } from '../../components/common';
+import { PillBtn, PillLabel, Spinner, ClockIcon } from '../../components/common';
+import { ProsodyOverlay } from '../../components/language-specific';
 import { WordStatusPill } from '../../components/common/Smart';
 import {
   buildWordHoverFlashcardContent,
-  extractPitchAccentFromTranslationData,
-  extractReadingFromEntries,
+  resolveProsodyForHover,
   type WordHoverTranslationData,
 } from '../../components/subtitle/wordHoverHelpers';
 import { openWordLookup } from '../../services/wordLookupService';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { extractReadingValue } from '../../utils/translationCacheParsers';
+import { getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import { prosodyVisible } from '../../../shared/prosodySettings';
 import './WordDefinition.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -27,14 +30,15 @@ const ICON_CHECK = 'check';
 const WordDefinitionContent: Component = () => {
   const { settings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
-  const { getFrequency, getLanguageFeatures, currentLangData } = useLanguage();
-  const { tokenize } = useTokenizer({ language: settings.language });
+  const { getFrequency, getFreqLevelNames, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
 
   const [word, setWord] = createSignal('');
   const [translationEntries, setTranslationEntries] = createSignal<TranslationEntry[]>([]);
   const [translationData, setTranslationData] = createSignal<WordHoverTranslationData | undefined>();
-  const [pitchAccent, setPitchAccent] = createSignal<{ position: number; reading: string } | null>(null);
   const [isLoading, setIsLoading] = createSignal(false);
   const [posType, setPosType] = createSignal('');
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
@@ -64,13 +68,12 @@ const WordDefinitionContent: Component = () => {
     setIsLoading(true);
     setTranslationEntries([]);
     setTranslationData(undefined);
-    setPitchAccent(null);
     setPosType('');
 
     // Generate UUID
     toUniqueIdentifier(w).then((uuid) => setWordUuid(uuid)).catch(() => {});
 
-    fetchTranslation(w, settings.language)
+    fetchTranslation(w, settings.language, wordLookupOptions)
       .then((resp) => {
         if (id !== fetchId) return;
         const data = resp?.data || [];
@@ -82,16 +85,6 @@ const WordDefinitionContent: Component = () => {
         }
         setTranslationEntries(entries);
         setTranslationData(resp ? { data: resp.data } : undefined);
-
-        // Extract pitch accent
-        const features = getLanguageFeatures();
-        if (features.supportsPitchAccent && settings.showPitchAccent) {
-          const reading = normalizeReading(extractReadingFromEntries(data));
-          const position = extractPitchAccentFromTranslationData(resp);
-          if (reading && reading.length > 0 && position !== undefined) {
-            setPitchAccent({ position, reading });
-          }
-        }
 
         // POS not available on TranslationEntry — would need tokenization
       })
@@ -110,25 +103,46 @@ const WordDefinitionContent: Component = () => {
   const currentFlashcard = createMemo(() => {
     const w = word();
     if (!w) return null;
-    return getCardByWordSync(w);
+    return getCardByWordSync(w, settings.language);
   });
 
   const isInSRS = createMemo(() => {
     if (isAddingFlashcard()) return true;
     const w = word();
     if (!w) return false;
-    return hasWordSync(w);
+    return hasWordSync(w, settings.language);
   });
 
   const currentEase = createMemo(() => currentFlashcard()?.ease);
 
-  const comprehensiveStatus = createMemo(() => getComprehensiveWordStatusSync(word()));
+  const comprehensiveStatus = createMemo(() => getComprehensiveWordStatusSync(word(), settings.language));
+
+  const definitionProsody = createMemo(() => {
+    return resolveProsodyForHover({
+      word: word(),
+      translationData: translationData(),
+      showProsody: prosodyVisible(settings),
+      getCanonicalForm,
+      getWordVariants,
+      getCachedTranslation,
+      language: settings.language,
+      languageData: currentLangData(),
+      dictionaryTargetLanguage,
+      fallbackLabel: t('mlearn.CardEditor.Fields.ProsodyPosition'),
+    });
+  });
 
   const levelPillData = createMemo(() => {
     const w = word();
     if (!w) return null;
     const freq = getFrequency(w);
-    if (freq) return { level: freq.raw_level, name: freq.level };
+    if (freq) {
+      return {
+        level: freq.raw_level,
+        visualLevel: getFrequencyLevelVisualRank(freq.raw_level, getFreqLevelNames(), currentLangData()),
+        name: freq.level,
+      };
+    }
     return null;
   });
 
@@ -138,6 +152,8 @@ const WordDefinitionContent: Component = () => {
   });
 
   const isTracked = createMemo(() => isInSRS());
+
+  const entryReading = (entry: TranslationEntry) => extractReadingValue(entry, currentLangData()) ?? '';
 
   const handleAddFlashcard = async (e?: MouseEvent) => {
     if (e) {
@@ -158,14 +174,15 @@ const WordDefinitionContent: Component = () => {
         contextPhrase: undefined,
         isOcr: false,
         wordUuid: wordUuid(),
-        level: freq?.raw_level ?? -1,
+        level: freq?.raw_level,
         wordStatus: comprehensiveStatus(),
-        colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
+        colourCodes: settings.colour_codes || {},
+        languageData: currentLangData(),
         tokenize,
-srsLearningEase: settings.srsLearningThreshold / 1000,
-          srsKnownEase: settings.known_ease_threshold / 1000,
+        srsLearningEase: settings.srsLearningThreshold / 1000,
+        srsKnownEase: settings.known_ease_threshold / 1000,
       });
-      await addFlashcard(content, ease);
+      await addFlashcard(content, ease, undefined, settings.language);
     } catch (err) {
       log.error('Failed to add flashcard:', err);
       alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
@@ -220,8 +237,8 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
                         : String(entry.definitions) || ''
                     }
                   />
-                  <Show when={entry.reading}>
-                    <div class="word-definition__reading">{entry.reading}</div>
+                  <Show when={entryReading(entry)}>
+                    {(reading) => <div class="word-definition__reading">{reading()}</div>}
                   </Show>
                 </>
               )}
@@ -238,24 +255,38 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
       <div class="word-definition__footer">
         <div class="word-definition__pills">
-          <PitchAccentOverlay
-            word={word()}
-            reading={pitchAccent()?.reading || ''}
-            pitchPosition={pitchAccent()?.position ?? null}
-            pos={posType()}
-            mode="pill"
-            showParticleBox={true}
-            homogenous={true}
-          />
+          <Show when={definitionProsody()?.renderer === 'inline-overlay' ? definitionProsody() : null}>
+            {(prosody) => (
+              <ProsodyOverlay
+                word={word()}
+                reading={prosody().reading}
+                prosodyPosition={prosody().position}
+                prosodyType={prosody().type}
+                languageData={currentLangData()}
+                pos={posType()}
+                mode="pill"
+                showParticleBox={true}
+                homogenous={true}
+              />
+            )}
+          </Show>
+          <Show when={definitionProsody()?.renderer === 'label' ? definitionProsody() : null}>
+            {(prosody) => (
+              <PillLabel variant="gray" class="prosody-position-pill">
+                <span class="prosody-position-pill__label">{prosody().label}</span>
+                <span class="prosody-position-pill__value">{prosody().value}</span>
+              </PillLabel>
+            )}
+          </Show>
           <Show when={levelPillData()}>
             {(data) => (
-              <PillLabel level={data().level}>{data().name}</PillLabel>
+              <PillLabel level={data().level} visualLevel={data().visualLevel}>{data().name}</PillLabel>
             )}
           </Show>
           <Show when={posType() && settings.show_pos}>
             <PillLabel>{posType()}</PillLabel>
           </Show>
-          <WordStatusPill word={word()} />
+          <WordStatusPill word={word()} language={settings.language} />
           <Show when={isTracked()} fallback={
             <Show when={isAddingFlashcard()} fallback={
               <PillBtn

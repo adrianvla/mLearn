@@ -7,12 +7,16 @@ import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
+import {
+  ocrReadingAnnotationFilteringEnabled,
+  readerReadingAnnotationHiderEnabled,
+} from '../../../../shared/readingAnnotationSettings';
 import '../SettingsForm.css';
 
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { currentLangData } = useLanguage();
+  const { getLanguageFeatures } = useLanguage();
 
   return (
     <TabContent
@@ -50,7 +54,7 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={currentLangData()?.hasOcrRamSaver}>
+        <Show when={getLanguageFeatures().supportsOcrRamSaver}>
           <SettingRow
             label={t('mlearn.Settings.Reader.OcrSettings.RamSaver.Label')}
             description={t('mlearn.Settings.Reader.OcrSettings.RamSaver.Description')}
@@ -72,14 +76,16 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={currentLangData()?.hasFurigana}>
+        <Show when={getLanguageFeatures().supportsReadings}>
           <SettingRow
-            label={t('mlearn.Settings.Reader.OcrSettings.FuriganaDetection.Label')}
-            description={t('mlearn.Settings.Reader.OcrSettings.FuriganaDetection.Description')}
+            label={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Label')}
+            description={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description')}
           >
             <ToggleSwitch
-              checked={settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection!}
-              onChange={(checked) => updateSettings({ ocrFuriganaDetection: checked })}
+              checked={ocrReadingAnnotationFilteringEnabled(settings)}
+              onChange={(checked) => updateSettings({
+                ocrReadingAnnotationFiltering: checked,
+              })}
             />
           </SettingRow>
         </Show>
@@ -115,17 +121,21 @@ export const ReaderTab: Component = () => {
         </Show>
       </SettingGroup>
       
-      <SettingGroup title={t('mlearn.Settings.Reader.Furigana.Title')}>
-        <SettingRow
-          label={t('mlearn.Settings.Reader.Furigana.Hide.Label')}
-          description={t('mlearn.Settings.Reader.Furigana.Hide.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.readerFuriganaHider ?? DEFAULT_SETTINGS.readerFuriganaHider!}
-            onChange={(checked) => updateSettings({ readerFuriganaHider: checked })}
-          />
-        </SettingRow>
-      </SettingGroup>
+      <Show when={getLanguageFeatures().supportsReadings}>
+        <SettingGroup title={t('mlearn.Settings.Reader.ReadingAnnotations.Title')}>
+          <SettingRow
+            label={t('mlearn.Settings.Reader.ReadingAnnotations.Hide.Label')}
+            description={t('mlearn.Settings.Reader.ReadingAnnotations.Hide.Description')}
+          >
+            <ToggleSwitch
+              checked={readerReadingAnnotationHiderEnabled(settings)}
+              onChange={(checked) => updateSettings({
+                readerReadingAnnotationHider: checked,
+              })}
+            />
+          </SettingRow>
+        </SettingGroup>
+      </Show>
 
       <SettingGroup title={t('mlearn.Settings.Reader.Magnifier.Title')}>
         <SettingRow

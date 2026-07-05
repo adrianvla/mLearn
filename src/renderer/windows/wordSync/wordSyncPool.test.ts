@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import type { LanguageData } from '../../../shared/types';
 import {
   wasExplicitlySyncRated,
   shouldIncludeForLevel,
-  calculateKanjiBoost,
+  calculateCharacterStudyBoost,
   calculateWordWeight,
   isWordEligible,
   THIRTY_DAYS_MS,
@@ -51,6 +52,15 @@ describe('wasExplicitlySyncRated', () => {
 // ---------------------------------------------------------------------------
 
 describe('shouldIncludeForLevel', () => {
+  const ascendingDifficultyLanguage: LanguageData = {
+    name: 'Ascending Difficulty Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    frequencyLevels: {
+      difficulty: 'higher-is-harder',
+    },
+  };
+
   it('includes all levels when target is 0', () => {
     expect(shouldIncludeForLevel(1, 0)).toBe(true);
     expect(shouldIncludeForLevel(5, 0)).toBe(true);
@@ -82,51 +92,70 @@ describe('shouldIncludeForLevel', () => {
   it('negative target behaves like no filter', () => {
     expect(shouldIncludeForLevel(1, -1)).toBe(true);
   });
+
+  it('supports languages where higher numeric levels are harder', () => {
+    expect(shouldIncludeForLevel(1, 2, ascendingDifficultyLanguage)).toBe(true);
+    expect(shouldIncludeForLevel(2, 2, ascendingDifficultyLanguage)).toBe(true);
+    expect(shouldIncludeForLevel(3, 2, ascendingDifficultyLanguage)).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// calculateKanjiBoost
+// calculateCharacterStudyBoost
 // ---------------------------------------------------------------------------
 
-describe('calculateKanjiBoost', () => {
-  it('returns 1.0 when knownKanjiSet is empty', () => {
-    expect(calculateKanjiBoost('漢字', new Set())).toBe(1.0);
+describe('calculateCharacterStudyBoost', () => {
+  it('returns 1.0 when knownCharacterSet is empty', () => {
+    expect(calculateCharacterStudyBoost('漢字', new Set(), ['Han'])).toBe(1.0);
   });
 
-  it('returns 1.0 when word has no matching kanji', () => {
-    expect(calculateKanjiBoost('あいう', new Set(['漢', '字']))).toBe(1.0);
+  it('returns 1.0 when no study scripts are configured', () => {
+    expect(calculateCharacterStudyBoost('漢字', new Set(['漢', '字']), [])).toBe(1.0);
   });
 
-  it('returns 1.0 for word with kanji not in known set', () => {
-    expect(calculateKanjiBoost('天気', new Set(['漢', '字']))).toBe(1.0);
+  it('returns 1.0 when word has no matching study characters', () => {
+    expect(calculateCharacterStudyBoost('あいう', new Set(['漢', '字']), ['Han'])).toBe(1.0);
   });
 
-  it('boosts by 0.25 for 1 matching kanji', () => {
-    expect(calculateKanjiBoost('漢字', new Set(['漢']))).toBe(1.25);
+  it('returns 1.0 for word with study characters not in known set', () => {
+    expect(calculateCharacterStudyBoost('天気', new Set(['漢', '字']), ['Han'])).toBe(1.0);
   });
 
-  it('boosts by 0.50 for 2 matching kanji', () => {
-    expect(calculateKanjiBoost('漢字', new Set(['漢', '字']))).toBe(1.5);
+  it('boosts by 0.25 for 1 matching study character', () => {
+    expect(calculateCharacterStudyBoost('漢字', new Set(['漢']), ['Han'])).toBe(1.25);
   });
 
-  it('boosts by 0.75 for 3 matching kanji', () => {
-    expect(calculateKanjiBoost('漢字学', new Set(['漢', '字', '学']))).toBe(1.75);
+  it('boosts by 0.50 for 2 matching study characters', () => {
+    expect(calculateCharacterStudyBoost('漢字', new Set(['漢', '字']), ['Han'])).toBe(1.5);
   });
 
-  it('caps boost at 3 kanji (1.75x) even with 4+ matches', () => {
-    expect(calculateKanjiBoost('漢字学校', new Set(['漢', '字', '学', '校']))).toBe(1.75);
+  it('boosts by 0.75 for 3 matching study characters', () => {
+    expect(calculateCharacterStudyBoost('漢字学', new Set(['漢', '字', '学']), ['Han'])).toBe(1.75);
+  });
+
+  it('caps boost at 3 study characters (1.75x) even with 4+ matches', () => {
+    expect(calculateCharacterStudyBoost('漢字学校', new Set(['漢', '字', '学', '校']), ['Han'])).toBe(1.75);
   });
 
   it('handles empty word', () => {
-    expect(calculateKanjiBoost('', new Set(['漢']))).toBe(1.0);
+    expect(calculateCharacterStudyBoost('', new Set(['漢']), ['Han'])).toBe(1.0);
   });
 
-  it('ignores kana characters', () => {
-    expect(calculateKanjiBoost('漢あ字い', new Set(['漢', '字']))).toBe(1.5);
+  it('ignores characters outside configured study scripts', () => {
+    expect(calculateCharacterStudyBoost('漢あ字い', new Set(['漢', '字']), ['Han'])).toBe(1.5);
   });
 
-  it('counts each distinct kanji only once', () => {
-    expect(calculateKanjiBoost('漢漢漢', new Set(['漢']))).toBe(1.25);
+  it('counts each distinct study character only once', () => {
+    expect(calculateCharacterStudyBoost('漢漢漢', new Set(['漢']), ['Han'])).toBe(1.25);
+  });
+
+  it('works for non-Han character study scripts', () => {
+    expect(calculateCharacterStudyBoost('дом', new Set(['д', 'о']), ['Cyrl'])).toBe(1.5);
+  });
+
+  it('uses script-configured study characters for Arabic/Farsi text with combining marks', () => {
+    expect(calculateCharacterStudyBoost('سَلَام', new Set(['س', 'ل', 'ا', 'م']), ['Arab'])).toBe(1.75);
+    expect(calculateCharacterStudyBoost('خانه', new Set(['خ', 'ا']), ['Arab'])).toBe(1.5);
   });
 });
 
@@ -232,7 +261,7 @@ describe('calculateWordWeight', () => {
     expect(calculateWordWeight(4.0, 1.0)).toBe(0.5);
   });
 
-  it('multiplies by kanji boost', () => {
+  it('multiplies by character study boost', () => {
     expect(calculateWordWeight(undefined, 1.5)).toBeCloseTo(3.0);
     expect(calculateWordWeight(1.3, 1.25)).toBeCloseTo(2.125);
   });

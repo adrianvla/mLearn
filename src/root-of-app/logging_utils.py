@@ -302,11 +302,18 @@ def _signal_handler(signum, _frame) -> None:
 
 def _atexit_handler() -> None:
     try:
-        get_logger("lifecycle").info(
-            "Process exiting cleanly (pid=%d, threads=%d)",
-            os.getpid(),
-            threading.active_count(),
+        root_logger = logging.getLogger(ROOT_LOGGER_NAME)
+        has_closed_stream = any(
+            getattr(getattr(handler, "stream", None), "closed", False)
+            for handler in root_logger.handlers
+            if isinstance(handler, logging.StreamHandler)
         )
+        if not has_closed_stream:
+            get_logger("lifecycle").info(
+                "Process exiting cleanly (pid=%d, threads=%d)",
+                os.getpid(),
+                threading.active_count(),
+            )
     except Exception:
         pass
     if _crash_log_fp is not None:

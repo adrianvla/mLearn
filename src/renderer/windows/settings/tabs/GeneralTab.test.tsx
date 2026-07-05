@@ -9,12 +9,24 @@ const saveSettingsMock = vi.fn();
 const restartBackendMock = vi.fn();
 const onSettingsSavedMock = vi.fn();
 const settingsSavedCleanupMock = vi.fn();
+const installLanguageDataMock = vi.fn();
 
-let settingsSavedHandler: (() => void) | undefined;
+let mockLanguageDataCatalog = [
+  { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
+  {
+    language: 'de',
+    name: 'German',
+    installed: false,
+    missingRequiredAssets: ['language-metadata'],
+    dictionaryPacks: [{ targetLanguage: 'en', name: 'German -> English', installed: false }],
+  },
+];
+let mockLanguageDataInstallError: { language: string; error: string } | null = null;
 
 const testSettings = {
   uiLanguage: 'en',
   language: 'ja',
+  dictionaryTargetLanguages: {} as Record<string, string>,
   theme: 'light',
   devMode: false,
 };
@@ -22,6 +34,7 @@ const testSettings = {
 const mockLangData = {
   ja: { name: 'Japanese', name_translated: '日本語' },
   de: { name: 'German', name_translated: 'Deutsch' },
+  xx: { name: 'Example Language', name_translated: 'Example Native' },
 };
 
 vi.mock('../../../context', () => ({
@@ -36,6 +49,11 @@ vi.mock('../../../context', () => ({
   useLanguage: () => ({
     langData: mockLangData,
     supportedLanguages: () => Object.keys(mockLangData),
+    languageDataCatalog: () => mockLanguageDataCatalog,
+    getLanguageDataStatus: (language: string) => mockLanguageDataCatalog.find((status) => status.language === language),
+    installLanguageData: installLanguageDataMock,
+    isLanguageDataInstalling: () => false,
+    languageDataInstallError: () => mockLanguageDataInstallError,
   }),
 }));
 
@@ -65,7 +83,12 @@ vi.mock('../../../components/common', () => ({
   ToggleSwitch: () => <div />,
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
-  Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props}>{props.children}</select>,
+  Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string }> }) => (
+    <select {...props}>
+      {props.children}
+      {props.options?.map((option) => <option value={option.value}>{option.label}</option>)}
+    </select>
+  ),
   SettingsIcon: () => <div />,
 }));
 
@@ -79,10 +102,23 @@ describe('GeneralTab', () => {
     saveSettingsMock.mockReset();
     restartBackendMock.mockReset();
     onSettingsSavedMock.mockReset();
+    installLanguageDataMock.mockReset();
     settingsSavedCleanupMock.mockReset();
-    settingsSavedHandler = undefined;
+    testSettings.language = 'ja';
+    testSettings.dictionaryTargetLanguages = {};
+    mockLanguageDataCatalog = [
+      { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
+      {
+        language: 'de',
+        name: 'German',
+        installed: false,
+        missingRequiredAssets: ['language-metadata'],
+        dictionaryPacks: [{ targetLanguage: 'en', name: 'German -> English', installed: false }],
+      },
+    ];
+    mockLanguageDataInstallError = null;
     onSettingsSavedMock.mockImplementation((callback: () => void) => {
-      settingsSavedHandler = callback;
+      callback;
       return settingsSavedCleanupMock;
     });
     vi.stubGlobal('alert', vi.fn());
@@ -94,7 +130,7 @@ describe('GeneralTab', () => {
     vi.unstubAllGlobals();
   });
 
-  it('restarts backend after learning language settings are saved', async () => {
+  it('saves learning language through the settings context', async () => {
     const { GeneralTab } = await import('./GeneralTab');
     const dispose = render(() => <GeneralTab />, container);
 
@@ -105,15 +141,64 @@ describe('GeneralTab', () => {
     learningLanguageSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
     expect(updateSettingsMock).toHaveBeenCalledWith({ language: 'de' });
-    expect(saveSettingsMock).toHaveBeenCalledOnce();
-    expect(onSettingsSavedMock).toHaveBeenCalledOnce();
+    expect(saveSettingsMock).not.toHaveBeenCalled();
+    expect(onSettingsSavedMock).not.toHaveBeenCalled();
     expect(restartBackendMock).not.toHaveBeenCalled();
+    dispose();
+  });
 
-    expect(settingsSavedHandler).toBeTypeOf('function');
-    settingsSavedHandler?.();
+  it('keeps installed local languages available when the remote catalog is narrower', async () => {
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
 
-    expect(settingsSavedCleanupMock).toHaveBeenCalledOnce();
-    expect(restartBackendMock).toHaveBeenCalledOnce();
+    const selects = Array.from(container.querySelectorAll('select'));
+    const learningLanguageSelect = selects[1] as HTMLSelectElement;
+    const optionValues = Array.from(learningLanguageSelect.options).map((option) => option.value);
+
+    expect(optionValues).toContain('ja');
+    expect(optionValues).toContain('de');
+    expect(optionValues).toContain('xx');
+    dispose();
+  });
+
+  it('offers to install missing language data for the selected learning language', async () => {
+    testSettings.language = 'de';
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    const installButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Settings.Language.LanguageData.Install');
+    expect(installButton).toBeDefined();
+
+    installButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(installLanguageDataMock).toHaveBeenCalledWith('de');
+    testSettings.language = 'ja';
+    dispose();
+  });
+
+  it('installs the selected dictionary target when core language data is already installed', async () => {
+    testSettings.language = 'ja';
+    mockLanguageDataCatalog = [
+      {
+        language: 'ja',
+        name: 'Japanese',
+        installed: true,
+        missingRequiredAssets: [],
+        dictionaryPacks: [{ targetLanguage: 'en', name: 'Japanese -> English', installed: false }],
+      },
+    ];
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    const installButtons = Array.from(container.querySelectorAll('button'))
+      .filter((button) => button.textContent === 'mlearn.Settings.Language.LanguageData.Install');
+    expect(installButtons).toHaveLength(1);
+
+    installButtons[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(installLanguageDataMock).toHaveBeenCalledWith('ja', 'en');
+    expect(installLanguageDataMock).not.toHaveBeenCalledWith('ja');
     dispose();
   });
 });
