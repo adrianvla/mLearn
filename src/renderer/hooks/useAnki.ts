@@ -16,6 +16,11 @@ const log = getLogger("renderer.hooks.useAnki");
 
 const ANKI_CONNECT_VERSION = 6;
 
+const getAnkiDeckName = (
+  flashcardDeck: string | null | undefined,
+  ankiDeckName: string | undefined,
+): string => flashcardDeck || ankiDeckName || DEFAULT_SETTINGS.ankiDeckName!;
+
 interface AnkiRequest {
   action: string;
   version: number;
@@ -128,7 +133,7 @@ export function useAnki() {
     audioUrl?: string;
     imageUrl?: string;
   }): Promise<number | null> => {
-    const deckName = settings.flashcard_deck || settings.ankiDeckName || 'mLearn';
+    const deckName = getAnkiDeckName(settings.flashcard_deck, settings.ankiDeckName);
     const modelName = settings.anki_model_name || DEFAULT_SETTINGS.anki_model_name!;
     const fieldExpression = settings.anki_field_expression || DEFAULT_SETTINGS.anki_field_expression!;
     const fieldReading = settings.anki_field_reading || DEFAULT_SETTINGS.anki_field_reading!;
@@ -201,7 +206,7 @@ export function useAnki() {
   };
 
   const findNotes = async (word: string, deckName?: string): Promise<number[]> => {
-    const deck = deckName || settings.flashcard_deck || settings.ankiDeckName || 'mLearn';
+    const deck = getAnkiDeckName(deckName || settings.flashcard_deck, settings.ankiDeckName);
     const fieldExpression = settings.anki_field_expression || DEFAULT_SETTINGS.anki_field_expression!;
     try {
       return await ankiRequest<number[]>(getProxyUrl(), 'findNotes', {
@@ -330,7 +335,7 @@ export function useAnki() {
    * Returns card IDs for all card types (e.g. Reading + Listening).
    */
   const findCardsForWord = async (word: string): Promise<number[]> => {
-    const deck = settings.flashcard_deck || settings.ankiDeckName || 'mLearn';
+    const deck = getAnkiDeckName(settings.flashcard_deck, settings.ankiDeckName);
     const fieldExpression = settings.anki_field_expression || DEFAULT_SETTINGS.anki_field_expression!;
     return findCards(`deck:"${deck}" "${fieldExpression}:${word}"`);
   };

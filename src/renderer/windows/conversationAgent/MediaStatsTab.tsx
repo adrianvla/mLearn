@@ -9,6 +9,10 @@ import { Component, Show, For, createSignal, createMemo, onMount, onCleanup } fr
 import type { ConversationAgentContext, MediaStats, LevelPercentageEntry } from '../../../shared/types';
 import { useLocalization, useLanguage, useFlashcards, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
+import {
+  getFrequencyLevelVisualRank,
+  getGrammarLevelVisualRank,
+} from '../../../shared/languageFeatures';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import {
   TabContainer,
@@ -22,6 +26,12 @@ import {
 } from '../../components/common';
 import type { TabItem } from '../../components/common';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../utils/levelPercentages';
+import {
+  formatFrequencyLevelLabel,
+  formatGrammarLevelLabel,
+  getFrequencyFilterLevels,
+  getGrammarFilterLevels,
+} from '../../utils/levelLabels';
 import { formatDurationHM } from '../../utils/timeFormatting';
 import './MediaStatsTab.css';
 
@@ -129,9 +139,9 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const buildViewFromStats = (stats: MediaStats): MediaView => {
     const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
-    const wordLevels = computeWordLevelPercentages(stats, freqLookup);
-    const grammarLevels = computeGrammarLevelPercentages(stats, grammarLookup);
-    const level = assessMediaLevel(wordLevels);
+    const wordLevels = computeWordLevelPercentages(stats, freqLookup, langCtx.currentLangData());
+    const grammarLevels = computeGrammarLevelPercentages(stats, grammarLookup, langCtx.currentLangData());
+    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
     const levelNames = langCtx.getFreqLevelNames();
 
     // Use per-media wordsEncountered only; refine ease with global wordKnowledge
@@ -176,7 +186,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       mediaType: stats.mediaType,
       mediaHash: stats.mediaHash,
       assessedLevel: level,
-      assessedLevelName: level !== null && levelNames[String(level)] ? levelNames[String(level)] : '',
+      assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
       failedWords,
       failedGrammar,
       allWords,
@@ -264,21 +274,40 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       label: `${item.name}${item.isCurrent ? ` (${t('mlearn.ConversationAgent.Stats.Current')})` : ''}`,
     }));
 
-  const buildLevelFilterOptions = (names: Record<string, string>) => {
+  const buildLevelFilterOptions = (
+    names: Record<string, string>,
+    order: 'frequency' | 'grammar',
+    entries: LevelPercentageEntry[] = [],
+  ) => {
     const options = [
       { value: 'all', label: t('mlearn.ConversationAgent.Stats.Filter.All') },
       { value: 'failed-only', label: t('mlearn.ConversationAgent.Stats.Filter.FailedOnly') },
     ];
-    const levels = Object.keys(names).map(Number).sort((a, b) => a - b);
+    const levels = order === 'frequency'
+      ? getFrequencyFilterLevels(names, entries, langCtx.currentLangData())
+      : getGrammarFilterLevels(names, entries, langCtx.currentLangData());
     for (const lvl of levels) {
-      options.push({ value: `level:${lvl}`, label: names[String(lvl)] });
+      options.push({
+        value: `level:${lvl}`,
+        label: order === 'frequency'
+          ? formatFrequencyLevelLabel(lvl, names, langCtx.currentLangData())
+          : formatGrammarLevelLabel(lvl, names, langCtx.currentLangData()),
+      });
     }
     options.push({ value: 'unknown', label: t('mlearn.ConversationAgent.Stats.Filter.Unknown') });
     return options;
   };
 
-  const wordsFilterOptions = createMemo(() => buildLevelFilterOptions(langCtx.getFreqLevelNames()));
-  const grammarFilterOptions = createMemo(() => buildLevelFilterOptions(langCtx.getGrammarLevelNames()));
+  const wordsFilterOptions = createMemo(() => buildLevelFilterOptions(
+    langCtx.getFreqLevelNames(),
+    'frequency',
+    selectedView()?.wordLevelEntries,
+  ));
+  const grammarFilterOptions = createMemo(() => buildLevelFilterOptions(
+    langCtx.getGrammarLevelNames(),
+    'grammar',
+    selectedView()?.grammarLevelEntries,
+  ));
 
   const applyFilter = <T extends { level: number | null; failed: boolean }>(items: T[], filter: string): T[] => {
     if (filter === 'all') return items;
@@ -323,7 +352,15 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
               <div class="ca-stats-media-header">
                 <span class="ca-stats-media-name">{v().mediaName}</span>
                 <Show when={v().assessedLevelName}>
-                  <PillLabel level={v().assessedLevel ?? undefined} class="ca-stats-level-badge">{v().assessedLevelName}</PillLabel>
+                  <PillLabel
+                    level={v().assessedLevel ?? undefined}
+                    visualLevel={v().assessedLevel == null
+                      ? undefined
+                      : getFrequencyLevelVisualRank(v().assessedLevel!, langCtx.getFreqLevelNames(), langCtx.currentLangData())}
+                    class="ca-stats-level-badge"
+                  >
+                    {v().assessedLevelName}
+                  </PillLabel>
                 </Show>
               </div>
 
@@ -397,6 +434,8 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                     const filtered = applyFilter(v().allWords, wordsFilter());
                     const sorted = [...filtered].sort((a, b) => a.ease - b.ease);
                     const levelNames = langCtx.getFreqLevelNames();
+                    const levelLabel = (level: number | null) =>
+                      formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData());
                     return (
                       <div class="ca-stats-list">
                         <Show when={sorted.length === 0}>
@@ -411,8 +450,15 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                             <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < settings.easeThresholdUnknown ? 'severe' : ''}`}>
                               <span class="ca-stats-word">{entry.word}</span>
                               <span class="ca-stats-meta">
-                                <Show when={entry.level != null && levelNames[String(entry.level)]}>
-                                  <PillLabel level={entry.level ?? undefined}>{levelNames[String(entry.level)]}</PillLabel>
+                                <Show when={levelLabel(entry.level)}>
+                                  <PillLabel
+                                    level={entry.level ?? undefined}
+                                    visualLevel={entry.level == null
+                                      ? undefined
+                                      : getFrequencyLevelVisualRank(entry.level, levelNames, langCtx.currentLangData())}
+                                  >
+                                    {levelLabel(entry.level)}
+                                  </PillLabel>
                                 </Show>
                                 <span class="ca-stats-seen">{t('mlearn.ConversationAgent.Stats.Seen')} {entry.timesSeen}x</span>
                                 <Show when={entry.timesHovered > 0}>
@@ -444,6 +490,8 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                     const filtered = applyFilter(v().allGrammar, grammarFilter());
                     const sorted = [...filtered].sort((a, b) => a.ease - b.ease);
                     const levelNames = langCtx.getGrammarLevelNames();
+                    const levelLabel = (level: number | null) =>
+                      formatGrammarLevelLabel(level, levelNames, langCtx.currentLangData());
                     return (
                       <div class="ca-stats-list">
                         <Show when={sorted.length === 0}>
@@ -458,8 +506,15 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                             <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < settings.easeThresholdUnknown ? 'severe' : ''}`}>
                               <span class="ca-stats-word">{entry.pattern}</span>
                               <span class="ca-stats-meta">
-                                <Show when={entry.level != null && levelNames[String(entry.level)]}>
-                                  <PillLabel level={entry.level ?? undefined}>{levelNames[String(entry.level)]}</PillLabel>
+                                <Show when={levelLabel(entry.level)}>
+                                  <PillLabel
+                                    level={entry.level ?? undefined}
+                                    visualLevel={entry.level == null
+                                      ? undefined
+                                      : getGrammarLevelVisualRank(entry.level, levelNames, langCtx.currentLangData())}
+                                  >
+                                    {levelLabel(entry.level)}
+                                  </PillLabel>
                                 </Show>
                                 <Show when={entry.timesFailed > 0}>
                                   <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Failed')} {entry.timesFailed}x</span>

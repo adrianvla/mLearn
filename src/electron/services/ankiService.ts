@@ -2,8 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { getUserDataPath } from '../utils/platform';
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/types';
+import { getWordIndexText } from '../../shared/languageScriptProfile';
 import { getLogger } from '../../shared/utils/logger';
-import { loadSettings } from './settings';
+import { loadLangData, loadSettings } from './settings';
 
 const log = getLogger('electron.anki');
 const ANKI_CONNECT_VERSION = 6;
@@ -66,13 +67,6 @@ let getCardCache = new Map<string, AnkiCardLookupResponse>();
 
 function cachePath(): string {
   return path.join(getUserDataPath(), CACHE_FILENAME);
-}
-
-function extractWords(text: string, language: string): string {
-  if (language === 'ja' || language === 'zh' || language === 'ko') {
-    return Array.from(text).filter((char) => char.charCodeAt(0) > 128).join('');
-  }
-  return text.trim();
 }
 
 function stripHtml(text: string): string {
@@ -153,14 +147,15 @@ function buildIndexes(cards: AnkiCard[], settings: Settings): void {
   getCardCache = new Map();
 
   const noDuplicates = new Map<string, Set<string>>();
-  const language = settings.language || DEFAULT_SETTINGS.language;
+  const language = settings.language;
+  const languageData = loadLangData()[language] || null;
 
   for (const card of allCards) {
     const expression = card.fields.Expression?.value;
     if (!expression) {
       continue;
     }
-    const words = extractWords(expression, language);
+    const words = getWordIndexText(expression, language, languageData);
     wordsIds.set(words, card.cardId);
     cardsPerId.set(card.cardId, card);
   }
@@ -170,7 +165,7 @@ function buildIndexes(cards: AnkiCard[], settings: Settings): void {
     if (!expression) {
       continue;
     }
-    const characters = extractWords(expression, language);
+    const characters = getWordIndexText(expression, language, languageData);
     for (const character of Array.from(characters)) {
       const existing = noDuplicates.get(character);
       if (existing?.has(characters)) {

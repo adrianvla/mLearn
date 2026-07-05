@@ -1,8 +1,41 @@
 import { Component, createMemo, createSignal, Show } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
+import { getOcrRuntimeConfig } from '../../../../shared/languageFeatures';
 import { Panel, Btn, AlertBanner } from '../../../components/common';
 import './ComponentsTab.css';
+
+const KNOWN_OCR_ENGINE_LABEL_KEYS = {
+  rapidocr: 'RapidOCR',
+  paddleocr: 'PaddleOCR',
+  mangaocr: 'MangaOCR',
+} as const;
+
+const KNOWN_TTS_ENGINE_LABEL_KEYS = {
+  kokoro: 'KokoroTts',
+  qwen3: 'QwenTts',
+} as const;
+
+const RUNTIME_LABEL_OVERRIDES: Record<string, string> = {
+  ai: 'AI',
+  llm: 'LLM',
+  ocr: 'OCR',
+  stt: 'STT',
+  tts: 'TTS',
+  qwen3: 'Qwen3',
+};
+
+function formatRuntimeIdentifier(identifier: string): string {
+  return identifier
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => RUNTIME_LABEL_OVERRIDES[part.toLowerCase()] ?? `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+function formatOcrEngineName(engine: string): string {
+  return formatRuntimeIdentifier(engine).replace(/\s+OCR$/u, '');
+}
 
 type InstalledComponentGroup = {
   key: string;
@@ -20,7 +53,7 @@ type InstalledComponentGroup = {
 export const ComponentsTab: Component = () => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
-  const { languageDataCatalog } = useLanguage();
+  const { langData, languageDataCatalog } = useLanguage();
   const [installing, setInstalling] = createSignal(false);
   const [installError, setInstallError] = createSignal<string | null>(null);
 
@@ -39,6 +72,67 @@ export const ComponentsTab: Component = () => {
   ));
 
   const componentGroups = createMemo<InstalledComponentGroup[]>(() => {
+    const installedLanguages = Object.values(langData);
+    const installedOcrEngines = new Set<string>();
+    const installedTtsEngines = new Set<string>();
+    let hasInstalledSttRuntime = false;
+    for (const data of installedLanguages) {
+      const engine = getOcrRuntimeConfig(data).recognitionEngine;
+      if (engine) installedOcrEngines.add(engine);
+      const ttsConfig = data.runtime?.tts;
+      const ttsEngine = ttsConfig?.engine;
+      if (ttsEngine) {
+        installedTtsEngines.add(ttsEngine);
+      }
+      if (ttsConfig?.kokoroLangCode) installedTtsEngines.add('kokoro');
+      if (ttsConfig?.qwen3LanguageName) installedTtsEngines.add('qwen3');
+      if (data.runtime?.stt?.whisperLanguage) hasInstalledSttRuntime = true;
+    }
+
+    const ocrItems: InstalledComponentGroup['items'] = [];
+    for (const engine of Array.from(installedOcrEngines).sort()) {
+      if (engine in KNOWN_OCR_ENGINE_LABEL_KEYS) {
+        const label = KNOWN_OCR_ENGINE_LABEL_KEYS[engine as keyof typeof KNOWN_OCR_ENGINE_LABEL_KEYS];
+        ocrItems.push({
+          title: t(`mlearn.ComponentsTab.Items.${label}.Title`),
+          description: t(`mlearn.ComponentsTab.Items.${label}.Description`),
+        });
+        continue;
+      }
+      ocrItems.push({
+        title: t('mlearn.ComponentsTab.Items.GenericOCR.Title', { engine: formatOcrEngineName(engine) }),
+        description: t('mlearn.ComponentsTab.Items.GenericOCR.Description'),
+      });
+    }
+
+    const voiceItems: InstalledComponentGroup['items'] = [];
+    if (hasInstalledSttRuntime) {
+      voiceItems.push(
+        {
+          title: t('mlearn.ComponentsTab.Items.WhisperSmall.Title'),
+          description: t('mlearn.ComponentsTab.Items.WhisperSmall.Description'),
+        },
+        {
+          title: t('mlearn.ComponentsTab.Items.SileroVad.Title'),
+          description: t('mlearn.ComponentsTab.Items.SileroVad.Description'),
+        },
+      );
+    }
+    for (const engine of Array.from(installedTtsEngines).sort()) {
+      if (engine in KNOWN_TTS_ENGINE_LABEL_KEYS) {
+        const label = KNOWN_TTS_ENGINE_LABEL_KEYS[engine as keyof typeof KNOWN_TTS_ENGINE_LABEL_KEYS];
+        voiceItems.push({
+          title: t(`mlearn.ComponentsTab.Items.${label}.Title`),
+          description: t(`mlearn.ComponentsTab.Items.${label}.Description`),
+        });
+        continue;
+      }
+      voiceItems.push({
+        title: t('mlearn.ComponentsTab.Items.GenericTTS.Title', { engine: formatRuntimeIdentifier(engine) }),
+        description: t('mlearn.ComponentsTab.Items.GenericTTS.Description'),
+      });
+    }
+
     const groups: InstalledComponentGroup[] = [
     {
       key: 'llm',
@@ -63,47 +157,20 @@ export const ComponentsTab: Component = () => {
       description: t('mlearn.ComponentsTab.Groups.Reader.Description'),
       enabled: () => settings.ocrEnabled,
       toggle: (v: boolean) => updateSettings({ ocrEnabled: v }),
-      items: [
-        {
-          title: t('mlearn.ComponentsTab.Items.RapidOCR.Title'),
-          description: t('mlearn.ComponentsTab.Items.RapidOCR.Description'),
-        },
-        {
-          title: t('mlearn.ComponentsTab.Items.PaddleOCR.Title'),
-          description: t('mlearn.ComponentsTab.Items.PaddleOCR.Description'),
-        },
-        {
-          title: t('mlearn.ComponentsTab.Items.MangaOCR.Title'),
-          description: t('mlearn.ComponentsTab.Items.MangaOCR.Description'),
-        },
-      ],
-    },
-    {
-      key: 'voice',
-      title: t('mlearn.ComponentsTab.Groups.Voice.Title'),
-      description: t('mlearn.ComponentsTab.Groups.Voice.Description'),
-      enabled: () => settings.voiceEnabled,
-      toggle: (v: boolean) => updateSettings({ voiceEnabled: v }),
-      items: [
-        {
-          title: t('mlearn.ComponentsTab.Items.WhisperSmall.Title'),
-          description: t('mlearn.ComponentsTab.Items.WhisperSmall.Description'),
-        },
-        {
-          title: t('mlearn.ComponentsTab.Items.KokoroTts.Title'),
-          description: t('mlearn.ComponentsTab.Items.KokoroTts.Description'),
-        },
-        {
-          title: t('mlearn.ComponentsTab.Items.SileroVad.Title'),
-          description: t('mlearn.ComponentsTab.Items.SileroVad.Description'),
-        },
-        {
-          title: t('mlearn.ComponentsTab.Items.QwenTts.Title'),
-          description: t('mlearn.ComponentsTab.Items.QwenTts.Description'),
-        },
-      ],
+      items: ocrItems,
     },
     ];
+
+    if (voiceItems.length > 0) {
+      groups.push({
+        key: 'voice',
+        title: t('mlearn.ComponentsTab.Groups.Voice.Title'),
+        description: t('mlearn.ComponentsTab.Groups.Voice.Description'),
+        enabled: () => settings.voiceEnabled,
+        toggle: (v: boolean) => updateSettings({ voiceEnabled: v }),
+        items: voiceItems,
+      });
+    }
 
     const dictionaryItems = installedDictionaryItems();
     if (dictionaryItems.length > 0) {

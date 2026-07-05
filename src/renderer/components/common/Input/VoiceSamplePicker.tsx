@@ -143,7 +143,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
           setTranscribing(true);
           setLastTranscript('');
           try {
-            const result = await getBridge().voice.voiceSampleTranscribe(newSample.id);
+            const result = await getBridge().voice.voiceSampleTranscribe(newSample.id, settings.language);
             setLastTranscript(result.text);
             const updated = await getBridge().voice.voiceSampleList();
             if (updated) setVoiceSamples(updated);

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { estimateTokens, estimateMessagesTokens } from '@shared/utils/tokenEstimation'
+import type { LanguageData } from '@shared/types'
 
 // ============================================================================
 // estimateTokens
@@ -16,6 +17,10 @@ describe('estimateTokens', () => {
 
   it('estimates ~20 tokens for ~30 CJK characters', () => {
     expect(estimateTokens('あ'.repeat(30))).toBe(20)
+  })
+
+  it('uses dense-script estimation for Bopomofo phonetic text', () => {
+    expect(estimateTokens('ㄅ'.repeat(30))).toBe(20)
   })
 
   it('estimates 1 token for a single ASCII character', () => {
@@ -64,6 +69,69 @@ describe('estimateTokens', () => {
 
   it('handles mixed CJK, ASCII, and emoji together', () => {
     expect(estimateTokens('hello世界😀🔥')).toBe(7)
+  })
+
+  it('uses language metadata to estimate compact text for package-defined scripts', () => {
+    const languageData: LanguageData = {
+      name: 'Georgian compact test',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Geor'] },
+        wordIndexStrategy: {
+          type: 'character-containment',
+        },
+      },
+    }
+
+    expect(estimateTokens('ა'.repeat(15), {
+      language: 'ka',
+      languageData,
+    })).toBe(10)
+  })
+
+  it('uses explicit token-estimation scripts independently of word index strategy', () => {
+    const languageData: LanguageData = {
+      name: 'Compact Georgian prompt language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Geor'] },
+        wordIndexStrategy: {
+          type: 'whole-expression',
+        },
+        tokenEstimation: {
+          compactScripts: ['Geor'],
+        },
+      },
+    }
+
+    expect(estimateTokens('ა'.repeat(15), {
+      language: 'ka',
+      languageData,
+    })).toBe(10)
+  })
+
+  it('allows token-estimation metadata to opt out of character-containment density inference', () => {
+    const languageData: LanguageData = {
+      name: 'Character index but spaced prompt language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Geor'] },
+        wordIndexStrategy: {
+          type: 'character-containment',
+        },
+        tokenEstimation: {
+          compactScripts: [],
+        },
+      },
+    }
+
+    expect(estimateTokens('ა'.repeat(15), {
+      language: 'ka',
+      languageData,
+    })).toBe(8)
   })
 })
 

@@ -29,6 +29,10 @@ interface LanguageOption {
 
 const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!', '欢迎！', 'Добро пожаловать!'];
 
+function uniqueLanguageCodes(...groups: Array<readonly string[]>): string[] {
+  return [...new Set(groups.flat().filter(Boolean))];
+}
+
 function resolveInitialLanguageCode(preferredLanguage: string | undefined, availableLanguageCodes: readonly string[]): string {
   if (preferredLanguage && availableLanguageCodes.includes(preferredLanguage)) {
     return preferredLanguage;
@@ -64,7 +68,7 @@ const WelcomeContent: Component = () => {
   const catalogLanguageCodes = createMemo(() => languageDataCatalog().map((status) => status.language));
   const availableLanguageCodes = createMemo(() => {
     const catalogCodes = catalogLanguageCodes();
-    return catalogCodes.length > 0 ? catalogCodes : supportedLanguages();
+    return uniqueLanguageCodes(catalogCodes, supportedLanguages());
   });
   const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => ({
     code,

@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import * as tar from 'tar';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 
 const mockIpcListeners = new Map<string, ((event: MockIpcEvent, ...args: unknown[]) => void)[]>();
 
@@ -34,9 +35,14 @@ vi.mock('./localization', () => ({
 }));
 
 const mockDownloadFileWithProgress = vi.fn();
+const mockEnsureLanguagePythonRequirementsInstalled = vi.hoisted(() => vi.fn());
 
 vi.mock('../utils/downloadManager', () => ({
   downloadFileWithProgress: mockDownloadFileWithProgress,
+}));
+
+vi.mock('./pythonRuntimeRequirements', () => ({
+  ensureLanguagePythonRequirementsInstalled: mockEnsureLanguagePythonRequirementsInstalled,
 }));
 
 let tempDir: TempDir;
@@ -53,6 +59,7 @@ let setUILanguageMock: ReturnType<typeof vi.fn>;
 beforeEach(async () => {
   tempDir = createTempDir();
   mockDownloadFileWithProgress.mockReset();
+  mockEnsureLanguagePythonRequirementsInstalled.mockReset();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: false,
     status: 404,
@@ -98,12 +105,45 @@ describe('loadSettings', () => {
     expect(mod.hasSettingsFile()).toBe(true);
   });
 
+  it('treats installed language data as an existing profile even without settings.json', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
+
+    expect(mod.hasSettingsFile()).toBe(false);
+    expect(mod.hasInstalledLanguageData()).toBe(true);
+    expect(mod.hasExistingProfile()).toBe(true);
+  });
+
   it('returns DEFAULT_SETTINGS when settings file does not exist', () => {
     const settings = mod.loadSettings();
     expect(settings).toBeDefined();
     expect(typeof settings).toBe('object');
     expect(settings.language).toBeDefined();
     expect(settings.languageCatalogUrl).toBe('https://mlearn.kikan.net/language-catalog.json');
+  });
+
+  it('recovers the selected language from a single installed language when settings file is missing', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('ja');
+  });
+
+  it('does not guess a selected language from multiple installed languages when settings file is missing', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(path.join(langsDir, 'de.json'), JSON.stringify({ name: 'German' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('');
   });
 
   it('loads settings from an existing file', () => {
@@ -143,6 +183,18 @@ describe('loadSettings', () => {
     const settings = mod.loadSettings();
     expect(settings.language).toBeDefined();
   });
+
+  it('recovers a single installed language when settings file is not a plain object', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(settingsPath, 'null', 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'fa.json'), JSON.stringify({ name: 'Farsi' }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('fa');
+  });
 });
 
 describe('loadSettings migration', () => {
@@ -172,6 +224,105 @@ describe('loadSettings migration', () => {
     expect(settings.cloudLoginUrl).toBe('https://example.com');
   });
 
+  it('recovers the selected language from a single installed language on update', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ language: '' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('ja');
+  });
+
+  it('migrates the legacy learning level to the selected language on update', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      language: 'ja',
+      learningLanguageLevel: 3,
+      learningLanguageLevels: {},
+    }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.learningLanguageLevels.ja).toBe(3);
+  });
+
+  it('migrates the legacy learning level after recovering a single installed language', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      language: '',
+      learningLanguageLevel: 4,
+      learningLanguageLevels: {},
+    }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('ja');
+    expect(settings.learningLanguageLevels.ja).toBe(4);
+  });
+
+  it('ignores legacy Japanese-named settings instead of treating them as runtime API', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      furigana: false,
+      showPitchAccent: false,
+      proportionOfExamCards: 0.25,
+      ocrFuriganaDetection: false,
+      ocrFuriganaWidthRatio: 2,
+      ocrFuriganaNeighborWindowMultiplier: 3,
+      ocrFuriganaNeighborLookahead: 5,
+      readerFuriganaHider: true,
+    }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.showReadingAnnotations).toBe(DEFAULT_SETTINGS.showReadingAnnotations);
+    expect(settings.showProsody).toBe(DEFAULT_SETTINGS.showProsody);
+    expect(settings.proportionOfLevelCards).toBe(DEFAULT_SETTINGS.proportionOfLevelCards);
+    expect(settings.ocrReadingAnnotationFiltering).toBe(DEFAULT_SETTINGS.ocrReadingAnnotationFiltering);
+    expect(settings.ocrReadingAnnotationWidthRatio).toBe(DEFAULT_SETTINGS.ocrReadingAnnotationWidthRatio);
+    expect(settings.ocrReadingAnnotationNeighborWindowMultiplier).toBe(DEFAULT_SETTINGS.ocrReadingAnnotationNeighborWindowMultiplier);
+    expect(settings.ocrReadingAnnotationNeighborLookahead).toBe(DEFAULT_SETTINGS.ocrReadingAnnotationNeighborLookahead);
+    expect(settings.readerReadingAnnotationHider).toBe(DEFAULT_SETTINGS.readerReadingAnnotationHider);
+  });
+
+  it('keeps neutral settings authoritative when legacy Japanese-named settings are present', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      furigana: false,
+      showReadingAnnotations: true,
+      showPitchAccent: false,
+      showProsody: true,
+      proportionOfExamCards: 0.25,
+      proportionOfLevelCards: 0.75,
+    }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.showReadingAnnotations).toBe(true);
+    expect(settings.showProsody).toBe(true);
+    expect(settings.proportionOfLevelCards).toBe(0.75);
+  });
+
+  it('does not guess a selected language when multiple languages are installed', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ language: '' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'de.json'), JSON.stringify({ name: 'German' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('');
+  });
+
   it('does not overwrite existing cloudAuthAccessToken with cloudAuthToken', () => {
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(
@@ -181,6 +332,26 @@ describe('loadSettings migration', () => {
     );
     const settings = mod.loadSettings();
     expect(settings.cloudAuthAccessToken).toBe('existing');
+  });
+
+  it('ignores unknown settings keys while loading', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        language: 'de',
+        unknownDisplayToggle: false,
+        unknownNestedSetting: { enabled: true },
+      }),
+      'utf-8',
+    );
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('de');
+    const loadedRecord = settings as unknown as Record<string, unknown>;
+    expect(loadedRecord.unknownDisplayToggle).toBeUndefined();
+    expect(loadedRecord.unknownNestedSetting).toBeUndefined();
   });
 });
 
@@ -212,6 +383,28 @@ describe('saveSettings', () => {
     const loaded = mod.loadSettings();
     expect(loaded.language).toBe('fr');
     expect(loaded.blur_words).toBe(true);
+  });
+
+  it('does not persist unknown settings keys', async () => {
+    const settings = {
+      ...mod.loadSettings(),
+      showReadingAnnotations: false,
+      showProsody: false,
+      unknownDisplayToggle: true,
+      unknownNestedSetting: { enabled: true },
+      furigana: true,
+      showPitchAccent: true,
+    } as ReturnType<typeof mod.loadSettings> & Record<string, unknown>;
+
+    await mod.saveSettings(settings);
+
+    const saved = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'settings.json'), 'utf-8'));
+    expect(saved.showReadingAnnotations).toBe(false);
+    expect(saved.showProsody).toBe(false);
+    expect(saved.unknownDisplayToggle).toBeUndefined();
+    expect(saved.unknownNestedSetting).toBeUndefined();
+    expect(saved.furigana).toBeUndefined();
+    expect(saved.showPitchAccent).toBeUndefined();
   });
 
   it('serializes concurrent saves so the last snapshot wins', async () => {
@@ -273,6 +466,52 @@ describe('loadLangData', () => {
     expect(langData['en'].name).toBe('English');
   });
 
+  it('normalizes legacy installed language metadata before exposing runtime data', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    const metadataPath = path.join(langsDir, 'zz.json');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(
+      metadataPath,
+      JSON.stringify({
+        name: 'Zed',
+        fixed_settings: { do_colour_codes: false },
+        translatable: ['NOUN'],
+        colour_codes: { NOUN: '#ffffff' },
+        freq_level_names: { '1': 'A1' },
+        freq_level_boundaries: [1000],
+        grammar_level_names: { '1': 'Beginner' },
+        supportedScripts: ['Latn'],
+      }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+    const metadataOnDisk = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+
+    expect(langData.zz).toMatchObject({
+      settings: { fixed: { do_colour_codes: false } },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        partOfSpeech: {
+          translatable: ['NOUN'],
+          colors: { NOUN: '#ffffff' },
+        },
+      },
+      frequencyLevels: {
+        names: { '1': 'A1' },
+        boundaries: [1000],
+      },
+      grammarLevels: {
+        names: { '1': 'Beginner' },
+      },
+    });
+    expect(langData.zz).not.toHaveProperty('translatable');
+    expect(langData.zz).not.toHaveProperty('colour_codes');
+    expect(metadataOnDisk).toHaveProperty('fixed_settings');
+    expect(metadataOnDisk).toHaveProperty('freq_level_names');
+    expect(fs.existsSync(`${metadataPath}.bak-before-language-contract-v2`)).toBe(false);
+  });
+
   it('ignores legacy user and bundled language directories', () => {
     const customLangsDir = path.join(tempDir.tmpDir, 'languages');
     const bundledLangsDir = path.join(tempDir.tmpDir, 'root-of-app', 'languages');
@@ -311,7 +550,7 @@ describe('loadLangData', () => {
     fs.mkdirSync(langsDir, { recursive: true });
     fs.writeFileSync(
       path.join(langsDir, 'ja.json'),
-      JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, fixed_settings: {} }),
+      JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, settings: { fixed: {} } }),
       'utf-8',
     );
     fs.writeFileSync(
@@ -331,7 +570,7 @@ describe('loadLangData', () => {
     fs.mkdirSync(installedFreqDir, { recursive: true });
     fs.writeFileSync(
       path.join(installedFreqDir, 'ja.json'),
-      JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, fixed_settings: {} }),
+      JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, settings: { fixed: {} } }),
       'utf-8',
     );
     fs.writeFileSync(
@@ -343,6 +582,82 @@ describe('loadLangData', () => {
     const langData = mod.loadLangData();
 
     expect(langData['ja']?.freq).toEqual([['食べる', 'たべる']]);
+  });
+
+  it('preserves explicit numeric levels from installed frequency files even when metadata is incomplete', () => {
+    const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(installedFreqDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ja.json'),
+      JSON.stringify({
+        name: 'Japanese',
+        translatable: [],
+        colour_codes: {},
+        settings: { fixed: {} },
+        frequencyLevels: {
+          names: { '5': 'JLPT N5' },
+        },
+      }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ja.freq.json'),
+      JSON.stringify({ freq: [['赤い', 'あかい', 5]] }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ja']?.freq).toEqual([['赤い', 'あかい', 5]]);
+    expect(langData['ja']?.frequencyLevels?.rowLevelIndex).toBe(2);
+    expect(langData['ja']?.frequencyLevels?.names).toEqual({ '5': 'JLPT N5' });
+  });
+
+  it('migrates sectioned installed frequency files into numeric level rows before exposing runtime data', () => {
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    const metadataPath = path.join(languagesDir, 'ja.json');
+    const frequencyPath = path.join(languagesDir, 'ja.freq.json');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.writeFileSync(
+      metadataPath,
+      JSON.stringify({ name: 'Japanese', translatable: [], colour_codes: {}, settings: { fixed: {} } }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      frequencyPath,
+      JSON.stringify({
+        freq: [
+          ['N5', 'N5'],
+          ['会う', 'あう'],
+          ['', ''],
+          ['N4', 'N4'],
+          ['払う', 'はらう'],
+        ],
+      }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ja']?.freq).toEqual([
+      ['会う', 'あう', 5],
+      ['払う', 'はらう', 4],
+    ]);
+    expect(langData['ja']?.frequencyLevels).toEqual({
+      names: { '5': 'N5', '4': 'N4' },
+      difficulty: 'lower-is-harder',
+      displayOrder: 'descending',
+      rowLevelIndex: 2,
+    });
+    expect(JSON.parse(fs.readFileSync(frequencyPath, 'utf-8')).freq).toEqual([
+      ['N5', 'N5'],
+      ['会う', 'あう'],
+      ['', ''],
+      ['N4', 'N4'],
+      ['払う', 'はらう'],
+    ]);
+    expect(JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))).not.toHaveProperty('frequencyLevels');
+    expect(fs.existsSync(`${frequencyPath}.bak-before-frequency-contract-v2`)).toBe(false);
   });
 
   it('returns no runtime language data when downloaded language-data directory is empty', () => {
@@ -363,7 +678,7 @@ describe('loadLanguageCatalogData', () => {
         name: 'Japanese',
         translatable: ['名詞'],
         colour_codes: {},
-        fixed_settings: {},
+        settings: { fixed: {} },
       }),
       'utf-8',
     );
@@ -394,7 +709,7 @@ describe('loadLanguageCatalogData', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(langData['ja']?.name).toBe('Japanese');
-    expect(langData['ja']?.translatable).toEqual(['名詞']);
+    expect(langData['ja']?.textProcessing?.partOfSpeech?.translatable).toEqual(['名詞']);
     expect(langData['ja']?.languageData).toBeUndefined();
   });
 });
@@ -523,6 +838,75 @@ describe('loadLanguagePackageCatalog', () => {
     });
   });
 
+  it('preserves component scopes from language package catalog assets', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          aa: {
+            name: 'Alpha',
+            version: 'aa-package-v1',
+            bundle: {
+              href: './language-data/aa.tar.gz',
+              sizeBytes: 100,
+              sha256: 'a'.repeat(64),
+            },
+            files: [
+              {
+                id: 'language-metadata',
+                path: 'languages/aa.json',
+                required: true,
+              },
+              {
+                id: 'ocr-model',
+                path: 'models/aa/ocr.bin',
+                components: ['ocr', ''],
+                required: true,
+              },
+            ],
+            dictionaryPacks: {
+              en: {
+                targetLanguage: 'en',
+                name: 'English',
+                bundle: {
+                  href: './language-data/aa-en.tar.gz',
+                  sizeBytes: 200,
+                  sha256: 'b'.repeat(64),
+                },
+                assets: [{
+                  id: 'dictionary',
+                  path: 'dictionaries/aa/en/dictionary.db',
+                  components: ['core'],
+                  required: true,
+                }],
+              },
+            },
+          },
+        },
+      }),
+    }));
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    });
+
+    expect(langData.aa.languageData?.assets).toEqual([
+      expect.objectContaining({
+        id: 'language-metadata',
+        components: undefined,
+      }),
+      expect.objectContaining({
+        id: 'ocr-model',
+        components: ['ocr'],
+      }),
+    ]);
+    expect(langData.aa.languageData?.dictionaryPacks?.en.assets[0]).toMatchObject({
+      id: 'dictionary',
+      components: ['core'],
+    });
+  });
+
   it('ignores legacy embedded metadata and per-language manifest links', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -532,7 +916,7 @@ describe('loadLanguagePackageCatalog', () => {
             name: 'Legacy Metadata',
             translatable: ['NOUN'],
             colour_codes: {},
-            fixed_settings: {},
+            settings: { fixed: {} },
           },
           fr: './language-catalog/fr.json',
           es: {
@@ -726,7 +1110,8 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
   it('replies with install status for every language', async () => {
     const installedDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(installedDir, { recursive: true });
-    fs.writeFileSync(path.join(installedDir, 'aa.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
+    const installedFrequency = JSON.stringify({ freq: [] });
+    fs.writeFileSync(path.join(installedDir, 'aa.freq.json'), installedFrequency, 'utf-8');
 
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify({
@@ -740,7 +1125,7 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
             name: 'Alpha',
             version: 'aa-package-v1',
             bundle: { href: './aa.tar.gz', sizeBytes: 10, sha256: 'a'.repeat(64) },
-            files: [{ id: 'freq', path: 'languages/aa.freq.json', sizeBytes: 9 }],
+            files: [{ id: 'freq', path: 'languages/aa.freq.json', sizeBytes: Buffer.byteLength(installedFrequency) }],
           },
           zz: {
             name: 'Zeta',
@@ -781,9 +1166,13 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     const frequencyBytes = JSON.stringify({ freq: [['alpha', 'alpha']] });
     const metadataBytes = JSON.stringify({
       name: 'Alpha',
-      translatable: ['NOUN'],
-      colour_codes: {},
-      fixed_settings: {},
+      textProcessing: {
+        partOfSpeech: {
+          translatable: ['NOUN'],
+          colors: {},
+        },
+      },
+      settings: { fixed: {} },
     });
     const manifestFiles = [
       {
@@ -854,6 +1243,146 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
         installed: true,
       }),
     ]);
+  });
+
+  it('ensures installed language-declared Python requirements for enabled components', async () => {
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'aa.tar.gz');
+    const metadata = {
+      name: 'Alpha',
+      textProcessing: {
+        partOfSpeech: {
+          translatable: ['NOUN'],
+          colors: {},
+        },
+      },
+      settings: { fixed: {} },
+      runtime: {
+        python: {
+          packagesByComponent: {
+            core: ['alpha-core'],
+            ocr: ['alpha-ocr'],
+            voice: ['alpha-voice'],
+          },
+        },
+      },
+    };
+    const metadataBytes = JSON.stringify(metadata);
+    const manifestFiles = [
+      {
+        id: 'language-metadata',
+        path: 'languages/aa.json',
+        sizeBytes: Buffer.byteLength(metadataBytes),
+        sha256: sha256(metadataBytes),
+        required: true,
+      },
+    ];
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify({
+      schemaVersion: 1,
+      language: 'aa',
+      version: 'aa-package-v1',
+      files: manifestFiles,
+    }), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'aa.json'), metadataBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'settings.json'), JSON.stringify({
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+      llmEnabled: false,
+      ocrEnabled: true,
+      voiceEnabled: true,
+    }), 'utf-8');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          aa: {
+            name: 'Alpha',
+            version: 'aa-package-v1',
+            bundle: {
+              href: './aa.tar.gz',
+              sizeBytes: fs.statSync(archivePath).size,
+              sha256: sha256(fs.readFileSync(archivePath)),
+            },
+            files: manifestFiles,
+          },
+        },
+      }),
+    }));
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('install-language-data') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) await h(event, 'aa');
+
+    expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalledWith(
+      'aa',
+      expect.objectContaining({
+        aa: expect.objectContaining({
+          runtime: metadata.runtime,
+        }),
+      }),
+      {
+        includeLLM: false,
+        includeOCR: true,
+        includeVoice: true,
+      },
+    );
+  });
+
+  it('does not silently substitute another dictionary pack when the requested target is unavailable', async () => {
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'settings.json'), JSON.stringify({
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+      uiLanguage: 'en',
+    }), 'utf-8');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          aa: {
+            name: 'Alpha',
+            version: 'aa-package-v1',
+            bundle: {
+              href: './aa.tar.gz',
+              sizeBytes: 1,
+              sha256: 'unused',
+            },
+            files: [],
+            dictionaryPacks: {
+              fr: {
+                targetLanguage: 'fr',
+                name: 'French',
+                bundle: {
+                  href: './aa-fr.tar.gz',
+                  sizeBytes: 1,
+                  sha256: 'unused',
+                },
+                assets: [],
+              },
+            },
+          },
+        },
+      }),
+    }));
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('install-language-data') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) await h(event, 'aa', 'en');
+
+    expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({
+      language: 'aa',
+      error: 'No dictionary pack is available for aa->en. Available: fr',
+    }));
+    expect(event.reply).not.toHaveBeenCalledWith(
+      'language-data-installed',
+      expect.objectContaining({ language: 'aa' }),
+    );
+    expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
   });
 
   it('replies with install errors without throwing', async () => {

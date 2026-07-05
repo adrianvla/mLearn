@@ -9,6 +9,10 @@ import type { BrowserInfo } from './browserDetection';
 
 const log = getLogger('electron.extensionInstaller');
 
+/**
+ * @deprecated Old Chrome extension directory used before manifest-key-derived
+ * extension ids. Keep only for uninstall/detection cleanup of prior installs.
+ */
 const EXTENSION_DIR_NAME = 'mlearn-extension';
 
 interface ExtensionManifest {

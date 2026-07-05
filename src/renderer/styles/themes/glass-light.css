@@ -47,54 +47,35 @@ body.theme-glass-light {
 /* === End index.css === */
 
 
-/* === PitchAccent.css === */
-body.theme-glass-light .pitch-accent-container,
-.theme-glass-light .pitch-accent-container {
+/* === Prosody renderer === */
+body.theme-glass-light .prosody-overlay-wrapper,
+.theme-glass-light .prosody-overlay-wrapper {
   color: var(--text-primary);
 }
 
 /* When inside subtitle hover */
-.subtitle_hover .pitch-accent {
-  --pitch-accent-height: 2px;
+.subtitle_hover {
+  --prosody-overlay-height: 2px;
 }
 
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent {
-  --pitch-accent-height: 2px;
-}
-
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+.subtitle_hover .pill {
   position: relative;
 }
 
-body.theme-glass-light .subtitle_hover .pitch-accent,
-.subtitle_hover.theme-glass-light .pitch-accent {
+body.theme-glass-light .subtitle_hover .prosody-overlay-wrapper,
+.subtitle_hover.theme-glass-light .prosody-overlay-wrapper {
   filter: none;
   color: var(--text-primary);
 }
 
-/* === End PitchAccent.css === */
+/* === End Prosody renderer === */
 
 /* === Start Pill.css === */
 body.theme-glass-light .label-pill,
 body.theme-glass-light .btn-pill,
 body.theme-glass-light .label-status {
-  filter: invert(1) hue-rotate(180deg) saturate(200%);
   box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
   rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
-}
-
-/* Ensure icons inside pills are not double-inverted (applies to both img and SVG) */
-body.theme-glass-light .label-pill .label-icon img,
-body.theme-glass-light .btn-pill .btn-icon-wrapper img,
-body.theme-glass-light .label-pill .label-icon svg,
-body.theme-glass-light .btn-pill .btn-icon-wrapper svg,
-body.theme-glass-light .label-pill .label-svg-icon,
-body.theme-glass-light .btn-pill .btn-svg-icon,
-body.theme-glass-light .label-status .label-icon img,
-body.theme-glass-light .label-status .label-icon svg,
-body.theme-glass-light .label-status .label-svg-icon {
-  filter: invert(1) hue-rotate(180deg); /* counter the parent invert */
-  background: transparent;
 }
 /* === End Pill.css === */
 

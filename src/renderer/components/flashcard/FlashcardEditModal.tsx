@@ -9,15 +9,23 @@
  */
 
 import { Component, createSignal, createMemo, Show, For, batch } from 'solid-js';
-import type { Flashcard, FlashcardContent, FlashcardState } from '../../../shared/types';
+import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { Modal, TabContainer, TabPanel, Btn, ToggleSwitch } from '../common';
 import { FlashcardEditor } from './FlashcardEditor';
 import { useLocalization } from '../../context';
 import type { TabItem } from '../common/Tabs/TabContainer';
+import {
+  CLEARABLE_METADATA_FIELDS,
+  CONTENT_BOOLEAN_FIELDS,
+  CONTENT_FIELDS,
+  type DraftValue,
+  METADATA_BOOLEAN_FIELDS,
+  METADATA_FIELDS,
+  READONLY_FIELDS,
+  parseFieldValue,
+  valueToDraftValue,
+} from './flashcardEditFields';
 import './FlashcardEditModal.css';
-import { getLogger } from '../../../shared/utils/logger';
-
-const log = getLogger("renderer.components.flashcardEditModal");
 
 export interface FlashcardEditModalProps {
   isOpen: boolean;
@@ -26,79 +34,7 @@ export interface FlashcardEditModalProps {
   onSave: (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => void;
 }
 
-// Content fields that the advanced editor shows, in display order
-const CONTENT_FIELDS: (keyof FlashcardContent)[] = [
-  'type', 'front', 'back', 'reading', 'pitchAccent', 'pos', 'level',
-  'example', 'exampleMeaning', 'imageUrl', 'audioUrl', 'context', 'source',
-  'videoUrl', 'skipExampleTts',
-];
-
-// Metadata fields on the Flashcard itself (not content)
-const METADATA_FIELDS: (keyof Flashcard)[] = [
-  'id', 'state', 'ease', 'interval', 'dueDate', 'reviews', 'lapses',
-  'learningStep', 'createdAt', 'lastReviewed', 'lastUpdated',
-  'tags', 'language', 'suspended', 'buried',
-];
-
-// Fields that should not be editable (read-only in advanced view)
-const READONLY_FIELDS = new Set<string>(['id', 'createdAt']);
-
 type TabId = 'editor' | 'advanced';
-type DraftValue = string | boolean;
-const CONTENT_BOOLEAN_FIELDS = new Set<keyof FlashcardContent>(['skipExampleTts']);
-const METADATA_BOOLEAN_FIELDS = new Set<keyof Flashcard>(['suspended', 'buried']);
-const CLEARABLE_METADATA_FIELDS = new Set<keyof Flashcard>(['tags', 'language', 'suspended', 'buried']);
-
-/** Serialize a value to a displayable draft value for the advanced editor */
-function valueToDraftValue(val: unknown): DraftValue {
-  if (val === undefined || val === null) return '';
-  if (typeof val === 'boolean') return val;
-  if (typeof val === 'string') return val;
-  if (typeof val === 'number') return String(val);
-  return JSON.stringify(val, null, 2);
-}
-
-/** Parse a string back into a typed value for the given field */
-function parseFieldValue(key: string, raw: DraftValue): unknown {
-  if (typeof raw === 'boolean') return raw;
-
-  const trimmed = raw.trim();
-  if (trimmed === '') return undefined;
-
-  // Booleans
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-
-  // Number fields
-  const numFields = new Set([
-    'pitchAccent', 'level', 'ease', 'interval', 'dueDate', 'reviews',
-    'lapses', 'learningStep', 'createdAt', 'lastReviewed', 'lastUpdated',
-  ]);
-  if (numFields.has(key)) {
-    const n = Number(trimmed);
-    if (!isNaN(n)) return n;
-  }
-
-  // State enum
-  if (key === 'state') {
-    const valid: FlashcardState[] = ['new', 'learning', 'review', 'relearning'];
-    if (valid.includes(trimmed as FlashcardState)) return trimmed;
-    return trimmed;
-  }
-
-  // Try JSON parse for objects/arrays
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    try {
-      return JSON.parse(trimmed);
-    } catch (e) {
-      log.error("error", e);
-      return trimmed;
-    }
-  }
-
-  return trimmed;
-}
 
 function getDraftString(value: DraftValue | undefined): string {
   return typeof value === 'string' ? value : '';

@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
+import type { LanguageDataMap } from '../../../../shared/types';
 
 const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
@@ -11,6 +12,25 @@ const testSettings = {
   llmEnabled: true,
   ocrEnabled: true,
   voiceEnabled: false,
+};
+
+let testLangData: LanguageDataMap = {
+  ja: {
+    name: 'Japanese',
+    settings: { fixed: {} },
+    runtime: {
+      ocr: {
+        recognitionEngine: 'mangaocr',
+      },
+      tts: {
+        engine: 'kokoro',
+        kokoroLangCode: 'j',
+      },
+      stt: {
+        whisperLanguage: 'ja',
+      },
+    },
+  },
 };
 
 const translations: Record<string, string> = {
@@ -38,6 +58,8 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.Items.PaddleOCR.Description': 'Accurate OCR recognition and detection models.',
   'mlearn.ComponentsTab.Items.MangaOCR.Title': 'MangaOCR model',
   'mlearn.ComponentsTab.Items.MangaOCR.Description': 'Japanese manga and vertical-text recognition.',
+  'mlearn.ComponentsTab.Items.GenericOCR.Title': '{engine} OCR runtime',
+  'mlearn.ComponentsTab.Items.GenericOCR.Description': 'OCR runtime declared by installed language data.',
   'mlearn.ComponentsTab.Items.WhisperSmall.Title': 'Whisper small STT model',
   'mlearn.ComponentsTab.Items.WhisperSmall.Description': 'Local speech-to-text for voice conversations.',
   'mlearn.ComponentsTab.Items.KokoroTts.Title': 'Kokoro TTS model',
@@ -46,6 +68,8 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.Items.SileroVad.Description': 'Voice activity detection for hands-free calls.',
   'mlearn.ComponentsTab.Items.QwenTts.Title': 'Qwen3 TTS model',
   'mlearn.ComponentsTab.Items.QwenTts.Description': 'Optional local voice cloning and multilingual TTS.',
+  'mlearn.ComponentsTab.Items.GenericTTS.Title': '{engine} TTS runtime',
+  'mlearn.ComponentsTab.Items.GenericTTS.Description': 'Speech synthesis runtime declared by installed language data.',
   'mlearn.ComponentsTab.Items.DictionaryPack.Description': 'Definitions for {language}.',
   'mlearn.Installer.Buttons.Installing': 'Installing...',
   'mlearn.Installer.Alerts.NetworkError': 'Network error',
@@ -66,6 +90,7 @@ vi.mock('../../../context', () => ({
     updateSettings: updateSettingsMock,
   }),
   useLanguage: () => ({
+    langData: testLangData,
     languageDataCatalog: () => [
       {
         language: 'ja',
@@ -111,6 +136,24 @@ describe('ComponentsTab', () => {
     testSettings.llmEnabled = true;
     testSettings.ocrEnabled = true;
     testSettings.voiceEnabled = false;
+    testLangData = {
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          ocr: {
+            recognitionEngine: 'mangaocr',
+          },
+          tts: {
+            engine: 'kokoro',
+            kokoroLangCode: 'j',
+          },
+          stt: {
+            whisperLanguage: 'ja',
+          },
+        },
+      },
+    };
   });
 
   afterEach(() => {
@@ -122,7 +165,9 @@ describe('ComponentsTab', () => {
     const dispose = render(() => <ComponentsTab />, container);
 
     expect(container.textContent).toContain('Built-in chat model runtime');
-    expect(container.textContent).toContain('PaddleOCR models');
+    expect(container.textContent).toContain('MangaOCR model');
+    expect(container.textContent).not.toContain('PaddleOCR models');
+    expect(container.textContent).not.toContain('RapidOCR models');
     expect(container.textContent).toContain('Whisper small STT model');
     expect(container.textContent).toContain('Installed dictionaries');
     expect(container.textContent).toContain('Japanese -> English');
@@ -130,6 +175,145 @@ describe('ComponentsTab', () => {
     expect(container.textContent).not.toContain('Japanese -> French');
     expect(container.textContent).not.toContain('mlearn.Installer.Components');
     expect(container.textContent).not.toContain('mlearn.ComponentsTab');
+
+    dispose();
+  });
+
+  it('lists only OCR engines declared by installed language metadata', async () => {
+    testLangData = {
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          ocr: {
+            recognitionEngine: 'rapidocr',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).toContain('RapidOCR models');
+    expect(container.textContent).not.toContain('PaddleOCR models');
+    expect(container.textContent).not.toContain('MangaOCR model');
+
+    dispose();
+  });
+
+  it('lists multiple declared OCR engines from installed language metadata', async () => {
+    testLangData = {
+      de: {
+        name: 'German',
+        settings: { fixed: {} },
+        runtime: {
+          ocr: {
+            recognitionEngine: 'rapidocr',
+          },
+        },
+      },
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          ocr: {
+            recognitionEngine: 'mangaocr',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).toContain('RapidOCR models');
+    expect(container.textContent).toContain('MangaOCR model');
+    expect(container.textContent).not.toContain('PaddleOCR models');
+
+    dispose();
+  });
+
+  it('detects OCR components from installed local metadata even when absent from the catalog', async () => {
+    testLangData = {
+      xx: {
+        name: 'Example Language',
+        settings: { fixed: {} },
+        runtime: {
+          ocr: {
+            recognitionEngine: 'mangaocr',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).toContain('MangaOCR model');
+
+    dispose();
+  });
+
+  it('shows future OCR engines declared by installed language metadata', async () => {
+    testLangData = {
+      ar: {
+        name: 'Arabic',
+        settings: { fixed: {} },
+        runtime: {
+          ocr: {
+            recognitionEngine: 'arabic-transformer-ocr',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).toContain('Arabic Transformer OCR runtime');
+    expect(container.textContent).toContain('OCR runtime declared by installed language data.');
+
+    dispose();
+  });
+
+  it('shows future TTS engines declared by installed language metadata', async () => {
+    testLangData = {
+      ar: {
+        name: 'Arabic',
+        settings: { fixed: {} },
+        runtime: {
+          tts: {
+            engine: 'arabic-tts-adapter',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).toContain('Arabic TTS Adapter TTS runtime');
+    expect(container.textContent).toContain('Speech synthesis runtime declared by installed language data.');
+
+    dispose();
+  });
+
+  it('only lists TTS runtimes declared by installed language metadata', async () => {
+    testLangData = {
+      de: {
+        name: 'German',
+        settings: { fixed: {} },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).not.toContain('Kokoro TTS model');
+    expect(container.textContent).not.toContain('Qwen3 TTS model');
+    expect(container.textContent).not.toContain('Whisper small STT model');
+    expect(container.textContent).not.toContain('Silero VAD model');
 
     dispose();
   });

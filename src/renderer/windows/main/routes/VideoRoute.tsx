@@ -27,8 +27,9 @@ import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
-import { tokensToColoredHtml, parseWorkName } from '../../../utils/subtitleParsing';
+import { tokensToColoredHtml, parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
 import { getWordStatus } from '../../../services/statsService';
+import { toUniqueIdentifier } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
@@ -45,8 +46,11 @@ import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
 import { collectDroppedMediaFiles } from './videoDropUtils';
 import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
-import { getWordFormCandidates } from '../../../utils/wordForms';
+import { clipVideo } from '../../../services/videoClipService';
+import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
+import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
+import { formatFrequencyLevelLabel } from '../../../utils/levelLabels';
 import './video.css';
 import { getLogger } from '@shared/utils/logger';
 
@@ -62,9 +66,9 @@ const toLocalMediaUrl = (filePath: string): string => {
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
 
-const getMediaNameFromPath = (filePath: string): string => {
+const getMediaNameFromPath = (filePath: string, parseOptions?: ParseWorkNameOptions): string => {
   const rawName = filePath.replace(/\\/g, '/').split('/').pop() || 'Video';
-  return parseWorkName(rawName);
+  return parseWorkName(rawName, parseOptions);
 };
 
 export const VideoRoute: Component = () => {
@@ -75,10 +79,22 @@ export const VideoRoute: Component = () => {
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
   const anki = useAnki();
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm);
+  const ankiCacheOptions = createMemo(() => ({
+    language: settings.language,
+    languageData: langCtx.currentLangData(),
+  }));
+  const mediaNameParseOptions = (): ParseWorkNameOptions => ({
+    languageCodes: langCtx.supportedLanguages(),
+  });
+  const getWordForms = (word: string): string[] => (
+    getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants, {
+      languageData: langCtx.currentLangData(),
+    })
+  );
+  const tokenizerCapabilities = createMemo(() => langCtx.getLanguageFeatures().tokenizerCapabilities);
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
-    return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
+    return findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())?.word ?? null;
   };
 
   const watchTogether = useWatchTogether({
@@ -121,14 +137,26 @@ export const VideoRoute: Component = () => {
   const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
   const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<VideoWordEntry[]>([]);
 
-  const { tokenize } = useTokenizer({ language: settings.language });
-  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const wordLookupOptions = {
+    getCanonicalForm: langCtx.getCanonicalForm,
+    getWordVariants: langCtx.getWordVariants,
+    getReadingVariants: langCtx.getReadingVariants,
+    dictionaryTargetLanguage,
+    languageData: langCtx.currentLangData,
+  };
+  const { translateWord } = useTranslation({
+    immediate: true,
+    language: settings.language,
+    ...wordLookupOptions,
+  });
 
   // Media stats for this video session
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
 
   const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
-  const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || ''));
+  const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || '', langCtx.currentLangData()));
 
   const loadSharedVideo = (url: string, name: string) => {
     setVideoSrc(url);
@@ -138,7 +166,7 @@ export const VideoRoute: Component = () => {
     setSubtitleContent('');
     setCurrentSubtitlePath('');
     setShowDropZone(false);
-    setCurrentVideoName(name || getMediaNameFromPath(url));
+    setCurrentVideoName(name || getMediaNameFromPath(url, mediaNameParseOptions()));
   };
 
   const buildWatchTogetherPayload = () => {
@@ -369,7 +397,6 @@ export const VideoRoute: Component = () => {
     const content = subtitleContent();
     const src = videoSrc();
     if (!content || !src) return;
-    console.log('[VideoRoute] Forwarding subtitle tracks to overlay, content length=', content.length, 'url=', src);
     const bridge = getBridge();
     bridge.overlay.sendOverlaySubtitleTracks({
       tracks: [],
@@ -435,13 +462,13 @@ export const VideoRoute: Component = () => {
     const newEntries: VideoWordEntry[] = [];
 
     for (const token of tokens) {
-      const word = token.actual_word ?? token.surface ?? token.word;
-      if (!word || !langCtx.isTranslatable(token.type)) continue;
-      if (!isWordInLanguageScript(word, settings.language)) continue;
+      const word = getTokenLookupWord(token, tokenizerCapabilities());
+      if (!word || !langCtx.isTokenTranslatable(token)) continue;
+      if (!isWordInLanguageScript(word, settings.language, langCtx.currentLangData())) continue;
       if (seenWords.has(word)) continue;
-      if (flashcardCtx.isWordIgnoredSync(word)) continue;
+      if (flashcardCtx.isWordIgnoredSync(word, settings.language)) continue;
 
-      if (flashcardCtx.getComprehensiveWordStatusSync(word) === 'known') continue;
+      if (flashcardCtx.getComprehensiveWordStatusSync(word, settings.language) === 'known') continue;
 
       seenWords.add(word);
       newEntries.push({
@@ -462,9 +489,9 @@ export const VideoRoute: Component = () => {
       // context only (no translation/LLM/TTS). The user reviews them later
       // from the Flashcards → Suggested tab.
       if (settings.autoSuggestFlashcards && settings.enable_flashcard_creation) {
-        const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
+        const colourCodes = settings.colour_codes || {};
         const contextHtml = tokens.length > 0
-          ? tokensToColoredHtml(tokens, colourCodes)
+          ? tokensToColoredHtml(tokens, colourCodes, undefined, langCtx.currentLangData())
           : undefined;
         const mediaName = currentVideoName();
         const mediaHash = mediaStats.stats().mediaHash;
@@ -473,7 +500,13 @@ export const VideoRoute: Component = () => {
           const batchImageId = crypto.randomUUID();
           const [image, allowedWords] = await Promise.all([
             captureVideoFrameForFlashcard(batchImageId),
-            filterSuggestedWords(newEntries.map(entry => entry.word), settings.language, settings),
+            filterSuggestedWords(
+              newEntries.map(entry => entry.word),
+              settings.language,
+              settings,
+              langCtx.currentLangData(),
+              { getWordForms, dictionaryTargetLanguage: dictionaryTargetLanguage() },
+            ),
           ]);
           for (const entry of newEntries) {
             const freq = langCtx.getFrequency(entry.word);
@@ -483,7 +516,7 @@ export const VideoRoute: Component = () => {
               reading: freq?.reading,
               pos: entry.token.type,
               level: freq?.raw_level ?? null,
-              contextPhrase: cleanContextPhrase(entry.contextPhrase),
+              contextPhrase: cleanContextPhrase(entry.contextPhrase, langCtx.currentLangData()),
               contextHtml,
               imageUrl: image || undefined,
               source: mediaName || undefined,
@@ -498,8 +531,8 @@ export const VideoRoute: Component = () => {
   // Visible unknown words: filter out words that became known/ignored since accumulation
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
-      if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      return flashcardCtx.getComprehensiveWordStatusSync(entry.word) !== 'known';
+      if (flashcardCtx.isWordIgnoredSync(entry.word, settings.language)) return false;
+      return flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language) !== 'known';
     });
   });
 
@@ -523,7 +556,7 @@ export const VideoRoute: Component = () => {
     });
     try {
       const word = entry.word;
-      const cached = getCachedTranslation(word, settings.language);
+      const cached = getCachedTranslation(word, settings.language, wordLookupOptions);
       let translationData = cached;
       if (!translationData) {
         try { translationData = await translateWord(word); } catch (e) {
@@ -531,8 +564,8 @@ export const VideoRoute: Component = () => {
         }
       }
       const freq = langCtx.getFrequency(word);
-      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(word);
-      const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
+      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
+      const colourCodes = settings.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
@@ -540,22 +573,21 @@ export const VideoRoute: Component = () => {
         translationData: translationData || undefined,
         contextPhrase: entry.contextPhrase,
         isOcr: false,
-        level: freq?.raw_level ?? -1,
+        level: freq?.raw_level,
         wordStatus,
         colourCodes,
+        languageData: langCtx.currentLangData(),
         tokenize,
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
-srsLearningEase: settings.srsLearningThreshold / 1000,
-          srsKnownEase: settings.known_ease_threshold / 1000,
+        srsLearningEase: settings.srsLearningThreshold / 1000,
+        srsKnownEase: settings.known_ease_threshold / 1000,
       });
 
-      const { toUniqueIdentifier } = await import('../../../services/statsService');
       const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
 
       // If video mode, clip and save the video segment
       log.info('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
       if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
-        const { clipVideo } = await import('../../../services/videoClipService');
         const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
         const start = Math.max(0, entry.subtitleStart - margin);
         const end = entry.subtitleEnd + margin;
@@ -584,7 +616,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
         content.imageUrl = imageUrl;
       }
 
-      await flashcardCtx.addFlashcard(content, ease);
+      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
     } catch (err) {
       log.error('Failed to add flashcard from video sidebar:', err);
     } finally {
@@ -617,7 +649,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
           try {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
-            await refreshAnkiWordsCache();
+            await refreshAnkiWordsCache(ankiCacheOptions());
           } catch (err) {
             log.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
@@ -683,7 +715,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
         return;
       }
 
-      const name = getMediaNameFromPath(pendingVideo);
+      const name = getMediaNameFromPath(pendingVideo, mediaNameParseOptions());
       loadVideo(pendingVideo, name);
       void saveVideoToRecentItems(pendingVideo, name);
 
@@ -1034,6 +1066,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       getBridge().files.getPathForFile(file)
         || (file as File & { path?: string }).path
         || '',
+      mediaNameParseOptions(),
     );
 
     if (droppedMedia.video) {
@@ -1087,12 +1120,12 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     // On Electron, selectVideoFile returns a filesystem path
     // On Capacitor, it returns a blob URL
     if (isElectronPlatform()) {
-      const videoName = getMediaNameFromPath(path);
+      const videoName = getMediaNameFromPath(path, mediaNameParseOptions());
       loadVideo(path, videoName);
       await saveVideoToRecentItems(path, videoName);
     } else {
       // Blob URL — can play but can't reopen later
-      const videoName = getMediaNameFromPath(path);
+      const videoName = getMediaNameFromPath(path, mediaNameParseOptions());
       setVideoSrc(path);
       setCurrentVideoTime(0);
       setCurrentVideoDuration(null);
@@ -1145,9 +1178,9 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     // Build level percentages from current media stats
     const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
-    const wordLevels = computeWordLevelPercentages(s, freqLookup);
-    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup);
-    const level = assessMediaLevel(wordLevels);
+    const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
+    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
+    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
     const levelNames = langCtx.getFreqLevelNames();
 
     // Collect failed words: merge per-media stats with global wordKnowledge
@@ -1179,13 +1212,15 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       mediaType: 'video',
       mediaHash: s.mediaHash,
       assessedLevel: level,
-      assessedLevelName: level !== null && levelNames[String(level)] ? levelNames[String(level)] : '',
+      assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
       language: lang,
       failedWords,
       failedGrammar,
       wordLevelPercentages: wordLevels,
       grammarLevelPercentages: grammarLevels,
-      characterContext: buildCharacterContext(subtitles.subtitles().map((sub) => sub.text)) ?? undefined,
+      characterContext: buildCharacterContext(subtitles.subtitles().map((sub) => sub.text), {
+        languageData: langCtx.currentLangData(),
+      }) ?? undefined,
       subtitleHistory: subtitles.subtitles().slice(-50).map((sub) => sub.text),
     };
 

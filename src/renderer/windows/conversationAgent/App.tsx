@@ -3,12 +3,15 @@
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
  */
 
-import { Component, Show, Index, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, Show, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../shared/backends';
+import { getFrequencyLevelLabel, shouldTokenizeTextForLanguage, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
+import { getTokenLookupWord } from '../../utils/wordForms';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import {
   CloudSessionCancelledError,
   CloudUnreachableError,
@@ -62,6 +65,7 @@ import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
 import { ToolMenu } from './ToolMenu';
 import type { ToolMenuItem } from './ToolMenu';
+import { getConversationDisplayLanguageName, getConversationPromptLanguageName } from './languageNames';
 import { ConversationHistoryPanel } from './ConversationHistoryPanel';
 import {
   loadSessions,
@@ -76,10 +80,9 @@ import { HistoryIcon } from '../../components/common/Misc/Icons';
 import { createConversationAgent } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, ConversationSafetyFlag, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, ConversationSafetyFlag, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
-import { isLatinOnly } from '../../../shared/utils/textUtils';
 import { getConversationErrorMessage } from './errorUtils';
 import { canRegenerateAssistantMessage, getLatestAssistantMessageIndex, isStreamingAssistantBubble, shouldHideAssistantBubble } from './messageState';
 import './ConversationAgent.css';
@@ -166,10 +169,27 @@ const MicIcon: Component = () => (
 
 export const ConversationContent: Component = () => {
   const { settings, updateSettings } = useSettings();
-  const { currentLangData, isTranslatable, getLanguageFeatures, getFrequency, getFreqLevelNames, getLevelName } = useLanguage();
+  const {
+    currentLangData,
+    isTokenTranslatable,
+    getLanguageFeatures,
+    getFrequency,
+    getFreqLevelNames,
+    getLevelName,
+    getCanonicalForm,
+    getWordVariants,
+    getReadingVariants,
+  } = useLanguage();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
   const { isActive: isLowPowerActive, requestAccess: requestLlmAccess } = useLowPowerGate();
+  const speakAssistantText = (text: string) => {
+    const ttsRuntime = currentLangData()?.runtime?.tts;
+    getBridge().speech.ttsSpeak(text, settings.language, {
+      speechSynthesisLang: ttsRuntime?.webSpeechLang,
+      speechSynthesisVoice: ttsRuntime?.webSpeechVoice,
+    });
+  };
   const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
     || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
   const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
@@ -232,9 +252,15 @@ export const ConversationContent: Component = () => {
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
-  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
-  const { lookup } = useDictionary({ language: settings.language });
-  const [translationData, setTranslationData] = createSignal<{ data?: (TranslationEntry | PitchData | null | undefined)[] } | null>(null);
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+  const { translateWord } = useTranslation({
+    immediate: true,
+    language: settings.language,
+    ...wordLookupOptions,
+  });
+  const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
+  const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
   let hoverRequestId = 0;
@@ -253,16 +279,9 @@ export const ConversationContent: Component = () => {
   let textareaRef: HTMLTextAreaElement | undefined;
 
   const langName = () => {
-    const languageCode = settings.language || currentLangData()?.name || '';
-    const localizedKey = `mlearn.Languages.${languageCode}`;
-    const localized = t(localizedKey);
-
-    if (localized !== localizedKey) {
-      return localized;
-    }
-
-    return currentLangData()?.name_translated || currentLangData()?.name || languageCode;
+    return getConversationDisplayLanguageName(settings.language, currentLangData(), t, settings.uiLanguage);
   };
+  const promptLangName = () => getConversationPromptLanguageName(settings.language, currentLangData());
 
   const providerLabel = () => {
     switch (settings.llmProvider) {
@@ -283,7 +302,7 @@ export const ConversationContent: Component = () => {
   const agent = createConversationAgent({
     getSettings: () => settings,
     getLanguage: () => settings.language,
-    getLanguageName: () => langName(),
+    getLanguageName: () => promptLangName(),
     getLanguageFeatures: () => getLanguageFeatures(),
     getMediaContext: () => mediaContext(),
     getSceneContext: () => sceneContext(),
@@ -291,6 +310,7 @@ export const ConversationContent: Component = () => {
     flashcardCtx,
     getFrequency,
     getTargetLevel: () => targetLevel(),
+    getLanguageData: () => currentLangData(),
     getLevelName,
     isVoiceMode: () => activeTab() === 'voice' && isVoiceCallActive(),
     onVoiceMistake: (mistake: VoiceMistake) => {
@@ -303,7 +323,7 @@ export const ConversationContent: Component = () => {
     onMemorySaved: (content: string) => {
       const agentId = activeAgentId();
       if (!agentId) return;
-      addAgentMemory(content, agentId).then((entry) => {
+      addAgentMemory(content, agentId, settings.language).then((entry) => {
         setAllMemories((prev) => [...prev, entry]);
       });
     },
@@ -352,9 +372,10 @@ export const ConversationContent: Component = () => {
 
     void enqueueCheckerTask(async () => {
       try {
-        const result = await checkerAgent.checkMessage(assistantText, langName(), undefined, {
+        const result = await checkerAgent.checkMessage(assistantText, promptLangName(), undefined, {
           speakerRole: 'assistant',
           includeCorrections: false,
+          languageFeatures: getLanguageFeatures(),
         });
 
         if (result.error === 'quota') {
@@ -408,7 +429,7 @@ export const ConversationContent: Component = () => {
           && currentMessage.role === 'assistant'
           && currentMessage.content === assistantText
         ) {
-          getBridge().speech.ttsSpeak(assistantText, settings.language);
+          speakAssistantText(assistantText);
         }
       } catch (error) {
         log.error("error", error);
@@ -420,7 +441,7 @@ export const ConversationContent: Component = () => {
           && currentMessage.role === 'assistant'
           && currentMessage.content === assistantText
         ) {
-          getBridge().speech.ttsSpeak(assistantText, settings.language);
+          speakAssistantText(assistantText);
         }
       }
     });
@@ -497,10 +518,11 @@ export const ConversationContent: Component = () => {
   const runCheckerOnMessage = (userText: string, userMsgIndex: number, assistantMsgIndex: number) => {
     const customInstructions = tutorConfig()?.customInstructions || undefined;
     void enqueueCheckerTask(async () => {
-      const result = await checkerAgent.checkMessage(userText, langName(), customInstructions, {
+      const result = await checkerAgent.checkMessage(userText, promptLangName(), customInstructions, {
         speakerRole: 'user',
         includeCorrections: settings.agentMistakeChecker,
         includeSafety: settings.agentSafetyChecker,
+        languageFeatures: getLanguageFeatures(),
       });
       if (result.error === 'quota' && settings.agentSafetyChecker) {
         applyQuotaSafetyResponse(userMsgIndex, assistantMsgIndex);
@@ -539,7 +561,8 @@ export const ConversationContent: Component = () => {
 
   // Load agents and memories on mount (with migration from old format)
   onMount(async () => {
-    await migrateIfNeeded();
+    const language = settings.language;
+    await migrateIfNeeded(language);
     const loadedAgents = await loadAgents();
     setAgents(loadedAgents);
 
@@ -554,10 +577,10 @@ export const ConversationContent: Component = () => {
       setShowSetupModal(true);
     }
 
-    const mems = await loadAllMemories();
+    const mems = await loadAllMemories(language);
     setAllMemories(mems);
 
-    const loadedSessions = await loadSessions();
+    const loadedSessions = await loadSessions(language);
     setSessions(loadedSessions);
   });
 
@@ -587,7 +610,7 @@ export const ConversationContent: Component = () => {
       ]);
       startAssistantStream(assistantMessageIndex);
 
-      const greetingContext = `[The learner just opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+      const greetingContext = `[The learner just opened the chat. Greet them warmly and start a natural conversation in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`;
       agent.continueWithContext(greetingContext, buildStreamCallbacks(assistantMessageIndex));
     }
   };
@@ -596,9 +619,9 @@ export const ConversationContent: Component = () => {
     // Delete all agents one by one
     const allAgents = agents();
     for (const a of allAgents) {
-      await deleteAgent(a.id);
+      await deleteAgent(a.id, settings.language);
     }
-    await clearAgentMemories();
+    await clearAgentMemories(undefined, settings.language);
     setAgents([]);
     setAllMemories([]);
     setMessages([]);
@@ -609,7 +632,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleDeleteMemory = (id: string) => {
-    removeAgentMemory(id).then(setAllMemories);
+    removeAgentMemory(id, settings.language).then(setAllMemories);
   };
 
   const handleSelectAgent = async (id: string) => {
@@ -633,7 +656,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleDeleteAgent = async (id: string) => {
-    const updatedAgents = await deleteAgent(id);
+    const updatedAgents = await deleteAgent(id, settings.language);
     setAgents(updatedAgents);
     setAllMemories((prev) => prev.filter((m) => m.agentId !== id));
 
@@ -680,7 +703,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleDeleteSession = async (id: string) => {
-    const updated = await deleteSession(id);
+    const updated = await deleteSession(id, settings.language);
     setSessions(updated);
     if (currentSessionId() === id) {
       setCurrentSessionId(null);
@@ -688,7 +711,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleDeleteAllSessions = async () => {
-    await deleteAllSessions();
+    await deleteAllSessions(settings.language);
     setSessions([]);
     setCurrentSessionId(null);
   };
@@ -718,7 +741,7 @@ export const ConversationContent: Component = () => {
         messageCount: msgs.length,
       };
 
-      const updated = await updateSession(session);
+      const updated = await updateSession(session, settings.language);
       setSessions(updated);
     }, 500);
   };
@@ -870,8 +893,8 @@ export const ConversationContent: Component = () => {
 
       const hasMessages = messages().length > 1;
       const context = hasMessages
-        ? `[The learner wants to change the topic. Smoothly transition to a new, interesting, and creative topic. Pick something engaging and different from what was discussed before. Start naturally with a question or interesting statement in ${langName()}. Keep it concise — 1 to 3 sentences.]`
-        : `[The learner wants you to pick a topic. Start a natural conversation about something interesting and creative in ${langName()}. Keep it concise — 1 to 3 sentences.]`;
+        ? `[The learner wants to change the topic. Smoothly transition to a new, interesting, and creative topic. Pick something engaging and different from what was discussed before. Start naturally with a question or interesting statement in ${promptLangName()}. Keep it concise — 1 to 3 sentences.]`
+        : `[The learner wants you to pick a topic. Start a natural conversation about something interesting and creative in ${promptLangName()}. Keep it concise — 1 to 3 sentences.]`;
       agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
     }
   };
@@ -926,15 +949,14 @@ export const ConversationContent: Component = () => {
 
   // Word hover handler for chat tokens
   const handleTokenHover = async (token: Token, rect: DOMRect, el: HTMLElement) => {
-    const pos = token.type || '';
-    if (!isTranslatable(pos)) return;
+    if (!isTokenTranslatable(token)) return;
 
-    const lookupWord = token.actual_word || token.word;
+    const lookupWord = getTokenLookupWord(token, getLanguageFeatures().tokenizerCapabilities);
     const requestId = ++hoverRequestId;
 
     // Show immediately with cached data if available
-    const cached = getCachedTranslation(lookupWord, settings.language);
-    setTranslationData(cached ? { data: cached.data as (TranslationEntry | PitchData | null | undefined)[] } : null);
+    const cached = getCachedTranslation(lookupWord, settings.language, wordLookupOptions);
+    setTranslationData(cached ? { data: cached.data } : null);
     setDictionaryEntries([]);
     setIsLoadingDict(true);
 
@@ -953,7 +975,7 @@ export const ConversationContent: Component = () => {
         const result = await translateWord(lookupWord);
         if (requestId !== hoverRequestId) return;
         if (result) {
-          setTranslationData({ data: result.data as (TranslationEntry | PitchData | null | undefined)[] });
+          setTranslationData({ data: result.data });
         }
       } catch (e) {
         log.error("error", e);
@@ -1129,8 +1151,7 @@ export const ConversationContent: Component = () => {
         if (assistantMessageIndex >= 0 && settings.agentSafetyChecker && finalContent) {
           runAssistantSafetyScan(finalContent, assistantMessageIndex);
         } else if (settings.autoSpeak && settings.speechEnabled && finalContent) {
-          const langCode = settings.language;
-          getBridge().speech.ttsSpeak(finalContent, langCode);
+          speakAssistantText(finalContent);
         }
       },
       onError: (error) => {
@@ -1184,8 +1205,7 @@ export const ConversationContent: Component = () => {
     const userMsgIndex = messages().length;
     setMessages((prev) => [...prev, userMsg]);
 
-    // Skip tokenization when a non-Latin language receives Latin-only input
-    const shouldTokenizeUser = getLanguageFeatures().usesLatinScript || !isLatinOnly(text);
+    const shouldTokenizeUser = shouldTokenizeTextForLanguage(text, settings.language, currentLangData());
     if (shouldTokenizeUser) {
       agent.tokenize(text).then((tokens) => {
         if (tokens.length > 0) {
@@ -1226,7 +1246,7 @@ export const ConversationContent: Component = () => {
     setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
     startAssistantStream(assistantMessageIndex);
 
-    const context = `[Voice call started. The learner is waiting for you to speak. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+    const context = `[Voice call started. The learner is waiting for you to speak. Greet them warmly and start a natural conversation in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`;
     agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
   };
 
@@ -1238,7 +1258,7 @@ export const ConversationContent: Component = () => {
     setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
     startAssistantStream(assistantMessageIndex);
 
-    const context = `[The learner opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+    const context = `[The learner opened the chat. Greet them warmly and start a natural conversation in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`;
     agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
   };
 
@@ -1314,7 +1334,7 @@ export const ConversationContent: Component = () => {
       // AI-initiated message with no preceding user message — remove context + assistant from history,
       // then re-request with a fresh context so the LLM produces a different greeting
       agent.popHistory(2);
-      const context = `[The learner is waiting. Greet them and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+      const context = `[The learner is waiting. Greet them and start a natural conversation in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`;
       agent.continueWithContext(context, buildStreamCallbacks(messageIndex));
     } else {
       agent.restartStream(buildStreamCallbacks(messageIndex));
@@ -1466,13 +1486,12 @@ export const ConversationContent: Component = () => {
     const options: SelectOption[] = [
       { value: '', label: t('mlearn.ConversationAgent.LevelAdapt.None') },
     ];
-    // Levels go from highest number (easiest) to lowest (hardest)
-    const levels = Object.keys(names)
-      .map(Number)
-      .filter((n) => !isNaN(n))
-      .sort((a, b) => b - a);
+    const levels = sortFrequencyLevelsForDisplay(
+      Object.keys(names).map(Number).filter((n) => !isNaN(n)),
+      currentLangData(),
+    );
     for (const level of levels) {
-      options.push({ value: String(level), label: names[String(level)] });
+      options.push({ value: String(level), label: getFrequencyLevelLabel(level, names, currentLangData()) });
     }
     return options;
   };
@@ -1860,7 +1879,7 @@ export const ConversationContent: Component = () => {
           onEdit={handleEditAgent}
           onDelete={handleDeleteAgent}
           onDeleteMemory={handleDeleteMemory}
-          onClearAgentMemories={(agentId) => clearAgentMemories(agentId).then(setAllMemories)}
+          onClearAgentMemories={(agentId) => clearAgentMemories(agentId, settings.language).then(setAllMemories)}
           onDeleteAll={handleDeleteAllAgents}
         />
       </TabPanel>

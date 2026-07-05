@@ -3,9 +3,8 @@
  * Uses CSS variables from index.css for consistent theming
  */
 
-/* Import shared pill and pitch accent styling */
+/* Import shared pill and prosody overlay styling */
 @import url('../common/Label/Label.css');
-@import url('../language-specific/PitchAccent.css');
 
 /* Main container - CSS-driven width based on content, capped at 400px */
 .word-hover-container {
@@ -191,26 +190,16 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   transform: translateZ(0);
 }
 
-/* Pitch accent pill - uses PillLabel component now */
-.subtitle_hover .pitch-accent-pill {
-  flex-shrink: 0;
-  position: relative;
-}
-.subtitle_hover .pitch-accent-pill .pitch-accent-word {
-  font-weight: var(--font-weight-bold);
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding-bottom: 2px;
+.subtitle_hover .prosody-position-pill {
+  gap: 6px;
 }
 
-.subtitle_hover .pitch-accent-pill .pitch-accent {
-  --pitch-accent-height: 2px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+.subtitle_hover .prosody-position-pill__label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.subtitle_hover .prosody-position-pill__value {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Reading and translation order */

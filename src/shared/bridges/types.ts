@@ -133,7 +133,7 @@ export interface WindowBridge {
   makePiP: (size: { width: number; height: number }) => void;
   unPiP: () => void;
   showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => void;
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
+  showReaderCtxMenu: (options: { readingAnnotationHiderEnabled: boolean; hasContextPhrase: boolean; canToggleReadingHider?: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
   showContact: () => void;
   openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;
@@ -148,7 +148,7 @@ export interface WindowBridge {
   onContextMenuCommand: (callback: (command: string) => void) => () => void;
   onReaderContextMenuCommand: (callback: (command: string) => void) => () => void;
   onOpenWordDbEditor: (callback: () => void) => () => void;
-  onOpenExamCentricStudy: (callback: () => void) => () => void;
+  onOpenLevelStudy: (callback: () => void) => () => void;
   onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => () => void;
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
   onLookupDeepLink: (callback: (word: string) => void) => () => void;
@@ -210,11 +210,16 @@ export interface LLMBridge {
   onOllamaPullModelProgress: (callback: (progress: { status: string; completed?: number; total?: number; error?: string }) => void) => () => void;
 }
 
+export interface SpeechSynthesisOptions {
+  speechSynthesisLang?: string;
+  speechSynthesisVoice?: string;
+}
+
 export interface SpeechBridge {
   sttStart: (language: string) => void;
   sttStop: () => void;
   onSttResult: (callback: (result: { transcript: string; isFinal: boolean }) => void) => () => void;
-  ttsSpeak: (text: string, language: string) => void;
+  ttsSpeak: (text: string, language: string, options?: SpeechSynthesisOptions) => void;
   ttsStop: () => void;
   onTtsStatus: (callback: (status: { speaking: boolean; progress: number }) => void) => () => void;
 }
@@ -240,7 +245,7 @@ export interface VoiceBridge {
   voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;
   voiceSampleDelete: (id: string) => Promise<boolean>;
   voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
-  voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
+  voiceSampleTranscribe: (id: string, language?: string) => Promise<{ text: string; language: string }>;
   voiceSampleGetPath: (id: string) => Promise<string | null>;
 }
 

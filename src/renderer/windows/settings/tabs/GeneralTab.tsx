@@ -14,6 +14,10 @@ import { getLogger } from '../../../../shared/utils/logger';
 
 const log = getLogger("renderer.settings.general");
 
+function uniqueLanguageCodes(...groups: Array<readonly string[]>): string[] {
+  return [...new Set(groups.flat().filter(Boolean))];
+}
+
 function assignImportedSetting<K extends keyof Settings>(
   target: Partial<Settings>,
   key: K,
@@ -31,6 +35,7 @@ export const GeneralTab: Component = () => {
     languageDataCatalog,
     getLanguageDataStatus,
     installLanguageData,
+    isLanguageDataInstalling,
     languageDataInstallError,
   } = useLanguage();
   const [exportError, setExportError] = createSignal<string | null>(null);
@@ -55,13 +60,14 @@ export const GeneralTab: Component = () => {
   })));
   const availableLanguageCodes = createMemo(() => {
     const catalogCodes = languageDataCatalog().map((status) => status.language);
-    return catalogCodes.length > 0 ? catalogCodes : supportedLanguages();
+    return uniqueLanguageCodes(catalogCodes, supportedLanguages());
   });
   const learningLanguageOptions = createMemo(() => availableLanguageCodes().map((code) => ({
     value: code,
     label: langData[code]?.name_translated ?? getLanguageDataStatus(code)?.nameTranslated ?? getLanguageDataStatus(code)?.name ?? code.toUpperCase(),
   })));
   const selectedLanguageDataStatus = createMemo(() => getLanguageDataStatus(settings.language));
+  const selectedLanguageInstalling = createMemo(() => isLanguageDataInstalling(settings.language));
   const dictionaryTargetOptions = createMemo(() => selectedLanguageDataStatus()?.dictionaryPacks ?? []);
   const selectedDictionaryTargetLanguage = createMemo(() => {
     const options = dictionaryTargetOptions();
@@ -69,25 +75,23 @@ export const GeneralTab: Component = () => {
     if (configured && options.some((option) => option.targetLanguage === configured)) {
       return configured;
     }
-    return options.find((option) => option.targetLanguage === 'en')?.targetLanguage ?? options[0]?.targetLanguage ?? '';
+    if (settings.uiLanguage && options.some((option) => option.targetLanguage === settings.uiLanguage)) {
+      return settings.uiLanguage;
+    }
+    return options[0]?.targetLanguage ?? '';
   });
   const selectedDictionaryPackStatus = createMemo(() => {
     const target = selectedDictionaryTargetLanguage();
     return dictionaryTargetOptions().find((pack) => pack.targetLanguage === target);
   });
+  const selectedDictionaryInstalling = createMemo(() => {
+    const target = selectedDictionaryTargetLanguage();
+    return target ? isLanguageDataInstalling(settings.language, target) : false;
+  });
   const selectedLanguageInstallError = createMemo(() => {
     const error = languageDataInstallError();
     return error?.language === settings.language ? error.error : null;
   });
-
-  const saveAndRestartBackend = () => {
-    const cleanup = getBridge().settings.onSettingsSaved(() => {
-      cleanup();
-      getBridge().server.restartBackend();
-    });
-
-    saveSettings();
-  };
 
   const handleExportSettings = async () => {
     setExportError(null);
@@ -235,7 +239,6 @@ export const GeneralTab: Component = () => {
             onChange={async (e) => {
               const language = e.currentTarget.value;
               updateSettings({ language });
-              saveAndRestartBackend();
             }}
             options={learningLanguageOptions()}
           />
@@ -252,9 +255,13 @@ export const GeneralTab: Component = () => {
             <Btn
               size="sm"
               variant="secondary"
-              onClick={() => installLanguageData(settings.language, selectedDictionaryTargetLanguage() || undefined)}
+              loading={selectedLanguageInstalling()}
+              disabled={selectedLanguageInstalling()}
+              onClick={() => installLanguageData(settings.language)}
             >
-              {t('mlearn.Settings.Language.LanguageData.Install')}
+              {selectedLanguageInstalling()
+                ? t('mlearn.Settings.Language.LanguageData.Installing')
+                : t('mlearn.Settings.Language.LanguageData.Install')}
             </Btn>
           </Show>
           <Show when={selectedLanguageInstallError()}>
@@ -282,7 +289,6 @@ export const GeneralTab: Component = () => {
                     [settings.language]: targetLanguage,
                   },
                 });
-                saveAndRestartBackend();
               }}
               options={dictionaryTargetOptions().map((pack) => ({
                 value: pack.targetLanguage,
@@ -302,9 +308,13 @@ export const GeneralTab: Component = () => {
               <Btn
                 size="sm"
                 variant="secondary"
+                loading={selectedDictionaryInstalling()}
+                disabled={selectedDictionaryInstalling()}
                 onClick={() => installLanguageData(settings.language, selectedDictionaryTargetLanguage())}
               >
-                {t('mlearn.Settings.Language.LanguageData.Install')}
+                {selectedDictionaryInstalling()
+                  ? t('mlearn.Settings.Language.LanguageData.Installing')
+                  : t('mlearn.Settings.Language.LanguageData.Install')}
               </Btn>
             </Show>
           </SettingRow>

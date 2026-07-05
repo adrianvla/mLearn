@@ -177,6 +177,8 @@ function buildPluginHostContext(
   }
 
   const settings = loadSettings();
+  const language = settings.language;
+  const dictionaryTargetLanguage = settings.dictionaryTargetLanguages?.[language] ?? settings.uiLanguage;
 
   return {
     pluginId: manifest.id,
@@ -184,7 +186,8 @@ function buildPluginHostContext(
     ui,
     initialContext: {
       ...payload.context,
-      __mlearnLanguage: settings.language,
+      __mlearnLanguage: language,
+      __mlearnDictionaryTargetLanguage: dictionaryTargetLanguage,
     },
   };
 }

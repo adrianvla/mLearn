@@ -5,26 +5,62 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
+import type { FlashcardProsody, LanguageDataCatalogStatus, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
-import { isAllKana, katakanaToHiragana, containsKanji } from '../../shared/utils/textUtils';
+import {
+  buildLexemeIndex,
+  createEmptyLexemeIndex,
+  getCanonicalLexeme,
+  getFrequencyForLexeme,
+  getFrequencyLevelLabel,
+  getGrammarLevelLabel,
+  getPartOfSpeechColor,
+  getTranslatablePartOfSpeechTypes,
+  grammarPointMatchesTokens,
+  getReadingAnnotationScripts,
+  getCasualRegisterPromptGuidelines,
+  getGrammarLevelVisualRank,
+  getLanguageFeatureFlags,
+  getLanguageFixedSettings,
+  getLanguageProsodyType,
+  getLexemeReadingVariants,
+  getLexemeVariants,
+  getRegisterCorrectionPromptGuidelines,
+  getTokenizerCapabilities,
+  isDisplayableFrequencyLevel,
+  isTranslatablePartOfSpeech,
+  isTranslatableToken,
+  languageSupportsCharacterNamePrefixes,
+  languageSupportsDeferentialRegister,
+  ocrRuntimeSupportsRamSaver,
+  ocrRuntimeSupportsVerticalText,
+  resolveLanguageFrequencyPayload,
+  sortFrequencyLevelsByDifficulty,
+  type LanguageLexemeIndex,
+  type LanguageTokenizerCapabilities,
+} from '../../shared/languageFeatures';
+import { prosodyVisible } from '../../shared/prosodySettings';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.context.language");
 
 // Grammar entry with parsed data for lookup
 export interface GrammarEntry extends GrammarPoint {
-  /** Level display name (e.g., "JLPT N5") */
+  /** Level display name from language metadata */
   levelName: string;
+  /** Bounded visual rank derived from grammar-level metadata. */
+  visualLevel: number;
 }
 
-// Language feature capabilities - derived from fixed_settings and language properties
+// Language feature capabilities - derived from package settings and language properties
 export interface LanguageFeatures {
-  /** Whether the language supports readings/furigana (different pronunciation from writing) */
+  /** Whether the language supports reading annotations alongside written text */
   supportsReadings: boolean;
-  /** Whether the language has pitch accent data */
-  supportsPitchAccent: boolean;
-  /** Whether the language uses logographic characters (CJK) that may need readings */
+  /** Configured prosody renderer/model from language metadata, when enabled. */
+  prosodyRenderer?: NonNullable<FlashcardProsody['type']>;
+  /** Whether the language declares any prosody/accent model */
+  supportsProsody: boolean;
+  /** Whether the language uses logographic characters that may need readings */
   isLogographic: boolean;
   /** Whether the language is written right-to-left */
   isRTL: boolean;
@@ -32,7 +68,7 @@ export interface LanguageFeatures {
   supportsColorCodes: boolean;
   /** Whether the primary writing system is Latin script */
   usesLatinScript: boolean;
-  /** Whether the language supports frequency/JLPT-style level indicators */
+  /** Whether the language supports frequency/level indicators */
   supportsFrequencyLevels: boolean;
   /** Whether settings are overridden by language data */
   hasFixedSettings: boolean;
@@ -40,14 +76,24 @@ export interface LanguageFeatures {
   fixedSettingKeys: (keyof Settings)[];
   /** Whether the language supports character name detection in subtitles */
   supportsCharacterNames: boolean;
-  /** Whether the language can be written vertically (CJK vertical text) */
+  /** Whether the language package declares vertical text support */
   supportsVerticalText: boolean;
+  /** Whether the language OCR pipeline supports lightweight region detection before recognition */
+  supportsOcrRamSaver: boolean;
   /** Whether the language has grammar point data */
   supportsGrammar: boolean;
-  /** Whether the language uses CJK-style parentheses */
-  usesCJKParentheses: boolean;
-  /** Whether the language has a distinct honorific/deferential register (e.g. Japanese keigo) */
-  supportsHonorifics: boolean;
+  /** Whether the language has a distinct deferential/formal register model. */
+  supportsDeferentialRegister: boolean;
+  /** What the configured tokenizer can be trusted to provide. Rough segmentation is not morphology. */
+  tokenizerCapabilities: LanguageTokenizerCapabilities;
+  /** Register/style guidance for natural casual tutor speech declared by the language package. */
+  casualRegisterPromptGuidelines: string[];
+  /** Extra tutor prompt guidance declared by the language package. */
+  tutorPromptGuidelines: string[];
+  /** Extra correction guidance shared by tutor and checker prompts. */
+  correctionPromptGuidelines: string[];
+  /** Extra checker prompt guidance declared by the language package. */
+  mistakeCheckerPromptGuidelines: string[];
 }
 
 // Context interface
@@ -56,15 +102,21 @@ interface LanguageContextValue {
   supportedLanguages: () => string[];
   currentLangData: () => LanguageData | null;
   wordFrequency: WordFrequencyMap;
+  getWordFrequency: () => WordFrequencyMap;
   getFrequency: (word: string) => WordFrequencyEntry | null;
+  /** Get frequency metadata for any installed language, without borrowing the active language. */
+  getFrequencyForLanguage: (language: string, word: string) => WordFrequencyEntry | null;
   getLevelName: (level: number) => string;
   getFreqLevelNames: () => Record<string, string>;
   isLoading: () => boolean;
   languageDataCatalog: () => LanguageDataCatalogStatus[];
   getLanguageDataStatus: (language: string) => LanguageDataCatalogStatus | undefined;
   installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
+  isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
+  refreshLanguageData: () => void;
   languageDataInstallError: () => { language: string; error: string } | null;
   isTranslatable: (pos: string) => boolean;
+  isTokenTranslatable: (token: Pick<Token, 'word'> & Partial<Pick<Token, 'surface' | 'actual_word' | 'type' | 'partOfSpeech'>>) => boolean;
   translatableTypes: () => string[];
   /** Get language feature capabilities */
   getLanguageFeatures: () => LanguageFeatures;
@@ -82,31 +134,114 @@ interface LanguageContextValue {
   getGrammarLevelName: (level: number) => string;
   /** Get all grammar level names */
   getGrammarLevelNames: () => Record<string, string>;
-  /** Resolve a pure-kana word to its canonical (kanji) form using frequency data */
+  /** Resolve a word/readable form to its canonical frequency-list form when configured */
   getCanonicalForm: (word: string) => string;
   /** Return canonical + same-reading variants for a word, ordered by frequency */
   getWordVariants: (word: string) => string[];
+  /** Return raw + normalized reading variants for dictionary/cache lookup */
+  getReadingVariants: (reading: string) => string[];
+  /** Resolve a word/readable form for an installed language, without borrowing the active language. */
+  getCanonicalFormForLanguage: (language: string, word: string) => string;
+  /** Return canonical + same-reading variants for an installed language, without borrowing the active language. */
+  getWordVariantsForLanguage: (language: string, word: string) => string[];
+  /** Return raw + normalized reading variants for an installed language, without borrowing the active language. */
+  getReadingVariantsForLanguage: (language: string, reading: string) => string[];
 }
 
 // Create context
 const LanguageContext = createContext<LanguageContextValue>();
 
-/** Compute default frequency level boundaries by dividing evenly into 5 levels */
-function defaultFreqBoundaries(totalEntries: number): number[] {
-  const step = Math.floor(totalEntries / 5);
-  return [step, step * 2, step * 3, step * 4];
+/** Compute default frequency level boundaries by dividing evenly across configured levels. */
+function defaultFreqBoundaries(totalEntries: number, levelCount = 5): number[] {
+  const safeLevelCount = Math.max(levelCount, 1);
+  const step = Math.floor(totalEntries / safeLevelCount);
+  return Array.from({ length: Math.max(safeLevelCount - 1, 0) }, (_, idx) => step * (idx + 1));
+}
+
+interface LanguageFrequencyState {
+  frequency: WordFrequencyMap;
+  lexemeIndex: LanguageLexemeIndex;
+}
+
+function buildLanguageFrequencyState(langInfo: LanguageData | null | undefined): LanguageFrequencyState {
+  const { rows: freq, languageData: effectiveLangInfo } = resolveLanguageFrequencyPayload(langInfo);
+
+  if (freq.length === 0) {
+    return {
+      frequency: {},
+      lexemeIndex: buildLexemeIndex(undefined, effectiveLangInfo),
+    };
+  }
+
+  const freqMap: WordFrequencyMap = {};
+  const levelNames = effectiveLangInfo?.frequencyLevels?.names || {};
+  const hasDeclaredLevels = Object.keys(levelNames).length > 0;
+  const levelsByDifficulty = sortFrequencyLevelsByDifficulty(
+    hasDeclaredLevels ? Object.keys(levelNames).map(Number) : [],
+    effectiveLangInfo,
+  ).filter((level) => Number.isFinite(level));
+  const rowLevelIndex = Number.isInteger(effectiveLangInfo?.frequencyLevels?.rowLevelIndex)
+    && (effectiveLangInfo?.frequencyLevels?.rowLevelIndex ?? -1) >= 2
+    ? effectiveLangInfo?.frequencyLevels?.rowLevelIndex
+    : undefined;
+  const boundaries = hasDeclaredLevels
+    ? effectiveLangInfo?.frequencyLevels?.boundaries || defaultFreqBoundaries(freq.length, levelsByDifficulty.length)
+    : [];
+
+  for (let i = 0; i < freq.length; i++) {
+    const entry = freq[i];
+    if (!entry || entry.length < 2) continue;
+
+    const rowLevel = rowLevelIndex !== undefined ? Number(entry[rowLevelIndex]) : Number.NaN;
+    let level = Number.isFinite(rowLevel)
+      ? rowLevel
+      : levelsByDifficulty[levelsByDifficulty.length - 1] ?? -1;
+    if (!Number.isFinite(rowLevel)) {
+      for (let boundaryIndex = 0; boundaryIndex < boundaries.length; boundaryIndex += 1) {
+        if (i <= boundaries[boundaryIndex]) {
+          level = levelsByDifficulty[boundaryIndex] ?? level;
+          break;
+        }
+      }
+    }
+
+    const levelName = isDisplayableFrequencyLevel(level, levelNames, effectiveLangInfo)
+      ? getFrequencyLevelLabel(level, levelNames, effectiveLangInfo)
+      : '';
+
+    const existing = freqMap[entry[0]];
+    if (existing) {
+      if (!existing.alternateReadings) {
+        existing.alternateReadings = [];
+      }
+      if (entry[1] !== existing.reading && !existing.alternateReadings.includes(entry[1])) {
+        existing.alternateReadings.push(entry[1]);
+      }
+    } else {
+      freqMap[entry[0]] = {
+        reading: entry[1],
+        level: levelName,
+        raw_level: level,
+      };
+    }
+  }
+
+  return {
+    frequency: freqMap,
+    lexemeIndex: buildLexemeIndex(freq, effectiveLangInfo),
+  };
 }
 
 export const LanguageProvider: ParentComponent<{ language?: string }> = (props) => {
   const [langData, setLangData] = createStore<LanguageDataMap>({});
-  const [wordFrequency, setWordFrequency] = createStore<WordFrequencyMap>({});
+  const [wordFrequency, setWordFrequency] = createSignal<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
   const [languageDataCatalog, setLanguageDataCatalog] = createSignal<LanguageDataCatalogStatus[]>([]);
   const [languageDataInstallError, setLanguageDataInstallError] = createSignal<{ language: string; error: string } | null>(null);
-  // Maps hiragana reading → canonical kanji form (first/most-common entry from freq data)
-  let readingToCanonical: Record<string, string> = {};
-  let readingToVariants: Record<string, string[]> = {};
-  const currentLang = createMemo<string>(() => props.language || DEFAULT_SETTINGS.language);
+  const [languageDataInstalls, setLanguageDataInstalls] = createSignal<Record<string, boolean>>({});
+  let lexemeIndex: LanguageLexemeIndex = createEmptyLexemeIndex();
+  const perLanguageFrequencyState = new Map<string, { data: LanguageData | null; state: LanguageFrequencyState }>();
+  const currentLang = createMemo<string>(() => props.language ?? '');
   const ipcCleanups: Array<() => void> = [];
 
   // Grammar lookup structures
@@ -134,6 +269,15 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     }));
     ipcCleanups.push(bridge.localization.onLanguageDataInstalled((status) => {
       if (!status) return;
+      setLanguageDataInstalls((previous) => {
+        const next = { ...previous };
+        for (const key of Object.keys(next)) {
+          if (key === status.language || key.startsWith(`${status.language}:`)) {
+            delete next[key];
+          }
+        }
+        return next;
+      });
       setLanguageDataCatalog((previous) => {
         const next = previous.filter((item) => item.language !== status.language);
         next.push(status);
@@ -143,6 +287,15 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       bridge.localization.getLangData();
     }));
     ipcCleanups.push(bridge.localization.onLanguageDataInstallError((payload) => {
+      setLanguageDataInstalls((previous) => {
+        const next = { ...previous };
+        for (const key of Object.keys(next)) {
+          if (key === payload.language || key.startsWith(`${payload.language}:`)) {
+            delete next[key];
+          }
+        }
+        return next;
+      });
       setLanguageDataInstallError(payload);
     }));
     bridge.localization.getLanguageDataCatalog();
@@ -152,77 +305,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const parseWordFrequency = (data: LanguageDataMap) => {
     const lang = currentLang();
     const langInfo = data[lang];
-    if (!langInfo?.freq) {
-      readingToCanonical = {};
-      readingToVariants = {};
-      setWordFrequency(reconcile({}));
-      return;
-    }
-
-    const freqMap: WordFrequencyMap = {};
-    const freq = langInfo.freq;
-    const levelNames = langInfo.freq_level_names || {};
-    // Use per-language frequency boundaries, or spread evenly across 5 levels
-    const boundaries = langInfo.freq_level_boundaries || defaultFreqBoundaries(freq.length);
-
-    for (let i = 0; i < freq.length; i++) {
-      const entry = freq[i];
-      if (!entry || entry.length < 2) continue;
-
-      let level = 1;
-      if (i <= boundaries[0]) level = 5;
-      else if (i <= boundaries[1]) level = 4;
-      else if (i <= boundaries[2]) level = 3;
-      else if (i <= boundaries[3]) level = 2;
-
-      const levelName = levelNames[String(level)] || `Level ${level}`;
-
-      // Preserve first occurrence as primary (earlier = more common in frequency-ordered lists)
-      // and collect subsequent readings as alternates
-      const existing = freqMap[entry[0]];
-      if (existing) {
-        if (!existing.alternateReadings) {
-          existing.alternateReadings = [];
-        }
-        if (entry[1] !== existing.reading && !existing.alternateReadings.includes(entry[1])) {
-          existing.alternateReadings.push(entry[1]);
-        }
-      } else {
-        freqMap[entry[0]] = {
-          reading: entry[1],
-          level: levelName,
-          raw_level: level,
-        };
-      }
-    }
-
-    // Build reverse map: hiragana reading → canonical kanji form
-    // Only the first (most common) form for each reading is kept
-    const rMap: Record<string, string> = {};
-    const variantsMap: Record<string, string[]> = {};
-    for (let i = 0; i < freq.length; i++) {
-      const entry = freq[i];
-      if (!entry || entry.length < 2) continue;
-      const word = entry[0];
-      const reading = entry[1];
-      // Skip if the word itself is pure kana (no kanji to normalize to)
-      if (!reading || !containsKanji(word)) continue;
-      const hiragana = katakanaToHiragana(reading);
-      if (hiragana && !rMap[hiragana]) {
-        rMap[hiragana] = word;
-      }
-      if (hiragana) {
-        const variants = variantsMap[hiragana] ?? [];
-        if (!variants.includes(word)) {
-          variants.push(word);
-        }
-        variantsMap[hiragana] = variants;
-      }
-    }
-    readingToCanonical = rMap;
-    readingToVariants = variantsMap;
-
-    setWordFrequency(reconcile(freqMap));
+    perLanguageFrequencyState.clear();
+    const state = buildLanguageFrequencyState(langInfo);
+    lexemeIndex = state.lexemeIndex;
+    setWordFrequency(state.frequency);
   };
 
   // Get supported languages
@@ -231,9 +317,23 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const getLanguageDataStatus = (language: string): LanguageDataCatalogStatus | undefined =>
     languageDataCatalog().find((status) => status.language === language);
 
+  const getLanguageDataInstallKey = (language: string, dictionaryTargetLanguage?: string): string =>
+    dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
+
   const installLanguageData = (language: string, dictionaryTargetLanguage?: string): void => {
     setLanguageDataInstallError(null);
+    setLanguageDataInstalls((previous) => ({
+      ...previous,
+      [getLanguageDataInstallKey(language, dictionaryTargetLanguage)]: true,
+    }));
     getBridge().localization.installLanguageData(language, dictionaryTargetLanguage);
+  };
+
+  const isLanguageDataInstalling = (language: string, dictionaryTargetLanguage?: string): boolean =>
+    languageDataInstalls()[getLanguageDataInstallKey(language, dictionaryTargetLanguage)] === true;
+
+  const refreshLanguageData = (): void => {
+    getBridge().localization.getLangData();
   };
 
   // Get current language data
@@ -241,97 +341,102 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   // Get frequency for a word, with fallback to reading-based lookup
   const getFrequency = (word: string): WordFrequencyEntry | null => {
-    const direct = wordFrequency[word];
-    if (direct) return direct;
-    // If word is pure kana, try to find its canonical kanji form in freq data
-    if (isAllKana(word)) {
-      const hiragana = katakanaToHiragana(word);
-      const canonical = readingToCanonical[hiragana];
-      if (canonical) return wordFrequency[canonical] || null;
-    }
-    return null;
+    return getFrequencyForLexeme(word, wordFrequency(), lexemeIndex, currentLangData());
   };
 
-  // Resolve a pure-hiragana word to its canonical (kanji) form using freq data.
-  // Katakana spellings stay as-is because they often represent distinct usage
-  // and should not inherit the canonical kanji source automatically.
-  const getCanonicalForm = (word: string): string => {
-    if (!word) return word;
-    // Already contains kanji — no normalization needed
-    if (containsKanji(word)) return word;
-    // Already in freq data as-is (some words are natively kana, e.g. ところ)
-    if (wordFrequency[word]) return word;
-    // Not pure kana (e.g. Latin text) — skip
-    if (!isAllKana(word)) return word;
-    // Do not resolve katakana spellings to a kanji headword.
-    const hiragana = katakanaToHiragana(word);
-    if (hiragana !== word) return word;
+  const getFrequencyStateForLanguage = (language: string): LanguageFrequencyState => {
+    if (language === currentLang()) {
+      return { frequency: wordFrequency(), lexemeIndex };
+    }
+    const data = langData[language] ?? null;
+    const cached = perLanguageFrequencyState.get(language);
+    if (cached && cached.data === data) return cached.state;
+    const state = buildLanguageFrequencyState(data);
+    perLanguageFrequencyState.set(language, { data, state });
+    return state;
+  };
 
-    // Look up canonical form via reading
-    const canonical = readingToCanonical[hiragana];
-    return canonical || word;
+  const getFrequencyForLanguage = (language: string, word: string): WordFrequencyEntry | null => {
+    const data = langData[language] ?? null;
+    const state = getFrequencyStateForLanguage(language);
+    return getFrequencyForLexeme(word, state.frequency, state.lexemeIndex, data);
+  };
+
+  // Resolve a word/readable form to its canonical frequency-list form using
+  // language-defined lexeme normalization.
+  const getCanonicalForm = (word: string): string => {
+    return getCanonicalLexeme(word, wordFrequency(), lexemeIndex, currentLangData());
   };
 
   const getWordVariants = (word: string): string[] => {
-    if (!word) return [];
-
-    const variants = new Set<string>();
-    variants.add(word);
-
-    const canonical = getCanonicalForm(word);
-    if (canonical) {
-      variants.add(canonical);
-    }
-
-    const freqEntry = wordFrequency[word] || (canonical ? wordFrequency[canonical] : undefined);
-    const reading = freqEntry?.reading;
-    if (reading) {
-      const hiragana = katakanaToHiragana(reading);
-      for (const variant of readingToVariants[hiragana] ?? []) {
-        variants.add(variant);
-      }
-    }
-
-    return Array.from(variants);
+    return getLexemeVariants(word, wordFrequency(), lexemeIndex, currentLangData());
   };
 
-  // Get level name from langdata (e.g., "JLPT N5" for level 5)
+  const getReadingVariants = (reading: string): string[] => {
+    return getLexemeReadingVariants(reading, currentLangData());
+  };
+
+  const getCanonicalFormForLanguage = (language: string, word: string): string => {
+    if (language === currentLang()) return getCanonicalForm(word);
+    const data = langData[language] ?? null;
+    const state = getFrequencyStateForLanguage(language);
+    return getCanonicalLexeme(word, state.frequency, state.lexemeIndex, data);
+  };
+
+  const getWordVariantsForLanguage = (language: string, word: string): string[] => {
+    if (language === currentLang()) return getWordVariants(word);
+    const data = langData[language] ?? null;
+    const state = getFrequencyStateForLanguage(language);
+    return getLexemeVariants(word, state.frequency, state.lexemeIndex, data);
+  };
+
+  const getReadingVariantsForLanguage = (language: string, reading: string): string[] => {
+    if (language === currentLang()) return getReadingVariants(reading);
+    return getLexemeReadingVariants(reading, langData[language] ?? null);
+  };
+
+  // Get level name from language metadata.
   const getLevelName = (level: number): string => {
     const data = currentLangData();
-    const levelNames = data?.freq_level_names || {};
-    return levelNames[String(level)] || `Level ${level}`;
+    const levelNames = data?.frequencyLevels?.names || {};
+    return getFrequencyLevelLabel(level, levelNames, data);
   };
 
-  // Get all frequency level names from langdata
+  // Get all frequency level names from metadata and parsed frequency entries.
   const getFreqLevelNames = (): Record<string, string> => {
     const data = currentLangData();
-    return data?.freq_level_names || {};
+    const names: Record<string, string> = { ...(data?.frequencyLevels?.names ?? {}) };
+    for (const entry of Object.values(wordFrequency())) {
+      if (!isDisplayableFrequencyLevel(entry.raw_level, names, data)) continue;
+      const key = String(entry.raw_level);
+      names[key] = names[key] || entry.level || getFrequencyLevelLabel(entry.raw_level, names, data);
+    }
+    return names;
   };
 
   // Check if POS type is translatable
   const isTranslatable = (pos: string): boolean => {
-    const data = currentLangData();
-    if (!data?.translatable) return true; // Default to translatable if not specified
-    return data.translatable.includes(pos);
+    return isTranslatablePartOfSpeech(pos, currentLangData());
   };
 
   // Parse grammar data into lookup structures
   const parseGrammarData = (data: LanguageDataMap) => {
     const lang = currentLang();
     const langInfo = data[lang];
-    if (!langInfo?.grammar || !langInfo.hasGrammar) {
+    if (!langInfo?.grammar?.length) {
       grammarMap = new Map();
       grammarPatternsSorted = [];
       return;
     }
 
-    const levelNames = langInfo.grammar_level_names || {};
+    const levelNames = langInfo.grammarLevels?.names || {};
     const newMap = new Map<string, GrammarEntry>();
 
     for (const point of langInfo.grammar) {
       const entry: GrammarEntry = {
         ...point,
-        levelName: levelNames[String(point.level)] || `Level ${point.level}`,
+        levelName: getGrammarLevelLabel(point.level, levelNames, langInfo),
+        visualLevel: getGrammarLevelVisualRank(point.level, levelNames, langInfo),
       };
       newMap.set(point.pattern, entry);
     }
@@ -352,14 +457,13 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const detectGrammarInText = (tokens: Token[]): GrammarEntry[] => {
     if (grammarPatternsSorted.length === 0) return [];
 
-    // Build full text from tokens
-    const fullText = tokens.map(t => t.word).join('');
+    const data = currentLangData();
     const matched: GrammarEntry[] = [];
     const matchedPatterns = new Set<string>();
 
     for (const entry of grammarPatternsSorted) {
       if (matchedPatterns.has(entry.pattern)) continue;
-      if (fullText.includes(entry.pattern)) {
+      if (grammarPointMatchesTokens(entry, tokens, data)) {
         matched.push(entry);
         matchedPatterns.add(entry.pattern);
       }
@@ -370,92 +474,101 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   // Whether current language supports grammar
   const supportsGrammar = (): boolean => {
-    const data = currentLangData();
-    return data?.hasGrammar === true && grammarPatternsSorted.length > 0;
+    return grammarPatternsSorted.length > 0;
   };
 
   // Get grammar level name
   const getGrammarLevelName = (level: number): string => {
     const data = currentLangData();
-    const levelNames = data?.grammar_level_names || {};
-    return levelNames[String(level)] || `Level ${level}`;
+    const levelNames = data?.grammarLevels?.names || {};
+    return getGrammarLevelLabel(level, levelNames, data);
   };
 
   // Get all grammar level names
   const getGrammarLevelNames = (): Record<string, string> => {
     const data = currentLangData();
-    return data?.grammar_level_names || {};
+    return data?.grammarLevels?.names || {};
   };
 
   // Get translatable POS types
   const translatableTypes = (): string[] => {
-    const data = currentLangData();
-    return data?.translatable || [];
+    return getTranslatablePartOfSpeechTypes(currentLangData());
   };
 
-  // Get language feature capabilities based on fixed_settings and language code
+  const isTokenTranslatableForCurrentLanguage = (
+    token: Pick<Token, 'word'> & Partial<Pick<Token, 'surface' | 'actual_word' | 'type' | 'partOfSpeech'>>,
+  ): boolean => {
+    return isTranslatableToken(token, currentLangData());
+  };
+
+  // Get language feature capabilities from installed language metadata.
   const getLanguageFeatures = (): LanguageFeatures => {
     const data = currentLangData();
-    const fixedSettings = data?.fixed_settings || {};
+    const fixedSettings = getLanguageFixedSettings(data);
     const fixedKeys = Object.keys(fixedSettings) as (keyof Settings)[];
-    const scripts = data?.supportedScripts || [];
-    
-    // Derive script-based capabilities from language data
-    const CJK_SCRIPTS = ['Han', 'Hira', 'Kana', 'Hang', 'Bopo'];
-    const RTL_SCRIPTS = ['Arab', 'Hebr', 'Syrc', 'Thaa'];
-    const isLogographic = scripts.some(s => CJK_SCRIPTS.includes(s));
-    const isRTL = scripts.some(s => RTL_SCRIPTS.includes(s));
-
-    let usesLatinScript: boolean;
-    if (typeof data?.usesLatinScript === 'boolean') {
-      usesLatinScript = data.usesLatinScript;
-    } else if (scripts.length > 0) {
-      usesLatinScript = scripts.includes('Latn');
-    } else {
-      usesLatinScript = !isLogographic && !isRTL;
-    }
+    const { isLogographic, isRTL, usesLatinScript } = getLanguageFeatureFlags(currentLang(), data);
+    const readingAnnotationsFixedOff = fixedSettings.showReadingAnnotations === false;
+    const prosodyFixedVisible = prosodyVisible(fixedSettings);
+    const prosodyRenderer = prosodyFixedVisible ? getLanguageProsodyType(data) : undefined;
+    const supportsReadings = !readingAnnotationsFixedOff && getReadingAnnotationScripts(data).length > 0;
+    const configuredTutorGuidelines = data?.conversation?.tutorPromptGuidelines;
+    const configuredCorrectionGuidelines = data?.conversation?.correctionPromptGuidelines;
+    const configuredCheckerGuidelines = data?.conversation?.mistakeCheckerPromptGuidelines;
+    const registerTutorGuidelines = getCasualRegisterPromptGuidelines(data);
+    const registerCorrectionGuidelines = getRegisterCorrectionPromptGuidelines(data);
     
     return {
-      // Languages with readings (furigana/pinyin) — driven by language data
-      supportsReadings: fixedSettings.furigana !== false && data?.hasFurigana === true,
-      // Pitch accent data — driven by language data
-      supportsPitchAccent: fixedSettings.showPitchAccent !== false && data?.hasPitchAccent === true,
+      // Languages with reading annotations — driven by language data
+      supportsReadings,
+      // Specific renderer selection and generic prosody support are separate.
+      ...(prosodyRenderer ? { prosodyRenderer } : {}),
+      supportsProsody: Boolean(prosodyRenderer),
       isLogographic,
       isRTL,
       usesLatinScript,
-      // All languages can potentially have color codes if defined
-      supportsColorCodes: Boolean(data?.colour_codes && Object.keys(data.colour_codes).length > 0),
-      // Frequency levels are usually for Japanese (JLPT) but can be configured for any language
-      supportsFrequencyLevels: Boolean(data?.freq && data.freq.length > 0),
+      // POS color defaults are configured by part-of-speech metadata.
+      supportsColorCodes: Boolean(data?.textProcessing?.partOfSpeech?.colors && Object.keys(data.textProcessing.partOfSpeech.colors).length > 0),
+      // Frequency levels are configured by language metadata.
+      supportsFrequencyLevels: resolveLanguageFrequencyPayload(data).rows.length > 0,
       hasFixedSettings: fixedKeys.length > 0,
       fixedSettingKeys: fixedKeys,
-      // Character name detection — driven by language data
-      supportsCharacterNames: data?.hasCharacterNames === true,
-      // Vertical text support — driven by language data
-      supportsVerticalText: data?.supportsVerticalText === true,
-      // Grammar data available
-      supportsGrammar: data?.hasGrammar === true,
-      // CJK parentheses for character names
-      usesCJKParentheses: data?.usesCJKParentheses === true,
-      // Honorific/deferential register (keigo, jondaetmal) — drives casual-register directives in the conversation agent
-      supportsHonorifics: data?.hasHonorifics === true,
+      // Character name detection — driven by language subtitle metadata
+      supportsCharacterNames: languageSupportsCharacterNamePrefixes(data),
+      // Vertical OCR/layout support — driven by runtime OCR metadata.
+      supportsVerticalText: ocrRuntimeSupportsVerticalText(data),
+      supportsOcrRamSaver: ocrRuntimeSupportsRamSaver(data),
+      // Grammar data is source of truth.
+      supportsGrammar: Array.isArray(data?.grammar) && data.grammar.length > 0,
+      // Deferential register — drives casual-register directives in the conversation agent
+      supportsDeferentialRegister: languageSupportsDeferentialRegister(data),
+      tokenizerCapabilities: getTokenizerCapabilities(data),
+      casualRegisterPromptGuidelines: registerTutorGuidelines,
+      tutorPromptGuidelines: Array.isArray(configuredTutorGuidelines)
+        ? configuredTutorGuidelines
+        : [],
+      correctionPromptGuidelines: Array.isArray(configuredCorrectionGuidelines)
+        ? [...configuredCorrectionGuidelines, ...registerCorrectionGuidelines]
+        : registerCorrectionGuidelines,
+      mistakeCheckerPromptGuidelines: Array.isArray(configuredCheckerGuidelines)
+        ? configuredCheckerGuidelines
+        : [],
     };
   };
 
   // Get effective settings with language overrides applied
   const getEffectiveSettings = <T extends Partial<Settings>>(baseSettings: T): T => {
     const data = currentLangData();
-    if (!data?.fixed_settings) return baseSettings;
+    const fixedSettings = getLanguageFixedSettings(data);
+    if (Object.keys(fixedSettings).length === 0) return baseSettings;
     
-    // Merge base settings with language-fixed settings (fixed_settings take precedence)
-    return { ...baseSettings, ...data.fixed_settings } as T;
+    // Merge base settings with language-fixed settings (package settings take precedence)
+    return { ...baseSettings, ...fixedSettings } as T;
   };
 
   // Check if a specific setting is fixed by language data
   const isSettingFixed = (key: keyof Settings): boolean => {
     const data = currentLangData();
-    if (!data?.fixed_settings) return false;
-    return key in data.fixed_settings;
+    return key in getLanguageFixedSettings(data);
   };
 
   onMount(() => {
@@ -479,16 +592,23 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     langData,
     supportedLanguages,
     currentLangData,
-    wordFrequency,
+    get wordFrequency() {
+      return wordFrequency();
+    },
+    getWordFrequency: wordFrequency,
     getFrequency,
+    getFrequencyForLanguage,
     getLevelName,
     getFreqLevelNames,
     isLoading,
     languageDataCatalog,
     getLanguageDataStatus,
     installLanguageData,
+    isLanguageDataInstalling,
+    refreshLanguageData,
     languageDataInstallError,
     isTranslatable,
+    isTokenTranslatable: isTokenTranslatableForCurrentLanguage,
     translatableTypes,
     getLanguageFeatures,
     getEffectiveSettings,
@@ -500,6 +620,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     getGrammarLevelNames,
     getCanonicalForm,
     getWordVariants,
+    getReadingVariants,
+    getCanonicalFormForLanguage,
+    getWordVariantsForLanguage,
+    getReadingVariantsForLanguage,
   };
 
   return (
@@ -525,7 +649,7 @@ export function useColorCodes() {
   return {
     getColor: (pos: string): string | null => {
       const data = currentLangData();
-      return data?.colour_codes[pos] || null;
+      return getPartOfSpeechColor(pos, undefined, data) || null;
     },
   };
 }

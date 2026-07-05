@@ -38,14 +38,15 @@ export const MobileContextMenuHandler: Component = () => {
         setResponseEvent('mlearn-ctx-command');
         setOpen(true);
       } else if (detail.type === 'reader') {
-        const readerItems: ContextMenuItem[] = [
-          {
-            id: 'toggle-furigana',
-            label: detail.options?.furiganaHiderEnabled
-              ? (t('mlearn.Reader.ShowFurigana') || 'Show Furigana')
-              : (t('mlearn.Reader.HideFurigana') || 'Hide Furigana'),
-          },
-        ];
+        const readerItems: ContextMenuItem[] = [];
+        if (detail.options?.canToggleReadingHider !== false) {
+          readerItems.push({
+            id: 'toggle-reading-annotation-hider',
+            label: detail.options?.readingAnnotationHiderEnabled
+              ? (t('mlearn.Reader.ShowReadingAnnotations') || 'Show reading annotations')
+              : (t('mlearn.Reader.HideReadingAnnotations') || 'Hide reading annotations'),
+          });
+        }
         if (detail.options?.hasContextPhrase) {
           readerItems.push({ id: 'copy-phrase', label: t('mlearn.Reader.CopyPhrase') || 'Copy Phrase' });
         }

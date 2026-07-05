@@ -398,6 +398,10 @@ const FLASHCARD_SHARD_COUNT = 16;
 const FLASHCARD_META_KEY = 'flashcards_meta';
 const FLASHCARD_CARDS_SHARD_PREFIX = 'flashcards_cards_shard_';
 const FLASHCARD_STATS_SHARD_PREFIX = 'flashcards_stats_shard_';
+/**
+ * @deprecated Pre-sharding Capacitor flashcard storage key. New writes must use
+ * the sharded `FLASHCARD_META_KEY`/`FLASHCARD_*_SHARD_PREFIX` stores.
+ */
 const FLASHCARD_LEGACY_KEY = 'flashcards';
 
 function getShardIndex(hexKey: string): number {
@@ -955,7 +959,7 @@ const windowBridge: WindowBridge = {
       statistics: '/statistics',
       'conversation-agent': '/conversation-agent',
       'word-db-editor': '/word-db-editor',
-      'exam-centric-study': '/exam-centric-study',
+      'level-study': '/level-study',
       licenses: '/licenses',
       'connect-qr': '/connect-qr',
     };
@@ -1025,7 +1029,7 @@ const windowBridge: WindowBridge = {
     return () => window.removeEventListener('mlearn-reader-ctx-command', handler);
   },
   onOpenWordDbEditor: noopCleanup,
-  onOpenExamCentricStudy: noopCleanup,
+  onOpenLevelStudy: noopCleanup,
   onOpenPrompt: noopCleanup,
   onAuthDeepLink: noopCleanup,
   onLookupDeepLink: noopCleanup,
@@ -1385,9 +1389,15 @@ const speechBridge: SpeechBridge = {
     return emitter.on('stt-result', callback as Listener);
   },
 
-  ttsSpeak(text: string, language: string) {
+  ttsSpeak(text: string, language: string, options) {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language;
+    utterance.lang = options?.speechSynthesisLang || language;
+    if (options?.speechSynthesisVoice) {
+      const voice = speechSynthesis.getVoices().find((candidate) => candidate.name === options.speechSynthesisVoice);
+      if (voice) {
+        utterance.voice = voice;
+      }
+    }
     utterance.onend = () => emitter.emit('tts-status', { speaking: false, progress: 1 });
     utterance.onerror = (event) => {
       log.error('[CapacitorBridge] SpeechSynthesis error:', event);

@@ -154,6 +154,19 @@
   box-sizing: border-box;
 }
 
+.unknown-words-item-pills .prosody-position-pill {
+  gap: var(--spacing-1);
+}
+
+.unknown-words-item-pills .prosody-position-pill__label {
+  color: var(--text-secondary);
+}
+
+.unknown-words-item-pills .prosody-position-pill__value {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
 .mobile-layout .unknown-words-sidebar {
   display: none;
 }

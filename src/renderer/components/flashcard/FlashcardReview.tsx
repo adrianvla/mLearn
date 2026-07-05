@@ -4,20 +4,20 @@
  */
 
 import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
-import { useFlashcards, useLocalization, useSettings } from '../../context';
+import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
-import { getBackend } from '../../../shared/backends';
-import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
 import { getSessionProgress } from './flashcardReviewSession';
+import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import './FlashcardReview.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -76,10 +76,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // TTS integration
   const { settings, updateSetting } = useSettings();
+  const { langData, currentLangData } = useLanguage();
   const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
+  const languageForCard = (card: Flashcard): string => card.language || settings.language;
+  const languageDataForCard = (card: Flashcard) => {
+    const language = languageForCard(card);
+    return langData[language] ?? (language === settings.language ? currentLangData() : null);
+  };
 
   const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example') => {
-    playTts(cardId, text, settings.language, field);
+    const card = store.flashcards[cardId] ?? currentCard();
+    playTts(cardId, text, card ? languageForCard(card) : settings.language, field);
   };
 
   // Current card
@@ -189,7 +196,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (!cardId || !settings.flashcardAutoTts || settings.flashcardMuteAudio) return;
       const card = currentCard();
       if (!card) return;
-      playTts(card.id, card.content.front, settings.language, 'word');
+      playTts(card.id, card.content.front, languageForCard(card), 'word');
     }
   ));
 
@@ -203,7 +210,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (!card?.content.example || card.content.example === '-') return;
       if (card.content.videoUrl || card.content.skipExampleTts) return;
       // Play example immediately — playTts stops any previous audio first
-      playTts(card.id, card.content.example!, settings.language, 'example');
+      playTts(card.id, card.content.example!, languageForCard(card), 'example');
     }
   ));
 
@@ -260,24 +267,18 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
     setRegeneratingExample(true);
     try {
-      const result = await generateExampleSentenceWithLLM(card.content.front, card.content.back, settings.language);
+      const language = languageForCard(card);
+      const languageData = languageDataForCard(card);
+      const result = await generateExampleSentenceWithLLM(card.content.front, card.content.back, language);
       if (result.sentence) {
-        let exampleHtml = result.sentence;
-        try {
-          const backend = getBackend({
-            mode: settings.backendMode,
-            url: settings.backendUrl,
-            authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-          });
-          const tokens = await backend.tokenize(result.sentence, settings.language);
-          if (tokens.length > 0) {
-            const colourCodes = settings.colour_codes || {};
-            exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
-          }
-        } catch (e) {
-          log.error("error", e);
-          // Use plain text if tokenization fails
-        }
+        const exampleHtml = await colorizeTokenizedText({
+          text: result.sentence,
+          language,
+          languageData,
+          settings,
+          colourCodes: resolveFlashcardColourCodes(languageData, settings.colour_codes),
+          targetWord: card.content.front,
+        });
         updateFlashcardContent(cardId, {
           example: exampleHtml,
           exampleMeaning: result.meaning || undefined,
@@ -584,6 +585,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             isOpen={showTtsModal()}
             onClose={() => setShowTtsModal(false)}
             cardId={currentCard()!.id}
+            language={languageForCard(currentCard()!)}
+            languageData={languageDataForCard(currentCard()!)}
             wordText={currentCard()!.content.front}
             exampleText={currentCard()!.content.example}
             reading={currentCard()!.content.reading}

@@ -7,8 +7,35 @@ import https from 'https';
 import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_API_URL } from '../../../../shared/constants';
 import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
-import { loadSettings } from '../../settings';
+import type { LanguageData, Settings } from '../../../../shared/types';
+import { loadLangData, loadSettings } from '../../settings';
 import { httpGet, wsConnect, skipTest } from '../utils';
+import { backendSttStatusUrl, backendTtsStatusUrl } from '../voiceDiagnosticUrls';
+
+function getVoiceDiagnosticContext(): {
+  settings: Settings;
+  language: string;
+  languageData: LanguageData | undefined;
+} {
+  const settings = loadSettings();
+  const language = settings.language?.trim();
+  if (!language) {
+    skipTest('No learning language configured');
+  }
+  return {
+    settings,
+    language,
+    languageData: loadLangData()[language],
+  };
+}
+
+function getDiagnosticText(language: string, languageData?: LanguageData): string {
+  const configured = languageData?.runtime?.tts?.diagnosticText;
+  if (typeof configured === 'string' && configured.trim()) {
+    return configured.trim();
+  }
+  return languageData?.name_translated || languageData?.name || language;
+}
 
 registerDiagnosticSuite({
   name: SUITE_NAMES.VOICE,
@@ -17,7 +44,8 @@ registerDiagnosticSuite({
       name: 'tts-status',
       timeoutMs: 10_000,
       async fn() {
-        const { status, body } = await httpGet(`http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/status`, 10_000);
+        const { language } = getVoiceDiagnosticContext();
+        const { status, body } = await httpGet(backendTtsStatusUrl(language), 10_000);
         if (status !== 200) {
           throw new Error(`TTS status returned status ${status}`);
         }
@@ -32,7 +60,8 @@ registerDiagnosticSuite({
       name: 'stt-status',
       timeoutMs: 10_000,
       async fn() {
-        const { status, body } = await httpGet(`http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stt/status`, 10_000);
+        const { language } = getVoiceDiagnosticContext();
+        const { status, body } = await httpGet(backendSttStatusUrl(language), 10_000);
         if (status !== 200) {
           throw new Error(`STT status returned status ${status}`);
         }
@@ -47,8 +76,11 @@ registerDiagnosticSuite({
       name: 'voice-stream-connect',
       timeoutMs: 10_000,
       async fn() {
+        const { language } = getVoiceDiagnosticContext();
+        const url = new URL(`ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stream`);
+        url.searchParams.set('language', language);
         try {
-          await wsConnect(`ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stream`);
+          await wsConnect(url.toString());
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           // 403 means the endpoint exists but requires auth token — server is functional
@@ -63,14 +95,22 @@ registerDiagnosticSuite({
       name: 'tts-local-generate',
       timeoutMs: 60_000,
       async fn() {
+        const { settings, language, languageData } = getVoiceDiagnosticContext();
+        const provider = settings.ttsProvider;
+        if (provider === 'cloud') {
+          skipTest('Local TTS provider is not selected');
+        }
         const { status: statusStatus, body: statusBody } = await httpGet(
-          `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/status`,
+          backendTtsStatusUrl(language),
           10_000,
         );
         if (statusStatus !== 200) {
           throw new Error(`TTS status check failed with status ${statusStatus}`);
         }
         const statusData = JSON.parse(statusBody);
+        if (statusData.error) {
+          skipTest(`TTS unavailable for ${language}: ${statusData.error}`);
+        }
         if (!statusData.downloaded) {
           skipTest('TTS model not downloaded');
         }
@@ -78,7 +118,11 @@ registerDiagnosticSuite({
           skipTest('TTS model still loading');
         }
 
-        const payload = JSON.stringify({ text: 'Hello', language: 'en', provider: 'kokoro' });
+        const payload = JSON.stringify({
+          text: getDiagnosticText(language, languageData),
+          language,
+          provider,
+        });
         const url = new URL(`http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts`);
         const res = await new Promise<{ status: number; body: Buffer }>((resolve, reject) => {
           const req = http.request(
@@ -128,11 +172,20 @@ registerDiagnosticSuite({
         if (!authToken) {
           skipTest('No cloud auth token configured');
         }
+        const language = settings.language?.trim();
+        if (!language) {
+          skipTest('No learning language configured');
+        }
+        const languageData = loadLangData()[language];
         const baseUrl = (settings.overrideCloudEndpointUrl && settings.cloudApiUrl
           ? settings.cloudApiUrl
           : DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
 
-        const payload = JSON.stringify({ text: 'Hello', language: 'en', provider: 'moss-realtime' });
+        const payload = JSON.stringify({
+          text: getDiagnosticText(language, languageData),
+          language,
+          provider: 'moss-realtime',
+        });
         const url = new URL(`${baseUrl}/api/tts/stream`);
         const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
           const proto = url.protocol === 'https:' ? https : http;
@@ -227,11 +280,20 @@ registerDiagnosticSuite({
         if (!authToken) {
           skipTest('No cloud auth token configured');
         }
+        const language = settings.language?.trim();
+        if (!language) {
+          skipTest('No learning language configured');
+        }
+        const languageData = loadLangData()[language];
         const baseUrl = (settings.overrideCloudEndpointUrl && settings.cloudApiUrl
           ? settings.cloudApiUrl
           : DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
 
-        const payload = JSON.stringify({ text: 'Hello', language: 'en', provider: 'qwen3' });
+        const payload = JSON.stringify({
+          text: getDiagnosticText(language, languageData),
+          language,
+          provider: 'qwen3',
+        });
         const url = new URL(`${baseUrl}/api/tts/jobs`);
         const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
           const proto = url.protocol === 'https:' ? https : http;

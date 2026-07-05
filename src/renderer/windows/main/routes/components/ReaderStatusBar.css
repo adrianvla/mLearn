@@ -45,18 +45,18 @@
   opacity: 0.8;
 }
 
-.reader-status .paddle-downscale-section {
+.reader-status .ocr-detection-scale-section {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   white-space: nowrap;
 }
 
-.reader-status .paddle-downscale-label {
+.reader-status .ocr-detection-scale-label {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
-.reader-status .paddle-downscale-slider {
+.reader-status .ocr-detection-scale-slider {
   width: 80px;
 }

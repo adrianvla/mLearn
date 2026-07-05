@@ -13,6 +13,21 @@ vi.mock('../utils/platform', () => ({
 
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => mockSettings),
+  loadLangData: vi.fn(() => ({
+    ja: {
+      name: 'Japanese',
+      translatable: [],
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        wordIndexStrategy: {
+          type: 'character-containment',
+          characterFilter: 'non-ascii',
+        },
+      },
+    },
+  })),
 }));
 
 function ankiResponse(result: unknown): Response {

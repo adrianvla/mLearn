@@ -4,18 +4,35 @@
  * Lazily fetches translation from backend when visible
  */
 
-import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, PitchAccentOverlay, AnkiHoverPreview } from '../../../components/common';
+import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup, type JSX } from 'solid-js';
+import { Btn, PillLabel, AnkiHoverPreview } from '../../../components/common';
+import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
+import type { WordWithReadingRenderTextOptions } from '../../../components/language-specific/WordWithReading';
 import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
-import { useLocalization, useSettings } from '../../../context';
-import { getCachedTranslation, getCachedReading, fetchTranslation } from '../../../hooks/useTranslation';
-import { extractPitchPosition } from '../../../utils/translationCacheParsers';
-import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
+import { useLanguage, useLocalization, useSettings } from '../../../context';
+import { cacheVersion, getCachedTranslation, getCachedReading, fetchTranslation, type WordLookupCandidateOptions } from '../../../hooks/useTranslation';
+import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { getProsodyOverlayRenderer } from '../../../utils/prosodyPresentation';
+import { getProsodyOverlayTextTarget } from '../../../utils/prosodyOverlayTarget';
+import {
+  extractProsodyFromTranslationData,
+  normalizeDictionaryReading,
+  resolveStoredProsodyForDisplayedReading,
+} from '../../../utils/readingProsody';
+import type { FlashcardProsody, LanguageData, TranslationResponse, TranslationEntry } from '../../../../shared/types';
 import type { WordStatus } from '../../../components/subtitle/wordHoverHelpers';
-import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
+import {
+  getFrequencyLevelLabel,
+  getFrequencyLevelVisualRank,
+  getLanguageProsodyType,
+  getProsodyPositionFromOverride,
+  isDisplayableFrequencyLevel,
+} from '../../../../shared/languageFeatures';
+import { prosodyVisible } from '../../../../shared/prosodySettings';
 import './WordEntryRow.css';
 import { getLogger } from '../../../../shared/utils/logger';
+import { getBackend } from '../../../../shared/backends';
 
 const log = getLogger("renderer.wordDbEditor.wordEntryRow");
 
@@ -27,15 +44,15 @@ export type AnkiExportState = 'idle' | 'exporting' | 'exported' | 'duplicate' | 
  * Uses fetchTranslation which populates the global translation cache,
  * so getCachedReading/getCachedTranslation work after fetch.
  */
-const translationQueue: Array<{ word: string; language: string; resolve: () => void }> = [];
+const translationQueue: Array<{ word: string; language: string; lookupOptions: WordLookupCandidateOptions; resolve: () => void }> = [];
 let isProcessingQueue = false;
 const BATCH_SIZE = 5;
 const BATCH_DELAY = 50;
 const MAX_QUEUE_SIZE = 200;
 
-function enqueueTranslationFetch(word: string, language: string): Promise<void> {
+function enqueueTranslationFetch(word: string, language: string, lookupOptions: WordLookupCandidateOptions): Promise<void> {
   return new Promise((resolve) => {
-    translationQueue.push({ word, language, resolve });
+    translationQueue.push({ word, language, lookupOptions, resolve });
     if (translationQueue.length > MAX_QUEUE_SIZE) {
       const dropped = translationQueue.splice(0, translationQueue.length - MAX_QUEUE_SIZE);
       for (const item of dropped) item.resolve();
@@ -53,9 +70,9 @@ async function processQueue(): Promise<void> {
   while (translationQueue.length > 0) {
     const batch = translationQueue.splice(0, BATCH_SIZE);
     await Promise.all(
-      batch.map(async ({ word, language, resolve }) => {
+      batch.map(async ({ word, language, lookupOptions, resolve }) => {
         try {
-          await fetchTranslation(word, language);
+          await fetchTranslation(word, language, lookupOptions);
         } catch (e) {
           log.error("error", e);
         }
@@ -78,12 +95,17 @@ function extractTranslation(resp: TranslationResponse): string {
   return defs.slice(0, 3).join(', ');
 }
 
-/** Extract pitch accent position from cached translation data */
-function extractPitchFromCache(word: string, language: string): number | null {
-  const cached = getCachedTranslation(word, language);
-  if (!cached?.data) return null;
+function extractProsodyFromCacheForReading(
+  word: string,
+  language: string,
+  lookupOptions: WordLookupCandidateOptions,
+  languageData: LanguageData | null,
+  displayedReading: string,
+): FlashcardProsody | undefined {
+  const cached = getCachedTranslation(word, language, lookupOptions);
+  if (!cached?.data) return undefined;
 
-  return extractPitchPosition(cached.data[2]);
+  return extractProsodyFromTranslationData(cached, languageData, displayedReading);
 }
 
 export interface WordEntry {
@@ -91,13 +113,14 @@ export interface WordEntry {
   word: string;
   translation: string;
   reading: string;
-  level: number;
+  level: number | null;
   tracker: string;
   status: number;
   /** The comprehensive knowledge source that determined this word's status */
   knowledgeSource?: string;
   fullTranslation?: string;
-  pitch?: number | null;
+  prosodyPosition?: number | null;
+  prosody?: FlashcardProsody;
   ignoredAt?: number;
   /** Additional readings for words that have multiple independent senses */
   alternateReadings?: string[];
@@ -123,40 +146,120 @@ export interface WordEntryRowProps {
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+  const prosodyOverlayRenderer = createMemo(() => (
+    getProsodyOverlayRenderer(currentLangData(), props.entry.prosody?.type)
+  ));
+  const canRenderProsodyOverlay = createMemo(() => (
+    prosodyOverlayRenderer() !== null
+    && prosodyVisible(settings)
+  ));
   let rowRef: HTMLDivElement | undefined;
 
   // Effective reading: translation cache reading > freq data > word
   const effectiveReading = createMemo(() => {
     fetchVersion(); // re-evaluate when fetch completes
-    const cached = getCachedReading(props.entry.word, settings.language);
+    cacheVersion(); // re-evaluate when another surface warms the shared cache
+    const cached = getCachedReading(props.entry.word, settings.language, lookupOptions);
     return cached || props.entry.reading || props.entry.word;
   });
 
-  // Effective pitch: explicit prop > cache (reactive via fetchVersion)
-  const effectivePitch = createMemo((): number | null => {
-    if (props.entry.pitch !== undefined && props.entry.pitch !== null) {
-      return props.entry.pitch;
-    }
-    fetchVersion(); // re-evaluate when fetch completes
-    return extractPitchFromCache(props.entry.word, settings.language);
-  });
+  const storedProsodyForDisplayedReading = (displayedReading: string): FlashcardProsody | undefined => {
+    if (!props.entry.prosody || !displayedReading) return undefined;
+    const languageData = currentLangData();
+    const savedDisplayReadings = [
+      props.entry.reading,
+      effectiveReading(),
+      ...(props.entry.alternateReadings ?? []),
+    ];
+    return resolveStoredProsodyForDisplayedReading({
+      prosody: props.entry.prosody,
+      displayedReading,
+      savedReadings: savedDisplayReadings,
+      languageData,
+    });
+  };
 
-  // Whether the word needs furigana (has kanji and reading differs)
-  const needsFurigana = createMemo(() => {
-    const word = props.entry.word;
-    const reading = effectiveReading();
-    if (!reading || reading === word) return false;
-    if (isAllKana(word)) return false;
-    return containsKanji(word);
-  });
+  const cachedProsodyForDisplayedReading = (displayedReading: string): FlashcardProsody | undefined => {
+    if (!canRenderProsodyOverlay() || !displayedReading) return undefined;
+    fetchVersion();
+    cacheVersion();
+    const languageData = currentLangData();
+    const storedReadingProsody = storedProsodyForDisplayedReading(displayedReading);
+    if (storedReadingProsody) return storedReadingProsody;
+    const cacheKeys = [displayedReading, props.entry.word].filter((key, index, all) => (
+      key && all.indexOf(key) === index
+    ));
+    for (const cacheKey of cacheKeys) {
+      const prosody = extractProsodyFromCacheForReading(cacheKey, settings.language, lookupOptions, languageData, displayedReading);
+      if (prosody) return prosody;
+    }
+    return undefined;
+  };
+
+  const prosodyPositionForDisplayedReading = (displayedReading: string): number | null => {
+    if (!canRenderProsodyOverlay() || !displayedReading) return null;
+    const languageData = currentLangData();
+    const normalizedDisplayed = normalizeDictionaryReading(displayedReading, languageData);
+    const normalizedEntryReading = normalizeDictionaryReading(props.entry.reading, languageData);
+    const storedPosition = normalizedDisplayed && normalizedDisplayed === normalizedEntryReading
+      ? props.entry.prosodyPosition ?? null
+      : null;
+
+    return getProsodyPositionFromOverride(
+      storedPosition,
+      cachedProsodyForDisplayedReading(displayedReading)
+    );
+  };
+
+  const prosodyTypeForDisplayedReading = (displayedReading: string): FlashcardProsody['type'] | undefined => (
+    cachedProsodyForDisplayedReading(displayedReading)?.type
+    ?? props.entry.prosody?.type
+    ?? getLanguageProsodyType(currentLangData())
+  );
+
+  const displayableLevel = createMemo(() => (
+    isDisplayableFrequencyLevel(props.entry.level, props.levelNames, currentLangData())
+  ));
+  const renderedLevel = createMemo((): number | null => (
+    displayableLevel() ? props.entry.level : null
+  ));
+
+  const renderEntryWordText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
+    if (!canRenderProsodyOverlay()) {
+      return <span class={options.class} style={options.style}>{text}</span>;
+    }
+
+    const overlayTarget = getProsodyOverlayTextTarget(props.entry.word, effectiveReading(), options);
+
+    return (
+      <ProsodyOverlay
+        word={overlayTarget.word}
+        reading={overlayTarget.reading}
+        prosodyPosition={prosodyPositionForDisplayedReading(overlayTarget.reading)}
+        prosodyType={prosodyTypeForDisplayedReading(overlayTarget.reading)}
+        languageData={currentLangData()}
+        mode="overlay"
+        homogenous={true}
+        isReadingScript={options.isReadingScript}
+        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
+        style={options.style}
+      >
+        {text}
+      </ProsodyOverlay>
+    );
+  };
 
   // Determine the translation to display: prop > cache > empty
   const displayTranslation = createMemo(() => {
     fetchVersion(); // re-evaluate when fetch completes
+    cacheVersion(); // re-evaluate when another surface warms the shared cache
     if (props.entry.translation) return props.entry.translation;
-    const cached = getCachedTranslation(props.entry.word, settings.language);
+    const cached = getCachedTranslation(props.entry.word, settings.language, lookupOptions);
     if (cached) return extractTranslation(cached);
     return '';
   });
@@ -204,7 +307,6 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     ankiHoverFetched = true;
     setAnkiHoverLoading(true);
     try {
-      const { getBackend } = await import('../../../../shared/backends');
       const lookupWord = props.entry.ankiLookupWord || props.entry.word;
       const result = await getBackend().getCard({ word: lookupWord }) as {
         cards: Array<{
@@ -242,16 +344,19 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   let fetchTimer: ReturnType<typeof setTimeout> | undefined;
 
   onMount(() => {
-    if (props.entry.translation && getCachedTranslation(props.entry.word, settings.language)) {
-      return;
-    }
-    if (getCachedTranslation(props.entry.word, settings.language)) {
+    const wordsToFetch = [props.entry.word, ...visibleAlternateReadings()].filter((word, index, words) => (
+      word && words.indexOf(word) === index
+    ));
+    const missingWords = wordsToFetch.filter((word) => !getCachedTranslation(word, settings.language, lookupOptions));
+    if (missingWords.length === 0) {
       setFetchVersion((v) => v + 1);
       return;
     }
 
     fetchTimer = setTimeout(() => {
-      enqueueTranslationFetch(props.entry.word, settings.language).then(() => {
+      Promise.all(
+        missingWords.map((word) => enqueueTranslationFetch(word, settings.language, lookupOptions))
+      ).then(() => {
         setFetchVersion((v) => v + 1);
       });
     }, 300);
@@ -264,36 +369,14 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   return (
     <div class="entry" ref={rowRef}>
       <div class="col word">
-        <span class="word-text">
-          <Show when={needsFurigana()} fallback={
-            <PitchAccentOverlay
-              word={props.entry.word}
-              reading={effectiveReading()}
-              pitchPosition={effectivePitch()}
-              mode="overlay"
-              homogenous={true}
-            >
-              {props.entry.word}
-            </PitchAccentOverlay>
-          }>
-            <ruby class="word-db-ruby">
-              {props.entry.word}
-              <rt>
-                <span class="word-db-ruby-rt">
-                  <PitchAccentOverlay
-                    word={props.entry.word}
-                    reading={effectiveReading()}
-                    pitchPosition={effectivePitch()}
-                    mode="overlay"
-                    homogenous={true}
-                  >
-                    {effectiveReading()}
-                  </PitchAccentOverlay>
-                </span>
-              </rt>
-            </ruby>
-          </Show>
-        </span>
+        <WordWithReading
+          word={props.entry.word}
+          reading={effectiveReading()}
+          language={settings.language}
+          languageData={currentLangData()}
+          class="word-text"
+          renderText={renderEntryWordText}
+        />
         <Show when={props.onEdit}>
           <Btn
             variant="ghost"
@@ -307,15 +390,31 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={visibleAlternateReadings().length > 0}>
           <span class="word-db-alt-readings">
             <For each={visibleAlternateReadings()}>
-              {(altReading) => (
-                <PitchAccentOverlay
-                  word={props.entry.word}
-                  reading={altReading}
-                  mode="pill"
-                  showParticleBox={true}
-                  homogenous={true}
-                />
-              )}
+              {(altReading) => {
+                const alternateProsody = () => cachedProsodyForDisplayedReading(altReading);
+                const prosodyPosition = () => {
+                  const storedPosition = normalizeDictionaryReading(props.entry.reading, currentLangData()) === normalizeDictionaryReading(altReading, currentLangData())
+                    ? props.entry.prosodyPosition ?? null
+                    : null;
+                  return getProsodyPositionFromOverride(storedPosition, alternateProsody());
+                };
+                return (
+                  <Show
+                    when={canRenderProsodyOverlay() && prosodyPosition() !== null}
+                    fallback={<span>{altReading}</span>}
+                  >
+                    <ProsodyOverlay
+                      word={altReading}
+                      reading={altReading}
+                      prosodyPosition={prosodyPosition()}
+                      prosodyType={alternateProsody()?.type ?? getLanguageProsodyType(currentLangData())}
+                      languageData={currentLangData()}
+                      mode="pill"
+                      homogenous={true}
+                    />
+                  </Show>
+                );
+              }}
             </For>
           </span>
         </Show>
@@ -324,12 +423,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         {displayTranslation() || '-'}
       </div>
       <div class="col level">
-        <Show when={props.entry.level >= 0}>
-          <PillLabel level={props.entry.level}>
-            {props.levelNames[props.entry.level] || `Level ${props.entry.level}`}
+        <Show when={renderedLevel() !== null}>
+          <PillLabel
+            level={renderedLevel()!}
+            visualLevel={getFrequencyLevelVisualRank(renderedLevel()!, props.levelNames, currentLangData())}
+          >
+            {getFrequencyLevelLabel(renderedLevel()!, props.levelNames, currentLangData())}
           </PillLabel>
         </Show>
-        <Show when={props.entry.level < 0}>-</Show>
+        <Show when={renderedLevel() === null}>-</Show>
       </div>
       <div class="col tracker">
         <Show when={props.entry.tracker === 'anki'} fallback={

@@ -5,9 +5,10 @@
 
 import { createSignal, createMemo } from 'solid-js';
 import type { Subtitle, Token } from '../../shared/types';
-import { useSettings } from '../context';
+import { useLanguage, useSettings } from '../context';
 import { useTokenizer } from './useTranslation';
-import { parseSubtitle, shouldRemoveParentheticalContent } from '../utils/subtitleParsing';
+import { parseSubtitle, stripSpeakerNamePrefixes } from '../utils/subtitleParsing';
+import { createRoughTokenizerTokens, tokenizerAllowsFallback } from '../../shared/languageFeatures';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useSubtitles");
@@ -211,7 +212,8 @@ function parseASS(content: string): Subtitle[] {
 
 export function useSubtitles() {
   const { settings } = useSettings();
-  const { tokenize } = useTokenizer({ language: settings.language });
+  const { currentLangData } = useLanguage();
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
 
   const [subtitles, setSubtitles] = createSignal<Subtitle[]>([]);
   const [currentIndex, setCurrentIndex] = createSignal(-1);
@@ -224,7 +226,6 @@ export function useSubtitles() {
 
   // Load subtitles from text content
   const loadSubtitles = (content: string, format?: 'srt' | 'vtt' | 'ass') => {
-    console.log('[useSubtitles] loadSubtitles: content length=', content.length, 'format=', format);
     let parsed: Subtitle[];
     setError(null);
 
@@ -261,7 +262,6 @@ export function useSubtitles() {
     setTokens([]);
     setIsTokenizing(false);
     tokenizationGen++;
-    console.log('[useSubtitles] loadSubtitles: parsed', parsed.length, 'subtitles');
   };
 
   // Load subtitles from file
@@ -308,17 +308,14 @@ export function useSubtitles() {
   };
 
   const updateTime = async (time: number) => {
-    console.log('[useSubtitles] updateTime: time=', time, 'offset=', settings.subsOffsetTime, 'subsCount=', subtitles().length);
     const result = getCurrentSubtitle(time);
 
     if (!result) {
-      console.log('[useSubtitles] updateTime: no matching subtitle at time=', time);
       setCurrentIndex(-1);
       setTokens([]);
       setIsTokenizing(false);
       return;
     }
-    console.log('[useSubtitles] updateTime: found subtitle idx=', result.idx, 'text=', result.sub.text.slice(0, 50));
 
     const { sub, idx } = result;
     if (idx === currentIndex()) return;
@@ -330,24 +327,25 @@ export function useSubtitles() {
     const myGen = ++tokenizationGen;
 
     const buildFallbackTokens = (text: string): Token[] => {
-      const trimmed = text.trim();
-      if (!trimmed) return [];
-      return trimmed
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((word) => ({
-          word,
-          actual_word: word,
-          type: '',
-          surface: word,
-        }));
+      if (!tokenizerAllowsFallback(currentLangData())) return [];
+      return createRoughTokenizerTokens(text, currentLangData());
     };
+    const applyFallbackTokens = (text: string): boolean => {
+      const fallbackTokens = buildFallbackTokens(text);
+      if (fallbackTokens.length === 0) return false;
+      setTokens(fallbackTokens);
+      return true;
+    };
+    let fallbackTokenText = sub.text;
 
     const safetyTimeout = setTimeout(() => {
       if (myGen === tokenizationGen) {
         log.warn('Tokenization safety timeout fired');
         setIsTokenizing(false);
-        setTokens(buildFallbackTokens(sub.text));
+        if (!applyFallbackTokens(fallbackTokenText)) {
+          setError('Tokenization failed');
+          setTokens([]);
+        }
       }
     }, 5000);
 
@@ -355,14 +353,11 @@ export function useSubtitles() {
       let rawText = sub.text;
 
       if (settings.removeSpeakerNames) {
-        rawText = rawText.replace(/^[A-Za-z\u00C0-\u024F\s]+:\s*/gm, '');
+        rawText = stripSpeakerNamePrefixes(rawText, settings.language, currentLangData());
       }
 
-      if (settings.removeParentheses && shouldRemoveParentheticalContent(settings.language)) {
-        rawText = rawText.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
-      }
-
-      const { text: cleanedText, readingOverrides } = parseSubtitle(rawText, settings.language);
+      const { text: cleanedText, readingOverrides } = parseSubtitle(rawText, settings.language, currentLangData());
+      fallbackTokenText = cleanedText;
 
       if (myGen !== tokenizationGen) return;
 
@@ -384,13 +379,17 @@ export function useSubtitles() {
           }
         }
         setTokens(newTokens);
-      } else {
-        setTokens(buildFallbackTokens(cleanedText));
+      } else if (!applyFallbackTokens(cleanedText)) {
+        setError('Tokenization failed');
+        setTokens([]);
       }
     } catch (e) {
       log.error('Tokenization failed:', e);
       if (myGen !== tokenizationGen) return;
-      setTokens(buildFallbackTokens(sub.text));
+      if (!applyFallbackTokens(fallbackTokenText)) {
+        setError('Tokenization failed');
+        setTokens([]);
+      }
     } finally {
       clearTimeout(safetyTimeout);
       if (myGen === tokenizationGen) {
@@ -408,7 +407,6 @@ export function useSubtitles() {
 
   // Clear subtitles
   const clearSubtitles = () => {
-    console.log('[useSubtitles] clearSubtitles');
     setSubtitles([]);
     setCurrentIndex(-1);
     setTokens([]);

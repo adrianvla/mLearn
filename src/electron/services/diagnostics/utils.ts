@@ -64,6 +64,42 @@ export function httpPost(
   });
 }
 
+export function httpPostMultipart(
+  url: string,
+  body: Buffer,
+  boundary: string,
+  timeoutMs = 10_000,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https:') ? https : http;
+    const req = client.request(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': body.length,
+        },
+        timeout: timeoutMs,
+      },
+      (res) => {
+        let responseBody = '';
+        res.on('data', (chunk) => { responseBody += chunk; });
+        res.on('end', () => {
+          resolve({ status: res.statusCode ?? 0, body: responseBody });
+        });
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error(`Multipart POST to ${url} timed out after ${timeoutMs}ms`));
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
 export function isConnectionRefused(err: unknown): boolean {
   if (err instanceof Error) {
     // Node 20+ throws AggregateError when both IPv4 and IPv6 fail

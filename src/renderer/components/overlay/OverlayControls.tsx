@@ -4,6 +4,14 @@ import { IconBtn, Panel, SubtitleIcon, FileIcon, ResizeIcon, AutoPositionIcon, B
 import { findPreviousSubForSync, findNextSub } from '../subtitle/SubtitleSync';
 import './OverlayControls.css';
 
+const OFFSET_NUDGE_SECONDS = 0.1;
+
+export type OverlayOffsetControlMode = 'snap' | 'nudge';
+
+function roundOffset(offset: number): number {
+  return Math.round(offset * 100) / 100;
+}
+
 export interface OverlayControlsProps {
   isConnected: boolean;
   hasSubtitles: boolean;
@@ -14,6 +22,7 @@ export interface OverlayControlsProps {
   showLiveTranslator?: boolean;
   isWatchTogetherActive?: boolean;
   isPlaying?: boolean;
+  offsetControlMode?: OverlayOffsetControlMode;
   currentVideoTime?: () => number;
   subtitles?: Array<{ start: number; end: number; text: string }>;
   onOffsetChange: (offset: number) => void;
@@ -47,22 +56,32 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
   );
 
   const handleOffsetDecrease = () => {
+    if (props.offsetControlMode === 'nudge') {
+      props.onOffsetChange(roundOffset(props.subtitleOffset - OFFSET_NUDGE_SECONDS));
+      return;
+    }
+
     const videoTime = props.currentVideoTime?.() ?? 0;
     const adjustedTime = videoTime + props.subtitleOffset;
     const sub = findPreviousSubForSync(props.subtitles, adjustedTime);
     if (sub) {
       const newOffset = sub.start - videoTime;
-      props.onOffsetChange(isNaN(newOffset) ? 0 : Math.round(newOffset * 100) / 100);
+      props.onOffsetChange(isNaN(newOffset) ? 0 : roundOffset(newOffset));
     }
   };
 
   const handleOffsetIncrease = () => {
+    if (props.offsetControlMode === 'nudge') {
+      props.onOffsetChange(roundOffset(props.subtitleOffset + OFFSET_NUDGE_SECONDS));
+      return;
+    }
+
     const videoTime = props.currentVideoTime?.() ?? 0;
     const adjustedTime = videoTime + props.subtitleOffset;
     const nextSub = findNextSub(props.subtitles, adjustedTime);
     if (nextSub) {
       const newOffset = nextSub.start - videoTime;
-      props.onOffsetChange(isNaN(newOffset) ? 0 : Math.round(newOffset * 100) / 100);
+      props.onOffsetChange(isNaN(newOffset) ? 0 : roundOffset(newOffset));
     }
   };
 
@@ -79,8 +98,9 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
   const applyOffsetInputValue = () => {
     const parsed = parseFloat(offsetInputValue());
     if (!isNaN(parsed)) {
-      props.onOffsetChange(parsed);
-      setOffsetInputValue(parsed.toFixed(2));
+      const rounded = roundOffset(parsed);
+      props.onOffsetChange(rounded);
+      setOffsetInputValue(rounded.toFixed(2));
     } else {
       setOffsetInputValue(props.subtitleOffset.toFixed(2));
     }

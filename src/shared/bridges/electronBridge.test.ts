@@ -63,7 +63,7 @@ function createMockIPC() {
     onContextMenuCommand: vi.fn(),
     onReaderContextMenuCommand: vi.fn(),
     onOpenWordDbEditor: vi.fn(),
-    onOpenExamCentricStudy: vi.fn(),
+    onOpenLevelStudy: vi.fn(),
     onOpenPrompt: vi.fn(),
     onAuthDeepLink: vi.fn(),
     onLookupDeepLink: vi.fn(),
@@ -574,8 +574,8 @@ describe('windowBridge', () => {
 
   it('showReaderCtxMenu passes options to ipc.showReaderCtxMenu', () => {
     const bridge = createElectronBridge();
-    bridge.window.showReaderCtxMenu({ furiganaHiderEnabled: true, hasContextPhrase: false });
-    expect(mockIPC.showReaderCtxMenu).toHaveBeenCalledWith({ furiganaHiderEnabled: true, hasContextPhrase: false });
+    bridge.window.showReaderCtxMenu({ readingAnnotationHiderEnabled: true, hasContextPhrase: false });
+    expect(mockIPC.showReaderCtxMenu).toHaveBeenCalledWith({ readingAnnotationHiderEnabled: true, hasContextPhrase: false });
   });
 
   it('showContact delegates to ipc.showContact', () => {
@@ -652,11 +652,11 @@ describe('windowBridge', () => {
     expect(mockIPC.onOpenWordDbEditor).toHaveBeenCalledWith(cb);
   });
 
-  it('onOpenExamCentricStudy passes callback to ipc.onOpenExamCentricStudy', () => {
+  it('onOpenLevelStudy passes callback to ipc.onOpenLevelStudy', () => {
     const cb = vi.fn();
     const bridge = createElectronBridge();
-    bridge.window.onOpenExamCentricStudy(cb);
-    expect(mockIPC.onOpenExamCentricStudy).toHaveBeenCalledWith(cb);
+    bridge.window.onOpenLevelStudy(cb);
+    expect(mockIPC.onOpenLevelStudy).toHaveBeenCalledWith(cb);
   });
 
   it('onOpenPrompt passes callback to ipc.onOpenPrompt', () => {
@@ -1098,10 +1098,10 @@ describe('voiceBridge', () => {
     expect(mockIPC.voiceSampleRename).toHaveBeenCalledWith('sample-id', 'New Name');
   });
 
-  it('voiceSampleTranscribe passes id to ipc.voiceSampleTranscribe', () => {
+  it('voiceSampleTranscribe passes id and language to ipc.voiceSampleTranscribe', () => {
     const bridge = createElectronBridge();
-    bridge.voice.voiceSampleTranscribe('sample-id');
-    expect(mockIPC.voiceSampleTranscribe).toHaveBeenCalledWith('sample-id');
+    bridge.voice.voiceSampleTranscribe('sample-id', 'fa');
+    expect(mockIPC.voiceSampleTranscribe).toHaveBeenCalledWith('sample-id', 'fa');
   });
 
   it('voiceSampleGetPath passes id to ipc.voiceSampleGetPath', () => {

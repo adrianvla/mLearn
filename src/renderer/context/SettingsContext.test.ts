@@ -3,13 +3,20 @@ import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 
 let settingsCb: (s: Settings) => void;
+let settingsSavedCb: (() => void) | undefined;
 const settingsCleanup = vi.fn();
+const settingsSavedCleanup = vi.fn();
+const mockRestartBackend = vi.fn();
 
 const mockBridge = {
   settings: {
     onSettings: vi.fn(),
+    onSettingsSaved: vi.fn(),
     getSettings: vi.fn(),
     saveSettings: vi.fn(),
+  },
+  server: {
+    restartBackend: vi.fn(() => mockRestartBackend()),
   },
 };
 
@@ -17,6 +24,10 @@ function setupMockImplementations() {
   mockBridge.settings.onSettings.mockImplementation((cb: (s: Settings) => void) => {
     settingsCb = cb;
     return settingsCleanup;
+  });
+  mockBridge.settings.onSettingsSaved.mockImplementation((cb: () => void) => {
+    settingsSavedCb = cb;
+    return settingsSavedCleanup;
   });
 }
 
@@ -59,6 +70,8 @@ type SettingsCtx = {
   isCloudReLoginModalOpen: () => boolean;
   openCloudReLoginModal: () => void;
   closeCloudReLoginModal: () => void;
+  showProsody: () => boolean;
+  setProsodyVisible: (show: boolean) => void;
 };
 
 async function mountProvider() {
@@ -86,6 +99,7 @@ describe('SettingsProvider', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    settingsSavedCb = undefined;
     setupMockImplementations();
     mockResolveCloudAccessToken.mockImplementation((settings: Settings) => (
       settings.cloudAuthAccessToken || settings.cloudAuthToken || ''
@@ -197,6 +211,77 @@ describe('SettingsProvider', () => {
     mockResetBackend.mockClear();
     ctx.updateSetting('theme', 'dark');
     expect(mockResetBackend).not.toHaveBeenCalled();
+    expect(mockBridge.settings.onSettingsSaved).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('updateSetting with language key restarts Python backend after settings are saved', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ language: 'ja' }));
+    mockBridge.settings.onSettingsSaved.mockClear();
+    mockRestartBackend.mockClear();
+    settingsSavedCleanup.mockClear();
+
+    ctx.updateSetting('language', 'de');
+
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ language: 'de' }));
+    expect(mockBridge.settings.onSettingsSaved).toHaveBeenCalledOnce();
+    expect(mockRestartBackend).not.toHaveBeenCalled();
+
+    settingsSavedCb?.();
+
+    expect(settingsSavedCleanup).toHaveBeenCalledOnce();
+    expect(mockRestartBackend).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('updateSettings with dictionary target map restarts Python backend after settings are saved', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ dictionaryTargetLanguages: { ja: 'en' } }));
+    mockBridge.settings.onSettingsSaved.mockClear();
+    mockRestartBackend.mockClear();
+    settingsSavedCleanup.mockClear();
+
+    ctx.updateSettings({ dictionaryTargetLanguages: { ja: 'fr' } });
+
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      dictionaryTargetLanguages: { ja: 'fr' },
+    }));
+    expect(mockBridge.settings.onSettingsSaved).toHaveBeenCalledOnce();
+
+    settingsSavedCb?.();
+
+    expect(settingsSavedCleanup).toHaveBeenCalledOnce();
+    expect(mockRestartBackend).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('updateSettings does not restart Python backend when runtime language settings are unchanged', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ dictionaryTargetLanguages: { ja: 'en' } }));
+    mockBridge.settings.onSettingsSaved.mockClear();
+    mockRestartBackend.mockClear();
+
+    ctx.updateSettings({ dictionaryTargetLanguages: { ja: 'en' } });
+
+    expect(mockBridge.settings.onSettingsSaved).not.toHaveBeenCalled();
+    expect(mockRestartBackend).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('exposes a language-neutral prosody visibility helper over the persisted setting', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ showProsody: true }));
+
+    expect(ctx.showProsody()).toBe(true);
+
+    ctx.setProsodyVisible(false);
+
+    expect(ctx.showProsody()).toBe(false);
+    expect(ctx.settings.showProsody).toBe(false);
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      showProsody: false,
+    }));
     dispose();
   });
 

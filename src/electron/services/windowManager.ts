@@ -6,7 +6,7 @@
 import { BrowserWindow, app, ipcMain, Menu, dialog, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { IPC_CHANNELS, WindowType } from '../../shared/constants';
+import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
 import type { WindowSize, OpenWindowPayload, OverlayVideoScreenshot } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
@@ -451,6 +451,10 @@ export function openManagedChildWindow(
   options: Partial<Electron.BrowserWindowConstructorOptions> = {},
   context?: Record<string, unknown>,
 ): BrowserWindow {
+  if (type === WINDOW_TYPES.WELCOME) {
+    return createWelcomeWindow();
+  }
+
   if (context) {
     // v1 limitation: windowContextStore is keyed only by windowType, so only one
     // plugin-host context can exist at a time.
@@ -559,20 +563,26 @@ function showVideoContextMenu(
 
 // Context menu for reader (OCR overlay)
 interface ReaderContextMenuOptions {
-  furiganaHiderEnabled: boolean;
+  readingAnnotationHiderEnabled: boolean;
   hasContextPhrase: boolean;
+  canToggleReadingHider?: boolean;
   canExplainPhrase?: boolean;
   collatePagesEnabled?: boolean;
   isDoublePageMode?: boolean;
 }
 
 function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
-  const template: Electron.MenuItemConstructorOptions[] = [
-    {
-      label: options.furiganaHiderEnabled ? getLocalizedString('mlearn.Menu.ShowReading') : getLocalizedString('mlearn.Menu.HideReading'),
-      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-furigana'),
-    },
-    { type: 'separator' },
+  const template: Electron.MenuItemConstructorOptions[] = [];
+
+  if (options.canToggleReadingHider !== false) {
+    template.push({
+      label: options.readingAnnotationHiderEnabled ? getLocalizedString('mlearn.Menu.ShowReading') : getLocalizedString('mlearn.Menu.HideReading'),
+      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-reading-annotation-hider'),
+    });
+    template.push({ type: 'separator' });
+  }
+
+  template.push(
     {
       label: getLocalizedString('mlearn.Menu.CopyPhrase'),
       enabled: options.hasContextPhrase,
@@ -589,7 +599,7 @@ function showReaderContextMenu(sender: Electron.WebContents, options: ReaderCont
       enabled: options.isDoublePageMode ?? false,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-collate-pages'),
     },
-  ];
+  );
 
   const menu = Menu.buildFromTemplate(template);
   menu.popup({ window: BrowserWindow.fromWebContents(sender) || undefined });
@@ -814,8 +824,8 @@ function setupAppMenu(): void {
           click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
         },
         {
-          label: getLocalizedString('mlearn.Menu.ExamCentricStudy'),
-          click: () => createChildWindow('exam-centric-study' as WindowType, { width: 1200, height: 800 }),
+          label: getLocalizedString('mlearn.Menu.LevelStudy'),
+          click: () => createChildWindow('level-study' as WindowType, { width: 1200, height: 800 }),
         },
         {
           label: getLocalizedString('mlearn.Menu.EditWordKnowledgeDatabase'),

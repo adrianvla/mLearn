@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "Common": {
+      "Status": {
+        "Unknown": "Неизвестно"
+      }
+    },
     "AI": {
       "CloudUnreachable": "Облачный сервис недоступен. Проверьте подключение и попробуйте снова.",
       "DownloadModel": "Скачать модель",
@@ -201,10 +206,12 @@
         "DefinitionsPlaceholder": "По одному определению на строку",
         "ExampleSentence": "Пример предложения (HTML допускается)",
         "ExampleTranslation": "Перевод примера",
-        "PitchAccent": "Тоновое ударение",
-        "PitchAccentPlaceholder": "0 (плоское), 1, 2, 3…",
-        "Reading": "Чтение (фуригана)",
-        "ReadingPlaceholder": "Кана / чтение",
+        "JapanesePitchAccent": "Тоновое ударение",
+        "JapanesePitchAccentPlaceholder": "0 (плоское), 1, 2, 3…",
+        "ProsodyPosition": "Позиция просодии",
+        "ProsodyPositionPlaceholder": "0, 1, 2, 3…",
+        "Reading": "Чтение",
+        "ReadingPlaceholder": "Чтение / произношение",
         "StructuredContent": "Структурированное содержимое (произвольный HTML)",
         "SurfaceNote": "(слово)",
         "Translation": "Перевод (через запятую или перенос строки)",
@@ -212,7 +219,7 @@
         "WordPlaceholder": "Введите слово..."
       },
       "GenerateTtsAction": "Сгенерировать",
-      "Hint": "Перевод: через запятую или перенос строки. Тоновое ударение — позиция моры понижения (0=плоское).",
+      "Hint": "Перевод: через запятую или перенос строки. Просодические данные сохраняются, если языковой пакет их поддерживает.",
       "NoCloudAuth": "Не аутентифицирован в облаке. Войдите через Настройки → Сервер.",
       "Regenerate": {
         "AllCompleted": "Все задачи выполнены",
@@ -982,8 +989,8 @@
           "Title": "База слов"
         },
         "CharacterGrid": {
-          "Description": "Визуальный обзор знания иероглифов",
-          "Title": "Сетка иероглифов"
+          "Description": "Визуальный обзор знания символов",
+          "Title": "Сетка символов"
         },
         "WordSync": {
           "Description": "Оцените свои знания словарного запаса",
@@ -993,9 +1000,9 @@
           "IgnoreSeen": "Игнорировать просмотренные",
           "Title": "Синхронизация слов"
         },
-        "ExamCentricStudy": {
-          "Description": "Word Sync, Character Grid, and Exam Study in one place",
-          "Title": "Exam-centric Study"
+        "LevelStudy": {
+          "Description": "Синхронизация слов, сетка символов и изучение по уровням в одном месте",
+          "Title": "Изучение по уровням"
         }
       },
       "Errors": {
@@ -1010,6 +1017,9 @@
       }
     },
     "Installer": {
+      "Title": {
+        "ComponentsRequired": "Требуется настройка"
+      },
       "Alerts": {
         "NetworkError": "Произошла сетевая ошибка. Проверьте подключение и попробуйте снова."
       },
@@ -1019,6 +1029,7 @@
         "StartInstallation": "Начать установку",
         "CancelInstall": "Cancel Installation",
         "CancelRestart": "Cancel Restart",
+        "InstallRequiredComponents": "Установить необходимые компоненты",
         "InstallLanguageData": "Установить выбранные языковые данные",
         "FinishSetup": "Завершить настройку"
       },
@@ -1083,23 +1094,21 @@
         "NotAvailable": "недоступно"
       }
     },
-    "ExamCentricStudy": {
-      "Title": "Exam-centric Study",
+    "LevelStudy": {
+      "Title": "Изучение по уровням",
       "Tabs": {
-        "WordSync": "Word Sync",
-        "CharacterGrid": "Character Grid",
-        "ExamStudy": "Exam Study"
-      }
-    },
-    "ExamStudy": {
+        "WordSync": "Синхронизация слов",
+        "CharacterGrid": "Сетка символов",
+        "LevelStudy": "Изучение по уровням"
+      },
       "EmptyState": {
-        "Title": "Подготовка к экзаменам",
-        "Description": "Изучайте слова, сгруппированные по уровню экзамена. Отслеживайте прогресс и добавляйте слова в карточки."
+        "Title": "Изучение по уровням",
+        "Description": "Изучайте слова, сгруппированные по уровню. Отслеживайте прогресс и добавляйте слова в карточки."
       },
       "Coverage": {
-        "Title": "Охват экзаменационных слов",
+        "Title": "Охват слов по уровням",
         "Words": "слов",
-        "Complete": "Все экзаменационные слова отслеживаются!",
+        "Complete": "Все слова уровня отслеживаются!",
         "Hint": "Нажмите на уровень ниже, чтобы просмотреть и добавить слова"
       },
       "PopulationStats": {
@@ -1141,39 +1150,6 @@
         "Adding": "Добавление...",
         "LoadMore": "Загрузить ещё",
         "Error": "Не удалось добавить"
-      }
-    },
-    "KanjiGrid": {
-      "CharactersByExamLevel": "Иероглифы по уровню экзамена:",
-      "Disclaimer": {
-        "Description": "Кандзи JLPT здесь выводятся не из официального списка кандзи, а по словам, отнесённым к каждому уровню JLPT, с последующим извлечением кандзи из этих слов. Поэтому сетка приблизительная: на некоторых уровнях встречаются слова, для которых знание самих кандзи не обязательно.",
-        "Title": "Кандзи JLPT показаны приблизительно"
-      },
-      "Description": "Цвета: изучается (оранжевый→жёлтый), известный (зелёный→светло-зелёный), неизвестный (серый). Наведите для подробностей.",
-      "EmptyState": {
-        "Description": "Когда вы встретите иероглифы в видео или тексте, они появятся здесь.",
-        "Hint": "Начните смотреть или читать контент для начала отслеживания!",
-        "Title": "Отслеживаемых иероглифов пока нет"
-      },
-      "Legend": {
-        "Known": "Известный:",
-        "Learning": "Изучается:",
-        "Unknown": "Неизвестный:"
-      },
-      "LevelFallback": "Уровень {level}",
-      "Loading": "Загрузка данных об иероглифах...",
-      "Stats": {
-        "Known": "Известных:",
-        "Learning": "Изучается:",
-        "TotalFound": "Всего:",
-        "Unknown": "Неизвестных:"
-      },
-      "Title": "Освоение иероглифов",
-      "Tooltip": {
-        "KnownCount": "Известных",
-        "LearningCount": "Изучается",
-        "Score": "Оценка",
-        "WordsContaining": "Слова с {char}"
       }
     },
     "Languages": {
@@ -1218,7 +1194,7 @@
       "MigrationWordStatuses": "Перенесено {count} статусов слов из v1. Создана резервная копия.",
       "UpdateAvailable": "Версия {latestVersion} доступна (у вас {currentVersion}). Загрузите с сайта."
     },
-    "PitchAccent": {
+    "JapanesePitchAccent": {
       "Atamadaka": "Начальное повышение (атамадака)",
       "DropAfterMora": "Понижение после моры {mora}",
       "Heiban": "Плоское (хэйбан)",
@@ -1230,8 +1206,8 @@
       "CollatePages": "Соединить страницы",
       "UncollatePages": "Разъединить страницы",
       "CopyPhrase": "Копировать фразу",
-      "HideFurigana": "Скрыть чтение",
-      "ShowFurigana": "Показать чтение",
+      "HideReadingAnnotations": "Скрыть аннотации чтения",
+      "ShowReadingAnnotations": "Показать аннотации чтения",
       "Requirements": {
         "OcrTurboLowRam": {
           "Title": "OCR может работать медленно",
@@ -1280,13 +1256,13 @@
         "DebugOverlayOff": "Отладка: Выкл",
         "DebugOverlayOn": "Отладка: Вкл",
         "DebugOverlayTitle": "Переключить отладочное наложение для визуализации OCR-текста и обнаружения фуриганы",
-        "FuriganaDetectionOff": "Чтение: Выкл",
-        "FuriganaDetectionOn": "Чтение: Вкл",
+        "ReadingAnnotationDetectionOff": "Аннотации чтения: Выкл",
+        "ReadingAnnotationDetectionOn": "Аннотации чтения: Вкл",
         "MagnifierHint": "Нажмите {key} для лупы",
         "OpenConversationAgent": "AI-репетитор",
         "OpenConversationAgentTitle": "Открыть AI-репетитора",
-        "PaddleDownscaleLabel": "Масштаб PaddleOCR: {value}%",
-        "PaddleDownscaleTitle": "Уменьшить изображение перед обработкой PaddleOCR (dev)",
+        "DetectionScaleLabel": "Масштаб OCR-обнаружения: {value}%",
+        "DetectionScaleTitle": "Уменьшить изображение перед OCR-обнаружением/распознаванием (dev)",
         "Ready": "Готово",
         "ShowTooltipOn": "Подсказка при:",
         "TimingDetection": "Обн",
@@ -1315,6 +1291,8 @@
         "PageLayoutPaired": "1+2|3+4",
         "PageLayoutSingle": "1|2+3",
         "SinglePage": "Одна страница",
+        "SpreadLeftToRight": "Страницы слева направо",
+        "SpreadRightToLeft": "Страницы справа налево",
         "ToggleUnknownWordsSidebar": "Переключить боковую панель незнакомых слов"
       },
       "UI": {
@@ -1411,17 +1389,17 @@
           "Description": "Показывать боковую панель с переводами слов при появлении субтитров",
           "Label": "Панель живого перевода"
         },
-        "ShowFurigana": {
-          "Description": "Отображать чтение над словами",
-          "Label": "Показывать чтение"
+        "ShowReadingAnnotations": {
+          "Label": "Показывать аннотации чтения",
+          "Description": "Отображать аннотации чтения над словами"
         },
         "HideReadingForKnownWords": {
           "Description": "Автоматически скрывать чтение для уже известных слов",
           "Label": "Скрывать чтение для известных слов"
         },
-        "ShowPitchAccent": {
-          "Description": "Отображать информацию о тоновом ударении слов",
-          "Label": "Показывать тоновое ударение"
+        "ShowProsody": {
+          "Description": "Отображать просодию, тон, ударение или акцент слов",
+          "Label": "Показывать просодию и акцент"
         },
         "ShowPos": {
           "Description": "Отображать грамматическую информацию о словах",
@@ -1487,6 +1465,7 @@
         },
         "LanguageData": {
           "Install": "Установить языковые данные",
+          "Installing": "Установка языковых данных...",
           "Installed": "Языковые данные установлены",
           "InstallFailed": "Не удалось установить языковые данные",
           "MissingRequired": "Требуются языковые данные"
@@ -1587,12 +1566,12 @@
       },
       "Reader": {
         "Description": "Настройки OCR и читалки",
-        "Furigana": {
+        "ReadingAnnotations": {
+          "Title": "Аннотации чтения",
           "Hide": {
-            "Description": "Закрыть обнаруженные аннотации чтения белым блоком, показывать при наведении (для практики чтения)",
-            "Label": "Скрыть чтение"
-          },
-          "Title": "Чтение"
+            "Label": "Скрыть аннотации чтения",
+            "Description": "Закрыть обнаруженные аннотации чтения белым блоком, показывать при наведении (для практики чтения)"
+          }
         },
         "LlmIntegration": {
           "Enable": {
@@ -1651,9 +1630,9 @@
             "Description": "Включить оптическое распознавание символов для изображений",
             "Label": "Включить OCR"
           },
-          "FuriganaDetection": {
-            "Description": "Определять и фильтровать аннотации чтения в результатах OCR. При отключении обнаруженные текстовые блоки отображаются как есть.",
-            "Label": "Обнаружение чтения"
+          "ReadingAnnotationDetection": {
+            "Label": "Обнаружение аннотаций чтения",
+            "Description": "Определять и фильтровать аннотации чтения в результатах OCR. При отключении обнаруженные текстовые блоки отображаются как есть."
           },
           "RamSaver": {
             "Description": "Использовать облегчённое обнаружение текста на базе OpenCV вместо нейросети. Экономит ~1,5 ГБ ОЗУ, но может быть менее точным для сложных макетов. Качество распознавания не затрагивается.",
@@ -1785,9 +1764,9 @@
             "Description": "Использовать встроенную систему интервального повторения mLearn вместо Anki",
             "Label": "Использовать SRS mLearn"
           },
-          "ExamCardProportion": {
-            "Description": "Доля автоматически создаваемых карточек экзаменационного уровня (0–1)",
-            "Label": "Доля экзаменационных карточек"
+          "LevelCardProportion": {
+            "Description": "Доля автоматически создаваемых карточек из языковых уровней (0–1)",
+            "Label": "Доля карточек по уровням"
           },
           "FlipAnimation": {
             "Description": "Показывать 3D-анимацию переворота при показе ответа",
@@ -2106,8 +2085,8 @@
       "Actions": {
         "EditWordDatabase": "Редактор базы слов",
         "OpenAiAnalytics": "AI-анализ медиа",
-        "OpenExamCentricStudy": "Open Exam-centric Study",
-        "ViewKanjiGrid": "Таблица кандзи"
+        "OpenLevelStudy": "Открыть изучение по уровням",
+        "ViewCharacterGrid": "Таблица символов"
       },
       "CurrentlyLearning": "Изучается сейчас",
       "Dashboard": {
@@ -2193,7 +2172,7 @@
       "LevelColumn": "Уровень",
       "TimeWatched": "Время просмотра",
       "Title": "Статистика обучения",
-      "WordsByExamLevel": "Слова по уровню экзамена",
+      "WordsByLevel": "Слова по уровню",
       "WordsByStatus": "Слова по статусу",
       "WordsLearned": "Слов выучено",
       "WordsTracked": "Слов отслеживается"
@@ -2536,7 +2515,7 @@
       "Flashcards": "Карточки",
       "ForceRecreateFlashcards": "Принудительно создать новые карточки на сегодня",
       "Help": "Справка",
-      "HideReading": "Скрыть чтение",
+      "HideReading": "Скрыть аннотации чтения",
       "OpenDevTools": "Открыть DevTools",
       "OpenLiveWordTranslator": "Открыть переводчик слов",
       "OpenSyncingWindow": "Открыть окно синхронизации",
@@ -2548,10 +2527,9 @@
       },
       "ReviewFlashcards": "Повторить карточки",
       "Settings": "Настройки",
-      "ExamCentricStudy": "Exam-centric Study",
-      "ShowKanjiGrid": "Показать сетку кандзи",
+      "LevelStudy": "Изучение по уровням",
       "ShowLearningStatistics": "Показать статистику обучения",
-      "ShowReading": "Показать чтение",
+      "ShowReading": "Показать аннотации чтения",
       "Statistics": "Статистика",
       "StopWatchTogether": "Остановить Watch Together",
       "SyncSubtitles": "Синхронизировать субтитры с видео",
@@ -2607,6 +2585,10 @@
           "Title": "Модель MangaOCR",
           "Description": "Распознавание японской манги и вертикального текста."
         },
+        "GenericOCR": {
+          "Title": "OCR-среда {engine}",
+          "Description": "OCR-среда, объявленная установленными языковыми данными."
+        },
         "WhisperSmall": {
           "Title": "STT-модель Whisper small",
           "Description": "Локальное преобразование речи в текст для голосовых разговоров."
@@ -2622,6 +2604,10 @@
         "QwenTts": {
           "Title": "TTS-модель Qwen3",
           "Description": "Дополнительное локальное клонирование голоса и многоязычный TTS."
+        },
+        "GenericTTS": {
+          "Title": "TTS-среда {engine}",
+          "Description": "Среда синтеза речи, объявленная установленными языковыми данными."
         },
         "DictionaryPack": {
           "Description": "Определения для {language}."
@@ -2694,6 +2680,43 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved"
+    },
+    "CharacterGrid": {
+      "CharactersByLevel": "Символы по уровню:",
+      "Disclaimer": {
+        "Title": "Уровни символов показаны приблизительно",
+        "Description": "Символы здесь выводятся по словам, отнесённым к каждому уровню, с последующим извлечением символов из этих слов. Поэтому сетка приблизительная: на некоторых уровнях встречаются слова, для которых знание самих символов не обязательно."
+      },
+      "Description": "Цвета: изучается (оранжевый→жёлтый), известный (зелёный→светло-зелёный), неизвестный (серый). Наведите для подробностей.",
+      "EmptyState": {
+        "Description": "Когда вы встретите символы в видео или тексте, они появятся здесь.",
+        "Hint": "Начните смотреть или читать контент для начала отслеживания!",
+        "Title": "Отслеживаемых символов пока нет"
+      },
+      "Unsupported": {
+        "Description": "Этот языковой пакет не задает письменности для изучения символов.",
+        "Title": "Изучение символов недоступно для этого языка"
+      },
+      "Legend": {
+        "Known": "Известный:",
+        "Learning": "Изучается:",
+        "Unknown": "Неизвестный:"
+      },
+      "LevelFallback": "Уровень {level}",
+      "Loading": "Загрузка данных о символах...",
+      "Stats": {
+        "Known": "Известных:",
+        "Learning": "Изучается:",
+        "TotalFound": "Всего:",
+        "Unknown": "Неизвестных:"
+      },
+      "Title": "Освоение символов",
+      "Tooltip": {
+        "KnownCount": "Известных",
+        "LearningCount": "Изучается",
+        "Score": "Оценка",
+        "WordsContaining": "Слова с {char}"
+      }
     }
   }
 }

@@ -199,7 +199,7 @@ export const IPC_CHANNELS = {
   
   // Stats & editors
   OPEN_WORD_DB_EDITOR: 'open-word-db-editor',
-  OPEN_EXAM_CENTRIC_STUDY: 'open-exam-centric-study',
+  OPEN_LEVEL_STUDY: 'open-level-study',
   
   // Prompt
   OPEN_PROMPT: 'open-prompt',
@@ -337,7 +337,7 @@ export const WINDOW_TYPES = {
   FLASHCARDS: 'flashcards',
   PROMPT: 'prompt',
   UPDATE: 'update',
-  KANJI_GRID: 'kanji-grid',
+  CHARACTER_GRID: 'character-grid',
   WORD_DB_EDITOR: 'word-db-editor',
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
@@ -346,7 +346,7 @@ export const WINDOW_TYPES = {
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',
   WORD_SYNC: 'word-sync',
-  EXAM_CENTRIC_STUDY: 'exam-centric-study',
+  LEVEL_STUDY: 'level-study',
   OVERLAY: 'overlay',
   DIAGNOSTICS: 'diagnostics',
 } as const;

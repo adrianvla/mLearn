@@ -27,6 +27,7 @@ import logging
 import os
 import time
 import importlib.util
+from pathlib import Path
 
 import torch
 import torchaudio
@@ -54,6 +55,13 @@ _codec = None
 _inferencer = None
 _loading = False
 CODEC_SAMPLE_RATE = 24000
+DEFAULT_SENTENCE_TERMINATORS = ".!?。！？؟؛"
+LANGUAGE_DATA_PATH = Path(
+    os.environ.get(
+        "MLEARN_LANGUAGE_DATA_PATH",
+        Path.home() / "Library" / "Application Support" / "mlearn" / "language-data",
+    )
+)
 
 
 def _resolve_attn_implementation(device: str, dtype: torch.dtype) -> str:
@@ -143,7 +151,7 @@ def _validate_voice_sample_path(path_str: Optional[str]) -> Optional[str]:
 
 class TTSRequest(BaseModel):
     text: str
-    language: str = "en"
+    language: str = ""
     voiceSamplePath: Optional[str] = None
     speed: float = 1.0
 
@@ -165,11 +173,49 @@ async def tts_status():
     }
 
 
-def _split_into_sentences(text: str) -> list:
+def _read_language_metadata(language: str) -> dict:
+    language_file = LANGUAGE_DATA_PATH / "languages" / f"{language}.json"
+    if not language_file.is_file():
+        return {}
+    try:
+        candidate = json.loads(language_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("Failed to read language metadata for %s from %s: %s", language, language_file, exc)
+        return {}
+    return candidate if isinstance(candidate, dict) else {}
+
+
+def _sentence_terminators(language: str | None) -> str:
+    data = _read_language_metadata(language) if language else {}
+    value = (
+        data.get("textProcessing", {})
+        .get("sentenceTerminators")
+        if isinstance(data.get("textProcessing", {}), dict)
+        else None
+    )
+    if isinstance(value, list):
+        configured = "".join(str(item) for item in value if isinstance(item, str) and item)
+        if configured:
+            return configured
+    return DEFAULT_SENTENCE_TERMINATORS
+
+
+def _split_into_sentences(text: str, language: str | None = None) -> list:
     import re
 
-    sentences = re.split(r"(?<=[.!?。！？])\s*", text)
+    sentence_endings = _sentence_terminators(language)
+    sentences = re.split(rf"(?<=[{re.escape(sentence_endings)}])\s*", text)
     return [s.strip() for s in sentences if s.strip()]
+
+
+def _set_language_data_path(path: str | None) -> None:
+    global LANGUAGE_DATA_PATH
+    if path:
+        LANGUAGE_DATA_PATH = Path(path).expanduser().resolve()
+
+
+def _log_language_data_path() -> None:
+    log.info("Language metadata path: %s", LANGUAGE_DATA_PATH / "languages")
 
 
 @app.post("/voice/tts")
@@ -179,7 +225,7 @@ async def tts_generate(req: TTSRequest):
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    sentences = _split_into_sentences(req.text)
+    sentences = _split_into_sentences(req.text, req.language)
     if not sentences:
         sentences = [req.text]
 
@@ -252,7 +298,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no-preload", action="store_true", help="Don't load model at startup"
     )
+    parser.add_argument(
+        "--language-data-path",
+        default=os.environ.get("MLEARN_LANGUAGE_DATA_PATH"),
+        help="Path to mLearn language-data containing languages/<code>.json metadata",
+    )
     args = parser.parse_args()
+    _set_language_data_path(args.language_data_path)
+    _log_language_data_path()
 
     if not args.no_preload:
         load_model()

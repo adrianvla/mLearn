@@ -7,24 +7,32 @@
  *
  * Heuristic:
  *   - ASCII/Latin (0x00-0x7F): ~4 chars per token
- *   - CJK (Hiragana, Katakana, Hangul, CJK Unified Ideographs): ~1.5 chars per token
+ *   - Dense scripts (Han, Kana, Hangul, Bopomofo, or package-declared compact scripts): ~1.5 chars per token
  *   - Emoji / surrogate pairs: 2 tokens each
  *   - Other Unicode: ~2 chars per token
  */
+
+import type { LanguageData } from '../types';
+import { getResolvedScriptProfile, hasLettersInAnyScript, normalizeScriptCodes, type NormalizedScriptCode } from '../languageScriptProfile';
 
 // ============================================================================
 // Character Detection Helpers
 // ============================================================================
 
+export interface TokenEstimationOptions {
+  language?: string;
+  languageData?: LanguageData | null;
+}
+
 /**
- * Check if a Unicode code point belongs to CJK script ranges:
- * Hiragana, Katakana, Hangul Jamo/Syllables, CJK Unified Ideographs,
- * CJK Extension A/B, CJK Compatibility Ideographs.
+ * Check if a Unicode code point belongs to dense no-space script ranges.
  */
-function isCJK(codePoint: number): boolean {
+function isDenseScript(codePoint: number): boolean {
   return (
     (codePoint >= 0x3040 && codePoint <= 0x309F) ||   // Hiragana
     (codePoint >= 0x30A0 && codePoint <= 0x30FF) ||   // Katakana
+    (codePoint >= 0x3100 && codePoint <= 0x312F) ||   // Bopomofo
+    (codePoint >= 0x31A0 && codePoint <= 0x31BF) ||   // Bopomofo Extended
     (codePoint >= 0x3130 && codePoint <= 0x318F) ||   // Hangul Compatibility Jamo
     (codePoint >= 0xAC00 && codePoint <= 0xD7AF) ||   // Hangul Syllables
     (codePoint >= 0x1100 && codePoint <= 0x11FF) ||   // Hangul Jamo
@@ -63,9 +71,27 @@ function isEmoji(codePoint: number): boolean {
 // ============================================================================
 
 const ASCII_CHARS_PER_TOKEN = 4;
-const CJK_CHARS_PER_TOKEN = 1.5;
+const DENSE_SCRIPT_CHARS_PER_TOKEN = 1.5;
 const EMOJI_TOKENS = 2;
 const OTHER_CHARS_PER_TOKEN = 2;
+
+function getPackageCompactScripts(options?: TokenEstimationOptions): NormalizedScriptCode[] {
+  if (!options?.language || !options.languageData) return [];
+
+  const configuredCompactScripts = options.languageData.textProcessing?.tokenEstimation?.compactScripts;
+  if (configuredCompactScripts) {
+    return normalizeScriptCodes(configuredCompactScripts);
+  }
+
+  const profile = getResolvedScriptProfile(options.language, options.languageData);
+  if (profile.wordIndexStrategy.type !== 'character-containment') return [];
+
+  return profile.acceptedScripts;
+}
+
+function isPackageCompactScript(char: string, scripts: readonly string[]): boolean {
+  return scripts.length > 0 && hasLettersInAnyScript(char, scripts);
+}
 
 /**
  * Estimate the number of context-window tokens for a given text string.
@@ -76,13 +102,14 @@ const OTHER_CHARS_PER_TOKEN = 2;
  * @param text - The input text to estimate tokens for.
  * @returns Estimated number of tokens.
  */
-export function estimateTokens(text: string): number {
+export function estimateTokens(text: string, options?: TokenEstimationOptions): number {
   if (!text) return 0;
 
   let asciiCount = 0;
-  let cjkCount = 0;
+  let denseScriptCount = 0;
   let emojiCount = 0;
   let otherCount = 0;
+  const packageCompactScripts = getPackageCompactScripts(options);
 
   let i = 0;
   while (i < text.length) {
@@ -106,8 +133,9 @@ export function estimateTokens(text: string): number {
       continue;
     }
 
-    if (isCJK(codePoint)) {
-      cjkCount++;
+    const char = String.fromCodePoint(codePoint);
+    if (isDenseScript(codePoint) || isPackageCompactScript(char, packageCompactScripts)) {
+      denseScriptCount++;
       i++;
       continue;
     }
@@ -118,7 +146,7 @@ export function estimateTokens(text: string): number {
 
   const tokens =
     asciiCount / ASCII_CHARS_PER_TOKEN +
-    cjkCount / CJK_CHARS_PER_TOKEN +
+    denseScriptCount / DENSE_SCRIPT_CHARS_PER_TOKEN +
     emojiCount * EMOJI_TOKENS +
     otherCount / OTHER_CHARS_PER_TOKEN;
 
@@ -133,10 +161,11 @@ export function estimateTokens(text: string): number {
  */
 export function estimateMessagesTokens(
   messages: Array<{ content: string }>,
+  options?: TokenEstimationOptions,
 ): number {
   let total = 0;
   for (let i = 0; i < messages.length; i++) {
-    total += estimateTokens(messages[i].content);
+    total += estimateTokens(messages[i].content, options);
   }
   return total;
 }

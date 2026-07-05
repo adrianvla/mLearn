@@ -4,53 +4,23 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { LanguageCode } from '../../shared/language-abstraction';
-import { useNLPTokenizer, getCachedNLPTokenization, clearNLPTokenizationCache, type TokenizationResult } from './useNLPTokenizer';
+import type { LanguageData, Token } from '../../shared/types';
 
-// Mock tokenization results
-const mockJapaneseTokenization: TokenizationResult = {
-  text: 'こんにちは',
-  language: 'ja',
-  tokens: [
-    {
-      surface: 'こんにちは',
-      base: 'こんにちは',
-      pos: '感動詞',
-      reading: 'コンニチハ',
-      pitchAccent: 0,
-    },
-  ],
-  processingTime: 5,
-  confidence: 0.95,
-};
+const backendTokenizeMock = vi.hoisted(() => vi.fn<() => Promise<Token[]>>());
 
-const mockGermanTokenization: TokenizationResult = {
-  text: 'Guten Tag',
-  language: 'de',
-  tokens: [
-    {
-      surface: 'Guten',
-      base: 'gut',
-      pos: 'ADJ',
-      reading: undefined,
-      pitchAccent: undefined,
-    },
-    {
-      surface: 'Tag',
-      base: 'Tag',
-      pos: 'NOUN',
-      reading: undefined,
-      pitchAccent: undefined,
-    },
-  ],
-  processingTime: 3,
-  confidence: 0.98,
-};
+vi.mock('../../shared/backends', () => ({
+  getBackend: () => ({
+    tokenize: backendTokenizeMock,
+  }),
+}));
+
+import { useNLPTokenizer, getCachedNLPTokenization, clearNLPTokenizationCache } from './useNLPTokenizer';
 
 describe('useNLPTokenizer', () => {
   beforeEach(() => {
     clearNLPTokenizationCache();
     vi.clearAllMocks();
+    backendTokenizeMock.mockReset();
   });
 
   afterEach(() => {
@@ -108,6 +78,46 @@ describe('useNLPTokenizer', () => {
       // Both should be null (not cached)
       expect(jaResult).toBeNull();
       expect(deResult).toBeNull();
+    });
+
+    it('keys cached tokens by tokenizer package namespace', async () => {
+      const languageV1: LanguageData = {
+        name: 'Test',
+        colour_codes: {},
+        settings: { fixed: {} },
+        languageData: { version: 'pkg-v1', assets: [] },
+        runtime: {
+          nlp: {
+            tokenizer: { type: 'unicode-word', lowercaseLemma: true },
+          },
+        },
+      };
+      const languageV2: LanguageData = {
+        ...languageV1,
+        languageData: { version: 'pkg-v2', assets: [] },
+        runtime: {
+          nlp: {
+            tokenizer: { type: 'spacy', model: 'xx_core_web_sm' },
+          },
+        },
+      };
+      let activeLanguageData = languageV1;
+      backendTokenizeMock
+        .mockResolvedValueOnce([{ word: 'Alpha', actual_word: 'alpha-v1', type: 'WORD' }])
+        .mockResolvedValueOnce([{ word: 'Alpha', actual_word: 'alpha-v2', type: 'WORD' }]);
+
+      const { tokenize, getCached } = useNLPTokenizer({ languageData: () => activeLanguageData });
+
+      const first = await tokenize('Alpha', 'xx');
+      expect(first.tokens[0]?.base).toBe('alpha-v1');
+      expect(getCached('Alpha', 'xx')?.tokens[0]?.base).toBe('alpha-v1');
+
+      activeLanguageData = languageV2;
+      expect(getCached('Alpha', 'xx')).toBeNull();
+
+      const second = await tokenize('Alpha', 'xx');
+      expect(second.tokens[0]?.base).toBe('alpha-v2');
+      expect(backendTokenizeMock).toHaveBeenCalledTimes(2);
     });
 
     it('should handle errors gracefully', async () => {

@@ -2,8 +2,6 @@
  * Edit Translation Dialog Styles
  */
 
-@import url('../../../components/language-specific/PitchAccent.css');
-
 /* Body content area */
 .edit-translation-dialog__body {
   display: flex;
@@ -11,25 +9,25 @@
   gap: var(--spacing-4);
 }
 
-/* Pitch accent row */
-.edit-translation-dialog__pitch-row {
+/* Prosody row */
+.edit-translation-dialog__prosody-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
 }
 
-.edit-translation-dialog__pitch-input {
+.edit-translation-dialog__prosody-position-input {
   flex: 0 0 auto;
   width: 120px;
 }
 
-.edit-translation-dialog__pitch-name {
+.edit-translation-dialog__prosody-category-name {
   flex: 1 1 auto;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
-.edit-translation-dialog__pitch-preview {
+.edit-translation-dialog__prosody-overlay-preview {
   flex: 1 1 auto;
   text-align: right;
   min-height: 30px;
@@ -40,16 +38,41 @@
   position: relative;
 }
 
-.edit-translation-dialog__pitch-preview .pitch-word {
+.edit-translation-dialog__prosody-overlay-preview .prosody-word {
   font-size: var(--font-size-lg);
   position: relative;
 }
 
-.edit-translation-dialog__pitch-preview .pitch-accent {
-  --pitch-accent-height: 3px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+.edit-translation-dialog__prosody-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: max-content;
+  max-width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.2;
+}
+
+.edit-translation-dialog__prosody-preview-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edit-translation-dialog__prosody-preview-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 var(--spacing-1);
+  border-radius: 999px;
+  background: var(--bg-intense);
+  color: var(--text-primary);
+  font-weight: 700;
 }

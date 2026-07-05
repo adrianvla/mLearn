@@ -1,4 +1,6 @@
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, KNOWLEDGE_SOURCES, WORD_STATUS } from '@shared/constants';
+import { getFrequencyLevelLabel, getFrequencyLevelsAtOrEasierThanTarget, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '@shared/languageFeatures';
+import type { LanguageData } from '@shared/types';
 import type { FieldConfig, PaletteItem } from './fieldConfig';
 import type { FieldResolver, FilterToken } from './filterExpr';
 import { uniqueId } from './filterExpr';
@@ -14,17 +16,13 @@ const EQ_OPS = ['eq'] as const;
 export function buildWordSyncPreset(
   levelNames: Record<string, string>,
   targetLevel: number | null | undefined,
+  languageData?: LanguageData | null,
 ): FilterToken[] {
   if (targetLevel === null || targetLevel === undefined) {
     return [];
   }
 
-  const levels: number[] = [];
-  for (let level = 5; level >= targetLevel; level -= 1) {
-    if (levelNames[String(level)]) {
-      levels.push(level);
-    }
-  }
+  const levels = getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
 
   if (levels.length === 0) {
     return [statusUnknownToken()];
@@ -66,7 +64,7 @@ export function statusResolver<R extends { status: number }>(): FieldResolver<R>
   };
 }
 
-export function levelResolver<R extends { level: number }>(): FieldResolver<R> {
+export function levelResolver<R extends { level: number | null | undefined }>(): FieldResolver<R> {
   return {
     read: (record) => record.level,
     valueLabel: (value) => value,
@@ -90,10 +88,11 @@ export function recencyResolver<R extends { seenRecently: boolean }>(): FieldRes
 export function buildWordSyncFields(
   levelNames: Record<string, string>,
   t: Translate,
+  languageData?: LanguageData | null,
 ): { fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] } {
   const fields: FieldConfig<unknown>[] = [
     buildStatusField(t),
-    buildLevelField(levelNames, t),
+    buildLevelField(levelNames, t, languageData),
     buildRecencyField(t),
   ];
 
@@ -103,10 +102,11 @@ export function buildWordSyncFields(
 export function buildWordDbEditorFields(
   levelNames: Record<string, string>,
   t: Translate,
+  languageData?: LanguageData | null,
 ): { fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] } {
   const fields: FieldConfig<unknown>[] = [
     buildStatusField(t),
-    buildLevelField(levelNames, t),
+    buildLevelField(levelNames, t, languageData),
     buildSourceField(t),
   ];
 
@@ -137,17 +137,17 @@ function buildStatusField(t: Translate): FieldConfig<unknown> {
   };
 }
 
-function buildLevelField(levelNames: Record<string, string>, t: Translate): FieldConfig<unknown> {
-  const sortedLevels = Object.entries(levelNames).sort(([left], [right]) => Number(right) - Number(left));
-
+function buildLevelField(levelNames: Record<string, string>, t: Translate, languageData?: LanguageData | null): FieldConfig<unknown> {
+  const sortedLevels = sortFrequencyLevelsForDisplay(
+    Object.keys(levelNames).map(Number).filter((level) => isDisplayableFrequencyLevel(level, levelNames, languageData)),
+    languageData,
+  );
   return {
     field: LEVEL_FIELD,
     label: t('mlearn.FilterBuilder.Field.Level'),
     allowedOps: [...EQ_OPS],
     values: [
-      ...sortedLevels.map(([value, label]) => ({ value, label })),
-      { value: '0', label: t('mlearn.WordDbEditor.LevelNames.Common') },
-      { value: '-1', label: t('mlearn.WordDbEditor.LevelNames.Unlisted') },
+      ...sortedLevels.map((level) => ({ value: String(level), label: getFrequencyLevelLabel(level, levelNames, languageData) })),
     ],
     resolver: propertyResolver('level'),
   };

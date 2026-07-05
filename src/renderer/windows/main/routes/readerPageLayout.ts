@@ -1,4 +1,5 @@
 export type ReaderPageMode = 'double' | 'single';
+export type ReaderSpreadDirection = 'left-to-right' | 'right-to-left';
 
 export function getVisiblePageIndices(
   totalPages: number,
@@ -27,4 +28,19 @@ export function getVisiblePageIndices(
   }
 
   return visiblePageIndices;
+}
+
+export function getSpreadPageSideClass(
+  pagePosition: number,
+  spreadPageCount: number,
+  spreadDirection: ReaderSpreadDirection,
+): '' | 'page-left' | 'page-right' {
+  if (spreadPageCount !== 2) return '';
+  if (pagePosition === 0) {
+    return spreadDirection === 'right-to-left' ? 'page-right' : 'page-left';
+  }
+  if (pagePosition === 1) {
+    return spreadDirection === 'right-to-left' ? 'page-left' : 'page-right';
+  }
+  return '';
 }

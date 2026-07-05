@@ -171,7 +171,7 @@ const mLearnIPC = {
   showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU, options),
   onContextMenuCommand: (callback: (command: string) => void) =>
     ipcOn(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command)),
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => {
+  showReaderCtxMenu: (options: { readingAnnotationHiderEnabled: boolean; hasContextPhrase: boolean; canToggleReadingHider?: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => {
     ipcRenderer.send(IPC_CHANNELS.SHOW_READER_CTX_MENU, options);
   },
   onReaderContextMenuCommand: (callback: (command: string) => void) =>
@@ -311,8 +311,8 @@ const mLearnIPC = {
   // ========== Stats & Editors ==========
   onOpenWordDbEditor: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, () => callback()),
-  onOpenExamCentricStudy: (callback: () => void) =>
-    ipcOn(IPC_CHANNELS.OPEN_EXAM_CENTRIC_STUDY, () => callback()),
+  onOpenLevelStudy: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_LEVEL_STUDY, () => callback()),
 
   // ========== Prompt ==========
   promptOutput: (text: string) => ipcRenderer.send(IPC_CHANNELS.PROMPT_OUTPUT, text),
@@ -465,8 +465,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_DELETE, id),
   voiceSampleRename: (id: string, newName: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_RENAME, id, newName),
-  voiceSampleTranscribe: (id: string): Promise<{ text: string; language: string }> =>
-    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE, id),
+  voiceSampleTranscribe: (id: string, language?: string): Promise<{ text: string; language: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE, id, language),
   voiceSampleGetPath: (id: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_GET_PATH, id),
 

@@ -27,6 +27,7 @@ const PASSIVE_SOURCES: ReadonlySet<WordKnowledgeSource> = new Set(['PassiveTrack
 
 export interface WordStatusPillProps {
   word: string;
+  language?: string;
   onStatusChange?: (status: WordStatus) => void;
   onModalOpenChange?: (isOpen: boolean) => void;
   iconOnly?: boolean;
@@ -34,7 +35,14 @@ export interface WordStatusPillProps {
 
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const { settings, updateSettings } = useSettings();
-  const { getCanonicalForm } = useLanguage();
+  const {
+    langData,
+    getCanonicalForm,
+    getWordVariants,
+    getCanonicalFormForLanguage,
+    getWordVariantsForLanguage,
+    currentLangData,
+  } = useLanguage();
   const { trackWordStatusChange, getComprehensiveWordStatusWithSourceSync, setComprehensiveWordStatus } = useFlashcards();
   const { t } = useLocalization();
   const anki = useAnki();
@@ -44,13 +52,31 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const [pendingStatus, setPendingStatus] = createSignal<WordStatus | null>(null);
   const [pendingSkipAnki, setPendingSkipAnki] = createSignal(false);
 
-  const wordForms = createMemo(() => getWordFormCandidates(props.word, getCanonicalForm));
+  const targetLanguage = createMemo(() => props.language ?? settings.language);
+  const isActiveLanguage = createMemo(() => targetLanguage() === settings.language);
+  const targetLanguageData = createMemo(() => (
+    langData[targetLanguage()] ?? (isActiveLanguage() ? currentLangData() : null)
+  ));
+  const wordForms = createMemo(() => (
+    isActiveLanguage()
+      ? getWordFormCandidates(props.word, getCanonicalForm, getWordVariants, { languageData: targetLanguageData() })
+      : getWordFormCandidates(
+        props.word,
+        (value) => getCanonicalFormForLanguage(targetLanguage(), value),
+        (value) => getWordVariantsForLanguage(targetLanguage(), value),
+        { languageData: targetLanguageData() },
+      )
+  ));
+  const ankiCacheOptions = createMemo(() => ({
+    language: targetLanguage(),
+    languageData: targetLanguageData(),
+  }));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
   const matchedAnki = createMemo(() =>
-    settings.use_anki ? findAnkiWordMatchInCache(wordForms()) : null
+    settings.use_anki ? findAnkiWordMatchInCache(wordForms(), ankiCacheOptions()) : null
   );
   const matchedAnkiWord = createMemo(() => matchedAnki()?.word ?? null);
-  const comprehensiveResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word));
+  const comprehensiveResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, targetLanguage()));
   const effectiveStatus = createMemo(() => comprehensiveResult().status);
 
   const statusSourceLabel = createMemo(() => {
@@ -89,15 +115,15 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     const word = primaryWord();
     if (!word) return;
 
-    setComprehensiveWordStatus(word, nextStatus);
-    trackWordStatusChange(word);
+    setComprehensiveWordStatus(word, nextStatus, targetLanguage());
+    trackWordStatusChange(word, targetLanguage());
 
     const ankiWord = matchedAnkiWord();
     if (!skipAnki && ankiWord && settings.use_anki && nextStatus !== 'unknown') {
       const ankiEase = getAnkiEaseForStatus(nextStatus, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
       anki.updateWordCards(ankiWord, ankiEase).then((result) => {
         if (result.updated > 0) {
-          void refreshAnkiWordsCache();
+          void refreshAnkiWordsCache(ankiCacheOptions());
           const message = result.repositioned > 0
             ? t('mlearn.WordHover.AnkiUpdateRepositioned', { count: String(result.updated), repositioned: String(result.repositioned) })
             : t('mlearn.WordHover.AnkiUpdateSuccess', { count: String(result.updated) });

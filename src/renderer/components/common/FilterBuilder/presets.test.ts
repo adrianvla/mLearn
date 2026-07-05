@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { LanguageData } from '@shared/types';
 import { makeToken } from './fieldConfig';
 import type { FilterToken } from './filterExpr';
 import { validateTokens } from './filterExpr';
-import { buildEmptyPreset, buildWordSyncPreset } from './presets';
+import { buildEmptyPreset, buildWordSyncFields, buildWordSyncPreset } from './presets';
 
 type TokenShape =
   | { kind: 'operand'; field: string; op: string; value: string }
@@ -65,6 +66,15 @@ function expectWellFormedTokenKinds(tokens: FilterToken[]): void {
 }
 
 describe('buildWordSyncPreset', () => {
+  const ascendingDifficultyLanguage: LanguageData = {
+    name: 'Ascending Difficulty Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    frequencyLevels: {
+      difficulty: 'higher-is-harder',
+    },
+  };
+
   it('builds Unknown AND (N5 OR N4 OR N3 OR N2) for target level 2', () => {
     const tokens = buildWordSyncPreset(allLevelNames, 2);
 
@@ -101,6 +111,56 @@ describe('buildWordSyncPreset', () => {
     ]);
   });
 
+  it('builds ascending-difficulty presets from easier levels through the target', () => {
+    const tokens = buildWordSyncPreset({ '1': 'A1', '2': 'A2', '3': 'B1' }, 2, ascendingDifficultyLanguage);
+
+    expect(shapes(tokens)).toEqual([
+      { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'level', op: 'eq', value: '1' },
+      { kind: 'operator', op: 'OR' },
+      { kind: 'operand', field: 'level', op: 'eq', value: '2' },
+      { kind: 'paren', dir: 'close' },
+    ]);
+  });
+
+  it('builds zero-based presets when the language declares zero as a real level', () => {
+    const zeroBasedLanguage: LanguageData = {
+      name: 'Zero Based Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        names: { '0': 'Starter', '1': 'A1', '2': 'A2' },
+        difficulty: 'higher-is-harder',
+        displayOrder: 'ascending',
+      },
+    };
+    const tokens = buildWordSyncPreset({ '0': 'Starter', '1': 'A1', '2': 'A2' }, 1, zeroBasedLanguage);
+
+    expect(shapes(tokens)).toEqual([
+      { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'level', op: 'eq', value: '0' },
+      { kind: 'operator', op: 'OR' },
+      { kind: 'operand', field: 'level', op: 'eq', value: '1' },
+      { kind: 'paren', dir: 'close' },
+    ]);
+  });
+
+  it('does not include sentinel levels in word sync presets', () => {
+    const tokens = buildWordSyncPreset({ '-1': 'Unlisted', '5': 'N5' }, 5);
+
+    expect(shapes(tokens)).toEqual([
+      { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'level', op: 'eq', value: '5' },
+      { kind: 'paren', dir: 'close' },
+    ]);
+  });
+
   it('builds an empty preset for null target level', () => {
     expect(buildWordSyncPreset(allLevelNames, null)).toEqual([]);
   });
@@ -125,6 +185,35 @@ describe('buildWordSyncPreset', () => {
 describe('buildEmptyPreset', () => {
   it('builds an empty preset', () => {
     expect(buildEmptyPreset()).toEqual([]);
+  });
+});
+
+describe('buildWordSyncFields', () => {
+  const t = (key: string) => key;
+
+  function levelValues(levelNames: Record<string, string>, languageData?: LanguageData | null): string[] {
+    const { fields } = buildWordSyncFields(levelNames, t, languageData);
+    const levelField = fields.find((field) => field.field === 'level');
+    return levelField?.values.map((value) => value.value) ?? [];
+  }
+
+  it('keeps declared zero levels in the level palette', () => {
+    const languageData: LanguageData = {
+      name: 'Zero Based Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        names: { '0': 'Starter', '1': 'A1' },
+        difficulty: 'higher-is-harder',
+        displayOrder: 'ascending',
+      },
+    };
+
+    expect(levelValues({ '0': 'Starter', '1': 'A1' }, languageData)).toEqual(['0', '1']);
+  });
+
+  it('omits sentinel level names from the selectable frequency-level palette', () => {
+    expect(levelValues({ '-1': 'Unlisted', '5': 'N5' })).toEqual(['5']);
   });
 });
 

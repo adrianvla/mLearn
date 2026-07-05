@@ -142,6 +142,8 @@
           "!dictionary_cache.sqlite3",
           "!dictionaries/**",
           "!languages/**",
+          "!AGENTS.md",
+          "!test_*.py",
           "!*.bak",
           "!*.pkl"
         ]

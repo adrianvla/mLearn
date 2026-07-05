@@ -22,9 +22,11 @@ import type {
   TutorSessionConfig,
   AgentConfig,
   AgentMemoryEntry,
+  LanguageData,
 } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
+import { getFrequencyLevelLabel, isFrequencyLevelHarderThanTarget } from '../../shared/languageFeatures';
 import type { LanguageFeatures } from '../context/LanguageContext';
 import { getLogger } from '../../shared/utils/logger';
 import { estimateMessagesTokens } from '../../shared/utils/tokenEstimation';
@@ -51,8 +53,10 @@ interface AgentDeps {
   };
   /** Look up the frequency level of a word (returns null if no data) */
   getFrequency?: (word: string) => WordFrequencyEntry | null;
-  /** Target proficiency level (1-5) for output adaptation, or null if disabled */
+  /** Target proficiency level for output adaptation, or null if disabled */
   getTargetLevel?: () => number | null;
+  /** Current language metadata used to interpret frequency-level difficulty. */
+  getLanguageData?: () => LanguageData | null;
   /** Get the display name for a frequency level number */
   getLevelName?: (level: number) => string;
   /** Whether voice mode is active — uses voice-specific tools and prompt */
@@ -112,9 +116,23 @@ export interface AgentInstance {
 // langName is provided for guidelines that reference the target language.
 // ============================================================================
 
-const TOOL_PROMPT_GUIDELINES: Record<string, (langName: string) => string[]> = {
-  correct_mistake: (langName) => [
-    `- Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.\n  - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.\n  - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.\n  - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.\n  - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.\n  - Only correct actual mistakes in the target language; do not "correct" text that is already correct or translate it.\n  - Be LENIENT with casual, colloquial, or informal speech. Casual register is valid and should NOT be corrected. Only correct things that are actually wrong — not things that are simply informal. If a native speaker would say it the same way in casual conversation, it is NOT a mistake.`,
+type ToolPromptGuidelineFactory = (langName: string, features?: LanguageFeatures) => string[];
+
+function getCorrectionPromptGuidelines(features?: LanguageFeatures): string[] {
+  return [
+    ...(features?.supportsDeferentialRegister
+      ? [
+        'Do not correct valid casual register, dropped politeness markers, or casual sentence endings merely because a polite form also exists.',
+        'Be lenient with casual, colloquial, or informal speech when those forms are valid for the requested context.',
+      ]
+      : []),
+    ...(features?.correctionPromptGuidelines ?? []),
+  ];
+}
+
+const TOOL_PROMPT_GUIDELINES: Record<string, ToolPromptGuidelineFactory> = {
+  correct_mistake: (langName, features) => [
+    `- Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.\n  - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.\n  - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.\n  - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.\n  - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.\n  - Only correct actual mistakes in the target language; do not "correct" text that is already correct, translate it, or rewrite it merely as a stylistic preference.${getCorrectionPromptGuidelines(features).length > 0 ? `\n  - Language-specific correction guidance:\n${getCorrectionPromptGuidelines(features).map((guideline) => `    - ${guideline}`).join('\n')}` : ''}`,
     `- "correct_mistake" must ALWAYS be called at the very end of your response.`,
     `- "correct_mistake" must ALWAYS be called if the user makes a mistake.`,
   ],
@@ -167,6 +185,17 @@ Regardless of the character persona above, you must never provide instructions f
 // System Prompt Builder
 // ============================================================================
 
+function getCasualRegisterGuidelineLines(langName: string, features?: LanguageFeatures): string[] {
+  const lines = features?.supportsDeferentialRegister
+    ? [`NEVER use formal or polite register. Use informal forms and casual sentence endings when they are valid in ${langName}. Avoid formal or deferential register entirely.`]
+    : [];
+  return [...lines, ...(features?.casualRegisterPromptGuidelines ?? [])];
+}
+
+function formatPromptBullets(lines: readonly string[]): string {
+  return lines.map((line) => `- ${line}`).join('\n');
+}
+
 function buildSystemPrompt(
   _langCode: string,
   langName: string,
@@ -183,8 +212,8 @@ function buildSystemPrompt(
   features?: LanguageFeatures,
 ): string {
   const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
-  const supportsHonorifics = features?.supportsHonorifics ?? false;
-  const supportsReadings = features?.supportsReadings ?? false;
+  const tutorPromptGuidelines = features?.tutorPromptGuidelines ?? [];
+  const casualRegisterGuidelines = getCasualRegisterGuidelineLines(langName, features);
 
   // Build personality section
   let personalitySection: string;
@@ -198,9 +227,10 @@ function buildSystemPrompt(
   } else if (agentConfig?.personality === 'roleplay' && agentConfig.roleplayName) {
     const formalityNote = agentConfig.roleplayFormality === 'polite'
       ? `- Use formal, polite ${langName} — proper grammar and respectful language.`
-      : (supportsHonorifics
-        ? `- Use casual, informal ${langName} only. NEVER use formal or polite register — no honorifics, no deferential verb forms, no polite sentence endings. Speak like a close friend.`
-        : `- Use casual, informal ${langName} only. Speak like a close friend, using contractions and everyday vocabulary. Avoid stiff or overly formal phrasing.`);
+      : [
+        `- Use casual, informal ${langName} only. Speak like a close friend, using natural everyday vocabulary. Avoid stiff or overly formal phrasing.`,
+        ...casualRegisterGuidelines.map((guideline) => `- ${guideline}`),
+      ].join('\n');
     const quotesSection = agentConfig.roleplayQuotes && agentConfig.roleplayQuotes.length > 0
       ? `\nSample quotes (match the style, don't repeat these lines verbatim):\n${agentConfig.roleplayQuotes.map((q) => `- "${q}"`).join('\n')}`
       : '';
@@ -222,9 +252,9 @@ ${formalityNote}
     personalitySection = `## Personality
 - Patient, encouraging, and warm.
 - Use casual, colloquial ${langName} — speak like a close friend, NOT like a teacher or textbook.
-${supportsHonorifics
-  ? `- NEVER use formal or polite register. Use informal verb forms, contractions, and casual sentence endings. Avoid honorific or deferential language entirely.`
-  : `- Prefer informal phrasing, contractions, and everyday vocabulary over stiff or textbook-style language.`}
+${casualRegisterGuidelines.length > 0
+  ? formatPromptBullets(casualRegisterGuidelines)
+  : `- Prefer informal phrasing and everyday vocabulary over stiff or textbook-style language.`}
 - Celebrate progress and good usage.
 - When the learner struggles, simplify rather than switch languages entirely.`;
   }
@@ -255,8 +285,8 @@ ${identitySection}
 - Naturally correct mistakes the learner makes using the "correct_mistake" tool.`}${isToolDisabled('create_quiz') ? '' : `
 - Periodically quiz the learner using the "create_quiz" tool based on vocabulary or grammar used in the conversation.`}
 - If the learner writes in another language, reply in ${langName} and gently guide them back to ${langName}.
-- Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.${supportsReadings ? `
-- Do not quiz the reader on character readings if ${langName} has any.` : ''}
+- Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.${tutorPromptGuidelines.length > 0 ? `
+${tutorPromptGuidelines.map((guideline) => `- ${guideline}`).join('\n')}` : ''}
 
 ${personalitySection}
 `;
@@ -265,7 +295,7 @@ ${personalitySection}
   const toolGuidelines: string[] = [];
   for (const toolName of TOOL_GUIDELINE_ORDER) {
     if (isToolDisabled(toolName)) continue;
-    toolGuidelines.push(...TOOL_PROMPT_GUIDELINES[toolName](langName));
+    toolGuidelines.push(...TOOL_PROMPT_GUIDELINES[toolName](langName, features));
   }
   if (mistakeCheckerEnabled) {
     toolGuidelines.push(`- Do NOT correct the learner's mistakes. A separate system handles corrections. Focus on natural conversation, quizzes, and teaching.`);
@@ -668,10 +698,19 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
 // ============================================================================
 
 function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentContext | null, features?: LanguageFeatures): string {
-  const supportsHonorifics = features?.supportsHonorifics ?? false;
-  const registerLine = supportsHonorifics
-    ? `- Speak naturally and conversationally, as if chatting with a friend. Use casual register — avoid honorifics and overly formal speech.`
-    : `- Speak naturally and conversationally, as if chatting with a friend.`;
+  const casualRegisterGuidelines = getCasualRegisterGuidelineLines(langName, features);
+  const correctionGuidelines = [
+    ...(features?.correctionPromptGuidelines ?? []),
+    ...(features?.mistakeCheckerPromptGuidelines ?? []),
+  ];
+  const registerLine = [
+    `- Speak naturally and conversationally, as if chatting with a friend.`,
+    ...casualRegisterGuidelines.map((guideline) => `- ${guideline}`),
+  ].join('\n');
+  const correctionGuidance =
+    correctionGuidelines.length > 0
+      ? `\n\n## Speech Correction Guidelines\n${correctionGuidelines.map((guideline) => `- ${guideline}`).join('\n')}`
+      : '';
   let prompt = `You are a friendly, natural-sounding language tutor for ${langName} in a live voice conversation.
 
 ## Rules
@@ -686,6 +725,7 @@ ${registerLine}
 - The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
 - If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
+${correctionGuidance}
 
 ## Personality
 - Patient, warm, encouraging.
@@ -1134,6 +1174,7 @@ function findDifficultWords(
   tokens: Token[],
   targetLevel: number,
   getFrequency: (word: string) => WordFrequencyEntry | null,
+  languageData?: LanguageData | null,
 ): Array<{ word: string; level: number; levelName: string }> {
   const seen = new Set<string>();
   const difficult: Array<{ word: string; level: number; levelName: string }> = [];
@@ -1146,9 +1187,7 @@ function findDifficultWords(
     const freq = getFrequency(lookupWord);
     if (!freq) continue; // Unknown frequency — don't flag
 
-    // Higher raw_level = easier (5 = easiest, 1 = hardest)
-    // If the word's level is below the target, it's too difficult
-    if (freq.raw_level < targetLevel) {
+    if (isFrequencyLevelHarderThanTarget(freq.raw_level, targetLevel, languageData)) {
       difficult.push({ word: lookupWord, level: freq.raw_level, levelName: freq.level });
     }
   }
@@ -1231,7 +1270,11 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   function compactHistory(maxTokens: number = COMPACTION_TOKEN_LIMIT): void {
     if (conversationHistory.length === 0) return;
 
-    let totalTokens = estimateMessagesTokens(conversationHistory);
+    const tokenEstimationOptions = {
+      language: deps.getLanguage(),
+      languageData: deps.getLanguageData?.() ?? null,
+    };
+    let totalTokens = estimateMessagesTokens(conversationHistory, tokenEstimationOptions);
     if (totalTokens <= maxTokens) return;
 
     while (totalTokens > maxTokens && conversationHistory.length > 2) {
@@ -1241,7 +1284,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       for (let i = 0; i < conversationHistory.length - 1; i++) {
         if (conversationHistory[i].role === 'user') {
           const pair = conversationHistory.slice(i, i + 2);
-          removedTokens = estimateMessagesTokens(pair);
+          removedTokens = estimateMessagesTokens(pair, tokenEstimationOptions);
           conversationHistory.splice(i, 2);
           removeCount = 2;
           break;
@@ -1251,7 +1294,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       if (removeCount === 0) {
         const msg = conversationHistory.shift();
         if (msg) {
-          removedTokens = estimateMessagesTokens([msg]);
+          removedTokens = estimateMessagesTokens([msg], tokenEstimationOptions);
           removeCount = 1;
         }
       }
@@ -1311,7 +1354,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     let finalContent = content;
 
     if (targetLevel !== null && getFrequency) {
-      const targetLevelName = deps.getLevelName?.(targetLevel) ?? `Level ${targetLevel}`;
+      const targetLevelName = deps.getLevelName?.(targetLevel)
+        ?? getFrequencyLevelLabel(targetLevel, undefined, deps.getLanguageData?.() ?? null);
 
       for (let attempt = 0; attempt < MAX_REFORMULATION_ATTEMPTS; attempt++) {
         if (aborted) return;
@@ -1319,7 +1363,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         const tokens = await tokenizeText(finalContent, language);
         if (tokens.length === 0) break;
 
-        const difficult = findDifficultWords(tokens, targetLevel, getFrequency);
+        const difficult = findDifficultWords(tokens, targetLevel, getFrequency, deps.getLanguageData?.());
         if (difficult.length === 0) break;
 
         try {

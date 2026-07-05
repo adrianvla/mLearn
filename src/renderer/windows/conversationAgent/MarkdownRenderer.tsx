@@ -99,6 +99,7 @@ function consumeTokensForText(consumer: TokenConsumer, text: string): Token[] {
     } else {
       // Mismatch — try to skip whitespace alignment
       if (/^\s+$/.test(text[textPos])) {
+        result.push({ word: text[textPos], type: '', partOfSpeech: '' } as Token);
         textPos++;
       } else {
         // Push remaining text as a plain token with word content

@@ -5,12 +5,16 @@ let serverStatusUpdateCb: (msg: string) => void;
 let serverCriticalErrorCb: (msg: string) => void;
 let installStartedCb: () => void;
 let pythonSuccessCb: (success: boolean) => void;
+let installerAwaitingChoiceCb: () => void;
+let installerStateCb: (state: { success?: boolean; inProgress?: boolean; waiting?: boolean }) => void;
 
 const serverLoadCleanup = vi.fn();
 const serverStatusUpdateCleanup = vi.fn();
 const serverCriticalErrorCleanup = vi.fn();
 const installStartedCleanup = vi.fn();
 const pythonSuccessCleanup = vi.fn();
+const installerAwaitingChoiceCleanup = vi.fn();
+const installerStateCleanup = vi.fn();
 
 const mockBridge = {
   server: {
@@ -25,6 +29,9 @@ const mockBridge = {
   installer: {
     onInstallStarted: vi.fn(),
     onPythonSuccess: vi.fn(),
+    onInstallerAwaitingChoice: vi.fn(),
+    onInstallerState: vi.fn(),
+    requestInstallerState: vi.fn(),
   },
   kvStore: {
     kvGet: vi.fn(),
@@ -57,6 +64,14 @@ function setupMockImplementations() {
   mockBridge.installer.onPythonSuccess.mockImplementation((cb: (success: boolean) => void) => {
     pythonSuccessCb = cb;
     return pythonSuccessCleanup;
+  });
+  mockBridge.installer.onInstallerAwaitingChoice.mockImplementation((cb: () => void) => {
+    installerAwaitingChoiceCb = cb;
+    return installerAwaitingChoiceCleanup;
+  });
+  mockBridge.installer.onInstallerState.mockImplementation((cb: (state: { success?: boolean; inProgress?: boolean; waiting?: boolean }) => void) => {
+    installerStateCb = cb;
+    return installerStateCleanup;
   });
   mockBridge.kvStore.kvGet.mockResolvedValue(null);
   mockBridge.kvStore.kvSet.mockResolvedValue(undefined);
@@ -139,7 +154,16 @@ describe('ServerContext - Electron mode', () => {
     expect(mockBridge.server.onServerCriticalError).toHaveBeenCalledOnce();
     expect(mockBridge.installer.onInstallStarted).toHaveBeenCalledOnce();
     expect(mockBridge.installer.onPythonSuccess).toHaveBeenCalledOnce();
+    expect(mockBridge.installer.onInstallerAwaitingChoice).toHaveBeenCalledOnce();
+    expect(mockBridge.installer.onInstallerState).toHaveBeenCalledOnce();
+    expect(mockBridge.installer.requestInstallerState).toHaveBeenCalledOnce();
     expect(mockBridge.server.isLoaded).toHaveBeenCalledOnce();
+    expect(mockBridge.server.onServerLoad.mock.invocationCallOrder[0]).toBeLessThan(
+      mockBridge.server.isLoaded.mock.invocationCallOrder[0],
+    );
+    expect(mockBridge.installer.onInstallerAwaitingChoice.mock.invocationCallOrder[0]).toBeLessThan(
+      mockBridge.server.isLoaded.mock.invocationCallOrder[0],
+    );
     dispose();
   });
 
@@ -183,9 +207,13 @@ describe('ServerContext - Electron mode', () => {
     dispose();
   });
 
-  it('python success=true: sets status=connected', async () => {
+  it('python success=true: keeps waiting until the backend reports loaded', async () => {
     const { ctx, dispose } = await mountProvider();
     pythonSuccessCb(true);
+    expect(ctx.status()).toBe('loading');
+    expect(ctx.statusMessage()).toBe('Starting backend...');
+    expect(ctx.isConnected()).toBe(false);
+    serverLoadCb('Server ready');
     expect(ctx.status()).toBe('connected');
     dispose();
   });
@@ -194,6 +222,53 @@ describe('ServerContext - Electron mode', () => {
     const { ctx, dispose } = await mountProvider();
     pythonSuccessCb(false);
     expect(ctx.status()).toBe('loading');
+    dispose();
+  });
+
+  it('installer awaiting choice: sets status=error instead of staying stuck in loading', async () => {
+    const { ctx, dispose } = await mountProvider();
+    installerAwaitingChoiceCb();
+    expect(ctx.status()).toBe('error');
+    expect(ctx.isLoaded()).toBe(false);
+    expect(ctx.error()).toContain('Python runtime is not installed');
+    expect(ctx.statusMessage()).toContain('Python runtime is not installed');
+    dispose();
+  });
+
+  it('installer state waiting: sets status=error even when the live event was missed', async () => {
+    const { ctx, dispose } = await mountProvider();
+    installerStateCb({ waiting: true, inProgress: false, success: false });
+    expect(ctx.status()).toBe('error');
+    expect(ctx.error()).toContain('Python runtime is not installed');
+    dispose();
+  });
+
+  it('installer state in progress: sets status=installing', async () => {
+    const { ctx, dispose } = await mountProvider();
+    installerStateCb({ waiting: false, inProgress: true, success: false });
+    expect(ctx.status()).toBe('installing');
+    expect(ctx.error()).toBeNull();
+    dispose();
+  });
+
+  it('installer state success waits for backend load instead of hiding startup overlay', async () => {
+    const { ctx, dispose } = await mountProvider();
+    installerStateCb({ waiting: false, inProgress: false, success: true });
+    expect(ctx.status()).toBe('loading');
+    expect(ctx.statusMessage()).toBe('Starting backend...');
+    expect(ctx.isConnected()).toBe(false);
+    serverLoadCb('Server ready');
+    expect(ctx.status()).toBe('connected');
+    dispose();
+  });
+
+  it('ignores stale installer-required events after the backend connects', async () => {
+    const { ctx, dispose } = await mountProvider();
+    serverLoadCb('Server ready');
+    installerAwaitingChoiceCb();
+    installerStateCb({ waiting: true, inProgress: false, success: false });
+    expect(ctx.status()).toBe('connected');
+    expect(ctx.error()).toBeNull();
     dispose();
   });
 
@@ -243,6 +318,8 @@ describe('ServerContext - Electron mode', () => {
     expect(serverCriticalErrorCleanup).toHaveBeenCalledOnce();
     expect(installStartedCleanup).toHaveBeenCalledOnce();
     expect(pythonSuccessCleanup).toHaveBeenCalledOnce();
+    expect(installerAwaitingChoiceCleanup).toHaveBeenCalledOnce();
+    expect(installerStateCleanup).toHaveBeenCalledOnce();
   });
 });
 

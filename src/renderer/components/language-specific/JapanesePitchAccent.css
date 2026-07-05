@@ -1,0 +1,289 @@
+/**
+ * JapanesePitchAccentOverlay Component Styles
+ * Visual representation of Japanese pitch-accent patterns
+ * Uses CSS variables from index.css for consistent theming
+ */
+
+.pitch-accent-container {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pitch-accent-word {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: help;
+}
+
+/* Pitch accent diagram container */
+.pitch-accent {
+  --pitch-accent-height: var(--prosody-overlay-height);
+  --pitch-accent-high: var(--prosody-overlay-high);
+  --pitch-accent-low: var(--prosody-overlay-low);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  font-size: 0.8em;
+  display: flex;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Pitch accent box - each mora gets one */
+.pitch-accent .box {
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Low pitch (bottom line) - uses CSS variable */
+.pitch-accent .box.bottom::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--pitch-accent-height) / -2);
+  right: calc(var(--pitch-accent-height) / -2);
+  bottom: calc(var(--pitch-accent-height) / -2);
+  height: var(--pitch-accent-height);
+  background: var(--pitch-accent-low);
+  border-radius: 50px;
+  pointer-events: none;
+}
+
+/* High pitch (top line) - uses CSS variable */
+.pitch-accent .box.top::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--pitch-accent-height) / -2);
+  right: calc(var(--pitch-accent-height) / -2);
+  top: calc(var(--pitch-accent-height) / -2);
+  height: var(--pitch-accent-height);
+  background: var(--pitch-accent-high);
+  border-radius: 50px;
+  pointer-events: none;
+}
+
+/* Transition marker (left vertical line) - gradient */
+.pitch-accent .box.left::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--pitch-accent-height) / -2);
+  bottom: calc(var(--pitch-accent-height) / -2);
+  left: calc(var(--pitch-accent-height) / -2);
+  width: var(--pitch-accent-height);
+  background: linear-gradient(to bottom, var(--pitch-accent-high), var(--pitch-accent-low));
+  border-radius: 50px;
+  pointer-events: none;
+}
+
+/* Particle box fade effect */
+.pitch-accent .particle-box.box.top::before {
+  background: linear-gradient(to right, var(--pitch-accent-high), transparent);
+}
+
+.pitch-accent .particle-box.box.bottom::before {
+  background: linear-gradient(to right, var(--pitch-accent-low), transparent);
+}
+
+/* Remove left border radius when same-type boxes are adjacent */
+.pitch-accent .box.top + .box.top::before {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.pitch-accent .box.bottom + .box.bottom::before {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Drop marker - when transitioning from high to low at end */
+.pitch-accent .box.top.left::after {
+  /* Gradient from top (high) to bottom (low) */
+  background: linear-gradient(to bottom, var(--pitch-accent-high), var(--pitch-accent-low));
+}
+
+.pitch-accent .box.bottom.left::after {
+  /* Gradient from bottom (low) to top (high) */
+  background: linear-gradient(to top, var(--pitch-accent-low), var(--pitch-accent-high));
+}
+
+/* Pitch accent pill styling */
+.pitch-accent-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 4px;
+}
+
+.pitch-accent-pill .pitch-accent-word {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  position: relative;
+  padding-bottom: 2px;
+}
+.pitch-accent-pill .pitch-accent{
+  /*padding-left:var(--pitch-accent-height);*/
+}
+
+/* Variant sizes for pitch accent */
+.prosody-overlay-wrapper--reading > .pitch-accent {
+  --pitch-accent-height: 5px;
+}
+
+rt .prosody-overlay-wrapper--reading > .pitch-accent,
+ruby .pitch-accent {
+  --pitch-accent-height: 2px;
+}
+
+/* For flashcards, larger pitch accent */
+.fc-prosody .pitch-accent {
+  --pitch-accent-height: 3px;
+}
+
+.fc-reading-annotation .pitch-accent {
+  --pitch-accent-height: 5px;
+}
+
+/* Ensure visibility */
+.pitch-accent .box::before,
+.pitch-accent .box::after {
+  z-index: 1;
+}
+.pitch-accent .box.top::before,
+.pitch-accent .box.bottom::before {
+  border-top-right-radius: 50px;
+  border-bottom-right-radius: 50px;
+}
+
+/* Remove right radius when followed by same-type */
+.pitch-accent .box.top:has(+ .box.top)::before {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.pitch-accent .box.bottom:has(+ .box.bottom)::before {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Pill variation */
+.pill.pitch-accent-pill {
+  padding: 5px 10px;
+}
+
+.pill.pitch-accent-pill .pitch-accent-word {
+  font-weight: normal;
+  position: relative;
+}
+
+.pill.pitch-accent-pill .pitch-accent {
+  --pitch-accent-height: 2px;
+}
+
+.subtitle_hover .pitch-accent-pill {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.subtitle_hover .pitch-accent-pill .pitch-accent-word {
+  font-weight: var(--font-weight-bold);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.subtitle_hover .pitch-accent-pill .pitch-accent {
+  --pitch-accent-height: 2px;
+  position: absolute;
+  inset: 0;
+}
+
+.flashcard-example .pitch-accent {
+  --pitch-accent-height: 1.5px;
+}
+
+.edit-translation-dialog__prosody-preview .pitch-accent {
+  --pitch-accent-height: 3px;
+  position: absolute;
+  inset: 0;
+}
+
+.word-db-editor .word-db-alt-readings .pill.pitch-accent-pill {
+  padding: 2px 6px;
+  font-size: 0.75rem;
+}
+
+/* POS label inside pitch accent pill */
+.pitch-pill-pos {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+/* ============================
+   JapanesePitchAccentOverlay Styles
+   ============================ */
+
+/* Overlay wrapper - wraps children with pitch accent overlay */
+.pitch-overlay-wrapper {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.pitch-overlay-wrapper > .pitch-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  overflow: visible;
+  pointer-events: none;
+}
+
+ruby rt .prosody-overlay-wrapper--reading {
+  --pitch-accent-height: 2px;
+  line-height: 1;
+  padding-block: 1px;
+}
+
+ruby rt .prosody-overlay-wrapper--reading > .pitch-accent {
+  --pitch-accent-height: 2px;
+  bottom: 1px;
+  top: 1px;
+}
+
+/* Preview mode - standalone pitch accent display */
+.pitch-accent-preview {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pitch-accent-preview .pitch-accent-word {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-bottom: 4px;
+}
+
+.pitch-accent-preview .pitch-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  overflow: visible;
+  pointer-events: none;
+}

@@ -37,15 +37,15 @@
   --title-progress: 0;
   --mobile-settings-backdrop: rgba(0, 0, 0, 0.15);
   --mobile-settings-icon-color: var(--text-on-strong);
-  --kanji-grid-unknown-bg: #9e9e9e;
-  --kanji-grid-cell-text-colored: #111111;
-  --kanji-grid-cell-text-unknown: var(--text-primary);
-  --kanji-grid-word-pill-text: var(--text-on-strong);
+  --character-grid-unknown-bg: #9e9e9e;
+  --character-grid-cell-text-colored: #111111;
+  --character-grid-cell-text-unknown: var(--text-primary);
+  --character-grid-word-pill-text: var(--text-on-strong);
   --welcome-language-code-bg: var(--bg-intense);
   --welcome-language-code-border: var(--border-color);
   --welcome-language-code-text: var(--text-primary);
-  --furigana-hider-bg: #ffffff;
-  --furigana-hider-shadow: rgba(0, 0, 0, 0.1);
+  --reading-annotation-hider-bg: #ffffff;
+  --reading-annotation-hider-shadow: rgba(0, 0, 0, 0.1);
   --selectable-card-badge-text: var(--text-on-warning);
   --selectable-card-check-icon: var(--text-on-strong);
   --checkbox-card-check-icon: var(--text-on-strong);
@@ -74,7 +74,14 @@
 
   /* ========== Typography ========== */
   --font-family-sans: 'Helvetica Neue',-apple-system, BlinkMacSystemFont, Arial, sans-serif;
-  --font-family-japanese: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif;
+  --font-family-content: var(--font-family-sans);
+  --font-family-subtitle: var(--font-family-sans);
+  --font-family-compact-script: 'Noto Sans CJK', 'Noto Sans CJK JP', 'Noto Sans CJK SC', 'Noto Sans CJK TC', 'Noto Sans JP', 'Noto Sans SC', 'Noto Sans TC', 'PingFang SC', 'PingFang TC', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  --font-family-arabic: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Geeza Pro', Tahoma, sans-serif;
+  --font-family-hebrew: 'Noto Sans Hebrew', 'Arial Hebrew', Arial, sans-serif;
+  --font-family-korean: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --font-family-thai: 'Noto Sans Thai', Thonburi, Tahoma, sans-serif;
+  --font-family-cyrillic: var(--font-family-sans);
   --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
 
   --font-size-xxs: 0.5rem;
@@ -171,7 +178,7 @@
   --subtitle-font-weight: 400;
   --subtitle-text: #ffffff;
   --word-blur-amount: 5px;
-  --pitch-accent-height: 2px;
+  --prosody-overlay-height: 2px;
 
   /* ========== Part of Speech Colors ========== */
   --pos-noun: #4a90d9;
@@ -201,9 +208,9 @@
   /* Level 4 - Orange */
   --pill-level-4-text: rgb(255, 141, 60);
   --pill-level-4-bg: rgb(255, 236, 223);
-  /* Level 5 - Purple */
-  --pill-level-5-text: rgb(255, 60, 252);
-  --pill-level-5-bg: rgb(254, 223, 255);
+  /* Level 5 - Pink/Magenta */
+  --pill-level-5-text: rgb(255, 60, 170);
+  --pill-level-5-bg: rgb(255, 223, 239);
   /* Level 6 - Yellow */
   --pill-level-6-text: rgb(120, 99, 27);
   --pill-level-6-bg: rgb(230, 223, 195);
@@ -213,10 +220,18 @@
   /* Default - Pink/Magenta */
   --pill-default-text: rgb(255, 60, 170);
   --pill-default-bg: rgb(255, 223, 239);
+  --pill-default-filter: none;
+  --pill-level-1-filter: none;
+  --pill-level-2-filter: none;
+  --pill-level-3-filter: none;
+  --pill-level-4-filter: none;
+  --pill-level-5-filter: none;
+  --pill-level-6-filter: none;
+  --pill-level-7-filter: none;
 
-  /* ========== Pitch Accent Colors ========== */
-  --pitch-accent-high: #e8687b;
-  --pitch-accent-low: #4e86ca;
+  /* ========== Prosody Overlay Colors ========== */
+  --prosody-overlay-high: #e8687b;
+  --prosody-overlay-low: #4e86ca;
 
   /* ========== Skeleton Loader ========== */
   --skeleton-base: rgba(112, 112, 112, 0.63);
@@ -279,4 +294,3 @@
   --overlay-controls-btn-hover-bg: rgba(255, 255, 255, 0.25);
   --overlay-sync-indicator-default: #888;
 }
-

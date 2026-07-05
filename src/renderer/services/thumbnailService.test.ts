@@ -119,6 +119,24 @@ describe('thumbnailService', () => {
       expect(captureVideoThumbnail(makeVideoElement(640, 360))).toBe('');
     });
 
+    it('returns empty string when the video canvas is tainted by the media source', () => {
+      const ctx = { drawImage: vi.fn() };
+      const canvas = {
+        getContext: vi.fn(() => ctx),
+        toDataURL: vi.fn(() => {
+          throw new DOMException('Tainted canvases may not be exported', 'SecurityError');
+        }),
+        width: 0,
+        height: 0,
+      };
+      document.createElement = (tag: string) =>
+        tag === 'canvas' ? (canvas as unknown as HTMLElement) : originalCreateElement(tag);
+
+      expect(captureVideoThumbnail(makeVideoElement(640, 360))).toBe('');
+      expect(ctx.drawImage).toHaveBeenCalled();
+      expect(canvas.toDataURL).toHaveBeenCalledWith('image/jpeg', 0.6);
+    });
+
     it('returns empty string when document.createElement throws', () => {
       document.createElement = () => { throw new Error('canvas not supported'); };
 

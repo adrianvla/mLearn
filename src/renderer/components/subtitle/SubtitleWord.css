@@ -1,6 +1,6 @@
 /**
  * SubtitleWord Component Styles
- * Individual word styling, furigana, blur, known state, and frequency star positioning
+ * Individual word styling, reading annotations, blur, known state, and frequency star positioning
  */
 
 /* ========== Subtitle Word ========== */
@@ -36,7 +36,7 @@
   text-underline-offset: 4px;
 }
 
-/* ========== Furigana (Ruby) ========== */
+/* ========== Reading Annotation (Ruby) ========== */
 .subtitle_word ruby {
   ruby-align: center;
 }
@@ -46,6 +46,13 @@
   font-weight: var(--font-weight-normal);
   color: var(--text-secondary);
   letter-spacing: 0.05em;
+  line-height: 1;
+  text-align: center;
+}
+
+.subtitle_word ruby rt .subtitle-word__reading-overlay,
+.subtitle_word ruby rt .prosody-overlay-wrapper {
+  color: var(--text-secondary);
 }
 
 /* ========== Frequency Stars (subtitle positioning) ========== */

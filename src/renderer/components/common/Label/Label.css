@@ -64,6 +64,7 @@
   /* Default pink/magenta */
   color: var(--pill-default-text);
   background-color: var(--pill-default-bg);
+  filter: var(--pill-default-filter);
   box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
 }
@@ -81,36 +82,43 @@
 .label-pill[data-level="1"] {
   color: var(--pill-level-1-text);
   background-color: var(--pill-level-1-bg);
+  filter: var(--pill-level-1-filter);
 }
 
 .label-pill[data-level="2"] {
   color: var(--pill-level-2-text);
   background-color: var(--pill-level-2-bg);
+  filter: var(--pill-level-2-filter);
 }
 
 .label-pill[data-level="3"] {
   color: var(--pill-level-3-text);
   background-color: var(--pill-level-3-bg);
+  filter: var(--pill-level-3-filter);
 }
 
 .label-pill[data-level="4"] {
   color: var(--pill-level-4-text);
   background-color: var(--pill-level-4-bg);
+  filter: var(--pill-level-4-filter);
 }
 
 .label-pill[data-level="5"] {
   color: var(--pill-level-5-text);
   background-color: var(--pill-level-5-bg);
+  filter: var(--pill-level-5-filter);
 }
 
 .label-pill[data-level="6"] {
   color: var(--pill-level-6-text);
   background-color: var(--pill-level-6-bg);
+  filter: var(--pill-level-6-filter);
 }
 
 .label-pill[data-level="7"] {
   color: var(--pill-level-7-text);
   background-color: var(--pill-level-7-bg);
+  filter: var(--pill-level-7-filter);
 }
 
 /* ============ STATUS Type ============ */
@@ -171,6 +179,11 @@
   background-color: var(--pill-level-1-bg);
 }
 
+.label-pill.label-red,
+.label-status.label-red {
+  filter: var(--pill-level-1-filter);
+}
+
 .label-red.label-indicator {
   background-color: var(--pill-level-1-text);
 }
@@ -179,6 +192,11 @@
 .label-orange {
   color: var(--pill-level-4-text);
   background-color: var(--pill-level-4-bg);
+}
+
+.label-pill.label-orange,
+.label-status.label-orange {
+  filter: var(--pill-level-4-filter);
 }
 
 .label-orange.label-indicator {
@@ -191,6 +209,11 @@
   background-color: var(--pill-level-6-bg);
 }
 
+.label-pill.label-yellow,
+.label-status.label-yellow {
+  filter: var(--pill-level-6-filter);
+}
+
 .label-yellow.label-indicator {
   background-color: var(--pill-level-6-text);
 }
@@ -199,6 +222,11 @@
 .label-green {
   color: var(--pill-level-3-text);
   background-color: var(--pill-level-3-bg);
+}
+
+.label-pill.label-green,
+.label-status.label-green {
+  filter: var(--pill-level-3-filter);
 }
 
 .label-green.label-indicator {
@@ -211,6 +239,11 @@
   background-color: var(--pill-level-2-bg);
 }
 
+.label-pill.label-blue,
+.label-status.label-blue {
+  filter: var(--pill-level-2-filter);
+}
+
 .label-blue.label-indicator {
   background-color: var(--pill-level-2-text);
 }
@@ -221,6 +254,11 @@
   background-color: var(--pill-level-5-bg);
 }
 
+.label-pill.label-purple,
+.label-status.label-purple {
+  filter: var(--pill-level-5-filter);
+}
+
 .label-purple.label-indicator {
   background-color: var(--pill-level-5-text);
 }
@@ -229,6 +267,11 @@
 .label-gray {
   color: var(--pill-level-7-text);
   background-color: var(--pill-level-7-bg);
+}
+
+.label-pill.label-gray,
+.label-status.label-gray {
+  filter: var(--pill-level-7-filter);
 }
 
 .label-gray.label-indicator {

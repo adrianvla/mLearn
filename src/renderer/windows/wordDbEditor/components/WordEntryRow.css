@@ -15,27 +15,6 @@
   background: var(--border-color);
 }
 
-/* Ruby text for word entries with furigana/pitch accent */
-.word-db-editor .col.word .word-db-ruby {
-  ruby-align: center;
-  position: relative;
-  white-space: nowrap;
-}
-
-.word-db-editor .col.word .word-db-ruby rt {
-  font-size: 0.55em;
-  font-weight: var(--font-weight-normal);
-  color: var(--text-primary);
-  letter-spacing: 0.05em;
-  position: relative;
-}
-
-.word-db-editor .col.word .word-db-ruby-rt {
-  position: relative;
-  display: inline-block;
-  overflow: visible;
-}
-
 /* Tracker label */
 .tracker-label {
   font-size: 0.8rem;
@@ -66,7 +45,6 @@
   position: relative;
   display: inline-block;
   white-space: nowrap;
-  min-width:5rem;
 }
 
 /* Alternate readings pills */
@@ -75,12 +53,6 @@
   align-items: center;
   gap: 0.25rem;
   margin-left: 0.25rem;
-}
-
-/* Tighten pitch accent pills inside word column so they sit neatly */
-.word-db-editor .word-db-alt-readings .pill.pitch-accent-pill {
-  padding: 2px 6px;
-  font-size: 0.75rem;
 }
 
 /* Make the status pill match the Level pill's taller height in the DB table */

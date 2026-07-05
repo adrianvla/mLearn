@@ -101,6 +101,18 @@
   -webkit-font-smoothing: subpixel-antialiased;
 }
 
+.word-definition__pills .prosody-position-pill {
+  gap: 6px;
+}
+
+.word-definition__pills .prosody-position-pill__label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.word-definition__pills .prosody-position-pill__value {
+  font-variant-numeric: tabular-nums;
+}
+
 .word-definition__ease {
   display: flex;
   align-items: center;

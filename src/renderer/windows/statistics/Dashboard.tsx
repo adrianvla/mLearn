@@ -48,7 +48,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 export const Dashboard: Component = () => {
   const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { wordFrequency, getFreqLevelNames, getLanguageFeatures } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
 
   initTimeWatched(settings);
@@ -200,11 +200,12 @@ export const Dashboard: Component = () => {
   const wordStats = createMemo(() =>
     computeWordLevelStats(
       store,
-      wordFrequency,
+      getWordFrequency(),
       settings.language,
       settings.known_ease_threshold,
       settings.srsLearningThreshold,
       getFreqLevelNames(),
+      currentLangData(),
     ),
   );
 
@@ -435,7 +436,7 @@ export const Dashboard: Component = () => {
       {/* ─── Level Breakdown ─── */}
       <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.WordsByExamLevel')}</h3>
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.WordsByLevel')}</h3>
           <table class="level-table">
             <thead>
               <tr>
