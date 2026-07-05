@@ -165,8 +165,8 @@ cd mLearn
 # Install dependencies
 npm install
 
-# Language dictionaries are downloaded on demand from the cloud language catalog.
-# Dictionary build and language-data packaging scripts live in mlearn-website.
+# Language data and dictionaries are downloaded on demand from the configured catalog.
+# See "How to Add Your Own Language" for the catalog contract.
 
 # Development mode (Vite + Electron)
 npm run dev
@@ -215,58 +215,244 @@ Main, Welcome, Video, Reader, Flashcards, Conversation Agent, Statistics, Settin
 
 ## How to Add Your Own Language
 
-Language modules consist of a Python tokenizer + a JSON config. Place them in `src/root-of-app/languages/`.
+Languages are installed at runtime from a language catalog. The app does not require language modules, dictionaries, or frequency files to be bundled in this repository.
 
-### Required Python functions:
+The default catalog URL is:
 
-```python
-def LANGUAGE_TOKENIZE(text):
-    """Return list of tokens with word, actual_word, and type fields."""
-    return [
-        {"word": "run", "actual_word": "run", "type": "verb"},
-        # ...
-    ]
-
-def LOAD_MODULE(folder):
-    """Called on module load. Use for caching dictionaries."""
-    pass
-
-def LANGUAGE_TRANSLATE(word):
-    """Return {"data": [{"reading": "...", "definitions": "..."}, ...]}."""
-    return {"data": []}
+```text
+https://mlearn.kikan.net/language-catalog.json
 ```
 
-### Required JSON config:
+Users and developers can point the app at a different compatible catalog in **Settings → Connection → Language Catalog URL**. Internally this is the `languageCatalogUrl` setting.
+
+A catalog is only an index. It tells the app which language archives and dictionary archives are available, where to download them, and which checksums to verify. Runtime behavior comes from the files installed from those archives into the user's `language-data/` directory.
+
+### Catalog shape
+
+The catalog is a JSON file with a top-level `languages` object. Each language has a core language package plus optional dictionary packs keyed by definition language:
 
 ```json
 {
-  "name": "Your Language",
-  "name_translated": "...",
-  "translatable": ["noun", "verb", "adjective"],
-  "colour_codes": {
-    "noun": "#ebccfd",
-    "verb": "#d6cefd"
-  },
-  "fixed_settings": {},
-  "freq": [["level1", "word1"], ["level1", "word2"]],
-  "freq_level_names": {"1": "Beginner", "2": "Intermediate"}
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-06T00:00:00.000Z",
+  "languages": {
+    "example": {
+      "name": "Example Language",
+      "nameTranslated": "Example",
+      "version": "example-package-2026.07.06",
+      "bundle": {
+        "url": "https://example.com/language-data/v1/example/language-package-2026.07.06.tar.gz",
+        "sizeBytes": 123456,
+        "sha256": "..."
+      },
+      "files": [
+        {
+          "id": "language-metadata",
+          "path": "languages/example.json",
+          "required": true
+        }
+      ],
+      "dictionaryPacks": {
+        "en": {
+          "targetLanguage": "en",
+          "name": "English",
+          "version": "example-en-dictionary-2026.07.06",
+          "bundle": {
+            "url": "https://example.com/language-data/v1/example-en/dictionary-2026.07.06.tar.gz",
+            "sizeBytes": 123456,
+            "sha256": "..."
+          },
+          "assets": [
+            {
+              "id": "dictionary-en",
+              "path": "dictionaries/example/en/dictionary.db",
+              "required": true
+            }
+          ]
+        }
+      }
+    }
+  }
 }
 ```
 
-See `src/root-of-app/languages/ja/` and `src/root-of-app/languages/de/` for complete examples.
+`bundle.url` may also be written as a relative `href`; relative links are resolved against the catalog URL. Archive paths must be safe relative paths, and archive contents are extracted under `files/`.
+
+### Installed file layout
+
+Core language packages and dictionary packs should install into stable, language-grouped paths:
+
+```text
+languages/<code>.json
+languages/<code>.freq.json
+dictionaries/<code>/<target>/dictionary.db
+dictionaries/<code>/<target>/metadata.json
+models/<code>/...
+adapters/<code>_adapter.py
+```
+
+Dictionary packs are separate from the core language package so users can install only the definition languages they need. A user can install multiple dictionary packs for the same learning language, such as `ja -> en`, `ja -> fr`, and `ja -> de`.
+
+### Language metadata
+
+The installed `languages/<code>.json` file is the language contract. It tells the app how to tokenize, normalize, display, OCR, look up, and study the language. Prefer metadata-driven building blocks over hardcoded app behavior.
+
+```json
+{
+  "name": "Example Language",
+  "name_translated": "Example",
+  "colour_codes": {
+    "NOUN": "#ebccfd",
+    "VERB": "#ffefd1"
+  },
+  "translatable": ["NOUN", "VERB"],
+  "frequencyLevels": {
+    "names": { "1": "A1", "2": "A2" },
+    "displayOrder": "ascending",
+    "difficulty": "higher-is-harder"
+  },
+  "textProcessing": {
+    "scriptProfile": {
+      "acceptedScripts": ["Latn"],
+      "wordScriptValidation": "contains-required"
+    },
+    "lexemeNormalization": {
+      "surface": [{ "type": "case-fold" }]
+    },
+    "readingAnnotation": {
+      "enabled": false
+    },
+    "partOfSpeech": {
+      "translatable": ["NOUN", "VERB"],
+      "colors": {
+        "NOUN": "#ebccfd",
+        "VERB": "#ffefd1"
+      }
+    },
+    "tokenJoinSeparator": " "
+  },
+  "runtime": {
+    "nlp": {
+      "tokenizer": {
+        "type": "unicode-word",
+        "capabilities": ["segments"],
+        "fallback": "unicode-word"
+      },
+      "dictionary": {
+        "type": "sqlite-zlib-json",
+        "schema": "simple-headword-zlib-json",
+        "targetPathTemplate": "dictionaries/{language}/{target}/dictionary.db",
+        "metadataPath": "dictionaries/example/en/metadata.json",
+        "renderer": "simple-glosses"
+      }
+    }
+  },
+  "languageData": {
+    "version": "example-package-2026.07.06",
+    "assets": [
+      {
+        "id": "language-metadata",
+        "path": "languages/example.json",
+        "required": true
+      },
+      {
+        "id": "frequency",
+        "path": "languages/example.freq.json",
+        "required": true
+      }
+    ],
+    "dictionaryPacks": {
+      "en": {
+        "targetLanguage": "en",
+        "name": "English",
+        "version": "example-en-dictionary-2026.07.06",
+        "assets": [
+          {
+            "id": "dictionary-en",
+            "path": "dictionaries/example/en/dictionary.db",
+            "required": true
+          },
+          {
+            "id": "metadata-en",
+            "path": "dictionaries/example/en/metadata.json",
+            "required": true
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+The most important metadata areas are:
+
+- `runtime.nlp.tokenizer` — declares how trusted tokenization works. Use a generic tokenizer when possible; only add a Python adapter when metadata cannot express the behavior.
+- `runtime.nlp.dictionary` — declares the installed dictionary DB schema and lookup paths.
+- `textProcessing.scriptProfile` — tells the app what scripts count as words for Reader, OCR, subtitles, STT, and filtering.
+- `textProcessing.lexemeNormalization` — maps inflected/variant forms to dictionary lookup candidates.
+- `textProcessing.readingAnnotation` — enables ruby/furigana-style readings only for languages that actually need them.
+- `textProcessing.partOfSpeech` and `colour_codes` — define POS aliases, translatable tags, and display colors.
+- `frequencyLevels` and `grammarLevels` — define labels and ordering. The UI derives `visualLevel` from this metadata instead of assuming JLPT.
+- `prosody` — optional. Use this only when the language has accent/stress/tone data that should be rendered in word/flashcard surfaces.
+- `languageData.dictionaryPacks` — one dictionary package per definition language, e.g. `ja -> en`, `ja -> fr`, `de -> en`.
+
+### Python adapters
+
+Most languages should use `src/root-of-app/generic_language.py` through metadata. If a language needs behavior that cannot be described with metadata, include an adapter in the package and opt in explicitly:
+
+```json
+{
+  "runtime": {
+    "nlp": {
+      "adapter": {
+        "type": "python-module",
+        "path": "adapters/example_adapter.py"
+      }
+    }
+  }
+}
+```
+
+Do not publish `languages/<code>.py` as a convention or fallback. Undeclared adapter files are ignored.
+
+### Building a catalog
+
+Any static host, CDN, or API can serve a compatible catalog and archives. The first-party mLearn deployment uses the separate `mlearn-website` repository to build dictionaries, package archives, upload assets, and deploy the catalog:
+
+```bash
+npm run build:dictionaries
+npm run package:language-data
+npm run test:language-data
+npm run deploy:language-data
+```
+
+Those commands are implementation details of the first-party catalog, not requirements for third-party catalogs. A third-party catalog only needs to publish the JSON shape above and serve the referenced archives.
+
+### Testing a catalog
+
+After publishing a catalog or running one locally:
+
+1. Open Settings or the welcome window.
+2. Set **Language Catalog URL** to the catalog JSON URL.
+3. Select the learning language.
+4. Select the dictionary definition language.
+5. Install language data.
+6. Smoke-test tokenization, dictionary lookup, Reader/OCR, subtitles, flashcards, Word Sync, and Level Study.
+
+If the app needs a new generic capability for a language, add it to the shared language metadata schema and consume it through `src/shared/languageFeatures.ts`; do not hardcode a language branch in renderer or Electron code.
 
 ---
 
 ## FAQ
 
 ### Which languages are supported?
-mLearn ships with complete **German** and **Japanese** support. You can add your own language by following the guide above.
+mLearn currently publishes **Japanese** and **German** packages in the default catalog. More languages can be added by publishing package metadata and assets to a compatible catalog.
 
 ### Can the app work offline?
-Yes! The Japanese dictionary works fully offline. German requires online access (no free open-source German dictionary was available). The built-in AI tutor (Qwen3-4B) also runs completely offline.
+Yes. Installed language packages and dictionary packs work offline after download. Features that depend on cloud AI, online video sources, or an unavailable runtime component still need the relevant service/component.
 
 ### Can the app work without Anki?
-Yes. Anki integration is optional and can be disabled in Settings.
+Yes. Flashcards are built into mLearn.
 
 ### Is it free?
 mLearn is free to use and **source-available**. It is licensed under the [Sustainable Use License v1.0](LICENSE).
@@ -284,11 +470,8 @@ Drag & drop subtitle files (`.srt`, `.vtt`, `.ass`) onto the video player or ove
 
 **Text Overlay** — Activate text mode from the browser extension or overlay controls. The window becomes fullscreen and click-through: click any text on a webpage to get an instant word lookup popup.
 
-### I opened Anki, but mLearn cannot see it
-Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin.
-
-### Why does Japanese use so much RAM?
-The Japanese dictionary is loaded into RAM for instant word access (no internet requests per word). This trades RAM for speed and power efficiency.
+### Where is language data stored?
+Downloaded language data is stored in the user's application data directory under `language-data/`. Replacing the app binary does not remove installed language packages or dictionaries.
 
 ### How do I use the browser extension?
 Build it with `npm run build:extension`, then load the `extension/dist/` folder as an unpacked extension in Chrome/Edge/Firefox. It will communicate with the running mLearn desktop app.
