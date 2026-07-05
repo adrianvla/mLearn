@@ -1,24 +1,40 @@
 /**
  * Edit Translation Dialog Component
- * Modal dialog for editing word translation data (reading, pitch accent, definitions)
+ * Modal dialog for editing word translation data (reading, prosody, definitions)
  */
 
-import { Component, createSignal, onMount, Show } from 'solid-js';
+import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { useLocalization, useSettings } from '../../../context';
+import { useLanguage, useLocalization, useSettings } from '../../../context';
+import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import {
   Input,
   Modal,
   ModalFooter,
   Spinner,
-  PitchAccentOverlay,
   FormField,
   Textarea,
   ContentEditable,
   AlertBanner,
   Btn,
 } from '../../../components/common';
-import type { TranslationResponse } from '@shared/types';
+import { ProsodyOverlay } from '../../../components/language-specific';
+import type { FlashcardProsody, TranslationResponse } from '@shared/types';
+import { extractProsodyFromTranslationData } from '../../../utils/readingProsody';
+import {
+  getProsodyPositionCategoryLabel,
+  getProsodyPositionFieldLabel,
+  getProsodyPositionFieldPlaceholder,
+  getProsodyOverlayRenderer,
+} from '../../../utils/prosodyPresentation';
+import {
+  createProsodyForPosition,
+  createProsodyRawPayloadForPosition,
+  getLanguageProsodyType,
+  getProsodyPositionFromOverride,
+  languageSupportsProsody,
+} from '@shared/languageFeatures';
+import { prosodyVisible } from '@shared/prosodySettings';
 import './EditTranslationDialog.css';
 import { getLogger } from '@shared/utils/logger';
 
@@ -34,31 +50,47 @@ export interface EditTranslationDialogProps {
 
 export interface TranslationOverride {
   reading: string;
-  pitch: number | null;
+  prosodyPosition: number | null;
+  prosody?: FlashcardProsody;
   definitions: string[];
   structuredContent?: string;
 }
 
 export const EditTranslationDialog: Component<EditTranslationDialogProps> = (props) => {
   const { settings } = useSettings();
-  const { translateWord, setOverride } = useTranslation({ language: settings.language });
+  const { getCanonicalForm, getWordVariants, getReadingVariants, currentLangData } = useLanguage();
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const { translateWord, setOverride } = useTranslation({
+    language: settings.language,
+    getCanonicalForm,
+    getWordVariants,
+    getReadingVariants,
+    dictionaryTargetLanguage,
+    languageData: currentLangData,
+  });
   const { t } = useLocalization();
   
   const [reading, setReading] = createSignal('');
-  const [pitch, setPitch] = createSignal<string>('');
+  const [prosodyPositionInput, setProsodyPositionInput] = createSignal<string>('');
   const [definitions, setDefinitions] = createSignal('');
   const [structuredContent, setStructuredContent] = createSignal('');
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const prosodyOverlayRenderer = createMemo(() => getProsodyOverlayRenderer(currentLangData()));
+  const usesProsodyOverlayRenderer = createMemo(() => prosodyOverlayRenderer() !== null && prosodyVisible(settings));
+  const supportsProsodyPosition = createMemo(() => languageSupportsProsody(currentLangData()) && prosodyVisible(settings));
+  const prosodyPositionLabel = createMemo(() => getProsodyPositionFieldLabel(currentLangData(), t));
+  const prosodyPositionPlaceholder = createMemo(() => getProsodyPositionFieldPlaceholder(currentLangData(), t));
 
   /** Parse translation response data into form fields */
   const applyTranslationData = (data: unknown[]) => {
     const firstEntry = data[0] as Record<string, unknown> | undefined;
     const secondEntry = data[1] as Record<string, unknown> | undefined;
-    const pitchEntry = data[2] as unknown;
+    let nextReading = '';
 
     if (firstEntry) {
-      setReading((firstEntry.reading as string) || '');
+      nextReading = (firstEntry.reading as string) || '';
+      setReading(nextReading);
       const defs = firstEntry.definitions;
       setDefinitions(Array.isArray(defs) ? defs.join('\n') : (defs as string || ''));
     }
@@ -67,26 +99,21 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
     } else {
       setStructuredContent('');
     }
-    if (pitchEntry) {
-      let pitchVal: number | null = null;
-      if (Array.isArray(pitchEntry) && (pitchEntry[2] as Record<string, unknown>)?.pitches) {
-        const pitches = (pitchEntry[2] as Record<string, unknown>).pitches as Array<{ position?: number }>;
-        if (pitches?.[0]?.position !== undefined) pitchVal = pitches[0].position;
-      } else if ((pitchEntry as Record<string, unknown>)?.pitches) {
-        const pitches = (pitchEntry as Record<string, unknown>).pitches as Array<{ position?: number }>;
-        if (pitches?.[0]?.position !== undefined) pitchVal = pitches[0].position;
-      }
-      setPitch(pitchVal !== null ? String(pitchVal) : '');
+    if (!supportsProsodyPosition()) {
+      setProsodyPositionInput('');
     } else {
-      setPitch('');
+      const prosody = extractProsodyFromTranslationData({ data }, currentLangData(), nextReading);
+      const prosodyPosition = getProsodyPositionFromOverride(null, prosody ?? undefined);
+      setProsodyPositionInput(prosodyPosition !== null ? String(prosodyPosition) : '');
     }
   };
   
   // Load initial data when dialog opens
   onMount(async () => {
     if (props.initialData) {
+      const initialProsodyPosition = getProsodyPositionFromOverride(props.initialData.prosodyPosition, props.initialData.prosody);
       setReading(props.initialData.reading || '');
-      setPitch(props.initialData.pitch !== null ? String(props.initialData.pitch) : '');
+      setProsodyPositionInput(supportsProsodyPosition() && initialProsodyPosition !== null ? String(initialProsodyPosition) : '');
       setDefinitions(props.initialData.definitions.join('\n'));
       setStructuredContent(props.initialData.structuredContent || '');
     } else {
@@ -104,15 +131,24 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
     }
   });
   
-  const pitchTypeName = (p: number | null): string => {
+  const prosodyCategoryName = (p: number | null): string => {
     if (p === null || p === undefined || Number.isNaN(p)) return '—';
-    if (p === 0) return t('mlearn.PitchAccent.Heiban');
-    if (p === 1) return t('mlearn.PitchAccent.Atamadaka');
-    if (p === 2) return t('mlearn.PitchAccent.Nakadaka');
-    if (p === 3) return t('mlearn.PitchAccent.Odaka');
-    if (typeof p === 'number' && Number.isFinite(p) && p >= 4) return t('mlearn.PitchAccent.DropAfterMora', { mora: p });
-    return '—';
+    return getProsodyPositionCategoryLabel(currentLangData(), p, reading() || props.word, t) || '—';
   };
+
+  const genericProsodyPreview = createMemo(() => {
+    if (usesProsodyOverlayRenderer()) return null;
+    if (!supportsProsodyPosition()) return null;
+    const prosodyPositionText = prosodyPositionInput().trim();
+    if (!prosodyPositionText) return null;
+    const position = Number(prosodyPositionText);
+    if (!Number.isFinite(position) || position < 0) return null;
+    return {
+      label: prosodyPositionLabel(),
+      position,
+      type: getLanguageProsodyType(currentLangData()) ?? '',
+    };
+  });
   
   const handleSave = async () => {
     try {
@@ -122,10 +158,12 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         .map(s => s.trim())
         .filter(Boolean);
       
-      const pitchVal = pitch().trim();
-      const pitchNum = pitchVal === '' ? null : Number(pitchVal);
+      const prosodyPositionText = prosodyPositionInput().trim();
+      const prosodyPosition = supportsProsodyPosition()
+        ? (prosodyPositionText === '' ? null : Number(prosodyPositionText))
+        : null;
       
-      if (pitchNum !== null && (!Number.isFinite(pitchNum) || pitchNum < 0)) {
+      if (prosodyPosition !== null && (!Number.isFinite(prosodyPosition) || prosodyPosition < 0)) {
         setError(t('mlearn.WordDbEditor.EditTranslation.PitchError'));
         return;
       }
@@ -145,17 +183,21 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         };
       }
       
-      if (pitchNum !== null) {
-        overrideData.data[2] = {
-          pitches: [{ position: pitchNum }],
-        };
+      let prosodyOverride: FlashcardProsody | undefined;
+      if (supportsProsodyPosition() && prosodyPosition !== null) {
+        const prosodyType = getLanguageProsodyType(currentLangData());
+        if (prosodyType) {
+          overrideData.data[2] = createProsodyRawPayloadForPosition(prosodyType, prosodyPosition, currentLangData());
+          prosodyOverride = createProsodyForPosition(prosodyType, prosodyPosition, undefined, overrideData.data[2], currentLangData());
+        }
       }
       
       setOverride(props.word, overrideData);
       
       props.onSave({
         reading: reading().trim(),
-        pitch: pitchNum,
+        prosodyPosition,
+        ...(prosodyOverride ? { prosody: prosodyOverride } : {}),
         definitions: defsArr,
         structuredContent: struct || undefined,
       });
@@ -183,7 +225,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
     }
   };
   
-  const handlePitchChange = (e: Event) => {
+  const handleProsodyPositionChange = (e: Event) => {
     const target = e.target as HTMLInputElement;
     let val = target.value.trim();
     if (val !== '') {
@@ -193,7 +235,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         target.value = '0';
       }
     }
-    setPitch(val);
+    setProsodyPositionInput(val);
   };
 
   const footer = () => (
@@ -236,30 +278,49 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
             />
           </FormField>
           
-          <FormField label={t('mlearn.CardEditor.Fields.PitchAccent')}>
-            <div class="edit-translation-dialog__pitch-row">
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={pitch()}
-                onInput={handlePitchChange}
-                placeholder={t('mlearn.CardEditor.Fields.PitchAccentPlaceholder')}
-                class="edit-translation-dialog__pitch-input"
-              />
-              <span class="edit-translation-dialog__pitch-name">{pitchTypeName(pitch() === '' ? null : Number(pitch()))}</span>
-              <div class="edit-translation-dialog__pitch-preview">
-                <PitchAccentOverlay
-                  word={props.word}
-                  reading={reading()}
-                  pitchPosition={pitch() === '' ? null : Number(pitch())}
-                  mode="preview"
-                  showParticleBox={true}
-                  homogenous={true}
+          <Show when={supportsProsodyPosition()}>
+            <FormField label={prosodyPositionLabel()}>
+              <div class="edit-translation-dialog__prosody-row">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={prosodyPositionInput()}
+                  onInput={handleProsodyPositionChange}
+                  placeholder={prosodyPositionPlaceholder()}
+                  class="edit-translation-dialog__prosody-position-input"
                 />
+                <Show when={usesProsodyOverlayRenderer()}>
+                  <span class="edit-translation-dialog__prosody-category-name">{prosodyCategoryName(prosodyPositionInput() === '' ? null : Number(prosodyPositionInput()))}</span>
+                  <div class="edit-translation-dialog__prosody-overlay-preview">
+                    <ProsodyOverlay
+                      word={props.word}
+                      reading={reading()}
+                      prosodyPosition={prosodyPositionInput() === '' ? null : Number(prosodyPositionInput())}
+                      prosodyType={getLanguageProsodyType(currentLangData())}
+                      language={settings.language}
+                      languageData={currentLangData()}
+                      mode="preview"
+                      showParticleBox={true}
+                      homogenous={true}
+                    />
+                  </div>
+                </Show>
+                <Show when={genericProsodyPreview()}>
+                  {(preview) => (
+                    <div
+                      class="edit-translation-dialog__prosody-preview"
+                      data-prosody-type={preview().type}
+                      data-prosody-position={preview().position}
+                    >
+                      <span class="edit-translation-dialog__prosody-preview-label">{preview().label}</span>
+                      <span class="edit-translation-dialog__prosody-preview-value">{preview().position}</span>
+                    </div>
+                  )}
+                </Show>
               </div>
-            </div>
-          </FormField>
+            </FormField>
+          </Show>
           
           <FormField label={t('mlearn.CardEditor.Fields.Definitions')}>
             <Textarea

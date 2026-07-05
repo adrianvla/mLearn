@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getBackend, resetBackend, resolveCloudLoginUrl, resolveCloudApiUrl } from './index';
 import { HttpBackend } from './httpBackend';
-import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 
 function expectHttpBackend(backend: ReturnType<typeof getBackend>): HttpBackend {
   expect(backend).toBeInstanceOf(HttpBackend);
@@ -10,22 +10,70 @@ function expectHttpBackend(backend: ReturnType<typeof getBackend>): HttpBackend 
 
 describe('getBackend', () => {
   beforeEach(() => {
+    vi.stubGlobal('location', {
+      protocol: 'http:',
+      hostname: 'localhost',
+      port: '3000',
+    });
     resetBackend();
   });
 
-  it('returns HttpBackend with local default URL when called with no options', () => {
-    const backend = expectHttpBackend(getBackend());
-    expect(backend.getBaseUrl()).toBe(`http://127.0.0.1:${PYTHON_BACKEND_PORT}`);
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it('returns HttpBackend with local URL when mode is local', () => {
+  it('uses the same-origin Vite proxy for local default backend calls in the dev renderer', () => {
+    const backend = expectHttpBackend(getBackend());
+    expect(backend.getBaseUrl()).toBe('');
+    expect(backend.getAnkiBaseUrl()).toBe(`http://127.0.0.1:${PROXY_SERVER_PORT}`);
+  });
+
+  it('uses the same-origin Vite proxy for local backend calls in the dev renderer', () => {
     const backend = expectHttpBackend(getBackend({ mode: 'local' }));
+    expect(backend.getBaseUrl()).toBe('');
+  });
+
+  it('uses the same-origin Vite proxy for a saved local Python URL in the dev renderer', () => {
+    const backend = expectHttpBackend(getBackend({
+      mode: 'tethered',
+      url: `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
+    }));
+
+    expect(backend.getBaseUrl()).toBe('');
+  });
+
+  it('keeps real tethered URLs direct in the dev renderer', () => {
+    const backend = expectHttpBackend(getBackend({
+      mode: 'tethered',
+      url: `http://192.168.1.10:${PYTHON_BACKEND_PORT}`,
+    }));
+
+    expect(backend.getBaseUrl()).toBe(`http://192.168.1.10:${PYTHON_BACKEND_PORT}`);
+  });
+
+  it('returns the direct local Python URL outside the dev renderer', () => {
+    vi.stubGlobal('location', {
+      protocol: 'file:',
+      hostname: '',
+      port: '',
+    });
+
+    const backend = expectHttpBackend(getBackend({ mode: 'local' }));
+
     expect(backend.getBaseUrl()).toBe(`http://127.0.0.1:${PYTHON_BACKEND_PORT}`);
+    expect(backend.getAnkiBaseUrl()).toBe(`http://127.0.0.1:${PROXY_SERVER_PORT}`);
   });
 
   it('returns HttpBackend with provided URL in tethered mode', () => {
     const backend = expectHttpBackend(getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752' }));
     expect(backend.getBaseUrl()).toBe('http://192.168.1.10:7752');
+    expect(backend.getAnkiBaseUrl()).toBe('http://192.168.1.10:7753');
+  });
+
+  it('uses provided node server URL for both backend and Anki when tethered URL targets 7753', () => {
+    const backend = expectHttpBackend(getBackend({ mode: 'tethered', url: 'http://192.168.1.10:7753' }));
+    expect(backend.getBaseUrl()).toBe('http://192.168.1.10:7753');
+    expect(backend.getAnkiBaseUrl()).toBe('http://192.168.1.10:7753');
   });
 
   it('falls back to default local URL in tethered mode when no url provided', () => {

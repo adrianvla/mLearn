@@ -4,12 +4,22 @@
  */
 
 import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
+import type { Token } from '../../../shared/types';
+import {
+  ocrReadingAnnotationNeighborWindowMultiplier,
+  ocrReadingAnnotationFilteringEnabled,
+  ocrReadingAnnotationWidthRatio,
+  readerReadingAnnotationHiderEnabled,
+} from '../../../shared/readingAnnotationSettings';
 import { useTokenizer, warmTranslationCache } from '../../hooks';
+import { getTokenizerCacheNamespace } from '../../../shared/languageFeatures';
 import { useLanguage, useSettings } from '../../context';
-import { processOcrBoxes, type FilterDebugZone } from '../../utils/ocrUtils';
+import { processOcrBoxesForLanguage, type FilterDebugZone } from '../../utils/ocrUtils';
+import { getTokenLookupWord } from '../../utils/wordForms';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { OcrWord } from './OcrWord';
-import { FuriganaHider } from './FuriganaHider';
+import { ReadingAnnotationHider } from './ReadingAnnotationHider';
+import { getTokenJoinSeparator } from '../../../shared/languageFeatures';
 import './OcrOverlay.css';
 
 export interface OcrBox {
@@ -42,7 +52,7 @@ export interface OcrOverlayProps {
   result: OcrResult | null;
   imageElement?: HTMLImageElement | null;
   visible?: boolean;
-  /** Show debug overlay coloring for text vs furigana boxes */
+  /** Show debug overlay coloring for text vs reading annotation boxes */
   debugOcr?: boolean;
   /** Live-tuneable zone delta threshold in pixels (dev mode) */
   zoneDeltaThreshold?: number;
@@ -123,8 +133,9 @@ function estimateFontSize(text: string, width: number, height: number, vertical:
 export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [hoveredBox, setHoveredBox] = createSignal<OcrBox | null>(null);
   const { settings } = useSettings();
-  const { tokenize } = useTokenizer({ language: settings.language });
-  const { isTranslatable, getLanguageFeatures } = useLanguage();
+  const { isTokenTranslatable, getLanguageFeatures, currentLangData } = useLanguage();
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);
@@ -134,6 +145,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
 
   // Check if vertical text is supported by the current language
   const langFeatures = createMemo(() => getLanguageFeatures());
+  const tokenizerCapabilities = createMemo(() => langFeatures().tokenizerCapabilities);
 
   createEffect(() => {
     const el = props.imageElement;
@@ -192,7 +204,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     return sentWidth > 0 ? displayedWidth / sentWidth : 1;
   });
 
-  // Single-pass zone processing: filter furigana + build context phrases together
+  // Single-pass zone processing: filter reading annotations + build context phrases together
   const processedZones = createMemo(() => {
     const result = props.result;
     if (!result || !Array.isArray(result.boxes) || result.boxes.length === 0) {
@@ -204,25 +216,16 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
       __originalIdx: idx,
     }));
 
-    // Furigana detection is a reading-script feature (e.g. Japanese ruby text).
-    // For languages without phonetic readings, skip the geometric filter entirely —
-    // every detected box is real text and must be rendered.
     const supportsReadings = langFeatures().supportsReadings;
-    if (!supportsReadings) {
-      return { filtered: boxesWithIdx, contextMapByOriginal: new Map<number, string>() };
-    }
-
-    const { filtered, contextMap: ctxMap } = processOcrBoxes(boxesWithIdx, {
-      ratio: settings.ocrFuriganaWidthRatio,
-      neighborWindowMultiplier: settings.ocrFuriganaNeighborWindowMultiplier,
+    const filterReadingAnnotations = ocrReadingAnnotationFilteringEnabled(settings);
+    const { filtered, contextMap: ctxMap } = processOcrBoxesForLanguage(boxesWithIdx, {
+      supportsReadingAnnotations: supportsReadings,
+      filterReadingAnnotations,
+      ratio: ocrReadingAnnotationWidthRatio(settings),
+      neighborWindowMultiplier: ocrReadingAnnotationNeighborWindowMultiplier(settings),
       zoneDeltaThreshold: props.zoneDeltaThreshold,
       debugOutput: props.debugOcr ? setDebugZones : undefined,
     });
-
-    // When furigana detection is disabled, return all boxes unfiltered
-    if (!(settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection)) {
-      return { filtered: boxesWithIdx, contextMapByOriginal: ctxMap };
-    }
 
     return { filtered, contextMapByOriginal: ctxMap };
   });
@@ -245,16 +248,15 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     return mapped;
   });
   
-  // Compute the furigana boxes (boxes that were filtered out)
-  // These are used by FuriganaHider to overlay white rectangles
-  const furiganaBoxes = createMemo(() => {
+  // Compute the reading annotation boxes that were filtered out of OCR text.
+  const readingAnnotationBoxes = createMemo(() => {
     const result = props.result;
     if (!result || !Array.isArray(result.boxes)) return [];
     
     const filtered = filteredBoxes();
     const filteredIdxSet = new Set(filtered.map(b => b.__originalIdx));
     
-    // Return boxes that were filtered out (furigana)
+    // Return boxes that were filtered out as reading annotations.
     return result.boxes.filter((_, idx) => !filteredIdxSet.has(idx));
   });
 
@@ -267,6 +269,10 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
 
   // Persistent cache: box text → Token[] (survives across reactive recalculations)
   const ocrTokenCache = new Map<string, Token[]>();
+  const ocrTokenCacheKey = (text: string): string => (
+    `${settings.language}\0${getTokenizerCacheNamespace(currentLangData()) ?? 'default'}\0${text}`
+  );
+  const tokenSeparator = createMemo(() => getTokenJoinSeparator(currentLangData()));
 
   // Tokenize filtered boxes and build token map
   createEffect(() => {
@@ -281,7 +287,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     // Reuse cached tokens synchronously to avoid flash of untokenized text
     boxes.forEach((box, idx) => {
       if (!box?.text || !box.text.trim()) return;
-      const cached = ocrTokenCache.get(box.text);
+      const cached = ocrTokenCache.get(ocrTokenCacheKey(box.text));
       if (cached) {
         next.set(idx, cached);
       } else {
@@ -296,7 +302,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     toFetch.forEach(({ text, idx }) => {
       tokenize(text)
         .then(async (tokens) => {
-          ocrTokenCache.set(text, tokens as Token[]);
+          ocrTokenCache.set(ocrTokenCacheKey(text), tokens as Token[]);
           setTokenMap((prev) => {
             const updated = new Map(prev);
             updated.set(idx, tokens as Token[]);
@@ -305,11 +311,19 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
 
           // Pre-warm translation cache for translatable words
           const translatableWords = (tokens as Token[])
-            .filter((t) => t.actual_word && isTranslatable(t.type))
-            .map((t) => t.actual_word);
+            .map((token) => ({ token, word: getTokenLookupWord(token, tokenizerCapabilities()) }))
+            .filter(({ token, word }) => word && isTokenTranslatable(token))
+            .map(({ word }) => word);
 
           if (translatableWords.length > 0) {
-            warmTranslationCache(translatableWords, undefined, undefined, settings.language);
+            warmTranslationCache(
+              translatableWords,
+              undefined,
+              undefined,
+              settings.language,
+              dictionaryTargetLanguage(),
+              currentLangData(),
+            );
           }
         })
         .catch(() => {
@@ -348,8 +362,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   };
 
   const handleWordEnter = (token: Token, boxIndex: number, e: MouseEvent) => {
-    // Only show hover for translatable types (like old app's TRANSLATABLE.includes(pos))
-    if (!isTranslatable(token.type)) return;
+    if (!isTokenTranslatable(token)) return;
     
     const target = e.currentTarget as HTMLElement;
     // Get context phrase from context map (stitched from neighboring boxes)
@@ -371,18 +384,16 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   // Only render when we have valid dimensions to calculate positions correctly
   const isReady = () => observedWidth() > 0 && observedHeight() > 0;
   
-  // Check if furigana hider is enabled (requires both user setting and reading-script language)
-  // Check if furigana hider is enabled
-  const furiganaHiderEnabled = () => (settings.readerFuriganaHider ?? DEFAULT_SETTINGS.readerFuriganaHider!) && langFeatures().supportsReadings;
+  const readingAnnotationHiderEnabled = () => readerReadingAnnotationHiderEnabled(settings) && langFeatures().supportsReadings;
 
   return (
     <Show when={props.visible !== false && isReady()}>
-      {/* Furigana Hider - white rectangles over furigana that fade on hover */}
+      {/* Reading annotation hider - white rectangles over readings that fade on hover */}
       <Show when={langFeatures().supportsReadings}>
-        <FuriganaHider
-          furiganaBoxes={furiganaBoxes()}
+        <ReadingAnnotationHider
+          readingAnnotationBoxes={readingAnnotationBoxes()}
           scaleFactor={scaleFactor()}
-          enabled={furiganaHiderEnabled()}
+          enabled={readingAnnotationHiderEnabled()}
           width={observedWidth()}
           height={observedHeight()}
           offsetLeft={imageOffsetLeft()}
@@ -390,8 +401,8 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
         />
       </Show>
 
-      {/* Debug overlay for furigana boxes - shown with debug coloring */}
-      <Show when={langFeatures().supportsReadings && props.debugOcr && furiganaBoxes().length > 0}>
+      {/* Debug overlay for reading annotation boxes - shown with debug coloring */}
+      <Show when={langFeatures().supportsReadings && props.debugOcr && readingAnnotationBoxes().length > 0}>
         <div
           class="ocr-overlay"
           style={{
@@ -402,20 +413,20 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
             opacity: 1,
           }}
         >
-          <For each={furiganaBoxes()}>
+          <For each={readingAnnotationBoxes()}>
             {(box) => {
               const rect = getBoundingRect(box.box);
               const getScale = () => scaleFactor();
               return (
                 <div
-                  class="ocr-box debug-furigana"
+                  class="ocr-box debug-reading-annotation"
                   style={{
                     left: `${rect.x * getScale()}px`,
                     top: `${rect.y * getScale()}px`,
                     width: `${rect.width * getScale()}px`,
                     height: `${rect.height * getScale()}px`,
                   }}
-                  title={`[Furigana] ${box.text}`}
+                  title={`[Reading annotation] ${box.text}`}
                 />
               );
             }}
@@ -441,7 +452,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
               const hue = () => (zone.zoneIndex * 137) % 360;
               const b = zone.bounds;
               const statsText = () => zone.orientationStats
-                .map(s => `${s.orientation}: median=${s.medianCross.toFixed(0)} thresh=${s.threshold.toFixed(0)} furigana=${s.furiganaIndices.length}`)
+                .map(s => `${s.orientation}: median=${s.medianCross.toFixed(0)} thresh=${s.threshold.toFixed(0)} annotations=${s.readingAnnotationIndices.length}`)
                 .join(' | ');
               return (
                 <div
@@ -525,12 +536,15 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                   >
                     <Show when={tokens().length > 0} fallback={box.text}>
                       <For each={tokens()}>
-                        {(token) => (
-                          <OcrWord
-                            token={token}
-                            onWordEnter={(t, e) => handleWordEnter(t, index(), e)}
-                            onWordLeave={props.onWordLeave}
-                          />
+                        {(token, tokenIndex) => (
+                          <>
+                            <Show when={tokenIndex() > 0}>{tokenSeparator()}</Show>
+                            <OcrWord
+                              token={token}
+                              onWordEnter={(t, e) => handleWordEnter(t, index(), e)}
+                              onWordLeave={props.onWordLeave}
+                            />
+                          </>
                         )}
                       </For>
                     </Show>

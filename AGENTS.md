@@ -24,7 +24,8 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 | Add component | `src/renderer/components/common/{Name}/{Name}.tsx` + `.css` → `common/index.ts` |
 | Add backend endpoint | `shared/backends/types.ts` → `shared/backends/httpBackend.ts` → `src/root-of-app/routes/{name}.py` |
 | Add setting | `shared/types.ts` (Settings + DEFAULT_SETTINGS) → settings context |
-| Add language module | `src/root-of-app/languages/{lang}.py` + `{lang}.json` |
+| Add language runtime capability | `src/shared/types.ts` language metadata schema + `src/root-of-app/generic_language.py` |
+| Add language package/data | `~/Desktop/projects/mlearn-website` language-data packaging, then install via catalog |
 | Platform-specific code | `src/shared/platform.ts` helpers; never hardcode OS checks in renderer |
 
 ## CONVENTIONS
@@ -44,6 +45,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Capacitor stub**: `electron` imports are aliased to `src/shared/stubs/electron.ts` in Capacitor builds.
 - **Barrel exports**: Every new common component must be exported from `src/renderer/components/common/index.ts`.
 - **Icons**: Use SVGs from `https://blendicons.com/free-icons/all-styles`. Do not use emojis.
+- **Language data**: Runtime language metadata, dictionaries, frequencies, and optional adapters are downloaded into user `language-data/`. Do not add bundled app-source language modules or dictionaries.
 - **Deprecation**: If you encounter legacy code worth removing, flag it for discussion rather than silently deleting.
 
 ## ANTI-PATTERNS
@@ -51,6 +53,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Never call `window.mLearnIPC` or `ipcRenderer` directly in renderer** — use `getBridge()`
 - **Never use raw `setStore` for settings** — use `updateSetting()` from context
 - No hardcoding for any specific language (e.g., N1-N5 JLPT levels)
+- Do not add `src/root-of-app/languages/{lang}.py`, `{lang}.json`, or bundled dictionary payloads; language packages belong in the cloud packaging repo and install on demand.
 - No timeouts/timers unless required (race conditions)
 - Avoid inline CSS in TSX unless unavoidable
 - No AI-aesthetic styling (purple gradients, etc.)
@@ -61,7 +64,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 ```bash
 npm run dev              # Vite (3000) + Electron concurrent
 npm run typecheck        # CRITICAL: both tsconfigs before commit
-npm run build            # Production build (runs prebuild → german-dict + clean-cache)
+npm run build            # Production build (runs prebuild → clean-cache)
 npm run bundle:preload   # esbuild preload.js with --external:electron
 npm run dist:mac         # Package macOS
 npm run dist:win         # Package Windows
@@ -86,7 +89,7 @@ npm run build:extension  # ⚠️ macOS-only (uses sed -i '')
 - Python backend bundled via `electron-builder` `extraResources` to `resources/root-of-app/`.
 - Python environment in dev is at `./dist-electron/env/`.
 - Python deps are declared in `src/root-of-app/pip_requirements.json` (grouped: core, ocr, llm, voice, qwen3-tts), not a standard `requirements.txt`.
-- `prebuild` automatically runs `clean:dist-electron-cache` and `build:german-dict` (via `python3 src/root-of-app/languages/de/build_dict.py`).
+- Dictionary build and language-data packaging scripts live in `~/Desktop/projects/mlearn-website`; the app consumes the generated language catalog.
 - Custom protocols: `flashcard-image://`, `flashcard-audio://`, `local-media://`.
 - Tethered mode: desktop web server on 7753 proxies Python calls for browser/mobile and provides REST sync API.
 - LLM routing: `builtin` (node-llama-cpp in main) / `ollama` / `cloud` (HTTP). Mobile uses `CloudLLMAdapter` directly.

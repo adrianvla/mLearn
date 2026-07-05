@@ -6,7 +6,7 @@
 import { BrowserWindow, app, ipcMain, Menu, dialog, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { IPC_CHANNELS, WindowType } from '../../shared/constants';
+import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
 import type { WindowSize, OpenWindowPayload, OverlayVideoScreenshot } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
@@ -15,6 +15,7 @@ import { queueCommand } from './webServer';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
+let welcomeWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let currentWindow: BrowserWindow | null = null;
 const childWindows: Map<string, BrowserWindow> = new Map();
@@ -43,6 +44,11 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function getCurrentWindow(): BrowserWindow | null {
   return currentWindow;
+}
+
+function focusWindow(window: BrowserWindow): void {
+  if (window.isDestroyed()) return;
+  window.focus();
 }
 
 export function getOverlayWindow(): BrowserWindow | null {
@@ -254,6 +260,20 @@ function openSettingsWindow(section?: string): BrowserWindow {
 
 // Create the main window
 export function createMainWindow(): BrowserWindow {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    focusWindow(mainWindow);
+    return mainWindow;
+  }
+
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+    const closingWelcomeWindow = welcomeWindow;
+    welcomeWindow = null;
+    if (currentWindow === closingWelcomeWindow) {
+      currentWindow = null;
+    }
+    closingWelcomeWindow.close();
+  }
+
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: 1200,
     height: 700,
@@ -289,8 +309,11 @@ export function createMainWindow(): BrowserWindow {
   });
 
   mainWindow.on('closed', () => {
+    const closedWindow = mainWindow;
     mainWindow = null;
-    currentWindow = null;
+    if (currentWindow === closedWindow) {
+      currentWindow = null;
+    }
   });
 
   setupAppMenu();
@@ -300,7 +323,12 @@ export function createMainWindow(): BrowserWindow {
 
 // Create welcome/installer window
 export function createWelcomeWindow(): BrowserWindow {
-  const welcomeWindow = new BrowserWindow({
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+    focusWindow(welcomeWindow);
+    return welcomeWindow;
+  }
+
+  welcomeWindow = new BrowserWindow({
     width: 800,
     height: 900,
     webPreferences: {
@@ -321,6 +349,13 @@ export function createWelcomeWindow(): BrowserWindow {
   } else {
     welcomeWindow.loadFile(getWindowHtmlPath('welcome'));
   }
+
+  welcomeWindow.on('closed', () => {
+    if (currentWindow === welcomeWindow) {
+      currentWindow = null;
+    }
+    welcomeWindow = null;
+  });
 
   return welcomeWindow;
 }
@@ -416,6 +451,10 @@ export function openManagedChildWindow(
   options: Partial<Electron.BrowserWindowConstructorOptions> = {},
   context?: Record<string, unknown>,
 ): BrowserWindow {
+  if (type === WINDOW_TYPES.WELCOME) {
+    return createWelcomeWindow();
+  }
+
   if (context) {
     // v1 limitation: windowContextStore is keyed only by windowType, so only one
     // plugin-host context can exist at a time.
@@ -524,20 +563,26 @@ function showVideoContextMenu(
 
 // Context menu for reader (OCR overlay)
 interface ReaderContextMenuOptions {
-  furiganaHiderEnabled: boolean;
+  readingAnnotationHiderEnabled: boolean;
   hasContextPhrase: boolean;
+  canToggleReadingHider?: boolean;
   canExplainPhrase?: boolean;
   collatePagesEnabled?: boolean;
   isDoublePageMode?: boolean;
 }
 
 function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
-  const template: Electron.MenuItemConstructorOptions[] = [
-    {
-      label: options.furiganaHiderEnabled ? getLocalizedString('mlearn.Menu.ShowReading') : getLocalizedString('mlearn.Menu.HideReading'),
-      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-furigana'),
-    },
-    { type: 'separator' },
+  const template: Electron.MenuItemConstructorOptions[] = [];
+
+  if (options.canToggleReadingHider !== false) {
+    template.push({
+      label: options.readingAnnotationHiderEnabled ? getLocalizedString('mlearn.Menu.ShowReading') : getLocalizedString('mlearn.Menu.HideReading'),
+      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-reading-annotation-hider'),
+    });
+    template.push({ type: 'separator' });
+  }
+
+  template.push(
     {
       label: getLocalizedString('mlearn.Menu.CopyPhrase'),
       enabled: options.hasContextPhrase,
@@ -554,7 +599,7 @@ function showReaderContextMenu(sender: Electron.WebContents, options: ReaderCont
       enabled: options.isDoublePageMode ?? false,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-collate-pages'),
     },
-  ];
+  );
 
   const menu = Menu.buildFromTemplate(template);
   menu.popup({ window: BrowserWindow.fromWebContents(sender) || undefined });
@@ -779,8 +824,8 @@ function setupAppMenu(): void {
           click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
         },
         {
-          label: getLocalizedString('mlearn.Menu.ExamCentricStudy'),
-          click: () => createChildWindow('exam-centric-study' as WindowType, { width: 1200, height: 800 }),
+          label: getLocalizedString('mlearn.Menu.LevelStudy'),
+          click: () => createChildWindow('level-study' as WindowType, { width: 1200, height: 800 }),
         },
         {
           label: getLocalizedString('mlearn.Menu.EditWordKnowledgeDatabase'),

@@ -1,0 +1,28 @@
+/**
+ * Reading Annotation Hider Styles
+ * White rectangles that cover reading annotations and reveal on hover
+ */
+
+.reading-annotation-hider-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 15; /* Above OCR overlay boxes */
+}
+
+.reading-annotation-hider-box {
+  position: absolute;
+  background-color: var(--reading-annotation-hider-bg);
+  pointer-events: auto;
+  cursor: default;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+  border-radius: 1px;
+  /* Slight shadow to make it stand out on white backgrounds */
+  box-shadow: 0 0 1px var(--reading-annotation-hider-shadow);
+}
+
+.reading-annotation-hider-box:hover {
+  opacity: 0;
+}

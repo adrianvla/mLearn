@@ -9,6 +9,14 @@ export interface CanvasCaptureOptions {
   format?: 'image/jpeg' | 'image/png';
 }
 
+function isVideoSource(source: HTMLVideoElement | HTMLImageElement): source is HTMLVideoElement {
+  return 'videoWidth' in source;
+}
+
+function isCanvasSecurityError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'SecurityError';
+}
+
 /**
  * Capture a video or image element to a data URL.
  * @returns JPEG/PNG data URL, or null when the source has no dimensions.
@@ -30,7 +38,7 @@ export function captureElementToDataUrl(
     let srcWidth: number;
     let srcHeight: number;
 
-    if (source instanceof HTMLVideoElement) {
+    if (isVideoSource(source)) {
       srcWidth = source.videoWidth || source.clientWidth || 0;
       srcHeight = source.videoHeight || source.clientHeight || 0;
     } else {
@@ -54,6 +62,10 @@ export function captureElementToDataUrl(
 
     return canvas.toDataURL(format, quality);
   } catch (e) {
+    if (isCanvasSecurityError(e)) {
+      log.debug('Skipping thumbnail capture because the canvas is tainted by the media source');
+      return null;
+    }
     log.error('Failed to capture element:', e);
     return null;
   }

@@ -8,6 +8,7 @@ interface LevelPillsFilterProps {
   selectedLevel: number | null;
   onLevelChange: (level: number | null) => void;
   getLevelLabel: (level: number) => string;
+  getVisualLevel?: (level: number) => number;
   class?: string;
 }
 
@@ -29,6 +30,7 @@ export const LevelPillsFilter: Component<LevelPillsFilterProps> = (props) => {
           {(level) => (
             <PillLabel
               level={level}
+              visualLevel={props.getVisualLevel?.(level)}
               clickable
               active={props.selectedLevel === level}
               onClick={() => {

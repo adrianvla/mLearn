@@ -15,6 +15,7 @@ import { getTodayDateString } from '../services/srsAlgorithm';
 const DAY = 24 * 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
+const DEFAULT_MOCK_LANGUAGE = 'und';
 
 function generateUUID(): string {
   return crypto.randomUUID();
@@ -29,43 +30,19 @@ function langKey(language: string, hash: string): string {
   return language + ':' + hash;
 }
 
-const JA_WORDS = [
-  '猫', '犬', '食べる', '飲む', '行く', '来る', '見る', '聞く', '話す', '読む',
-  '書く', '買う', '売る', '待つ', '死ぬ', '遊ぶ', '泳ぐ', '起きる', '寝る', '勉強',
-  '仕事', '学校', '家', '車', '電車', '友達', '家族', '時間', '今日', '明日',
-  '昨日', '好き', '嫌い', '大きい', '小さい', '新しい', '古い', '多い', '少ない', '楽しい',
-  '悲しい', '難しい', '易しい', '忙しい', '暇', '暑い', '寒い', '高い', '安い', '長い',
-  '短い', '早い', '遅い', '強い', '弱い', '美しい', '醜い', '赤い', '青い', '白い',
-  '黒い', '黄色い', '緑', '水', '火', '木', '金', '土', '山', '川',
-  '海', '空', '風', '雨', '雪', '花', '草', '鳥', '魚', '虫',
+const SAMPLE_WORDS = Array.from({ length: 80 }, (_, index) => `sample-word-${index + 1}`);
+const SAMPLE_GRAMMAR_PATTERNS = [
+  'topic marker',
+  'object marker',
+  'past tense',
+  'future tense',
+  'conditional form',
+  'relative clause',
+  'passive voice',
+  'polite register',
+  'negation',
+  'comparison',
 ];
-
-const DE_WORDS: string[] = [
-  'Haus', 'Auto', 'Hund', 'Katze', 'essen', 'trinken', 'gehen', 'kommen', 'sehen', 'hören',
-  'sprechen', 'lesen', 'schreiben', 'kaufen', 'verkaufen', 'warten', 'spielen', 'schwimmen', 'aufstehen', 'schlafen',
-  'Arbeit', 'Schule', 'Freund', 'Familie', 'Zeit', 'heute', 'morgen', 'gestern', 'gern', 'nicht',
-  'groß', 'klein', 'neu', 'alt', 'viel', 'wenig', 'schwer', 'leicht', 'schön', 'hässlich',
-  'rot', 'blau', 'weiß', 'schwarz', 'gelb', 'grün', 'Wasser', 'Feuer', 'Baum', 'Berg',
-];
-
-const JA_READINGS: Record<string, string> = {
-  '猫': 'ねこ', '犬': 'いぬ', '食べる': 'たべる', '飲む': 'のむ', '行く': 'いく',
-  '来る': 'くる', '見る': 'みる', '聞く': 'きく', '話す': 'はなす', '読む': 'よむ',
-  '書く': 'かく', '買う': 'かう', '売る': 'うる', '待つ': 'まつ', '死ぬ': 'しぬ',
-  '遊ぶ': 'あそぶ', '泳ぐ': 'およぐ', '起きる': 'おきる', '寝る': 'ねる', '勉強': 'べんきょう',
-  '仕事': 'しごと', '学校': 'がっこう', '家': 'いえ', '車': 'くるま', '電車': 'でんしゃ',
-  '友達': 'ともだち', '家族': 'かぞく', '時間': 'じかん', '今日': 'きょう', '明日': 'あした',
-  '昨日': 'きのう', '好き': 'すき', '嫌い': 'きらい', '大きい': 'おおきい', '小さい': 'ちいさい',
-  '新しい': 'あたらしい', '古い': 'ふるい', '多い': 'おおい', '少ない': 'すくない', '楽しい': 'たのしい',
-  '悲しい': 'かなしい', '難しい': 'むずかしい', '易しい': 'やさしい', '忙しい': 'いそがしい', '暇': 'ひま',
-  '暑い': 'あつい', '寒い': 'さむい', '高い': 'たかい', '安い': 'やすい', '長い': 'ながい',
-  '短い': 'みじかい', '早い': 'はやい', '遅い': 'おそい', '強い': 'つよい', '弱い': 'よわい',
-  '美しい': 'うつくしい', '醜い': 'みにくい', '赤い': 'あかい', '青い': 'あおい', '白い': 'しろい',
-  '黒い': 'くろい', '黄色い': 'きいろい', '緑': 'みどり', '水': 'みず', '火': 'ひ',
-  '木': 'き', '金': 'かね', '土': 'つち', '山': 'やま', '川': 'かわ',
-  '海': 'うみ', '空': 'そら', '風': 'かぜ', '雨': 'あめ', '雪': 'ゆき',
-  '花': 'はな', '草': 'くさ', '鳥': 'とり', '魚': 'さかな', '虫': 'むし',
-};
 
 function createFlashcard(
   word: string,
@@ -131,7 +108,6 @@ function createFlashcard(
 
 function generateFlashcardsForLanguage(
   words: string[],
-  readings: Record<string, string>,
   language: string,
 ): Record<string, Flashcard> {
   const cards: Record<string, Flashcard> = {};
@@ -140,8 +116,7 @@ function generateFlashcardsForLanguage(
 
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
-    const reading = readings[word];
-    const back = language === 'ja' ? `${word} definition` : `${word} Bedeutung`;
+    const back = `${word} definition`;
 
     const rand = Math.random();
     let cumulative = 0;
@@ -184,7 +159,7 @@ function generateFlashcardsForLanguage(
 
     const card = createFlashcard(
       word,
-      reading,
+      undefined,
       back,
       state,
       language,
@@ -270,14 +245,10 @@ function generateWordKnowledge(
 }
 
 function generateGrammarKnowledge(language: string): Record<string, GrammarKnowledgeEntry> {
-  const patterns = language === 'ja'
-    ? ['〜ても', '〜ば', '〜のに', '〜ように', '〜そうだ', '〜らしい', '〜みたいだ', '〜はずだ', '〜かもしれない', '〜に違いない']
-    : ['weil + Nebensatz', 'damit + Nebensatz', 'obwohl + Nebensatz', 'als + Nebensatz', 'wenn + Nebensatz', 'Relative Sätze', 'Konjunktiv II', 'Passiv', 'Modalverben', 'trennbare Verben'];
-
   const result: Record<string, GrammarKnowledgeEntry> = {};
   const now = Date.now();
 
-  for (const pattern of patterns) {
+  for (const pattern of SAMPLE_GRAMMAR_PATTERNS) {
     const hash = hashWordSync(pattern);
     const key = langKey(language, hash);
     result[key] = {
@@ -294,14 +265,14 @@ function generateGrammarKnowledge(language: string): Record<string, GrammarKnowl
   return result;
 }
 
-function generateMediaStats(): MediaStats[] {
+function generateMediaStats(language: string): MediaStats[] {
   const now = Date.now();
   const mediaItems: MediaStats[] = [
     {
-      mediaHash: hashWordSync('sample-anime-ep1'),
-      mediaName: 'Sample Anime - Episode 1',
+      mediaHash: hashWordSync('sample-video-1'),
+      mediaName: 'Sample Video 1',
       mediaType: 'video',
-      language: 'ja',
+      language,
       wordsEncountered: {},
       grammarEncountered: {},
       assessedLevel: 3,
@@ -310,10 +281,10 @@ function generateMediaStats(): MediaStats[] {
       lastAccessed: now,
     },
     {
-      mediaHash: hashWordSync('sample-anime-ep2'),
-      mediaName: 'Sample Anime - Episode 2',
+      mediaHash: hashWordSync('sample-video-2'),
+      mediaName: 'Sample Video 2',
       mediaType: 'video',
-      language: 'ja',
+      language,
       wordsEncountered: {},
       grammarEncountered: {},
       assessedLevel: 3,
@@ -322,10 +293,10 @@ function generateMediaStats(): MediaStats[] {
       lastAccessed: now - 3 * DAY,
     },
     {
-      mediaHash: hashWordSync('sample-manga-vol1'),
-      mediaName: 'Sample Manga - Volume 1',
+      mediaHash: hashWordSync('sample-book-1'),
+      mediaName: 'Sample Book 1',
       mediaType: 'book',
-      language: 'ja',
+      language,
       wordsEncountered: {},
       grammarEncountered: {},
       assessedLevel: 4,
@@ -360,18 +331,15 @@ function generateMediaStats(): MediaStats[] {
   return mediaItems;
 }
 
-function buildMockFlashcardStore(): FlashcardStore {
-  const jaCards = generateFlashcardsForLanguage(JA_WORDS, JA_READINGS, 'ja');
-  const deCards = generateFlashcardsForLanguage(DE_WORDS, {}, 'de');
-
-  const allCards: Record<string, Flashcard> = { ...jaCards, ...deCards };
+function buildMockFlashcardStore(language: string): FlashcardStore {
+  const allCards = generateFlashcardsForLanguage(SAMPLE_WORDS, language);
 
   const wordToCardMap: Record<string, string[]> = {};
   const wordStatsMap: Record<string, { cardCount: number; bestEase: number; totalReviews: number; totalLapses: number; lastReviewed: number; bestInterval: number; bestState: FlashcardState }> = {};
 
   for (const card of Object.values(allCards)) {
     const hash = hashWordSync(card.content.front);
-    const key = langKey(card.language || 'ja', hash);
+    const key = langKey(card.language || language, hash);
     if (!wordToCardMap[key]) wordToCardMap[key] = [];
     wordToCardMap[key].push(card.id);
   }
@@ -407,10 +375,7 @@ function buildMockFlashcardStore(): FlashcardStore {
   }
 
   const today = getTodayDateString();
-  const dailyStats = {
-    ...generateDailyStats(60, 'ja'),
-    ...generateDailyStats(60, 'de'),
-  };
+  const dailyStats = generateDailyStats(60, language);
 
   return {
     flashcards: allCards,
@@ -419,21 +384,14 @@ function buildMockFlashcardStore(): FlashcardStore {
     wordStatsMap,
     knownUntracked: {},
     ignoredWords: {},
-    wordKnowledge: {
-      ...generateWordKnowledge(JA_WORDS, 'ja'),
-      ...generateWordKnowledge(DE_WORDS, 'de'),
-    },
-    grammarKnowledge: {
-      ...generateGrammarKnowledge('ja'),
-      ...generateGrammarKnowledge('de'),
-    },
+    wordKnowledge: generateWordKnowledge(SAMPLE_WORDS, language),
+    grammarKnowledge: generateGrammarKnowledge(language),
     meta: {
       perLanguage: {
-        ja: { newCardsToday: 3, reviewsToday: 12, newCardsDate: today },
-        de: { newCardsToday: 2, reviewsToday: 8, newCardsDate: today },
+        [language]: { newCardsToday: 3, reviewsToday: 12, newCardsDate: today },
       },
-      newCardsToday: 5,
-      reviewsToday: 20,
+      newCardsToday: 3,
+      reviewsToday: 12,
       newCardsDate: today,
       maxNewCardsPerDay: 20,
       maxNewCardsPerDayLearning: 20,
@@ -455,7 +413,8 @@ function buildMockFlashcardStore(): FlashcardStore {
 
 export async function populateMockStatsData(): Promise<void> {
   try {
-    const mockStore = buildMockFlashcardStore();
+    const language = DEFAULT_MOCK_LANGUAGE;
+    const mockStore = buildMockFlashcardStore(language);
 
     await getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(mockStore));
 
@@ -465,7 +424,7 @@ export async function populateMockStatsData(): Promise<void> {
       channel.close();
     }
 
-    const mediaStats = generateMediaStats();
+    const mediaStats = generateMediaStats(language);
     for (const media of mediaStats) {
       getBridge().mediaStats.saveMediaStats(media.mediaHash, media);
     }

@@ -5,7 +5,7 @@
 import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
 import { createChildWindow } from '../../windowManager';
-import type { WindowType } from '../../../../shared/constants';
+import { WINDOW_TYPES, type WindowType } from '../../../../shared/constants';
 
 
 const WINDOW_TYPES_TO_TEST: WindowType[] = [
@@ -13,7 +13,7 @@ const WINDOW_TYPES_TO_TEST: WindowType[] = [
   'flashcards',
   'statistics',
   'word-db-editor',
-  'kanji-grid',
+  WINDOW_TYPES.CHARACTER_GRID,
   'licenses',
   'conversation-agent',
   'word-definition',

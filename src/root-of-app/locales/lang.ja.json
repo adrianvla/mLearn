@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "Common": {
+      "Status": {
+        "Unknown": "未知"
+      }
+    },
     "AI": {
       "CloudUnreachable": "クラウドサービスに接続できません。接続を確認して、もう一度お試しください。",
       "DownloadModel": "モデルをダウンロード",
@@ -201,10 +206,12 @@
         "DefinitionsPlaceholder": "1行に1つの定義",
         "ExampleSentence": "例文（HTML可）",
         "ExampleTranslation": "例文の翻訳",
-        "PitchAccent": "ピッチアクセント",
-        "PitchAccentPlaceholder": "0（平板）、1、2、3…",
-        "Reading": "読み（ふりがな）",
-        "ReadingPlaceholder": "かな / 読み",
+        "JapanesePitchAccent": "ピッチアクセント",
+        "JapanesePitchAccentPlaceholder": "0（平板）、1、2、3…",
+        "ProsodyPosition": "韻律位置",
+        "ProsodyPositionPlaceholder": "0、1、2、3…",
+        "Reading": "読み",
+        "ReadingPlaceholder": "読み / 発音",
         "StructuredContent": "構造化コンテンツ（任意のHTML）",
         "SurfaceNote": "（単語）",
         "Translation": "翻訳（コンマまたは改行区切り）",
@@ -212,7 +219,7 @@
         "WordPlaceholder": "単語を入力..."
       },
       "GenerateTtsAction": "生成",
-      "Hint": "翻訳: コンマまたは改行区切り。ピッチアクセントはモーラ下降位置（0=平板）。",
+      "Hint": "翻訳: コンマまたは改行区切り。言語パッケージが対応している場合、韻律情報も保存されます。",
       "NoCloudAuth": "クラウドに未認証です。設定→サーバーからログインしてください。",
       "Regenerate": {
         "AllCompleted": "すべてのタスクが完了しました",
@@ -270,6 +277,11 @@
       "DesktopCode": "デスクトップ用ワンタイムコード",
       "HintLocal": "このマシンのローカルPythonバックエンドを使用します。",
       "HintTethered": "デスクトップで実行中のPythonバックエンドに接続します。",
+      "LanguageCatalog": {
+        "Description": "ダウンロード可能な言語メタデータとアセットリンクのマニフェストURL。",
+        "Title": "言語カタログ",
+        "Url": "カタログURL"
+      },
       "Mode": "モード",
       "ModeLocal": "ローカル",
       "ModeTethered": "テザリング",
@@ -586,8 +598,6 @@
       }
     },
     "ErrorModal": {
-      "AnkiDisablePermanent": "Ankiを恒久的に無効にする",
-      "AnkiDisableSession": "このセッションのみAnkiを無効にする",
       "Copied": "コピーしました！",
       "CopyError": "エラーをコピー",
       "HideDetails": "詳細を非表示",
@@ -990,9 +1000,9 @@
           "IgnoreSeen": "既出を無視",
           "Title": "単語シンク"
         },
-        "ExamCentricStudy": {
-          "Description": "Word Sync, Character Grid, and Exam Study in one place",
-          "Title": "Exam-centric Study"
+        "LevelStudy": {
+          "Description": "単語同期、文字グリッド、レベル学習をまとめて管理",
+          "Title": "レベル学習"
         }
       },
       "Errors": {
@@ -1007,6 +1017,9 @@
       }
     },
     "Installer": {
+      "Title": {
+        "ComponentsRequired": "セットアップが必要です"
+      },
       "Alerts": {
         "NetworkError": "ネットワークエラーが発生しました。接続を確認してもう一度お試しください。"
       },
@@ -1015,7 +1028,10 @@
         "Installing": "インストール中...",
         "StartInstallation": "インストール開始",
         "CancelInstall": "Cancel Installation",
-        "CancelRestart": "Cancel Restart"
+        "CancelRestart": "Cancel Restart",
+        "InstallRequiredComponents": "必要なコンポーネントをインストール",
+        "InstallLanguageData": "選択した言語データをインストール",
+        "FinishSetup": "セットアップを完了"
       },
       "Components": {
         "ExplainAi": {
@@ -1032,17 +1048,23 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "インストールするコンポーネントを選択して、インストールをクリックしてください。",
+        "ChooseComponents": "学習する言語と、mLearnで表示する言語を選択してください。",
         "ClickToBegin": "インストールをクリックして開始します。",
         "DownloadNote": "すべてのダウンロードは自動的に処理されます。安定した接続を推奨します。",
         "ForgetSomething": "インストールし忘れた場合、mLearnを削除してインストーラーを再起動してください。",
-        "LanguageUnlocks": "セットアップ完了後に言語選択が可能になります。"
+        "LanguageUnlocks": "言語データは、明示的に開始した場合にのみインストールされます。"
+      },
+      "DictionaryTarget": {
+        "Label": "辞書の言語",
+        "ChooseAvailable": "利用可能な辞書言語を選択",
+        "Unavailable": "この学習言語では {language} の辞書は利用できません。利用可能な辞書言語を選択してください: {available}"
       },
       "Status": {
-        "Complete": "インストール完了！言語を選択してセットアップを完了してください。",
+        "Complete": "インストール完了！続行して選択した言語データをインストールしてください。",
         "CouldNotStart": "インストールプロセスを開始できませんでした。",
         "ErrorOccurred": "エラーが発生しました。下のログを確認してください。",
         "Installing": "インストール中、お待ちください...",
+        "InstallingLanguageData": "言語データをインストール中...",
         "InstallingPackages": "パッケージをインストール中...",
         "LanguageInstalledRestarting": "言語がインストールされました！再起動中...",
         "LlmSkip": "ローカルAIモデルの依存関係をスキップします。",
@@ -1055,25 +1077,38 @@
         "AlreadySatisfied": "既にインストール済み",
         "Collecting": "依存関係を収集中…",
         "Downloading": "ダウンロード中…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "学習したい言語は",
+        "AppLanguagePrefix": "mLearnの表示言語は",
+        "AppLanguageSuffix": "です。",
+        "DictionaryPrefix": "辞書の定義言語は"
+      },
+      "Advanced": {
+        "Title": "詳細設定"
+      },
+      "Summary": {
+        "LearningLanguage": "学習言語: {language}",
+        "DisplayLanguage": "表示言語: {language}",
+        "DictionaryLanguage": "辞書言語: {language}",
+        "NotAvailable": "利用できません"
       }
     },
-    "ExamCentricStudy": {
-      "Title": "Exam-centric Study",
+    "LevelStudy": {
+      "Title": "レベル学習",
       "Tabs": {
-        "WordSync": "Word Sync",
-        "CharacterGrid": "Character Grid",
-        "ExamStudy": "Exam Study"
-      }
-    },
-    "ExamStudy": {
+        "WordSync": "単語シンク",
+        "CharacterGrid": "文字グリッド",
+        "LevelStudy": "レベル学習"
+      },
       "EmptyState": {
-        "Title": "試験学習",
-        "Description": "試験レベル別に整理された単語を学習します。進捗を追跡し、単語をフラッシュカードに追加できます。"
+        "Title": "レベル学習",
+        "Description": "レベル別に整理された単語を学習します。進捗を追跡し、単語をフラッシュカードに追加できます。"
       },
       "Coverage": {
-        "Title": "試験単語カバレッジ",
+        "Title": "レベル単語カバレッジ",
         "Words": "語",
-        "Complete": "すべての試験単語が追跡されています!",
+        "Complete": "すべてのレベル単語が追跡されています!",
         "Hint": "下のレベルをクリックして単語を表示・追加"
       },
       "PopulationStats": {
@@ -1115,39 +1150,6 @@
         "Adding": "追加中...",
         "LoadMore": "さらに読み込む",
         "Error": "追加に失敗しました"
-      }
-    },
-    "KanjiGrid": {
-      "CharactersByExamLevel": "試験レベル別の文字:",
-      "Disclaimer": {
-        "Description": "ここで表示しているJLPT漢字は、各JLPTレベルに属する単語から漢字を抽出して推定したものです。つまり厳密な漢字一覧ではなく、レベルによっては単語に含まれていても、その漢字自体の習得が必須ではない場合があります。",
-        "Title": "JLPT漢字は推定表示です"
-      },
-      "Description": "色の意味: 学習中（オレンジ→黄色）、既知（緑→薄緑）、未知（グレー）。ホバーで詳細表示。",
-      "EmptyState": {
-        "Description": "動画やテキストで文字に出会うと、ここに表示されます。",
-        "Hint": "コンテンツの視聴や読書を始めると追跡が開始されます！",
-        "Title": "追跡中の文字はまだありません"
-      },
-      "Legend": {
-        "Known": "既知:",
-        "Learning": "学習中:",
-        "Unknown": "未知:"
-      },
-      "LevelFallback": "レベル {level}",
-      "Loading": "文字データを読み込み中...",
-      "Stats": {
-        "Known": "既知:",
-        "Learning": "学習中:",
-        "TotalFound": "合計:",
-        "Unknown": "未知:"
-      },
-      "Title": "文字の習得状況",
-      "Tooltip": {
-        "KnownCount": "既知",
-        "LearningCount": "学習中",
-        "Score": "スコア",
-        "WordsContaining": "{char}を含む単語"
       }
     },
     "Languages": {
@@ -1192,7 +1194,7 @@
       "MigrationWordStatuses": "v1から {count} 件の単語ステータスを移行しました。バックアップが作成されました。",
       "UpdateAvailable": "バージョン {latestVersion} が利用可能です（現在 {currentVersion}）。ダウンロードはウェブサイトをご確認ください。"
     },
-    "PitchAccent": {
+    "JapanesePitchAccent": {
       "Atamadaka": "頭高（あたまだか）",
       "DropAfterMora": "第{mora}モーラ後に下降",
       "Heiban": "平板（へいばん）",
@@ -1204,8 +1206,8 @@
       "CollatePages": "ページを結合",
       "UncollatePages": "ページを分離",
       "CopyPhrase": "フレーズをコピー",
-      "HideFurigana": "読みを隠す",
-      "ShowFurigana": "読みを表示",
+      "HideReadingAnnotations": "読み注釈を隠す",
+      "ShowReadingAnnotations": "読み注釈を表示",
       "Requirements": {
         "OcrTurboLowRam": {
           "Title": "OCRが遅くなる可能性があります",
@@ -1254,13 +1256,13 @@
         "DebugOverlayOff": "デバッグ: オフ",
         "DebugOverlayOn": "デバッグ: オン",
         "DebugOverlayTitle": "OCRテキストとふりがな検出を視覚化するデバッグオーバーレイの切り替え",
-        "FuriganaDetectionOff": "読み検出: オフ",
-        "FuriganaDetectionOn": "読み検出: オン",
+        "ReadingAnnotationDetectionOff": "読み注釈: オフ",
+        "ReadingAnnotationDetectionOn": "読み注釈: オン",
         "MagnifierHint": "{key}を押すと拡大鏡を開きます",
         "OpenConversationAgent": "AIチューター",
         "OpenConversationAgentTitle": "AI会話チューターを開く",
-        "PaddleDownscaleLabel": "PaddleOCRスケール: {value}%",
-        "PaddleDownscaleTitle": "PaddleOCR処理前に画像を縮小する（開発用）",
+        "DetectionScaleLabel": "OCR検出スケール: {value}%",
+        "DetectionScaleTitle": "OCR検出・認識前に画像を縮小する（開発用）",
         "Ready": "準備完了",
         "ShowTooltipOn": "ツールチップ表示方法:",
         "TimingDetection": "検出",
@@ -1289,6 +1291,8 @@
         "PageLayoutPaired": "1+2|3+4",
         "PageLayoutSingle": "1|2+3",
         "SinglePage": "単一ページ",
+        "SpreadLeftToRight": "ページ 左→右",
+        "SpreadRightToLeft": "ページ 右→左",
         "ToggleUnknownWordsSidebar": "未習得単語サイドバーを切り替え"
       },
       "UI": {
@@ -1328,9 +1332,9 @@
           "Label": "テーマ",
           "Light": "ライト",
           "LightHighContrast": "ライト高コントラスト",
-      "Custom": "カスタム",
-      "CustomCssDescription": "カスタムテーマのCSSを編集します。変更はリアルタイムで適用されます。",
-      "CustomCssLabel": "カスタムCSS"
+          "Custom": "カスタム",
+          "CustomCssDescription": "カスタムテーマのCSSを編集します。変更はリアルタイムで適用されます。",
+          "CustomCssLabel": "カスタムCSS"
         }
       },
       "BlurEffect": {
@@ -1385,17 +1389,17 @@
           "Description": "字幕が表示されたときに単語の翻訳をサイドパネルに表示",
           "Label": "ライブ翻訳パネル"
         },
-        "ShowFurigana": {
-          "Description": "単語の上に読みを表示",
-          "Label": "読みを表示"
+        "ShowReadingAnnotations": {
+          "Label": "読み注釈を表示",
+          "Description": "単語の上に読み注釈を表示"
         },
         "HideReadingForKnownWords": {
           "Description": "既知の単語の読みを自動的に非表示にする",
           "Label": "既知語の読みを隠す"
         },
-        "ShowPitchAccent": {
-          "Description": "単語のピッチアクセント情報を表示",
-          "Label": "ピッチアクセントを表示"
+        "ShowProsody": {
+          "Description": "単語のプロソディ、声調、強勢、アクセント情報を表示",
+          "Label": "プロソディとアクセントを表示"
         },
         "ShowPos": {
           "Description": "単語の文法情報を表示",
@@ -1458,6 +1462,17 @@
         "LearningLanguage": {
           "Description": "学習する言語を選択",
           "Label": "学習言語"
+        },
+        "LanguageData": {
+          "Install": "言語データをインストール",
+          "Installing": "言語データをインストール中...",
+          "Installed": "言語データはインストール済み",
+          "InstallFailed": "言語データのインストールに失敗しました",
+          "MissingRequired": "言語データが必要です"
+        },
+        "DictionaryTarget": {
+          "Description": "辞書の定義に使う言語を選択",
+          "Label": "辞書の言語"
         }
       },
       "Performance": {
@@ -1551,12 +1566,12 @@
       },
       "Reader": {
         "Description": "OCRとリーダーの設定",
-        "Furigana": {
+        "ReadingAnnotations": {
+          "Title": "読み注釈",
           "Hide": {
-            "Description": "検出された読み注釈を白いボックスで覆い、ホバーで表示（読みの練習用）",
-            "Label": "読みを隠す"
-          },
-          "Title": "読み"
+            "Label": "読み注釈を隠す",
+            "Description": "検出された読み注釈を白いボックスで覆い、ホバーで表示（読みの練習用）"
+          }
         },
         "LlmIntegration": {
           "Enable": {
@@ -1615,9 +1630,9 @@
             "Description": "画像の光学文字認識を有効にする",
             "Label": "OCRを有効にする"
           },
-          "FuriganaDetection": {
-            "Description": "OCR結果から読み注釈を検出してフィルタリングします。無効にすると、検出されたテキストボックスがそのまま表示されます。",
-            "Label": "読み検出"
+          "ReadingAnnotationDetection": {
+            "Label": "読み注釈検出",
+            "Description": "OCR結果から読み注釈を検出してフィルタリングします。無効にすると、検出されたテキストボックスがそのまま表示されます。"
           },
           "RamSaver": {
             "Description": "ニューラルネットワークの代わりに軽量なOpenCVベースのテキスト検出を使用します。メモリ使用量を約1.5 GB削減しますが、複雑なレイアウトでは精度が低下する可能性があります。認識品質は影響を受けません。",
@@ -1749,9 +1764,9 @@
             "Description": "Ankiの代わりにmLearnの内蔵間隔反復システムを使用",
             "Label": "mLearn SRSを使用"
           },
-          "ExamCardProportion": {
-            "Description": "自動作成カードのうち試験レベルの割合（0〜1）",
-            "Label": "試験カードの割合"
+          "LevelCardProportion": {
+            "Description": "自動作成カードのうち言語レベル由来の割合（0〜1）",
+            "Label": "レベルカードの割合"
           },
           "FlipAnimation": {
             "Description": "フラッシュカードの答えを表示する際に3Dフリップアニメーションを表示",
@@ -2070,8 +2085,8 @@
       "Actions": {
         "EditWordDatabase": "単語データベースを編集",
         "OpenAiAnalytics": "AIメディア分析",
-        "OpenExamCentricStudy": "Open Exam-centric Study",
-        "ViewKanjiGrid": "漢字グリッドを表示"
+        "OpenLevelStudy": "レベル学習を開く",
+        "ViewCharacterGrid": "文字グリッドを表示"
       },
       "CurrentlyLearning": "学習中",
       "Dashboard": {
@@ -2157,7 +2172,7 @@
       "LevelColumn": "レベル",
       "TimeWatched": "視聴時間",
       "Title": "学習統計",
-      "WordsByExamLevel": "試験レベル別の単語",
+      "WordsByLevel": "レベル別の単語",
       "WordsByStatus": "状態別の単語",
       "WordsLearned": "習得した単語",
       "WordsTracked": "追跡中の単語"
@@ -2500,7 +2515,7 @@
       "Flashcards": "フラッシュカード",
       "ForceRecreateFlashcards": "今日のフラッシュカードを強制再作成",
       "Help": "ヘルプ",
-      "HideReading": "読みを非表示",
+      "HideReading": "読み注釈を非表示",
       "OpenDevTools": "DevToolsを開く",
       "OpenLiveWordTranslator": "ライブ単語翻訳を開く",
       "OpenSyncingWindow": "同期ウィンドウを開く",
@@ -2512,10 +2527,9 @@
       },
       "ReviewFlashcards": "フラッシュカードを復習",
       "Settings": "設定",
-      "ExamCentricStudy": "Exam-centric Study",
-      "ShowKanjiGrid": "漢字グリッドを表示",
+      "LevelStudy": "レベル学習",
       "ShowLearningStatistics": "学習統計を表示",
-      "ShowReading": "読みを表示",
+      "ShowReading": "読み注釈を表示",
       "Statistics": "統計",
       "StopWatchTogether": "Watch Togetherを停止",
       "SyncSubtitles": "字幕を動画に同期",
@@ -2527,9 +2541,78 @@
       "Window": "ウィンドウ"
     },
     "ComponentsTab": {
-      "Description": "インストール済みのコンポーネントを管理します。モジュールをオンまたはオフに切り替え、変更を適用するために再インストールします。",
+      "Description": "インストール済みコンポーネントを個別に確認できます。再インストールに含めるグループは有効のままにしてください。",
       "Reinstall": "コンポーネントを再インストール",
-      "RestartNote": "インストールが完了すると、アプリが再起動します。"
+      "RestartNote": "インストールが完了すると、アプリが再起動します。",
+      "Enabled": "有効",
+      "Disabled": "無効",
+      "Groups": {
+        "AI": {
+          "Title": "AIコンポーネント",
+          "Description": "ローカルモデル実行環境とPythonモデル用ツール。"
+        },
+        "Reader": {
+          "Title": "リーダーとOCRコンポーネント",
+          "Description": "リーダーOCRで使う画像テキスト認識モデル。"
+        },
+        "Voice": {
+          "Title": "音声コンポーネント",
+          "Description": "音声認識、音声合成、音声区間検出。"
+        },
+        "Dictionaries": {
+          "Title": "インストール済み辞書",
+          "Description": "このコンピューターで利用できるダウンロード済み辞書パック。"
+        }
+      },
+      "Items": {
+        "BuiltinChatRuntime": {
+          "Title": "内蔵チャットモデル実行環境",
+          "Description": "ダウンロード済みのGGUFチャットモデルをローカルで実行します。"
+        },
+        "TransformersSupport": {
+          "Title": "Transformers / PyTorchサポート",
+          "Description": "従来のローカルLLMツールで使うPythonモデル依存関係。"
+        },
+        "RapidOCR": {
+          "Title": "RapidOCRモデル",
+          "Description": "リーダーのスクリーンショット向け高速OCR認識。"
+        },
+        "PaddleOCR": {
+          "Title": "PaddleOCRモデル",
+          "Description": "高精度なOCR認識と検出モデル。"
+        },
+        "MangaOCR": {
+          "Title": "MangaOCRモデル",
+          "Description": "日本語マンガと縦書きテキストの認識。"
+        },
+        "GenericOCR": {
+          "Title": "{engine} OCR実行環境",
+          "Description": "インストール済み言語データで宣言されたOCR実行環境。"
+        },
+        "WhisperSmall": {
+          "Title": "Whisper small STTモデル",
+          "Description": "音声会話向けのローカル音声認識。"
+        },
+        "KokoroTts": {
+          "Title": "Kokoro TTSモデル",
+          "Description": "対応言語向けのローカル音声合成。"
+        },
+        "SileroVad": {
+          "Title": "Silero VADモデル",
+          "Description": "ハンズフリー通話向けの音声区間検出。"
+        },
+        "QwenTts": {
+          "Title": "Qwen3 TTSモデル",
+          "Description": "任意のローカル音声クローンと多言語TTS。"
+        },
+        "GenericTTS": {
+          "Title": "{engine} TTSランタイム",
+          "Description": "インストール済み言語データで宣言された音声合成ランタイム。"
+        },
+        "DictionaryPack": {
+          "Description": "{language} の定義。"
+        }
+      }
     },
     "Diagnostics": {
       "Title": "mLearn Diagnostics",
@@ -2597,6 +2680,43 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved"
+    },
+    "CharacterGrid": {
+      "CharactersByLevel": "レベル別の文字:",
+      "Disclaimer": {
+        "Title": "文字レベルは推定表示です",
+        "Description": "ここで表示している文字は、各レベルに属する単語から抽出して推定したものです。つまり厳密な文字一覧ではなく、レベルによっては単語に含まれていても、その文字自体の習得が必須ではない場合があります。"
+      },
+      "Description": "色の意味: 学習中（オレンジ→黄色）、既知（緑→薄緑）、未知（グレー）。ホバーで詳細表示。",
+      "EmptyState": {
+        "Description": "動画やテキストで文字に出会うと、ここに表示されます。",
+        "Hint": "コンテンツの視聴や読書を始めると追跡が開始されます！",
+        "Title": "追跡中の文字はまだありません"
+      },
+      "Unsupported": {
+        "Description": "この言語パッケージには文字学習用のスクリプトが定義されていません。",
+        "Title": "この言語では文字学習を利用できません"
+      },
+      "Legend": {
+        "Known": "既知:",
+        "Learning": "学習中:",
+        "Unknown": "未知:"
+      },
+      "LevelFallback": "レベル {level}",
+      "Loading": "文字データを読み込み中...",
+      "Stats": {
+        "Known": "既知:",
+        "Learning": "学習中:",
+        "TotalFound": "合計:",
+        "Unknown": "未知:"
+      },
+      "Title": "文字の習得状況",
+      "Tooltip": {
+        "KnownCount": "既知",
+        "LearningCount": "学習中",
+        "Score": "スコア",
+        "WordsContaining": "{char}を含む単語"
+      }
     }
   }
 }

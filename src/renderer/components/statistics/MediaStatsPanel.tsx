@@ -4,7 +4,8 @@
  */
 
 import { Component, Show, For, createSignal, createMemo } from 'solid-js';
-import type { MediaStats } from '../../../shared/types';
+import type { LanguageData, MediaStats } from '../../../shared/types';
+import { getFrequencyLevelLabel } from '../../../shared/languageFeatures';
 import { useLocalization, useSettings } from '../../context';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { Btn, IconBtn, CloseIcon } from '../common';
@@ -17,6 +18,7 @@ interface MediaStatsPanelProps {
   stats: MediaStats;
   freqLevelNames?: Record<string, string>;
   grammarLevelNames?: Record<string, string>;
+  languageData?: LanguageData | null;
   onClose: () => void;
   onReviewWithAI?: () => void;
 }
@@ -54,8 +56,7 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
   const assessedLevelName = createMemo(() => {
     const level = props.stats.assessedLevel;
     if (level === null || level === undefined) return t('mlearn.MediaStats.NotAssessed');
-    const names = props.freqLevelNames || {};
-    return names[String(level)] || `Level ${level}`;
+    return getFrequencyLevelLabel(level, props.freqLevelNames, props.languageData);
   });
 
   const tabs: Array<{ id: StatsTab; labelKey: string }> = [

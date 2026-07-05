@@ -6,11 +6,13 @@ import { createSignal, type JSX } from 'solid-js';
 import type { ResourcePillProps } from './ResourcePill';
 
 const settingsState = {
+  language: 'ja',
   use_anki: true,
   enable_flashcard_creation: true,
   ankiLearningEase: 1500,
   ankiKnownEase: 1800,
 };
+const mockGetCardByWordSync = vi.fn(() => null);
 
 vi.mock('../../../context', () => ({
   useLocalization: () => ({
@@ -35,7 +37,7 @@ vi.mock('../../../context', () => ({
     settings: settingsState,
   }),
   useFlashcards: () => ({
-    getCardByWordSync: () => null,
+    getCardByWordSync: mockGetCardByWordSync,
   }),
 }));
 
@@ -75,6 +77,7 @@ describe('ResourcePill', () => {
 
   beforeEach(() => {
     settingsState.enable_flashcard_creation = true;
+    mockGetCardByWordSync.mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
   });
@@ -100,6 +103,27 @@ describe('ResourcePill', () => {
     ), container);
 
     expect(container.querySelector('.mock-ease-pill')?.textContent).toBe('ease:1.85:anki:learning');
+
+    dispose();
+  });
+
+  it('scopes built-in preview lookup to the supplied language', async () => {
+    const { ResourcePill } = await import('./ResourcePill');
+
+    const dispose = render(() => (
+      <ResourcePill
+        word="赤い"
+        language="ja"
+        isTracked={true}
+        isAdding={false}
+        isInAnki={false}
+        ease={1.85}
+        effectiveStatus="learning"
+        onAdd={() => undefined}
+      />
+    ), container);
+
+    expect(mockGetCardByWordSync).toHaveBeenCalledWith('赤い', 'ja');
 
     dispose();
   });

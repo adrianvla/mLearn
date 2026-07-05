@@ -109,6 +109,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [audioLevel, setAudioLevel] = createSignal(0);
   const [micError, setMicError] = createSignal('');
   const [ttsModelLoading, setTtsModelLoading] = createSignal(false);
+  const [ttsDownloadProgress, setTtsDownloadProgress] = createSignal(0);
   // Tick counter drives continuous visualizer animation independent of audio level
   const [tick, setTick] = createSignal(0);
 
@@ -255,10 +256,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // TTS status
     cleanups.push(bridge.voice.onVoiceTtsStatus((status) => {
       setTtsModelLoading(status.modelLoading ?? false);
+      if (status.downloadProgress !== undefined) {
+        setTtsDownloadProgress(status.downloadProgress);
+      }
       if (status.generating) {
         setCallState('processing');
       } else {
         setTtsModelLoading(false);
+        setTtsDownloadProgress(0);
       }
     }));
 
@@ -878,6 +883,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.LoadingTtsModel')}
                 </span>
+                <ProgressBar
+                  value={Math.round(ttsDownloadProgress() * 100)}
+                  showPercent
+                  variant="primary"
+                  size="sm"
+                  animated={ttsDownloadProgress() < 0.05}
+                  class="voice-initializing-progress"
+                />
               </div>
             </Show>
 

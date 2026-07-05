@@ -22,9 +22,12 @@ import {
   getPythonDownloadUrl,
   isWindows 
 } from '../utils/platform';
-import { loadSettings } from './settings';
+import { hasSettingsFile, loadLangData, loadSettings } from './settings';
+import { getLanguageDataRoot } from './languageDataService';
 import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
+import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFeatures';
+import { getPythonExecutableCandidates } from './pythonRuntimePaths';
 
 const pyLog = getLogger('python');
 const lifecycleLog = getLogger('python.lifecycle');
@@ -117,18 +120,15 @@ let installInProgress = false;
 let waitingForInstallChoice = false;
 let pendingInstallOptions: InstallOptions = { includeLLM: true, includeOCR: true, includeVoice: true };
 let serverLoadCheckInterval: NodeJS.Timeout | null = null;
-let lastExitWasAnkiError = false;
-let ankiErrorSent = false;
-let ankiOverrideDisable = false;
 
 let quitToken: string | null = null;
 
 // Buffered error state so the renderer can retrieve it even if it mounts
-// after the Python process exits (race condition: fast Anki connection-refused)
-let pendingAnkiError: string | null = null;
+// after the Python process exits.
 let pendingCriticalError: string | null = null;
 let pendingStartupStatusMessage: string | null = null;
 let activePipProcess: ChildProcess | null = null;
+let selectedPythonExecutablePath: string | null = null;
 
 const PACKAGE_SIZE_ESTIMATES_BYTES: Readonly<Record<string, number>> = {
   core: 500 * 1024 * 1024,
@@ -145,6 +145,12 @@ const downloadPath = path.join(userDataPath, 'python.tar.gz');
 const extractPath = path.join(userDataPath, 'py');
 const envPath = path.join(userDataPath, 'env');
 const pythonVersionPath = path.join(userDataPath, 'python-version.txt');
+
+function getUserDataPythonExecutablePath(): string {
+  return isWindows
+    ? path.join(envPath, 'python.exe')
+    : path.join(envPath, 'bin', 'python3');
+}
 
 function getInstalledPythonVersion(): string | null {
   try {
@@ -172,6 +178,7 @@ function resolveResourceFilePath(...segments: string[]): string {
     path.join(resPath, ...segments),
     path.join(appPath, ...segments),
     getBundledDistElectronPath(...segments),
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
   ];
   for (const candidate of candidatePaths) {
     if (fs.existsSync(candidate)) {
@@ -187,6 +194,7 @@ export function readResourceFile(...segments: string[]): string {
     getBundledDistElectronPath(...segments),
     path.join(resPath, 'root-of-app', ...segments),
     path.join(resPath, ...segments),
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
   ];
 
   for (const candidatePath of candidatePaths) {
@@ -201,9 +209,14 @@ export function readResourceFile(...segments: string[]): string {
 }
 
 function resolveExternalResourceFilePath(...segments: string[]): string {
+  const developmentCandidatePaths = app.isPackaged ? [] : [
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
+  ];
   const candidatePaths = [
+    ...developmentCandidatePaths,
     path.join(resPath, 'root-of-app', ...segments),
     path.join(resPath, ...segments),
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
   ];
 
   for (const candidatePath of candidatePaths) {
@@ -216,11 +229,14 @@ function resolveExternalResourceFilePath(...segments: string[]): string {
 }
 
 function resolvePythonExecutablePath(): string {
+  if (selectedPythonExecutablePath && fs.existsSync(selectedPythonExecutablePath)) {
+    return selectedPythonExecutablePath;
+  }
   if (isWindows) {
-    const userDataExe = path.join(userDataPath, 'env', 'python.exe');
+    const userDataExe = getUserDataPythonExecutablePath();
     if (fs.existsSync(userDataExe)) return userDataExe;
   } else {
-    const userDataPy = path.join(userDataPath, 'env', 'bin', 'python3');
+    const userDataPy = getUserDataPythonExecutablePath();
     if (fs.existsSync(userDataPy)) return userDataPy;
   }
   return getPythonExecutablePath();
@@ -399,9 +415,22 @@ function loadPipRequirementsConfig(): PipRequirementsConfig {
   } catch (e) {
     log.error('Failed to load pip requirements config:', e);
     return {
-      core: ['flask', 'requests', 'jaconv', 'fugashi', 'unidic-lite'],
-      ocr: ['manga-ocr'],
-      llm: ['transformers', 'torch'],
+      core: [
+        'pip',
+        'uvicorn',
+        'fastapi',
+        'pydantic',
+        'beautifulsoup4',
+        'pillow',
+        'numpy',
+        'python-multipart',
+        'setuptools',
+        'wheel',
+        'websockets',
+      ],
+      ocr: [],
+      llm: ['torch', 'transformers', 'sentencepiece'],
+      voice: ['torch', 'torchaudio', 'faster_whisper', 'kokoro', 'soundfile', 'silero-vad'],
     };
   }
 }
@@ -423,6 +452,7 @@ function buildPipRequirementList(options: InstallOptions): string[] {
       packages.push(...config['qwen3-tts']);
     }
   }
+  packages.push(...getLanguagePythonRequirementsForInstall(loadLangData(), options));
   
   return packages;
 }
@@ -462,8 +492,7 @@ async function checkDiskSpace(targetPath: string): Promise<number> {
 
 async function verifyPythonInstallation(options: InstallOptions): Promise<boolean> {
   const pythonPath = resolvePythonExecutablePath();
-  const imports = ['fastapi', 'uvicorn', 'spacy'];
-  if (options.includeOCR) imports.push('paddleocr', 'rapidocr', 'manga_ocr', 'onnxruntime', 'cv2');
+  const imports = ['fastapi', 'uvicorn'];
   if (options.includeLLM) imports.push('torch', 'transformers');
 
   const script = imports.map(mod => `try:\n    import ${mod}\nexcept Exception as e:\n    print(f"FAIL:${mod}:{e}")`).join('\n');
@@ -586,29 +615,18 @@ function pingPythonServer(callback: (running: boolean) => void): void {
   const options = {
     hostname: '127.0.0.1',
     port: PYTHON_BACKEND_PORT,
-    path: '/control',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    path: '/health',
+    method: 'GET',
     timeout: 3000,
   };
 
   const req = http.request(options, (res) => {
-    let data = '';
-    res.on('data', (chunk) => { data += chunk; });
-    res.on('end', () => {
-      if (res.statusCode === 200 && data.includes('"response":"pong"')) {
-        callback(true);
-      } else {
-        callback(false);
-      }
-    });
+    res.resume();
+    callback(res.statusCode === 200);
   });
 
   req.on('error', () => callback(false));
   req.on('timeout', () => { req.destroy(); callback(false); });
-  req.write(JSON.stringify({ function: 'ping' }));
   req.end();
 }
 
@@ -696,35 +714,40 @@ function killProcessesOnPort(port: number): void {
   }
 }
 
-function pythonFound(): void {
+async function pythonFound(): Promise<boolean> {
   if (pythonChildProcess && pythonChildProcess.exitCode === null) {
     log.info('Python backend already running, skipping restart');
-    return;
+    return true;
   }
 
   log.info('Python found, starting backend...');
 
   killProcessesOnPort(PYTHON_BACKEND_PORT);
 
-  if (isFirstTimeSetup) return;
+  if (isFirstTimeSetup) return false;
 
   const settings = loadSettings();
+  let activeDictionaryTargetLanguage: string | undefined;
+  const dictionaryTargetLanguagesEnv = JSON.stringify(settings.dictionaryTargetLanguages ?? {});
   const pythonExecutable = resolvePythonExecutablePath();
   const serverPath = resolveExternalResourceFilePath('server.py');
 
   const llmEnabled = settings.llmEnabled !== false;
   const ocrEnabled = settings.ocrEnabled !== false;
 
-  // Apply session-only Anki override if set
-  const useAnki = ankiOverrideDisable ? false : settings.use_anki;
+  const installedLanguageData = loadLangData();
+  if (!settings.language) {
+    log.info('No learning language selected; starting backend without an active language package.');
+    sendStatusUpdate('Waiting for a learning language selection...');
+  } else if (!installedLanguageData[settings.language]) {
+    log.warn(`Language data is not installed for ${settings.language}; starting backend so the app can install it.`);
+    sendStatusUpdate(`Language data is not installed for ${settings.language}. Install language data from Welcome or Settings.`);
+  }
 
-  // Reset Anki error flag for this launch
-  lastExitWasAnkiError = false;
-  ankiErrorSent = false;
-  pendingAnkiError = null;
+  activeDictionaryTargetLanguage = settings.dictionaryTargetLanguages?.[settings.language];
+
   pendingCriticalError = null;
   pendingStartupStatusMessage = null;
-  let ankiErrorReason = '';
   const recentLogTail: string[] = [];
   const TAIL_MAX = 40;
 
@@ -764,25 +787,10 @@ function pythonFound(): void {
         log.error("error", e);
       }
     }
-    if (module === 'anki' && msg.startsWith('ANKI_ERROR')) {
-      lastExitWasAnkiError = true;
-      ankiErrorReason = msg.replace('ANKI_ERROR', '').trim();
-      if (!ankiErrorSent) {
-        ankiErrorSent = true;
-        getMainWindow()?.webContents.send(
-          IPC_CHANNELS.ANKI_CONNECTION_ERROR,
-          ankiErrorReason
-        );
-      }
-    }
     forwardStatusToRenderer(msg);
   };
 
   const handleV1Record = (channel: string, message: string): void => {
-    if (message.startsWith('ANKI_ERROR')) {
-      lastExitWasAnkiError = true;
-      ankiErrorReason = message.replace('ANKI_ERROR', '').trim();
-    }
     if (channel.startsWith('OCR')) {
       try {
         getMainWindow()?.webContents.send(IPC_CHANNELS.OCR_STATUS_UPDATE, message);
@@ -852,22 +860,9 @@ function pythonFound(): void {
       serverLoadCheckInterval = null;
     }
 
-    if (lastExitWasAnkiError && !ankiErrorSent) {
-      const reason = ankiErrorReason || 'connection_failed';
-      pendingAnkiError = reason;
-      pendingCriticalError = null;
-      ankiErrorSent = true;
-      getMainWindow()?.webContents.send(
-        IPC_CHANNELS.ANKI_CONNECTION_ERROR,
-        reason
-      );
-      return;
-    }
-
     const errorMsg = buildCrashSummary(code, signal, recentLogTail);
     lifecycleLog.error(errorMsg);
     pendingCriticalError = errorMsg;
-    pendingAnkiError = null;
     getMainWindow()?.webContents.send(
       IPC_CHANNELS.SERVER_CRITICAL_ERROR,
       errorMsg
@@ -876,13 +871,12 @@ function pythonFound(): void {
 
   const args = [
     serverPath,
-    settings.ankiConnectUrl,
-    String(useAnki),
-    settings.language,
+    settings.language || 'und',
     resPath,
     llmEnabled ? 'true' : 'false',
     ocrEnabled ? 'true' : 'false',
     userDataPath,
+    getLanguageDataRoot(),
   ];
 
   if (isWindows) {
@@ -895,7 +889,13 @@ function pythonFound(): void {
       ...args.map(a => a.includes(' ') ? `"${a}"` : a),
     ].join(' ');
 
-    pythonChildProcess = exec(command);
+    pythonChildProcess = exec(command, {
+      env: {
+        ...process.env,
+        MLEARN_DICTIONARY_TARGET_LANGUAGES_JSON: dictionaryTargetLanguagesEnv,
+        ...(activeDictionaryTargetLanguage ? { MLEARN_DICTIONARY_TARGET_LANGUAGE: activeDictionaryTargetLanguage } : {}),
+      },
+    });
   } else {
     // Raise the per-process FD limit before exec-ing Python.
     // ML libs (torch, transformers, ONNX) open thousands of files;
@@ -905,7 +905,11 @@ function pythonFound(): void {
       '-c',
       `ulimit -n 65536 2>/dev/null; exec env '${pythonExecutable}' ${quotedArgs}`,
     ], {
-      env: process.env,
+      env: {
+        ...process.env,
+        MLEARN_DICTIONARY_TARGET_LANGUAGES_JSON: dictionaryTargetLanguagesEnv,
+        ...(activeDictionaryTargetLanguage ? { MLEARN_DICTIONARY_TARGET_LANGUAGE: activeDictionaryTargetLanguage } : {}),
+      },
     });
   }
 
@@ -914,6 +918,7 @@ function pythonFound(): void {
   pythonChildProcess.stdout?.on('data', handleSTDOUT);
   pythonChildProcess.stderr?.on('data', handleSTDERR);
   pythonChildProcess.on('close', handleClose);
+  return true;
 }
 
 // Find Python installation
@@ -944,45 +949,44 @@ function verifyPythonExecutable(pythonPath: string): Promise<boolean> {
 export async function findPython(): Promise<boolean> {
   log.info('Finding Python...');
 
-  const possibilities = [
-    path.join(userDataPath, 'env', 'bin', 'python3'),
-    path.join(userDataPath, 'env', 'python.exe'),
-    path.join(process.resourcesPath, 'env', 'bin', 'python3'),
-    path.join(resPath, 'env', 'bin', 'python3'),
-    path.join(process.resourcesPath, 'env', 'python.exe'),
-    path.join(resPath, 'env', 'python.exe'),
-  ];
+  const possibilities = getPythonExecutableCandidates();
 
   for (const pythonPath of possibilities) {
     if (fs.existsSync(pythonPath)) {
       const healthy = await verifyPythonExecutable(pythonPath);
       if (healthy) {
         log.info('Python found and healthy at:', pythonPath);
+        selectedPythonExecutablePath = pythonPath;
 
-        // Only enforce version check for Python installed in userData path
-        // (persistent across app updates). Dev Python in project resources
-        // doesn't have version tracking.
+        // UserData Python persists across binary updates. Existing profiles should
+        // keep using a healthy runtime instead of being sent back through onboarding.
         if (pythonPath.startsWith(userDataPath)) {
           const installedVersion = getInstalledPythonVersion();
           const currentVersion = app.getVersion();
           if (installedVersion !== currentVersion) {
-            log.info(`Python was installed with version ${installedVersion ?? 'unknown'}, current app version is ${currentVersion}. Showing installer for update/reinstall.`);
-            try { fs.unlinkSync(pythonVersionPath); } catch {}
-            waitingForInstallChoice = true;
-            isFirstTimeSetup = true;
-            sendStatusUpdate('Select the components you want and click Install to continue.');
-            try {
-              getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
-            } catch (e) {
-              log.error('error', e);
+            if (hasSettingsFile()) {
+              log.info(`Python was installed with version ${installedVersion ?? 'unknown'}, current app version is ${currentVersion}. Reusing healthy runtime for existing profile.`);
+              setInstalledPythonVersion(currentVersion);
+            } else {
+              log.info(`Python was installed with version ${installedVersion ?? 'unknown'}, current app version is ${currentVersion}. Showing installer for update/reinstall.`);
+              try { fs.unlinkSync(pythonVersionPath); } catch {}
+              waitingForInstallChoice = true;
+              isFirstTimeSetup = true;
+              sendStatusUpdate('Select the components you want and click Install to continue.');
+              try {
+                getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+              } catch (e) {
+                log.error('error', e);
+              }
+              return false;
             }
-            return false;
           }
         }
 
+        waitingForInstallChoice = false;
+        isFirstTimeSetup = false;
         pythonSuccessInstall = true;
-        pythonFound();
-        return true;
+        return await pythonFound();
       }
       log.warn('Python binary exists but is not healthy:', pythonPath);
     }
@@ -1022,8 +1026,10 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
 
   pendingInstallOptions = options;
   waitingForInstallChoice = false;
+  isFirstTimeSetup = false;
   installInProgress = true;
   pythonSuccessInstall = false;
+  selectedPythonExecutablePath = null;
 
   const selectedComponents = ['Python runtime'];
   if (options.includeLLM) selectedComponents.push('Local language model support');
@@ -1059,12 +1065,13 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
     try {
       fs.mkdirSync(extractPath, { recursive: true });
       await extractFile(downloadPath, extractPath);
+      selectedPythonExecutablePath = getUserDataPythonExecutablePath();
       sendStatusUpdate('Extraction complete, installing libraries...');
 
       if (pipRequirements.length === 0) {
         installInProgress = false;
         pythonSuccessInstall = true;
-        pythonFound();
+        await pythonFound();
         return;
       }
 
@@ -1134,6 +1141,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
             pythonSuccessInstall = true;
             setInstalledPythonVersion(app.getVersion());
             sendStatusUpdate('Installation complete');
+            await pythonFound();
           } else {
             log.error('Installation verification failed');
             waitingForInstallChoice = true;
@@ -1218,7 +1226,7 @@ export function restartPythonBackend(): void {
     if (attempts <= 0 || !pythonChildProcess || pythonChildProcess.killed) {
       pythonChildProcess = null;
       // Re-launch the backend
-      pythonFound();
+      void pythonFound();
       return;
     }
     setTimeout(() => waitForExit(attempts - 1), 200);
@@ -1243,12 +1251,13 @@ export function setupPythonBackendIPC(): void {
       pendingStartupStatusMessage = null;
     }
 
-    if (!serverLoaded && pendingAnkiError) {
-      // Re-send buffered Anki error (renderer may have mounted after the event)
-      event.sender.send(IPC_CHANNELS.ANKI_CONNECTION_ERROR, pendingAnkiError);
-    } else if (!serverLoaded && pendingCriticalError) {
+    if (!serverLoaded && pendingCriticalError) {
       // Re-send buffered critical error
       event.sender.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, pendingCriticalError);
+    }
+
+    if (!serverLoaded && waitingForInstallChoice) {
+      event.sender.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
     }
   });
 
@@ -1286,11 +1295,6 @@ export function setupPythonBackendIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.RESTART_BACKEND, () => {
-    restartPythonBackend();
-  });
-
-  ipcMain.on(IPC_CHANNELS.RESTART_BACKEND_ANKI_OVERRIDE, (_event, disableAnki: boolean) => {
-    ankiOverrideDisable = disableAnki;
     restartPythonBackend();
   });
 }

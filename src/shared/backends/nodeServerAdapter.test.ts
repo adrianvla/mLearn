@@ -33,8 +33,8 @@ const mockSettings: Settings = {
   language: 'ja',
   hover_known_get_from_dictionary: true,
   show_pos: false,
-  furigana: true,
-  showPitchAccent: false,
+  showReadingAnnotations: true,
+  showProsody: false,
   use_anki: false,
   flashcardSkipAnkiChoice: false,
   anki_field_expression: '',
@@ -221,7 +221,7 @@ describe('HttpNodeServerAdapter', () => {
 
   describe('getLangData(lang?)', () => {
     it('GETs /api/lang-data/{lang} when lang is provided', async () => {
-      const langData = { features: ['furigana'] };
+      const langData = { features: ['reading-annotations'] };
       mockFetch.mockResolvedValueOnce(makeOkResponse(langData));
       const adapter = new HttpNodeServerAdapter(DEFAULT_URL);
 

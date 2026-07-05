@@ -2,8 +2,7 @@
  * Localized Time Formatting Utilities
  *
  * All duration / interval / timestamp formatting goes through localization
- * so each language can express time units in its own way
- * (e.g. Japanese 分/秒/時間, German Min./Sek., etc.).
+ * so each locale can express time units in its own way.
  *
  * Every function accepts a translation function `t` obtained from `useLocalization()`.
  */
@@ -16,8 +15,7 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 
 /**
  * Short duration with minutes and seconds — used for call / session durations.
- * Examples (en): "3m 45s", "45s"
- * Examples (ja): "3分 45秒", "45秒"
+ * Examples: "3m 45s", "45s"
  */
 export function formatDurationShort(ms: number, t: TranslateFn): string {
   const totalSec = Math.round(ms / 1000);
@@ -31,8 +29,7 @@ export function formatDurationShort(ms: number, t: TranslateFn): string {
 
 /**
  * Duration expressed in hours and minutes — used for watch-time / study-time.
- * Examples (en): "3h 15m", "15m", "0m"
- * Examples (ja): "3時間 15分", "15分", "0分"
+ * Examples: "3h 15m", "15m", "0m"
  */
 export function formatDurationHM(ms: number, t: TranslateFn): string {
   const hours = Math.floor(ms / 3_600_000);
@@ -53,11 +50,11 @@ export function formatDurationHMFromSeconds(seconds: number, t: TranslateFn): st
 
 /**
  * Compact SRS-style interval — used for flashcard scheduling labels.
- * < 1 min → "< 1m" / "< 1分"
- * minutes → "5m" / "5分"
- * hours   → "3h" / "3時間"
- * days    → "14d" / "14日"
- * years   → "1.5y" / "1.5年"
+ * < 1 min → localized "< 1 minute"
+ * minutes → localized short minutes
+ * hours   → localized short hours
+ * days    → localized short days
+ * years   → localized short years
  */
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
@@ -85,8 +82,7 @@ export function formatDueDate(dueTimestamp: number, t: TranslateFn): string {
 
 /**
  * Clock time from a timestamp — uses the app locale for proper AM/PM or 24h.
- * Examples (en-US): "2:30 PM"
- * Examples (ja): "午後2:30"
+ * Examples: "2:30 PM", "14:30"
  */
 export function formatClockTime(timestamp: number, locale: string): string {
   const d = new Date(timestamp);

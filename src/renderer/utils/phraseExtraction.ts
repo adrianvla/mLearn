@@ -9,8 +9,10 @@
  * - LLM service (context for explanations)
  */
 
-import type { Token } from '../../shared/types';
-import { escapeHtml, stripFurigana } from '../../shared/utils/textUtils';
+import type { LanguageData, Token } from '../../shared/types';
+import { escapeHtml, stripReadingAnnotations, stripRubyAnnotations } from '../../shared/utils/textUtils';
+import { getPartOfSpeechColor, getTokenJoinSeparator, tokensToPlainText as tokensToLanguagePlainText } from '../../shared/languageFeatures';
+import { hasLettersInSegmentlessScript, languageUsesSegmentlessText } from '../../shared/languageScriptProfile';
 
 /**
  * Extract a plain text context phrase from tokens
@@ -19,9 +21,9 @@ import { escapeHtml, stripFurigana } from '../../shared/utils/textUtils';
  * @param tokens Array of tokens from tokenizer
  * @returns Plain text phrase
  */
-export function tokensToPlainText(tokens: Token[]): string {
+export function tokensToPlainText(tokens: Token[], data?: LanguageData | null): string {
     if (!tokens || tokens.length === 0) return '';
-    return tokens.map(t => t.surface ?? t.word ?? '').join('');
+    return tokensToLanguagePlainText(tokens, data);
 }
 
 /**
@@ -36,7 +38,8 @@ export function tokensToPlainText(tokens: Token[]): string {
 export function tokensToColoredHtml(
     tokens: Token[],
     colourCodes: Record<string, string> = {},
-    targetWord?: string
+    targetWord?: string,
+    data?: LanguageData | null,
 ): string {
     if (!tokens || tokens.length === 0) return '';
 
@@ -47,7 +50,7 @@ export function tokensToColoredHtml(
         if (!word) continue;
 
         const pos = token.partOfSpeech ?? token.type ?? '';
-        const color = pos ? colourCodes[pos] : undefined;
+        const color = getPartOfSpeechColor(pos, colourCodes, data);
         const isTarget = targetWord && (token.actual_word === targetWord || word === targetWord);
 
         // Build class list
@@ -62,20 +65,20 @@ export function tokensToColoredHtml(
         );
     }
 
-    return parts.join('');
+    return parts.join(getTokenJoinSeparator(data));
 }
 
 /**
- * Clean a raw context phrase by stripping furigana annotations and normalizing whitespace
+ * Clean a raw context phrase by stripping reading annotations and normalizing whitespace
  *
- * @param text Raw text that may contain furigana annotations
+ * @param text Raw text that may contain reading annotations
  * @returns Clean text suitable for display or LLM input
  */
-export function cleanContextPhrase(text: string): string {
+export function cleanContextPhrase(text: string, data?: LanguageData | null): string {
     if (!text) return '';
 
-    // Strip furigana annotations (e.g., 漢字(かんじ) -> 漢字)
-    let cleaned = stripFurigana(text);
+    // Strip ruby markup and metadata-configured reading annotations.
+    let cleaned = data ? stripReadingAnnotations(text, data) : stripRubyAnnotations(text);
 
     // Normalize whitespace (collapse multiple spaces, trim)
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
@@ -91,9 +94,9 @@ export function cleanContextPhrase(text: string): string {
  * @param fallbackText Fallback text if context map is empty
  * @returns Cleaned context phrase
  */
-export function getContextPhrase(contextFromMap: string | undefined, fallbackText?: string): string {
+export function getContextPhrase(contextFromMap: string | undefined, fallbackText?: string, data?: LanguageData | null): string {
     const raw = contextFromMap || fallbackText || '';
-    return cleanContextPhrase(raw);
+    return cleanContextPhrase(raw, data);
 }
 
 /**
@@ -103,9 +106,9 @@ export function getContextPhrase(contextFromMap: string | undefined, fallbackTex
  * @param phrase The phrase to format
  * @returns Formatted phrase ready for clipboard
  */
-export function formatForClipboard(phrase: string): string {
+export function formatForClipboard(phrase: string, data?: LanguageData | null): string {
     // Clean and normalize
-    let formatted = cleanContextPhrase(phrase);
+    let formatted = cleanContextPhrase(phrase, data);
 
     // Remove any HTML tags that might have slipped through
     formatted = formatted.replace(/<[^>]*>/g, '');
@@ -117,19 +120,27 @@ export function formatForClipboard(phrase: string): string {
 }
 
 /**
- * Truncate a phrase to a maximum length while preserving word boundaries
+ * Truncate a phrase to a maximum length while preserving word boundaries.
+ * Languages with segmentless writing systems use hard character truncation;
+ * space-separated languages prefer a nearby word boundary.
  * Used for cache keys and display previews
  *
  * @param phrase The phrase to truncate
  * @param maxLength Maximum length (default 100)
  * @returns Truncated phrase
  */
-export function truncatePhrase(phrase: string, maxLength: number = 100): string {
+export function truncatePhrase(
+    phrase: string,
+    maxLength: number = 100,
+    data?: LanguageData | null,
+    language: string = '',
+): string {
     if (!phrase || phrase.length <= maxLength) return phrase;
 
-    // For CJK text (no spaces), just truncate at the limit
-    const hasCJK = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]/.test(phrase);
-    if (hasCJK) {
+    const useHardTruncation = data || language
+        ? languageUsesSegmentlessText(language, data)
+        : hasLettersInSegmentlessScript(phrase);
+    if (useHardTruncation) {
         return phrase.slice(0, maxLength) + '…';
     }
 

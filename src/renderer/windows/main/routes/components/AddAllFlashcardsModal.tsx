@@ -1,6 +1,7 @@
 import { Component, For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { Btn, CheckboxCard, Modal, PillLabel, Select, type SelectOption } from '../../../../components/common';
 import { useLanguage, useLocalization } from '../../../../context';
+import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, isDisplayableFrequencyLevel, isFrequencyLevelAtOrEasierThanTarget, sortFrequencyLevelsForDisplay } from '../../../../../shared/languageFeatures';
 import type { ReaderUnknownWordEntry } from './ReaderUnknownWordsSidebar';
 import './AddAllFlashcardsModal.css';
 
@@ -14,7 +15,7 @@ interface AddAllFlashcardsModalProps {
 
 export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (props) => {
   const { t } = useLocalization();
-  const { getFreqLevelNames, getFrequency, getLanguageFeatures, getLevelName } = useLanguage();
+  const { currentLangData, getFreqLevelNames, getFrequency, getLanguageFeatures, getLevelName } = useLanguage();
 
   const [levelFilterEnabled, setLevelFilterEnabled] = createSignal(false);
   const [dictionaryFilterEnabled, setDictionaryFilterEnabled] = createSignal(false);
@@ -35,9 +36,16 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
 
   const levelOptions = createMemo<SelectOption[]>(() => {
     const names = getFreqLevelNames();
-    return Object.entries(names)
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => Number(b.value) - Number(a.value));
+    const languageData = currentLangData();
+    const discoveredLevels = props.allEntries
+      .map((entry) => getFrequency(entry.word)?.raw_level)
+      .filter((level): level is number => isDisplayableFrequencyLevel(level, names, languageData));
+    const levels = Array.from(new Set([
+      ...Object.keys(names).map(Number).filter((level) => isDisplayableFrequencyLevel(level, names, languageData)),
+      ...discoveredLevels,
+    ]));
+    return sortFrequencyLevelsForDisplay(levels, languageData)
+      .map((level) => ({ value: String(level), label: getFrequencyLevelLabel(level, names, languageData) }));
   });
 
   const defaultLevel = createMemo(() => {
@@ -49,10 +57,10 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
 
   const levelFilteredEntries = createMemo(() => {
     const threshold = Number(effectiveLevel());
-    if (!threshold) return [];
+    if (!Number.isFinite(threshold)) return [];
     return props.allEntries.filter((entry) => {
       const freq = getFrequency(entry.word);
-      return freq && freq.raw_level >= threshold;
+      return freq && isFrequencyLevelAtOrEasierThanTarget(freq.raw_level, threshold, currentLangData());
     });
   });
 
@@ -215,7 +223,13 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
             <For each={entriesToConfirm()}>
               {(entry) => {
                 const freq = getFrequency(entry.word);
-                const levelData = freq ? { level: freq.raw_level, name: freq.level } : null;
+                const levelData = freq
+                  ? {
+                      level: freq.raw_level,
+                      visualLevel: getFrequencyLevelVisualRank(freq.raw_level, getFreqLevelNames(), currentLangData()),
+                      name: freq.level,
+                    }
+                  : null;
                 return (
                   <label class="add-all-modal-word-item">
                     <input
@@ -225,7 +239,9 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
                     />
                     <span class="add-all-modal-word-text">{entry.word}</span>
                     <Show when={levelData}>
-                      <PillLabel level={levelData!.level} size="xs">{levelData!.name || getLevelName(levelData!.level)}</PillLabel>
+                      <PillLabel level={levelData!.level} visualLevel={levelData!.visualLevel} size="xs">
+                        {levelData!.name || getLevelName(levelData!.level)}
+                      </PillLabel>
                     </Show>
                   </label>
                 );

@@ -193,7 +193,7 @@ vi.mock('./localization', () => ({
           Flashcards: 'Flashcards',
           ForceRecreateFlashcards: 'Force recreate new flashcards for today',
           Help: 'Help',
-          HideReading: 'Hide Reading',
+          HideReading: 'Hide Reading Annotations',
           OpenDevTools: 'Open DevTools',
           OpenLiveWordTranslator: 'Open Live Word Translator',
           OpenSyncingWindow: 'Open Syncing Window',
@@ -205,10 +205,9 @@ vi.mock('./localization', () => ({
           },
           ReviewFlashcards: 'Review Flashcards',
           Settings: 'Settings',
-          ExamCentricStudy: 'Exam-centric Study',
-          ShowKanjiGrid: 'Show Kanji grid',
+          LevelStudy: 'Level Study',
           ShowLearningStatistics: 'Show learning statistics',
-          ShowReading: 'Show Reading',
+          ShowReading: 'Show Reading Annotations',
           Statistics: 'Statistics',
           StopWatchTogether: 'Stop Watch Together',
           SyncSubtitles: 'Sync Subtitles with Video',
@@ -325,6 +324,16 @@ describe('windowManager', () => {
       expect(win).toBeDefined();
       expect(win.loadURL ?? win.loadFile).toBeDefined();
     });
+
+    it('reuses the existing main window instead of creating duplicates', async () => {
+      const { createMainWindow } = await import('./windowManager');
+      const first = createMainWindow();
+      const second = createMainWindow();
+
+      expect(second).toBe(first);
+      expect(createdWindows).toHaveLength(1);
+      expect(first.focus).toHaveBeenCalled();
+    });
   });
 
   describe('createWelcomeWindow', () => {
@@ -333,6 +342,16 @@ describe('windowManager', () => {
       const win = createWelcomeWindow();
       expect(win).toBeDefined();
       expect(createdWindows.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('reuses the existing welcome window instead of creating duplicates', async () => {
+      const { createWelcomeWindow } = await import('./windowManager');
+      const first = createWelcomeWindow();
+      const second = createWelcomeWindow();
+
+      expect(second).toBe(first);
+      expect(createdWindows).toHaveLength(1);
+      expect(first.focus).toHaveBeenCalled();
     });
 
     it('sets currentWindow to the welcome window', async () => {
@@ -365,6 +384,15 @@ describe('windowManager', () => {
     });
   });
 
+  it('closes the welcome window when the main window is created', async () => {
+    const { createWelcomeWindow, createMainWindow, getCurrentWindow } = await import('./windowManager');
+    const welcome = createWelcomeWindow();
+    const main = createMainWindow();
+
+    expect(welcome.close).toHaveBeenCalled();
+    expect(getCurrentWindow()).toBe(main);
+  });
+
   describe('createChildWindow', () => {
     it('creates a new BrowserWindow for an unknown type', async () => {
       const countBefore = createdWindows.length;
@@ -378,6 +406,32 @@ describe('windowManager', () => {
       const { createChildWindow } = await import('./windowManager');
       const win = createChildWindow('settings' as never);
       expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/settings.html');
+      delete process.env.NODE_ENV;
+    });
+
+    it('loads the character grid from a neutral window id', async () => {
+      process.env.NODE_ENV = 'development';
+      const { createChildWindow } = await import('./windowManager');
+      const { WINDOW_TYPES } = await import('../../shared/constants');
+
+      expect(WINDOW_TYPES.CHARACTER_GRID).toBe('character-grid');
+      expect('KANJI_GRID' in WINDOW_TYPES).toBe(false);
+
+      const win = createChildWindow(WINDOW_TYPES.CHARACTER_GRID);
+      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/character-grid.html');
+      delete process.env.NODE_ENV;
+    });
+
+    it('loads level study from a neutral window id', async () => {
+      process.env.NODE_ENV = 'development';
+      const { createChildWindow } = await import('./windowManager');
+      const { WINDOW_TYPES } = await import('../../shared/constants');
+
+      expect(WINDOW_TYPES.LEVEL_STUDY).toBe('level-study');
+      expect('EXAM_CENTRIC_STUDY' in WINDOW_TYPES).toBe(false);
+
+      const win = createChildWindow(WINDOW_TYPES.LEVEL_STUDY);
+      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/level-study.html');
       delete process.env.NODE_ENV;
     });
 
@@ -644,7 +698,7 @@ describe('windowManager', () => {
       const { Menu } = await import('electron');
 
       fireOn(IPC_CHANNELS.SHOW_READER_CTX_MENU, makeSenderEvent(), {
-        furiganaHiderEnabled: false,
+        readingAnnotationHiderEnabled: false,
         hasContextPhrase: true,
       });
 
@@ -652,36 +706,60 @@ describe('windowManager', () => {
       expect(mockMenuInstance.popup).toHaveBeenCalled();
     });
 
-    it('SHOW_READER_CTX_MENU: shows "Hide Reading" when furiganaHiderEnabled is false', async () => {
+    it('SHOW_READER_CTX_MENU: shows "Hide Reading Annotations" when readingAnnotationHiderEnabled is false', async () => {
+      const { setupWindowIPC } = await import('./windowManager');
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const { Menu } = await import('electron');
+
+      const event = makeSenderEvent();
+      fireOn(IPC_CHANNELS.SHOW_READER_CTX_MENU, event, {
+        readingAnnotationHiderEnabled: false,
+        hasContextPhrase: false,
+      });
+
+      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const item = (template as Array<{ label?: string; click?: () => void }>).find(i => i.label === 'Hide Reading Annotations');
+      expect(item).toBeDefined();
+      item?.click?.();
+      expect(event.sender.send).toHaveBeenCalledWith(
+        IPC_CHANNELS.READER_CTX_MENU_COMMAND,
+        'toggle-reading-annotation-hider',
+      );
+    });
+
+    it('SHOW_READER_CTX_MENU: shows "Show Reading Annotations" when readingAnnotationHiderEnabled is true', async () => {
       const { setupWindowIPC } = await import('./windowManager');
       setupWindowIPC();
       const { IPC_CHANNELS } = await import('../../shared/constants');
       const { Menu } = await import('electron');
 
       fireOn(IPC_CHANNELS.SHOW_READER_CTX_MENU, makeSenderEvent(), {
-        furiganaHiderEnabled: false,
+        readingAnnotationHiderEnabled: true,
         hasContextPhrase: false,
       });
 
       const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const item = (template as Array<{ label?: string }>).find(i => i.label === 'Hide Reading');
+      const item = (template as Array<{ label?: string }>).find(i => i.label === 'Show Reading Annotations');
       expect(item).toBeDefined();
     });
 
-    it('SHOW_READER_CTX_MENU: shows "Show Reading" when furiganaHiderEnabled is true', async () => {
+    it('SHOW_READER_CTX_MENU: hides reading toggle when the language has no reading annotations', async () => {
       const { setupWindowIPC } = await import('./windowManager');
       setupWindowIPC();
       const { IPC_CHANNELS } = await import('../../shared/constants');
       const { Menu } = await import('electron');
 
       fireOn(IPC_CHANNELS.SHOW_READER_CTX_MENU, makeSenderEvent(), {
-        furiganaHiderEnabled: true,
+        readingAnnotationHiderEnabled: false,
+        canToggleReadingHider: false,
         hasContextPhrase: false,
       });
 
       const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const item = (template as Array<{ label?: string }>).find(i => i.label === 'Show Reading');
-      expect(item).toBeDefined();
+      const labels = (template as Array<{ label?: string }>).map(i => i.label);
+      expect(labels).not.toContain('Hide Reading');
+      expect(labels).not.toContain('Show Reading');
     });
 
     it('SHOW_READER_CTX_MENU: Copy Phrase item is disabled when hasContextPhrase is false', async () => {
@@ -691,7 +769,7 @@ describe('windowManager', () => {
       const { Menu } = await import('electron');
 
       fireOn(IPC_CHANNELS.SHOW_READER_CTX_MENU, makeSenderEvent(), {
-        furiganaHiderEnabled: false,
+        readingAnnotationHiderEnabled: false,
         hasContextPhrase: false,
       });
 
@@ -707,7 +785,7 @@ describe('windowManager', () => {
       const { Menu } = await import('electron');
 
       fireOn(IPC_CHANNELS.SHOW_READER_CTX_MENU, makeSenderEvent(), {
-        furiganaHiderEnabled: false,
+        readingAnnotationHiderEnabled: false,
         hasContextPhrase: true,
         canExplainPhrase: true,
       });
@@ -727,6 +805,22 @@ describe('windowManager', () => {
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', options: {} });
 
       expect(createdWindows.length).toBeGreaterThan(countBefore);
+      delete process.env.NODE_ENV;
+    });
+
+    it('OPEN_WINDOW: routes welcome through the singleton installer window', async () => {
+      process.env.NODE_ENV = 'development';
+      const { setupWindowIPC } = await import('./windowManager');
+      setupWindowIPC();
+      const { IPC_CHANNELS, WINDOW_TYPES } = await import('../../shared/constants');
+
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: WINDOW_TYPES.WELCOME, options: {} });
+      const first = createdWindows[createdWindows.length - 1];
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: WINDOW_TYPES.WELCOME, options: {} });
+
+      expect(first.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/welcome.html');
+      expect(createdWindows.filter(win => win.loadURL.mock.calls.some(call => call[0] === 'http://localhost:3000/src/html/welcome.html'))).toHaveLength(1);
+      expect(first.focus).toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
 

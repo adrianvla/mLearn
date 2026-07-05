@@ -1,11 +1,12 @@
 
 /* === Start index.css === */
-body.theme-dark-high-contrast {
+body.theme-dark-high-contrast,
+.theme-dark-high-contrast {
     /*--bg-opaque: #0a0a0a;*/
     --bg-opaque: #000;
     --bg-nt-primary: rgb(26,26,26);
     --bg-nt-secondary: rgb(38,38,38);
-    --kanji-grid-unknown-bg: #616161;
+    --character-grid-unknown-bg: #616161;
     --text-primary: white;
     --text-secondary: white;
     --text-tertiary: white;
@@ -20,6 +21,14 @@ body.theme-dark-high-contrast {
 
     /* Dark mode flashcard highlight */
     --flashcard-highlight: #ff5ec7;
+    --pill-default-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-1-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-2-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-3-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-4-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-5-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-6-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-7-filter: invert(1) hue-rotate(180deg) saturate(200%);
 
     --panel-bg: var(--bg);
     --panel-bg-hover: var(--bg-intense);
@@ -95,13 +104,72 @@ body.theme-dark-high-contrast .subtitle_hover_alt_c,
 }
 /* === End WordHover.css === */
 
-body.theme-dark-high-contrast .label-pill,
+body.theme-dark-high-contrast .label-pill {
+    border: 1px solid var(--border-color);
+    box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
 body.theme-dark-high-contrast .btn-pill,
 body.theme-dark-high-contrast .label-status{
     border: 1px solid var(--border-color);
     filter: invert(1) hue-rotate(180deg) saturate(200%);
     box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+body.theme-dark-high-contrast .label-pill,
+.theme-dark-high-contrast .label-pill {
+    filter: var(--pill-default-filter);
+}
+
+body.theme-dark-high-contrast .label-pill[data-level="1"],
+.theme-dark-high-contrast .label-pill[data-level="1"] {
+    filter: var(--pill-level-1-filter);
+}
+
+body.theme-dark-high-contrast .label-pill[data-level="2"],
+.theme-dark-high-contrast .label-pill[data-level="2"] {
+    filter: var(--pill-level-2-filter);
+}
+
+body.theme-dark-high-contrast .label-pill[data-level="3"],
+.theme-dark-high-contrast .label-pill[data-level="3"] {
+    filter: var(--pill-level-3-filter);
+}
+
+body.theme-dark-high-contrast .label-pill[data-level="4"],
+.theme-dark-high-contrast .label-pill[data-level="4"] {
+    filter: var(--pill-level-4-filter);
+}
+
+body.theme-dark-high-contrast .label-pill[data-level="5"],
+.theme-dark-high-contrast .label-pill[data-level="5"] {
+    filter: var(--pill-level-5-filter);
+}
+
+body.theme-dark-high-contrast .label-pill[data-level="6"],
+.theme-dark-high-contrast .label-pill[data-level="6"] {
+    filter: var(--pill-level-6-filter);
+}
+
+body.theme-dark-high-contrast .label-pill[data-level="7"],
+.theme-dark-high-contrast .label-pill[data-level="7"] {
+    filter: var(--pill-level-7-filter);
+}
+
+/* Ensure icons inside pills are not double-inverted (applies to both img and SVG) */
+body.theme-dark-high-contrast .label-pill .label-icon img,
+body.theme-dark-high-contrast .btn-pill .btn-icon-wrapper img,
+body.theme-dark-high-contrast .label-pill .label-icon svg,
+body.theme-dark-high-contrast .btn-pill .btn-icon-wrapper svg,
+body.theme-dark-high-contrast .label-pill .label-svg-icon,
+body.theme-dark-high-contrast .btn-pill .btn-svg-icon,
+body.theme-dark-high-contrast .label-status .label-icon img,
+body.theme-dark-high-contrast .label-status .label-icon svg,
+body.theme-dark-high-contrast .label-status .label-svg-icon {
+    filter: invert(1) hue-rotate(180deg); /* counter the parent invert */
+    background: transparent;
 }
 
 body.theme-dark-high-contrast .draggable-popup .panel{

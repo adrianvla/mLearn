@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { ConversationMessage, Token } from '../../../shared/types';
+import type { ConversationMessage, LanguageData, Token } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 
 type MockSettings = {
@@ -13,14 +13,16 @@ type MockSettings = {
 };
 
 let mockSettings: MockSettings;
+let mockLanguageData: LanguageData | null;
 
 vi.mock('../../context', () => ({
   useSettings: () => ({
     settings: mockSettings,
   }),
   useLanguage: () => ({
-    currentLangData: () => null,
+    currentLangData: () => mockLanguageData,
     isTranslatable: (partOfSpeech: string) => partOfSpeech === 'noun',
+    isTokenTranslatable: (token: Token) => (token.partOfSpeech ?? token.type) === 'noun',
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string>) => params?.key ? `${key}:${params.key}` : key,
@@ -76,6 +78,7 @@ describe('ChatBubble hover triggers', () => {
       readerWordHoverKey: 'shift',
       do_colour_codes: false,
     };
+    mockLanguageData = null;
   });
 
   afterEach(() => {
@@ -193,6 +196,37 @@ describe('ChatBubble hover triggers', () => {
 
     expect(container.textContent).toContain('mlearn.ConversationAgent.Safety.UrgentNotice');
     expect(container.textContent).toContain('mlearn.ConversationAgent.Safety.GetHelp');
+
+    dispose();
+  });
+
+  it('renders tokenized user text with the current language token separator', async () => {
+    const { ChatBubble } = await import('./ChatBubble');
+    mockLanguageData = {
+      name: 'Latin Language',
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        lexemeNormalization: {
+          type: 'identity',
+        },
+      },
+    };
+    const message: ConversationMessage = {
+      role: 'user',
+      content: 'hello world',
+      tokens: [
+        { word: 'hello', actual_word: 'hello', type: 'noun', partOfSpeech: 'noun' },
+        { word: 'world', actual_word: 'world', type: 'noun', partOfSpeech: 'noun' },
+      ],
+      timestamp: 0,
+    };
+
+    const dispose = render(() => (
+      <ChatBubble message={message} triggerMode="hover" triggerKey="shift" />
+    ), container);
+
+    expect(container.textContent).toContain('hello world');
 
     dispose();
   });

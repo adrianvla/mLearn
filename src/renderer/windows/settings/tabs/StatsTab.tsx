@@ -18,7 +18,7 @@ import './StatsTab.css';
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
   const { store } = useFlashcards();
-  const { wordFrequency, getFreqLevelNames, getLanguageFeatures } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
 
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
@@ -26,11 +26,12 @@ export const StatsTab: Component = () => {
   const wordStats = createMemo<ComprehensiveWordStats>(() =>
     computeWordLevelStats(
       store,
-      wordFrequency,
+      getWordFrequency(),
       settings.language,
       settings.known_ease_threshold,
       settings.srsLearningThreshold,
       getFreqLevelNames(),
+      currentLangData(),
     ),
   );
 
@@ -41,7 +42,7 @@ export const StatsTab: Component = () => {
 
   const pct = (n: number, total: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
 
-  const openExamCentricStudy = () => getBridge().window.openWindow({ type: 'exam-centric-study' });
+  const openLevelStudy = () => getBridge().window.openWindow({ type: 'level-study' });
   const openWordDbEditor = () => getBridge().window.openWindow({ type: 'word-db-editor' });
   const openAiAnalytics = () => getBridge().window.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
 
@@ -80,7 +81,7 @@ export const StatsTab: Component = () => {
 
       <Show when={getLanguageFeatures().supportsFrequencyLevels && wordStats().byLevel.length > 0}>
         <div class="stats-section">
-          <h4 class="stats-section-title">{t('mlearn.Statistics.WordsByExamLevel')}</h4>
+          <h4 class="stats-section-title">{t('mlearn.Statistics.WordsByLevel')}</h4>
           <table class="stats-level-table">
             <thead>
               <tr>
@@ -123,8 +124,8 @@ export const StatsTab: Component = () => {
       </Show>
 
       <div class="stats-actions">
-        <Btn variant="default" onClick={openExamCentricStudy}>
-          {t('mlearn.Statistics.Actions.OpenExamCentricStudy')}
+        <Btn variant="default" onClick={openLevelStudy}>
+          {t('mlearn.Statistics.Actions.OpenLevelStudy')}
         </Btn>
         <Btn variant="default" onClick={openWordDbEditor}>
           {t('mlearn.Statistics.Actions.EditWordDatabase')}

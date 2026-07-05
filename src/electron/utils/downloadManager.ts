@@ -36,7 +36,7 @@ export function downloadFileWithProgress(
       fs.mkdirSync(destDir, { recursive: true });
     }
 
-    const tempPath = destPath + '.downloading';
+    const tempPath = `${destPath}.${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.downloading`;
     let downloadedBytes = 0;
     let expectedBytes = 0;
 
@@ -90,9 +90,13 @@ export function downloadFileWithProgress(
 
         fileStream.on('finish', () => {
           fileStream.close(() => {
-            fs.renameSync(tempPath, destPath);
-            emitProgress();
-            resolve();
+            try {
+              fs.renameSync(tempPath, destPath);
+              emitProgress();
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
           });
         });
 

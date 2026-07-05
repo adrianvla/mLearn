@@ -12,7 +12,7 @@ import { setupFlashcardIPC } from './services/flashcardStorage';
 import { setupFlashcardImageIPC, registerFlashcardImageScheme, setupFlashcardImageProtocol } from './services/flashcardImageStorage';
 import { setupFlashcardTtsIPC, registerFlashcardAudioScheme, setupFlashcardAudioProtocol } from './services/flashcardTtsStorage';
 import { setupFlashcardVideoIPC, registerFlashcardVideoScheme, setupFlashcardVideoProtocol } from './services/flashcardVideoStorage';
-import { setupSettingsIPC } from './services/settings';
+import { hasExistingProfile, setupSettingsIPC } from './services/settings';
 import { setupLoggingService } from './services/loggingService';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnosticsWindow } from './services/windowManager';
@@ -40,6 +40,7 @@ import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
 
 const log = getLogger('electron.main');
+let appWindowCreationPromise: Promise<void> | null = null;
 
 interface AuthDeepLinkPayload {
   code: string | null;
@@ -169,6 +170,17 @@ function handleDeepLinkArgs(args: string[]): void {
       handlePossibleDeepLinkValue(arg);
     }
   }
+}
+
+function focusExistingAppWindow(): boolean {
+  const { BrowserWindow } = require('electron');
+  const allWindows = BrowserWindow.getAllWindows();
+  const win = allWindows.find((candidate: Electron.BrowserWindow) => !candidate.isDestroyed());
+  if (!win) return false;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  return true;
 }
 
 const execAsync = promisify(exec);
@@ -302,6 +314,12 @@ function setupAllIPC(): void {
 
 // Create windows and start services
 async function createAppWindows(): Promise<void> {
+  if (appWindowCreationPromise) {
+    await appWindowCreationPromise;
+    return;
+  }
+
+  appWindowCreationPromise = (async () => {
   // Check for diagnostics mode
   const isDiagnosticsMode = process.argv.includes('--diagnostics');
   if (isDiagnosticsMode) {
@@ -310,21 +328,26 @@ async function createAppWindows(): Promise<void> {
     return;
   }
 
-  // Start Python backend
-  const pythonFound = await findPython();
-  
-  // Create appropriate window FIRST so it can receive error messages
-  if (!pythonFound) {
-    createWelcomeWindow();
-  } else {
+  if (hasExistingProfile()) {
     createMainWindow();
+  } else {
+    createWelcomeWindow();
   }
+
+  await findPython();
 
   // Start web server for tethered mode AFTER window is created
   // This ensures any errors (like EADDRINUSE) can be displayed to the user
   startWebServer();
   flushQueuedAuthDeepLinks();
   flushQueuedLookupDeepLinks();
+  })();
+
+  try {
+    await appWindowCreationPromise;
+  } finally {
+    appWindowCreationPromise = null;
+  }
 }
 
 // Main initialization
@@ -369,6 +392,7 @@ if (!gotSingleInstanceLock) {
 } else {
   app.on('second-instance', (_event, commandLine) => {
     handleDeepLinkArgs(commandLine);
+    focusExistingAppWindow();
   });
 
   app.on('open-url', (event, rawUrl) => {
@@ -384,15 +408,8 @@ if (!gotSingleInstanceLock) {
     void initialize();
 
     app.on('activate', () => {
-      const { BrowserWindow } = require('electron');
-      const allWindows = BrowserWindow.getAllWindows();
-      if (allWindows.length === 0) {
-        createAppWindows();
-      } else {
-        const win = allWindows[0];
-        if (win.isMinimized()) win.restore();
-        win.show();
-        win.focus();
+      if (!focusExistingAppWindow()) {
+        void createAppWindows();
       }
     });
   });

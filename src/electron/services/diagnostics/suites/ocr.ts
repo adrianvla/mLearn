@@ -7,8 +7,10 @@ import path from 'path';
 import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_API_URL } from '../../../../shared/constants';
 import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
-import { httpGet, skipTest } from '../utils';
+import { httpGet, httpPostMultipart, skipTest } from '../utils';
 import { getAppPath, getResourcePath } from '../../../utils/platform';
+import { loadSettings } from '../../settings';
+import { buildOcrMultipartBody } from '../ocrRequestUtils';
 
 function findTestImage(): string | null {
   const candidates = [
@@ -23,6 +25,14 @@ function findTestImage(): string | null {
     }
   }
   return null;
+}
+
+function getOcrDiagnosticLanguage(): string {
+  const language = loadSettings().language?.trim();
+  if (!language) {
+    skipTest('No learning language configured');
+  }
+  return language;
 }
 
 registerDiagnosticSuite({
@@ -50,35 +60,17 @@ registerDiagnosticSuite({
         }
         const imageBuffer = fs.readFileSync(testImage);
         const boundary = `----mlearn-diag-${Date.now()}`;
-        const body = Buffer.concat([
-          Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="test.png"\r\nContent-Type: image/png\r\n\r\n`),
+        const body = buildOcrMultipartBody({
+          boundary,
           imageBuffer,
-          Buffer.from(`\r\n--${boundary}--\r\n`),
-        ]);
-
-        const result = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-          const http = require('http');
-          const req = http.request(
-            `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': `multipart/form-data; boundary=${boundary}`,
-                'Content-Length': body.length,
-              },
-              timeout: 30_000,
-            },
-            (res: any) => {
-              let data = '';
-              res.on('data', (chunk: Buffer) => { data += chunk; });
-              res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
-            },
-          );
-          req.on('error', reject);
-          req.on('timeout', () => { req.destroy(); reject(new Error('OCR request timed out')); });
-          req.write(body);
-          req.end();
+          language: getOcrDiagnosticLanguage(),
         });
+        const result = await httpPostMultipart(
+          `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
+          body,
+          boundary,
+          30_000,
+        );
 
         if (result.status !== 200) {
           throw new Error(`Local OCR returned status ${result.status}`);

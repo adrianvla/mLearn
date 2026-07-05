@@ -1,7 +1,7 @@
 /**
  * WordSelector
  * Allows the user to search and select words they want to focus on during an AI tutor session.
- * Shows words from wordKnowledge in a color-coded grid (like KanjiGrid), sorted by ease.
+ * Shows words from wordKnowledge in a color-coded grid, sorted by ease.
  *
  * Word ordering:
  *  1. Failed words from media (based on counted hover failures, excluding pure numbers)
@@ -18,7 +18,9 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
 import { streamChat } from '../../services/llmProvider';
+import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, getLanguagePromptName, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
+import { resolveWordSelectorLanguageData } from './wordSelectorLanguage';
 
 import { Input, LevelPillsFilter, EmptyState, HintText, Btn, SparklesIcon, CollapsibleStickyHeader } from '../common';
 import type {
@@ -56,7 +58,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     if (ease < settings.easeThresholdMastered) return isDarkMode ? 'rgba(66, 214, 49, 0.35)' : 'rgba(66, 214, 49, 0.2)';
     return isDarkMode ? 'rgba(66, 214, 49, 0.5)' : 'rgba(66, 214, 49, 0.3)';
   };
-  const { getFrequency, getFreqLevelNames } = useLanguage();
+  const { getFrequency, getFreqLevelNames, langData, currentLangData } = useLanguage();
   const flashcardCtx = useFlashcards();
   const { requestAccess } = useLowPowerGate();
 
@@ -83,9 +85,18 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
 
   const isDark = () => settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
 
-  const isValidWordForCurrentLanguage = (word: string) => {
-    return Boolean(word?.trim()) && isWordInLanguageScript(word.trim(), settings.language);
+  const languageDataFor = (language: string) => resolveWordSelectorLanguageData(
+    language,
+    settings.language,
+    langData,
+    currentLangData(),
+  );
+
+  const isValidWordForLanguage = (word: string, language: string) => {
+    return Boolean(word?.trim()) && isWordInLanguageScript(word.trim(), language, languageDataFor(language));
   };
+
+  const isValidWordForCurrentLanguage = (word: string) => isValidWordForLanguage(word, settings.language);
 
   // Load media stats on mount
   onMount(() => {
@@ -109,7 +120,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
 
     for (const media of mediaStats()) {
       for (const entry of Object.values(media.wordsEncountered)) {
-        if (!isWordInLanguageScript(entry.word, settings.language)) continue;
+        if (!isValidWordForCurrentLanguage(entry.word)) continue;
         // Keep the entry with the lowest ease if duplicated across media
         const existing = wordMap.get(entry.word);
         if (!existing || entry.ease < existing.ease) {
@@ -137,7 +148,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       const entry = knowledge[key];
       if (!entry) continue;
       if (entry.language && entry.language !== lang) continue;
-      if (!isWordInLanguageScript(entry.word, lang)) continue;
+      if (!isValidWordForLanguage(entry.word, lang)) continue;
       items.push(entry);
     }
 
@@ -156,7 +167,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       if (!card) continue;
       if (card.language && card.language !== lang) continue;
       const word = card.content.front || card.content.word;
-      if (!word || !isWordInLanguageScript(word, lang)) continue;
+      if (!word || !isValidWordForLanguage(word, lang)) continue;
       items.push({
         word,
         reading: card.content.reading || card.content.pronunciation,
@@ -218,11 +229,15 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   // Available frequency levels for filter pills
   const availableLevels = createMemo(() => {
     const levels = new Set<number>();
+    const levelNames = getFreqLevelNames();
+    const languageData = currentLangData();
     for (const w of allWords()) {
       const freq = getFrequency(w.word);
-      if (freq) levels.add(freq.raw_level);
+      if (freq && isDisplayableFrequencyLevel(freq.raw_level, levelNames, languageData)) {
+        levels.add(freq.raw_level);
+      }
     }
-    return Array.from(levels).sort((a, b) => a - b);
+    return sortFrequencyLevelsForDisplay(Array.from(levels), languageData);
   });
 
   // Level names from language data
@@ -231,8 +246,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   // Selected words set for O(1) lookup
   const selectedWords = createMemo(() => new Set(props.selected.map(s => s.word)));
 
-  // Filter and sort
-  const filteredWords = createMemo(() => {
+  const queryFilteredWords = createMemo(() => {
     const query = searchQuery().toLowerCase().trim();
     const level = levelFilter();
 
@@ -242,7 +256,9 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     if (level !== null) {
       items = items.filter(w => {
         const freq = getFrequency(w.word);
-        return freq && freq.raw_level === level;
+        return freq
+          && isDisplayableFrequencyLevel(freq.raw_level, levelNames(), currentLangData())
+          && freq.raw_level === level;
       });
     }
 
@@ -254,22 +270,25 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       );
     }
 
-    // Sort: selected first, then by ease ascending (least known first)
-    const combined = allWords();
-    const orderIndex = new Map<string, number>();
-    for (let i = 0; i < combined.length; i++) {
-      orderIndex.set(combined[i].word, i);
+    return items;
+  });
+
+  // Keep selection interactions cheap: only partition the current query
+  // snapshot instead of rebuilding or sorting the full source list.
+  const filteredWords = createMemo(() => {
+    const selected = selectedWords();
+    const selectedItems: PassiveWordKnowledge[] = [];
+    const unselectedItems: PassiveWordKnowledge[] = [];
+
+    for (const item of queryFilteredWords()) {
+      if (selected.has(item.word)) {
+        selectedItems.push(item);
+      } else {
+        unselectedItems.push(item);
+      }
     }
 
-    return items.sort((a, b) => {
-      const aSelected = selectedWords().has(a.word) ? 0 : 1;
-      const bSelected = selectedWords().has(b.word) ? 0 : 1;
-      if (aSelected !== bSelected) return aSelected - bSelected;
-
-      const aIdx = orderIndex.get(a.word) ?? Infinity;
-      const bIdx = orderIndex.get(b.word) ?? Infinity;
-      return aIdx - bIdx;
-    });
+    return [...selectedItems, ...unselectedItems];
   });
 
   const legendItems = createMemo(() => ([
@@ -352,11 +371,12 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     setGenerationError('');
 
     const lang = settings.language;
+    const languagePromptName = getLanguagePromptName(lang, currentLangData());
 
     const messages: LLMChatMessage[] = [
       {
         role: 'system',
-        content: `You are a language learning vocabulary generator. Generate a list of useful vocabulary words for learning ${lang}. Output ONLY a valid JSON array of objects with "word" (the word in ${lang}) and optionally "reading" (pronunciation/reading if applicable). Do not wrap in markdown code fences. Do not include any explanation or commentary. Generate 10-15 diverse, practical words. Example format: [{"word":"example","reading":"ex"}]`,
+        content: `You are a language learning vocabulary generator. Generate a list of useful vocabulary words for learning ${languagePromptName}. Output ONLY a valid JSON array of objects with "word" (the word in ${languagePromptName}) and optionally "reading" (pronunciation, transliteration, or reading annotation if useful for this language). Do not wrap in markdown code fences. Do not include any explanation or commentary. Generate 10-15 diverse, practical words. Example format: [{"word":"example","reading":"ex"}]`,
       },
       {
         role: 'user',
@@ -548,7 +568,8 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
           onLevelChange={(level) => {
             setLevelFilter(level);
           }}
-          getLevelLabel={(level) => levelNames()[String(level)] || String(level)}
+          getLevelLabel={(level) => getFrequencyLevelLabel(level, levelNames(), currentLangData())}
+          getVisualLevel={(level) => getFrequencyLevelVisualRank(level, levelNames(), currentLangData())}
           allLabel={t('mlearn.AITutorSetup.AllLevels')}
         />
 

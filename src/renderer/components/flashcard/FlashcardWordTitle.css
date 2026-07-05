@@ -1,0 +1,31 @@
+.flashcard-word-title__reading rt,
+.fc-reading-annotation rt {
+  font-size: 0.5em;
+  text-align: center;
+  ruby-align: center;
+  white-space: nowrap;
+  font-weight: var(--font-weight-normal);
+}
+
+.flashcard-word-title__prosody-position,
+.fc-prosody-position {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-start: 0.5rem;
+  font-size: 0.55em;
+  line-height: 1;
+  color: var(--text-secondary);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.flashcard-word-title__prosody-label,
+.fc-prosody-position-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.flashcard-word-title__prosody-value,
+.fc-prosody-position-value {
+  font-variant-numeric: tabular-nums;
+}

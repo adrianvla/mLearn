@@ -5,7 +5,7 @@
  * Cached per base URL — call `resetBackend()` when settings change.
  */
 
-import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 import type { BackendAdapter, BackendMode } from './types';
 import { HttpBackend } from './httpBackend';
 
@@ -35,10 +35,33 @@ export function resolveCloudApiUrl(settings: CloudUrlSettings): string {
 let cached: BackendAdapter | null = null;
 let cachedKey = '';
 
+function isViteDevRendererOrigin(): boolean {
+  const location = globalThis.location;
+  if (!location) return false;
+  return location.protocol === 'http:'
+    && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    && location.port === '3000';
+}
+
+function isLocalPythonBackendUrl(userUrl?: string): boolean {
+  if (!userUrl) return false;
+  try {
+    const parsed = new URL(userUrl);
+    return (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1')
+      && parsed.port === String(PYTHON_BACKEND_PORT);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Build the base URL for a given backend mode and optional user URL.
  */
 function resolveBaseUrl(mode: BackendMode, userUrl?: string): string {
+  if (isViteDevRendererOrigin() && (mode === 'local' || isLocalPythonBackendUrl(userUrl))) {
+    return '';
+  }
+
   switch (mode) {
     case 'tethered':
       return userUrl?.replace(/\/+$/, '') || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
@@ -46,6 +69,20 @@ function resolveBaseUrl(mode: BackendMode, userUrl?: string): string {
     default:
       return `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
   }
+}
+
+function resolveAnkiBaseUrl(mode: BackendMode, userUrl?: string): string {
+  if (mode === 'tethered' && userUrl) {
+    const trimmed = userUrl.replace(/\/+$/, '');
+    try {
+      const parsed = new URL(trimmed);
+      parsed.port = String(PROXY_SERVER_PORT);
+      return parsed.toString().replace(/\/+$/, '');
+    } catch {
+      return trimmed;
+    }
+  }
+  return `http://127.0.0.1:${PROXY_SERVER_PORT}`;
 }
 
 export interface GetBackendOptions {
@@ -69,12 +106,16 @@ export interface GetBackendOptions {
 export function getBackend(opts: GetBackendOptions = {}): BackendAdapter {
   const mode = opts.mode || 'local';
   const baseUrl = resolveBaseUrl(mode, opts.url);
+  const ankiBaseUrl = resolveAnkiBaseUrl(mode, opts.url);
   const authToken = opts.authToken || '';
-  const key = `${baseUrl}::${authToken}`;
+  const key = `${baseUrl}::${ankiBaseUrl}::${authToken}`;
 
   if (cached && cachedKey === key) return cached;
 
-  cached = new HttpBackend(baseUrl, { authToken: authToken || undefined });
+  cached = new HttpBackend(baseUrl, {
+    authToken: authToken || undefined,
+    ankiBaseUrl,
+  });
   cachedKey = key;
   return cached;
 }

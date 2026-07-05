@@ -10,6 +10,7 @@ import type {
   VoiceMistake,
   Token,
   LLMChatMessage,
+  LanguageData,
 } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { createConversationAgent, type StreamCallbacks } from './conversationAgent';
@@ -17,7 +18,8 @@ import type { LanguageFeatures } from '../context/LanguageContext';
 
 const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
   supportsReadings: true,
-  supportsPitchAccent: true,
+  prosodyRenderer: 'japanese-pitch-accent',
+  supportsProsody: true,
   isLogographic: true,
   isRTL: false,
   supportsColorCodes: true,
@@ -28,8 +30,19 @@ const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
   supportsCharacterNames: true,
   supportsVerticalText: true,
   supportsGrammar: true,
-  usesCJKParentheses: true,
-  supportsHonorifics: true,
+  supportsDeferentialRegister: true,
+  tokenizerCapabilities: {
+    segmentsText: true,
+    segmentationQuality: 'linguistic',
+    providesLemmas: true,
+    providesPartOfSpeech: true,
+    providesReadings: true,
+    allowsRoughFallback: false,
+  },
+  casualRegisterPromptGuidelines: [],
+  tutorPromptGuidelines: ['Do not quiz the learner on character readings; focus quizzes on vocabulary, usage, and grammar.'],
+  correctionPromptGuidelines: [],
+  mistakeCheckerPromptGuidelines: [],
 };
 
 // ============================================================================
@@ -76,6 +89,7 @@ interface MockDeps {
   };
   getFrequency?: (word: string) => WordFrequencyEntry | null;
   getTargetLevel?: () => number | null;
+  getLanguageData?: () => LanguageData | null;
   getLevelName?: (level: number) => string;
   isVoiceMode?: () => boolean;
   onVoiceMistake?: (_mistake: VoiceMistake) => void;
@@ -211,7 +225,7 @@ describe('createConversationAgent', () => {
       expect(sysMsg.content).toContain('Japanese');
     });
 
-    it('emits honorific-avoidance directive when language supports honorifics (ja)', () => {
+    it('emits deferential-register avoidance directive when language declares deferential forms', () => {
       const agent = createConversationAgent(createMockDeps());
       const { callbacks } = createCallbacks();
 
@@ -219,20 +233,21 @@ describe('createConversationAgent', () => {
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
-      expect(sysMsg.content).toContain('honorific');
+      expect(sysMsg.content).toContain('Avoid formal or deferential register entirely.');
     });
 
-    it('omits honorific-avoidance directive when language lacks honorifics (de)', () => {
+    it('omits deferential-register avoidance directive when language lacks deferential forms', () => {
       const deps = createMockDeps({
         getLanguage: () => 'de',
         getLanguageName: () => 'German',
         getLanguageFeatures: () => ({
           ...DEFAULT_LANGUAGE_FEATURES,
-          supportsHonorifics: false,
+          supportsDeferentialRegister: false,
           supportsReadings: false,
           isLogographic: false,
           usesLatinScript: true,
-          supportsPitchAccent: false,
+          prosodyRenderer: undefined,
+          tutorPromptGuidelines: [],
         }),
       });
       const agent = createConversationAgent(deps);
@@ -242,9 +257,62 @@ describe('createConversationAgent', () => {
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
-      expect(sysMsg.content).not.toContain('honorific');
       expect(sysMsg.content).not.toContain('deferential');
       expect(sysMsg.content).toContain('German');
+    });
+
+    it('keeps generic casual tutor guidance language-agnostic', () => {
+      const deps = createMockDeps({
+        getLanguage: () => 'ar',
+        getLanguageName: () => 'Arabic',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          supportsReadings: false,
+          isLogographic: false,
+          isRTL: true,
+          usesLatinScript: false,
+          prosodyRenderer: undefined,
+          tutorPromptGuidelines: [],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('Arabic');
+      expect(sysMsg.content).toContain('everyday vocabulary');
+      expect(sysMsg.content).not.toContain('contractions');
+    });
+
+    it('includes package-declared casual register guidance without requiring built-in deferential-register policy', () => {
+      const deps = createMockDeps({
+        getLanguage: () => 'ar',
+        getLanguageName: () => 'Arabic',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          supportsReadings: false,
+          isLogographic: false,
+          isRTL: true,
+          usesLatinScript: false,
+          prosodyRenderer: undefined,
+          casualRegisterPromptGuidelines: ['Use everyday spoken Arabic phrasing; do not over-classicize learner-facing replies.'],
+          tutorPromptGuidelines: [],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('Use everyday spoken Arabic phrasing; do not over-classicize learner-facing replies.');
+      expect(sysMsg.content).not.toContain('deferential');
     });
 
     it('emits character-readings directive only when language supports readings (ja)', () => {
@@ -264,10 +332,11 @@ describe('createConversationAgent', () => {
         getLanguageName: () => 'German',
         getLanguageFeatures: () => ({
           ...DEFAULT_LANGUAGE_FEATURES,
-          supportsHonorifics: false,
+          supportsDeferentialRegister: false,
           supportsReadings: false,
           isLogographic: false,
           usesLatinScript: true,
+          tutorPromptGuidelines: [],
         }),
       });
       const agent = createConversationAgent(deps);
@@ -278,6 +347,104 @@ describe('createConversationAgent', () => {
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
       expect(sysMsg.content).not.toContain('character readings');
+    });
+
+    it('includes language-provided tutor prompt guidelines', () => {
+      const deps = createMockDeps({
+        getLanguage: () => 'zh',
+        getLanguageName: () => 'Chinese',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          tutorPromptGuidelines: ['When quizzing pronunciation, accept both tone marks and tone numbers.'],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('When quizzing pronunciation, accept both tone marks and tone numbers.');
+    });
+
+    it('keeps inline correction guidance free of register assumptions when no language-specific guidance exists', () => {
+      const deps = createMockDeps({
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
+        getLanguage: () => 'de',
+        getLanguageName: () => 'German',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          supportsReadings: false,
+          isLogographic: false,
+          usesLatinScript: true,
+          tutorPromptGuidelines: [],
+          correctionPromptGuidelines: [],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('Only correct actual mistakes');
+      expect(sysMsg.content).not.toContain('casual register');
+      expect(sysMsg.content).not.toContain('informal speech');
+      expect(sysMsg.content).not.toContain('Language-specific correction guidance');
+      expect(sysMsg.content).not.toContain('particles');
+    });
+
+    it('adds register correction guidance only when language metadata declares it', () => {
+      const deps = createMockDeps({
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
+        getLanguage: () => 'ja',
+        getLanguageName: () => 'Japanese',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: true,
+          correctionPromptGuidelines: [],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('Language-specific correction guidance');
+      expect(sysMsg.content).toContain('dropped politeness markers');
+    });
+
+    it('includes language-provided correction prompt guidelines for inline corrections', () => {
+      const deps = createMockDeps({
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
+        getLanguage: () => 'ar',
+        getLanguageName: () => 'Arabic',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          supportsReadings: false,
+          isLogographic: false,
+          isRTL: true,
+          usesLatinScript: false,
+          tutorPromptGuidelines: [],
+          correctionPromptGuidelines: ['Accept learner messages written with or without short vowel marks.'],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('Language-specific correction guidance');
+      expect(sysMsg.content).toContain('Accept learner messages written with or without short vowel marks.');
     });
 
     it('appends immutable safety instructions to the system prompt', () => {
@@ -1665,6 +1832,90 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('voice conversation');
     });
 
+    it('includes package-declared casual register guidance in voice prompts', () => {
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        getLanguage: () => 'ru',
+        getLanguageName: () => 'Russian',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          supportsReadings: false,
+          isLogographic: false,
+          usesLatinScript: false,
+          prosodyRenderer: undefined,
+          casualRegisterPromptGuidelines: ['Use natural informal second-person singular unless the session asks for formal address.'],
+          tutorPromptGuidelines: [],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('Russian');
+      expect(messages[0].content).toContain('Use natural informal second-person singular unless the session asks for formal address.');
+      expect(messages[0].content).not.toContain('deferential');
+    });
+
+    it('includes package-declared mistake checker guidance in voice prompts', () => {
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        getLanguage: () => 'ar',
+        getLanguageName: () => 'Arabic',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          supportsReadings: false,
+          isLogographic: false,
+          isRTL: true,
+          usesLatinScript: false,
+          prosodyRenderer: undefined,
+          casualRegisterPromptGuidelines: [],
+          tutorPromptGuidelines: [],
+          mistakeCheckerPromptGuidelines: ['Accept missing short vowel marks when they do not change meaning.'],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('Speech Correction Guidelines');
+      expect(messages[0].content).toContain('Accept missing short vowel marks when they do not change meaning.');
+    });
+
+    it('includes package-declared shared correction guidance in voice prompts', () => {
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        getLanguage: () => 'fa',
+        getLanguageName: () => 'Farsi',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsDeferentialRegister: false,
+          supportsReadings: false,
+          isLogographic: false,
+          isRTL: true,
+          usesLatinScript: false,
+          prosodyRenderer: undefined,
+          casualRegisterPromptGuidelines: [],
+          tutorPromptGuidelines: [],
+          correctionPromptGuidelines: ['Accept Arabic-script and Latin transliteration when the session allows script practice.'],
+          mistakeCheckerPromptGuidelines: [],
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('salam', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('Speech Correction Guidelines');
+      expect(messages[0].content).toContain('Accept Arabic-script and Latin transliteration when the session allows script practice.');
+    });
+
     it('uses VOICE_AGENT_TOOLS (note_mistake included, correct_mistake excluded)', () => {
       const deps = createMockDeps({ isVoiceMode: () => true });
       const agent = createConversationAgent(deps);
@@ -2030,6 +2281,36 @@ describe('createConversationAgent', () => {
       expect(result[1].role).toBe('assistant');
       expect(result[2].role).toBe('user');
       expect(result[3].role).toBe('assistant');
+    });
+
+    it('uses language metadata when estimating history size for compaction', () => {
+      const compactScriptLanguage: LanguageData = {
+        name: 'Georgian compact test',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: {
+          scriptProfile: { acceptedScripts: ['Geor'] },
+          wordIndexStrategy: {
+            type: 'character-containment',
+          },
+        },
+      };
+      const agent = createConversationAgent(createMockDeps({
+        getLanguage: () => 'ka',
+        getLanguageData: () => compactScriptLanguage,
+      }));
+      const compactContent = 'ა'.repeat(15);
+      const history: LLMChatMessage[] = [
+        { role: 'user', content: compactContent },
+        { role: 'assistant', content: compactContent },
+        { role: 'user', content: compactContent },
+        { role: 'assistant', content: compactContent },
+      ];
+
+      agent.loadHistory(history);
+      agent.compactHistory(35);
+
+      expect(agent.getHistory()).toEqual(history.slice(2));
     });
 
     it('preserves the most recent exchange during compaction', () => {

@@ -72,8 +72,12 @@
   justify-content: center;
 }
 
-.page-container.double {
-  flex-direction: row-reverse; /* Manga reading order */
+.page-container.double.spread-rtl {
+  flex-direction: row-reverse;
+}
+
+.page-container.double.spread-ltr {
+  flex-direction: row;
 }
 
 /* Collate mode: stitch pages together by removing gap and inner border-radius */

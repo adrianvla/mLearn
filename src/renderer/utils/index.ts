@@ -1,10 +1,9 @@
 /**
  * Renderer Utils
- * Re-exports all utility functions for easy importing
+ * Re-exports generic renderer utilities. Language-specific helpers should be imported directly.
  */
 
 export * from './ocrUtils';
 export * from './phraseExtraction';
-export * from './pitchAccent';
 export * from './subtitleParsing';
 export * from './timeFormatting';

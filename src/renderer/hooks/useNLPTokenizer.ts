@@ -4,8 +4,11 @@
  */
 
 import { createSignal } from 'solid-js';
-import type { LanguageCode } from '../../shared/language-abstraction';
 import { getBackend } from '../../shared/backends';
+import { getTokenizerCacheNamespace } from '../../shared/languageFeatures';
+import type { LanguageData } from '../../shared/types';
+
+export type LanguageCode = string;
 
 export interface MorphToken {
   surface: string;
@@ -20,6 +23,15 @@ export interface TokenizationResult {
   tokens: MorphToken[];
 }
 
+export interface TokenizationCacheOptions {
+  /** Namespace for installed language-data/tokenizer version. Prevents stale tokens after package updates. */
+  cacheNamespace?: string;
+}
+
+export interface UseNLPTokenizerOptions {
+  languageData?: LanguageData | null | (() => LanguageData | null | undefined);
+}
+
 // In-flight deduplication: prevent concurrent identical tokenization requests
 const tokenInFlight = new Map<string, Promise<TokenizationResult>>();
 
@@ -31,16 +43,24 @@ const TOKEN_CACHE_TTL = 1000 * 60 * 60; // 1 hour
 /**
  * Generate cache key from text and language
  */
-function getCacheKey(text: string, language: LanguageCode): string {
-  return `${language}:${text}`;
+function getCacheKey(text: string, language: LanguageCode, cacheNamespace?: string): string {
+  return `${language}:${cacheNamespace || 'default'}:${text}`;
+}
+
+function resolveLanguageData(value: UseNLPTokenizerOptions['languageData']): LanguageData | null {
+  return typeof value === 'function' ? value() ?? null : value ?? null;
 }
 
 /**
  * Get cached tokenization result (without fetching)
  * Returns null if not cached or expired
  */
-export function getCachedNLPTokenization(text: string, language: LanguageCode): TokenizationResult | null {
-  const key = getCacheKey(text, language);
+export function getCachedNLPTokenization(
+  text: string,
+  language: LanguageCode,
+  options: TokenizationCacheOptions = {},
+): TokenizationResult | null {
+  const key = getCacheKey(text, language, options.cacheNamespace);
   const cached = tokenCache.get(key);
   
   if (!cached) return null;
@@ -71,19 +91,23 @@ export function clearNLPTokenizationCache(): void {
  * - Error handling: throws if backend unavailable or text invalid
  * 
  * @param text - Text to tokenize
- * @param language - Language code (e.g., 'ja', 'de')
+ * @param language - Language code from installed language data
  * @returns Promise resolving to tokenization result
  * @throws Error if no backend available for language or backend not initialized
  */
-async function tokenizeTextInternal(text: string, language: LanguageCode): Promise<TokenizationResult> {
+async function tokenizeTextInternal(
+  text: string,
+  language: LanguageCode,
+  options: TokenizationCacheOptions = {},
+): Promise<TokenizationResult> {
   if (!text || text.trim().length === 0) {
     throw new Error('Cannot tokenize empty text');
   }
   
-  const cacheKey = getCacheKey(text, language);
+  const cacheKey = getCacheKey(text, language, options.cacheNamespace);
   
   // Check cache first
-  const cached = getCachedNLPTokenization(text, language);
+  const cached = getCachedNLPTokenization(text, language, options);
   if (cached) {
     return cached;
   }
@@ -139,7 +163,7 @@ async function tokenizeTextInternal(text: string, language: LanguageCode): Promi
  * 
  * const handleTokenize = async () => {
  *   try {
- *     const result = await tokenize('こんにちは', 'ja');
+ *     const result = await tokenize(text, languageCode);
  *     console.log(result.tokens);
  *   } catch (err) {
  *     console.error('Tokenization failed:', err);
@@ -149,7 +173,7 @@ async function tokenizeTextInternal(text: string, language: LanguageCode): Promi
  * 
  * @returns Object with tokenize function and cache utilities
  */
-export function useNLPTokenizer() {
+export function useNLPTokenizer(options: UseNLPTokenizerOptions = {}) {
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<Error | null>(null);
   
@@ -165,7 +189,9 @@ export function useNLPTokenizer() {
       setError(null);
       
       try {
-        return await tokenizeTextInternal(textToTokenize, lang);
+        return await tokenizeTextInternal(textToTokenize, lang, {
+          cacheNamespace: getTokenizerCacheNamespace(resolveLanguageData(options.languageData)),
+        });
       } catch (err) {
         const errorObj = err instanceof Error ? err : new Error(String(err));
         setError(errorObj);
@@ -182,7 +208,9 @@ export function useNLPTokenizer() {
      * @returns Cached result or null if not cached
      */
     getCached: (textToTokenize: string, lang: LanguageCode): TokenizationResult | null => {
-      return getCachedNLPTokenization(textToTokenize, lang);
+      return getCachedNLPTokenization(textToTokenize, lang, {
+        cacheNamespace: getTokenizerCacheNamespace(resolveLanguageData(options.languageData)),
+      });
     },
     
     // State signals

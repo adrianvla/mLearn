@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "Common": {
+      "Status": {
+        "Unknown": "未知"
+      }
+    },
     "AI": {
       "CloudUnreachable": "云服务无法连接。请检查您的网络连接后重试。",
       "DownloadModel": "下载模型",
@@ -201,10 +206,12 @@
         "DefinitionsPlaceholder": "每行一个释义",
         "ExampleSentence": "例句（允许 HTML）",
         "ExampleTranslation": "例句翻译",
-        "PitchAccent": "音调核",
-        "PitchAccentPlaceholder": "0（平板型）、1、2、3…",
+        "JapanesePitchAccent": "音调核",
+        "JapanesePitchAccentPlaceholder": "0（平板型）、1、2、3…",
+        "ProsodyPosition": "韵律位置",
+        "ProsodyPositionPlaceholder": "0、1、2、3…",
         "Reading": "读音",
-        "ReadingPlaceholder": "假名 / 读音",
+        "ReadingPlaceholder": "读音 / 发音",
         "StructuredContent": "结构化内容（可选 HTML）",
         "SurfaceNote": "（单词）",
         "Translation": "翻译（逗号或换行分隔）",
@@ -212,7 +219,7 @@
         "WordPlaceholder": "输入单词…"
       },
       "GenerateTtsAction": "生成",
-      "Hint": "翻译：逗号或换行分隔。音调核为拍节下降位置（0=平板型）。",
+      "Hint": "翻译：逗号或换行分隔。语言包支持时会保存韵律信息。",
       "NoCloudAuth": "未通过云认证。请通过设置→服务器登录。",
       "Regenerate": {
         "AllCompleted": "所有任务已完成",
@@ -270,6 +277,11 @@
       "DesktopCode": "桌面一次性代码",
       "HintLocal": "使用本机上的本地 Python 后端。",
       "HintTethered": "连接到您桌面上运行的 Python 后端。",
+      "LanguageCatalog": {
+        "Description": "可下载语言元数据和资源链接的清单 URL。",
+        "Title": "语言目录",
+        "Url": "目录 URL"
+      },
       "Mode": "模式",
       "ModeLocal": "本地",
       "ModeTethered": "绑定模式",
@@ -586,8 +598,6 @@
       }
     },
     "ErrorModal": {
-      "AnkiDisablePermanent": "永久禁用 Anki",
-      "AnkiDisableSession": "禁用此会话的 Anki",
       "Copied": "已复制！",
       "CopyError": "复制错误",
       "HideDetails": "隐藏详情",
@@ -990,9 +1000,9 @@
           "IgnoreSeen": "忽略已见",
           "Title": "单词同步"
         },
-        "ExamCentricStudy": {
-          "Description": "Word Sync, Character Grid, and Exam Study in one place",
-          "Title": "Exam-centric Study"
+        "LevelStudy": {
+          "Description": "单词同步、字符网格和等级学习集中在一处",
+          "Title": "等级学习"
         }
       },
       "Errors": {
@@ -1007,6 +1017,9 @@
       }
     },
     "Installer": {
+      "Title": {
+        "ComponentsRequired": "需要设置"
+      },
       "Alerts": {
         "NetworkError": "发生网络错误。请检查您的连接后重试。"
       },
@@ -1015,7 +1028,10 @@
         "CancelRestart": "取消重启",
         "Continue": "继续",
         "Installing": "安装中…",
-        "StartInstallation": "开始安装"
+        "StartInstallation": "开始安装",
+        "InstallRequiredComponents": "安装所需组件",
+        "InstallLanguageData": "安装所选语言数据",
+        "FinishSetup": "完成设置"
       },
       "Components": {
         "ExplainAi": {
@@ -1032,17 +1048,23 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "选择要安装的组件，然后点击安装。",
+        "ChooseComponents": "选择你想学习的语言，以及 mLearn 使用的显示语言。",
         "ClickToBegin": "点击安装开始。",
         "DownloadNote": "所有下载将自动处理。建议使用稳定的网络连接。",
         "ForgetSomething": "安装完成后无法添加组件。请现在选择所有需要的组件。",
-        "LanguageUnlocks": "设置完成后可进行语言选择。"
+        "LanguageUnlocks": "只有在你明确开始时，才会安装语言数据。"
+      },
+      "DictionaryTarget": {
+        "Label": "词典语言",
+        "ChooseAvailable": "选择可用的词典语言",
+        "Unavailable": "此学习语言没有 {language} 词典。请选择可用的词典语言：{available}。"
       },
       "Status": {
-        "Complete": "安装完成！选择您的语言完成设置。",
+        "Complete": "安装完成！继续安装所选语言的数据。",
         "CouldNotStart": "无法启动安装过程。",
         "ErrorOccurred": "发生错误。请查看下方日志。",
         "Installing": "正在安装，请稍候…",
+        "InstallingLanguageData": "正在安装语言数据…",
         "InstallingPackages": "正在安装包…",
         "LanguageInstalledRestarting": "语言已安装！正在重启…",
         "LlmSkip": "正在跳过本地 AI 模型依赖。",
@@ -1055,25 +1077,38 @@
         "AlreadySatisfied": "已满足",
         "Collecting": "正在收集依赖项…",
         "Downloading": "正在下载…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "我想学习",
+        "AppLanguagePrefix": "并使用 mLearn 的显示语言",
+        "AppLanguageSuffix": "。",
+        "DictionaryPrefix": "词典释义语言为"
+      },
+      "Advanced": {
+        "Title": "高级设置"
+      },
+      "Summary": {
+        "LearningLanguage": "学习语言：{language}",
+        "DisplayLanguage": "显示语言：{language}",
+        "DictionaryLanguage": "词典语言：{language}",
+        "NotAvailable": "不可用"
       }
     },
-    "ExamCentricStudy": {
-      "Title": "Exam-centric Study",
+    "LevelStudy": {
+      "Title": "等级学习",
       "Tabs": {
-        "WordSync": "Word Sync",
-        "CharacterGrid": "Character Grid",
-        "ExamStudy": "Exam Study"
-      }
-    },
-    "ExamStudy": {
+        "WordSync": "单词同步",
+        "CharacterGrid": "字符网格",
+        "LevelStudy": "等级学习"
+      },
       "EmptyState": {
-        "Title": "考试学习",
-        "Description": "按考试等级学习单词。跟踪进度并添加到闪卡。"
+        "Title": "等级学习",
+        "Description": "按等级学习单词。跟踪进度并添加到闪卡。"
       },
       "Coverage": {
-        "Title": "考试单词覆盖率",
+        "Title": "等级单词覆盖率",
         "Words": "个单词",
-        "Complete": "所有考试单词已追踪!",
+        "Complete": "所有等级单词已追踪!",
         "Hint": "点击下方等级查看并添加单词"
       },
       "PopulationStats": {
@@ -1115,39 +1150,6 @@
         "Adding": "添加中...",
         "LoadMore": "加载更多",
         "Error": "添加失败"
-      }
-    },
-    "KanjiGrid": {
-      "CharactersByExamLevel": "按考试等级划分的汉字：",
-      "Disclaimer": {
-        "Description": "此处 JLPT 汉字是根据分配给每个 JLPT 等级的单词推断出来的，然后从这些单词中提取。这意味着此网格是近似值：某些等级包含的单词中的汉字本身并不需要在该等级掌握。",
-        "Title": "JLPT 汉字为估算值"
-      },
-      "Description": "颜色：学习中（橙色→黄色），已掌握（绿色→浅绿色）；未知（灰色）。悬停查看详情。",
-      "EmptyState": {
-        "Description": "当您在视频和文本中遇到字符时，它们将出现在这里。",
-        "Hint": "开始观看或阅读内容以开始追踪！",
-        "Title": "尚无追踪的字符"
-      },
-      "Legend": {
-        "Known": "已掌握：",
-        "Learning": "学习中：",
-        "Unknown": "未知："
-      },
-      "LevelFallback": "等级 {level}",
-      "Loading": "正在加载字符数据…",
-      "Stats": {
-        "Known": "已掌握：",
-        "Learning": "学习中：",
-        "TotalFound": "已找到总数：",
-        "Unknown": "未知："
-      },
-      "Title": "汉字掌握概览",
-      "Tooltip": {
-        "KnownCount": "已掌握",
-        "LearningCount": "学习中",
-        "Score": "分数",
-        "WordsContaining": "包含{char}的单词"
       }
     },
     "Languages": {
@@ -1192,7 +1194,7 @@
       "MigrationWordStatuses": "已迁移 {count} 个单词状态（来自 v1）。已创建备份。",
       "UpdateAvailable": "新版本 {latestVersion} 可用（当前版本 {currentVersion}）。请前往网站下载。"
     },
-    "PitchAccent": {
+    "JapanesePitchAccent": {
       "Atamadaka": "头高型",
       "DropAfterMora": "在拍节{mora}后下降",
       "Heiban": "平板型",
@@ -1204,8 +1206,8 @@
       "CollatePages": "合并页面",
       "UncollatePages": "拆分页面",
       "CopyPhrase": "复制短语",
-      "HideFurigana": "隐藏读音",
-      "ShowFurigana": "显示读音",
+      "HideReadingAnnotations": "隐藏读音注释",
+      "ShowReadingAnnotations": "显示读音注释",
       "Requirements": {
         "OcrTurboLowRam": {
           "Title": "OCR 可能会运行较慢",
@@ -1254,13 +1256,13 @@
         "DebugOverlayOff": "调试：关闭",
         "DebugOverlayOn": "调试：开启",
         "DebugOverlayTitle": "切换调试叠加层以可视化 OCR 文本和读音标注检测",
-        "FuriganaDetectionOff": "读音检测：关闭",
-        "FuriganaDetectionOn": "读音检测：开启",
+        "ReadingAnnotationDetectionOff": "读音注释：关闭",
+        "ReadingAnnotationDetectionOn": "读音注释：开启",
         "MagnifierHint": "按 {key} 打开放大镜",
         "OpenConversationAgent": "AI 导师",
         "OpenConversationAgentTitle": "打开 AI 对话导师",
-        "PaddleDownscaleLabel": "PaddleOCR 缩放：{value}%",
-        "PaddleDownscaleTitle": "在处理前缩小图像（用于 PaddleOCR，开发用）",
+        "DetectionScaleLabel": "OCR 检测缩放：{value}%",
+        "DetectionScaleTitle": "在 OCR 检测/识别前缩小图像（开发用）",
         "Ready": "就绪",
         "ShowTooltipOn": "显示工具提示方式：",
         "TimingDetection": "检测",
@@ -1289,6 +1291,8 @@
         "PageLayoutPaired": "1+2|3+4",
         "PageLayoutSingle": "1|2+3",
         "SinglePage": "单页",
+        "SpreadLeftToRight": "页面 左→右",
+        "SpreadRightToLeft": "页面 右→左",
         "ToggleUnknownWordsSidebar": "切换未知单词侧边栏"
       },
       "UI": {
@@ -1328,9 +1332,9 @@
           "Label": "主题",
           "Light": "浅色",
           "LightHighContrast": "浅色高对比度",
-      "Custom": "自定义",
-      "CustomCssDescription": "编辑自定义主题的 CSS。更改实时应用。",
-      "CustomCssLabel": "自定义 CSS"
+          "Custom": "自定义",
+          "CustomCssDescription": "编辑自定义主题的 CSS。更改实时应用。",
+          "CustomCssLabel": "自定义 CSS"
         }
       },
       "BlurEffect": {
@@ -1385,17 +1389,17 @@
           "Description": "在字幕出现时显示单词翻译侧面板",
           "Label": "实时翻译面板"
         },
-        "ShowFurigana": {
-          "Description": "在单词上方显示读音",
-          "Label": "显示读音"
+        "ShowReadingAnnotations": {
+          "Label": "显示读音注释",
+          "Description": "在单词上方显示读音注释"
         },
         "HideReadingForKnownWords": {
           "Description": "自动隐藏已掌握单词的读音",
           "Label": "隐藏已知单词的读音"
         },
-        "ShowPitchAccent": {
-          "Description": "显示单词的音调核信息",
-          "Label": "显示音调核"
+        "ShowProsody": {
+          "Description": "显示单词的韵律、声调、重音或音高信息",
+          "Label": "显示韵律和重音"
         },
         "ShowPos": {
           "Description": "显示单词的语法信息",
@@ -1458,6 +1462,17 @@
         "LearningLanguage": {
           "Description": "选择您正在学习的语言",
           "Label": "学习语言"
+        },
+        "LanguageData": {
+          "Install": "安装语言数据",
+          "Installing": "正在安装语言数据...",
+          "Installed": "语言数据已安装",
+          "InstallFailed": "语言数据安装失败",
+          "MissingRequired": "需要语言数据"
+        },
+        "DictionaryTarget": {
+          "Description": "选择词典释义使用的语言",
+          "Label": "词典语言"
         }
       },
       "Behaviour": {
@@ -1566,12 +1581,12 @@
       },
       "Reader": {
         "Description": "配置 OCR 和漫画阅读器设置",
-        "Furigana": {
+        "ReadingAnnotations": {
+          "Title": "读音注释",
           "Hide": {
-            "Description": "用白色方框覆盖检测到的读音注释，悬停时显示（用于阅读练习）",
-            "Label": "隐藏读音"
-          },
-          "Title": "读音"
+            "Label": "隐藏读音注释",
+            "Description": "用白色方框覆盖检测到的读音注释，悬停时显示（用于阅读练习）"
+          }
         },
         "LlmIntegration": {
           "Enable": {
@@ -1630,9 +1645,9 @@
             "Description": "启用图片的光学字符识别",
             "Label": "启用 OCR"
           },
-          "FuriganaDetection": {
-            "Description": "检测并从 OCR 结果中过滤读音注释。禁用后，所有检测到的文本框将原样显示，不进行读音注释过滤。",
-            "Label": "读音注释检测"
+          "ReadingAnnotationDetection": {
+            "Label": "读音注释检测",
+            "Description": "检测并从 OCR 结果中过滤读音注释。禁用后，所有检测到的文本框将原样显示，不进行读音注释过滤。"
           },
           "RamSaver": {
             "Description": "使用轻量级基于 OpenCV 的文本检测代替神经网络检测。内存使用减少约 1.5 GB，但复杂布局的准确度可能降低。识别质量不受影响。",
@@ -1764,9 +1779,9 @@
             "Description": "使用 mLearn 内置间隔重复系统而非 Anki",
             "Label": "使用 mLearn SRS"
           },
-          "ExamCardProportion": {
-            "Description": "从考试等级自动创建的卡片比例（0-1）",
-            "Label": "考试卡片比例"
+          "LevelCardProportion": {
+            "Description": "从语言等级自动创建的卡片比例（0-1）",
+            "Label": "等级卡片比例"
           },
           "FlipAnimation": {
             "Description": "显示闪卡答案时使用 3D 翻转动画",
@@ -2070,8 +2085,8 @@
       "Actions": {
         "EditWordDatabase": "编辑单词数据库",
         "OpenAiAnalytics": "AI 媒体分析",
-        "OpenExamCentricStudy": "Open Exam-centric Study",
-        "ViewKanjiGrid": "查看汉字网格"
+        "OpenLevelStudy": "打开等级学习",
+        "ViewCharacterGrid": "查看字符网格"
       },
       "CurrentlyLearning": "正在学习",
       "Dashboard": {
@@ -2157,7 +2172,7 @@
       "LevelColumn": "等级",
       "TimeWatched": "观看时间",
       "Title": "学习统计",
-      "WordsByExamLevel": "按考试等级的单词",
+      "WordsByLevel": "按等级的单词",
       "WordsByStatus": "按状态的单词",
       "WordsLearned": "已学单词",
       "WordsTracked": "追踪单词"
@@ -2500,7 +2515,7 @@
       "Flashcards": "闪卡",
       "ForceRecreateFlashcards": "强制重新创建今日新闪卡",
       "Help": "帮助",
-      "HideReading": "隐藏读音",
+      "HideReading": "隐藏读音注释",
       "OpenDevTools": "打开开发者工具",
       "OpenLiveWordTranslator": "打开实时单词翻译",
       "OpenSyncingWindow": "打开同步窗口",
@@ -2512,10 +2527,9 @@
       },
       "ReviewFlashcards": "复习闪卡",
       "Settings": "设置",
-      "ExamCentricStudy": "Exam-centric Study",
-      "ShowKanjiGrid": "显示汉字网格",
+      "LevelStudy": "等级学习",
       "ShowLearningStatistics": "显示学习统计",
-      "ShowReading": "显示读音",
+      "ShowReading": "显示读音注释",
       "Statistics": "统计",
       "StopWatchTogether": "停止一起看",
       "SyncSubtitles": "将字幕与视频同步",
@@ -2527,9 +2541,78 @@
       "Window": "窗口"
     },
     "ComponentsTab": {
-      "Description": "管理已安装的组件。切换模块的开启或关闭，重新安装以应用更改。",
+      "Description": "逐项查看已安装的组件。保持某个分组启用，即可在重新安装时包含它。",
       "Reinstall": "重新安装组件",
-      "RestartNote": "安装完成后应用将重启。"
+      "RestartNote": "安装完成后应用将重启。",
+      "Enabled": "已启用",
+      "Disabled": "已停用",
+      "Groups": {
+        "AI": {
+          "Title": "AI 组件",
+          "Description": "本地模型运行时和 Python 模型工具。"
+        },
+        "Reader": {
+          "Title": "阅读器和 OCR 组件",
+          "Description": "阅读器 OCR 使用的图像文字识别模型。"
+        },
+        "Voice": {
+          "Title": "语音组件",
+          "Description": "语音识别、语音合成和语音活动检测。"
+        },
+        "Dictionaries": {
+          "Title": "已安装词典",
+          "Description": "此电脑上可用的已下载词典包。"
+        }
+      },
+      "Items": {
+        "BuiltinChatRuntime": {
+          "Title": "内置聊天模型运行时",
+          "Description": "在本地运行已下载的 GGUF 聊天模型。"
+        },
+        "TransformersSupport": {
+          "Title": "Transformers 和 PyTorch 支持",
+          "Description": "旧版本地 LLM 工具使用的 Python 模型依赖。"
+        },
+        "RapidOCR": {
+          "Title": "RapidOCR 模型",
+          "Description": "用于阅读器截图的快速 OCR 识别。"
+        },
+        "PaddleOCR": {
+          "Title": "PaddleOCR 模型",
+          "Description": "高精度 OCR 识别和检测模型。"
+        },
+        "MangaOCR": {
+          "Title": "MangaOCR 模型",
+          "Description": "日语漫画和竖排文字识别。"
+        },
+        "GenericOCR": {
+          "Title": "{engine} OCR 运行时",
+          "Description": "由已安装语言数据声明的 OCR 运行时。"
+        },
+        "WhisperSmall": {
+          "Title": "Whisper small STT 模型",
+          "Description": "用于语音对话的本地语音转文字。"
+        },
+        "KokoroTts": {
+          "Title": "Kokoro TTS 模型",
+          "Description": "用于支持语言的本地文本转语音。"
+        },
+        "SileroVad": {
+          "Title": "Silero VAD 模型",
+          "Description": "用于免按键通话的语音活动检测。"
+        },
+        "QwenTts": {
+          "Title": "Qwen3 TTS 模型",
+          "Description": "可选的本地语音克隆和多语言 TTS。"
+        },
+        "GenericTTS": {
+          "Title": "{engine} TTS 运行时",
+          "Description": "已安装语言数据声明的语音合成运行时。"
+        },
+        "DictionaryPack": {
+          "Description": "{language} 的释义。"
+        }
+      }
     },
     "Diagnostics": {
       "Title": "mLearn 诊断",
@@ -2597,6 +2680,43 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved"
+    },
+    "CharacterGrid": {
+      "CharactersByLevel": "按等级划分的字符：",
+      "Disclaimer": {
+        "Title": "字符等级为估算值",
+        "Description": "此处字符是根据分配给每个等级的单词推断出来的，然后从这些单词中提取。这意味着此网格是近似值：某些等级包含的单词中的字符本身并不需要在该等级掌握。"
+      },
+      "Description": "颜色：学习中（橙色→黄色），已掌握（绿色→浅绿色）；未知（灰色）。悬停查看详情。",
+      "EmptyState": {
+        "Description": "当您在视频和文本中遇到字符时，它们将出现在这里。",
+        "Hint": "开始观看或阅读内容以开始追踪！",
+        "Title": "尚无追踪的字符"
+      },
+      "Unsupported": {
+        "Description": "此语言包未定义字符学习脚本。",
+        "Title": "此语言不支持字符学习"
+      },
+      "Legend": {
+        "Known": "已掌握：",
+        "Learning": "学习中：",
+        "Unknown": "未知："
+      },
+      "LevelFallback": "等级 {level}",
+      "Loading": "正在加载字符数据…",
+      "Stats": {
+        "Known": "已掌握：",
+        "Learning": "学习中：",
+        "TotalFound": "已找到总数：",
+        "Unknown": "未知："
+      },
+      "Title": "字符掌握概览",
+      "Tooltip": {
+        "KnownCount": "已掌握",
+        "LearningCount": "学习中",
+        "Score": "分数",
+        "WordsContaining": "包含{char}的单词"
+      }
     }
   }
 }

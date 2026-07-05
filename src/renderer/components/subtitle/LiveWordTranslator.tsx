@@ -3,7 +3,7 @@
  * Shows automatic translations for words in subtitles
  * Matches the legacy .aside card strip behavior exactly
  *
- * Layout: Translation/definition (h1) on left, Reading (p) on right
+ * Layout: Translation/definition (h1) on left, reading/pronunciation (p) on right
  */
 
 import { Component, createSignal, For, onCleanup, createEffect, Show } from 'solid-js';
@@ -14,8 +14,8 @@ import './LiveWordTranslator.css';
 
 interface TranslationCard {
   id: string;
-  translation: string; // The definition/meaning (English) - shown on left
-  reading: string;     // The kana reading - shown on right
+  translation: string; // The definition/meaning - shown on left
+  reading: string;     // The reading/pronunciation - shown on right
   timestamp: number;
 }
 

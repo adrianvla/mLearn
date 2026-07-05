@@ -23,6 +23,7 @@ import { loadSettings, loadLangData, saveSettings } from './settings';
 import { getMainWindow, getOverlayWindow, launchOverlayWindow, updateOverlayGeometry } from './windowManager';
 import { loadFlashcards, saveFlashcards } from './flashcardStorage';
 import { loadLocalization } from './localization';
+import { getAnkiCard, getAnkiWordsPayload, refreshAnkiCards } from './ankiService';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.webServer');
@@ -176,6 +177,33 @@ function sendJsonResponse(res: http.ServerResponse, data: unknown, statusCode = 
     'Content-Type': 'application/json',
   });
   res.end(JSON.stringify(data));
+}
+
+function readRequestBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+function notifyAnkiRefreshResult(result: Awaited<ReturnType<typeof refreshAnkiCards>>): void {
+  if (result.ok && result.source === 'cache') {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, 'Loaded from cache');
+    }
+    return;
+  }
+
+  if (result.ok || !result.reason || result.reason === 'disabled') {
+    return;
+  }
+  const mainWindow = getMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(IPC_CHANNELS.ANKI_CONNECTION_ERROR, result.reason);
+  }
 }
 
 // Serve static file
@@ -372,6 +400,49 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         sendJsonResponse(res, { error: (e as Error).message }, 500);
       }
     });
+    return;
+  }
+
+  // API: TS Anki cache/index backend
+  if (pathname === '/api/anki/words') {
+    if (req.method !== 'GET') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
+    }
+    sendJsonResponse(res, getAnkiWordsPayload());
+    return;
+  }
+
+  if (pathname === '/api/anki/card') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
+    }
+    try {
+      const parsed = JSON.parse(await readRequestBody(req)) as { word?: unknown };
+      if (typeof parsed.word !== 'string') {
+        sendJsonResponse(res, { error: 'Missing word' }, 400);
+        return;
+      }
+      sendJsonResponse(res, getAnkiCard(parsed.word));
+    } catch (e) {
+      log.error('Error parsing /api/anki/card body:', e);
+      sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
+    }
+    return;
+  }
+
+  if (pathname === '/api/anki/reload') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
+    }
+    const result = await refreshAnkiCards();
+    notifyAnkiRefreshResult(result);
+    sendJsonResponse(res, result.ok ? { response: 'Reloaded', source: result.source } : { response: 'Error', ...result }, result.ok ? 200 : 503);
     return;
   }
 
@@ -740,6 +811,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         try {
           const incoming = JSON.parse(body);
           await saveSettings(incoming);
+          const ankiResult = await refreshAnkiCards(incoming);
+          notifyAnkiRefreshResult(ankiResult);
           sendJsonResponse(res, { status: 'ok' });
         } catch (e) {
           log.error("error", e);
@@ -905,6 +978,12 @@ export function startWebServer(): void {
   httpServer.listen(PROXY_SERVER_PORT, () => {
     log.info(`Web server listening on http://127.0.0.1:${PROXY_SERVER_PORT}`);
   });
+
+  refreshAnkiCards()
+    .then(notifyAnkiRefreshResult)
+    .catch((error) => {
+      log.error('Anki startup refresh failed:', error);
+    });
 
   // Setup IPC handlers
   ipcMain.on(IPC_CHANNELS.WATCH_TOGETHER_SEND, (_event, message) => {

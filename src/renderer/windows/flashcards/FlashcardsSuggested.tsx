@@ -29,11 +29,11 @@ import {
   CollapsibleStickyHeader,
 } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
-import { FlashcardPitchAccent } from '../../components/flashcard';
+import { FlashcardWordTitle } from '../../components/flashcard';
 import { useFlashcards, useLocalization, useLanguage, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { cacheVersion, getCachedReading, getCachedTranslation, warmTranslationCache } from '../../hooks/useTranslation';
-import { extractFirstDefinition, extractPitchPosition } from '../../utils/translationCacheParsers';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
@@ -41,6 +41,15 @@ import type { FlashcardContent, SuggestedFlashcard } from '../../../shared/types
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './FlashcardsSuggested.css';
 import { getLogger } from '@shared/utils/logger';
+import {
+  buildSuggestedFlashcardPreviewContent,
+  buildSuggestedLevelFilterOptions,
+  buildSuggestedWordLookupOptions,
+  groupSuggestedWordsByLanguageForWarmCache,
+  resolveSuggestedLevel,
+  suggestedLevelFilterMatches,
+} from './flashcardsSuggestedPreview';
+import { getFrequencyLevelLabel, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 
 const log = getLogger("renderer.flashcards.flashcardsSuggested");
 const SUGGESTED_CACHE_WARM_DEBOUNCE_MS = 300;
@@ -68,6 +77,10 @@ export const FlashcardsSuggested: Component = () => {
   const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
+  const wordLookupOptionsForLanguage = (language: string) => buildSuggestedWordLookupOptions(settings, language, langCtx);
+  const languageDataFor = (language: string) => (
+    langCtx.langData[language] ?? (language === settings.language ? langCtx.currentLangData() : null)
+  );
   const [virtualScrollRef, setVirtualScrollRef] = createSignal<HTMLDivElement | undefined>(undefined);
   const [headerRef, setHeaderRef] = createSignal<HTMLDivElement | undefined>(undefined);
   const [cleaningUp, setCleaningUp] = createSignal(true);
@@ -81,19 +94,17 @@ export const FlashcardsSuggested: Component = () => {
   const suggestions = createMemo(() => getSuggestedFlashcardsSync());
 
   const levelNames = createMemo(() => langCtx.getFreqLevelNames());
-  const hasLevelData = createMemo(() => Object.keys(levelNames()).length > 0);
 
   const levelOptions = createMemo(() => {
-    const base = [{ value: 'all', label: t('mlearn.Flashcards.Suggested.Filter.AllLevels') }];
-    const names = levelNames();
-    // Sorted descending by numeric level (hardest first)
-    const levels = Object.keys(names).map(Number).sort((a, b) => a - b);
-    for (const lvl of levels) {
-      base.push({ value: String(lvl), label: names[String(lvl)] });
-    }
-    base.push({ value: 'unknown', label: t('mlearn.Flashcards.Suggested.Filter.Unknown') });
-    return base;
+    return buildSuggestedLevelFilterOptions({
+      suggestions: suggestions(),
+      languageDataFor,
+      getFrequencyForLanguage: langCtx.getFrequencyForLanguage,
+      t,
+      displayLocale: settings.uiLanguage,
+    });
   });
+  const hasLevelData = createMemo(() => levelOptions().some((option) => option.value.startsWith('level:')));
 
   const quickFilterOptions = createMemo(() => [
     { value: 'all', label: t('mlearn.Flashcards.Suggested.Filter.AllWords') },
@@ -101,36 +112,37 @@ export const FlashcardsSuggested: Component = () => {
     { value: 'dict', label: t('mlearn.Flashcards.Suggested.Filter.DictionaryOnly') },
   ]);
 
+  const failedSuggestionWordKeys = createMemo(() => {
+    const keys = new Set<string>();
+    for (const entry of Object.values(store.wordKnowledge)) {
+      if (!isWordMarkedFailed(entry, settings)) continue;
+      keys.add(`${entry.language || settings.language}:${entry.word}`);
+    }
+    return keys;
+  });
+
   const filtered = createMemo<SuggestedFlashcard[]>(() => {
     const q = search().trim().toLowerCase();
     const qf = quickFilter();
     const lvl = levelFilter();
+    const failedKeys = qf === 'failed' ? failedSuggestionWordKeys() : null;
 
     return suggestions().filter((s) => {
       if (q && !s.word.toLowerCase().includes(q) && !(s.reading || '').toLowerCase().includes(q)) {
         return false;
       }
 
-      if (lvl !== 'all') {
-        if (lvl === 'unknown') {
-          if (s.level != null) return false;
-        } else {
-          if (s.level == null || String(s.level) !== lvl) return false;
-        }
+      const suggestionLanguageData = languageDataFor(s.language);
+      if (!suggestedLevelFilterMatches(s, lvl, langCtx.getFrequencyForLanguage, suggestionLanguageData)) {
+        return false;
       }
 
       if (qf === 'dict') {
-        if (s.level == null) return false;
+        if (resolveSuggestedLevel(s, langCtx.getFrequencyForLanguage, suggestionLanguageData) === null) return false;
       }
 
       if (qf === 'failed') {
-        const lk = settings.language + ':';
-        const matches = Object.entries(store.wordKnowledge).find(([k, entry]) =>
-          k.startsWith(lk) && entry.word === s.word
-        );
-        if (!matches) return false;
-        const [, entry] = matches;
-        if (!isWordMarkedFailed(entry, settings)) return false;
+        if (!failedKeys?.has(`${s.language}:${s.word}`)) return false;
       }
 
       return true;
@@ -195,13 +207,22 @@ export const FlashcardsSuggested: Component = () => {
   });
 
   createEffect(() => {
-    const words = Object.values(store.suggestedFlashcards)
-      .filter((suggestion) => suggestion.language === settings.language)
-      .map((suggestion) => suggestion.word)
-      .filter((word) => word.trim().length > 0);
-    if (words.length === 0) return;
+    const groups = groupSuggestedWordsByLanguageForWarmCache(
+      Object.values(store.suggestedFlashcards),
+      settings.language,
+    );
+    if (groups.length === 0) return;
     const timeout = setTimeout(() => {
-      void warmTranslationCache(words, undefined, undefined, settings.language);
+      for (const group of groups) {
+        void warmTranslationCache(
+          group.words,
+          undefined,
+          undefined,
+          group.language,
+          getDictionaryTargetLanguageForSettings(settings, group.language),
+          languageDataFor(group.language),
+        );
+      }
     }, SUGGESTED_CACHE_WARM_DEBOUNCE_MS);
     onCleanup(() => clearTimeout(timeout));
   });
@@ -211,23 +232,15 @@ export const FlashcardsSuggested: Component = () => {
 
     const content = new Map<string, FlashcardContent>();
     for (const suggestion of filtered()) {
-      const cachedTranslation = getCachedTranslation(suggestion.word, settings.language);
-      const pitchAccent = cachedTranslation?.data
-        ? extractPitchPosition(cachedTranslation.data[2]) ?? undefined
-        : undefined;
-      const cachedReading = getCachedReading(suggestion.word, settings.language) || undefined;
-      const translation = cachedTranslation?.data
-        ? extractFirstDefinition(cachedTranslation.data) || ''
-        : '';
-
-      content.set(suggestion.id, {
-        front: suggestion.word,
-        reading: suggestion.reading || cachedReading,
-        back: translation,
-        type: 'word',
-        pitchAccent,
-        pos: suggestion.pos,
-      });
+      content.set(suggestion.id, buildSuggestedFlashcardPreviewContent(
+        suggestion,
+        wordLookupOptionsForLanguage(suggestion.language),
+        {
+          getCachedTranslation,
+          getCachedReading,
+          getLanguageData: languageDataFor,
+        },
+      ));
     }
 
     return content;
@@ -299,9 +312,19 @@ export const FlashcardsSuggested: Component = () => {
   };
 
   const formatLevel = (s: SuggestedFlashcard): string | null => {
-    if (s.level == null) return null;
-    const names = levelNames();
-    return names[String(s.level)] || null;
+    const languageData = languageDataFor(s.language);
+    const level = resolveSuggestedLevel(s, langCtx.getFrequencyForLanguage, languageData);
+    if (level == null) return null;
+    const names = languageData?.frequencyLevels?.names ?? (s.language === settings.language ? levelNames() : {});
+    return getFrequencyLevelLabel(level, names, languageData);
+  };
+
+  const visualLevelForSuggestion = (s: SuggestedFlashcard): number | undefined => {
+    const languageData = languageDataFor(s.language);
+    const level = resolveSuggestedLevel(s, langCtx.getFrequencyForLanguage, languageData);
+    if (level == null) return undefined;
+    const names = languageData?.frequencyLevels?.names ?? (s.language === settings.language ? levelNames() : {});
+    return getFrequencyLevelVisualRank(level, names, languageData);
   };
 
   const handleDelete = (id: string) => {
@@ -333,7 +356,7 @@ export const FlashcardsSuggested: Component = () => {
 
   const handleIgnoreOne = async (s: SuggestedFlashcard) => {
     try {
-      await ignoreWordForLanguage(s.word, s.reading);
+      await ignoreWordForLanguage(s.word, s.reading, s.language);
       removeSuggestedFlashcard(s.id);
       showToast({ message: t('mlearn.Global.Ignore'), variant: 'info' });
     } catch (e) {
@@ -528,10 +551,15 @@ export const FlashcardsSuggested: Component = () => {
                             <SelectableCard
                               selected={checked()}
                               onClick={() => toggleSelect(s.id)}
-                              title={<FlashcardPitchAccent content={previewContent()} />}
+                              title={<FlashcardWordTitle content={previewContent()} language={s.language} />}
                               headerActions={
                                 <Show when={levelLabel}>
-                                  <PillLabel level={s.level ?? undefined}>{levelLabel}</PillLabel>
+                                  <PillLabel
+                                    level={resolveSuggestedLevel(s, langCtx.getFrequencyForLanguage, languageDataFor(s.language)) ?? undefined}
+                                    visualLevel={visualLevelForSuggestion(s)}
+                                  >
+                                    {levelLabel}
+                                  </PillLabel>
                                 </Show>
                               }
                               class="flashcards-suggested-card"
@@ -552,7 +580,7 @@ export const FlashcardsSuggested: Component = () => {
                               </div>
                               <div class="flashcard-footer">
                                 <div class="flashcard-state">
-                                  <WordStatusPill word={s.word} onStatusChange={(status) => handleSuggestedStatusChange(s, status)} />
+                                  <WordStatusPill word={s.word} language={s.language} onStatusChange={(status) => handleSuggestedStatusChange(s, status)} />
                                 </div>
                                 <div class="flashcard-actions">
                                   <Btn

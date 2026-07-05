@@ -7,6 +7,7 @@ import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { Modal, SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch, CheckboxCard } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBackend } from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
 import { getBridge } from '../../../../shared/bridges';
@@ -351,6 +352,19 @@ export const ConnectionTab: Component = () => {
             </Btn>
           </SettingRow>
         </Show>
+      </SettingGroup>
+
+      <SettingGroup title={t('mlearn.Connection.LanguageCatalog.Title')}>
+        <SettingRow
+          label={t('mlearn.Connection.LanguageCatalog.Url')}
+          description={t('mlearn.Connection.LanguageCatalog.Description')}
+        >
+          <Input
+            value={settings.languageCatalogUrl ?? DEFAULT_SETTINGS.languageCatalogUrl}
+            onInput={(e) => updateSetting('languageCatalogUrl', e.currentTarget.value)}
+            placeholder={DEFAULT_SETTINGS.languageCatalogUrl}
+          />
+        </SettingRow>
       </SettingGroup>
 
       {/* ── Node Server (Tethered) ── */}

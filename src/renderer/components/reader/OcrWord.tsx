@@ -4,10 +4,11 @@
  * Supports three hover modes: immediate hover, long hover (delay), and key+hover.
  */
 
-import { Component, createSignal, onCleanup } from 'solid-js';
+import { Component, createMemo, createSignal, onCleanup } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { matchesKeybind } from '../common/Input/KeybindInput';
+import { getTokenLookupWord } from '../../utils/wordForms';
 import './OcrOverlay.css';
 
 export interface OcrWordProps {
@@ -22,7 +23,7 @@ const LONG_HOVER_DELAY = 500;
 export const OcrWord: Component<OcrWordProps> = (props) => {
   const { settings } = useSettings();
   const flashcardCtx = useFlashcards();
-  const { getCanonicalForm } = useLanguage();
+  const { getLanguageFeatures } = useLanguage();
   
   // Reference to the word span element - used to get stable getBoundingClientRect
   // This is necessary because event.currentTarget becomes null after event handlers return,
@@ -41,6 +42,12 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       longHoverTimeout = null;
     }
   };
+
+  const displayWord = () => props.token.surface ?? props.token.word;
+  const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
+  const lookupWord = createMemo(() => (
+    getTokenLookupWord(props.token, tokenizerCapabilities()) || displayWord()
+  ));
   
   // Trigger hover using the stable element reference
   // Creates a synthetic event-like object with the element as currentTarget
@@ -58,8 +65,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     setIsMouseOver(true);
     
     // Track word hover for passive knowledge
-    const lookupWord = props.token.actual_word ?? props.token.surface ?? props.token.word;
-    flashcardCtx.trackWordHovered(getCanonicalForm(lookupWord), props.token.reading);
+    flashcardCtx.trackWordHovered(lookupWord(), props.token.reading, settings.language);
 
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     
@@ -101,8 +107,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     clearLongHoverTimeout();
     
     // Cancel hover timer for passive knowledge
-    const lookupWord = props.token.actual_word ?? props.token.surface ?? props.token.word;
-    flashcardCtx.cancelWordHover(getCanonicalForm(lookupWord));
+    flashcardCtx.cancelWordHover(lookupWord(), settings.language);
 
     props.onWordLeave?.();
   };
@@ -154,7 +159,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {props.token.surface ?? props.token.word}
+      {displayWord()}
     </span>
   );
 };

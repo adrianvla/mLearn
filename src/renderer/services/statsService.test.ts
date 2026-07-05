@@ -200,19 +200,19 @@ describe('statsService', () => {
     it('loads words from KV store using language-scoped key', async () => {
       const stored = JSON.stringify({ hello: 2, world: 1 });
       mockKvGet.mockImplementation(async (key: string) => {
-        if (key === 'mlearn_words_learned_en') return stored;
+        if (key === 'mlearn_words_learned_ja') return stored;
         return null;
       });
       const { loadWordsFromStorage } = await import('./statsService');
       await loadWordsFromStorage('ja');
-      expect(mockKvGet).toHaveBeenCalledWith('mlearn_words_learned_en');
+      expect(mockKvGet).toHaveBeenCalledWith('mlearn_words_learned_ja');
     });
 
     it('calls getMigratedItem when no KV data and isElectron', async () => {
       const { isElectron } = await import('../../shared/platform');
       vi.mocked(isElectron).mockReturnValue(true);
       mockKvGet.mockImplementation(async (key: string) => {
-        if (key === 'mlearn_words_learned_en') return null;
+        if (key === 'mlearn_words_learned_ja') return null;
         if (key === 'mlearn_words_learned_v1_migration_done') return null;
         return null;
       });
@@ -222,7 +222,7 @@ describe('statsService', () => {
 
       expect(mockGetMigratedItem).toHaveBeenCalledWith('knownAdjustment');
       expect(mockKvSetBatch).toHaveBeenCalledWith({
-        mlearn_words_learned_en: JSON.stringify({ testWord: 2 }),
+        mlearn_words_learned_ja: JSON.stringify({ testWord: 2 }),
         mlearn_words_learned_v1_migration_done: '1',
       });
     });
@@ -231,7 +231,7 @@ describe('statsService', () => {
       const { isElectron } = await import('../../shared/platform');
       vi.mocked(isElectron).mockReturnValue(true);
       mockKvGet.mockImplementation(async (key: string) => {
-        if (key === 'mlearn_words_learned_en') return null;
+        if (key === 'mlearn_words_learned_ja') return null;
         if (key === 'mlearn_words_learned_v1_migration_done') return '1';
         return null;
       });
@@ -246,7 +246,7 @@ describe('statsService', () => {
       const { isElectron } = await import('../../shared/platform');
       vi.mocked(isElectron).mockReturnValue(true);
       mockKvGet.mockImplementation(async (key: string) => {
-        if (key === 'mlearn_words_learned_en') return null;
+        if (key === 'mlearn_words_learned_ja') return null;
         if (key === 'mlearn_words_learned_v1_migration_done') return null;
         return null;
       });

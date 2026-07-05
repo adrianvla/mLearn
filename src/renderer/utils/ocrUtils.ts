@@ -10,7 +10,7 @@ import type { OcrBox } from '../components/reader/OcrOverlay';
 // Constants
 // ============================================================================
 
-const DEFAULT_FURIGANA_RATIO = 1.5;
+const DEFAULT_READING_ANNOTATION_RATIO = 1.5;
 const DEFAULT_NEIGHBOR_WINDOW_MULT = 2.4;
 const DEFAULT_ZONE_DELTA_THRESHOLD = 15;
 
@@ -182,15 +182,15 @@ function clusterBoxesIntoZones(metrics: BoxMetrics[], opts: ClusterOptions = {})
   const delta = opts.zoneDeltaThreshold ?? DEFAULT_ZONE_DELTA_THRESHOLD;
 
   // Cluster ALL boxes by spatial proximity, regardless of per-box orientation.
-  // Small furigana characters may have square bounding boxes that would be
+  // Small reading annotation characters may have square bounding boxes that would be
   // misclassified as horizontal — keeping them in the same zone as their
-  // parent text ensures the zone-level orientation drives furigana detection.
+  // parent text ensures the zone-level orientation drives annotation detection.
   const allIndices = Array.from({ length: metrics.length }, (_, i) => i);
   return clusterByProximity(allIndices, metrics, delta);
 }
 
 // ============================================================================
-// Filter Furigana-sized Boxes
+// Filter Reading Annotation-sized Boxes
 // ============================================================================
 
 export interface FilterNarrowBoxesOptions {
@@ -199,8 +199,17 @@ export interface FilterNarrowBoxesOptions {
   neighborLookahead?: number;
   /** Max pixel distance between box edges for zone clustering (default 50) */
   zoneDeltaThreshold?: number;
+  /** Whether reading annotation boxes may be removed from OCR output. */
+  filterReadingAnnotations?: boolean;
   /** When provided, receives zone debug data for visualization */
   debugOutput?: (zones: FilterDebugZone[]) => void;
+}
+
+export interface LanguageAwareOcrProcessingOptions extends FilterNarrowBoxesOptions {
+  /** Whether this language has reading annotations alongside surface text. */
+  supportsReadingAnnotations: boolean;
+  /** User setting for hiding/filtering reading annotations in OCR output. */
+  filterReadingAnnotations?: boolean;
 }
 
 /** Debug information for a single zone, used for visualization */
@@ -215,29 +224,29 @@ export interface FilterDebugZone {
     orientation: 'vertical' | 'horizontal';
     medianCross: number;
     threshold: number;
-    /** Indices classified as furigana within this orientation group */
-    furiganaIndices: number[];
+    /** Indices classified as reading annotations within this orientation group */
+    readingAnnotationIndices: number[];
   }>;
 }
 
 /** Result of the single-pass zone processing: filtered boxes + context map */
 export interface ProcessedOcrZones {
-  /** Boxes with furigana removed */
+  /** Boxes with reading annotations removed */
   filtered: OcrBox[];
   /** Map from filtered-array index → context phrase for the zone */
   contextMap: Map<number, string>;
 }
 
 /**
- * Single-pass zone processing: clusters boxes into zones, filters furigana,
+ * Single-pass zone processing: clusters boxes into zones, filters reading annotations,
  * determines reading order, and builds context phrases — all in one traversal.
  *
  * **Algorithm** (zone-local statistical approach):
  *  1. Cluster boxes into spatially connected zones (speech bubbles / text blocks).
  *  2. Determine zone-level orientation via majority vote / bounding-box shape.
- *  3. Filter furigana: compute dominant cross-axis dimension, remove narrow
+ *  3. Filter annotations: compute dominant cross-axis dimension, remove narrow
  *     candidates that have a larger neighbor (proximity + overlap check).
- *  4. Build context phrase per zone from remaining (non-furigana) boxes
+ *  4. Build context phrase per zone from remaining non-annotation boxes
  *     sorted in reading order.
  */
 function processOcrZones(
@@ -250,7 +259,7 @@ function processOcrZones(
     return { filtered: boxes ?? [], contextMap, indicesToRemove: new Set() };
   }
   if (boxes.length < 2) {
-    // Single box — no furigana to filter; build trivial context
+    // Single box — no annotation to filter; build trivial context
     const text = typeof boxes[0]?.text === 'string' ? boxes[0].text.trim() : '';
     if (text) contextMap.set(0, text.length > 500 ? text.slice(0, 500) : text);
     return { filtered: boxes, contextMap, indicesToRemove: new Set() };
@@ -261,8 +270,9 @@ function processOcrZones(
     return Number.isFinite(n) && n > 0 ? n : fallback;
   };
 
-  const effectiveRatio = clampPositive(options.ratio, DEFAULT_FURIGANA_RATIO);
+  const effectiveRatio = clampPositive(options.ratio, DEFAULT_READING_ANNOTATION_RATIO);
   const windowMultiplier = clampPositive(options.neighborWindowMultiplier, DEFAULT_NEIGHBOR_WINDOW_MULT);
+  const shouldFilterReadingAnnotations = options.filterReadingAnnotations ?? true;
 
   const metrics = boxes.map((box, idx) => computeBoxMetrics(box, idx));
   const zones = clusterBoxesIntoZones(metrics, {
@@ -272,7 +282,7 @@ function processOcrZones(
   const indicesToRemove = new Set<number>();
   const debugZones: FilterDebugZone[] = [];
 
-  // Per-zone: filter furigana, then build context phrase from survivors
+  // Per-zone: filter reading annotations, then build context phrase from survivors
   for (let zi = 0; zi < zones.length; zi++) {
     const zoneIndices = zones[zi];
     if (zoneIndices.length < 2) {
@@ -287,7 +297,7 @@ function processOcrZones(
           orientationStats: [],
         });
       }
-      // Single-box zone: no furigana to filter, context = its own text
+      // Single-box zone: no annotation to filter, context = its own text
       if (zoneIndices.length === 1) {
         const text = metrics[zoneIndices[0]].text.trim();
         if (text) contextMap.set(zoneIndices[0], text.length > 500 ? text.slice(0, 500) : text);
@@ -311,7 +321,7 @@ function processOcrZones(
 
     const orientation = determineZoneOrientation(zoneIndices, metrics, boxes);
 
-    // Cross-axis dimension: the dimension furigana is narrow in
+    // Cross-axis dimension: the dimension reading annotations are narrow in
     const crossDims = zoneMetrics.map(m =>
       orientation === 'vertical' ? m.width : m.height
     );
@@ -351,14 +361,14 @@ function processOcrZones(
       dominantCross = bestFontSize;
     }
 
-    const furiganaThreshold = dominantCross / effectiveRatio;
-    const localFurigana: number[] = [];
+    const readingAnnotationThreshold = dominantCross / effectiveRatio;
+    const localReadingAnnotations: number[] = [];
 
     for (const curr of zoneMetrics) {
       if (indicesToRemove.has(curr.idx)) continue;
 
       const crossDim = orientation === 'vertical' ? curr.width : curr.height;
-      if (crossDim >= furiganaThreshold) continue;
+      if (crossDim >= readingAnnotationThreshold) continue;
 
       const windowSize = crossDim * windowMultiplier;
       let hasLargerNeighbor = false;
@@ -385,17 +395,17 @@ function processOcrZones(
         }
       }
 
-      if (hasLargerNeighbor) {
+      if (hasLargerNeighbor && shouldFilterReadingAnnotations) {
         indicesToRemove.add(curr.idx);
-        localFurigana.push(curr.idx);
+        localReadingAnnotations.push(curr.idx);
       }
     }
 
     orientationStats.push({
       orientation,
       medianCross: dominantCross,
-      threshold: furiganaThreshold,
-      furiganaIndices: localFurigana,
+      threshold: readingAnnotationThreshold,
+      readingAnnotationIndices: localReadingAnnotations,
     });
 
     if (options.debugOutput) {
@@ -407,7 +417,7 @@ function processOcrZones(
       });
     }
 
-    // --- Build context phrase from non-furigana boxes in this zone ---
+    // --- Build context phrase from non-annotation boxes in this zone ---
     const survivors = zoneIndices.filter(idx => !indicesToRemove.has(idx));
     if (survivors.length === 0) continue;
 
@@ -445,7 +455,7 @@ function processOcrZones(
     const trimmed = typeof context === 'string' ? context.trim() : '';
     const limited = trimmed.length > 500 ? trimmed.slice(0, 500) : trimmed;
 
-    // Assign context to all surviving (non-furigana) boxes in the zone
+    // Assign context to all surviving non-annotation boxes in the zone
     for (const idx of survivors) {
       contextMap.set(idx, limited);
     }
@@ -460,7 +470,7 @@ function processOcrZones(
 }
 
 /**
- * Filter out narrow boxes that are likely furigana annotations within each text zone.
+ * Filter out narrow boxes that are likely reading annotations within each text zone.
  * Returns the filtered array only. Use `processOcrBoxes` if you also need context phrases.
  */
 export function filterNarrowBoxes(
@@ -471,7 +481,7 @@ export function filterNarrowBoxes(
 }
 
 /**
- * Single-pass: filter furigana and build context phrases for every zone.
+ * Single-pass: filter reading annotations and build context phrases for every zone.
  * The returned contextMap is keyed by the box's index in the **original** array.
  */
 export function processOcrBoxes(
@@ -480,6 +490,24 @@ export function processOcrBoxes(
 ): ProcessedOcrZones {
   const { filtered, contextMap } = processOcrZones(boxes, options);
   return { filtered, contextMap };
+}
+
+/**
+ * Process OCR boxes with language feature awareness.
+ *
+ * Languages without reading annotations (for example Latin-script OCR) still
+ * get zone context maps, but the narrow-box removal pass is disabled so small
+ * punctuation, diacritics, or short words are never mistaken for annotation text.
+ */
+export function processOcrBoxesForLanguage(
+  boxes: OcrBox[],
+  options: LanguageAwareOcrProcessingOptions,
+): ProcessedOcrZones {
+  const canFilterReadingAnnotations = options.supportsReadingAnnotations && options.filterReadingAnnotations !== false;
+  return processOcrBoxes(boxes, {
+    ...options,
+    filterReadingAnnotations: canFilterReadingAnnotations,
+  });
 }
 
 // ============================================================================
@@ -541,7 +569,7 @@ function determineZoneOrientation(
 /**
  * Build a context map that associates each OCR box with its neighboring text.
  * This is a convenience wrapper around `processOcrBoxes` for callers that
- * only need the context map without furigana filtering.
+ * only need the context map without reading-annotation filtering.
  */
 export function buildOcrContextMap(
   boxes: OcrBox[],

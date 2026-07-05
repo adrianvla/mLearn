@@ -27,7 +27,7 @@ import { FlashcardsContent } from './routes/FlashcardsRoute';
 import { SettingsRoute } from './routes/SettingsRoute';
 import { ConversationAgentRoute } from './routes/ConversationAgentRoute';
 import { WordDbEditorRoute } from './routes/WordDbEditorRoute';
-import { ExamCentricStudyRoute } from './routes/ExamCentricStudyRoute';
+import { LevelStudyRoute } from './routes/LevelStudyRoute';
 import { LicensesRoute } from './routes/LicensesRoute';
 import { StatisticsRoute } from './routes/StatisticsRoute';
 
@@ -57,7 +57,7 @@ const App = () => {
           <Route path="/settings" component={() => <MobileLayout><SettingsRoute /></MobileLayout>} />
           <Route path="/conversation-agent" component={() => <MobileLayout><ConversationAgentRoute /></MobileLayout>} />
           <Route path="/word-db-editor" component={() => <MobileLayout><WordDbEditorRoute /></MobileLayout>} />
-          <Route path="/exam-centric-study" component={() => <MobileLayout><ExamCentricStudyRoute /></MobileLayout>} />
+          <Route path="/level-study" component={() => <MobileLayout><LevelStudyRoute /></MobileLayout>} />
           <Route path="/statistics" component={() => <MobileLayout><StatisticsRoute /></MobileLayout>} />
           <Route path="/licenses" component={() => <MobileLayout><LicensesRoute /></MobileLayout>} />
         </HashRouter>

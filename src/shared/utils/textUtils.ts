@@ -1,4 +1,13 @@
 import { getLogger } from './logger';
+import type { LanguageData } from '../types';
+import {
+  getLanguageDisplayName as getLanguageDisplayNameFromProfile,
+  getResolvedScriptProfile,
+  hasLettersInAnyScript,
+  hasOnlyLettersInScripts,
+  isValidSttResultForProfile,
+  isWordInLanguageProfile,
+} from '../languageScriptProfile';
 
 const log = getLogger("shared.utils.textUtils");
 /**
@@ -16,110 +25,39 @@ const log = getLogger("shared.utils.textUtils");
 const LATIN_LETTER_REGEX = /[\u0041-\u005A\u0061-\u007A\u00C0-\u024F\u1E00-\u1EFF]/;
 
 /**
- * Regex to detect kanji characters (CJK Unified Ideographs)
- * Covers: CJK Extension A, CJK Unified Ideographs, CJK Compatibility Ideographs
+ * Regex to detect Han ideographs (CJK Unified Ideographs).
+ * Covers: CJK Extension A, CJK Unified Ideographs, CJK Compatibility Ideographs.
  */
-export const KANJI_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
+export const HAN_IDEOGRAPH_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
 
-/**
- * Regex to match strings containing only kana characters
- * Covers: Hiragana, Katakana, Katakana Phonetic Extensions
- */
-export const KANA_ONLY_REGEX = /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\s]+$/;
+const COMPACT_READING_SCRIPTS = ['Hira', 'Kana', 'Bopo'];
+const DEFAULT_STRIPPED_FORMAT_CHARACTERS = new Set(['\u200B', '\u200C', '\u200D', '\uFEFF']);
 
-/**
- * Regex to extract only kana characters from mixed text
- */
-export const KANA_EXTRACT_REGEX = /[\u3040-\u309f\u30a0-\u30ff]/g;
+function getReadingSeparatorFromMetadata(data?: LanguageData | null): string {
+  const configured = data?.textProcessing?.readingAnnotation?.readingSeparator;
+  if (typeof configured === 'string') return configured;
 
-/**
- * Small kana characters that follow the previous character's pitch in accent patterns
- */
-export const SMALL_KANA = new Set([
-  'ゃ', 'ゅ', 'ょ', 'ャ', 'ュ', 'ョ',
-  'ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'ァ', 'ィ', 'ゥ', 'ェ', 'ォ',
-  'ゎ', 'ゕ', 'ゖ',
-]);
-
-type LocaleScriptCode =
-  | 'arab'
-  | 'armn'
-  | 'beng'
-  | 'cyrl'
-  | 'deva'
-  | 'ethi'
-  | 'geor'
-  | 'grek'
-  | 'guru'
-  | 'hebr'
-  | 'khmr'
-  | 'latn'
-  | 'mlym'
-  | 'mymr'
-  | 'sinh'
-  | 'taml'
-  | 'telu'
-  | 'thai'
-  | 'knda';
-
-function getMaximizedLocaleScript(language: string): LocaleScriptCode | '' {
-  try {
-    const locale = new Intl.Locale(language).maximize();
-    return (locale.script || '').toLowerCase() as LocaleScriptCode | '';
-  } catch (e) {
-    log.error("error", e);
-    return '';
-  }
+  const readingScripts = data?.textProcessing?.lexemeNormalization?.readingScripts ?? [];
+  if (readingScripts.length === 0) return '';
+  return readingScripts.every((script) => COMPACT_READING_SCRIPTS.includes(script)) ? '' : ' ';
 }
 
-function hasLettersInScript(text: string, script: LocaleScriptCode): boolean {
-  switch (script) {
-    case 'latn':
-      return LATIN_LETTER_REGEX.test(text);
-    case 'cyrl':
-      return /[\u0400-\u04FF\u0500-\u052F]/u.test(text);
-    case 'arab':
-      return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/u.test(text);
-    case 'deva':
-      return /[\u0900-\u097F]/u.test(text);
-    case 'thai':
-      return /[\u0E00-\u0E7F]/u.test(text);
-    case 'grek':
-      return /[\u0370-\u03FF\u1F00-\u1FFF]/u.test(text);
-    case 'hebr':
-      return /[\u0590-\u05FF\uFB1D-\uFB4F]/u.test(text);
-    case 'geor':
-      return /[\u10A0-\u10FF\u2D00-\u2D2F]/u.test(text);
-    case 'armn':
-      return /[\u0530-\u058F]/u.test(text);
-    case 'khmr':
-      return /[\u1780-\u17FF]/u.test(text);
-    case 'mymr':
-      return /[\u1000-\u109F]/u.test(text);
-    case 'beng':
-      return /[\u0980-\u09FF]/u.test(text);
-    case 'guru':
-      return /[\u0A00-\u0A7F]/u.test(text);
-    case 'taml':
-      return /[\u0B80-\u0BFF]/u.test(text);
-    case 'telu':
-      return /[\u0C00-\u0C7F]/u.test(text);
-    case 'knda':
-      return /[\u0C80-\u0CFF]/u.test(text);
-    case 'mlym':
-      return /[\u0D00-\u0D7F]/u.test(text);
-    case 'sinh':
-      return /[\u0D80-\u0DFF]/u.test(text);
-    case 'ethi':
-      return /[\u1200-\u137F]/u.test(text);
-    default:
-      return false;
-  }
+function getTokenizerPreservedFormatCharacters(data?: LanguageData | null): Set<string> {
+  const tokenizer = data?.runtime?.nlp?.tokenizer;
+  const configured = [
+    ...(Array.isArray(tokenizer?.extraTokenCharacters) ? tokenizer.extraTokenCharacters : []),
+    ...(Array.isArray(tokenizer?.innerTokenCharacters) ? tokenizer.innerTokenCharacters : []),
+  ];
+  return new Set(
+    configured.filter((char) => typeof char === 'string' && Array.from(char).length === 1),
+  );
 }
 
-function isShortCjkWord(word: string, language: string): boolean {
-  const codePointLength = [...word].length;
-  return codePointLength <= 1 && (language === 'ja' || language === 'ko' || language === 'zh' || language.startsWith('zh-'));
+function stripIgnorableFormatCharacters(text: string, data?: LanguageData | null): string {
+  const preserved = getTokenizerPreservedFormatCharacters(data);
+  return Array.from(text)
+    .filter((char) => !DEFAULT_STRIPPED_FORMAT_CHARACTERS.has(char) || preserved.has(char))
+    .join('');
 }
 
 // ============================================================================
@@ -127,20 +65,52 @@ function isShortCjkWord(word: string, language: string): boolean {
 // ============================================================================
 
 /**
- * Check if text contains any kanji characters
+ * Check if text contains any Han ideographs.
  */
-export function containsKanji(text: string): boolean {
+export function containsHanCharacters(text: string): boolean {
   if (!text) return false;
-  return KANJI_REGEX.test(text);
+  return HAN_IDEOGRAPH_REGEX.test(text);
+}
+
+function normalizeSingleCodePointCharacters(characters: readonly string[] | undefined): string[] {
+  if (!Array.isArray(characters)) return [];
+  const normalized: string[] = [];
+  for (const character of characters) {
+    if (typeof character !== 'string') continue;
+    const chars = Array.from(character);
+    if (chars.length !== 1) continue;
+    if (!normalized.includes(chars[0])) normalized.push(chars[0]);
+  }
+  return normalized;
+}
+
+export function getReadingExtraCharacters(data?: LanguageData | null): string[] {
+  return normalizeSingleCodePointCharacters(data?.textProcessing?.lexemeNormalization?.readingExtraCharacters);
 }
 
 /**
- * Check if text is composed entirely of kana (hiragana/katakana)
- * Allows whitespace characters
+ * Check if all letter characters in text belong to the configured scripts.
+ * Non-letter characters such as spaces, punctuation, and tone numbers are allowed.
  */
-export function isAllKana(text: string): boolean {
-  if (!text) return false;
-  return KANA_ONLY_REGEX.test(text);
+export function isTextOnlyInScripts(
+  text: string,
+  scripts: readonly string[],
+  extraCharacters: readonly string[] = [],
+): boolean {
+  const allowedExtra = new Set(normalizeSingleCodePointCharacters(extraCharacters));
+  if (allowedExtra.size === 0) {
+    return hasOnlyLettersInScripts(text, scripts);
+  }
+
+  let sawScriptLetter = false;
+  for (const char of text) {
+    if (allowedExtra.has(char)) continue;
+    if (!/\p{L}/u.test(char)) continue;
+    if (!hasLettersInAnyScript(char, scripts)) return false;
+    sawScriptLetter = true;
+  }
+
+  return sawScriptLetter;
 }
 
 /**
@@ -163,11 +133,11 @@ export function katakanaToHiragana(text: string): string {
 }
 
 /**
- * Extract distinct kanji (CJK ideograph) characters from text.
+ * Extract distinct Han ideographs from text.
  * Returns a Set of unique characters in the CJK Unified Ideographs /
  * CJK Compatibility Ideographs ranges.
  */
-export function extractKanjiChars(text: string): Set<string> {
+export function extractHanCharacters(text: string): Set<string> {
   const result = new Set<string>();
   if (!text) return result;
   for (const ch of text) {
@@ -177,15 +147,6 @@ export function extractKanjiChars(text: string): Set<string> {
     }
   }
   return result;
-}
-
-/**
- * Extract only kana characters from mixed text
- */
-export function extractKana(text: string): string {
-  if (!text) return '';
-  const matches = text.match(KANA_EXTRACT_REGEX);
-  return matches ? matches.join('') : '';
 }
 
 /**
@@ -226,44 +187,8 @@ export function isLatinOnly(text: string): boolean {
  * or `false` if it consists entirely of characters from unrelated scripts.
  * Words that are purely numeric or punctuation return `false`.
  */
-export function isWordInLanguageScript(word: string, language: string): boolean {
-  if (!word) return false;
-
-  // Reject words that are purely numbers, punctuation, or symbols (universal)
-  if (/^[\d.,;:%$€£¥₩\-–—\s]+$/.test(word)) return false;
-  if (/^[^\p{L}\p{N}]+$/u.test(word)) return false;
-  if (isShortCjkWord(word, language)) return false;
-
-  switch (language) {
-    case 'ja':
-      // Japanese: must contain kana or CJK ideographs
-      return HIRAGANA_REGEX.test(word) || KATAKANA_REGEX.test(word) || CJK_IDEOGRAPH_REGEX.test(word);
-
-    case 'zh':
-    case 'zh-CN':
-    case 'zh-TW':
-      // Chinese: must contain CJK ideographs
-      return CJK_IDEOGRAPH_REGEX.test(word);
-
-    case 'ko':
-      // Korean: must contain Hangul (Hanja/CJK also acceptable)
-      return HANGUL_REGEX.test(word) || CJK_IDEOGRAPH_REGEX.test(word);
-
-    default: {
-      // For all other languages: check via Intl.Locale.maximize() to discover
-      // the expected script, then verify the word contains letters of that
-      // script. Falls back to "has any letter" for unknown scripts.
-      const expectedScript = getMaximizedLocaleScript(language);
-
-      // Must contain at least one Unicode letter
-      if (!/\p{L}/u.test(word)) return false;
-
-      // If we couldn't determine script, accept anything with letters
-      if (!expectedScript) return true;
-
-      return hasLettersInScript(word, expectedScript);
-    }
-  }
+export function isWordInLanguageScript(word: string, language: string, data?: LanguageData | null): boolean {
+  return isWordInLanguageProfile(word, getResolvedScriptProfile(language, data));
 }
 
 // ============================================================================
@@ -271,126 +196,23 @@ export function isWordInLanguageScript(word: string, language: string): boolean 
 // ============================================================================
 
 /**
- * Regex to detect Hangul characters (Korean)
- */
-const HANGUL_REGEX = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;
-
-/**
- * Regex to detect hiragana characters
- */
-const HIRAGANA_REGEX = /[\u3040-\u309F]/;
-
-/**
- * Regex to detect katakana characters
- */
-const KATAKANA_REGEX = /[\u30A0-\u30FF]/;
-
-/**
- * Regex to detect CJK Unified Ideographs (shared by Chinese/Japanese/Korean)
- */
-const CJK_IDEOGRAPH_REGEX = /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/;
-
-/**
- * Common Chinese filler/interjection characters that STT models produce from
- * non-speech noise (e.g., "ahh", ambient sounds). These are almost always
- * false positives when the target language is not Chinese.
- */
-const CHINESE_NOISE_CHARS = new Set([
-  '哦', '嗯', '啊', '呢', '吧', '嘛', '哎', '哈', '嗨', '喂',
-  '哇', '唉', '嘿', '呀', '哟', '噢', '呐', '喔', '嚯', '咦',
-  '咳', '嘁', '噫', '咩', '呃', '额', '哼', '嗷', '嚎', '呜',
-]);
-
-/**
  * Validate an STT transcription result against the target language.
  * Returns true if the result appears to be valid speech in the target language,
  * false if it looks like noise or text in the wrong language/script.
  *
- * This is designed to filter out garbage transcriptions from multilingual or
- * wrong-language STT models (e.g., a Chinese model producing "哦" from noise
- * when the user is learning Japanese).
+ * This filters garbage transcriptions from multilingual or wrong-language STT
+ * models through the language script profile. Packages can declare exact noise
+ * strings with textProcessing.scriptProfile.sttNoiseCharacters.
  */
-export function isValidSTTResult(text: string, language: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return false;
-
-  // Single-character results are almost always noise
-  if ([...trimmed].length === 1) return false;
-
-  // Check for Chinese noise particles (regardless of language — these are
-  // false positives from the STT model, not real speech)
-  if (language !== 'zh' && CHINESE_NOISE_CHARS.has(trimmed)) return false;
-
-  // For non-Chinese CJK languages: validate script consistency
-  switch (language) {
-    case 'ja': {
-      // Japanese speech transcribed by a proper model should contain kana.
-      // If using a Chinese-English model, all output is in CJK ideographs
-      // without any kana — which means it's probably Chinese, not Japanese.
-      // Allow text that contains at least one kana character.
-      // Also allow pure Latin (romaji) or mixed content.
-      const hasKana = HIRAGANA_REGEX.test(trimmed) || KATAKANA_REGEX.test(trimmed);
-      const hasCJK = CJK_IDEOGRAPH_REGEX.test(trimmed);
-      const hasLatin = LATIN_LETTER_REGEX.test(trimmed);
-
-      // If it contains kana, it's valid Japanese
-      if (hasKana) return true;
-
-      // If it's pure Latin, it could be valid (romaji input)
-      if (hasLatin && !hasCJK) return true;
-
-      // Pure CJK without kana: likely a Chinese false positive.
-      // Short pure-CJK strings (≤ 3 chars) are very likely noise.
-      if (hasCJK && !hasKana) {
-        const cjkCount = [...trimmed].filter(ch => CJK_IDEOGRAPH_REGEX.test(ch)).length;
-        if (cjkCount <= 3) return false;
-      }
-
-      return true;
-    }
-
-    case 'ko': {
-      // Korean should contain Hangul. Pure CJK without Hangul from a
-      // Chinese model is almost certainly wrong.
-      const hasHangul = HANGUL_REGEX.test(trimmed);
-      const hasCJK = CJK_IDEOGRAPH_REGEX.test(trimmed);
-      const hasLatin = LATIN_LETTER_REGEX.test(trimmed);
-
-      if (hasHangul) return true;
-      if (hasLatin && !hasCJK) return true;
-
-      // Pure CJK without Hangul is not Korean
-      if (hasCJK && !hasHangul) return false;
-
-      return true;
-    }
-
-    case 'zh':
-      // Chinese model output is valid for Chinese target
-      return true;
-
-    default: {
-      // For other languages, reject text that has letters but none in the
-      // expected script. Still allow mixed-script text if it contains target
-      // script letters (e.g. Latin text with some embedded CJK).
-      const hasCJK = CJK_IDEOGRAPH_REGEX.test(trimmed);
-      const hasLetters = /\p{L}/u.test(trimmed);
-      const expectedScript = getMaximizedLocaleScript(language);
-
-      if (!hasLetters) return true;
-      if (!expectedScript) return !(hasCJK && !LATIN_LETTER_REGEX.test(trimmed));
-      if (!hasLettersInScript(trimmed, expectedScript)) return false;
-
-      return true;
-    }
-  }
+export function isValidSTTResult(text: string, language: string, data?: LanguageData | null): boolean {
+  return isValidSttResultForProfile(text, getResolvedScriptProfile(language, data));
 }
 
 /**
  * Normalize reading by removing HTML tags and accent markers
  * Used to extract clean reading text from formatted dictionary entries
  */
-export function normalizeReading(raw: string): string {
+export function normalizeReading(raw: string, data?: LanguageData | null): string {
   if (typeof raw !== 'string') return '';
   let text = raw;
   
@@ -403,17 +225,20 @@ export function normalizeReading(raw: string): string {
   
   // Normalize whitespace
   text = text.replace(/\u00a0/g, ' ').trim();
-  return text.replace(/\s+/g, '');
+  if (!data || getReadingSeparatorFromMetadata(data) === '') {
+    return text.replace(/\s+/g, '');
+  }
+  return text.replace(/\s+/g, ' ');
 }
 
 /**
  * Normalize a word/expression for cache lookups without changing its meaning.
  * Keeps the spelling intact while removing formatting and Unicode variance.
  */
-export function normalizeWordLookupText(raw: string): string {
+export function normalizeWordLookupText(raw: string, data?: LanguageData | null): string {
   if (typeof raw !== 'string') return '';
 
-  let text = stripFurigana(raw);
+  let text = data ? stripReadingAnnotations(raw, data) : stripRubyAnnotations(raw);
 
   try {
     text = text.normalize('NFC');
@@ -422,7 +247,9 @@ export function normalizeWordLookupText(raw: string): string {
   }
 
   text = text
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .split('\n')
+    .map((line) => stripIgnorableFormatCharacters(line, data))
+    .join('\n')
     .replace(/\u00a0/g, ' ')
     .trim();
 
@@ -443,26 +270,119 @@ export function escapeHtml(text: string): string {
 }
 
 /**
- * Strip furigana (ruby) annotations from text
- * Example: "<ruby>主<rt>おも</rt></ruby>に" -> "主に"
+ * Strip ruby annotations from text without assuming a language-specific
+ * parenthetical reading convention. Parenthetical readings are removed only by
+ * stripReadingAnnotations when a language package opts into that behavior.
  */
-export function stripFurigana(text: string): string {
+export function stripRubyAnnotations(text: string): string {
   if (!text) return '';
-  
+
+  return stripRubyMarkup(text).trim();
+}
+
+function stripRubyMarkup(text: string): string {
+  if (!text) return '';
+
   // Remove <rt>...</rt> tags and their content
   let result = text.replace(/<rt[^>]*>.*?<\/rt>/gi, '');
-  
+
   // Remove <ruby> and </ruby> tags but keep content
   result = result.replace(/<\/?ruby>/gi, '');
-  
+
   // Remove <rp> tags (ruby parentheses)
   result = result.replace(/<\/?rp>/gi, '');
-  
-  // Remove parenthesized readings: 漢字(かんじ) -> 漢字
-  result = result.replace(/\([ぁ-んァ-ン]+\)/g, '');
-  result = result.replace(/（[ぁ-んァ-ン]+）/g, '');
-  
-  return result.trim();
+
+  return result;
+}
+
+function configuredReadingAnnotationParts(data?: LanguageData | null): {
+  surfaceScripts: string[];
+  readingScripts: string[];
+  readingExtraCharacters: string[];
+  stripParentheticalReadings: boolean;
+} | null {
+  const readingAnnotation = data?.textProcessing?.readingAnnotation;
+  const lexemeNormalization = data?.textProcessing?.lexemeNormalization;
+  if (!data || !readingAnnotation || readingAnnotation.type === 'none') return null;
+
+  const surfaceScripts = readingAnnotation.annotationScripts?.length
+    ? readingAnnotation.annotationScripts
+    : lexemeNormalization?.surfaceScripts ?? [];
+  const readingScripts = lexemeNormalization?.readingScripts ?? [];
+
+  if (surfaceScripts.length === 0 || readingScripts.length === 0) return null;
+  return {
+    surfaceScripts,
+    readingScripts,
+    readingExtraCharacters: getReadingExtraCharacters(data),
+    stripParentheticalReadings: readingAnnotation?.stripParentheticalReadings === true,
+  };
+}
+
+export interface ParentheticalReadingMatch {
+  raw: string;
+  word: string;
+  reading: string;
+  index: number;
+}
+
+export function findConfiguredParentheticalReadings(text: string, data?: LanguageData | null): ParentheticalReadingMatch[] {
+  const config = configuredReadingAnnotationParts(data);
+  if (!config) return [];
+
+  const matches: ParentheticalReadingMatch[] = [];
+  text.replace(
+    /([^\s(（]+)\(([^)）]+)\)|([^\s(（]+)（([^)）]+)）/g,
+    (raw: string, asciiWord: string | undefined, asciiReading: string | undefined, fullWidthWord: string | undefined, fullWidthReading: string | undefined, index: number) => {
+      const word = asciiWord || fullWidthWord || '';
+      const reading = asciiReading || fullWidthReading || '';
+      if (
+        word
+        && reading
+        && hasLettersInAnyScript(word, config.surfaceScripts)
+        && isTextOnlyInScripts(reading, config.readingScripts, config.readingExtraCharacters)
+      ) {
+        matches.push({ raw, word, reading, index });
+      }
+      return raw;
+    },
+  );
+  return matches;
+}
+
+export function replaceConfiguredParentheticalReadings(
+  text: string,
+  data: LanguageData | null | undefined,
+  replacement: 'surface' | 'reading',
+): string {
+  const config = configuredReadingAnnotationParts(data);
+  if (!config?.stripParentheticalReadings) return text;
+
+  return text.replace(
+    /([^\s(（]+)\(([^)）]+)\)|([^\s(（]+)（([^)）]+)）/g,
+    (match, asciiWord: string | undefined, asciiReading: string | undefined, fullWidthWord: string | undefined, fullWidthReading: string | undefined) => {
+      const word = asciiWord || fullWidthWord || '';
+      const reading = asciiReading || fullWidthReading || '';
+      if (
+        word
+        && reading
+        && hasLettersInAnyScript(word, config.surfaceScripts)
+        && isTextOnlyInScripts(reading, config.readingScripts, config.readingExtraCharacters)
+      ) {
+        return replacement === 'reading' ? reading : word;
+      }
+      return match;
+    },
+  );
+}
+
+/**
+ * Strip ruby and metadata-configured parenthetical reading annotations.
+ * Parenthetical readings require explicit language metadata.
+ */
+export function stripReadingAnnotations(text: string, data?: LanguageData | null): string {
+  const stripped = stripRubyMarkup(text);
+  return replaceConfiguredParentheticalReadings(stripped, data, 'surface').trim();
 }
 
 /**
@@ -470,16 +390,37 @@ export function stripFurigana(text: string): string {
  * Used for "use readings" TTS mode.
  * Example: "<ruby>漢字<rt>かんじ</rt></ruby>です" -> "かんじです"
  */
-export function applyRubyReadings(text: string): string {
+export function applyRubyReadings(text: string, data?: LanguageData | null): string {
   if (!text) return '';
 
-  // For each <ruby>...</ruby> block, extract the <rt> content as the replacement
-  let result = text.replace(/<ruby[^>]*>([\s\S]*?)<\/ruby>/gi, (_match, inner: string) => {
+  const readingSeparator = getReadingSeparatorFromMetadata(data);
+  const rubyPattern = /<ruby[^>]*>([\s\S]*?)<\/ruby>/gi;
+  let result = '';
+  let lastIndex = 0;
+  let previousWasReading = false;
+  let match: RegExpExecArray | null;
+
+  while ((match = rubyPattern.exec(text)) !== null) {
+    const between = text.slice(lastIndex, match.index);
+    if (between) {
+      result += between;
+      if (between.trim()) previousWasReading = false;
+    }
+
+    const inner = match[1] ?? '';
     const rtMatch = inner.match(/<rt[^>]*>([\s\S]*?)<\/rt>/i);
-    if (rtMatch) return rtMatch[1];
-    // No <rt> found, strip tags from inner content
-    return inner.replace(/<[^>]*>/g, '');
-  });
+    const reading = rtMatch ? rtMatch[1] : inner.replace(/<[^>]*>/g, '');
+    if (previousWasReading && readingSeparator) {
+      result += readingSeparator;
+    }
+    result += reading;
+    previousWasReading = true;
+    lastIndex = rubyPattern.lastIndex;
+  }
+
+  result += text.slice(lastIndex);
+
+  result = data ? replaceConfiguredParentheticalReadings(result, data, 'reading') : stripRubyAnnotations(result);
 
   // Strip any remaining HTML tags
   result = result.replace(/<[^>]*>/g, '');
@@ -489,15 +430,15 @@ export function applyRubyReadings(text: string): string {
 /**
  * Strip all HTML from text for TTS consumption.
  * Handles ruby annotations based on `useReadings`:
- *   - true:  replace kanji with their <rt> readings, then strip remaining HTML
- *   - false: remove <rt> readings, keep kanji, then strip remaining HTML
+ *   - true:  replace annotated base text with <rt> readings, then strip remaining HTML
+ *   - false: remove <rt> readings, keep base text, then strip remaining HTML
  */
-export function stripHtmlForTts(text: string, useReadings = false): string {
+export function stripHtmlForTts(text: string, useReadings = false, data?: LanguageData | null): string {
   if (!text) return '';
-  if (useReadings) return applyRubyReadings(text);
+  if (useReadings) return applyRubyReadings(text, data);
 
-  // Remove readings first (preserving kanji), then strip all remaining tags
-  let result = stripFurigana(text);
+  // Remove readings first (preserving base text), then strip all remaining tags
+  let result = data ? stripReadingAnnotations(text, data) : stripRubyAnnotations(text);
   result = result.replace(/<[^>]*>/g, '');
   return result.trim();
 }
@@ -522,15 +463,7 @@ export function limitConsecutiveDots(text: string, max = 3): string {
 // Language Display Names
 // ============================================================================
 
-/** Language code → English display name mapping (for LLM prompts and display) */
-const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
-  en: 'English', de: 'German', fr: 'French', ja: 'Japanese', ru: 'Russian',
-  zh: 'Chinese', ko: 'Korean', es: 'Spanish', it: 'Italian', pt: 'Portuguese',
-  ar: 'Arabic', he: 'Hebrew', hi: 'Hindi', th: 'Thai', vi: 'Vietnamese',
-  tr: 'Turkish', pl: 'Polish', nl: 'Dutch', sv: 'Swedish', uk: 'Ukrainian',
-};
-
-/** Map a language code to its English display name (for LLM prompts, display) */
-export function getLanguageDisplayName(code: string): string {
-  return LANGUAGE_DISPLAY_NAMES[code] || code;
+/** Map a language code to a display name for LLM prompts and UI copy. */
+export function getLanguageDisplayName(code: string, data?: LanguageData | null, displayLocale?: string): string {
+  return getLanguageDisplayNameFromProfile(code, data, displayLocale);
 }

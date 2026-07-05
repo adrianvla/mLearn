@@ -9,6 +9,7 @@
 import type {
   Settings,
   FlashcardStore,
+  LanguageDataCatalogStatus,
   LanguageDataMap,
   InstallOptions,
   InstallerState,
@@ -100,6 +101,11 @@ export interface LocalizationBridge {
   changeUILanguage: (langCode: string) => void;
   getLangData: () => void;
   onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
+  getLanguageDataCatalog: () => void;
+  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
+  onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
+  onLanguageDataInstallError: (callback: (payload: { language: string; error: string }) => void) => () => void;
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
@@ -127,7 +133,7 @@ export interface WindowBridge {
   makePiP: (size: { width: number; height: number }) => void;
   unPiP: () => void;
   showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => void;
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
+  showReaderCtxMenu: (options: { readingAnnotationHiderEnabled: boolean; hasContextPhrase: boolean; canToggleReadingHider?: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
   showContact: () => void;
   openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;
@@ -142,7 +148,7 @@ export interface WindowBridge {
   onContextMenuCommand: (callback: (command: string) => void) => () => void;
   onReaderContextMenuCommand: (callback: (command: string) => void) => () => void;
   onOpenWordDbEditor: (callback: () => void) => () => void;
-  onOpenExamCentricStudy: (callback: () => void) => () => void;
+  onOpenLevelStudy: (callback: () => void) => () => void;
   onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => () => void;
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
   onLookupDeepLink: (callback: (word: string) => void) => () => void;
@@ -156,7 +162,6 @@ export interface ServerBridge {
   onServerStatusUpdate: (callback: (message: string) => void) => () => void;
   onServerCriticalError: (callback: (message: string) => void) => () => void;
   onAnkiConnectionError: (callback: (reason: string) => void) => () => void;
-  restartBackendAnkiOverride: (disableAnki: boolean) => void;
   onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
   sendLogRecord: (record: unknown) => void;
   restartApp: () => void;
@@ -205,11 +210,16 @@ export interface LLMBridge {
   onOllamaPullModelProgress: (callback: (progress: { status: string; completed?: number; total?: number; error?: string }) => void) => () => void;
 }
 
+export interface SpeechSynthesisOptions {
+  speechSynthesisLang?: string;
+  speechSynthesisVoice?: string;
+}
+
 export interface SpeechBridge {
   sttStart: (language: string) => void;
   sttStop: () => void;
   onSttResult: (callback: (result: { transcript: string; isFinal: boolean }) => void) => () => void;
-  ttsSpeak: (text: string, language: string) => void;
+  ttsSpeak: (text: string, language: string, options?: SpeechSynthesisOptions) => void;
   ttsStop: () => void;
   onTtsStatus: (callback: (status: { speaking: boolean; progress: number }) => void) => () => void;
 }
@@ -235,7 +245,7 @@ export interface VoiceBridge {
   voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;
   voiceSampleDelete: (id: string) => Promise<boolean>;
   voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
-  voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
+  voiceSampleTranscribe: (id: string, language?: string) => Promise<{ text: string; language: string }>;
   voiceSampleGetPath: (id: string) => Promise<string | null>;
 }
 

@@ -1,6 +1,6 @@
 /**
  * Flashcard Editor Component
- * Full-featured editor for flashcards with pitch accent, contentEditable fields,
+ * Full-featured editor for flashcards with prosody, contentEditable fields,
  * TTS regeneration, and example sentence generation.
  * Updated for the new UUID-keyed flashcard format
  */
@@ -8,13 +8,27 @@
 import { Component, createSignal, createEffect, createMemo, Show, onMount } from 'solid-js';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../context';
-import { getPitchAccentName } from '../../utils/pitchAccent';
-import { Input, Btn, PitchAccentOverlay } from '../common';
+import { Input, Btn } from '../common';
+import { ProsodyOverlay } from '../language-specific';
 import { TtsGenerateModal } from './TtsGenerateModal';
-import { getBackend } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
-import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { colorizeTokenizedText } from '../../utils/languageTokenization';
+import {
+  clearProsodyPosition,
+  createProsodyForPosition,
+  getLanguageProsodyType,
+  getProsodyPositionFromContent,
+  languageSupportsProsody,
+} from '../../../shared/languageFeatures';
+import { prosodyVisible } from '../../../shared/prosodySettings';
 import { showToast } from '../common/Feedback/Toast';
+import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
+import {
+  getProsodyOverlayRenderer,
+  getProsodyPositionCategoryLabel,
+  getProsodyPositionFieldLabel,
+  getProsodyPositionFieldPlaceholder,
+} from '../../utils/prosodyPresentation';
 import './FlashcardEditor.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -35,7 +49,7 @@ export interface FlashcardEditorProps {
 
 export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const { settings } = useSettings();
-  const { getLanguageFeatures } = useLanguage();
+  const { langData, currentLangData } = useLanguage();
   const { t } = useLocalization();
   const { intervalToString, generateExampleSentenceWithLLM, updateFlashcardContent } = useFlashcards();
 
@@ -43,7 +57,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const [front, setFront] = createSignal('');
   const [back, setBack] = createSignal('');
   const [reading, setReading] = createSignal('');
-  const [pitchAccent, setPitchAccent] = createSignal<number | undefined>(undefined);
+  const [prosodyPosition, setProsodyPosition] = createSignal<number | undefined>(undefined);
   const [pos, setPos] = createSignal('');
   const [example, setExample] = createSignal('');
   const [exampleMeaning, setExampleMeaning] = createSignal('');
@@ -65,7 +79,6 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       setFront(content.front || '');
       setBack(content.back || '');
       setReading(content.reading || '');
-      setPitchAccent(content.pitchAccent);
       setPos(content.pos || '');
       setExample(content.example || '');
       setExampleMeaning(content.exampleMeaning || '');
@@ -87,17 +100,44 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
     }
   });
 
-  // Language features check
-  const features = createMemo(() => getLanguageFeatures());
-  const supportsPitchAccent = createMemo(() => features().supportsPitchAccent && settings.showPitchAccent);
+  const cardLanguage = () => props.flashcard?.language || settings.language;
+  const cardLanguageData = createMemo(() => (
+    langData[cardLanguage()] ?? (cardLanguage() === settings.language ? currentLangData() : null)
+  ));
+  const usesProsodyOverlay = createMemo(() => (
+    getProsodyOverlayRenderer(cardLanguageData(), props.flashcard?.content.prosody?.type) !== null
+    && prosodyVisible(settings)
+  ));
+  const supportsProsodyPosition = createMemo(() => languageSupportsProsody(cardLanguageData()) && prosodyVisible(settings));
+  const savedProsodyPosition = (content: Partial<FlashcardContent> | undefined) => {
+    return getProsodyPositionFromContent(content, cardLanguageData());
+  };
+  const prosodyPositionLabel = createMemo(() => getProsodyPositionFieldLabel(cardLanguageData(), t));
+  const prosodyPositionPlaceholder = createMemo(() => getProsodyPositionFieldPlaceholder(cardLanguageData(), t));
 
-  // Compute pitch accent name (heiban, atamadaka, etc.)
-  const pitchName = createMemo(() => {
-    if (!supportsPitchAccent()) return '';
-    const pa = pitchAccent();
+  // Compute a renderer-specific prosody category name when the package supports one.
+  const prosodyCategoryName = createMemo(() => {
+    if (!usesProsodyOverlay()) return '';
+    const pa = prosodyPosition();
     const readingVal = reading() || front();
     if (pa === undefined || pa < 0 || !readingVal) return '';
-    return getPitchAccentName(pa, readingVal.length);
+    return getProsodyPositionCategoryLabel(cardLanguageData(), pa, readingVal, t);
+  });
+  const genericProsodyPreview = createMemo(() => {
+    if (usesProsodyOverlay()) return null;
+    if (!supportsProsodyPosition()) return null;
+    const position = prosodyPosition();
+    if (position === undefined || position < 0) return null;
+    return {
+      label: prosodyPositionLabel(),
+      position,
+      type: getLanguageProsodyType(cardLanguageData()) ?? '',
+    };
+  });
+
+  createEffect(() => {
+    const content = props.flashcard?.content ?? props.initialContent;
+    setProsodyPosition(savedProsodyPosition(content));
   });
 
   // Handle contentEditable input
@@ -113,12 +153,24 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
   // Handle save
   const handleSave = () => {
+    const existingContent = props.flashcard?.content ?? props.initialContent;
+    const nextProsodyPosition = prosodyPosition();
+    const existingProsody = existingContent?.prosody;
+    const nextProsody = (() => {
+      const nextType = existingProsody?.type ?? getLanguageProsodyType(cardLanguageData());
+      if (!nextType || nextType === 'none') return existingProsody;
+      if (!languageSupportsProsody(cardLanguageData()) && !existingProsody?.type) return existingProsody;
+      return nextProsodyPosition === undefined
+        ? clearProsodyPosition(existingProsody)
+        : createProsodyForPosition(nextType, nextProsodyPosition, existingProsody);
+    })();
     const content: FlashcardContent = {
-      type: props.flashcard?.content.type || 'word',
+      ...existingContent,
+      type: props.flashcard?.content.type || props.initialContent?.type || 'word',
       front: front(),
       back: back(),
       reading: reading() || undefined,
-      pitchAccent: pitchAccent(),
+      prosody: nextProsody,
       pos: pos() || undefined,
       level: level(),
       example: example() || undefined,
@@ -136,23 +188,18 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
     setRegeneratingExample(true);
     try {
-      const result = await generateExampleSentenceWithLLM(front(), back(), settings.language);
+      const language = cardLanguage();
+      const languageData = cardLanguageData();
+      const result = await generateExampleSentenceWithLLM(front(), back(), language);
       if (result.sentence) {
-        let exampleHtml = result.sentence;
-        try {
-          const backend = getBackend({
-            mode: settings.backendMode,
-            url: settings.backendUrl,
-            authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-          });
-          const tokens = await backend.tokenize(result.sentence, settings.language);
-          if (tokens.length > 0) {
-            exampleHtml = tokensToColoredHtml(tokens, settings.colour_codes || {}, front());
-          }
-        } catch (e) {
-          log.error("error", e);
-          // Use plain text if tokenization fails
-        }
+        const exampleHtml = await colorizeTokenizedText({
+          text: result.sentence,
+          language,
+          languageData,
+          settings,
+          colourCodes: resolveFlashcardColourCodes(languageData, settings.colour_codes),
+          targetWord: front(),
+        });
         setExample(exampleHtml);
         setExampleMeaning(result.meaning || '');
         // Also persist to the flashcard store
@@ -214,33 +261,50 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
           />
         </div>
 
-        {/* Pitch Accent Section - only show for languages that support it */}
-        <Show when={supportsPitchAccent()}>
-          <div class="editor-row pitch-row">
-            <div class="pitch-input-group">
-              <label>{t('mlearn.CardEditor.Fields.PitchAccent')}</label>
+        {/* Prosody Section */}
+        <Show when={supportsProsodyPosition()}>
+          <div class="editor-row prosody-row">
+            <div class="prosody-input-group">
+              <label>{prosodyPositionLabel()}</label>
               <input
                 type="number"
                 min="0"
-                value={pitchAccent() ?? ''}
+                value={prosodyPosition() ?? ''}
                 onInput={(e) => {
                   const val = e.currentTarget.value;
-                  setPitchAccent(val ? parseInt(val, 10) : undefined);
+                  setProsodyPosition(val ? parseInt(val, 10) : undefined);
                 }}
-                placeholder={t('mlearn.CardEditor.Fields.PitchAccentPlaceholder')}
-                class="pitch-input"
+                placeholder={prosodyPositionPlaceholder()}
+                class="prosody-position-input"
               />
             </div>
-            <div class="pitch-name">{pitchName()}</div>
-            <div class="pitch-preview">
-              <PitchAccentOverlay
-                word={front()}
-                reading={reading() || front()}
-                pitchPosition={pitchAccent()}
-                mode="preview"
-                showParticleBox={true}
-              />
-            </div>
+            <Show when={usesProsodyOverlay()}>
+              <div class="prosody-category-name">{prosodyCategoryName()}</div>
+              <div class="prosody-overlay-preview">
+                <ProsodyOverlay
+                  word={front()}
+                  reading={reading() || front()}
+                  prosodyPosition={prosodyPosition()}
+                  prosodyType={getLanguageProsodyType(cardLanguageData())}
+                  language={cardLanguage()}
+                  languageData={cardLanguageData()}
+                  mode="preview"
+                  showParticleBox={true}
+                />
+              </div>
+            </Show>
+            <Show when={genericProsodyPreview()}>
+              {(preview) => (
+                <div
+                  class="prosody-preview"
+                  data-prosody-type={preview().type}
+                  data-prosody-position={preview().position}
+                >
+                  <span class="prosody-preview-label">{preview().label}</span>
+                  <span class="prosody-preview-value">{preview().position}</span>
+                </div>
+              )}
+            </Show>
           </div>
         </Show>
 
@@ -329,6 +393,8 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
             isOpen={showTtsModal()}
             onClose={() => setShowTtsModal(false)}
             cardId={props.flashcard!.id}
+            language={cardLanguage()}
+            languageData={cardLanguageData()}
             wordText={front()}
             exampleText={example()}
             reading={reading()}

@@ -15,6 +15,7 @@ interface ReaderNavProps {
   progressString: Accessor<string>;
   fitMode: Accessor<string>;
   pageMode: Accessor<string>;
+  spreadDirection: Accessor<string>;
   firstPageSingle: Accessor<boolean>;
   showOcrOverlay: Accessor<boolean>;
   hasOcrResult: Accessor<boolean>;
@@ -23,6 +24,7 @@ interface ReaderNavProps {
   onToggleWordSidebar: () => void;
   onFitModeChange: (mode: string) => void;
   onPageModeChange: (mode: string) => void;
+  onSpreadDirectionChange: (direction: string) => void;
   onToggleFirstPageSingle: () => void;
   onToggleOcrOverlay: () => void;
   onPrevPage: () => void;
@@ -80,13 +82,23 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         />
         
         {props.pageMode() === 'double' && (
-          <NavBtn
-            onClick={props.onToggleFirstPageSingle}
-            title={props.firstPageSingle() ? t('mlearn.Reader.Toolbar.FirstPageSingleTooltip') : t('mlearn.Reader.Toolbar.FirstPagePairedTooltip')}
-            class={props.firstPageSingle() ? 'active' : ''}
-          >
-            {props.firstPageSingle() ? t('mlearn.Reader.Toolbar.PageLayoutSingle') : t('mlearn.Reader.Toolbar.PageLayoutPaired')}
-          </NavBtn>
+          <>
+            <Select
+              options={[
+                { value: 'right-to-left', label: t('mlearn.Reader.Toolbar.SpreadRightToLeft') },
+                { value: 'left-to-right', label: t('mlearn.Reader.Toolbar.SpreadLeftToRight') },
+              ]}
+              value={props.spreadDirection()}
+              onChange={(e) => props.onSpreadDirectionChange(e.currentTarget.value)}
+            />
+            <NavBtn
+              onClick={props.onToggleFirstPageSingle}
+              title={props.firstPageSingle() ? t('mlearn.Reader.Toolbar.FirstPageSingleTooltip') : t('mlearn.Reader.Toolbar.FirstPagePairedTooltip')}
+              class={props.firstPageSingle() ? 'active' : ''}
+            >
+              {props.firstPageSingle() ? t('mlearn.Reader.Toolbar.PageLayoutSingle') : t('mlearn.Reader.Toolbar.PageLayoutPaired')}
+            </NavBtn>
+          </>
         )}
       </div>
       

@@ -4,9 +4,6 @@
     "uvicorn",
     "fastapi",
     "pydantic",
-    "sudachipy",
-    "sudachidict_core",
-    "spacy",
     "beautifulsoup4",
     "pillow",
     "numpy",
@@ -15,14 +12,7 @@
     "wheel",
     "websockets"
   ],
-  "ocr": [
-    "paddlepaddle==3.2.2",
-    "paddleocr>=2.7.3",
-    "manga-ocr",
-    "onnxruntime",
-    "opencv-python-headless",
-    "rapidocr"
-  ],
+  "ocr": [],
   "llm": [
     "torch",
     "transformers",
@@ -33,12 +23,8 @@
     "torchaudio",
     "faster_whisper",
     "kokoro",
-    "misaki[ja]",
     "soundfile",
-    "unidic",
-    "silero-vad",
-    "pyopenjtalk",
-    "mojimoji"
+    "silero-vad"
   ],
   "qwen3-tts": [
     "qwen_tts",

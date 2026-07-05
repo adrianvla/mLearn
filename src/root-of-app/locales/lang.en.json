@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "Common": {
+      "Status": {
+        "Unknown": "Unknown"
+      }
+    },
     "AI": {
       "CloudUnreachable": "Cloud service is unreachable. Check your connection and try again.",
       "DownloadModel": "Download Model",
@@ -201,10 +206,12 @@
         "DefinitionsPlaceholder": "Definition per line",
         "ExampleSentence": "Example Sentence (HTML allowed)",
         "ExampleTranslation": "Example Translation",
-        "PitchAccent": "Pitch accent",
-        "PitchAccentPlaceholder": "0 (Heiban), 1, 2, 3…",
+        "JapanesePitchAccent": "Pitch accent",
+        "JapanesePitchAccentPlaceholder": "0 (Heiban), 1, 2, 3…",
+        "ProsodyPosition": "Prosody position",
+        "ProsodyPositionPlaceholder": "0, 1, 2, 3…",
         "Reading": "Reading",
-        "ReadingPlaceholder": "かな / reading",
+        "ReadingPlaceholder": "Reading / pronunciation",
         "StructuredContent": "Structured content (optional HTML)",
         "SurfaceNote": "(Word)",
         "Translation": "Translation (comma or newline separated)",
@@ -212,7 +219,7 @@
         "WordPlaceholder": "Enter word..."
       },
       "GenerateTtsAction": "Generate",
-      "Hint": "Translations: comma or newline separated. Pitch accent is mora drop position (0=heiban).",
+      "Hint": "Translations: comma or newline separated. Prosody details are saved when the language package supports them.",
       "NoCloudAuth": "Not authenticated with cloud. Sign in via Settings → Server.",
       "Regenerate": {
         "AllCompleted": "All tasks completed",
@@ -270,6 +277,11 @@
       "DesktopCode": "Desktop one-time code",
       "HintLocal": "Uses the local Python backend on this machine.",
       "HintTethered": "Connect to the Python backend running on your desktop.",
+      "LanguageCatalog": {
+        "Description": "Manifest URL for downloadable language metadata and asset links.",
+        "Title": "Language Catalog",
+        "Url": "Catalog URL"
+      },
       "Mode": "Mode",
       "ModeLocal": "Local",
       "ModeTethered": "Tethered",
@@ -586,8 +598,6 @@
       }
     },
     "ErrorModal": {
-      "AnkiDisablePermanent": "Disable Anki permanently",
-      "AnkiDisableSession": "Disable Anki for this session",
       "Copied": "Copied!",
       "CopyError": "Copy error",
       "HideDetails": "Hide details",
@@ -990,9 +1000,9 @@
           "IgnoreSeen": "Ignore seen filter",
           "Title": "Word Sync"
         },
-        "ExamCentricStudy": {
-          "Description": "Word Sync, Character Grid, and Exam Study in one place",
-          "Title": "Exam-centric Study"
+        "LevelStudy": {
+          "Description": "Word Sync, Character Grid, and Level Study in one place",
+          "Title": "Level Study"
         }
       },
       "Errors": {
@@ -1007,6 +1017,9 @@
       }
     },
     "Installer": {
+      "Title": {
+        "ComponentsRequired": "Setup Required"
+      },
       "Alerts": {
         "NetworkError": "Network error occurred. Please check your connection and try again."
       },
@@ -1015,7 +1028,10 @@
         "CancelRestart": "Cancel Restart",
         "Continue": "Continue",
         "Installing": "Installing...",
-        "StartInstallation": "Start Installation"
+        "StartInstallation": "Start Installation",
+        "InstallRequiredComponents": "Install required components",
+        "InstallLanguageData": "Install Selected Language Data",
+        "FinishSetup": "Finish Setup"
       },
       "Components": {
         "ExplainAi": {
@@ -1032,17 +1048,23 @@
         }
       },
       "Instructions": {
-        "ChooseComponents": "Choose the components you want to install, then click Install.",
+        "ChooseComponents": "Choose what you want to learn and how mLearn should speak to you.",
         "ClickToBegin": "Click Install to begin.",
         "DownloadNote": "All downloads are handled automatically. A stable connection is recommended.",
         "ForgetSomething": "Components cannot be added after installation. Select everything you need now.",
-        "LanguageUnlocks": "Language selection unlocks after setup finishes."
+        "LanguageUnlocks": "Language data is installed only after you explicitly request it."
+      },
+      "DictionaryTarget": {
+        "Label": "Dictionary language",
+        "ChooseAvailable": "Choose an available dictionary language",
+        "Unavailable": "No {language} dictionary is available for this learning language. Choose one of the available dictionary languages: {available}."
       },
       "Status": {
-        "Complete": "Installation complete! Choose your language to finish setup.",
+        "Complete": "Installation complete! Continue to install the selected language data.",
         "CouldNotStart": "Could not start the installation process.",
         "ErrorOccurred": "An error occurred. Check the log below.",
         "Installing": "Installing, please wait...",
+        "InstallingLanguageData": "Installing language data...",
         "InstallingPackages": "Installing packages...",
         "LanguageInstalledRestarting": "Language installed! Restarting...",
         "LlmSkip": "Skipping local AI model dependencies.",
@@ -1055,25 +1077,38 @@
         "AlreadySatisfied": "Already satisfied",
         "Collecting": "Collecting dependencies…",
         "Downloading": "Downloading…"
+      },
+      "SetupSentence": {
+        "LearnPrefix": "I want to learn",
+        "AppLanguagePrefix": "with mLearn in",
+        "AppLanguageSuffix": ".",
+        "DictionaryPrefix": "Dictionary definitions should be in"
+      },
+      "Advanced": {
+        "Title": "Advanced"
+      },
+      "Summary": {
+        "LearningLanguage": "Learning language: {language}",
+        "DisplayLanguage": "Display language: {language}",
+        "DictionaryLanguage": "Dictionary language: {language}",
+        "NotAvailable": "not available"
       }
     },
-    "ExamCentricStudy": {
-      "Title": "Exam-centric Study",
+    "LevelStudy": {
+      "Title": "Level Study",
       "Tabs": {
         "WordSync": "Word Sync",
         "CharacterGrid": "Character Grid",
-        "ExamStudy": "Exam Study"
-      }
-    },
-    "ExamStudy": {
+        "LevelStudy": "Level Study"
+      },
       "EmptyState": {
-        "Title": "Exam Study",
-        "Description": "Study words organized by exam level. Track your progress and add words to flashcards."
+        "Title": "Level Study",
+        "Description": "Study words organized by level. Track your progress and add words to flashcards."
       },
       "Coverage": {
-        "Title": "Exam Word Coverage",
+        "Title": "Level Word Coverage",
         "Words": "words",
-        "Complete": "All exam words are tracked!",
+        "Complete": "All level words are tracked!",
         "Hint": "Click a level below to view and add words"
       },
       "PopulationStats": {
@@ -1115,39 +1150,6 @@
         "Adding": "Adding...",
         "LoadMore": "Load more",
         "Error": "Failed to add flashcards"
-      }
-    },
-    "KanjiGrid": {
-      "CharactersByExamLevel": "Characters by exam level:",
-      "Disclaimer": {
-        "Description": "JLPT kanji here are inferred from the words assigned to each JLPT level, then extracted from those words. That makes this grid approximate: some levels include words whose kanji are not themselves required.",
-        "Title": "JLPT kanji are estimated"
-      },
-      "Description": "Colors: learning (orange→yellow), known (green→light-green); unknown (gray). Hover for details.",
-      "EmptyState": {
-        "Description": "Characters will appear here as you encounter them in videos and texts.",
-        "Hint": "Start watching or reading content to begin tracking!",
-        "Title": "No tracked characters yet"
-      },
-      "Legend": {
-        "Known": "Known:",
-        "Learning": "Learning:",
-        "Unknown": "Unknown:"
-      },
-      "LevelFallback": "Level {level}",
-      "Loading": "Loading character data...",
-      "Stats": {
-        "Known": "Known:",
-        "Learning": "Learning:",
-        "TotalFound": "Total Found:",
-        "Unknown": "Unknown:"
-      },
-      "Title": "Character Knowledge Overview",
-      "Tooltip": {
-        "KnownCount": "known",
-        "LearningCount": "learning",
-        "Score": "score",
-        "WordsContaining": "Words containing {char}"
       }
     },
     "Languages": {
@@ -1192,7 +1194,7 @@
       "MigrationWordStatuses": "Migrated {count} word statuses from v1. A backup has been created.",
       "UpdateAvailable": "Version {latestVersion} is now available (you are running {currentVersion}). Check the website to download."
     },
-    "PitchAccent": {
+    "JapanesePitchAccent": {
       "Atamadaka": "Atamadaka (頭高)",
       "DropAfterMora": "Drop after mora {mora}",
       "Heiban": "Heiban (平板)",
@@ -1204,8 +1206,8 @@
       "CollatePages": "Collate pages",
       "UncollatePages": "Uncollate pages",
       "CopyPhrase": "Copy phrase",
-      "HideFurigana": "Hide reading",
-      "ShowFurigana": "Show reading",
+      "HideReadingAnnotations": "Hide reading annotations",
+      "ShowReadingAnnotations": "Show reading annotations",
       "Requirements": {
         "OcrTurboLowRam": {
           "Title": "OCR may run slowly",
@@ -1254,13 +1256,13 @@
         "DebugOverlayOff": "Debug: Off",
         "DebugOverlayOn": "Debug: On",
         "DebugOverlayTitle": "Toggle debug overlay to visualize OCR text and reading annotation detection",
-        "FuriganaDetectionOff": "Reading Det.: Off",
-        "FuriganaDetectionOn": "Reading Det.: On",
+        "ReadingAnnotationDetectionOff": "Reading annotations: Off",
+        "ReadingAnnotationDetectionOn": "Reading annotations: On",
         "MagnifierHint": "Press {key} to open magnifier",
         "OpenConversationAgent": "AI Tutor",
         "OpenConversationAgentTitle": "Open AI conversation tutor",
-        "PaddleDownscaleLabel": "PaddleOCR Scale: {value}%",
-        "PaddleDownscaleTitle": "Downscale image before PaddleOCR processing (dev)",
+        "DetectionScaleLabel": "OCR detection scale: {value}%",
+        "DetectionScaleTitle": "Downscale image before OCR detection/recognition (dev)",
         "Ready": "Ready",
         "ShowTooltipOn": "Show Tooltip On:",
         "TimingDetection": "Det",
@@ -1289,6 +1291,8 @@
         "PageLayoutPaired": "1+2|3+4",
         "PageLayoutSingle": "1|2+3",
         "SinglePage": "Single Page",
+        "SpreadLeftToRight": "Pages L→R",
+        "SpreadRightToLeft": "Pages R→L",
         "ToggleUnknownWordsSidebar": "Toggle unknown words sidebar"
       },
       "UI": {
@@ -1328,9 +1332,9 @@
           "Label": "Theme",
           "Light": "Light",
           "LightHighContrast": "Light High Contrast",
-      "Custom": "Custom",
-      "CustomCssDescription": "Edit the CSS for your custom theme. Changes apply live.",
-      "CustomCssLabel": "Custom CSS"
+          "Custom": "Custom",
+          "CustomCssDescription": "Edit the CSS for your custom theme. Changes apply live.",
+          "CustomCssLabel": "Custom CSS"
         }
       },
       "BlurEffect": {
@@ -1385,17 +1389,17 @@
           "Description": "Show a side panel with word translations as subtitles appear",
           "Label": "Live Translation Panel"
         },
-        "ShowFurigana": {
-          "Description": "Display readings above words",
-          "Label": "Show Reading"
+        "ShowReadingAnnotations": {
+          "Label": "Show reading annotations",
+          "Description": "Display reading annotations above words"
         },
         "HideReadingForKnownWords": {
           "Description": "Automatically hide readings for words you already know",
           "Label": "Hide Reading for Known Words"
         },
-        "ShowPitchAccent": {
-          "Description": "Display pitch accent information for words",
-          "Label": "Show Pitch Accent"
+        "ShowProsody": {
+          "Description": "Display prosody, tone, stress, or accent information for words",
+          "Label": "Show prosody and accent"
         },
         "ShowPos": {
           "Description": "Display grammatical information for words",
@@ -1458,6 +1462,17 @@
         "LearningLanguage": {
           "Description": "Select the language you are learning",
           "Label": "Learning Language"
+        },
+        "LanguageData": {
+          "Install": "Install language data",
+          "Installing": "Installing language data...",
+          "Installed": "Language data installed",
+          "InstallFailed": "Language data install failed",
+          "MissingRequired": "Language data required"
+        },
+        "DictionaryTarget": {
+          "Description": "Select the language used for dictionary definitions",
+          "Label": "Dictionary Language"
         }
       },
       "Behaviour": {
@@ -1566,12 +1581,12 @@
       },
       "Reader": {
         "Description": "Configure OCR and manga reader settings",
-        "Furigana": {
+        "ReadingAnnotations": {
+          "Title": "Reading annotations",
           "Hide": {
-            "Description": "Cover detected reading annotations with white boxes that reveal on hover (for reading practice)",
-            "Label": "Hide Reading"
-          },
-          "Title": "Reading"
+            "Label": "Hide reading annotations",
+            "Description": "Cover detected reading annotations with white boxes that reveal on hover (for reading practice)"
+          }
         },
         "LlmIntegration": {
           "Enable": {
@@ -1630,9 +1645,9 @@
             "Description": "Enable optical character recognition for images",
             "Label": "Enable OCR"
           },
-          "FuriganaDetection": {
-            "Description": "Detect and filter reading annotations from OCR results. When disabled, all detected text boxes are shown as-is without reading annotation filtering.",
-            "Label": "Reading Annotation Detection"
+          "ReadingAnnotationDetection": {
+            "Label": "Reading annotation detection",
+            "Description": "Detect and filter reading annotations from OCR results. When disabled, all detected text boxes are shown as-is without reading annotation filtering."
           },
           "RamSaver": {
             "Description": "Use lightweight OpenCV-based text detection instead of neural network detection. Reduces memory usage by ~1.5 GB but may lower accuracy on complex layouts. Recognition quality is unaffected.",
@@ -1764,9 +1779,9 @@
             "Description": "Use mLearn's built-in spaced repetition system instead of Anki",
             "Label": "Use mLearn SRS"
           },
-          "ExamCardProportion": {
-            "Description": "Percentage of auto-created cards from exam levels (0-1)",
-            "Label": "Exam Card Proportion"
+          "LevelCardProportion": {
+            "Description": "Percentage of auto-created cards from language levels (0-1)",
+            "Label": "Level Card Proportion"
           },
           "FlipAnimation": {
             "Description": "Show a 3D flip animation when revealing flashcard answers",
@@ -2070,8 +2085,8 @@
       "Actions": {
         "EditWordDatabase": "Edit Word Database",
         "OpenAiAnalytics": "AI Media Analytics",
-        "OpenExamCentricStudy": "Open Exam-centric Study",
-        "ViewKanjiGrid": "View Kanji Grid"
+        "OpenLevelStudy": "Open Level Study",
+        "ViewCharacterGrid": "View Character Grid"
       },
       "CurrentlyLearning": "Currently Learning",
       "Dashboard": {
@@ -2157,7 +2172,7 @@
       "LevelColumn": "Level",
       "TimeWatched": "Time Watched",
       "Title": "Learning Statistics",
-      "WordsByExamLevel": "Words by Exam Level",
+      "WordsByLevel": "Words by Level",
       "WordsByStatus": "Words by Status",
       "WordsLearned": "Words Learned",
       "WordsTracked": "Words Tracked"
@@ -2500,7 +2515,7 @@
       "Flashcards": "Flashcards",
       "ForceRecreateFlashcards": "Force recreate new flashcards for today",
       "Help": "Help",
-      "HideReading": "Hide Reading",
+      "HideReading": "Hide Reading Annotations",
       "OpenDevTools": "Open DevTools",
       "OpenLiveWordTranslator": "Open Live Word Translator",
       "OpenSyncingWindow": "Open Syncing Window",
@@ -2512,10 +2527,9 @@
       },
       "ReviewFlashcards": "Review Flashcards",
       "Settings": "Settings",
-      "ExamCentricStudy": "Exam-centric Study",
-      "ShowKanjiGrid": "Show Kanji grid",
+      "LevelStudy": "Level Study",
       "ShowLearningStatistics": "Show learning statistics",
-      "ShowReading": "Show Reading",
+      "ShowReading": "Show Reading Annotations",
       "Statistics": "Statistics",
       "StopWatchTogether": "Stop Watch Together",
       "SyncSubtitles": "Sync Subtitles with Video",
@@ -2527,9 +2541,78 @@
       "Window": "Window"
     },
     "ComponentsTab": {
-      "Description": "Manage installed components. Toggle modules on or off and reinstall to apply changes.",
+      "Description": "Review installed components individually. Keep a group enabled to include it during reinstall.",
       "Reinstall": "Reinstall Components",
-      "RestartNote": "The app will restart after installation completes."
+      "RestartNote": "The app will restart after installation completes.",
+      "Enabled": "Enabled",
+      "Disabled": "Disabled",
+      "Groups": {
+        "AI": {
+          "Title": "AI components",
+          "Description": "Local model runtime and Python model tooling."
+        },
+        "Reader": {
+          "Title": "Reader and OCR components",
+          "Description": "Image text recognition models used by reader OCR."
+        },
+        "Voice": {
+          "Title": "Voice components",
+          "Description": "Speech recognition, speech synthesis, and voice activity detection."
+        },
+        "Dictionaries": {
+          "Title": "Installed dictionaries",
+          "Description": "Downloaded dictionary packs available on this computer."
+        }
+      },
+      "Items": {
+        "BuiltinChatRuntime": {
+          "Title": "Built-in chat model runtime",
+          "Description": "Runs downloaded GGUF chat models locally."
+        },
+        "TransformersSupport": {
+          "Title": "Transformers and PyTorch support",
+          "Description": "Python model dependencies used by legacy local LLM tooling."
+        },
+        "RapidOCR": {
+          "Title": "RapidOCR models",
+          "Description": "Fast OCR recognition for reader screenshots."
+        },
+        "PaddleOCR": {
+          "Title": "PaddleOCR models",
+          "Description": "Accurate OCR recognition and detection models."
+        },
+        "MangaOCR": {
+          "Title": "MangaOCR model",
+          "Description": "Japanese manga and vertical-text recognition."
+        },
+        "GenericOCR": {
+          "Title": "{engine} OCR runtime",
+          "Description": "OCR runtime declared by installed language data."
+        },
+        "WhisperSmall": {
+          "Title": "Whisper small STT model",
+          "Description": "Local speech-to-text for voice conversations."
+        },
+        "KokoroTts": {
+          "Title": "Kokoro TTS model",
+          "Description": "Local text-to-speech for supported languages."
+        },
+        "SileroVad": {
+          "Title": "Silero VAD model",
+          "Description": "Voice activity detection for hands-free calls."
+        },
+        "QwenTts": {
+          "Title": "Qwen3 TTS model",
+          "Description": "Optional local voice cloning and multilingual TTS."
+        },
+        "GenericTTS": {
+          "Title": "{engine} TTS runtime",
+          "Description": "Speech synthesis runtime declared by installed language data."
+        },
+        "DictionaryPack": {
+          "Description": "Definitions for {language}."
+        }
+      }
     },
     "Diagnostics": {
       "Title": "mLearn Diagnostics",
@@ -2597,6 +2680,43 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved"
+    },
+    "CharacterGrid": {
+      "CharactersByLevel": "Characters by level:",
+      "Disclaimer": {
+        "Title": "Character levels are estimated",
+        "Description": "Characters here are inferred from the words assigned to each level, then extracted from those words. That makes this grid approximate: some levels include words whose characters are not themselves required."
+      },
+      "Description": "Colors: learning (orange→yellow), known (green→light-green); unknown (gray). Hover for details.",
+      "EmptyState": {
+        "Description": "Characters will appear here as you encounter them in videos and texts.",
+        "Hint": "Start watching or reading content to begin tracking!",
+        "Title": "No tracked characters yet"
+      },
+      "Unsupported": {
+        "Description": "This language package does not define character-study scripts.",
+        "Title": "Character study is not available for this language"
+      },
+      "Legend": {
+        "Known": "Known:",
+        "Learning": "Learning:",
+        "Unknown": "Unknown:"
+      },
+      "LevelFallback": "Level {level}",
+      "Loading": "Loading character data...",
+      "Stats": {
+        "Known": "Known:",
+        "Learning": "Learning:",
+        "TotalFound": "Total Found:",
+        "Unknown": "Unknown:"
+      },
+      "Title": "Character Knowledge Overview",
+      "Tooltip": {
+        "KnownCount": "known",
+        "LearningCount": "learning",
+        "Score": "score",
+        "WordsContaining": "Words containing {char}"
+      }
     }
   }
 }

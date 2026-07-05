@@ -6,10 +6,11 @@
 
 import { createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
-import { useLocalization } from '../context';
+import { useLanguage, useLocalization, useSettings } from '../context';
 import { isElectron } from '../../shared/platform';
-import { stripFurigana } from '../../shared/utils/textUtils';
+import { stripReadingAnnotations } from '../../shared/utils/textUtils';
 import { showToast } from '../components/common/Feedback/Toast';
+import { resolveTtsLanguageData } from '../utils/ttsLanguageData';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useFlashcardTts");
@@ -28,6 +29,8 @@ export interface TtsMetadata {
 
 export function useFlashcardTts() {
   const { t } = useLocalization();
+  const { langData, currentLangData } = useLanguage();
+  const { settings } = useSettings();
   const [state, setState] = createSignal<FlashcardTtsState>({
     isPlaying: false,
     isGenerating: false,
@@ -109,8 +112,12 @@ export function useFlashcardTts() {
 
     if (!text || text === '-') return;
 
-    // Strip ruby annotations (keep base text, remove readings) then strip remaining HTML
-    const cleanText = stripFurigana(text);
+    const languageData = resolveTtsLanguageData(language, {
+      installedLanguageData: langData,
+      activeLanguage: settings.language,
+      activeLanguageData: currentLangData(),
+    });
+    const cleanText = stripReadingAnnotations(text, languageData);
     if (!cleanText.trim()) return;
 
     const myGenId = generationId;
@@ -150,7 +157,11 @@ export function useFlashcardTts() {
 
       // Fallback: system TTS (works on all platforms)
       if (myGenId === generationId) {
-        bridge.speech.ttsSpeak(cleanText, language);
+        const ttsRuntime = languageData?.runtime?.tts;
+        bridge.speech.ttsSpeak(cleanText, language, {
+          speechSynthesisLang: ttsRuntime?.webSpeechLang,
+          speechSynthesisVoice: ttsRuntime?.webSpeechVoice,
+        });
         // System TTS is fire-and-forget; update state optimistically
         setState({ isPlaying: false, isGenerating: false, playingField: null });
       }

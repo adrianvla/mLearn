@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
+import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 
@@ -62,6 +62,11 @@ export interface MLearnIPC {
   // Language Data
   getLangData: () => void;
   onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
+  getLanguageDataCatalog: () => void;
+  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
+  onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
+  onLanguageDataInstallError: (callback: (payload: { language: string; error: string }) => void) => () => void;
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
@@ -98,7 +103,6 @@ export interface MLearnIPC {
   onServerStatusUpdate: (callback: (message: string) => void) => () => void;
   onServerCriticalError: (callback: (message: string) => void) => () => void;
   onAnkiConnectionError: (callback: (reason: string) => void) => () => void;
-  restartBackendAnkiOverride: (disableAnki: boolean) => void;
   onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
 sendLogRecord: (record: unknown) => void;
   
@@ -122,10 +126,10 @@ sendLogRecord: (record: unknown) => void;
   onOpenSettings: (callback: (section?: string) => void) => () => void;
   onOpenAside: (callback: () => void) => () => void;
   onContextMenuCommand: (callback: (command: string) => void) => () => void;
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
+  showReaderCtxMenu: (options: { readingAnnotationHiderEnabled: boolean; hasContextPhrase: boolean; canToggleReadingHider?: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
   onReaderContextMenuCommand: (callback: (command: string) => void) => () => void;
   onOpenWordDbEditor: (callback: () => void) => () => void;
-  onOpenExamCentricStudy: (callback: () => void) => () => void;
+  onOpenLevelStudy: (callback: () => void) => () => void;
   
   // Watch Together
   isWatchingTogether: () => void;
@@ -276,7 +280,7 @@ sendLogRecord: (record: unknown) => void;
   voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;
   voiceSampleDelete: (id: string) => Promise<boolean>;
   voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
-  voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
+  voiceSampleTranscribe: (id: string, language?: string) => Promise<{ text: string; language: string }>;
   voiceSampleGetPath: (id: string) => Promise<string | null>;
 
   // KV Store

@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource } from 'solid-js';
+import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
 import {
   WindowWrapper,
   useLocalization,
@@ -11,7 +11,6 @@ import {
   EmptyState,
   FilterBuilder,
   PillLabel,
-  WordWithReading,
   buildWordSyncFields,
   buildWordSyncPreset,
   evaluateAst,
@@ -24,19 +23,29 @@ import {
   type PaletteItem,
   type ValidationError,
 } from '../../components/common';
+import { WordWithReading } from '../../components/language-specific';
 import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { fetchTranslation } from '../../hooks/useTranslation';
-import { extractKanjiChars } from '../../../shared/utils/textUtils';
-import { DEFAULT_SETTINGS } from '../../../shared/types';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import {
+  extractStudyCharacters,
+  getCharacterStudyScripts,
+  getFrequencyLevelLabel,
+  getFrequencyLevelVisualRank,
+  getLearningLanguageLevelForLanguage,
+  sortFrequencyLevelsByDifficulty,
+} from '../../../shared/languageFeatures';
 import {
   wasExplicitlySyncRated,
-  calculateKanjiBoost,
+  calculateCharacterStudyBoost,
   calculateWordWeight,
   isWordEligible,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
 import { fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { FlashcardWordTitle } from '../../components/flashcard/FlashcardWordTitle';
+import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import './WordSync.css';
 
 type Rating = 'unknown' | 'learning' | 'known';
@@ -76,9 +85,14 @@ export const WordSyncContent: Component = () => {
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
   const [filterPresetInitialized, setFilterPresetInitialized] = createSignal(false);
   const [showTranslation, setShowTranslation] = createSignal(false);
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
+  const ankiCacheOptions = createMemo(() => ({
+    language: settings.language,
+    languageData: langCtx.currentLangData(),
+  }));
+  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
 
   createEffect(() => {
     if (!settings.use_anki) {
@@ -86,13 +100,14 @@ export const WordSyncContent: Component = () => {
       return;
     }
 
-    if (isAnkiCacheFetched()) {
+    const options = ankiCacheOptions();
+    if (isAnkiCacheFetched(options)) {
       setAnkiCacheReady(true);
       return;
     }
 
     setAnkiCacheReady(false);
-    fetchAnkiWordsCache().then(() => setAnkiCacheReady(true)).catch(() => setAnkiCacheReady(true));
+    fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true)).catch(() => setAnkiCacheReady(true));
   });
 
   // ─── Translation for current word ───────────────────
@@ -100,7 +115,12 @@ export const WordSyncContent: Component = () => {
     () => currentWord()?.word,
     async (word) => {
       if (!word) return null;
-      return fetchTranslation(word, settings.language);
+      return fetchTranslation(word, settings.language, {
+        getCanonicalForm: langCtx.getCanonicalForm,
+        getWordVariants: langCtx.getWordVariants,
+        dictionaryTargetLanguage,
+        languageData: langCtx.currentLangData,
+      });
     },
   );
 
@@ -114,11 +134,11 @@ export const WordSyncContent: Component = () => {
   // ─── Pool of eligible words grouped by level ────────
   const levelNames = createMemo(() => langCtx.getFreqLevelNames());
   const sortedLevels = createMemo(() =>
-    Object.keys(levelNames()).map(Number).sort((a, b) => b - a),
+    sortFrequencyLevelsByDifficulty(Object.keys(levelNames()).map(Number), langCtx.currentLangData()),
   );
 
   const filterContext = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() =>
-    buildWordSyncFields(levelNames(), t),
+    buildWordSyncFields(levelNames(), t, langCtx.currentLangData()),
   );
 
   const filterResolvers = createMemo<Record<string, FieldResolver<unknown>>>(() => {
@@ -152,11 +172,22 @@ export const WordSyncContent: Component = () => {
     return { ok: false as const, errors: result.errors };
   });
 
-  function isSyncSeenRecently(word: string, langPrefix: string): boolean {
-    const lk = langPrefix + hashWordSync(word);
+  function getWordSyncStorageKey(word: string, language: string): string {
+    const storageWord = langCtx.getCanonicalFormForLanguage(language, word);
+    return `${language}:${hashWordSync(storageWord)}`;
+  }
+
+  function isSyncSeenRecently(word: string, language: string): boolean {
+    const lk = getWordSyncStorageKey(word, language);
     const ts = store.wordSyncSeen[lk];
     if (!ts) return false;
     return (Date.now() - ts) < THIRTY_DAYS_MS;
+  }
+
+  function isSyncSeenRecentlyByKey(lk: string, now: number): boolean {
+    const ts = store.wordSyncSeen[lk];
+    if (!ts) return false;
+    return (now - ts) < THIRTY_DAYS_MS;
   }
 
   const wordStatusToNumeric = (status: string): number => {
@@ -165,15 +196,32 @@ export const WordSyncContent: Component = () => {
     return WORD_STATUS.UNKNOWN;
   };
 
-  // ─── Known kanji set for logographic boost ──────────
-  // Builds a set of distinct kanji characters from words that are
-  // explicitly known (rated "known" through Word Sync). Only active
-  // when the current language uses a logographic script.
-  const knownKanjiSet = createMemo((): Set<string> => {
-    const features = langCtx.getLanguageFeatures();
-    if (!features.isLogographic) return new Set();
+  function resolveWordSyncStatus(word: string, lk: string, knowledge: ReturnType<typeof getWordKnowledge>): 'unknown' | 'learning' | 'known' {
+    if (store.knownUntracked[lk] || store.ignoredWords[lk]) return 'known';
 
-    const lang = settings.language;
+    const cardIds = store.wordToCardMap?.[lk] ?? [];
+    for (const cardId of cardIds) {
+      const card = store.flashcards?.[cardId];
+      if (!card) continue;
+      if (card.state === 'review') return 'known';
+      if (card.state === 'learning' || card.state === 'relearning') return 'learning';
+    }
+
+    if (knowledge) {
+      if (knowledge.ease >= settings.easeThresholdKnown) return 'known';
+      if (knowledge.ease >= settings.easeThresholdLearning) return 'learning';
+    }
+
+    return settings.use_anki
+      ? getComprehensiveWordStatusWithSourceSync(word, settings.language).status
+      : 'unknown';
+  }
+
+  // ─── Known character set for language-defined study scripts ─────
+  const characterStudyScripts = createMemo(() => getCharacterStudyScripts(langCtx.currentLangData()));
+  function buildKnownCharacterSetSnapshot(scripts: readonly string[], lang: string): Set<string> {
+    if (scripts.length === 0) return new Set();
+
     const prefix = lang + ':';
     const result = new Set<string>();
 
@@ -181,74 +229,85 @@ export const WordSyncContent: Component = () => {
       if (!key.startsWith(prefix)) continue;
       if (!wasExplicitlySyncRated(entry)) continue;
       if (entry.ease < SRS_EASE.DEFAULT_KNOWN) continue;
-      for (const ch of extractKanjiChars(entry.word)) {
+      for (const ch of extractStudyCharacters(entry.word, scripts)) {
         result.add(ch);
       }
     }
 
     return result;
-  });
+  }
 
   // ─── Word pool ──────────────────────────────────────
-   const wordPool = createMemo(() => {
+  const [wordPool, setWordPool] = createSignal<Map<number, PoolEntry[]>>(new Map(), { equals: false });
+
+  function buildWordPoolSnapshot(): Map<number, PoolEntry[]> {
     const ankiReady = ankiCacheReady();
     void ankiReady;
 
-    const freq = langCtx.wordFrequency;
+    const freq = langCtx.getWordFrequency();
     const names = levelNames();
     const staleDaysMs = settings.wordSyncStaleLearningDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
-    const rated = sessionRatedSet();
-    const kanjiSet = knownKanjiSet();
+    const studyScripts = characterStudyScripts();
     const ast = filterAst();
     const resolvers = filterResolvers();
-
-
-    const groups = new Map<number, PoolEntry[]>();
     const lang = settings.language;
-    const prefix = lang + ':';
+    const languageData = langCtx.currentLangData();
 
-    for (const [word, entry] of Object.entries(freq)) {
-      if (rated.has(word)) continue;
+    return untrack(() => {
+      const rated = sessionRatedSet();
+      const characterSet = buildKnownCharacterSetSnapshot(studyScripts, lang);
+      const groups = new Map<number, PoolEntry[]>();
 
-      const lk = prefix + hashWordSync(word);
+      for (const [word, entry] of Object.entries(freq)) {
+        if (rated.has(word)) continue;
 
-      if (store.knownUntracked[lk]) continue;
-      if (store.ignoredWords[lk]) continue;
+        const storageWord = langCtx.getCanonicalFormForLanguage(lang, word);
+        const lk = `${lang}:${hashWordSync(storageWord)}`;
 
-      const knowledge = getWordKnowledge(lk);
-      const resolvedStatus = getComprehensiveWordStatusWithSourceSync(word).status;
-      const seenRecently = isSyncSeenRecently(word, prefix);
-      const record = {
-        status: wordStatusToNumeric(resolvedStatus),
-        level: entry.raw_level,
-        seenRecently,
-      };
+        if (store.knownUntracked[lk]) continue;
+        if (store.ignoredWords[lk]) continue;
 
-      if (ast.ok && ast.ast && !evaluateAst<unknown>(ast.ast, record, resolvers)) continue;
+        const knowledge = getWordKnowledge(lk);
+        const resolvedStatus = resolveWordSyncStatus(word, lk, knowledge);
+        const seenRecently = isSyncSeenRecentlyByKey(lk, now);
+        const record = {
+          status: wordStatusToNumeric(resolvedStatus),
+          level: entry.raw_level,
+          seenRecently,
+        };
 
-      if (!isWordEligible(knowledge, seenRecently, false, staleDaysMs, now)) continue;
+        if (ast.ok && ast.ast && !evaluateAst<unknown>(ast.ast, record, resolvers)) continue;
 
-      const kanjiBoost = calculateKanjiBoost(word, kanjiSet);
-      const weight = calculateWordWeight(knowledge?.ease, kanjiBoost);
+        if (!isWordEligible(knowledge, seenRecently, true, staleDaysMs, now)) continue;
 
-      const lvl = entry.raw_level;
-      if (!groups.has(lvl)) groups.set(lvl, []);
-      groups.get(lvl)!.push({
-        word,
-        reading: entry.reading,
-        level: lvl,
-        levelName: names[String(lvl)] ?? `Level ${lvl}`,
-        weight,
-      });
-    }
+        const characterStudyBoost = calculateCharacterStudyBoost(word, characterSet, studyScripts);
+        const weight = calculateWordWeight(knowledge?.ease, characterStudyBoost);
 
-    for (const group of groups.values()) {
-      weightedShuffle(group);
-    }
+        const lvl = entry.raw_level;
+        if (!groups.has(lvl)) groups.set(lvl, []);
+        groups.get(lvl)!.push({
+          word,
+          reading: entry.reading,
+          level: lvl,
+          levelName: getFrequencyLevelLabel(lvl, names, languageData),
+          weight,
+        });
+      }
 
+      for (const group of groups.values()) {
+        weightedShuffle(group);
+      }
+
+      return groups;
+    });
+  }
+
+  function rebuildWordPool(): Map<number, PoolEntry[]> {
+    const groups = buildWordPoolSnapshot();
+    setWordPool(groups);
     return groups;
-  });
+  }
 
   let levelCursors = new Map<number, number>();
 
@@ -308,10 +367,10 @@ export const WordSyncContent: Component = () => {
     const w = currentWord();
     if (!w) return;
 
-    setWordKnowledgeEase(w.word, RATING_EASE[rating], w.reading);
+    setWordKnowledgeEase(w.word, RATING_EASE[rating], w.reading, settings.language);
 
     if (rating === 'unknown') {
-      markWordSyncSeen(w.word);
+      markWordSyncSeen(w.word, settings.language);
     }
 
     setSessionRatedSet((s) => { s.add(w.word); return s; });
@@ -341,7 +400,10 @@ export const WordSyncContent: Component = () => {
 
     const levels = sortedLevels();
     if (levels.length > 0) setSamplingLevel(levels[0]);
-    queueMicrotask(() => pickNext());
+    queueMicrotask(() => {
+      rebuildWordPool();
+      pickNext();
+    });
   }
 
   // ─── Keyboard shortcuts ─────────────────────────────
@@ -359,7 +421,8 @@ export const WordSyncContent: Component = () => {
     if (!filterPresetInitialized() && Object.keys(levelNames()).length > 0) {
       setFilterTokens(buildWordSyncPreset(
         levelNames(),
-        settings.learningLanguageLevel ?? DEFAULT_SETTINGS.learningLanguageLevel!,
+        getLearningLanguageLevelForLanguage(settings, settings.language),
+        langCtx.currentLangData(),
       ));
       setFilterPresetInitialized(true);
       return;
@@ -369,6 +432,7 @@ export const WordSyncContent: Component = () => {
       setInitialized(true);
       const levels = sortedLevels();
       if (levels.length > 0) setSamplingLevel(levels[0]);
+      rebuildWordPool();
       pickNext();
     }
   });
@@ -382,9 +446,9 @@ export const WordSyncContent: Component = () => {
       if (!ast.ok || !ast.ast) return;
 
       const record = {
-        status: wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word.word).status),
+        status: wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word.word, settings.language).status),
         level: word.level,
-        seenRecently: isSyncSeenRecently(word.word, `${settings.language}:`),
+        seenRecently: isSyncSeenRecently(word.word, settings.language),
       };
 
       if (evaluateAst<unknown>(ast.ast, record, filterResolvers())) {
@@ -392,6 +456,7 @@ export const WordSyncContent: Component = () => {
       }
 
       levelCursors = new Map();
+      rebuildWordPool();
       pickNext();
     }
   }, { defer: true }));
@@ -411,10 +476,35 @@ export const WordSyncContent: Component = () => {
     return w.levelName;
   });
 
+  const currentWordVisualLevel = createMemo(() => {
+    const w = currentWord();
+    if (!w) return undefined;
+    return getFrequencyLevelVisualRank(w.level, langCtx.getFreqLevelNames(), langCtx.currentLangData());
+  });
+
   const totalAvailable = createMemo(() => {
     let total = 0;
     for (const group of wordPool().values()) total += group.length;
     return total;
+  });
+
+  const currentWordProsody = createMemo(() => {
+    const w = currentWord();
+    if (!w) return undefined;
+    return extractProsodyFromTranslationData(translation() ?? undefined, langCtx.currentLangData(), w.reading);
+  });
+
+  const currentWordContent = createMemo(() => {
+    const w = currentWord();
+    if (!w) return null;
+    return {
+      type: 'word' as const,
+      front: w.word,
+      back: translationText(),
+      reading: w.reading,
+      level: w.level,
+      prosody: currentWordProsody(),
+    };
   });
 
   return (
@@ -453,12 +543,15 @@ export const WordSyncContent: Component = () => {
               levelCursors = new Map();
               setFinished(false);
               setLastRating(null);
-              queueMicrotask(() => pickNext());
+              queueMicrotask(() => {
+                rebuildWordPool();
+                pickNext();
+              });
             }}
             evaluation={filterValidation()}
           />
           <Show when={currentWord()}>
-            <PillLabel level={currentWord()!.level}>
+            <PillLabel level={currentWord()!.level} visualLevel={currentWordVisualLevel()}>
               {levelLabel()}
             </PillLabel>
           </Show>
@@ -468,10 +561,17 @@ export const WordSyncContent: Component = () => {
           {(w) => (
             <div class="word-sync-card">
               <div class="word-sync-word">
-                <WordWithReading
-                  word={w().word}
-                  reading={w().reading}
-                />
+                <Show
+                  when={currentWordContent()}
+                  fallback={<WordWithReading word={w().word} reading={w().reading} />}
+                >
+                  {(content) => (
+                    <FlashcardWordTitle
+                      content={content()}
+                      language={settings.language}
+                    />
+                  )}
+                </Show>
               </div>
               <Show when={showTranslation() && translationText()}>
                 <div class="word-sync-translation">{translationText()}</div>

@@ -9,6 +9,7 @@ import { formatClockTime } from '../../utils/timeFormatting';
 import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon } from '../../components';
 import { matchesKeybind } from '../../components/common/Input/KeybindInput';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
+import { getPartOfSpeechColor, getTokenJoinSeparator } from '../../../shared/languageFeatures';
 import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, ConversationSafetyFlag, StreamStats } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './ChatBubble.css';
@@ -66,6 +67,17 @@ function findErrorSpanIndex(text: string, correction: MistakeWidgetData, startFr
   }
 
   return bestIdx;
+}
+
+function getChatTokenText(token: Token): string {
+  return token.word || token.surface || '';
+}
+
+function joinChatTokenText(tokens: readonly Token[], separator: string): string {
+  return tokens
+    .map(getChatTokenText)
+    .filter(Boolean)
+    .join(separator);
 }
 
 interface ChatBubbleProps {
@@ -394,20 +406,27 @@ interface CorrectedTokenizedTextProps {
  * For each token, checks if it falls within a corrected span.
  */
 const CorrectedTokenizedText: Component<CorrectedTokenizedTextProps> = (props) => {
+  const { currentLangData } = useLanguage();
+  const tokenSeparator = createMemo(() => getTokenJoinSeparator(currentLangData()));
+
   /** Reconstruct full text from tokens and map each token to its char offset */
   const tokenRanges = createMemo(() => {
     let offset = 0;
-    return props.tokens.map((token) => {
+    return props.tokens.map((token, index) => {
+      const text = getChatTokenText(token);
       const start = offset;
-      const end = offset + token.word.length;
+      const end = offset + text.length;
       offset = end;
+      if (index < props.tokens.length - 1) {
+        offset += tokenSeparator().length;
+      }
       return { start, end, token };
     });
   });
 
   /** Build correction ranges from the reconstructed text using context-aware matching */
   const correctionRanges = createMemo(() => {
-    const fullText = props.tokens.map((t) => t.word).join('');
+    const fullText = joinChatTokenText(props.tokens, tokenSeparator());
     const ranges: Array<{ start: number; end: number; correction: MistakeWidgetData }> = [];
 
     const sorted = [...props.corrections].sort((a, b) => {
@@ -480,43 +499,46 @@ const CorrectedTokenizedText: Component<CorrectedTokenizedTextProps> = (props) =
   return (
     <span>
       <For each={groupedAnnotations()}>
-        {(group) => (
-          <Show
-            when={group.type === 'correction-group'}
-            fallback={
-              <ChatToken
-                token={(group as { type: 'token'; token: Token }).token}
-                onTokenHover={props.onTokenHover}
-                onTokenLeave={props.onTokenLeave}
-                triggerMode={props.triggerMode}
-                triggerKey={props.triggerKey}
-              />
-            }
-          >
-            {(() => {
-              const corrGroup = group as { type: 'correction-group'; tokens: Token[]; correction: MistakeWidgetData };
-              const isUnnatural = corrGroup.correction.errorType === 'unnatural';
-              return (
-                <span class={`chat-correction-group${isUnnatural ? ' unnatural' : ''}`}>
-                  <span class="chat-correction-original">
-                    {corrGroup.tokens.map((t) => t.word).join('')}
-                  </span>
-                  <span class="chat-correction-replacement">
-                    {corrGroup.correction.correction}
-                  </span>
-                  <Show when={corrGroup.correction.alternatives && corrGroup.correction.alternatives.length > 0}>
-                    <span class="chat-correction-alternatives">
-                      <For each={corrGroup.correction.alternatives!}>
-                        {(alt) => (
-                          <span class="chat-correction-alternative">{alt}</span>
-                        )}
-                      </For>
+        {(group, index) => (
+          <>
+            <Show when={index() > 0}>{tokenSeparator()}</Show>
+            <Show
+              when={group.type === 'correction-group'}
+              fallback={
+                <ChatToken
+                  token={(group as { type: 'token'; token: Token }).token}
+                  onTokenHover={props.onTokenHover}
+                  onTokenLeave={props.onTokenLeave}
+                  triggerMode={props.triggerMode}
+                  triggerKey={props.triggerKey}
+                />
+              }
+            >
+              {(() => {
+                const corrGroup = group as { type: 'correction-group'; tokens: Token[]; correction: MistakeWidgetData };
+                const isUnnatural = corrGroup.correction.errorType === 'unnatural';
+                return (
+                  <span class={`chat-correction-group${isUnnatural ? ' unnatural' : ''}`}>
+                    <span class="chat-correction-original">
+                      {joinChatTokenText(corrGroup.tokens, tokenSeparator())}
                     </span>
-                  </Show>
-                </span>
-              );
-            })()}
-          </Show>
+                    <span class="chat-correction-replacement">
+                      {corrGroup.correction.correction}
+                    </span>
+                    <Show when={corrGroup.correction.alternatives && corrGroup.correction.alternatives.length > 0}>
+                      <span class="chat-correction-alternatives">
+                        <For each={corrGroup.correction.alternatives!}>
+                          {(alt) => (
+                            <span class="chat-correction-alternative">{alt}</span>
+                          )}
+                        </For>
+                      </span>
+                    </Show>
+                  </span>
+                );
+              })()}
+            </Show>
+          </>
         )}
       </For>
     </span>
@@ -533,17 +555,23 @@ interface TokenizedTextProps {
 }
 
 const TokenizedText: Component<TokenizedTextProps> = (props) => {
+  const { currentLangData } = useLanguage();
+  const tokenSeparator = createMemo(() => getTokenJoinSeparator(currentLangData()));
+
   return (
     <span>
       <For each={props.tokens}>
-        {(token) => (
-          <ChatToken
-            token={token}
-            onTokenHover={props.onTokenHover}
-            onTokenLeave={props.onTokenLeave}
-            triggerMode={props.triggerMode}
-            triggerKey={props.triggerKey}
-          />
+        {(token, index) => (
+          <>
+            <Show when={index() > 0}>{tokenSeparator()}</Show>
+            <ChatToken
+              token={token}
+              onTokenHover={props.onTokenHover}
+              onTokenLeave={props.onTokenLeave}
+              triggerMode={props.triggerMode}
+              triggerKey={props.triggerKey}
+            />
+          </>
         )}
       </For>
     </span>
@@ -561,19 +589,17 @@ interface ChatTokenProps {
 
 const ChatToken: Component<ChatTokenProps> = (props) => {
   const { settings } = useSettings();
-  const { currentLangData, isTranslatable } = useLanguage();
+  const { currentLangData, isTokenTranslatable } = useLanguage();
   let wordRef: HTMLSpanElement | undefined;
   let longHoverTimeout: ReturnType<typeof setTimeout> | null = null;
   const [isMouseOver, setIsMouseOver] = createSignal(false);
   const [isKeyHeld, setIsKeyHeld] = createSignal(false);
 
   /** Whether this token is a translatable word (not punctuation/symbol) */
-  const isTokenTranslatable = createMemo(() => {
+  const tokenCanTranslate = createMemo(() => {
     const word = props.token.word;
     if (!word || !word.trim()) return false;
-    const pos = props.token.partOfSpeech ?? props.token.type ?? '';
-    if (!pos) return !!word.trim();
-    return isTranslatable(pos);
+    return isTokenTranslatable(props.token);
   });
 
   const clearLongHoverTimeout = () => {
@@ -590,7 +616,7 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
   };
 
   const handleMouseEnter = () => {
-    if (!isTokenTranslatable()) return;
+    if (!tokenCanTranslate()) return;
     setIsMouseOver(true);
     const mode = settings.readerWordHoverTrigger ?? props.triggerMode;
 
@@ -638,18 +664,14 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
     }
   };
 
-  /** Get POS color from language colour_codes (same logic as SubtitleWord) */
+  /** Get POS color from user overrides or package POS metadata. */
   const getTokenColor = createMemo((): string | undefined => {
     if (!settings.do_colour_codes) return undefined;
     const pos = props.token.partOfSpeech ?? props.token.type ?? '';
     if (!pos) return undefined;
 
-    if (settings.colour_codes?.[pos]) return settings.colour_codes[pos];
-
     const langData = currentLangData();
-    if (langData?.colour_codes?.[pos]) return langData.colour_codes[pos];
-
-    return undefined;
+    return getPartOfSpeechColor(pos, settings.colour_codes, langData);
   });
 
   onMount(() => {
@@ -664,7 +686,7 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
   });
 
   const tokenClass = createMemo(() => {
-    if (!isTokenTranslatable()) return 'chat-token';
+    if (!tokenCanTranslate()) return 'chat-token';
     return `chat-token ${props.token.isKnown === false ? 'unknown' : 'known'}`;
   });
 

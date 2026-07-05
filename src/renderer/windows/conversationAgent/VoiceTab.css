@@ -53,6 +53,7 @@
 .voice-initializing {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-3);
   padding: var(--spacing-2) 0;
 }
@@ -60,6 +61,12 @@
 .voice-initializing-text {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.voice-initializing-progress {
+  min-width: 160px;
+  max-width: 240px;
+  flex: 1 1 160px;
 }
 
 /* ------ Waveform visualizer ------ */

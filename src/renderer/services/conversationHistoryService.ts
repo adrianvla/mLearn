@@ -8,7 +8,7 @@ function getSessionsKey(lang: string): string {
   return `conversation-sessions-${lang}`;
 }
 
-export async function loadSessions(language: string = 'en'): Promise<ConversationSession[]> {
+export async function loadSessions(language: string): Promise<ConversationSession[]> {
   const raw = await getBridge().kvStore.kvGet(getSessionsKey(language));
   if (!raw) return [];
   try {
@@ -24,14 +24,14 @@ async function saveSessions(sessions: ConversationSession[], language: string): 
   await getBridge().kvStore.kvSet(getSessionsKey(language), JSON.stringify(sessions));
 }
 
-export async function addSession(session: ConversationSession, language: string = 'en'): Promise<ConversationSession[]> {
+export async function addSession(session: ConversationSession, language: string): Promise<ConversationSession[]> {
   const sessions = await loadSessions(language);
   sessions.push(session);
   await saveSessions(sessions, language);
   return sessions;
 }
 
-export async function updateSession(session: ConversationSession, language: string = 'en'): Promise<ConversationSession[]> {
+export async function updateSession(session: ConversationSession, language: string): Promise<ConversationSession[]> {
   const sessions = await loadSessions(language);
   const idx = sessions.findIndex((s) => s.id === session.id);
   if (idx !== -1) {
@@ -43,14 +43,14 @@ export async function updateSession(session: ConversationSession, language: stri
   return sessions;
 }
 
-export async function deleteSession(id: string, language: string = 'en'): Promise<ConversationSession[]> {
+export async function deleteSession(id: string, language: string): Promise<ConversationSession[]> {
   const sessions = await loadSessions(language);
   const filtered = sessions.filter((s) => s.id !== id);
   await saveSessions(filtered, language);
   return filtered;
 }
 
-export async function deleteAllSessions(language: string = 'en'): Promise<void> {
+export async function deleteAllSessions(language: string): Promise<void> {
   await saveSessions([], language);
 }
 

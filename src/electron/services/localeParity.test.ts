@@ -32,4 +32,42 @@ describe('locale parity', () => {
       expect(localeKeys, `${file} keys should match lang.en.json`).toEqual(englishKeys);
     }
   });
+
+  it('does not keep obsolete kanji-grid localization keys', () => {
+    const localeFiles = fs.readdirSync(localesDir)
+      .filter((file) => /^lang\..+\.json$/.test(file));
+
+    for (const file of localeFiles) {
+      const locale = JSON.parse(fs.readFileSync(path.join(localesDir, file), 'utf-8')) as Record<string, unknown>;
+      const keys = flattenKeys(locale);
+
+      expect(keys, `${file} should use CharacterGrid localization keys`).not.toContain('mlearn.KanjiGrid.Title');
+      expect(keys, `${file} should use ViewCharacterGrid localization keys`).not.toContain('mlearn.Statistics.Actions.ViewKanjiGrid');
+      expect(keys, `${file} should use ShowCharacterGrid localization keys`).not.toContain('mlearn.Menu.ShowKanjiGrid');
+    }
+  });
+
+  it('does not keep obsolete exam-centric study localization keys', () => {
+    const localeFiles = fs.readdirSync(localesDir)
+      .filter((file) => /^lang\..+\.json$/.test(file));
+
+    for (const file of localeFiles) {
+      const locale = JSON.parse(fs.readFileSync(path.join(localesDir, file), 'utf-8')) as Record<string, unknown>;
+      const keys = flattenKeys(locale);
+
+      expect(keys, `${file} should use LevelStudy localization keys`).not.toContain('mlearn.ExamCentricStudy.Title');
+      expect(keys, `${file} should use LevelStudy tab keys`).not.toContain('mlearn.ExamCentricStudy.Tabs.ExamStudy');
+      expect(keys, `${file} should use LevelStudy content keys`).not.toContain('mlearn.ExamStudy.Coverage.Title');
+      expect(keys, `${file} should use OpenLevelStudy action keys`).not.toContain('mlearn.Statistics.Actions.OpenExamCentricStudy');
+      expect(keys, `${file} should use WordsByLevel keys`).not.toContain('mlearn.Statistics.WordsByExamLevel');
+      expect(keys, `${file} should use LevelStudy menu keys`).not.toContain('mlearn.Menu.ExamCentricStudy');
+
+      expect(keys, `${file} should include LevelStudy title`).toContain('mlearn.LevelStudy.Title');
+      expect(keys, `${file} should include LevelStudy tabs`).toContain('mlearn.LevelStudy.Tabs.LevelStudy');
+      expect(keys, `${file} should include LevelStudy content`).toContain('mlearn.LevelStudy.Coverage.Title');
+      expect(keys, `${file} should include OpenLevelStudy action`).toContain('mlearn.Statistics.Actions.OpenLevelStudy');
+      expect(keys, `${file} should include WordsByLevel stats`).toContain('mlearn.Statistics.WordsByLevel');
+      expect(keys, `${file} should include LevelStudy menu`).toContain('mlearn.Menu.LevelStudy');
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import { parseWorkName } from '../../../utils/subtitleParsing';
+import { parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
 
 const VIDEO_FILE_EXTENSIONS = new Set(['mp4', 'webm', 'mkv', 'avi', 'mov']);
 const SUBTITLE_FILE_EXTENSIONS = new Set(['srt', 'vtt', 'ass', 'ssa']);
@@ -32,6 +32,7 @@ function getFileExtension(fileName: string): string {
 export async function collectDroppedMediaFiles(
   files: readonly File[],
   resolveFilePath: (file: File) => string,
+  parseOptions?: ParseWorkNameOptions,
 ): Promise<DroppedMediaFiles> {
   let video: DroppedVideoFile | null = null;
   let subtitle: DroppedSubtitleFile | null = null;
@@ -43,7 +44,7 @@ export async function collectDroppedMediaFiles(
       video = {
         file,
         fileName: file.name,
-        displayName: parseWorkName(file.name),
+        displayName: parseWorkName(file.name, parseOptions),
         filePath: resolveFilePath(file),
       };
       continue;

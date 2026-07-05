@@ -10,6 +10,7 @@ import { useLanguage, type GrammarEntry } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { Input, SelectableCard, PillLabel, EmptyState, Tag, HintText, LevelPillsFilter, CollapsibleStickyHeader } from '../common';
 import type { TutorGrammarSelection } from '../../../shared/types';
+import { compareGrammarLevelsForDisplay, getGrammarLevelLabel, getGrammarLevelVisualRank, sortGrammarLevelsForDisplay } from '../../../shared/languageFeatures';
 import './GrammarSelector.css';
 
 interface GrammarSelectorProps {
@@ -31,10 +32,11 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
   const allGrammarPoints = createMemo((): GrammarEntry[] => {
     const data = currentLangData();
     if (!data?.grammar) return [];
-    const levelNames = data.grammar_level_names || {};
+    const levelNames = data.grammarLevels?.names || {};
     return data.grammar.map((gp) => ({
       ...gp,
-      levelName: levelNames[String(gp.level)] || String(gp.level),
+      levelName: getGrammarLevelLabel(gp.level, levelNames, data),
+      visualLevel: getGrammarLevelVisualRank(gp.level, levelNames, data),
     }));
   });
 
@@ -44,7 +46,7 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
     for (const gp of allGrammarPoints()) {
       levels.add(gp.level);
     }
-    return Array.from(levels).sort((a, b) => a - b);
+    return sortGrammarLevelsForDisplay(Array.from(levels), currentLangData());
   });
 
   // Selected patterns set for O(1) lookup
@@ -73,10 +75,10 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
       );
     }
 
-    // Sort by exam level first, then by pattern (locale-aware).
+    // Sort by language-defined level first, then by pattern (locale-aware).
     // Keep this deterministic so ordering does not jump around.
     return [...items].sort((a, b) => {
-      if (a.level !== b.level) return a.level - b.level;
+      if (a.level !== b.level) return compareGrammarLevelsForDisplay(a.level, b.level, currentLangData());
       return grammarPatternCollator().compare(a.pattern, b.pattern);
     });
   });
@@ -127,6 +129,7 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
             setLevelFilter(level);
           }}
           getLevelLabel={getGrammarLevelName}
+          getVisualLevel={(level) => getGrammarLevelVisualRank(level, currentLangData()?.grammarLevels?.names, currentLangData())}
           allLabel={t('mlearn.AITutorSetup.AllLevels')}
         />
 
@@ -148,7 +151,7 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
                 selected={selectedPatterns().has(gp.pattern)}
                 onClick={() => toggleGrammar(gp)}
                 title={gp.pattern}
-                badgeElement={<PillLabel level={gp.level} size="xs">{getGrammarLevelName(gp.level)}</PillLabel>}
+                badgeElement={<PillLabel level={gp.level} visualLevel={gp.visualLevel} size="xs">{gp.levelName}</PillLabel>}
                 size="sm"
                 class="grammar-selector__card"
                 showCheckmark
