@@ -14,6 +14,7 @@ import type {
   OCRRequestOptions,
   OCRResult,
   OCRWarmupResult,
+  TranslateRequestOptions,
 } from './types';
 import { getLogger } from '../utils/logger';
 
@@ -100,9 +101,12 @@ export class HttpBackend implements BackendAdapter {
     return ((data.tokens || data) as unknown) as Token[];
   }
 
-  async translate(word: string, language?: string): Promise<TranslationResponse> {
+  async translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse> {
     const body: Record<string, string> = { word };
     if (language) body.language = language;
+    if (options?.dictionaryTargetLanguage) {
+      body.dictionaryTargetLanguage = options.dictionaryTargetLanguage;
+    }
 
     const res = await fetch(this.buildUrl(API_PATHS.translate), {
       method: 'POST',
@@ -127,6 +131,9 @@ export class HttpBackend implements BackendAdapter {
       form.append('file', imageData, 'image.png');
     }
 
+    if (options?.language) {
+      form.append('language', options.language);
+    }
     if (options?.turbo !== undefined) {
       form.append('turbo', options.turbo ? '1' : '0');
     }
@@ -136,11 +143,11 @@ export class HttpBackend implements BackendAdapter {
     if (options?.devMode !== undefined) {
       form.append('dev_mode', options.devMode ? '1' : '0');
     }
-    if (options?.paddleMaxWidth !== undefined) {
-      form.append('paddle_max_width', String(options.paddleMaxWidth));
+    if (options?.detectionMaxWidth !== undefined) {
+      form.append('detection_max_width', String(options.detectionMaxWidth));
     }
-    if (options?.paddleMaxHeight !== undefined) {
-      form.append('paddle_max_height', String(options.paddleMaxHeight));
+    if (options?.detectionMaxHeight !== undefined) {
+      form.append('detection_max_height', String(options.detectionMaxHeight));
     }
 
     const res = await fetch(this.buildUrl(API_PATHS.ocr), {
@@ -154,8 +161,13 @@ export class HttpBackend implements BackendAdapter {
     return (await res.json()) as OCRResult;
   }
 
-  async warmupOcr(): Promise<OCRWarmupResult> {
-    const res = await fetch(this.buildUrl(API_PATHS.ocrWarmup), {
+  async warmupOcr(language?: string): Promise<OCRWarmupResult> {
+    const warmupUrl = this.buildUrl(API_PATHS.ocrWarmup);
+    const url = language
+      ? `${warmupUrl}${warmupUrl.includes('?') ? '&' : '?'}language=${encodeURIComponent(language)}`
+      : warmupUrl;
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: this.headers(),
       signal: AbortSignal.timeout(30_000),

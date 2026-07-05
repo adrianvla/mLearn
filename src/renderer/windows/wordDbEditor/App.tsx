@@ -37,7 +37,7 @@ import { getLogger } from '../../../shared/utils/logger';
 const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
-  const { wordFrequency, getFreqLevelNames, getCanonicalForm } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
   const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
@@ -61,6 +61,10 @@ export const WordDbEditorContent: Component = () => {
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
 
   const [ankiExportStates, setAnkiExportStates] = createSignal<Record<string, AnkiExportState>>({});
+  const ankiCacheOptions = createMemo(() => ({
+    language: settings.language,
+    languageData: currentLangData(),
+  }));
 
   // Anki card preview state
   const [ankiPreviewOpen, setAnkiPreviewOpen] = createSignal(false);
@@ -70,7 +74,7 @@ export const WordDbEditorContent: Component = () => {
   const [editFlashcardOpen, setEditFlashcardOpen] = createSignal(false);
   const [editingFlashcard, setEditingFlashcard] = createSignal<Flashcard | null>(null);
 
-  // Level names - use dynamic level names from langData (e.g., JLPT N1-N5, HSK 1-6, etc.)
+  // Level names come from the active language metadata.
   const getLevelNames = (): Record<number, string> => {
     const langLevelNames = getFreqLevelNames();
     const result: Record<number, string> = {};
@@ -80,14 +84,10 @@ export const WordDbEditorContent: Component = () => {
       result[Number(key)] = value;
     }
     
-    // Add special levels with localized names
-    result[0] = t('mlearn.WordDbEditor.LevelNames.Common');
-    result[-1] = t('mlearn.WordDbEditor.LevelNames.Unlisted');
-    
     return result;
   };
 
-  const filterContext = createMemo(() => buildWordDbEditorFields(getLevelNames(), t));
+  const filterContext = createMemo(() => buildWordDbEditorFields(getLevelNames(), t, currentLangData()));
 
   const filterAst = createMemo<
     | { ok: true; ast: ReturnType<typeof parseTokens> | null }
@@ -123,7 +123,7 @@ export const WordDbEditorContent: Component = () => {
   // Load words from storage on mount
   onMount(async () => {
     try {
-      await loadWordsFromStorage();
+      await loadWordsFromStorage(settings.language);
       setIsInitialized(true);
       log.info('Word DB Editor: Loaded words from storage');
     } catch (e) {
@@ -140,13 +140,14 @@ export const WordDbEditorContent: Component = () => {
       return;
     }
 
-    if (isAnkiCacheFetched()) {
+    const options = ankiCacheOptions();
+    if (isAnkiCacheFetched(options)) {
       setAnkiWordsReady(true);
       return;
     }
 
     setAnkiWordsReady(false);
-    fetchAnkiWordsCache().then(() => {
+    fetchAnkiWordsCache(options).then(() => {
       setAnkiWordsReady(true);
     }).catch(() => {
       setAnkiWordsReady(true);
@@ -156,6 +157,7 @@ export const WordDbEditorContent: Component = () => {
   // Auto-load words when wordFrequency data becomes available AND flashcards are loaded
   // This handles the case where langData and flashcards load asynchronously
   createEffect(() => {
+    const wordFrequency = getWordFrequency();
     const freqWords = Object.keys(wordFrequency);
     const totalWords = freqWords.length;
     const fcLoading = flashcardsLoading();
@@ -195,12 +197,33 @@ export const WordDbEditorContent: Component = () => {
   };
 
   const knowledgeStatusToNumeric = (word: string): number => {
-    return wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word).status);
+    return wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word, settings.language).status);
   };
 
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm);
+  const getWordForms = (word: string): string[] => (
+    getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: currentLangData() })
+  );
+
+  const mergeReadings = (...groups: Array<string | undefined | null | readonly string[]>): string[] => {
+    const readings: string[] = [];
+    const addReading = (reading: string | undefined | null) => {
+      if (!reading || readings.includes(reading)) return;
+      readings.push(reading);
+    };
+
+    for (const group of groups) {
+      if (Array.isArray(group)) {
+        for (const reading of group) addReading(reading);
+      } else if (typeof group === 'string') {
+        addReading(group);
+      }
+    }
+
+    return readings;
+  };
 
   const ignoredEntries = createMemo<WordEntry[]>(() => {
+    const wordFrequency = getWordFrequency();
     return getIgnoredWordsSync()
       .map((ignored) => {
         const freqEntry = wordFrequency[ignored.word];
@@ -209,7 +232,7 @@ export const WordDbEditorContent: Component = () => {
           word: ignored.word,
           translation: '',
           reading: ignored.reading || freqEntry?.reading || '',
-          level: freqEntry?.raw_level ?? -1,
+          level: freqEntry?.raw_level ?? null,
           tracker: 'ignored',
           status: knowledgeStatusToNumeric(ignored.word),
           knowledgeSource: 'IgnoredWords',
@@ -236,11 +259,12 @@ export const WordDbEditorContent: Component = () => {
 
     try {
       // Ensure storage is loaded first
-      await loadWordsFromStorage();
+      await loadWordsFromStorage(settings.language);
 
       const wordEntries: WordEntry[] = [];
 
       // Get words from word frequency data (from langData)
+      const wordFrequency = getWordFrequency();
       const freqWords = Object.entries(wordFrequency);
       const totalWords = freqWords.length;
 
@@ -255,20 +279,26 @@ export const WordDbEditorContent: Component = () => {
         const [word, freqEntry] = freqWords[i];
         const uuid = word; // Use word as UUID for consistency
         const status = knowledgeStatusToNumeric(word);
-        const isTracked = hasWordSync(word);
-        const ankiMatch = findAnkiWordMatchInCache(getWordForms(word));
-        const comprehensive = getComprehensiveWordStatusWithSourceSync(word);
+        const trackedCard = getCardByWordSync(word, settings.language);
+        const isTracked = !!trackedCard || hasWordSync(word, settings.language);
+        const ankiMatch = findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions());
+        const comprehensive = getComprehensiveWordStatusWithSourceSync(word, settings.language);
+        const primaryReading = trackedCard?.content?.reading || freqEntry.reading || '';
 
         wordEntries.push({
           uuid,
           word,
-          translation: '', // Would need API call to get translation
-          reading: freqEntry.reading || '',
-          level: freqEntry.raw_level ?? -1,
+          translation: trackedCard?.content?.back || '',
+          reading: primaryReading,
+          level: freqEntry.raw_level ?? null,
           tracker: isTracked ? 'flashcards' : ankiMatch ? 'anki' : 'nothing',
           status,
           knowledgeSource: comprehensive.source,
-          alternateReadings: freqEntry.alternateReadings,
+          fullTranslation: trackedCard?.content?.back,
+          prosodyPosition: trackedCard?.content?.prosody?.position ?? null,
+          prosody: trackedCard?.content?.prosody,
+          alternateReadings: mergeReadings(freqEntry.reading, freqEntry.alternateReadings, trackedCard?.content?.reading)
+            .filter((reading) => reading !== primaryReading),
           ankiLookupWord: ankiMatch?.word,
         });
 
@@ -361,7 +391,7 @@ export const WordDbEditorContent: Component = () => {
         back: entry.translation || entry.fullTranslation || entry.word,
         reading: entry.reading || undefined,
         pos: '',
-        level: entry.level,
+        level: entry.level ?? undefined,
       };
 
       // Add to flashcard store using context
@@ -384,7 +414,7 @@ export const WordDbEditorContent: Component = () => {
   const handleRemoveFlashcard = async (entry: WordEntry) => {
     try {
       // Find flashcard by word (async now)
-      const card = await getCardByWord(entry.word);
+      const card = await getCardByWord(entry.word, settings.language);
 
       if (card) {
         await removeFlashcard(card.id, true);
@@ -405,7 +435,7 @@ export const WordDbEditorContent: Component = () => {
 
   const handleUnignore = async (entry: WordEntry) => {
     try {
-      await unignoreWordForLanguage(entry.word);
+      await unignoreWordForLanguage(entry.word, settings.language);
     } catch (e) {
       log.error('Failed to unignore word:', e);
     }
@@ -430,7 +460,8 @@ export const WordDbEditorContent: Component = () => {
     const updatedEntry: WordEntry = {
       ...entry,
       reading: data.reading || entry.reading,
-      pitch: data.pitch,
+      prosodyPosition: data.prosodyPosition,
+      prosody: data.prosody,
       translation: data.definitions.slice(0, 3).join(', '),
       fullTranslation: data.definitions.join('\n'),
     };
@@ -452,9 +483,28 @@ export const WordDbEditorContent: Component = () => {
     setAnkiPreviewOpen(true);
   };
 
+  const getEditInitialData = (entry: WordEntry): TranslationOverride | null => {
+    const definitions = entry.fullTranslation?.split('\n').filter(Boolean) ?? [];
+    const hasSavedDefinitions = definitions.length > 0;
+    const hasSavedProsody = Boolean(entry.prosody?.type && entry.prosody.type !== 'none')
+      || entry.prosodyPosition !== null
+      || entry.tracker === 'flashcards';
+
+    if (!hasSavedDefinitions && !hasSavedProsody) {
+      return null;
+    }
+
+    return {
+      reading: entry.reading || '',
+      prosodyPosition: entry.prosodyPosition ?? null,
+      prosody: entry.prosody,
+      definitions,
+    };
+  };
+
   // Open flashcard editor for a tracked word
   const handleEditFlashcard = (entry: WordEntry) => {
-    const card = getCardByWordSync(entry.word);
+    const card = getCardByWordSync(entry.word, settings.language);
     if (!card) return;
     setEditingFlashcard(card);
     setEditFlashcardOpen(true);
@@ -497,7 +547,7 @@ export const WordDbEditorContent: Component = () => {
 
       const meaning = entry.translation || entry.fullTranslation || entry.word;
       // Pull example sentence from flashcard if available
-      const card = getCardByWordSync(entry.word);
+      const card = getCardByWordSync(entry.word, settings.language);
       const noteId = await anki.addNote({
         word: entry.word,
         reading: entry.reading || undefined,
@@ -507,7 +557,7 @@ export const WordDbEditorContent: Component = () => {
       });
 
       if (noteId) {
-        await refreshAnkiWordsCache();
+        await refreshAnkiWordsCache(ankiCacheOptions());
         setAnkiExportStates(prev => ({ ...prev, [uuid]: 'exported' }));
         log.info(`%cExported "${entry.word}" to Anki (noteId: ${noteId})`, 'color: cyan;');
       } else {
@@ -525,7 +575,7 @@ export const WordDbEditorContent: Component = () => {
       return false;
     }
 
-    return !!findAnkiWordMatchInCache(getWordForms(word));
+    return !!findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions());
   };
 
   const [entriesListRef, setEntriesListRef] = createSignal<HTMLDivElement | undefined>(undefined);
@@ -697,11 +747,7 @@ export const WordDbEditorContent: Component = () => {
                   setEditingEntry(null);
                 }}
                 onSave={handleEditSave}
-                initialData={editingEntry()?.pitch !== undefined ? {
-                  reading: editingEntry()!.reading || '',
-                  pitch: editingEntry()!.pitch ?? null,
-                  definitions: editingEntry()!.fullTranslation?.split('\n') || [],
-                } : null}
+                initialData={getEditInitialData(editingEntry()!)}
             />
           </Show>
 

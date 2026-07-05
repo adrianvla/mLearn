@@ -11,16 +11,16 @@ import { OcrOverlay, MagnifyingGlass, type OcrBox, type OcrResult, type OcrProce
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
-import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
+import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
-import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext } from '../../../../shared/types';
+import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
-import type { OCRRequestOptions } from '../../../../shared/backends/types';
 import { getSettingRequirementWarningParams } from '../../../../shared/settingRequirements';
+import { readerReadingAnnotationHiderEnabled } from '../../../../shared/readingAnnotationSettings';
 import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard, ReaderStatusBar, type ReaderUnknownWordEntry } from './components';
 import { ProgressRing } from '../../../components/common';
@@ -31,6 +31,13 @@ import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
+import {
+  getReaderCollatePagesForLanguage,
+  getReaderFirstPageSingleForLanguage,
+  getReaderPageModeForLanguage,
+  getReaderSpreadDirectionForLanguage,
+  resolveCloudOcrEngine,
+} from '../../../../shared/languageFeatures';
 import { getWordStatus } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
@@ -40,9 +47,13 @@ import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModify
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
 import { syncReaderPluginActivity } from './readerPluginActivity';
-import { getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
-import { getWordFormCandidates } from '../../../utils/wordForms';
+import { getSpreadPageSideClass, getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
+import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
+import { getReaderPassiveTrackingWord } from './readerWordTracking';
+import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
+import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
+import { formatFrequencyLevelLabel } from '../../../utils/levelLabels';
 import {
   getWebkitEntry,
   isWebkitDirectoryEntry,
@@ -75,6 +86,68 @@ interface ReaderPageWordSource {
   boxIndex: number;
 }
 
+interface ReaderCompatibleOcrBox {
+  box?: number[][];
+  text: string;
+  score?: number;
+  confidence?: number;
+  is_vertical?: boolean;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
+interface ReaderCompatibleOcrResult {
+  boxes?: ReaderCompatibleOcrBox[];
+  processing_times?: OcrProcessingTimes;
+  client_scale?: number;
+  downscale_factor?: number;
+  original_size?: { width: number; height: number };
+  sent_size?: { width: number; height: number };
+}
+
+function normalizeReaderOcrBox(box: ReaderCompatibleOcrBox): OcrBox | null {
+  if (Array.isArray(box.box) && box.box.length > 0) {
+    return {
+      box: box.box,
+      text: box.text,
+      score: box.score ?? box.confidence,
+      is_vertical: box.is_vertical,
+    };
+  }
+
+  if (
+    typeof box.x === 'number'
+    && typeof box.y === 'number'
+    && typeof box.width === 'number'
+    && typeof box.height === 'number'
+  ) {
+    return {
+      box: [
+        [box.x, box.y],
+        [box.x + box.width, box.y],
+        [box.x + box.width, box.y + box.height],
+        [box.x, box.y + box.height],
+      ],
+      text: box.text,
+      score: box.score ?? box.confidence,
+      is_vertical: box.is_vertical,
+    };
+  }
+
+  return null;
+}
+
+function normalizeReaderOcrResult(result: ReaderCompatibleOcrResult): OcrResult {
+  return {
+    ...result,
+    boxes: (result.boxes ?? [])
+      .map(normalizeReaderOcrBox)
+      .filter((box): box is OcrBox => box !== null),
+  };
+}
+
 // OCR results cache by page id
 const [ocrResults, setOcrResults] = createStore<Record<string, OcrResult>>({});
 
@@ -86,6 +159,7 @@ interface OcrTask {
 }
 const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
 const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
+let lastOcrReadinessWarning = '';
 
 // Per-book page memory (like old app's sequencer.js)
 const STORAGE_KEY_PREFIX = 'reader:last-page:';
@@ -164,16 +238,33 @@ export const ReaderRoute: Component = () => {
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
   const anki = useAnki();
-  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm } = langCtx;
-  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm);
+  const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
+  const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+  const { translateWord } = useTranslation({
+    immediate: true,
+    language: settings.language,
+    ...wordLookupOptions,
+  });
+  const ankiCacheOptions = createMemo(() => ({
+    language: settings.language,
+    languageData: currentLangData(),
+  }));
+  const getWordForms = (word: string): string[] => (
+    getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: currentLangData() })
+  );
+  const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
-    return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
+    return findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())?.word ?? null;
   };
-  const { tokenize } = useTokenizer({ language: settings.language });
-  const { lookup } = useDictionary({ language: settings.language });
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
+  const parseCurrentWorkName = (name: string): string => parseWorkName(name, {
+    languageCodes: langCtx.supportedLanguages(),
+  });
   let settingRequirementWarningsChecked = false;
 
   // Media stats for this reader session
@@ -187,10 +278,12 @@ export const ReaderRoute: Component = () => {
   // Used for persisting to recent items so users can click to re-open
   const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
-  const pageMode = () => settings.readerPageMode ?? DEFAULT_SETTINGS.readerPageMode!;
+  const pageMode = () => getReaderPageModeForLanguage(settings, currentLangData());
+  const readerSpreadDirection = () => getReaderSpreadDirectionForLanguage(settings, currentLangData());
   // When true and in double-page mode, first page displays alone (cover page)
   // This offsets the pairing: [0], [1,2], [3,4]... instead of [0,1], [2,3]...
-  const firstPageSingle = () => settings.readerFirstPageSingle ?? DEFAULT_SETTINGS.readerFirstPageSingle!;
+  const firstPageSingle = () => getReaderFirstPageSingleForLanguage(settings, currentLangData());
+  const collatePages = () => getReaderCollatePagesForLanguage(settings, currentLangData());
 
   // Helper: get the valid spread-start index for a given page in double-page mode
   // firstSingle=true:  valid starts are 0, 1, 3, 5, 7... (0 alone, then odd numbers)
@@ -259,8 +352,8 @@ export const ReaderRoute: Component = () => {
   const [ocrDebugOverlay, setOcrDebugOverlay] = createSignal(false);
   const toggleOcrDebugOverlay = () => setOcrDebugOverlay(!ocrDebugOverlay());
 
-  // PaddleOCR downscale slider (dev mode only, non-turbo)
-  const [paddleOcrScale, setPaddleOcrScale] = createSignal(80);
+  // OCR detection downscale slider (dev mode only, non-turbo)
+  const [ocrDetectionScale, setOcrDetectionScale] = createSignal(80);
 
   // Dev-mode live-tuneable OCR zone clustering parameters
   const [zoneDeltaThreshold, setZoneDeltaThreshold] = createSignal(15);
@@ -423,8 +516,8 @@ export const ReaderRoute: Component = () => {
 
     for (const entry of entries) {
       for (const token of entry.tokens) {
-        const word = token.actual_word ?? token.surface ?? token.word;
-        if (!word || !isTranslatable(token.type)) {
+        const word = getTokenLookupWord(token, tokenizerCapabilities());
+        if (!word || !isTokenTranslatable(token)) {
           continue;
         }
 
@@ -479,15 +572,15 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        if (flashcardCtx.isWordIgnoredSync(entry.word)) {
+        if (flashcardCtx.isWordIgnoredSync(entry.word, settings.language)) {
           continue;
         }
 
-        if (flashcardCtx.getComprehensiveWordStatusSync(entry.word) === 'known') {
+        if (flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language) === 'known') {
           continue;
         }
 
-        if (!isWordInLanguageScript(entry.word, settings.language)) {
+        if (!isWordInLanguageScript(entry.word, settings.language, langCtx.currentLangData())) {
           continue;
         }
 
@@ -507,7 +600,13 @@ export const ReaderRoute: Component = () => {
 
     void (async () => {
       const capturedPages = new Map<string, string | null>();
-      const allowedWords = await filterSuggestedWords(unknown.map(entry => entry.word), settings.language, settings);
+      const allowedWords = await filterSuggestedWords(
+        unknown.map(entry => entry.word),
+        settings.language,
+        settings,
+        currentLangData(),
+        { getWordForms, dictionaryTargetLanguage: dictionaryTargetLanguage() },
+      );
       for (const entry of unknown) {
         if (capturedSuggestionWords.has(entry.word)) continue;
         const freq = langCtx.getFrequency(entry.word);
@@ -529,7 +628,7 @@ export const ReaderRoute: Component = () => {
           reading: freq?.reading,
           pos: entry.token.type,
           level: freq?.raw_level ?? null,
-          contextPhrase: cleanContextPhrase(entry.contextPhrase),
+          contextPhrase: cleanContextPhrase(entry.contextPhrase, langCtx.currentLangData()),
           imageUrl: image || undefined,
           source: bookId || undefined,
           sourceMediaHash: mediaHash || undefined,
@@ -561,10 +660,11 @@ export const ReaderRoute: Component = () => {
     });
 
     try {
-      const translationData = getCachedTranslation(entry.word, settings.language) ?? await translateWord(entry.word);
+      const translationData = getCachedTranslation(entry.word, settings.language, wordLookupOptions)
+        ?? await translateWord(entry.word);
       const image = imageRefs()[entry.pageId] || null;
       const anchorRect = getAnchorRectForWord(entry);
-      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(entry.word);
+      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language);
       const frequency = langCtx.getFrequency(entry.word);
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
@@ -574,15 +674,16 @@ export const ReaderRoute: Component = () => {
         isOcr: true,
         ocrImageElement: image,
         anchorRect: anchorRect || undefined,
-        level: frequency?.raw_level ?? -1,
+        level: frequency?.raw_level,
         wordStatus,
-        colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
+        colourCodes: settings.colour_codes || {},
+        languageData: currentLangData(),
         ocrCropPadding: settings.ocr_crop_padding,
         tokenize,
-srsLearningEase: settings.srsLearningThreshold / 1000,
-          srsKnownEase: settings.known_ease_threshold / 1000,
+        srsLearningEase: settings.srsLearningThreshold / 1000,
+        srsKnownEase: settings.known_ease_threshold / 1000,
       });
-      await flashcardCtx.addFlashcard(content, ease);
+      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
     } finally {
       setAddingSidebarWords((prev) => {
         const next = new Set(prev);
@@ -593,7 +694,11 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
   };
 
   const handleAddSidebarWord = async (entry: ReaderUnknownWordEntry) => {
-    if (addingSidebarWords().has(entry.key) || flashcardCtx.hasWordSync(entry.word) || flashcardCtx.isWordIgnoredSync(entry.word)) {
+    if (
+      addingSidebarWords().has(entry.key)
+      || flashcardCtx.hasWordSync(entry.word, settings.language)
+      || flashcardCtx.isWordIgnoredSync(entry.word, settings.language)
+    ) {
       return;
     }
     await addReaderWordFlashcard(entry);
@@ -616,7 +721,10 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     setIsAddingAllSidebarWords(true);
     try {
       for (const entry of entries) {
-        if (flashcardCtx.hasWordSync(entry.word) || flashcardCtx.isWordIgnoredSync(entry.word)) {
+        if (
+          flashcardCtx.hasWordSync(entry.word, settings.language)
+          || flashcardCtx.isWordIgnoredSync(entry.word, settings.language)
+        ) {
           continue;
         }
         const trackedAnkiWord = getTrackedAnkiWord(entry.word);
@@ -627,7 +735,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
           try {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
-            await refreshAnkiWordsCache();
+            await refreshAnkiWordsCache(ankiCacheOptions());
           } catch (err) {
             log.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
@@ -655,10 +763,44 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     await flashcardCtx.ignoreWordForLanguage(entry.word, entry.token.reading);
   };
 
+  const currentOcrReadinessError = () => getOcrLanguageDataReadinessError(settings.language, currentLangData());
+
+  const currentOcrAutomationState = () => resolveReaderOcrAutomationState({
+    ocrEnabled: Boolean(ocrEnabled()),
+    languageDataLoading: langCtx.isLoading(),
+    readinessError: currentOcrReadinessError(),
+  });
+
+  const stopOcrForReadinessError = (readinessError: string): void => {
+    setOcrQueue([]);
+    setOcrStatus(readinessError);
+    if (lastOcrReadinessWarning !== readinessError) {
+      lastOcrReadinessWarning = readinessError;
+      log.warn('OCR unavailable:', readinessError);
+    }
+  };
+
   // Automatic OCR + cache next pages
   createEffect(() => {
     const allPages = pages();
     if (allPages.length === 0) return;
+    const automationState = currentOcrAutomationState();
+    if (readerOcrShouldClearStatus(automationState)) {
+      setOcrQueue([]);
+      updateOverallStatus();
+      return;
+    }
+
+    if (automationState.kind === 'blocked') {
+      stopOcrForReadinessError(automationState.message);
+      return;
+    }
+
+    if (!readerOcrCanQueue(automationState)) {
+      return;
+    }
+    lastOcrReadinessWarning = '';
+
     const base = currentPage();
     const isDouble = pageMode() === 'double';
 
@@ -741,6 +883,22 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
   const processQueue = async () => {
     if (processingTask()) return; // Already working
 
+    const automationState = currentOcrAutomationState();
+    if (readerOcrShouldClearStatus(automationState)) {
+      setOcrQueue([]);
+      updateOverallStatus();
+      return;
+    }
+
+    if (automationState.kind === 'blocked') {
+      stopOcrForReadinessError(automationState.message);
+      return;
+    }
+
+    if (!readerOcrCanQueue(automationState)) {
+      return;
+    }
+
     const queue = ocrQueue();
     if (queue.length === 0) {
       // Queue is empty - update status
@@ -817,61 +975,57 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     try {
       await showSettingRequirementWarningsOnce();
 
-      const imageBlob = page.blob ?? await (await fetch(page.src)).blob();
-
       const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
-      const prepared = await prepareBlobForOCR(imageBlob, turbo);
+      const languageData = currentLangData();
+      const automationState = currentOcrAutomationState();
+      if (readerOcrShouldClearStatus(automationState)) {
+        setOcrQueue([]);
+        updateOverallStatus();
+        return null;
+      }
+      if (automationState.kind === 'blocked') {
+        stopOcrForReadinessError(automationState.message);
+        return null;
+      }
+      if (!readerOcrCanQueue(automationState)) {
+        return null;
+      }
+
+      const imageBlob = page.blob ?? await (await fetch(page.src)).blob();
+      assertOcrLanguageDataReady(settings.language, languageData);
 
       let result: OcrResult;
 
       if (settings.ocrProvider === 'cloud') {
+        const prepared = await prepareBlobForOCR(imageBlob, turbo);
         // Cloud OCR via HATEOAS job flow
         const language = settings.language;
-        const engine = turbo ? 'rapid' : undefined;
+        const engine = resolveCloudOcrEngine(languageData, turbo);
         const cloudApiUrl = resolveCloudApiUrl(settings);
         const cloudResult = await withCloudAuth(async (cloudToken) => {
           const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
           return adapter.recognize(prepared.blob, language, engine);
         });
 
-        // Convert cloud box format {x,y,width,height} to reader OcrBox format {box: [[x1,y1]...]}
-        const convertedBoxes: OcrResult['boxes'] = (cloudResult.boxes || []).map(b => ({
-          box: [
-            [b.x, b.y],
-            [b.x + b.width, b.y],
-            [b.x + b.width, b.y + b.height],
-            [b.x, b.y + b.height],
-          ],
-          text: b.text,
-          score: b.confidence,
-        }));
-
-        result = {
-          boxes: convertedBoxes,
-        } as OcrResult;
+        result = normalizeReaderOcrResult({
+          boxes: cloudResult.boxes,
+        });
+        result.client_scale = prepared.clientScale;
+        result.downscale_factor = prepared.clientScale > 0 ? 1 / prepared.clientScale : 1;
+        result.original_size = { width: prepared.originalW, height: prepared.originalH };
+        result.sent_size = { width: prepared.sentW, height: prepared.sentH };
       } else {
-        const ocrOptions: OCRRequestOptions = {
-          turbo,
-          ramSaver: settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver,
-        };
-
-        if (settings.devMode) {
-          ocrOptions.devMode = true;
-          // Dev-mode PaddleOCR downscale: compute max dimensions from scale percentage
-          const scale = paddleOcrScale();
-          if (!turbo && scale < 100) {
-            ocrOptions.paddleMaxWidth = Math.max(1, Math.round(prepared.sentW * (scale / 100)));
-            ocrOptions.paddleMaxHeight = Math.max(1, Math.round(prepared.sentH * (scale / 100)));
-          }
-        }
-
-        result = await getBackend().ocr(prepared.blob, ocrOptions) as OcrResult;
+        result = normalizeReaderOcrResult(await sendImageForOCR(
+          imageBlob,
+          {
+            language: settings.language,
+            turbo,
+            ramSaver: settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver,
+            devMode: settings.devMode ? true : undefined,
+            detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
+          },
+        ));
       }
-
-      result.client_scale = prepared.clientScale;
-      result.downscale_factor = prepared.clientScale > 0 ? 1 / prepared.clientScale : 1;
-      result.original_size = { width: prepared.originalW, height: prepared.originalH };
-      result.sent_size = { width: prepared.sentW, height: prepared.sentH };
 
       // Only store if generation hasn't changed (turbo mode wasn't toggled mid-flight)
       if (ocrGeneration() === gen) {
@@ -882,6 +1036,11 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       }
       return result;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (isReaderOcrReadinessErrorMessage(message)) {
+        stopOcrForReadinessError(message);
+        return null;
+      }
       log.error('OCR error:', error);
       // We don't set error status globally to avoid flashing errors for background tasks
       return null;
@@ -889,6 +1048,17 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
   };
 
   const updateOverallStatus = () => {
+    const automationState = currentOcrAutomationState();
+    if (readerOcrShouldClearStatus(automationState)) {
+      setOcrStatus('');
+      setOcrProgress(0);
+      return;
+    }
+    if (automationState.kind === 'blocked') {
+      setOcrStatus(automationState.message);
+      return;
+    }
+
     const currentTask = processingTask();
     const queue = ocrQueue();
     const visible = visiblePages();
@@ -976,6 +1146,15 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
   // Helper for manual run (force) - kept for potential future use
   const requestOcrForPage = (page: PageImage) => {
+    const automationState = currentOcrAutomationState();
+    if (automationState.kind === 'blocked') {
+      stopOcrForReadinessError(automationState.message);
+      return;
+    }
+    if (!readerOcrCanQueue(automationState)) {
+      return;
+    }
+
     // Add to front of queue if not there?
     // Actually manual run usually implies "do it now".
     // We can just add to queue and trigger.
@@ -986,6 +1165,15 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
   void requestOcrForPage;
 
   const runOcr = async () => {
+    const automationState = currentOcrAutomationState();
+    if (automationState.kind === 'blocked') {
+      stopOcrForReadinessError(automationState.message);
+      return;
+    }
+    if (!readerOcrCanQueue(automationState)) {
+      return;
+    }
+
     const visible = visiblePages();
     // Prioritize visible pages in queue
     setOcrQueue(prev => {
@@ -1014,7 +1202,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
         const pdfImages = await pdfToImages(file);
         // For PDF: use filename only (stripped)
-        const bookId = parseWorkName(fileName);
+        const bookId = parseCurrentWorkName(fileName);
         setCurrentBookId(bookId);
         // Store the path for recent items persistence
         setCurrentBookPath(bookPath);
@@ -1053,7 +1241,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
         // For folders: use folder name only (stripped)
         const folderName = bookPath.split('/').filter(Boolean).pop() || '';
-        const bookId = parseWorkName(folderName);
+        const bookId = parseCurrentWorkName(folderName);
         setCurrentBookId(bookId);
         // Store the path for recent items persistence
         setCurrentBookPath(bookPath);
@@ -1117,7 +1305,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
       files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
       const folderName = (files[0] as File & { webkitRelativePath: string }).webkitRelativePath?.split('/')[0] || 'Book';
-      const bookId = parseWorkName(folderName);
+      const bookId = parseCurrentWorkName(folderName);
       setCurrentBookId(bookId);
       setCurrentBookPath('');
 
@@ -1164,7 +1352,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       setOcrStatus(t('mlearn.Reader.Status.LoadingPdf'));
       try {
         const pdfImages = await pdfToImages(file);
-        const bookId = parseWorkName(file.name);
+        const bookId = parseCurrentWorkName(file.name);
         setCurrentBookId(bookId);
         setCurrentBookPath('');
 
@@ -1223,17 +1411,23 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       });
     }
 
-    // Trigger lazy warmup of OCR transformers on the backend.
-    // This avoids loading heavy ML models at server startup;
-    // the preimport only happens when the reader is actually opened.
-    if (settings.ocrEnabled !== false) {
-      getBackend().warmupOcr().catch(() => {/* non-fatal */});
-    }
   });
 
-  // Furigana hider state comes from settings
-  // Access it via settings context so changes propagate to OcrOverlay
-  const furiganaHiderEnabled = () => settings.readerFuriganaHider ?? DEFAULT_SETTINGS.readerFuriganaHider!;
+  createEffect(on(
+    () => [settings.ocrEnabled, settings.language, langCtx.isLoading(), currentLangData()] as const,
+    ([ocrEnabledSetting, language, languageLoading, languageData]) => {
+      // Trigger lazy warmup of OCR transformers only after the learning
+      // language package metadata has loaded. Blank/missing metadata would use
+      // generic OCR defaults and hide missing package installs.
+      if ((ocrEnabledSetting ?? DEFAULT_SETTINGS.ocrEnabled) && language && !languageLoading && languageData) {
+        getBackend().warmupOcr(language).catch(() => {/* non-fatal */});
+      }
+    },
+    { defer: true },
+  ));
+
+  const canToggleReadingHider = () => getLanguageFeatures().supportsReadings;
+  const readingAnnotationHiderEnabled = () => canToggleReadingHider() && readerReadingAnnotationHiderEnabled(settings);
 
   // Listen to reader context menu commands
   onMount(() => {
@@ -1241,9 +1435,14 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
     const cleanup = bridge.window.onReaderContextMenuCommand((command: string) => {
       switch (command) {
-        case 'toggle-furigana':
-          // Toggle through settings so FuriganaHider component gets updated
-          updateSettings({ readerFuriganaHider: !furiganaHiderEnabled() });
+        case 'toggle-reading-annotation-hider':
+          if (!canToggleReadingHider()) break;
+          {
+            const enabled = !readingAnnotationHiderEnabled();
+            updateSettings({
+              readerReadingAnnotationHider: enabled,
+            });
+          }
           break;
         case 'copy-phrase': {
           // Copy the current context phrase to clipboard
@@ -1264,7 +1463,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
           }
           break;
         case 'toggle-collate-pages':
-          updateSettings({ readerCollatePages: !(settings.readerCollatePages ?? DEFAULT_SETTINGS.readerCollatePages) });
+          updateSettings({ readerCollatePages: !collatePages() });
           break;
       }
     });
@@ -1273,7 +1472,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
   // Handler for right-click context menu in reader on OCR boxes (has phrase to copy)
   const handleOcrContextMenu = (contextPhrase: string, _boxIndex: number, position: { x: number; y: number }) => {
-    const cleanedPhrase = cleanContextPhrase(contextPhrase);
+    const cleanedPhrase = cleanContextPhrase(contextPhrase, langCtx.currentLangData());
     const hasContextPhrase = !!cleanedPhrase && cleanedPhrase !== '-';
 
     // Store the context phrase for copy functionality
@@ -1281,16 +1480,17 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     setOcrContextMenuPosition(position);
 
     getBridge().window.showReaderCtxMenu({
-      furiganaHiderEnabled: furiganaHiderEnabled(),
+      readingAnnotationHiderEnabled: readingAnnotationHiderEnabled(),
+      canToggleReadingHider: canToggleReadingHider(),
       hasContextPhrase,
       canExplainPhrase: settings.llmEnabled && hasContextPhrase,
-      collatePagesEnabled: settings.readerCollatePages ?? DEFAULT_SETTINGS.readerCollatePages,
+      collatePagesEnabled: collatePages(),
       isDoublePageMode: pageMode() === 'double',
     });
   };
 
   // Handler for right-click context menu on image (no OCR box selected)
-  // Shows limited menu with only furigana toggle
+  // Shows limited menu with only the reading annotation hider toggle
   const handleImageContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1300,15 +1500,16 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     setOcrContextMenuPosition({ x: e.clientX + 16, y: e.clientY + 16 });
 
     getBridge().window.showReaderCtxMenu({
-      furiganaHiderEnabled: furiganaHiderEnabled(),
+      readingAnnotationHiderEnabled: readingAnnotationHiderEnabled(),
+      canToggleReadingHider: canToggleReadingHider(),
       hasContextPhrase: false, // No phrase to copy when clicking on image
       canExplainPhrase: false,
-      collatePagesEnabled: settings.readerCollatePages ?? DEFAULT_SETTINGS.readerCollatePages,
+      collatePagesEnabled: collatePages(),
       isDoublePageMode: pageMode() === 'double',
     });
   };
 
-  // Listen to MangaOCR server status updates
+  // Listen to server-side OCR status updates
   onMount(() => {
     const handleOcrStatus = (message: string) => {
       setServerOcrMessage(message);
@@ -1440,7 +1641,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
         const pdfImages = await pdfToImages(pdfFile);
 
         // For PDF: use filename only (stripped)
-        const bookId = parseWorkName(pdfFile.name);
+        const bookId = parseCurrentWorkName(pdfFile.name);
         setCurrentBookId(bookId);
 
         // Get PDF path from rawFilePaths map (populated using webUtils.getPathForFile)
@@ -1511,14 +1712,14 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     // When a folder is drag-n-dropped, use its name directly
     let bookId: string;
     if (droppedFolderName) {
-      bookId = parseWorkName(droppedFolderName);
+      bookId = parseCurrentWorkName(droppedFolderName);
     } else {
       // Fallback: extract from first file's path using rawFilePaths map
       const firstFilePath = rawFilePaths.get(files[0].name) || getFilePath(files[0]);
       const rawFolderName = firstFilePath
           ? extractFolderName(firstFilePath)
           : files[0].name;
-      bookId = parseWorkName(rawFolderName);
+      bookId = parseCurrentWorkName(rawFolderName);
     }
     setCurrentBookId(bookId);
 
@@ -1658,7 +1859,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     if (supportsGrammar()) {
       const detectedPatterns = detectGrammarInText([{ word, surface: word, actual_word: word } as Token]);
       for (const pattern of detectedPatterns) {
-        flashcardCtx.trackGrammarFailed(pattern.pattern, pattern.level);
+        flashcardCtx.trackGrammarFailed(pattern.pattern, pattern.level, settings.language);
       }
     }
   };
@@ -1684,18 +1885,18 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
   const handleOcrWordHover = async (token: Token, rect: DOMRect, contextPhrase: string = '') => {
     const requestId = ++ocrHoverRequestId;
     // Use actual_word (dictionary form) for translation lookup, fallback to surface
-    const lookupWord = token.actual_word ?? token.surface ?? token.word;
+    const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
     const displayWord = token.surface ?? token.word;
 
     // Track word encounter for passive knowledge
-    flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading);
+    flashcardCtx.trackWordSeen(getReaderPassiveTrackingWord(token, tokenizerCapabilities()), token.reading, undefined, settings.language);
 
     // Track grammar encounters in OCR context
     if (supportsGrammar() && contextPhrase) {
       // Detect grammar in the context phrase tokens (simplified single-token case)
       const detectedPatterns = detectGrammarInText([token]);
       for (const pattern of detectedPatterns) {
-        flashcardCtx.trackGrammarEncountered(pattern.pattern, pattern.level);
+        flashcardCtx.trackGrammarEncountered(pattern.pattern, pattern.level, settings.language);
       }
     }
 
@@ -1703,8 +1904,8 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
     setOcrContextPhrase(contextPhrase);
 
     // Check if translation is already cached (from pre-warm)
-    // This ensures pitch accent pill shows immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord, settings.language);
+    // This ensures the prosody pill shows immediately on first hover
+    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, wordLookupOptions);
 
     // Set cached data if available, otherwise clear
     setOcrTranslationData(cachedTranslation);
@@ -1758,9 +1959,9 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
 
     const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
-    const wordLevels = computeWordLevelPercentages(s, freqLookup);
-    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup);
-    const level = assessMediaLevel(wordLevels);
+    const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
+    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
+    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
     const levelNames = langCtx.getFreqLevelNames();
 
     // Only include words encountered in this specific media
@@ -1790,7 +1991,7 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
       mediaType: 'book',
       mediaHash: s.mediaHash,
       assessedLevel: level,
-      assessedLevelName: level !== null && levelNames[String(level)] ? levelNames[String(level)] : '',
+      assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
       language: lang,
       failedWords,
       failedGrammar,
@@ -1838,6 +2039,8 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
             onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
             onFitModeChange={(mode) => setFitMode(mode as FitMode)}
             onPageModeChange={(mode) => updateSettings({ readerPageMode: mode as PageMode })}
+            spreadDirection={readerSpreadDirection}
+            onSpreadDirectionChange={(direction) => updateSettings({ readerSpreadDirection: direction as ReaderSpreadDirection })}
             onToggleFirstPageSingle={() => {
               const wasFirstSingle = firstPageSingle();
               const newFirstSingle = !wasFirstSingle;
@@ -1879,20 +2082,20 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
               when={pages().length > 0}
               fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenPdf} />}
           >
-            <div class={`page-container ${pageMode()}${(settings.readerCollatePages && pageMode() === 'double') ? ' collate' : ''}`} ref={pageContainerRef}>
+            <div
+              class={`page-container ${pageMode()} spread-${readerSpreadDirection() === 'right-to-left' ? 'rtl' : 'ltr'}${(collatePages() && pageMode() === 'double') ? ' collate' : ''}`}
+              ref={pageContainerRef}
+            >
               <For each={visiblePages()}>
                 {(page, i) => {
                   // Determine visual side for collated double-page mode.
-                  // Container uses flex-direction: row-reverse (manga reading order),
-                  // so visiblePages[0] (DOM first, lower index) renders on the visual RIGHT
-                  // and visiblePages[1] (DOM second, higher index) renders on the visual LEFT.
                   const pageSideClass = () => {
                     const isCollatedSpread =
                       pageMode() === 'double' &&
-                      settings.readerCollatePages &&
+                      collatePages() &&
                       visiblePages().length === 2;
                     if (!isCollatedSpread) return '';
-                    return i() === 0 ? 'page-right' : 'page-left';
+                    return getSpreadPageSideClass(i(), visiblePages().length, readerSpreadDirection());
                   };
                   // Check if this page is being processed or is pending (for VISIBLE pages only)
                   const currentTask = () => processingTask();
@@ -2047,8 +2250,8 @@ srsLearningEase: settings.srsLearningThreshold / 1000,
             debugOcr={ocrDebugOverlay}
             onToggleDebugOcr={toggleOcrDebugOverlay}
             lastOcrTiming={lastOcrTiming}
-            paddleOcrScale={paddleOcrScale}
-            onPaddleOcrScaleChange={setPaddleOcrScale}
+            ocrDetectionScale={ocrDetectionScale}
+            onOcrDetectionScaleChange={setOcrDetectionScale}
             zoneDeltaThreshold={zoneDeltaThreshold}
             onZoneDeltaThresholdChange={setZoneDeltaThreshold}
         />

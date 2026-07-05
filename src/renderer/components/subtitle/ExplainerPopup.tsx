@@ -8,8 +8,7 @@ import { Component, Show, createSignal, createEffect, createMemo, onCleanup, unt
 import type { LLMToolCall } from '../../../shared/types';
 import { Button, DraggablePopup, IconBtn } from '../common';
 import { RefreshIcon, BotIcon } from '../common/Misc/Icons';
-import { useSettings, useLocalization, useLowPowerGate } from '../../context';
-import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
+import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../../context';
 import { streamExplanation, getCachedExplanation, requiresSetup, type ExplainerMode } from '../../services/llmProvider';
 import { CloudSessionCancelledError, CloudUnreachableError } from '../../services/cloudSessionManager';
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
@@ -86,6 +85,7 @@ function toolCallsToParsedExplainer(toolCalls: LLMToolCall[], rawText: string): 
 export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const { currentLangData } = useLanguage();
   const { requestAccess } = useLowPowerGate();
   const explainerMode = createMemo<ExplainerMode>(() => props.mode ?? 'word');
   let activeStreamRequestId = 0;
@@ -203,7 +203,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       }
 
       // Stream via unified provider
-      const language = getLanguageDisplayName(currentSettings.language);
+      const languageData = currentLangData();
 
       // Low power gate: prompt before local LLM call
       if (currentSettings.llmProvider !== 'cloud') {
@@ -222,7 +222,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       const handle = streamExplanation(
         currentWord,
         currentContextPhrase,
-        language,
+        currentSettings.language,
         {
           onChunk: (_chunk, accumulated) => {
             if (requestId !== activeStreamRequestId) {
@@ -281,7 +281,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
             setIsComplete(true);
           },
         },
-        { mode: currentMode },
+        { mode: currentMode, languageData },
       );
 
       if (requestId !== activeStreamRequestId) {

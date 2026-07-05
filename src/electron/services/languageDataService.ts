@@ -4,7 +4,14 @@ import path from 'path';
 import * as tar from 'tar';
 import { getUserDataPath } from '../utils/platform';
 import { downloadFileWithProgress, type ProgressCallback } from '../utils/downloadManager';
-import type { LanguageDataAsset, LanguageDataBundle, LanguageDataCatalogStatus, LanguageDataManifest, LanguageDataMap } from '../../shared/types';
+import type {
+  LanguageDataAsset,
+  LanguageDataBundle,
+  LanguageDataCatalogStatus,
+  LanguageDataManifest,
+  LanguageDataMap,
+  LanguagePythonRequirementComponent,
+} from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.languageData');
@@ -12,6 +19,7 @@ const inFlightInstalls = new Map<string, Promise<void>>();
 
 export interface LanguageDataStatus {
   language: string;
+  dictionaryTargetLanguage?: string;
   dataRoot: string;
   installed: boolean;
   missingAssets: string[];
@@ -20,8 +28,16 @@ export interface LanguageDataStatus {
     path: string;
     installed: boolean;
     sizeBytes?: number;
+    validationIssue?: string;
   }>;
 }
+
+export interface LanguageDataInstallOptions {
+  components?: readonly LanguagePythonRequirementComponent[];
+}
+
+const CORE_COMPONENT: LanguagePythonRequirementComponent = 'core';
+const TOGGLE_CONTROLLED_INSTALL_COMPONENTS = new Set<LanguagePythonRequirementComponent>(['ocr', 'llm', 'voice']);
 
 export function getLanguageDataRoot(): string {
   return path.join(getUserDataPath(), 'language-data');
@@ -31,7 +47,7 @@ function getInstallManifest(
   language: string,
   langData: LanguageDataMap,
   dictionaryTargetLanguage?: string,
-): Pick<LanguageDataManifest, 'assets' | 'bundle'> | undefined {
+): Pick<LanguageDataManifest, 'assets' | 'bundle' | 'version'> | undefined {
   const manifest = langData[language]?.languageData;
   if (!dictionaryTargetLanguage) {
     return manifest;
@@ -43,8 +59,12 @@ function getAssets(
   language: string,
   langData: LanguageDataMap,
   dictionaryTargetLanguage?: string,
+  options?: LanguageDataInstallOptions,
 ): LanguageDataAsset[] {
-  return getInstallManifest(language, langData, dictionaryTargetLanguage)?.assets ?? [];
+  return filterAssetsForInstallScope(
+    getInstallManifest(language, langData, dictionaryTargetLanguage)?.assets ?? [],
+    options,
+  );
 }
 
 function getBundle(
@@ -65,8 +85,7 @@ export function resolveDictionaryTargetLanguage(
   if (preferredTargetLanguage && packs[preferredTargetLanguage]) {
     return preferredTargetLanguage;
   }
-  if (packs.en) return 'en';
-  return Object.keys(packs).sort()[0];
+  return undefined;
 }
 
 function assertSafeRelativePath(relativePath: string): void {
@@ -104,6 +123,27 @@ function getInstallKey(language: string, dictionaryTargetLanguage?: string): str
   return dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
 }
 
+function normalizeInstallComponents(options?: LanguageDataInstallOptions): Set<string> {
+  const components = options?.components?.length ? options.components : [CORE_COMPONENT];
+  return new Set(components.map((component) => String(component)));
+}
+
+function assetMatchesInstallScope(asset: LanguageDataAsset, options?: LanguageDataInstallOptions): boolean {
+  if (!asset.components || asset.components.length === 0) return true;
+  const installComponents = normalizeInstallComponents(options);
+  return asset.components.some((component) => (
+    installComponents.has(String(component)) ||
+    !TOGGLE_CONTROLLED_INSTALL_COMPONENTS.has(component)
+  ));
+}
+
+function filterAssetsForInstallScope(
+  assets: LanguageDataAsset[],
+  options?: LanguageDataInstallOptions,
+): LanguageDataAsset[] {
+  return assets.filter((asset) => assetMatchesInstallScope(asset, options));
+}
+
 function computeSha256(filePath: string): string {
   const hash = crypto.createHash('sha256');
   const data = fs.readFileSync(filePath);
@@ -120,6 +160,100 @@ function verifyChecksum(asset: LanguageDataAsset, filePath: string): void {
   }
 }
 
+function shouldVerifyExistingChecksum(asset: LanguageDataAsset): boolean {
+  if (!asset.sha256) return false;
+  if (asset.path.startsWith('languages/')) return true;
+  return (asset.sizeBytes ?? Number.MAX_SAFE_INTEGER) <= 5 * 1024 * 1024;
+}
+
+function isLanguageMetadataAsset(asset: LanguageDataAsset): boolean {
+  return asset.path.startsWith('languages/')
+    && asset.path.endsWith('.json')
+    && !asset.path.endsWith('.freq.json');
+}
+
+function installedLanguageMetadataVersionMatches(asset: LanguageDataAsset, filePath: string, expectedVersion?: string): boolean {
+  if (!expectedVersion || !isLanguageMetadataAsset(asset)) return false;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
+    return typeof parsed === 'object'
+      && parsed !== null
+      && !Array.isArray(parsed)
+      && (parsed as { languageData?: { version?: unknown } }).languageData?.version === expectedVersion;
+  } catch {
+    return false;
+  }
+}
+
+function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string) {
+  const installedPath = getInstalledLanguageAssetPath(asset);
+  if (!fs.existsSync(installedPath)) {
+    return {
+      id: asset.id,
+      path: installedPath,
+      installed: false,
+      sizeBytes: asset.sizeBytes,
+      validationIssue: 'missing',
+    };
+  }
+
+  try {
+    const stat = fs.statSync(installedPath);
+    if (!stat.isFile()) {
+      return {
+        id: asset.id,
+        path: installedPath,
+        installed: false,
+        sizeBytes: asset.sizeBytes,
+        validationIssue: 'not-a-file',
+      };
+    }
+    if (installedLanguageMetadataVersionMatches(asset, installedPath, expectedVersion)) {
+      return {
+        id: asset.id,
+        path: installedPath,
+        installed: true,
+        sizeBytes: asset.sizeBytes,
+      };
+    }
+    if (asset.sizeBytes !== undefined && stat.size !== asset.sizeBytes) {
+      return {
+        id: asset.id,
+        path: installedPath,
+        installed: false,
+        sizeBytes: asset.sizeBytes,
+        validationIssue: `size-mismatch:${stat.size}`,
+      };
+    }
+    if (shouldVerifyExistingChecksum(asset)) {
+      const actual = computeSha256(installedPath);
+      if (actual !== asset.sha256) {
+        return {
+          id: asset.id,
+          path: installedPath,
+          installed: false,
+          sizeBytes: asset.sizeBytes,
+          validationIssue: `checksum-mismatch:${actual}`,
+        };
+      }
+    }
+    return {
+      id: asset.id,
+      path: installedPath,
+      installed: true,
+      sizeBytes: asset.sizeBytes,
+    };
+  } catch (error) {
+    return {
+      id: asset.id,
+      path: installedPath,
+      installed: false,
+      sizeBytes: asset.sizeBytes,
+      validationIssue: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 function verifyBundleChecksum(bundle: LanguageDataBundle, filePath: string, bundleLabel: string): void {
   if (!bundle.sha256) return;
   const actual = computeSha256(filePath);
@@ -129,7 +263,11 @@ function verifyBundleChecksum(bundle: LanguageDataBundle, filePath: string, bund
   }
 }
 
-function parseBundleManifest(extractDir: string, language: string): { files: LanguageDataAsset[] } {
+function parseBundleManifest(
+  extractDir: string,
+  language: string,
+  dictionaryTargetLanguage?: string,
+): { files: LanguageDataAsset[] } {
   const manifestPath = path.join(extractDir, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`Language data bundle for ${language} is missing manifest.json`);
@@ -145,6 +283,17 @@ function parseBundleManifest(extractDir: string, language: string): { files: Lan
   ) {
     throw new Error(`Language data bundle manifest is invalid for ${language}`);
   }
+  if (dictionaryTargetLanguage) {
+    const declaredTargetLanguage = (manifest as {
+      targetLanguage?: unknown;
+      dictionaryTargetLanguage?: unknown;
+    }).targetLanguage ?? (manifest as { dictionaryTargetLanguage?: unknown }).dictionaryTargetLanguage;
+    if (declaredTargetLanguage !== undefined && declaredTargetLanguage !== dictionaryTargetLanguage) {
+      throw new Error(
+        `Language data bundle manifest target mismatch for ${language}:${dictionaryTargetLanguage}; got ${String(declaredTargetLanguage)}`,
+      );
+    }
+  }
   const files = (manifest as { files: LanguageDataAsset[] }).files;
   const seen = new Set<string>();
   for (const file of files) {
@@ -157,18 +306,22 @@ function parseBundleManifest(extractDir: string, language: string): { files: Lan
   return { files };
 }
 
-function getAssetStatuses(assets: LanguageDataAsset[]) {
-  const assetStatuses = assets.map((asset) => {
-    const installedPath = getInstalledLanguageAssetPath(asset);
-    const installed = fs.existsSync(installedPath);
-    return {
-      id: asset.id,
-      path: installedPath,
-      installed,
-      sizeBytes: asset.sizeBytes,
-    };
+function selectBundleFiles(
+  manifestFiles: LanguageDataAsset[],
+  expectedAssets?: LanguageDataAsset[],
+): LanguageDataAsset[] {
+  if (!expectedAssets) return manifestFiles;
+  return expectedAssets.map((asset) => {
+    const bundled = manifestFiles.find((file) => file.path === asset.path);
+    if (!bundled) {
+      throw new Error(`Language data bundle is missing manifest entry for file: ${asset.path}`);
+    }
+    return bundled;
   });
-  return assetStatuses;
+}
+
+function getAssetStatuses(assets: LanguageDataAsset[], expectedVersion?: string) {
+  return assets.map((asset) => getAssetStatus(asset, expectedVersion));
 }
 
 function getMissingRequiredAssets(assets: LanguageDataAsset[], assetStatuses: ReturnType<typeof getAssetStatuses>): string[] {
@@ -179,23 +332,30 @@ function getMissingRequiredAssets(assets: LanguageDataAsset[], assetStatuses: Re
 
 function getInstalledBytes(assets: LanguageDataAsset[]): number {
   return assets.reduce((sum, asset) => {
-    const installedPath = getInstalledLanguageAssetPath(asset);
-    if (!fs.existsSync(installedPath)) {
+    const status = getAssetStatus(asset);
+    if (!status.installed) {
       return sum;
     }
-    return sum + fs.statSync(installedPath).size;
+    return sum + fs.statSync(status.path).size;
   }, 0);
 }
 
-export function getLanguageDataStatus(language: string, langData: LanguageDataMap): LanguageDataStatus {
-  const assets = getAssets(language, langData);
-  const assetStatuses = getAssetStatuses(assets);
+export function getLanguageDataStatus(
+  language: string,
+  langData: LanguageDataMap,
+  dictionaryTargetLanguage?: string,
+  options?: LanguageDataInstallOptions,
+): LanguageDataStatus {
+  const assets = getAssets(language, langData, dictionaryTargetLanguage, options);
+  const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
+  const assetStatuses = getAssetStatuses(assets, expectedVersion);
   const missingAssets = assets
     .filter((asset, index) => asset.required !== false && !assetStatuses[index]?.installed)
     .map((asset) => asset.id);
 
   return {
     language,
+    dictionaryTargetLanguage,
     dataRoot: getLanguageDataRoot(),
     installed: missingAssets.length === 0,
     missingAssets,
@@ -217,7 +377,7 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
           .sort((left, right) => left.targetLanguage.localeCompare(right.targetLanguage))
           .map((pack) => {
             const packAssets = pack.assets;
-            const packAssetStatuses = getAssetStatuses(packAssets);
+            const packAssetStatuses = getAssetStatuses(packAssets, pack.version);
             const missingRequiredAssets = getMissingRequiredAssets(packAssets, packAssetStatuses);
             return {
               targetLanguage: pack.targetLanguage,
@@ -252,6 +412,8 @@ async function installBundle(
   bundle: LanguageDataBundle,
   onProgress?: ProgressCallback,
   workKey: string = language,
+  dictionaryTargetLanguage?: string,
+  expectedAssets?: LanguageDataAsset[],
 ): Promise<void> {
   const bundleUrl = bundle.url ?? bundle.href;
   if (!bundleUrl) {
@@ -286,8 +448,8 @@ async function installBundle(
       },
     });
 
-    const manifest = parseBundleManifest(extractDir, language);
-    for (const file of manifest.files) {
+    const manifest = parseBundleManifest(extractDir, language, dictionaryTargetLanguage);
+    for (const file of selectBundleFiles(manifest.files, expectedAssets)) {
       const extractedPath = path.join(extractDir, 'files', file.path);
       if (!fs.existsSync(extractedPath)) {
         throw new Error(`Language data bundle is missing file: ${file.path}`);
@@ -313,12 +475,14 @@ export async function ensureLanguageDataInstalled(
   langData: LanguageDataMap,
   onProgress?: ProgressCallback,
   dictionaryTargetLanguage?: string,
+  options?: LanguageDataInstallOptions,
 ): Promise<LanguageDataStatus> {
-  const assets = getAssets(language, langData, dictionaryTargetLanguage).filter((asset) => asset.required !== false);
+  const assets = getAssets(language, langData, dictionaryTargetLanguage, options).filter((asset) => asset.required !== false);
   const bundle = getBundle(language, langData, dictionaryTargetLanguage);
-  const missingAssets = assets.filter((asset) => !fs.existsSync(getInstalledLanguageAssetPath(asset)));
+  const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
+  const missingAssets = assets.filter((asset) => !getAssetStatus(asset, expectedVersion).installed);
   if (missingAssets.length === 0) {
-    return getLanguageDataStatus(language, langData);
+    return getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
   }
   if (!bundle) {
     throw new Error(`No language data bundle is available for ${language}${dictionaryTargetLanguage ? `:${dictionaryTargetLanguage}` : ''}`);
@@ -327,7 +491,7 @@ export async function ensureLanguageDataInstalled(
   const existingInstall = inFlightInstalls.get(installKey);
   if (existingInstall) {
     await existingInstall;
-    return getLanguageDataStatus(language, langData);
+    return getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
   }
 
   const installPromise = installBundle(
@@ -335,6 +499,8 @@ export async function ensureLanguageDataInstalled(
     bundle,
     onProgress,
     dictionaryTargetLanguage ? `${language}-${dictionaryTargetLanguage}-dictionary` : language,
+    dictionaryTargetLanguage,
+    assets,
   );
   inFlightInstalls.set(installKey, installPromise);
   try {
@@ -344,5 +510,5 @@ export async function ensureLanguageDataInstalled(
       inFlightInstalls.delete(installKey);
     }
   }
-  return getLanguageDataStatus(language, langData);
+  return getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
 }

@@ -82,6 +82,21 @@ describe('HttpBackend', () => {
       );
     });
 
+    it('uses same-origin paths when constructed with an empty base URL', async () => {
+      const sameOriginBackend = new HttpBackend('');
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ tokens: [] }));
+
+      await sameOriginBackend.tokenize('日本語', 'ja');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/tokenize',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ text: '日本語', language: 'ja' }),
+        })
+      );
+    });
+
     it('throws when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(makeErrorResponse(500));
 
@@ -161,6 +176,20 @@ describe('HttpBackend', () => {
         }),
       );
     });
+
+    it('includes dictionary target language in translate request body when provided', async () => {
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ data: [] }));
+
+      await backend.translate('赤い', 'ja', { dictionaryTargetLanguage: 'fr' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:7752/translate',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ word: '赤い', language: 'ja', dictionaryTargetLanguage: 'fr' }),
+        }),
+      );
+    });
   });
 
   describe('ocr', () => {
@@ -224,34 +253,48 @@ describe('HttpBackend', () => {
       mockFetch.mockResolvedValueOnce(makeOkResponse({ boxes: [] }));
 
       await backend.ocr(blob, {
+        language: 'ja',
         turbo: false,
         ramSaver: true,
         devMode: true,
-        paddleMaxWidth: 640,
-        paddleMaxHeight: 480,
+        detectionMaxWidth: 640,
+        detectionMaxHeight: 480,
       });
 
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const form = opts.body as FormData;
+      expect(form.get('language')).toBe('ja');
       expect(form.get('turbo')).toBe('0');
       expect(form.get('ram_saver')).toBe('1');
       expect(form.get('dev_mode')).toBe('1');
-      expect(form.get('paddle_max_width')).toBe('640');
-      expect(form.get('paddle_max_height')).toBe('480');
+      expect(form.get('detection_max_width')).toBe('640');
+      expect(form.get('detection_max_height')).toBe('480');
     });
   });
 
   describe('warmupOcr', () => {
     const backend = new HttpBackend('http://127.0.0.1:7752');
 
-    it('posts to /ocr/warmup and returns status payload', async () => {
-      mockFetch.mockResolvedValueOnce(makeOkResponse({ status: 'started' }));
+    it('posts to /ocr/warmup with the requested language and returns status payload', async () => {
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ status: 'started', language: 'ja' }));
 
-      const result = await backend.warmupOcr();
+      const result = await backend.warmupOcr('ja');
 
-      expect(result).toEqual({ status: 'started' });
+      expect(result).toEqual({ status: 'started', language: 'ja' });
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:7752/ocr/warmup',
+        'http://127.0.0.1:7752/ocr/warmup?language=ja',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('supports same-origin warmup URLs for the Vite dev proxy', async () => {
+      const sameOriginBackend = new HttpBackend('');
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ status: 'started', language: 'ja' }));
+
+      await sameOriginBackend.warmupOcr('ja');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/ocr/warmup?language=ja',
         expect.objectContaining({ method: 'POST' }),
       );
     });

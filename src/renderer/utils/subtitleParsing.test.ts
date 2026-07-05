@@ -1,14 +1,70 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseSubtitle,
-  extractFurigana,
-  buildFuriganaHtml,
-  extractKanaReading,
+  extractReadingAnnotations,
+  buildReadingAnnotationHtml,
+  extractDisplayReading,
   parseWorkName,
   shouldRemoveParentheticalContent,
+  stripSpeakerNamePrefixes,
 } from './subtitleParsing';
+import * as subtitleParsingModule from './subtitleParsing';
+import type { LanguageData } from '../../shared/types';
+
+const jaReadingData: LanguageData = {
+  name: 'Japanese',
+  colour_codes: {},
+  settings: { fixed: {} },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+    lexemeNormalization: {
+      type: 'surface-reading',
+      surfaceScripts: ['Han'],
+      readingScripts: ['Hira', 'Kana'],
+      readingNormalizer: 'kana-to-hiragana',
+      preserveNonPrimaryReadingScript: true,
+    },
+    readingAnnotation: {
+      type: 'script-reading',
+      annotationScripts: ['Han'],
+      surfaceSuffixScripts: ['Hira', 'Kana'],
+      readingSeparator: '',
+      stripParentheticalReadings: true,
+    },
+    tokenJoinSeparator: '',
+  },
+};
+
+const arabicRomanizationData: LanguageData = {
+  name: 'Arabic',
+  colour_codes: {},
+  settings: { fixed: {} },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Arab'] },
+    lexemeNormalization: {
+      type: 'reading',
+      surfaceScripts: ['Arab'],
+      readingScripts: ['Latn'],
+      readingExtraCharacters: ['ʿ', 'ʾ'],
+    },
+    readingAnnotation: {
+      type: 'script-reading',
+      annotationScripts: ['Arab'],
+      stripParentheticalReadings: true,
+    },
+  },
+};
 
 describe('parseSubtitle', () => {
+  it('does not expose deprecated furigana-named parsing aliases', () => {
+    expect('extractFurigana' in subtitleParsingModule).toBe(false);
+    expect('buildFuriganaHtml' in subtitleParsingModule).toBe(false);
+  });
+
+  it('does not expose the deprecated kana-specific display-reading alias', () => {
+    expect('extractKanaReading' in subtitleParsingModule).toBe(false);
+  });
+
   it('returns empty text and no overrides for empty string', () => {
     expect(parseSubtitle('', 'ja')).toEqual({ text: '', readingOverrides: [] });
   });
@@ -19,50 +75,50 @@ describe('parseSubtitle', () => {
   });
 
   it('returns plain text unchanged when no furigana present', () => {
-    const result = parseSubtitle('こんにちは', 'ja');
+    const result = parseSubtitle('こんにちは', 'ja', jaReadingData);
     expect(result.text).toBe('こんにちは');
     expect(result.readingOverrides).toEqual([]);
   });
 
   it('extracts reading override from ASCII-paren furigana', () => {
-    const result = parseSubtitle('漢字(かんじ)', 'ja');
+    const result = parseSubtitle('漢字(かんじ)', 'ja', jaReadingData);
     expect(result.readingOverrides).toEqual([{ word: '漢字', reading: 'かんじ' }]);
   });
 
   it('cleans ASCII-paren furigana from text, keeping only kanji', () => {
-    const result = parseSubtitle('漢字(かんじ)です', 'ja');
+    const result = parseSubtitle('漢字(かんじ)です', 'ja', jaReadingData);
     expect(result.text).toBe('漢字です');
   });
 
   it('extracts reading override from full-width JP-paren furigana', () => {
-    const result = parseSubtitle('漢字（かんじ）', 'ja');
+    const result = parseSubtitle('漢字（かんじ）', 'ja', jaReadingData);
     expect(result.readingOverrides).toEqual([{ word: '漢字', reading: 'かんじ' }]);
   });
 
   it('cleans JP-paren furigana from text, keeping only kanji', () => {
-    const result = parseSubtitle('漢字（かんじ）です', 'ja');
+    const result = parseSubtitle('漢字（かんじ）です', 'ja', jaReadingData);
     expect(result.text).toBe('漢字です');
   });
 
   it('extracts multiple reading overrides from a single line', () => {
-    const result = parseSubtitle('百夜(ひゃくや)優一郎(ゆういちろう)', 'ja');
+    const result = parseSubtitle('百夜(ひゃくや)優一郎(ゆういちろう)', 'ja', jaReadingData);
     expect(result.readingOverrides).toContainEqual({ word: '百夜', reading: 'ひゃくや' });
     expect(result.readingOverrides).toContainEqual({ word: '優一郎', reading: 'ゆういちろう' });
     expect(result.readingOverrides).toHaveLength(2);
   });
 
-  it('cleans multiple furigana annotations, preserving base text', () => {
-    const result = parseSubtitle('百夜(ひゃくや)優一郎(ゆういちろう)', 'ja');
+  it('cleans multiple reading annotations, preserving base text', () => {
+    const result = parseSubtitle('百夜(ひゃくや)優一郎(ゆういちろう)', 'ja', jaReadingData);
     expect(result.text).toBe('百夜優一郎');
   });
 
   it('does NOT create override for plain kana word before parens (no kanji)', () => {
-    const result = parseSubtitle('きのう(yesterday)', 'ja');
+    const result = parseSubtitle('きのう(yesterday)', 'ja', jaReadingData);
     expect(result.readingOverrides).toEqual([]);
   });
 
   it('does NOT create override for Latin word before parens', () => {
-    const result = parseSubtitle('hello(world)', 'ja');
+    const result = parseSubtitle('hello(world)', 'ja', jaReadingData);
     expect(result.readingOverrides).toEqual([]);
   });
 
@@ -72,42 +128,192 @@ describe('parseSubtitle', () => {
     expect(result.readingOverrides).toEqual([]);
   });
 
+  it('uses language metadata to consume parenthetical readings for non-Japanese packages', () => {
+    const result = parseSubtitle('你好(ni hao)', 'zh', {
+      textProcessing: {
+        scriptProfile: {
+          acceptedScripts: ['Han', 'Latn'],
+        },
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: true,
+        },
+      },
+    });
+    expect(result.text).toBe('你好');
+    expect(result.readingOverrides).toEqual([{ word: '你好', reading: 'ni hao' }]);
+  });
+
+  it('lets language metadata keep parenthetical text even with reading scripts configured', () => {
+    const result = parseSubtitle('你好(ni hao)', 'zh', {
+      textProcessing: {
+        scriptProfile: {
+          acceptedScripts: ['Han', 'Latn'],
+        },
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: false,
+        },
+      },
+    });
+    expect(result.text).toBe('你好(ni hao)');
+    expect(result.readingOverrides).toEqual([{ word: '你好', reading: 'ni hao' }]);
+  });
+
+  it('rejects parenthetical readings outside the configured reading scripts', () => {
+    const result = parseSubtitle('你好(に hao)', 'zh', {
+      textProcessing: {
+        scriptProfile: {
+          acceptedScripts: ['Han', 'Latn'],
+        },
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: true,
+        },
+      },
+    });
+    expect(result.text).toBe('你好(に hao)');
+    expect(result.readingOverrides).toEqual([]);
+  });
+
+  it('preserves parenthetical text that is outside configured reading scripts', () => {
+    const result = parseSubtitle('你好(静かに)', 'zh', {
+      textProcessing: {
+        scriptProfile: {
+          acceptedScripts: ['Han', 'Latn'],
+        },
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: true,
+        },
+      },
+    });
+    expect(result.text).toBe('你好(静かに)');
+    expect(result.readingOverrides).toEqual([]);
+  });
+
+  it('does not assume Japanese scripts when parenthetical stripping is enabled without script metadata', () => {
+    const result = parseSubtitle('你好(ni hao) 漢字(かんじ)', 'third-party', {
+      textProcessing: {
+        readingAnnotation: {
+          type: 'script-reading',
+          stripParentheticalReadings: true,
+        },
+      },
+    });
+    expect(result.text).toBe('你好(ni hao) 漢字(かんじ)');
+    expect(result.readingOverrides).toEqual([]);
+  });
+
+  it('accepts package-declared transliteration marks in parenthetical readings', () => {
+    const result = parseSubtitle('العربية(al-ʿarabiyya)', 'ar', arabicRomanizationData);
+    expect(result.text).toBe('العربية');
+    expect(result.readingOverrides).toEqual([{ word: 'العربية', reading: 'al-ʿarabiyya' }]);
+  });
+
+  it('rejects undeclared transliteration marks in parenthetical readings', () => {
+    const result = parseSubtitle('العربية(al-ʿarabiyya)', 'ar', {
+      ...arabicRomanizationData,
+      textProcessing: {
+        ...arabicRomanizationData.textProcessing,
+        lexemeNormalization: {
+          ...arabicRomanizationData.textProcessing?.lexemeNormalization,
+          readingExtraCharacters: [],
+        },
+      },
+    });
+    expect(result.text).toBe('العربية(al-ʿarabiyya)');
+    expect(result.readingOverrides).toEqual([]);
+  });
+
   it('handles mixed text: kanji+furigana alongside plain kana', () => {
-    const result = parseSubtitle('今日(きょう) 天気(てんき)ですね', 'ja');
+    const result = parseSubtitle('今日(きょう) 天気(てんき)ですね', 'ja', jaReadingData);
     expect(result.readingOverrides).toContainEqual({ word: '今日', reading: 'きょう' });
     expect(result.readingOverrides).toContainEqual({ word: '天気', reading: 'てんき' });
     expect(result.text).toBe('今日 天気ですね');
   });
 
   it('handles mixed ASCII and JP parens in same text', () => {
-    const result = parseSubtitle('漢字（かんじ）文字(もじ)', 'ja');
+    const result = parseSubtitle('漢字（かんじ）文字(もじ)', 'ja', jaReadingData);
     expect(result.readingOverrides).toContainEqual({ word: '漢字', reading: 'かんじ' });
     expect(result.readingOverrides).toContainEqual({ word: '文字', reading: 'もじ' });
   });
 });
 
-describe('extractFurigana', () => {
+describe('extractReadingAnnotations', () => {
   it('returns empty array for empty string', () => {
-    expect(extractFurigana('')).toEqual([]);
+    expect(extractReadingAnnotations('')).toEqual([]);
   });
 
   it('returns empty array for falsy input', () => {
     // @ts-expect-error testing falsy input
-    expect(extractFurigana(null)).toEqual([]);
+    expect(extractReadingAnnotations(null)).toEqual([]);
   });
 
-  it('extracts single segment with ASCII-paren reading', () => {
-    const result = extractFurigana('漢字(かんじ)');
+  it('keeps ASCII-parenthetical text as plain text without language metadata', () => {
+    const result = extractReadingAnnotations('漢字(かんじ)');
+    expect(result).toEqual([{ text: '漢字(かんじ)' }]);
+  });
+
+  it('keeps non-reading parenthetical text as plain text without language metadata', () => {
+    const result = extractReadingAnnotations('hello(world)');
+    expect(result).toEqual([{ text: 'hello(world)' }]);
+  });
+
+  it('extracts single segment with ASCII-paren reading when language metadata opts in', () => {
+    const result = extractReadingAnnotations('漢字(かんじ)', jaReadingData);
     expect(result).toEqual([{ text: '漢字', reading: 'かんじ' }]);
   });
 
-  it('extracts single segment with JP-paren reading', () => {
-    const result = extractFurigana('漢字（かんじ）');
+  it('extracts single segment with JP-paren reading when language metadata opts in', () => {
+    const result = extractReadingAnnotations('漢字（かんじ）', jaReadingData);
     expect(result).toEqual([{ text: '漢字', reading: 'かんじ' }]);
+  });
+
+  it('extracts script-configured readings for non-Japanese language packages', () => {
+    const result = extractReadingAnnotations('你好(ni hao)', {
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: true,
+        },
+      },
+    });
+    expect(result).toEqual([{ text: '你好', reading: 'ni hao' }]);
   });
 
   it('extracts multiple segments from compound furigana text', () => {
-    const result = extractFurigana('百夜(ひゃくや)優一郎(ゆういちろう)');
+    const result = extractReadingAnnotations('百夜(ひゃくや)優一郎(ゆういちろう)', jaReadingData);
     expect(result).toEqual([
       { text: '百夜', reading: 'ひゃくや' },
       { text: '優一郎', reading: 'ゆういちろう' },
@@ -115,44 +321,44 @@ describe('extractFurigana', () => {
   });
 
   it('returns a segment without reading for plain text with no parens', () => {
-    const result = extractFurigana('こんにちは');
+    const result = extractReadingAnnotations('こんにちは');
     expect(result).toEqual([{ text: 'こんにちは' }]);
   });
 
   it('returns segments without reading for text that has no furigana', () => {
-    const result = extractFurigana('hello world');
+    const result = extractReadingAnnotations('hello world');
     expect(result.every(s => s.reading === undefined)).toBe(true);
   });
 
   it('handles mixed furigana and plain segments', () => {
-    const result = extractFurigana('今日(きょう)は');
+    const result = extractReadingAnnotations('今日(きょう)は', jaReadingData);
     expect(result).toContainEqual({ text: '今日', reading: 'きょう' });
     expect(result).toContainEqual({ text: 'は' });
   });
 
   it('returns reading undefined (not empty string) for plain segments', () => {
-    const result = extractFurigana('テスト');
+    const result = extractReadingAnnotations('テスト');
     expect(result[0].reading).toBeUndefined();
   });
 
   it('handles text with only kanji and no readings', () => {
-    const result = extractFurigana('漢字文字');
+    const result = extractReadingAnnotations('漢字文字');
     expect(result).toEqual([{ text: '漢字文字' }]);
   });
 });
 
-describe('buildFuriganaHtml', () => {
+describe('buildReadingAnnotationHtml', () => {
   it('returns empty string for empty array', () => {
-    expect(buildFuriganaHtml([])).toBe('');
+    expect(buildReadingAnnotationHtml([])).toBe('');
   });
 
   it('returns ruby HTML for segment with reading', () => {
-    expect(buildFuriganaHtml([{ text: '漢字', reading: 'かんじ' }]))
+    expect(buildReadingAnnotationHtml([{ text: '漢字', reading: 'かんじ' }]))
       .toBe('<ruby>漢字<rt>かんじ</rt></ruby>');
   });
 
   it('returns plain text for segment without reading', () => {
-    expect(buildFuriganaHtml([{ text: 'こんにちは' }])).toBe('こんにちは');
+    expect(buildReadingAnnotationHtml([{ text: 'こんにちは' }])).toBe('こんにちは');
   });
 
   it('concatenates multiple segments correctly', () => {
@@ -160,7 +366,7 @@ describe('buildFuriganaHtml', () => {
       { text: '百夜', reading: 'ひゃくや' },
       { text: '優一郎', reading: 'ゆういちろう' },
     ];
-    expect(buildFuriganaHtml(segments)).toBe(
+    expect(buildReadingAnnotationHtml(segments)).toBe(
       '<ruby>百夜<rt>ひゃくや</rt></ruby><ruby>優一郎<rt>ゆういちろう</rt></ruby>'
     );
   });
@@ -171,71 +377,248 @@ describe('buildFuriganaHtml', () => {
       { text: 'は' },
       { text: '天気', reading: 'てんき' },
     ];
-    expect(buildFuriganaHtml(segments)).toBe(
+    expect(buildReadingAnnotationHtml(segments)).toBe(
       '<ruby>今日<rt>きょう</rt></ruby>は<ruby>天気<rt>てんき</rt></ruby>'
     );
   });
 
   it('produces valid ruby tag format with rt inside ruby', () => {
-    const html = buildFuriganaHtml([{ text: 'X', reading: 'Y' }]);
+    const html = buildReadingAnnotationHtml([{ text: 'X', reading: 'Y' }]);
     expect(html).toMatch(/^<ruby>.*<rt>.*<\/rt><\/ruby>$/);
   });
 });
 
-describe('extractKanaReading', () => {
+describe('extractDisplayReading', () => {
   it('returns empty string for undefined', () => {
-    expect(extractKanaReading(undefined)).toBe('');
+    expect(extractDisplayReading(undefined)).toBe('');
   });
 
   it('returns empty string for empty string', () => {
-    expect(extractKanaReading('')).toBe('');
+    expect(extractDisplayReading('')).toBe('');
   });
 
   it('extracts kana from a single rt tag', () => {
-    expect(extractKanaReading('<ruby>漢字<rt>かんじ</rt></ruby>')).toBe('かんじ');
+    expect(extractDisplayReading('<ruby>漢字<rt>かんじ</rt></ruby>')).toBe('かんじ');
   });
 
   it('joins multiple rt tags into one string', () => {
     expect(
-      extractKanaReading('<ruby>百夜<rt>ひゃくや</rt></ruby><ruby>優一郎<rt>ゆういちろう</rt></ruby>')
+      extractDisplayReading('<ruby>百夜<rt>ひゃくや</rt></ruby><ruby>優一郎<rt>ゆういちろう</rt></ruby>')
     ).toBe('ひゃくやゆういちろう');
   });
 
+  it('joins multiple rt tags with spaces for romanized reading metadata', () => {
+    expect(
+      extractDisplayReading('<ruby>你<rt>ni</rt></ruby><ruby>好<rt>hao</rt></ruby>', {
+        textProcessing: {
+          lexemeNormalization: {
+            type: 'reading',
+            surfaceScripts: ['Han'],
+            readingScripts: ['Latn'],
+          },
+        },
+      })
+    ).toBe('ni hao');
+  });
+
   it('returns plain kana as-is (no ruby markup)', () => {
-    expect(extractKanaReading('かんじ')).toBe('かんじ');
+    expect(extractDisplayReading('かんじ')).toBe('かんじ');
   });
 
   it('returns plain katakana as-is', () => {
-    expect(extractKanaReading('カンジ')).toBe('カンジ');
+    expect(extractDisplayReading('カンジ')).toBe('カンジ');
   });
 
-  it('extracts kana characters from mixed kanji+kana text', () => {
-    const result = extractKanaReading('漢字かな');
+  it('does not extract kana characters from mixed kanji+kana text without metadata', () => {
+    const result = extractDisplayReading('漢字かな');
+    expect(result).toBe('漢字かな');
+  });
+
+  it('extracts kana characters from mixed kanji+kana text when metadata declares kana readings', () => {
+    const result = extractDisplayReading('漢字かな', jaReadingData);
     expect(result).toBe('かな');
   });
 
+  it('extracts configured Latin reading text from mixed Chinese surface plus pinyin', () => {
+    const result = extractDisplayReading('你好 ni3 hao3', {
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+      },
+    });
+    expect(result).toBe('ni3 hao3');
+  });
+
+  it('preserves spaces and tone marks for configured Latin readings', () => {
+    const result = extractDisplayReading('你好 nǐ hǎo', {
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+      },
+    });
+    expect(result).toBe('nǐ hǎo');
+  });
+
+  it('extracts configured Latin transliteration from Arabic-script mixed readings', () => {
+    const result = extractDisplayReading('کتاب ketab', {
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Arab'],
+          readingScripts: ['Latn'],
+        },
+      },
+    });
+    expect(result).toBe('ketab');
+  });
+
+  it('preserves package-declared modifier letters in Arabic romanization readings', () => {
+    const result = extractDisplayReading('العربية al-ʿarabiyya', arabicRomanizationData);
+    expect(result).toBe('al-ʿarabiyya');
+  });
+
+  it('drops undeclared modifier letters from Arabic romanization readings', () => {
+    const result = extractDisplayReading('العربية al-ʿarabiyya', {
+      ...arabicRomanizationData,
+      textProcessing: {
+        ...arabicRomanizationData.textProcessing,
+        lexemeNormalization: {
+          ...arabicRomanizationData.textProcessing?.lexemeNormalization,
+          readingExtraCharacters: [],
+        },
+      },
+    });
+    expect(result).toBe('al-arabiyya');
+  });
+
   it('handles HTML without rt tags by normalizing with normalizeReading', () => {
-    const result = extractKanaReading('<b>かんじ</b>');
+    const result = extractDisplayReading('<b>かんじ</b>');
     expect(result).toBe('かんじ');
   });
 
   it('handles reading with only kanji and no kana gracefully', () => {
-    const result = extractKanaReading('漢字');
+    const result = extractDisplayReading('漢字');
     expect(typeof result).toBe('string');
   });
 
   it('preserves non-kana readings when no kana is present', () => {
-    expect(extractKanaReading('hallo')).toBe('hallo');
+    expect(extractDisplayReading('hallo')).toBe('hallo');
+  });
+
+  it('does not use legacy kana extraction for installed languages without reading scripts', () => {
+    expect(extractDisplayReading('漢字かな', {
+      name: 'Chinese',
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Han'] },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+        },
+      },
+    })).toBe('漢字かな');
   });
 });
 
 describe('shouldRemoveParentheticalContent', () => {
-  it('returns true for Japanese', () => {
-    expect(shouldRemoveParentheticalContent('ja')).toBe(true);
+  it('returns false without language metadata', () => {
+    expect(shouldRemoveParentheticalContent('ja')).toBe(false);
+  });
+
+  it('returns true when language metadata enables parenthetical readings', () => {
+    expect(shouldRemoveParentheticalContent('ja', jaReadingData)).toBe(true);
   });
 
   it('returns false for German', () => {
     expect(shouldRemoveParentheticalContent('de')).toBe(false);
+  });
+});
+
+describe('stripSpeakerNamePrefixes', () => {
+  it('strips Latin speaker names for Latin-script languages', () => {
+    expect(stripSpeakerNamePrefixes('Alice: Hello\nBob: Hi', 'en')).toBe('Hello\nHi');
+  });
+
+  it('strips Cyrillic speaker names using language script metadata', () => {
+    expect(stripSpeakerNamePrefixes('Анна: Привет', 'ru', {
+      name: 'Russian',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Cyrl'] },
+      },
+    })).toBe('Привет');
+  });
+
+  it('strips Arabic-script speaker names using language script metadata', () => {
+    expect(stripSpeakerNamePrefixes('سارة: مرحبا', 'ar', {
+      name: 'Arabic',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Arab'] },
+      },
+    })).toBe('مرحبا');
+  });
+
+  it('strips full-width colon speaker names for Han subtitles', () => {
+    expect(stripSpeakerNamePrefixes('太郎：こんにちは', 'ja', {
+      name: 'Japanese',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+      },
+    })).toBe('こんにちは');
+  });
+
+  it('does not strip Latin speaker names for non-Latin packages unless metadata opts in', () => {
+    const languageData: LanguageData = {
+      name: 'Japanese',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+      },
+    };
+
+    expect(stripSpeakerNamePrefixes('Alice: こんにちは', 'ja', languageData)).toBe('Alice: こんにちは');
+    expect(stripSpeakerNamePrefixes('Alice: こんにちは', 'ja', {
+      ...languageData,
+      textProcessing: {
+        subtitle: {
+          speakerNamePrefix: {
+            allowLatinFallback: true,
+          },
+        },
+      },
+    })).toBe('こんにちは');
+  });
+
+  it('does not strip URLs or sentence-like labels', () => {
+    expect(stripSpeakerNamePrefixes('https://example.com/video', 'en')).toBe('https://example.com/video');
+    expect(stripSpeakerNamePrefixes('This is not a speaker: keep it', 'en')).toBe('This is not a speaker: keep it');
+  });
+
+  it('allows language metadata to disable speaker-name stripping', () => {
+    expect(stripSpeakerNamePrefixes('Alice: Hello', 'en', {
+      name: 'English',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        subtitle: {
+          speakerNamePrefix: {
+            enabled: false,
+          },
+        },
+      },
+    })).toBe('Alice: Hello');
   });
 });
 
@@ -324,6 +707,50 @@ describe('parseWorkName', () => {
   it('removes language code "eng"', () => {
     const result = parseWorkName('Show.eng.srt');
     expect(result.split(' ')).not.toContain('eng');
+  });
+
+  it('removes generic trailing BCP47-style language tags without a bundled language list', () => {
+    expect(parseWorkName('Show.S01E01.fa.IR.srt')).toBe('Show S01E1');
+    expect(parseWorkName('Drama.zh.Hant.srt')).toBe('Drama');
+    expect(parseWorkName('Movie.sr.Latn.RS.srt')).toBe('Movie');
+  });
+
+  it('does not remove short title words that are not trailing lowercase tags', () => {
+    expect(parseWorkName('It.Crowd.S01E01.srt')).toBe('It Crowd S01E1');
+    expect(parseWorkName('No.Country.For.Old.Men.srt')).toBe('No Country For Old Men');
+  });
+
+  it('removes caller-provided language tags for third-party language packages', () => {
+    const result = parseWorkName('Show.S01E01.fa.IR.srt', {
+      languageCodes: ['fa', 'IR'],
+    });
+    expect(result.split(' ')).not.toContain('fa');
+    expect(result.split(' ')).not.toContain('IR');
+    expect(result).toContain('Show');
+  });
+
+  it('expands caller-provided BCP47 language tags during display-name cleanup', () => {
+    const result = parseWorkName('Show.S01E01.fa.IR.srt', {
+      languageCodes: ['fa-IR'],
+    });
+    expect(result.split(' ')).not.toContain('fa');
+    expect(result.split(' ')).not.toContain('IR');
+    expect(result).toBe('Show S01E1');
+  });
+
+  it('removes script subtags from caller-provided language codes', () => {
+    const result = parseWorkName('Drama.zh.Hant.srt', {
+      languageCodes: ['zh-Hant'],
+    });
+    expect(result.split(' ')).not.toContain('zh');
+    expect(result.split(' ')).not.toContain('Hant');
+    expect(result).toBe('Drama');
+  });
+
+  it('removes caller-provided release tags', () => {
+    expect(parseWorkName('Show.CustomGroup.srt', {
+      releaseTags: ['CustomGroup'],
+    })).toBe('Show');
   });
 
   it('removes bracketed junk [720p]', () => {

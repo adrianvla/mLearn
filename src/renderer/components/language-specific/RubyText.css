@@ -1,6 +1,6 @@
 /**
  * RubyText Component Styles
- * Styles for Japanese text with furigana annotations
+ * Styles for text with inline reading annotations
  */
 
 /* Base ruby styling */
@@ -15,7 +15,32 @@
   position: relative;
 }
 
-/* Furigana (rt) styling */
+.ruby-text-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+
+.ruby-text-inline__word {
+  min-width: 0;
+}
+
+.ruby-text-inline__reading {
+  color: var(--text-secondary);
+  font-size: 0.72em;
+  font-weight: var(--font-weight-normal);
+  letter-spacing: 0;
+}
+
+.ruby-text-inline__reading::before {
+  content: "(";
+}
+
+.ruby-text-inline__reading::after {
+  content: ")";
+}
+
+/* Reading annotation (rt) styling */
 .ruby-text rt {
   font-size: 0.5em;
   font-weight: var(--font-weight-normal);
@@ -24,13 +49,13 @@
   position: relative;
 }
 
-/* For subtitle words, smaller furigana */
+/* For subtitle words, smaller reading annotations */
 .subtitle_word .ruby-text rt,
 .subtitles .ruby-text rt {
   font-size: 0.45em;
 }
 
-/* For flashcard display, larger furigana */
+/* For flashcard display, larger reading annotations */
 .flashcard .ruby-text rt {
   font-size: 0.5em;
 }

@@ -53,7 +53,7 @@ export async function updateAgent(config: AgentConfig): Promise<AgentConfig[]> {
   return agents;
 }
 
-export async function deleteAgent(agentId: string, language: string = 'en'): Promise<AgentConfig[]> {
+export async function deleteAgent(agentId: string, language: string): Promise<AgentConfig[]> {
   const agents = await loadAgents();
   const filtered = agents.filter((a) => a.id !== agentId);
   await saveAgents(filtered);
@@ -82,7 +82,7 @@ export async function saveActiveAgentId(agentId: string): Promise<void> {
 // Migration: single agent → multi-agent
 // ============================================================================
 
-export async function migrateIfNeeded(language: string = 'en'): Promise<void> {
+export async function migrateIfNeeded(language: string): Promise<void> {
   const raw = await getBridge().kvStore.kvGet('agent-config');
   if (!raw) return;
 
@@ -133,7 +133,7 @@ export async function migrateIfNeeded(language: string = 'en'): Promise<void> {
 // Memories
 // ============================================================================
 
-export async function loadAllMemories(language: string = 'en'): Promise<AgentMemoryEntry[]> {
+export async function loadAllMemories(language: string): Promise<AgentMemoryEntry[]> {
   const raw = await getBridge().kvStore.kvGet(getMemoriesKey(language));
   if (!raw) return [];
   try {
@@ -161,7 +161,7 @@ export function filterMemories(
 export async function addAgentMemory(
   content: string,
   agentId: string,
-  language: string = 'en',
+  language: string,
 ): Promise<AgentMemoryEntry> {
   const memories = await loadAllMemories(language);
   const entry: AgentMemoryEntry = {
@@ -175,14 +175,14 @@ export async function addAgentMemory(
   return entry;
 }
 
-export async function removeAgentMemory(id: string, language: string = 'en'): Promise<AgentMemoryEntry[]> {
+export async function removeAgentMemory(id: string, language: string): Promise<AgentMemoryEntry[]> {
   const memories = await loadAllMemories(language);
   const filtered = memories.filter((m) => m.id !== id);
   await saveAllMemories(filtered, language);
   return filtered;
 }
 
-export async function clearAgentMemories(agentId?: string, language: string = 'en'): Promise<AgentMemoryEntry[]> {
+export async function clearAgentMemories(agentId: string | undefined, language: string): Promise<AgentMemoryEntry[]> {
   if (!agentId) {
     await saveAllMemories([], language);
     return [];

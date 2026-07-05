@@ -140,7 +140,7 @@ const windowBridge: WindowBridge = {
   onContextMenuCommand: (cb) => getIPC().onContextMenuCommand(cb),
   onReaderContextMenuCommand: (cb) => getIPC().onReaderContextMenuCommand(cb),
   onOpenWordDbEditor: (cb) => getIPC().onOpenWordDbEditor(cb),
-  onOpenExamCentricStudy: (cb) => getIPC().onOpenExamCentricStudy(cb),
+  onOpenLevelStudy: (cb) => getIPC().onOpenLevelStudy(cb),
   onOpenPrompt: (cb) => getIPC().onOpenPrompt(cb),
   onAuthDeepLink: (cb) => getIPC().onAuthDeepLink(cb),
   onLookupDeepLink: (cb) => getIPC().onLookupDeepLink(cb),
@@ -230,7 +230,7 @@ const voiceBridge: VoiceBridge = {
   voiceSampleUpload: (path, name) => getIPC().voiceSampleUpload(path, name),
   voiceSampleDelete: (id) => getIPC().voiceSampleDelete(id),
   voiceSampleRename: (id, name) => getIPC().voiceSampleRename(id, name),
-  voiceSampleTranscribe: (id) => getIPC().voiceSampleTranscribe(id),
+  voiceSampleTranscribe: (id, language) => getIPC().voiceSampleTranscribe(id, language),
   voiceSampleGetPath: (id) => getIPC().voiceSampleGetPath(id),
 };
 

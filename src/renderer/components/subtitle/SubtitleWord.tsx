@@ -5,21 +5,53 @@
 
 import { Component, createMemo, createSignal, Show, onCleanup } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
-import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
+import {
+  hideReadingAnnotationsForKnownWords,
+  readingAnnotationsEnabled,
+} from '../../../shared/readingAnnotationSettings';
+import { prosodyVisible } from '../../../shared/prosodySettings';
+import {
+  adjustReadingAnnotationForSurfaceSuffix,
+  getReadingAnnotationDisplay,
+  getPartOfSpeechColor,
+  getFrequencyLevelVisualRank,
+  getProsodyPositionFromOverride,
+  getTokenJoinSeparator,
+  isDisplayableFrequencyLevel,
+  isReadingScriptText,
+  wordNeedsReadingAnnotation,
+} from '../../../shared/languageFeatures';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { getCachedReading, getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
-import { PitchAccentOverlay, FrequencyStars } from '../common';
+import { extractProsodyData } from '../../utils/translationCacheParsers';
+import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
+import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
+import { FrequencyStars } from '../common';
+import { ProsodyOverlay, WordWithReading } from '../language-specific';
+import type { WordWithReadingRenderTextOptions } from '../language-specific/WordWithReading';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
+import { getTokenLookupWord } from '../../utils/wordForms';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import '../language-specific/RubyText.css';
 import './SubtitleWord.css';
 
 /** Delay in ms for long-hover mode before triggering */
 const LONG_HOVER_DELAY = 500;
 
+function toPosClass(pos: string): string | null {
+  const normalized = pos
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_-]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized ? `pos-${normalized}` : null;
+}
+
 export interface SubtitleWordProps {
   token: Token;
   index: number;
-  lookAheadPos?: string; // POS of the next token (for pitch accent rendering)
+  lookAheadPos?: string; // POS of the next token (for prosody rendering)
   onClick?: (token: Token) => void;
   onHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onLeave?: () => void;
@@ -27,7 +59,16 @@ export interface SubtitleWordProps {
 
 export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const { settings } = useSettings();
-  const { currentLangData, isTranslatable, getFrequency, getLanguageFeatures, getCanonicalForm } = useLanguage();
+  const {
+    currentLangData,
+    isTokenTranslatable,
+    getFrequency,
+    getFreqLevelNames,
+    getLanguageFeatures,
+    getCanonicalForm,
+    getWordVariants,
+    getReadingVariants,
+  } = useLanguage();
   const flashcardCtx = useFlashcards();
   let wordRef: HTMLSpanElement | undefined;
   const randomId = (() => {
@@ -57,22 +98,24 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Helper to get display word (surface or word)
   const displayWord = () => props.token.surface ?? props.token.word;
+  const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
+  const lookupWord = createMemo(() => getTokenLookupWord(props.token, tokenizerCapabilities()) || displayWord());
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
 
   // Get the part of speech
   const getPos = () => props.token.partOfSpeech ?? props.token.type ?? '';
 
   // Check if this word should be interactive (translatable POS)
   const isWordTranslatable = createMemo(() => {
-    const pos = getPos();
-    if (!pos) return false;
-    return isTranslatable(pos);
+    return isTokenTranslatable(props.token);
   });
 
   // Check if this word is known via the comprehensive knowledge system
   const wordIsKnown = createMemo(() => {
-    const word = props.token.actual_word ?? props.token.surface ?? props.token.word;
+    const word = lookupWord();
     if (!word) return false;
-    return flashcardCtx.isWordKnownComprehensiveSync(getCanonicalForm(word));
+    return flashcardCtx.isWordKnownComprehensiveSync(word, settings.language);
   });
 
   // Determine word class based on token type
@@ -99,12 +142,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     // Add part-of-speech class
     const pos = getPos();
     if (pos) {
-      const posLower = pos.toLowerCase();
-      if (posLower.includes('verb') || posLower.includes('動詞')) classes.push('verb');
-      else if (posLower.includes('noun') || posLower.includes('名詞')) classes.push('noun');
-      else if (posLower.includes('adj') || posLower.includes('形容')) classes.push('adjective');
-      else if (posLower.includes('adv') || posLower.includes('副詞')) classes.push('adverb');
-      else if (posLower.includes('particle') || posLower.includes('助詞')) classes.push('particle');
+      const posClass = toPosClass(pos);
+      if (posClass) classes.push(posClass);
     }
 
     return classes.join(' ');
@@ -174,44 +213,35 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     });
   }
 
-  // Get color from colour_codes based on POS (like the old app did)
+  // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {
     if (!settings.do_colour_codes) return undefined;
     
     const pos = getPos();
     if (!pos) return undefined;
-    
-    // First check settings.colour_codes (which should be populated from lang_data)
-    if (settings.colour_codes?.[pos]) {
-      return settings.colour_codes[pos];
-    }
-    
-    // Fallback to currentLangData colour_codes
     const langData = currentLangData();
-    if (langData?.colour_codes?.[pos]) {
-      return langData.colour_codes[pos];
-    }
     
-    return undefined;
+    return getPartOfSpeechColor(pos, settings.colour_codes, langData);
   });
 
   const wordStyle = (): JSX.CSSProperties => {
     const color = getWordColor();
     const cursor = isWordTranslatable() ? 'pointer' : 'default';
+    const compactTokenLayout = getTokenJoinSeparator(currentLangData()) === '';
     return {
       cursor,
       position: 'relative',
       display: 'inline-block',
-      'margin-right': '0.1em',
+      ...(compactTokenLayout ? { 'margin-right': '0.1em' } : {}),
       ...(color ? { color } : {}),
     };
   };
 
   const cachedReadingVal = createMemo((): string | null => {
     cacheVersion(); // reactive dependency: recompute when cache changes
-    const word = props.token.actual_word ?? displayWord();
+    const word = lookupWord();
     if (!word) return null;
-    return getCachedReading(word, settings.language);
+    return getCachedReading(word, settings.language, lookupOptions);
   });
 
   // Get effective reading (token.reading takes precedence, then cached)
@@ -219,60 +249,25 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return props.token.reading || cachedReadingVal() || null;
   });
 
-  // For Japanese, show furigana if enabled and word contains kanji
-  const showFurigana = createMemo(() => {
-    // Check if language supports readings first
+  // Show reading annotations only when both settings and language metadata allow them.
+  const showReadingAnnotation = createMemo(() => {
     const features = getLanguageFeatures();
     if (!features.supportsReadings) return false;
-    
-    const furiganaEnabled = settings.showFurigana ?? settings.furigana;
-    if (!furiganaEnabled) return false;
+
+    if (!readingAnnotationsEnabled(settings)) return false;
 
     // Hide reading for known words if the setting is enabled
-    if (settings.hideReadingForKnownWords && wordIsKnown()) return false;
+    if (hideReadingAnnotationsForKnownWords(settings) && wordIsKnown()) return false;
 
     const reading = effectiveReading();
     if (!reading) return false;
-    const word = displayWord();
-    // Only show furigana for words with kanji (not all kana)
-    if (isAllKana(word)) return false;
-    if (!containsKanji(word)) return false;
-    // Only show if reading differs from surface
-    return reading !== word;
+    return wordNeedsReadingAnnotation(displayWord(), reading, currentLangData());
   });
 
-  const isCharKana = (ch: string): boolean => {
-    if (!ch) return false;
-    const cp = ch.charCodeAt(0);
-    return (cp >= 0x3040 && cp <= 0x309f) || (cp >= 0x30a0 && cp <= 0x30ff);
-  };
-
-  const getFuriganaReading = createMemo(() => {
-    const reading = effectiveReading();
-    if (!reading) return '';
-    const word = displayWord();
-    let result = reading;
-    const pos = getPos();
-
-    if (pos === '動詞' && word.length > 0 && result.length > 0) {
-      const lastWordChar = word[word.length - 1];
-      const lastReadingChar = result[result.length - 1];
-      if (
-        lastWordChar !== lastReadingChar &&
-        word.length === result.length &&
-        isCharKana(lastWordChar)
-      ) {
-        result = result.substring(0, result.length - 1) + lastWordChar;
-      }
-    }
-
-    let correction = '';
-    for (let i = result.length; i < word.length; i++) {
-      correction += '\u00A0';
-    }
-
-    return result + correction;
-  });
+  const readingAnnotationDisplay = createMemo(() => getReadingAnnotationDisplay(currentLangData()));
+  const displayReading = createMemo(() => (
+    adjustReadingAnnotationForSurfaceSuffix(displayWord(), effectiveReading() || '', currentLangData())
+  ));
 
   // Custom attributes for CSS selectors
   const customAttrs = createMemo(() => ({
@@ -282,31 +277,35 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Get word frequency (like old app's wordFreq[word])
   const wordFreqEntry = createMemo(() => {
-    const word = props.token.actual_word ?? displayWord();
+    const word = lookupWord();
     return word ? getFrequency(word) : null;
   });
 
   const cachedTranslation = createMemo(() => {
     cacheVersion(); // reactive dependency: recompute when cache changes
-    const word = props.token.actual_word ?? displayWord();
+    const word = lookupWord();
     if (!word) return null;
-    return getCachedTranslation(word, settings.language);
+    return getCachedTranslation(word, settings.language, lookupOptions);
   });
 
-  // The actual word for pitch accent lookup
-  const actualWord = () => props.token.actual_word ?? displayWord();
+  // The actual word for prosody lookup
+  const actualWord = () => lookupWord();
 
-  // Determine if word is all kana (for pitch accent sizing)
-  const isWordAllKana = createMemo(() => isAllKana(displayWord()));
+  // Determine if the displayed word is already in the language's reading/transliteration script.
+  const wordUsesReadingScript = createMemo(() => isReadingScriptText(displayWord(), currentLangData()));
 
-  // CSS variable for pitch accent height
-  const pitchAccentHeight = createMemo((): string | undefined => {
-    const features = getLanguageFeatures();
-    if (!features.supportsPitchAccent || !settings.showPitchAccent) return undefined;
-    // Only set if we have a cached translation with pitch data
+  const canRenderProsodyOverlay = createMemo(() => (
+    getProsodyOverlayRenderer(currentLangData(), getLanguageFeatures().prosodyRenderer) !== null
+    && prosodyVisible(settings)
+  ));
+
+  const prosodyOverlayHeight = createMemo((): string | undefined => {
+    if (!canRenderProsodyOverlay()) return undefined;
+    // Only reserve overlay height if the selected inline renderer has cached prosody data.
     const translation = cachedTranslation();
-    if (!translation?.data?.[2]) return undefined;
-    return isWordAllKana() ? '5px' : '2px';
+    const prosody = extractProsodyData(translation?.data, currentLangData());
+    if (getProsodyPositionFromOverride(null, prosody) === null) return undefined;
+    return wordUsesReadingScript() ? '5px' : '2px';
   });
 
   // Whether to show frequency stars
@@ -314,13 +313,82 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const showFrequencyStars = createMemo(() => {
     if (!cachedTranslation()) return false;
     const freq = wordFreqEntry();
-    return freq !== null && freq.raw_level !== undefined && freq.raw_level > 0;
+    return freq !== null && isDisplayableFrequencyLevel(freq.raw_level, getFreqLevelNames(), currentLangData());
   });
 
-  // Whether to hide pitch accent for known words (when hiding reading for known words)
-  const hidePitchForKnown = createMemo(() => {
-    return !!(settings.hideReadingForKnownWords && wordIsKnown());
+  const frequencyVisualLevel = createMemo(() => {
+    const freq = wordFreqEntry();
+    if (!freq) return 0;
+    const languageData = currentLangData();
+    return getFrequencyLevelVisualRank(freq.raw_level, getFreqLevelNames(), languageData);
   });
+
+  // Whether to hide prosody for known words when reading annotations are hidden.
+  const hideProsodyForKnown = createMemo(() => {
+    return hideReadingAnnotationsForKnownWords(settings) && wordIsKnown();
+  });
+
+  const readingForDisplay = createMemo(() => (
+    showReadingAnnotation() ? effectiveReading() : null
+  ));
+
+  const renderSubtitleText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
+    if (hideProsodyForKnown() || !canRenderProsodyOverlay()) {
+      return <span class={options.class} style={options.style}>{text}</span>;
+    }
+    const overlayTarget = getProsodyOverlayTextTarget(actualWord(), effectiveReading() || displayWord(), options);
+
+    return (
+      <ProsodyOverlay
+        word={overlayTarget.word}
+        reading={overlayTarget.reading}
+        pos={getPos()}
+        nextPos={props.lookAheadPos}
+        mode="overlay"
+        languageData={currentLangData()}
+        isReadingScript={options.isReadingScript}
+        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
+        style={options.style}
+      >
+        {text}
+      </ProsodyOverlay>
+    );
+  };
+
+  const renderRubyReading = () => (
+    <ruby>
+      {displayWord()}
+      <rp>(</rp>
+      <rt>
+        {renderSubtitleText(displayReading(), {
+          slot: 'reading',
+          word: displayWord(),
+          reading: effectiveReading() || displayWord(),
+          displayReading: displayReading(),
+          isReadingScript: true,
+          class: 'subtitle-word__reading-overlay prosody-overlay-wrapper--reading',
+        })}
+      </rt>
+      <rp>)</rp>
+    </ruby>
+  );
+
+  const renderSubtitleWord = () => {
+    if (showReadingAnnotation() && readingAnnotationDisplay() === 'ruby') {
+      return renderRubyReading();
+    }
+
+    return (
+      <WordWithReading
+        word={displayWord()}
+        reading={readingForDisplay()}
+        language={settings.language}
+        languageData={currentLangData()}
+        forceShowReadingAnnotation={showReadingAnnotation()}
+        renderText={renderSubtitleText}
+      />
+    );
+  };
 
   return (
     <span
@@ -328,7 +396,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       class={getWordClass()}
       style={{
         ...wordStyle(),
-        ...(pitchAccentHeight() ? { '--pitch-accent-height': pitchAccentHeight() } as JSX.CSSProperties : {}),
+        ...(prosodyOverlayHeight() ? { '--prosody-overlay-height': prosodyOverlayHeight() } as JSX.CSSProperties : {}),
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -337,45 +405,10 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       data-word-id={randomId}
       {...{ known: customAttrs().known, grammar: customAttrs().grammar } as JSX.HTMLAttributes<HTMLSpanElement>}
     >
-      <Show
-        when={showFurigana()}
-        fallback={
-          hidePitchForKnown()
-            ? <>{displayWord()}</>
-            : <PitchAccentOverlay
-                word={actualWord()}
-                reading={effectiveReading() || displayWord()}
-                pos={getPos()}
-                nextPos={props.lookAheadPos}
-                mode="overlay"
-                isKanaOnly={isWordAllKana()}
-              >
-                {displayWord()}
-              </PitchAccentOverlay>
-        }
-      >
-        <ruby>
-          {displayWord()}
-          <rp>(</rp>
-          <rt style={{ 'font-size': '0.5em', position: 'relative' }}>
-            <PitchAccentOverlay
-              word={actualWord()}
-              reading={effectiveReading() || displayWord()}
-              pos={getPos()}
-              nextPos={props.lookAheadPos}
-              mode="overlay"
-              isKanaOnly={false}
-              class="pitch-overlay-wrapper--ruby"
-            >
-              {getFuriganaReading()}
-            </PitchAccentOverlay>
-          </rt>
-          <rp>)</rp>
-        </ruby>
-      </Show>
+      {renderSubtitleWord()}
       {/* Frequency stars */}
       <Show when={showFrequencyStars()}>
-        <FrequencyStars level={wordFreqEntry()!.raw_level} maxStars={wordFreqEntry()!.raw_level} />
+        <FrequencyStars level={wordFreqEntry()!.raw_level} visualLevel={frequencyVisualLevel()} />
       </Show>
     </span>
   );

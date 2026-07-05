@@ -75,6 +75,8 @@ export interface OverlaySizeDelta {
 // Settings Types
 // ============================================================================
 
+export type ReaderSpreadDirection = 'left-to-right' | 'right-to-left';
+
 export interface ColorCodes {
   [pos: string]: string;
 }
@@ -107,7 +109,12 @@ export interface Settings {
   // Knowledge thresholds
   /** Built-in SRS ease above which a word is considered learning (integer, 0–5000 = 0.0–5.0 scale) */
   srsLearningThreshold: number;
-  /** Built-in SRS ease above which a word is considered known (integer, 0–5000 = 0.0–5.0 scale) */
+  /**
+   * Built-in SRS ease above which a word is considered known (integer, 0–5000 = 0.0–5.0 scale).
+   *
+   * @deprecated Use `easeThresholdKnown` for new settings UI/business logic.
+   * This persisted key is retained for compatibility with older settings files.
+   */
   known_ease_threshold: number; //this setting is named in this way because of backwards compatibility, it was always named that way from day 1
   /** Anki card factor above which a word is considered learning (integer, Anki scale) */
   ankiLearningThreshold: number;
@@ -135,10 +142,11 @@ export interface Settings {
   dictionaryTargetLanguages: Record<string, string>;
   hover_known_get_from_dictionary: boolean;
   show_pos: boolean;
-  furigana: boolean;
-  showFurigana?: boolean; // Alias for furigana
+  /** Preferred persisted toggle for reading annotations. Prefer readingAnnotationsEnabled() when reading it. */
+  showReadingAnnotations?: boolean;
   hideReadingForKnownWords?: boolean;
-  showPitchAccent: boolean;
+  /** Preferred persisted toggle for prosody/accent display. Prefer prosodyVisible() when reading it. */
+  showProsody: boolean;
   showDictionary?: boolean; // Show dictionary on hover
 
   // Anki settings
@@ -181,7 +189,7 @@ export interface Settings {
   flashcard_deck: string | null;
   flashcards_add_picture: boolean;
   maxNewCardsPerDay: number;
-  proportionOfExamCards: number;
+  proportionOfLevelCards: number;
   /** Days after which a "learning" word is re-shown in Word Sync (default 30) */
   wordSyncStaleLearningDays: number;
   createUnseenCards: boolean;
@@ -214,9 +222,18 @@ export interface Settings {
   /**
    * Learning language level for the current language. When set, suggested flashcards
    * above this level (harder) and cards without a level are not captured.
-   * Uses the language's raw_level scale (e.g., 2 = JLPT N2, 5 = JLPT N5).
+   * Uses the active language package's raw_level scale.
+   *
+   * @deprecated Use `learningLanguageLevels[language]` so each learning language
+   * has its own package-defined level scale.
    */
   learningLanguageLevel: number | null;
+  /**
+   * Preferred learning/proficiency ceiling per learning language. Values use that
+   * language's raw_level scale, so each language can define its own proficiency
+   * or frequency buckets independently.
+   */
+  learningLanguageLevels: Record<string, number | null>;
 
   // API URLs
   tokeniserUrl: string;
@@ -230,7 +247,12 @@ export interface Settings {
   backendUrl: string;
   /** Single provider-agnostic manifest URL describing downloadable language data. */
   languageCatalogUrl: string;
-  /** Bearer token for cloud backend auth */
+  /**
+   * Bearer token for cloud backend auth.
+   *
+   * @deprecated Use `cloudAuthAccessToken`; this remains only as a migration
+   * fallback for older settings files.
+   */
   cloudAuthToken: string;
   /** Session access token for signed-in cloud account */
   cloudAuthAccessToken: string;
@@ -300,14 +322,14 @@ export interface Settings {
   ocrRamSaver?: boolean;
   /** Turbo mode: faster but potentially less accurate OCR detection (default false) */
   ocrTurboMode?: boolean;
-  /** Enable furigana detection and filtering in OCR results (default true) */
-  ocrFuriganaDetection?: boolean;
-  /** Width ratio threshold for filtering narrow furigana boxes (default 1.5) */
-  ocrFuriganaWidthRatio?: number;
+  /** Enable reading annotation detection and filtering in OCR results (default true) */
+  ocrReadingAnnotationFiltering?: boolean;
+  /** Width ratio threshold for filtering narrow reading annotation boxes (default 1.5) */
+  ocrReadingAnnotationWidthRatio?: number;
   /** Window multiplier for neighbor detection (default 2.4) */
-  ocrFuriganaNeighborWindowMultiplier?: number;
-  /** Number of boxes to look ahead when detecting furigana neighbors (default 3) */
-  ocrFuriganaNeighborLookahead?: number;
+  ocrReadingAnnotationNeighborWindowMultiplier?: number;
+  /** Number of boxes to look ahead when detecting reading annotation neighbors (default 3) */
+  ocrReadingAnnotationNeighborLookahead?: number;
   /** OCR backend provider */
   ocrProvider?: OCRProvider;
 
@@ -316,12 +338,14 @@ export interface Settings {
   readerWordHoverTrigger?: WordHoverTriggerMode;
   /** Key to hold for 'key-hover' mode (e.g., 'Shift', 'Control', 'Alt') */
   readerWordHoverKey?: string;
-  /** Whether to hide furigana with white boxes that reveal on hover */
-  readerFuriganaHider?: boolean;
+  /** Whether to hide detected reading annotations with white boxes that reveal on hover */
+  readerReadingAnnotationHider?: boolean;
   /** Whether to remove the gap between pages in double-page mode */
   readerCollatePages?: boolean;
   readerPageMode?: 'single' | 'double';
   readerFirstPageSingle?: boolean;
+  /** Visual order for double-page spreads. Right-to-left preserves manga/booklet defaults. */
+  readerSpreadDirection?: ReaderSpreadDirection;
 
   // Reader magnifier settings
   /** Hotkey to activate the magnifying glass (e.g., 'z', 'Control', 'Alt') */
@@ -445,7 +469,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hover_known_get_from_dictionary: false,
   showDictionary: true,
   show_pos: true,
-  language: 'ja',
+  language: '',
   dictionaryTargetLanguages: {},
   use_anki: false,
   flashcardSkipAnkiChoice: false,
@@ -459,10 +483,11 @@ export const DEFAULT_SETTINGS: Settings = {
   manualStatusEaseBuffer: 0,
   knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
   knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
-  furigana: true,
+  showReadingAnnotations: true,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,
   flashcard_deck: null,
+  ankiDeckName: 'mLearn',
   flashcards_add_picture: true,
   tokeniserUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
   getTranslationUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
@@ -492,12 +517,16 @@ export const DEFAULT_SETTINGS: Settings = {
   subtitleTheme: 'shadow',
   subtitle_font_size: 40,
   subtitle_font_weight: 400,
+  showSubtitles: true,
+  showTranslation: false,
+  removeParentheses: false,
+  removeSpeakerNames: false,
   overlayAutoPosition: true,
   overlayTextMode: false,
-  showPitchAccent: true,
+  showProsody: true,
   timeWatched: 0,
   maxNewCardsPerDay: 10,
-  proportionOfExamCards: 0.5,
+  proportionOfLevelCards: 0.5,
   wordSyncStaleLearningDays: 30,
   createUnseenCards: true,
   flashcardLLMExamples: false,
@@ -508,7 +537,8 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardVideoMargin: 300,
   autoSuggestFlashcards: true,
   autoSuggestUnknownWords: true,
-  learningLanguageLevel: 3,
+  learningLanguageLevel: null,
+  learningLanguageLevels: {},
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,
@@ -517,17 +547,18 @@ export const DEFAULT_SETTINGS: Settings = {
   blurKnownWords: false,
   ocrRamSaver: false,
   ocrTurboMode: false,
-  ocrFuriganaDetection: true,
-  ocrFuriganaWidthRatio: 1.5,
-  ocrFuriganaNeighborWindowMultiplier: 2.4,
-  ocrFuriganaNeighborLookahead: 3,
+  ocrReadingAnnotationFiltering: true,
+  ocrReadingAnnotationWidthRatio: 1.5,
+  ocrReadingAnnotationNeighborWindowMultiplier: 2.4,
+  ocrReadingAnnotationNeighborLookahead: 3,
   ocrProvider: 'local',
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'shift',
-  readerFuriganaHider: false,
+  readerReadingAnnotationHider: false,
   readerCollatePages: false,
   readerPageMode: 'double',
   readerFirstPageSingle: true,
+  readerSpreadDirection: 'right-to-left',
   hideReadingForKnownWords: false,
   readerMagnifierHotkey: 'z',
   readerMagnifierZoom: 2,
@@ -591,6 +622,36 @@ export interface FrequencyLevelNames {
   [level: string]: string;
 }
 
+export type GrammarTokenField = 'word' | 'surface' | 'actual_word' | 'lemma' | 'reading' | 'type' | 'partOfSpeech';
+
+export interface GrammarTokenMatcher {
+  /** Token field to inspect. Defaults to "word". "lemma" aliases actual_word. */
+  field?: GrammarTokenField;
+  /** Exact value to match. */
+  equals?: string;
+  /** Any exact value to match. */
+  oneOf?: string[];
+  /** Regular expression source to match against the selected value. */
+  regex?: string;
+  /** Canonical POS category to match after language part-of-speech aliases are applied. */
+  canonicalPartOfSpeech?: string;
+  /** Morphosyntactic features to match, e.g. { Case: "Acc", Number: ["Sing", "Plur"] }. */
+  features?: Record<string, string | string[]>;
+  /** Per-token case sensitivity override. Defaults to the enclosing grammar match config, then false. */
+  caseSensitive?: boolean;
+}
+
+export interface GrammarMatchConfig {
+  /** Matching strategy. Defaults to "text" for legacy pattern matching. */
+  type?: 'text' | 'token-sequence';
+  /** Text pattern to match when type="text". Defaults to GrammarPoint.pattern. */
+  text?: string;
+  /** Ordered token matchers used when type="token-sequence". */
+  tokens?: GrammarTokenMatcher[];
+  /** Whether string comparisons preserve case. Defaults to false. */
+  caseSensitive?: boolean;
+}
+
 export interface GrammarPoint {
   /** The grammar pattern text */
   pattern: string;
@@ -598,6 +659,8 @@ export interface GrammarPoint {
   meaning: string;
   /** Numeric difficulty level (same scale as frequency levels) */
   level: number;
+  /** Optional metadata-driven matcher for non-substring grammars. */
+  match?: GrammarMatchConfig | GrammarMatchConfig[];
 }
 
 export interface LanguageDataAsset {
@@ -605,6 +668,8 @@ export interface LanguageDataAsset {
   id: string;
   /** Relative destination under the per-user language data root. */
   path: string;
+  /** Runtime components this asset belongs to. Omitted means core language data. */
+  components?: LanguagePythonRequirementComponent[];
   /** Remote URL used by packaged apps to install this asset on demand. */
   url?: string;
   /** Provider-neutral link alias accepted in remote language catalogs. */
@@ -656,42 +721,498 @@ export interface LanguageDataManifest {
   dictionaryPacks?: Record<string, LanguageDictionaryPack>;
 }
 
+export interface LanguageScriptProfile {
+  /** Unicode script tags accepted for words in this language, e.g. ["Latn"], ["Arab"], ["Hira","Kana","Han"]. */
+  acceptedScripts?: string[];
+  /** Package-declared code-point ranges for scripts not known to the backend yet, e.g. {"Osge": [[66736, 66815]]}. */
+  scriptRanges?: Record<string, Array<[number, number]>>;
+  /** Scripts that should appear for strict validation. Defaults to acceptedScripts. */
+  requiredScripts?: string[];
+  /** How strictly word-level filters should reject letters outside acceptedScripts. */
+  wordScriptValidation?: 'contains-required' | 'only-accepted';
+  /** Whether Latin romanization is acceptable for user/STT input even when it is not a native script. */
+  allowsRomanization?: boolean;
+  /** Minimum code-point length for candidate words. Useful for scripts where one-character OCR hits are noisy. */
+  minWordCodePoints?: number;
+  /** Reject STT results made only from these scripts when no non-rejected script is present. */
+  sttRejectPureScripts?: string[];
+  /** Exact one-token STT noise strings to discard for this language. */
+  sttNoiseCharacters?: string[];
+}
+
+export type LanguageNormalizerPresetName = 'arabic-script' | 'persian-arabic' | (string & {});
+
+export type LanguagePresetNormalizerStep = {
+  type: 'preset';
+  name: LanguageNormalizerPresetName;
+};
+
+export type LanguageReplaceCharactersNormalizerStep = {
+  type: 'replace-characters';
+  map: Record<string, string>;
+};
+
+export type LanguageReplaceAffixNormalizerStep = {
+  type: 'replace-prefix' | 'replace-suffix';
+  /** Exact prefix/suffix to replace. */
+  from: string;
+  /** Replacement text. Defaults to an empty string for stripping. */
+  to?: string;
+};
+
+export type LanguageTextNormalizerStep =
+  | 'lowercase'
+  | 'casefold'
+  | 'strip-diacritics'
+  | 'lowercase-strip-diacritics'
+  | 'unicode-nfc'
+  | 'unicode-nfd'
+  | 'unicode-nfkc'
+  | 'unicode-nfkd'
+  | 'remove-arabic-diacritics'
+  | 'remove-tatweel'
+  | 'arabic-script'
+  | 'persian-arabic'
+  | LanguagePresetNormalizerStep
+  | LanguageReplaceCharactersNormalizerStep
+  | LanguageReplaceAffixNormalizerStep;
+
+export interface LanguageLexemeNormalization {
+  /** How written forms and readings are connected for dictionary/frequency lookup. */
+  type?: 'identity' | 'surface-reading' | 'reading' | 'surface';
+  /** Surface scripts that should be treated as canonical written forms, e.g. ["Han"]. */
+  surfaceScripts?: string[];
+  /** Ordered normalizers for written-form variants before frequency/knowledge lookup. */
+  surfaceNormalizers?: LanguageTextNormalizerStep[];
+  /** Reading/transliteration scripts that may resolve to canonical written forms, e.g. ["Latn"]. */
+  readingScripts?: string[];
+  /** Single-character reading/transliteration marks allowed alongside readingScripts, e.g. Arabic romanization ʿ/ʾ. */
+  readingExtraCharacters?: string[];
+  /** Optional reading normalization before lookup. */
+  readingNormalizer?: LanguageReadingNormalizer;
+  /** Keep words written in a secondary reading script distinct from canonical headwords. */
+  preserveNonPrimaryReadingScript?: boolean;
+}
+
+export type LanguageReadingNormalizerStep =
+  | 'none'
+  | 'kana-to-hiragana'
+  | LanguageTextNormalizerStep;
+
+export type LanguageReadingNormalizer = LanguageReadingNormalizerStep | LanguageReadingNormalizerStep[];
+
+export interface LanguageWordIndexStrategy {
+  /** How flashcard/card indexes should compare expressions for this language. */
+  type?: 'whole-expression' | 'character-containment';
+}
+
+export interface LanguageTokenEstimationConfig {
+  /** Scripts whose text is dense in LLM context windows, independent of word-index matching. */
+  compactScripts?: string[];
+}
+
+export interface LanguageReadingAnnotationConfig {
+  /** How written forms and readings should be rendered together. */
+  type?: 'none' | 'script-reading';
+  /** Visual renderer for the surface and reading. Defaults to ruby for compact annotations. */
+  display?: 'ruby' | 'inline';
+  /** Surface scripts that should receive reading annotations, e.g. ["Han"]. */
+  annotationScripts?: string[];
+  /** Scripts at the end of a surface form that should remain visible in the displayed reading. */
+  surfaceSuffixScripts?: string[];
+  /** Separator used when joining token readings for TTS or plain text display. */
+  readingSeparator?: string;
+  /** Whether subtitle patterns like word(reading) should be consumed as temporary readings. */
+  stripParentheticalReadings?: boolean;
+}
+
+export interface LanguagePartOfSpeechConfig {
+  /** Canonical POS categories that should trigger translation/dictionary lookup. */
+  translatable?: string[];
+  /** Tokenizer-specific POS labels mapped to canonical POS categories, e.g. {"NOUN": "noun", "名詞-普通名詞": "名詞"}. */
+  aliases?: Record<string, string>;
+  /** POS categories that should never be treated as translatable, even when no translatable allow-list is configured. */
+  ignored?: string[];
+  /** Package-provided default colors for canonical POS categories. User Settings.colour_codes overrides these. */
+  colors?: ColorCodes;
+  /** Whether POS category comparisons should preserve case. Defaults to false for tokenizer interoperability. */
+  caseSensitive?: boolean;
+}
+
+export interface LanguageSubtitleParsingConfig {
+  /** Speaker-label prefixes to strip when the user enables "remove speaker names". */
+  speakerNamePrefix?: {
+    /** Disable speaker-label stripping for this language even when the user setting is enabled. */
+    enabled?: boolean;
+    /** Scripts accepted inside speaker labels. Defaults to the language script profile. */
+    scripts?: string[];
+    /** Also accept Latin-script labels for translated/romanized subtitle labels. Defaults to false. */
+    allowLatinFallback?: boolean;
+    /** Maximum label length before the colon. Defaults to 40 code points. */
+    maxCodePoints?: number;
+    /** Colon-like delimiters that mark speaker labels. Defaults to ":" and "：". */
+    delimiters?: string[];
+  };
+  /** Character-name prefixes used to build media context for the tutor. */
+  characterNamePrefix?: {
+    /** Enable character-name extraction for this language's subtitle conventions. */
+    enabled?: boolean;
+    /** Scripts accepted inside character names. Defaults to the language script profile. */
+    scripts?: string[];
+    /** Also accept Latin-script labels for translated/romanized subtitle labels. Defaults to false. */
+    allowLatinFallback?: boolean;
+    /** Maximum label length before a delimiter/bracket close. Defaults to 30 code points. */
+    maxCodePoints?: number;
+    /** Minimum repeated lines before a detected name is included. Defaults to 2. */
+    minLineCount?: number;
+    /** Colon-like delimiters that mark speaker/character labels. Defaults to ":" and "：". */
+    delimiters?: string[];
+    /** Opening/closing bracket pairs that mark character labels. Defaults to legacy subtitle brackets. */
+    bracketPairs?: Array<[string, string]>;
+  };
+}
+
+export interface LanguageTextProcessingConfig {
+  scriptProfile?: LanguageScriptProfile;
+  /** Reusable normalizer recipes that installed language packs can reference by name. */
+  normalizerPresets?: Record<string, LanguageReadingNormalizerStep[]>;
+  lexemeNormalization?: LanguageLexemeNormalization;
+  wordIndexStrategy?: LanguageWordIndexStrategy;
+  /** LLM context-window token estimation hints for this language. */
+  tokenEstimation?: LanguageTokenEstimationConfig;
+  readingAnnotation?: LanguageReadingAnnotationConfig;
+  partOfSpeech?: LanguagePartOfSpeechConfig;
+  subtitle?: LanguageSubtitleParsingConfig;
+  /** Sentence-ending punctuation used when batching text for TTS. Defaults cover common cross-script punctuation. */
+  sentenceTerminators?: string[];
+  /** Separator used when reconstructing plain text from tokenizer output. Defaults to compact before metadata loads, otherwise a space. */
+  tokenJoinSeparator?: string;
+}
+
+export interface LanguageTypographyConfig {
+  /** CSS font-family used for subtitle/media text. Defaults are derived from supported scripts. */
+  subtitleFontFamily?: string;
+  /** CSS font-family used for language content outside subtitles when a surface needs it. */
+  contentFontFamily?: string;
+  /** Text direction for language content. Defaults are derived from supported scripts. */
+  textDirection?: 'ltr' | 'rtl' | 'auto';
+}
+
+export interface LanguageProsodyConfig {
+  /** Prosody data model used by this language. */
+  type?: 'none' | 'japanese-pitch-accent' | (string & {});
+  /** Path to the numeric position in raw dictionary prosody payloads; "*" walks array entries, e.g. ["tones", "*", "number"]. */
+  positionPath?: string[];
+  /** Path to a concise display value in raw dictionary prosody payloads; "*" walks array entries, e.g. ["tones", "*", "label"]. */
+  displayPath?: string[];
+  /** User-facing label for a numeric prosody position editor, e.g. "Pitch accent" or "Stress position". */
+  positionLabel?: string;
+  /** User-facing placeholder for the numeric prosody position editor. */
+  positionPlaceholder?: string;
+  /** User-facing label for the global prosody visibility toggle. */
+  toggleLabel?: string;
+  /** User-facing description for the global prosody visibility toggle. */
+  toggleDescription?: string;
+  /** POS tags whose pitch boxes should be hidden because they do not represent lexical accent. */
+  particleBoxExcludedPos?: string[];
+  /** Matching mode for particleBoxExcludedPos. Defaults to "contains" for tokenizer tags like "動詞-一般". */
+  particleBoxExcludedPosMatch?: 'contains' | 'exact';
+}
+
+export interface LanguageCharacterStudyConfig {
+  /** Whether character-level study views are meaningful for this language. */
+  enabled?: boolean;
+  /** Unicode scripts whose individual characters should be tracked, e.g. ["Han"], ["Arab"]. */
+  scripts?: string[];
+  /** Optional package-defined UI labels for character study views. */
+  labels?: {
+    title?: string;
+    description?: string;
+    emptyTitle?: string;
+    emptyDescription?: string;
+    emptyHint?: string;
+    unsupportedTitle?: string;
+    unsupportedDescription?: string;
+    byLevel?: string;
+    loading?: string;
+  };
+  /** Sort order for language-defined levels in character views. */
+  levelOrder?: 'ascending' | 'descending';
+  /** Whether character-level estimates inferred from word levels should show an explanatory disclaimer. */
+  levelDisclaimer?: boolean;
+}
+
+export interface LanguageReaderConfig {
+  /** Default reader page mode while the user has not chosen a different app setting. */
+  pageMode?: 'single' | 'double';
+  /** Default visual order for double-page spreads while the user has not chosen a different app setting. */
+  spreadDirection?: ReaderSpreadDirection;
+  /** Whether the first page should be treated as a standalone cover by default. */
+  firstPageSingle?: boolean;
+  /** Whether adjacent spread pages should be visually collated by default. */
+  collatePages?: boolean;
+}
+
+export interface LanguageConversationConfig {
+  /** Register/politeness behavior that affects tutor prompts and mistake correction. */
+  register?: {
+    /** Whether casual-vs-deferential forms are morphosyntactically important for this language. */
+    hasDeferentialForms?: boolean;
+    /** Extra guidance used when the tutor should speak casually. */
+    casualPromptGuidelines?: string[];
+    /** Extra guidance used when judging casual learner messages. */
+    correctionPromptGuidelines?: string[];
+  };
+  /** Extra tutor-system-prompt guidelines for this language, e.g. quiz/register constraints. */
+  tutorPromptGuidelines?: string[];
+  /** Extra correction guidelines shared by tutor and checker prompts, e.g. register, orthography, or transliteration policy. */
+  correctionPromptGuidelines?: string[];
+  /** Extra mistake-checker prompt guidelines for language-specific register, orthography, or correction policy. */
+  mistakeCheckerPromptGuidelines?: string[];
+}
+
+export interface LanguageFrequencyLevelConfig {
+  /** User-facing labels for numeric levels, e.g. {"1": "N1", "6": "HSK 6", "0": "Beginner"}. */
+  names?: FrequencyLevelNames;
+  /** How language-defined levels should be displayed in ordered UI controls. */
+  displayOrder?: 'ascending' | 'descending';
+  /** Which side of the numeric level scale represents harder material. Defaults to lower numeric values being harder. */
+  difficulty?: 'lower-is-harder' | 'higher-is-harder';
+  /** Fallback label template for unnamed numeric levels, e.g. "HSK {level}" or "Band {level}". */
+  fallbackLabelTemplate?: string;
+  /** Frequency row boundaries for assigning most-common-first rows to easiest-to-hardest levels. */
+  boundaries?: number[];
+  /** Optional zero-based frequency row column containing an authoritative raw level. Defaults to boundary assignment. */
+  rowLevelIndex?: number;
+}
+
+export type LanguageFrequencyRow = [string, string, ...unknown[]];
+
+export interface LanguageOcrRuntimeConfig {
+  /** RapidOCR LangRec enum name, e.g. "JAPAN", "LATIN", "CYRILLIC". */
+  rapidLangType?: string;
+  /** PaddleOCR language argument, e.g. "japan", "en", "german". */
+  paddleLang?: string;
+  /** Recognition strategy after text detection. */
+  recognitionEngine?: 'rapidocr' | 'paddleocr' | 'mangaocr' | (string & {});
+  /** Whether this OCR pipeline should use vertical-text-friendly detector settings. */
+  supportsVerticalText?: boolean;
+  /** Whether this OCR pipeline supports lightweight region detection before recognition. */
+  supportsRamSaver?: boolean;
+}
+
+export interface LanguageTokenizerRuntimeConfig {
+  /**
+   * Metadata-driven tokenizer adapter used when no installed Python language module exists.
+   * Use `unicode-word` for rough Unicode token-character segmentation.
+   */
+  type?: 'none' | 'unicode-word' | 'spacy' | 'sudachi' | (string & {});
+  /** Token features this adapter can be trusted to provide. Defaults are derived from the tokenizer type. */
+  capabilities?: Array<'segments' | 'lemmas' | 'partOfSpeech' | 'readings' | 'morphology'>;
+  /** When true, tokenizer setup failure is an install/runtime error instead of silently degrading. */
+  required?: boolean;
+  /** Optional fallback behavior when a linguistic tokenizer is unavailable. Rough segmentation fallback is opt-in. */
+  fallback?: 'unicode-word' | 'none';
+  /** Explicitly allow rough segmentation for scripts whose word boundaries usually need a linguistic segmenter. */
+  allowRoughSegmentationForSegmentlessScripts?: boolean;
+  /** Whether this tokenizer can process romanized/transliterated Latin input for a non-Latin language. */
+  acceptsRomanizedInput?: boolean;
+  /** spaCy model name for type="spacy", e.g. "de_core_news_sm". */
+  model?: string;
+  /** Whether the generic adapter may download a missing spaCy model. */
+  autoDownload?: boolean;
+  /** Whether rough fallback tokens should use lower-case lemmas. */
+  lowercaseLemma?: boolean;
+  /** Pipeline for normalizing rough-tokenizer token output. Dictionary lookup uses runtime.nlp.dictionary.lookup or lexemeNormalization instead. */
+  lemmaNormalizers?: LanguageTextNormalizerStep[];
+  /** Character classes included by the rough segmenter. Defaults to ["letter", "number"]. */
+  tokenCharacterClasses?: Array<'letter' | 'number' | 'mark'>;
+  /** Unicode scripts accepted as rough-token letters. Defaults to the language script profile. */
+  tokenCharacterScripts?: string[];
+  /** Extra individual characters always included inside rough tokens, e.g. Persian ZWNJ. */
+  extraTokenCharacters?: string[];
+  /** Characters kept only between token characters, e.g. apostrophe, hyphen, or Persian ZWNJ. */
+  innerTokenCharacters?: string[];
+  /** Normalize readings emitted by the tokenizer before sending them to the renderer. */
+  outputReadingNormalizer?: LanguageReadingNormalizer;
+  /** Token POS labels to suppress from tokenizer output. */
+  ignoredPos?: string[];
+  /** Suffix-based lemma fallback rules used when a tokenizer cannot recover a dictionary form. */
+  lemmaFallbackRules?: Array<{
+    pos?: string;
+    suffix: string;
+    replacement: string;
+    requireDictionaryMatch?: boolean;
+  }>;
+}
+
+export interface LanguageDictionaryRuntimeConfig {
+  /** Metadata-driven dictionary adapter used when no installed Python language module exists. */
+  type?: 'sqlite-zlib-json' | (string & {});
+  /** SQLite payload schema/renderer. */
+  schema?: 'simple-headword-zlib-json' | 'headword-reading-zlib-json';
+  /** Dictionary DB path under the language-data root. */
+  path?: string;
+  /** Optional path template under language-data; supports {language} and {target}. */
+  targetPathTemplate?: string;
+  /** Optional fallback path used when targetPathTemplate misses. */
+  fallbackPath?: string;
+  /** Optional JSON metadata file under the language-data root. */
+  metadataPath?: string;
+  /** Expected SQLite schema version from the meta table. */
+  schemaVersion?: string;
+  /** Renderer for the translation response payload. */
+  renderer?: 'simple-glosses' | 'structured-glosses' | 'raw-entry';
+  /** Path to the pronunciation/reading/transliteration in dictionary payloads; "*" walks array entries, e.g. ["pronunciations", "*", "value"]. */
+  readingPath?: string[];
+  /** Path to one or more user-facing definitions/glosses in dictionary payloads; "*" walks array entries, e.g. ["senses", "*", "glosses"]. */
+  definitionsPath?: string[];
+  /** Default dictionary target language when targetPathTemplate is used. */
+  defaultTargetLanguage?: string;
+  /** Optional structured prosody/accent payload stored in the same SQLite DB. */
+  prosody?: {
+    /** SQLite table containing per-headword prosody/accent records. Required when dictionary prosody lookup is enabled. */
+    table: string;
+    /** Column containing the dictionary headword key. Defaults to "headword". */
+    headwordColumn?: string;
+    /** Optional column containing the reading/pronunciation key. When present, prosody lookup is keyed by both headword and reading. */
+    readingColumn?: string;
+    /** Column containing zlib-compressed JSON prosody data. Defaults to "data". */
+    dataColumn?: string;
+  };
+  /** Lookup candidate generation before dictionary queries. */
+  lookup?: {
+    /**
+     * Candidate sources used before dictionary queries. Defaults include tokenizer lemmas
+     * when the configured tokenizer is trusted to provide lemmas.
+     */
+    seedForms?: Array<'surface' | 'tokenizer-lemma' | (string & {})>;
+    /** Ordered text normalizers to apply when direct lookup misses. */
+    normalizers?: LanguageTextNormalizerStep[];
+    /** Whether normalizers run as one cumulative pipeline or branch across variants. Defaults to "pipeline". */
+    normalizerMode?: 'pipeline' | 'branching';
+    /** When to query the dictionary reading/transliteration index. Defaults to lexemeNormalization.readingScripts. */
+    readingLookup?: 'none' | 'always' | {
+      /** Query the reading index only when the candidate's letters are in these Unicode scripts, e.g. ["Latn"] for pinyin/romanization. */
+      scripts: string[];
+    };
+    /** Ordered tie-breakers for multiple headword/reading entries. */
+    readingRank?: Array<
+      | 'common'
+      | 'score-desc'
+      | 'short-reading'
+      | 'long-reading'
+      | {
+        type: 'script';
+        scripts: string[];
+      }
+    >;
+  };
+}
+
+export interface LanguageAdapterRuntimeConfig {
+  /** Optional downloaded adapter. Metadata-only language bricks are used when absent. */
+  type?: 'python-module';
+  /** Adapter path under the language-data root. Required when type is 'python-module'. */
+  path?: string;
+}
+
+export interface LanguageTtsRuntimeConfig {
+  /** Package-defined local TTS engine implemented by the installed language adapter. */
+  engine?: 'kokoro' | 'qwen3' | (string & {});
+  /** Kokoro phonemizer language code, when Kokoro supports this language. */
+  kokoroLangCode?: string;
+  /** Preferred Kokoro voice for this language/phonemizer. */
+  kokoroVoice?: string;
+  /** Qwen3 language name required by the model, when Qwen3 supports this language. */
+  qwen3LanguageName?: string;
+  /** macOS `say` voice name for lightweight system TTS. */
+  macosVoice?: string;
+  /** espeak voice code for lightweight Linux system TTS. */
+  espeakVoice?: string;
+  /** Windows System.Speech voice name for lightweight system TTS. */
+  windowsVoice?: string;
+  /** BCP-47 language tag for browser/mobile Web Speech synthesis. */
+  webSpeechLang?: string;
+  /** Preferred browser/mobile Web Speech voice name. */
+  webSpeechVoice?: string;
+  /** Short language-appropriate phrase used by voice diagnostics. */
+  diagnosticText?: string;
+}
+
+export interface LanguageSttRuntimeConfig {
+  /** Whisper/faster-whisper language code, or "auto" to allow detection. */
+  whisperLanguage?: string;
+  /** Exact or substring phrases commonly emitted by the STT model as hallucinations for this language. */
+  hallucinationPhrases?: string[];
+  /** Audio shorter than this may be discarded when it produces suspiciously long text. */
+  shortAudioMaxSeconds?: number;
+  /** Minimum normalized text length that makes very short audio suspicious. */
+  shortAudioMinTextLength?: number;
+}
+
+export interface LanguageDiagnosticsRuntimeConfig {
+  /** Short text that should tokenize and/or resolve in the language dictionary. */
+  sampleText?: string;
+}
+
+export interface LanguageSettingsConfig {
+  /** App settings that this language package forces while the language is active. */
+  fixed?: Partial<Settings>;
+}
+
+export type LanguagePythonRequirementComponent = 'core' | 'ocr' | 'llm' | 'voice' | (string & {});
+
+export interface LanguagePythonRuntimeConfig {
+  /** Pip requirements always needed by this language package, independent of optional app components. */
+  packages?: string[];
+  /** Extra pip requirements needed by this language for selected optional runtime components. */
+  packagesByComponent?: Partial<Record<LanguagePythonRequirementComponent, string[]>>;
+}
+
+export interface LanguageRuntimeConfig {
+  /** Optional downloaded Python adapter for capabilities that cannot yet be expressed as metadata bricks. */
+  adapter?: LanguageAdapterRuntimeConfig;
+  python?: LanguagePythonRuntimeConfig;
+  ocr?: LanguageOcrRuntimeConfig;
+  nlp?: {
+    /** @deprecated Prefer runtime.adapter so OCR/TTS-only packages do not need an NLP-shaped adapter declaration. */
+    adapter?: LanguageAdapterRuntimeConfig;
+    tokenizer?: LanguageTokenizerRuntimeConfig;
+    dictionary?: LanguageDictionaryRuntimeConfig;
+  };
+  tts?: LanguageTtsRuntimeConfig;
+  stt?: LanguageSttRuntimeConfig;
+  diagnostics?: LanguageDiagnosticsRuntimeConfig;
+}
+
 export interface LanguageData {
   name: string;
   name_translated?: string;
-  translatable: string[];  // Array of POS types that should be translated (e.g., ["名詞", "動詞"])
-  colour_codes: ColorCodes;
-  fixed_settings: Partial<Settings>;
-  freq?: [string, string][];
-  freq_level_names?: FrequencyLevelNames;
+  /** Settings behavior supplied by the language package. */
+  settings?: LanguageSettingsConfig;
+  /** Frequency rows as [surface, reading, ...metadata]. Levels are assigned from boundaries unless frequencyLevels.rowLevelIndex is set. */
+  freq?: LanguageFrequencyRow[];
   /** Grammar points for this language */
   grammar?: GrammarPoint[];
-  /** Level names for grammar (e.g., {"5": "JLPT N5", ...}) — reuses FrequencyLevelNames */
-  grammar_level_names?: FrequencyLevelNames;
-  /** Whether this language has grammar point data */
-  hasGrammar?: boolean;
-  /** Whether this language offers the OCR Ram Saver toggle (lightweight detection) */
-  hasOcrRamSaver?: boolean;
-  /** Whether this language can be written vertically (e.g. CJK vertical text) */
-  supportsVerticalText?: boolean;
-  /** Whether this language has furigana-like reading annotations alongside text (e.g. Japanese) */
-  hasFurigana?: boolean;
-  /** Whether this language uses CJK-style parentheses for character names (e.g. （角色名）) */
-  usesCJKParentheses?: boolean;
-  /** Whether this language primarily uses Latin script */
-  usesLatinScript?: boolean;
-  /** Unicode script tags used by this language (e.g., ["Latn"], ["Hira","Kana","Han"]) */
-  supportedScripts?: string[];
-  /** Whether this language has pitch accent data */
-  hasPitchAccent?: boolean;
-  /** Whether the language supports character name detection in subtitles */
-  hasCharacterNames?: boolean;
-  /** Whether this language has a distinct honorific/deferential register
-   *  (e.g. Japanese keigo, Korean jondaetmal). T/V distinctions like German
-   *  Sie/du do NOT count — set to false for those. */
-  hasHonorifics?: boolean;
-  /** Frequency boundaries for level assignment [level5Max, level4Max, level3Max, level2Max] */
-  freq_level_boundaries?: number[];
+  /** Ordering and difficulty semantics for numeric grammar/proficiency levels. */
+  grammarLevels?: LanguageFrequencyLevelConfig;
+  /** Ordering and difficulty semantics for numeric frequency/proficiency levels. */
+  frequencyLevels?: LanguageFrequencyLevelConfig;
+  /** Script validation, lexeme normalization, and indexing behavior for this language. */
+  textProcessing?: LanguageTextProcessingConfig;
+  /** Optional prosody/accent behavior for this language. */
+  prosody?: LanguageProsodyConfig;
+  /** Character-level study/decomposition behavior. */
+  characterStudy?: LanguageCharacterStudyConfig;
+  /** Reader layout defaults supplied by the language package. */
+  reader?: LanguageReaderConfig;
+  /** Conversation tutor behavior and prompt guidance. */
+  conversation?: LanguageConversationConfig;
+  /** Font choices for language content. */
+  typography?: LanguageTypographyConfig;
+  /** Backend provider adapter hints for downloaded language modules. */
+  runtime?: LanguageRuntimeConfig;
   /** Heavy per-language payloads, installed into userData on demand. */
   languageData?: LanguageDataManifest;
 }
@@ -729,6 +1250,7 @@ export interface LanguageDataCatalogStatus {
     path: string;
     installed: boolean;
     sizeBytes?: number;
+    validationIssue?: string;
   }>;
   dictionaryPacks?: Array<{
     targetLanguage: string;
@@ -743,6 +1265,7 @@ export interface LanguageDataCatalogStatus {
       path: string;
       installed: boolean;
       sizeBytes?: number;
+      validationIssue?: string;
     }>;
   }>;
 }
@@ -756,6 +1279,8 @@ export interface Token {
   actual_word: string; // The dictionary form
   type: string;        // Part of speech (動詞, 名詞, etc.)
   reading?: string;
+  /** Optional morphosyntactic analyzer features, e.g. { Case: "Acc", Number: "Sing" }. */
+  features?: Record<string, string | string[]>;
   // Computed/derived properties for UI
   surface?: string;    // Alias for word (for compatibility)
   partOfSpeech?: string; // Alias for type
@@ -781,16 +1306,25 @@ export interface DictionaryEntry {
   tags?: string[];
 }
 
-export interface PitchInfo {
-  position: number;
-}
-
-export interface PitchData {
-  pitches?: PitchInfo[];
+export interface FlashcardProsody {
+  /** Runtime prosody model that produced this data. */
+  type: NonNullable<LanguageProsodyConfig['type']>;
+  /** Numeric prosody/accent/stress/tone position for the configured prosody model. */
+  position?: number;
+  /** Short package-defined value for display when the model is not numeric-position based. */
+  display?: string;
+  /** Original backend prosody payload for forward-compatible renderers. */
+  raw?: unknown;
 }
 
 export interface TranslationResponse {
-  data: [TranslationEntry?, TranslationEntry?, PitchData?];
+  /**
+   * Dictionary adapters return an ordered payload:
+   * 0 = primary entry, 1 = optional structured entry, 2 = optional package-defined prosody/accent payload.
+   * Slot 2 is intentionally unknown so third-party language packages can add tone/stress/etc. models
+   * without pretending to be Japanese pitch data.
+   */
+  data: [TranslationEntry?, TranslationEntry?, unknown?];
 }
 
 // ============================================================================
@@ -819,8 +1353,8 @@ export interface FlashcardContent {
   back: string;
   /** Optional pronunciation/reading */
   reading?: string;
-  /** Pitch accent position (language-specific) */
-  pitchAccent?: number;
+  /** Generic prosody/accent payload. Prefer this for new language features. */
+  prosody?: FlashcardProsody;
   /** Part of speech tag */
   pos?: string;
   /** Frequency level (language-specific) */
@@ -1182,18 +1716,6 @@ export interface WordFrequencyEntry {
 
 export interface WordFrequencyMap {
   [word: string]: WordFrequencyEntry;
-}
-
-// ============================================================================
-// Pitch Accent Types
-// ============================================================================
-
-export interface PitchAccentInfo {
-  accentType: number;
-  pattern: boolean[];
-  particleAccent: boolean;
-  length: number;
-  moraCharCounts: number[];
 }
 
 // ============================================================================

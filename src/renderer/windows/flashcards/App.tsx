@@ -5,9 +5,9 @@
  */
 
 import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
-import { WindowWrapper, useLocalization, useSettings, useLowPowerGate } from '../../context';
+import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
-import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
+import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle } from '../../components/flashcard';
 import {
   Card,
   Modal,
@@ -30,16 +30,17 @@ import {
   CollapsibleStickyHeader,
 } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
-import { stripHtmlForTts } from '../../../shared/utils/textUtils';
+import { getLanguageDisplayName, stripHtmlForTts } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
-import { getBackend, resolveCloudApiUrl } from '../../../shared/backends';
+import { resolveCloudApiUrl } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
-import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
-import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
+import { buildBulkExampleUpdate, getCardsNeedingBulkExamples } from '../../utils/flashcardBulkExamples';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -55,12 +56,14 @@ interface TtsRepairJob {
   cardFront: string;
   text: string;
   field: 'word' | 'example';
+  language: string;
 }
 
 interface LlmRepairJob {
   cardId: string;
   cardFront: string;
   exampleText: string;
+  language: string;
 }
 
 /** Format milliseconds into a human-readable ETA string (e.g. "2m 30s") */
@@ -92,6 +95,7 @@ export const FlashcardsContent: Component = () => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
   const { requestAccess } = useLowPowerGate();
+  const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
@@ -152,6 +156,12 @@ export const FlashcardsContent: Component = () => {
     return false;
   };
 
+  const languageForCard = (card: Flashcard): string => card.language || settings.language;
+  const languageDataForCard = (card: Flashcard) => {
+    const language = languageForCard(card);
+    return langData[language] ?? (language === settings.language ? currentLangData() : null);
+  };
+
   createEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
@@ -190,23 +200,25 @@ export const FlashcardsContent: Component = () => {
       const ttsJobs: TtsRepairJob[] = [];
       const llmJobs: LlmRepairJob[] = [];
       for (const card of cards) {
+        const cardLanguage = languageForCard(card);
+        const cardLanguageData = languageDataForCard(card);
         const front = card.content.front;
-        const cleanFront = front ? stripHtmlForTts(front) : '';
+        const cleanFront = front ? stripHtmlForTts(front, false, cardLanguageData) : '';
         if (cleanFront && cleanFront !== '-') {
           const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
           if (!existing) {
-            ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word' });
+            ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word', language: cardLanguage });
           }
         }
         const example = card.content.example;
-        const cleanExample = example ? stripHtmlForTts(example) : '';
+        const cleanExample = example ? stripHtmlForTts(example, false, cardLanguageData) : '';
         if (cleanExample && cleanExample !== '-') {
           const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
           if (!existing) {
-            ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example' });
+            ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example', language: cardLanguage });
           }
           if (!card.content.exampleMeaning || card.content.exampleMeaning.trim() === '') {
-            llmJobs.push({ cardId: card.id, cardFront: front, exampleText: cleanExample });
+            llmJobs.push({ cardId: card.id, cardFront: front, exampleText: cleanExample, language: cardLanguage });
           }
         }
       }
@@ -228,8 +240,6 @@ export const FlashcardsContent: Component = () => {
     setShowRepairModal(false);
     setRepairRunning(true);
 
-    const language = settings.language;
-
     if (llmJobs.length > 0) {
       const llmToastId = showToast({
         variant: 'info',
@@ -245,7 +255,12 @@ export const FlashcardsContent: Component = () => {
       for (let i = 0; i < llmJobs.length; i++) {
         const job = llmJobs[i];
         try {
-          const translation = await translateExampleSentence(job.exampleText, language);
+          const sourceLanguage = getLanguageDisplayName(
+            job.language,
+            langData[job.language] ?? (job.language === settings.language ? currentLangData() : null),
+            settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage,
+          );
+          const translation = await translateExampleSentence(job.exampleText, sourceLanguage, job.language);
           if (translation) {
             updateFlashcardContent(job.cardId, { exampleMeaning: translation });
             llmSucceeded++;
@@ -309,7 +324,7 @@ export const FlashcardsContent: Component = () => {
               ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(
                 job.cardId,
                 job.text,
-                language,
+                job.language,
                 job.field,
                 provider,
                 voiceSampleId,
@@ -319,7 +334,7 @@ export const FlashcardsContent: Component = () => {
               : await bridge.flashcards.generateFlashcardTts(
                 job.cardId,
                 job.text,
-                language,
+                job.language,
                 job.field,
                 provider,
                 voiceSampleId,
@@ -374,7 +389,8 @@ export const FlashcardsContent: Component = () => {
       return;
     }
     setBrowseTtsCardId(cardId);
-    browseTtsPlay(cardId, text, settings.language, 'word');
+    const card = getAllCards().find((candidate) => candidate.id === cardId);
+    browseTtsPlay(cardId, text, card ? languageForCard(card) : settings.language, 'word');
   };
 
   onCleanup(() => browseTtsStop());
@@ -490,43 +506,44 @@ export const FlashcardsContent: Component = () => {
     const provider = bulkTtsProvider();
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
     const cloudApiUrl = resolveCloudApiUrl(settings);
-    const language = settings.language;
 
     const replaceAll = bulkMode() === 'replaceAll';
     const olderThan = bulkMode() === 'olderThan';
     const cutoffDate = olderThan ? new Date(bulkOlderThanDate() + 'T23:59:59').getTime() : 0;
 
     // Collect items that need TTS generation
-    const items: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [];
+    const items: Array<{ cardId: string; text: string; field: 'word' | 'example'; language: string }> = [];
     for (const card of cards) {
+      const cardLanguage = languageForCard(card);
+      const cardLanguageData = languageDataForCard(card);
       const front = card.content.front;
       if (front && front !== '-') {
-        const cleanFront = stripHtmlForTts(front);
+        const cleanFront = stripHtmlForTts(front, false, cardLanguageData);
         if (replaceAll) {
-          items.push({ cardId: card.id, text: cleanFront, field: 'word' });
+          items.push({ cardId: card.id, text: cleanFront, field: 'word', language: cardLanguage });
         } else if (olderThan) {
           const meta = await bridge.flashcards.getFlashcardTtsMeta(card.id, 'word');
           if (!meta || new Date(meta.generatedAt).getTime() < cutoffDate) {
-            items.push({ cardId: card.id, text: cleanFront, field: 'word' });
+            items.push({ cardId: card.id, text: cleanFront, field: 'word', language: cardLanguage });
           }
         } else {
           const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
-          if (!existing) items.push({ cardId: card.id, text: cleanFront, field: 'word' });
+          if (!existing) items.push({ cardId: card.id, text: cleanFront, field: 'word', language: cardLanguage });
         }
       }
       const example = card.content.example;
       if (example && example !== '-') {
-        const cleanExample = stripHtmlForTts(example);
+        const cleanExample = stripHtmlForTts(example, false, cardLanguageData);
         if (replaceAll) {
-          items.push({ cardId: card.id, text: cleanExample, field: 'example' });
+          items.push({ cardId: card.id, text: cleanExample, field: 'example', language: cardLanguage });
         } else if (olderThan) {
           const meta = await bridge.flashcards.getFlashcardTtsMeta(card.id, 'example');
           if (!meta || new Date(meta.generatedAt).getTime() < cutoffDate) {
-            items.push({ cardId: card.id, text: cleanExample, field: 'example' });
+            items.push({ cardId: card.id, text: cleanExample, field: 'example', language: cardLanguage });
           }
         } else {
           const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
-          if (!existing) items.push({ cardId: card.id, text: cleanExample, field: 'example' });
+          if (!existing) items.push({ cardId: card.id, text: cleanExample, field: 'example', language: cardLanguage });
         }
       }
     }
@@ -553,8 +570,8 @@ export const FlashcardsContent: Component = () => {
     for (const item of items) {
       try {
         const result = provider === 'cloud'
-          ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, cloudToken, cloudApiUrl))
-          : await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, undefined, cloudApiUrl);
+          ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(item.cardId, item.text, item.language, item.field, provider, voiceSampleId, cloudToken, cloudApiUrl))
+          : await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, item.language, item.field, provider, voiceSampleId, undefined, cloudApiUrl);
         if (result) {
           generated++;
         } else {
@@ -584,16 +601,9 @@ export const FlashcardsContent: Component = () => {
     if (bulkProgress()) return;
 
     const cards = flashcards();
-    const language = settings.language;
     const colourCodes = settings.colour_codes || {};
 
-    const replaceAll = bulkMode() === 'replaceAll';
-
-    const needExamples = replaceAll
-      ? cards.filter(card => card.content.front && card.content.front !== '-')
-      : cards.filter(card =>
-          !card.content.example || card.content.example === '-' || card.content.example.trim() === ''
-        );
+    const needExamples = getCardsNeedingBulkExamples(cards, bulkMode());
 
     if (needExamples.length === 0) {
       showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesAllDone'), variant: 'success' });
@@ -603,32 +613,20 @@ export const FlashcardsContent: Component = () => {
     const startTime = Date.now();
     setBulkProgress({ current: 0, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
 
-    const backend = getBackend({
-      mode: settings.backendMode,
-      url: settings.backendUrl,
-      authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-    });
-
     let generated = 0;
     let failed = 0;
     for (const card of needExamples) {
       try {
-        const result = await generateExampleSentenceWithLLM(card.content.front, card.content.back, language);
-        if (result.sentence) {
-          let exampleHtml = result.sentence;
-          try {
-            const tokens = await backend.tokenize(result.sentence, language);
-            if (tokens.length > 0) {
-              exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
-            }
-          } catch (e) {
-            log.error("error", e);
-            // Use plain text if tokenization fails
-          }
-          updateFlashcardContent(card.id, {
-            example: exampleHtml,
-            exampleMeaning: result.meaning || undefined,
-          });
+        const update = await buildBulkExampleUpdate(card, {
+          activeLanguage: settings.language,
+          settings,
+          colourCodes,
+          getLanguageData: (language) => langData[language] ?? (language === settings.language ? currentLangData() : null),
+          generateExampleSentenceWithLLM,
+          colorizeTokenizedText,
+        });
+        if (update) {
+          updateFlashcardContent(update.cardId, update.content);
           generated++;
         } else {
           failed++;
@@ -829,7 +827,7 @@ export const FlashcardsContent: Component = () => {
                         return (
                           <Card
                             title={
-                              <FlashcardPitchAccent content={card.content} />
+                              <FlashcardWordTitle content={card.content} language={card.language} />
                             }
                             subtitle={undefined
                             }

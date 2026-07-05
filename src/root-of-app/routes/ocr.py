@@ -8,17 +8,17 @@ and idle unloading to free memory.
 
 import asyncio
 import gc
+import inspect
 import io
 import math
 import os
-import statistics
 import threading
 import time
 import traceback
 import base64
 
 import numpy as np
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
 from pydantic import BaseModel
 from PIL import Image
 from typing import List
@@ -37,6 +37,8 @@ router = APIRouter()
 _rapid_ocr = None
 _paddle_ocr = None
 _manga_ocr = None
+_rapid_ocr_language: str | None = None
+_paddle_ocr_language: str | None = None
 _ocr_model_lock = threading.Lock()
 _transformers_preimport_done = threading.Event()
 
@@ -45,6 +47,7 @@ _OCR_IDLE_TIMEOUT_SECONDS = 600
 _ocr_last_used: float = 0.0
 _ocr_idle_timer: threading.Timer | None = None
 _ocr_idle_lock = threading.Lock()
+_SUPPORTED_OCR_RECOGNITION_ENGINES = {"rapidocr", "paddleocr", "mangaocr"}
 
 
 def get_transformers_preimport_event() -> threading.Event:
@@ -80,13 +83,13 @@ def _ocr_check_idle():
 
 
 def _ocr_unload():
-    global _rapid_ocr, _paddle_ocr, _manga_ocr
+    global _rapid_ocr, _paddle_ocr, _manga_ocr, _rapid_ocr_language, _paddle_ocr_language
     with _ocr_model_lock:
         _ocr_unload_inner()
 
 
 def _ocr_unload_inner():
-    global _rapid_ocr, _paddle_ocr, _manga_ocr
+    global _rapid_ocr, _paddle_ocr, _manga_ocr, _rapid_ocr_language, _paddle_ocr_language
     any_unloaded = False
     if _rapid_ocr is not None:
         log.info("OCR idle timeout — unloading RapidOCR")
@@ -95,6 +98,7 @@ def _ocr_unload_inner():
         except Exception:
             pass
         _rapid_ocr = None
+        _rapid_ocr_language = None
         any_unloaded = True
     if _paddle_ocr is not None:
         log.info("OCR idle timeout — unloading PaddleOCR")
@@ -103,6 +107,7 @@ def _ocr_unload_inner():
         except Exception:
             pass
         _paddle_ocr = None
+        _paddle_ocr_language = None
         any_unloaded = True
     if _manga_ocr is not None:
         log.info("OCR idle timeout — unloading MangaOCR")
@@ -129,38 +134,36 @@ def _ocr_unload_inner():
 # ── Engine initialisation ──
 
 
-def _get_rapid_ocr():
+def _get_rapid_ocr(language: str):
     global _rapid_ocr
     if not config.OCR_ALLOWED:
         log_init.info("OCR disabled; RapidOCR not initialised")
         return None
     with _ocr_model_lock:
-        if _rapid_ocr is not None:
+        if _rapid_ocr is not None and _rapid_ocr_language == language:
             return _rapid_ocr
-        return _init_rapid_ocr()
+        return _init_rapid_ocr(language)
 
 
-def _init_rapid_ocr():
-    global _rapid_ocr
+def _init_rapid_ocr(language: str):
+    global _rapid_ocr, _rapid_ocr_language
     try:
         from rapidocr import RapidOCR, LangRec  # type: ignore
     except Exception as e:
         log_init.error(f"RapidOCR import error {e}", exc_info=True)
         return None
 
-    lang_map = {
-        "de": LangRec.LATIN,
-        "ja": LangRec.JAPAN,
-        "en": LangRec.EN,
-        "zh": LangRec.CH,
-        "ko": LangRec.KOREAN,
-        "fr": LangRec.LATIN,
-        "es": LangRec.LATIN,
-        "ru": LangRec.CYRILLIC,
-        "ar": LangRec.ARABIC,
-        "th": LangRec.TH,
-    }
-    lang_type = lang_map.get(config.LANGUAGE, LangRec.EN)
+    ocr_config = config.language_runtime_config_for_language(language, "ocr")
+    configured_lang_value = ocr_config.get("rapidLangType")
+    if not isinstance(configured_lang_value, str) or not configured_lang_value.strip():
+        log_init.error(f"RapidOCR runtime metadata is missing rapidLangType for {language}")
+        return None
+    configured_lang = configured_lang_value.upper()
+    if not hasattr(LangRec, configured_lang):
+        log_init.error(f"RapidOCR runtime metadata has unsupported rapidLangType {configured_lang_value!r} for {language}")
+        return None
+    lang_type = getattr(LangRec, configured_lang)
+    supports_vertical_text = config.language_supports_vertical_text_for_language(language)
 
     log_init.info(f"Initializing RapidOCR with lang {str(lang_type)}")
     t0 = time.perf_counter()
@@ -168,46 +171,42 @@ def _init_rapid_ocr():
         "Global.use_cls": False,
         "Rec.lang_type": lang_type,
     }
-    if config.SUPPORTS_VERTICAL_TEXT:
+    if supports_vertical_text:
         params["Det.limit_type"] = "max"
         params["Det.limit_side_len"] = 960
         params["Det.unclip_ratio"] = 1.5
     _rapid_ocr = RapidOCR(params=params)
+    _rapid_ocr_language = language
     t1 = time.perf_counter()
     log_init.info(f"RapidOCR initialized in {t1 - t0:.2f}s")
     _process_stats("rapid_ocr_init")
     return _rapid_ocr
 
 
-def _get_paddle_ocr():
+def _get_paddle_ocr(language: str):
     global _paddle_ocr
     if not config.OCR_ALLOWED:
         log_init.info("OCR disabled; PaddleOCR not initialised")
         return None
     with _ocr_model_lock:
-        if _paddle_ocr is not None:
+        if _paddle_ocr is not None and _paddle_ocr_language == language:
             return _paddle_ocr
-        return _init_paddle_ocr()
+        return _init_paddle_ocr(language)
 
 
-def _init_paddle_ocr():
-    global _paddle_ocr
+def _init_paddle_ocr(language: str):
+    global _paddle_ocr, _paddle_ocr_language
     try:
         from paddleocr import PaddleOCR  # type: ignore
     except Exception as e:
         log_init.error(f"PaddleOCR import error {e}", exc_info=True)
         return None
-    langs = {
-        "de": "german",
-        "ja": "japan",
-        "en": "en",
-        "ch": "ch",
-        "ko": "korean",
-        "fr": "french",
-        "es": "spanish",
-        "ru": "russian",
-    }
-    lang_code = langs.get(config.LANGUAGE, "en")
+    ocr_config = config.language_runtime_config_for_language(language, "ocr")
+    lang_code_value = ocr_config.get("paddleLang")
+    if not isinstance(lang_code_value, str) or not lang_code_value.strip():
+        log_init.error(f"PaddleOCR runtime metadata is missing paddleLang for {language}")
+        return None
+    lang_code = lang_code_value
     try:
         import paddle  # type: ignore
 
@@ -222,10 +221,58 @@ def _init_paddle_ocr():
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
     )
+    _paddle_ocr_language = language
     t1 = time.perf_counter()
     log_init.info(f"PaddleOCR initialized in {t1 - t0:.2f}s")
     _process_stats("paddle_init")
     return _paddle_ocr
+
+
+def _uses_manga_ocr_recognition(language: str | None) -> bool:
+    if not language:
+        return False
+    ocr_config = config.language_runtime_config_for_language(language, "ocr")
+    recognition_engine = ocr_config.get("recognitionEngine")
+    return (
+        isinstance(recognition_engine, str)
+        and _normalize_ocr_recognition_engine(recognition_engine) == "mangaocr"
+    )
+
+
+def _normalize_ocr_recognition_engine(recognition_engine: str) -> str:
+    trimmed = recognition_engine.strip()
+    normalized = trimmed.lower()
+    return normalized if normalized in _SUPPORTED_OCR_RECOGNITION_ENGINES else trimmed
+
+
+def _require_ocr_runtime_config(language: str | None) -> dict:
+    if not language:
+        raise HTTPException(
+            status_code=400,
+            detail="No language selected for OCR",
+        )
+    ocr_config = config.language_runtime_config_for_language(language, "ocr")
+    recognition_engine = ocr_config.get("recognitionEngine")
+    if not isinstance(recognition_engine, str) or not recognition_engine.strip():
+        raise HTTPException(
+            status_code=400,
+            detail=f"OCR runtime language data is required for {language}",
+        )
+    return ocr_config
+
+
+def _require_ocr_recognition_engine(language: str, ocr_config: dict) -> str:
+    recognition_engine = ocr_config.get("recognitionEngine")
+    if not isinstance(recognition_engine, str) or not recognition_engine.strip():
+        raise HTTPException(
+            status_code=400,
+            detail=f"OCR runtime language data is required for {language}",
+        )
+    return _normalize_ocr_recognition_engine(recognition_engine)
+
+
+def _is_builtin_ocr_recognition_engine(recognition_engine: str) -> bool:
+    return recognition_engine in _SUPPORTED_OCR_RECOGNITION_ENGINES
 
 
 def _paddle_run_ocr(paddle_inst, img):
@@ -592,41 +639,6 @@ def _extract_rapid_ocr_boxes(result) -> list:
     return flat
 
 
-def _box_width(pts) -> float:
-    try:
-        xs = [p[0] for p in pts]
-        return max(xs) - min(xs)
-    except Exception:
-        return 0.0
-
-
-def _box_height(pts) -> float:
-    try:
-        ys = [p[1] for p in pts]
-        return max(ys) - min(ys)
-    except Exception:
-        return 0.0
-
-
-def _filter_furigana_boxes(boxes: list[list[list[float]]]) -> list[list[list[float]]]:
-    if not boxes:
-        return boxes
-    widths = [max(1.0, _box_width(b)) for b in boxes]
-    try:
-        med = statistics.median(widths)
-    except statistics.StatisticsError:
-        med = sum(widths) / max(1, len(widths))
-    lo, hi = 0.6 * med, 1.8 * med
-    filtered = []
-    for b, w in zip(boxes, widths):
-        h = _box_height(b)
-        if h < 5:
-            continue
-        if lo <= w <= hi:
-            filtered.append(b)
-    return filtered
-
-
 def _crop_by_box(image: Image.Image, pts) -> Image.Image:
     xs = [p[0] for p in pts]
     ys = [p[1] for p in pts]
@@ -678,6 +690,60 @@ class OcrResponse(BaseModel):
     processing_times: OcrProcessingTimes | None = None
 
 
+def _normalize_language_adapter_ocr_box(raw_box) -> OcrBox:
+    if isinstance(raw_box, OcrBox):
+        box = raw_box
+    elif isinstance(raw_box, dict):
+        box = OcrBox(**raw_box)
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail="Language OCR adapter returned an invalid OCR box",
+        )
+    if box.is_vertical is not None:
+        return box
+    return OcrBox(
+        box=box.box,
+        text=box.text,
+        score=box.score,
+        is_vertical=_is_box_vertical(box.box),
+    )
+
+
+async def _run_language_adapter_ocr(
+    language: str,
+    recognition_engine: str,
+    image: Image.Image,
+    options: dict,
+) -> list[OcrBox]:
+    module = config.get_or_load_language(language)
+    handler = getattr(module, "LANGUAGE_OCR", None) if module is not None else None
+    if handler is None or not callable(handler):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported OCR recognition engine for {language}: {recognition_engine}",
+        )
+
+    try:
+        if inspect.iscoroutinefunction(handler):
+            raw_result = await handler(image, options)
+        else:
+            raw_result = await asyncio.to_thread(handler, image, options)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log_run.error(f"Language OCR adapter error for {language}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Language OCR adapter failed")
+
+    raw_boxes = raw_result.get("boxes") if isinstance(raw_result, dict) else raw_result
+    if not isinstance(raw_boxes, list):
+        raise HTTPException(
+            status_code=500,
+            detail="Language OCR adapter returned an invalid OCR response",
+        )
+    return [_normalize_language_adapter_ocr_box(raw_box) for raw_box in raw_boxes]
+
+
 # ── Warmup endpoint ──
 
 _warmup_lock = threading.Lock()
@@ -715,25 +781,29 @@ def _ensure_warmup_started():
 
 
 @router.post("/ocr/warmup")
-async def ocr_warmup():
+async def ocr_warmup(language: str | None = Query(None)):
     """Trigger lazy pre-import of transformers for MangaOCR.
 
-    Called when the reader is first opened so the heavy imports happen
-    on-demand rather than at server startup.
+    Called when the reader is first opened for a language whose OCR runtime
+    metadata uses MangaOCR, so heavy imports happen on demand.
     """
     if not config.OCR_ALLOWED:
         return {"status": "disabled"}
 
+    warmup_language = language if isinstance(language, str) and language else config.LANGUAGE
+    if not _uses_manga_ocr_recognition(warmup_language):
+        return {"status": "not_needed", "language": warmup_language}
+
     if _transformers_preimport_done.is_set():
-        return {"status": "already_done"}
+        return {"status": "already_done", "language": warmup_language}
 
     global _warmup_started
     with _warmup_lock:
         if _warmup_started:
-            return {"status": "in_progress"}
+            return {"status": "in_progress", "language": warmup_language}
 
     _ensure_warmup_started()
-    return {"status": "started"}
+    return {"status": "started", "language": warmup_language}
 
 
 # ── Main endpoint ──
@@ -743,33 +813,41 @@ async def ocr_warmup():
 async def ocr_endpoint(
     file: UploadFile | None = File(None),
     image_base64: str | None = Form(None),
+    language: str | None = Form(None),
     turbo: str | None = Form(None),
     ram_saver: str | None = Form(None),
     dev_mode: str | None = Form(None),
-    paddle_max_width: str | None = Form(None),
-    paddle_max_height: str | None = Form(None),
+    detection_max_width: str | None = Form(None),
+    detection_max_height: str | None = Form(None),
 ):
     if not config.OCR_ALLOWED:
         raise HTTPException(status_code=403, detail="OCR disabled by user")
 
     is_turbo = turbo is None or turbo.lower() not in ("0", "false", "no")
-    if ram_saver is not None:
-        use_ram_saver = ram_saver.lower() in ("1", "true", "yes")
-    else:
-        use_ram_saver = config.OCR_RAM_SAVER
-
     is_dev = dev_mode is not None and dev_mode.lower() in ("1", "true", "yes")
+    ocr_language = language or config.LANGUAGE
+    ocr_config = _require_ocr_runtime_config(ocr_language)
+    recognition_engine = _require_ocr_recognition_engine(ocr_language, ocr_config)
+    supports_vertical_text = config.language_supports_vertical_text_for_language(ocr_language)
+    supports_ram_saver = config.language_supports_ocr_ram_saver_for_language(ocr_language)
+    if ram_saver is not None:
+        requested_ram_saver = ram_saver.lower() in ("1", "true", "yes")
+    else:
+        requested_ram_saver = config.OCR_RAM_SAVER
+    use_ram_saver = requested_ram_saver and supports_ram_saver
 
-    paddle_max_w: int | None = None
-    paddle_max_h: int | None = None
-    if paddle_max_width is not None:
+    max_width_value = detection_max_width
+    max_height_value = detection_max_height
+    detection_max_w: int | None = None
+    detection_max_h: int | None = None
+    if max_width_value is not None:
         try:
-            paddle_max_w = max(1, int(paddle_max_width))
+            detection_max_w = max(1, int(max_width_value))
         except (ValueError, TypeError):
             pass
-    if paddle_max_height is not None:
+    if max_height_value is not None:
         try:
-            paddle_max_h = max(1, int(paddle_max_height))
+            detection_max_h = max(1, int(max_height_value))
         except (ValueError, TypeError):
             pass
 
@@ -791,15 +869,37 @@ async def ocr_endpoint(
         timing_recognition_engine: str | None = None
         timing_per_box_ms: list[float] | None = None
 
-        if is_turbo:
+        if not _is_builtin_ocr_recognition_engine(recognition_engine):
+            adapter_options = {
+                "language": ocr_language,
+                "recognitionEngine": recognition_engine,
+                "turbo": is_turbo,
+                "ramSaver": use_ram_saver,
+                "devMode": is_dev,
+            }
+            t_adapter_start = time.perf_counter()
+            results = await _run_language_adapter_ocr(
+                ocr_language,
+                recognition_engine,
+                image,
+                adapter_options,
+            )
+            t_adapter_end = time.perf_counter()
+            elapsed_ms = (t_adapter_end - t_adapter_start) * 1000
+            timing_detection_ms = elapsed_ms
+            timing_detection_engine = "LanguageAdapter"
+            timing_recognition_ms = elapsed_ms
+            timing_recognition_engine = recognition_engine
+
+        elif is_turbo:
             # ── Turbo mode: RapidOCR ──
             import cv2 as _cv2
 
             np_img_bgr = _cv2.cvtColor(np_img, _cv2.COLOR_RGB2BGR)
 
-            if config.LANGUAGE == "ja":
+            if _uses_manga_ocr_recognition(ocr_language):
                 log_run.info(
-                    f"Japanese OCR — Turbo ON, "
+                    f"{ocr_language} OCR — Turbo ON, "
                     f"Ram Saver {'ON' if use_ram_saver else 'OFF'}"
                 )
                 H, W = int(np_img.shape[0]), int(np_img.shape[1])
@@ -807,7 +907,7 @@ async def ocr_endpoint(
                 if use_ram_saver:
                     t2 = time.perf_counter()
                     initial_boxes = _opencv_detect_text_regions(
-                        np_img_bgr, prefer_vertical=config.SUPPORTS_VERTICAL_TEXT
+                        np_img_bgr, prefer_vertical=supports_vertical_text
                     )
                     t3 = time.perf_counter()
                     log_run.info(
@@ -817,7 +917,7 @@ async def ocr_endpoint(
                     timing_detection_engine = "OpenCV"
                 else:
                     t0 = time.perf_counter()
-                    rapid = _get_rapid_ocr()
+                    rapid = _get_rapid_ocr(ocr_language)
                     t1 = time.perf_counter()
                     if rapid is None:
                         raise HTTPException(
@@ -865,7 +965,7 @@ async def ocr_endpoint(
                         ]
                     log_run.info(f"Found {len(initial_boxes)} boxes after rescale")
 
-                if config.SUPPORTS_VERTICAL_TEXT and initial_boxes:
+                if supports_vertical_text and initial_boxes:
                     initial_boxes = _regroup_boxes_for_vertical_text(initial_boxes)
 
                 log_run.info("Recognizing text with MangaOCR...")
@@ -925,9 +1025,9 @@ async def ocr_endpoint(
                 timing_recognition_ms = (time.perf_counter() - t_rec_start) * 1000
                 timing_per_box_ms = per_box_times
             else:
-                # Non-Japanese turbo: RapidOCR end-to-end
+                # Turbo end-to-end: RapidOCR detection + recognition
                 t0 = time.perf_counter()
-                rapid = _get_rapid_ocr()
+                rapid = _get_rapid_ocr(ocr_language)
                 t1 = time.perf_counter()
                 if rapid is None:
                     raise HTTPException(
@@ -965,9 +1065,9 @@ async def ocr_endpoint(
                     )
         else:
             # ── Accurate mode: PaddleOCR ──
-            if config.LANGUAGE == "ja":
+            if _uses_manga_ocr_recognition(ocr_language):
                 log_run.info(
-                    f"Japanese OCR — Turbo OFF (PaddleOCR), "
+                    f"{ocr_language} OCR — Turbo OFF (PaddleOCR), "
                     f"Ram Saver {'ON' if use_ram_saver else 'OFF'}"
                 )
                 H, W = int(np_img.shape[0]), int(np_img.shape[1])
@@ -978,7 +1078,7 @@ async def ocr_endpoint(
                     np_img_bgr = _cv2.cvtColor(np_img, _cv2.COLOR_RGB2BGR)
                     t2 = time.perf_counter()
                     initial_boxes = _opencv_detect_text_regions(
-                        np_img_bgr, prefer_vertical=config.SUPPORTS_VERTICAL_TEXT
+                        np_img_bgr, prefer_vertical=supports_vertical_text
                     )
                     t3 = time.perf_counter()
                     log_run.info(
@@ -988,7 +1088,7 @@ async def ocr_endpoint(
                     timing_detection_engine = "OpenCV"
                 else:
                     t0 = time.perf_counter()
-                    paddle = _get_paddle_ocr()
+                    paddle = _get_paddle_ocr(ocr_language)
                     t1 = time.perf_counter()
                     if paddle is None:
                         raise HTTPException(
@@ -999,12 +1099,12 @@ async def ocr_endpoint(
                     det_img = np_img
                     scale = 1.0
                     effective_max_dim = 2000
-                    if paddle_max_w is not None and paddle_max_h is not None:
-                        effective_max_dim = max(paddle_max_w, paddle_max_h)
-                    elif paddle_max_w is not None:
-                        effective_max_dim = paddle_max_w
-                    elif paddle_max_h is not None:
-                        effective_max_dim = paddle_max_h
+                    if detection_max_w is not None and detection_max_h is not None:
+                        effective_max_dim = max(detection_max_w, detection_max_h)
+                    elif detection_max_w is not None:
+                        effective_max_dim = detection_max_w
+                    elif detection_max_h is not None:
+                        effective_max_dim = detection_max_h
                     if max(H, W) > effective_max_dim:
                         scale = float(effective_max_dim) / float(max(H, W))
                         new_w = max(1, int(W * scale))
@@ -1094,9 +1194,9 @@ async def ocr_endpoint(
                 timing_recognition_ms = (time.perf_counter() - t_rec_start) * 1000
                 timing_per_box_ms = per_box_times_acc
             else:
-                # Non-Japanese accurate: PaddleOCR end-to-end
+                # Accurate end-to-end: PaddleOCR detection + recognition
                 t0 = time.perf_counter()
-                paddle = _get_paddle_ocr()
+                paddle = _get_paddle_ocr(ocr_language)
                 t1 = time.perf_counter()
                 if paddle is None:
                     raise HTTPException(
@@ -1108,14 +1208,14 @@ async def ocr_endpoint(
                 H_e2e, W_e2e = int(np_img.shape[0]), int(np_img.shape[1])
                 paddle_img = np_img
                 paddle_e2e_scale = 1.0
-                if paddle_max_w is not None or paddle_max_h is not None:
+                if detection_max_w is not None or detection_max_h is not None:
                     eff_max = 2000
-                    if paddle_max_w is not None and paddle_max_h is not None:
-                        eff_max = max(paddle_max_w, paddle_max_h)
-                    elif paddle_max_w is not None:
-                        eff_max = paddle_max_w
+                    if detection_max_w is not None and detection_max_h is not None:
+                        eff_max = max(detection_max_w, detection_max_h)
+                    elif detection_max_w is not None:
+                        eff_max = detection_max_w
                     else:
-                        eff_max = paddle_max_h
+                        eff_max = detection_max_h
                     if max(H_e2e, W_e2e) > eff_max:
                         paddle_e2e_scale = float(eff_max) / float(max(H_e2e, W_e2e))
                         nw = max(1, int(W_e2e * paddle_e2e_scale))

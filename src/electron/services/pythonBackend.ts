@@ -22,10 +22,12 @@ import {
   getPythonDownloadUrl,
   isWindows 
 } from '../utils/platform';
-import { hasSettingsFile, loadLanguagePackageCatalog, loadSettings } from './settings';
-import { ensureLanguageDataInstalled, getLanguageDataRoot, resolveDictionaryTargetLanguage } from './languageDataService';
+import { hasSettingsFile, loadLangData, loadSettings } from './settings';
+import { getLanguageDataRoot } from './languageDataService';
 import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
+import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFeatures';
+import { getPythonExecutableCandidates } from './pythonRuntimePaths';
 
 const pyLog = getLogger('python');
 const lifecycleLog = getLogger('python.lifecycle');
@@ -126,6 +128,7 @@ let quitToken: string | null = null;
 let pendingCriticalError: string | null = null;
 let pendingStartupStatusMessage: string | null = null;
 let activePipProcess: ChildProcess | null = null;
+let selectedPythonExecutablePath: string | null = null;
 
 const PACKAGE_SIZE_ESTIMATES_BYTES: Readonly<Record<string, number>> = {
   core: 500 * 1024 * 1024,
@@ -142,6 +145,12 @@ const downloadPath = path.join(userDataPath, 'python.tar.gz');
 const extractPath = path.join(userDataPath, 'py');
 const envPath = path.join(userDataPath, 'env');
 const pythonVersionPath = path.join(userDataPath, 'python-version.txt');
+
+function getUserDataPythonExecutablePath(): string {
+  return isWindows
+    ? path.join(envPath, 'python.exe')
+    : path.join(envPath, 'bin', 'python3');
+}
 
 function getInstalledPythonVersion(): string | null {
   try {
@@ -169,6 +178,7 @@ function resolveResourceFilePath(...segments: string[]): string {
     path.join(resPath, ...segments),
     path.join(appPath, ...segments),
     getBundledDistElectronPath(...segments),
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
   ];
   for (const candidate of candidatePaths) {
     if (fs.existsSync(candidate)) {
@@ -184,6 +194,7 @@ export function readResourceFile(...segments: string[]): string {
     getBundledDistElectronPath(...segments),
     path.join(resPath, 'root-of-app', ...segments),
     path.join(resPath, ...segments),
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
   ];
 
   for (const candidatePath of candidatePaths) {
@@ -198,9 +209,14 @@ export function readResourceFile(...segments: string[]): string {
 }
 
 function resolveExternalResourceFilePath(...segments: string[]): string {
+  const developmentCandidatePaths = app.isPackaged ? [] : [
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
+  ];
   const candidatePaths = [
+    ...developmentCandidatePaths,
     path.join(resPath, 'root-of-app', ...segments),
     path.join(resPath, ...segments),
+    path.join(resPath, '..', 'src', 'root-of-app', ...segments),
   ];
 
   for (const candidatePath of candidatePaths) {
@@ -213,11 +229,14 @@ function resolveExternalResourceFilePath(...segments: string[]): string {
 }
 
 function resolvePythonExecutablePath(): string {
+  if (selectedPythonExecutablePath && fs.existsSync(selectedPythonExecutablePath)) {
+    return selectedPythonExecutablePath;
+  }
   if (isWindows) {
-    const userDataExe = path.join(userDataPath, 'env', 'python.exe');
+    const userDataExe = getUserDataPythonExecutablePath();
     if (fs.existsSync(userDataExe)) return userDataExe;
   } else {
-    const userDataPy = path.join(userDataPath, 'env', 'bin', 'python3');
+    const userDataPy = getUserDataPythonExecutablePath();
     if (fs.existsSync(userDataPy)) return userDataPy;
   }
   return getPythonExecutablePath();
@@ -396,9 +415,22 @@ function loadPipRequirementsConfig(): PipRequirementsConfig {
   } catch (e) {
     log.error('Failed to load pip requirements config:', e);
     return {
-      core: ['flask', 'requests', 'jaconv', 'fugashi', 'unidic-lite'],
-      ocr: ['manga-ocr'],
-      llm: ['transformers', 'torch'],
+      core: [
+        'pip',
+        'uvicorn',
+        'fastapi',
+        'pydantic',
+        'beautifulsoup4',
+        'pillow',
+        'numpy',
+        'python-multipart',
+        'setuptools',
+        'wheel',
+        'websockets',
+      ],
+      ocr: [],
+      llm: ['torch', 'transformers', 'sentencepiece'],
+      voice: ['torch', 'torchaudio', 'faster_whisper', 'kokoro', 'soundfile', 'silero-vad'],
     };
   }
 }
@@ -420,6 +452,7 @@ function buildPipRequirementList(options: InstallOptions): string[] {
       packages.push(...config['qwen3-tts']);
     }
   }
+  packages.push(...getLanguagePythonRequirementsForInstall(loadLangData(), options));
   
   return packages;
 }
@@ -459,8 +492,7 @@ async function checkDiskSpace(targetPath: string): Promise<number> {
 
 async function verifyPythonInstallation(options: InstallOptions): Promise<boolean> {
   const pythonPath = resolvePythonExecutablePath();
-  const imports = ['fastapi', 'uvicorn', 'spacy'];
-  if (options.includeOCR) imports.push('paddleocr', 'rapidocr', 'manga_ocr', 'onnxruntime', 'cv2');
+  const imports = ['fastapi', 'uvicorn'];
   if (options.includeLLM) imports.push('torch', 'transformers');
 
   const script = imports.map(mod => `try:\n    import ${mod}\nexcept Exception as e:\n    print(f"FAIL:${mod}:{e}")`).join('\n');
@@ -696,51 +728,23 @@ async function pythonFound(): Promise<boolean> {
 
   const settings = loadSettings();
   let activeDictionaryTargetLanguage: string | undefined;
+  const dictionaryTargetLanguagesEnv = JSON.stringify(settings.dictionaryTargetLanguages ?? {});
   const pythonExecutable = resolvePythonExecutablePath();
   const serverPath = resolveExternalResourceFilePath('server.py');
 
   const llmEnabled = settings.llmEnabled !== false;
   const ocrEnabled = settings.ocrEnabled !== false;
 
-  try {
-    sendStatusUpdate(`Preparing ${settings.language} language data...`);
-    const languagePackageCatalog = await loadLanguagePackageCatalog(settings);
-    await ensureLanguageDataInstalled(settings.language, languagePackageCatalog, (progress) => {
-      if (progress.expectedBytes > 0) {
-        sendStatusUpdate(
-          `Downloading ${settings.language} language data: ${Math.round(progress.progress * 100)}%`
-        );
-      }
-    });
-    const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(
-      settings.language,
-      languagePackageCatalog,
-      settings.dictionaryTargetLanguages?.[settings.language],
-    );
-    activeDictionaryTargetLanguage = dictionaryTargetLanguage;
-    if (dictionaryTargetLanguage) {
-      sendStatusUpdate(`Preparing ${settings.language}->${dictionaryTargetLanguage} dictionary data...`);
-      await ensureLanguageDataInstalled(settings.language, languagePackageCatalog, (progress) => {
-        if (progress.expectedBytes > 0) {
-          sendStatusUpdate(
-            `Downloading ${settings.language}->${dictionaryTargetLanguage} dictionary data: ${Math.round(progress.progress * 100)}%`
-          );
-        }
-      }, dictionaryTargetLanguage);
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const errorMsg = `Failed to prepare language data for ${settings.language}: ${message}`;
-    log.error(errorMsg);
-    pendingCriticalError = errorMsg;
-    try {
-      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, errorMsg);
-    } catch (e) {
-      log.error("error", e);
-    }
-    sendStatusUpdate(`ERROR: ${errorMsg}`);
-    return false;
+  const installedLanguageData = loadLangData();
+  if (!settings.language) {
+    log.info('No learning language selected; starting backend without an active language package.');
+    sendStatusUpdate('Waiting for a learning language selection...');
+  } else if (!installedLanguageData[settings.language]) {
+    log.warn(`Language data is not installed for ${settings.language}; starting backend so the app can install it.`);
+    sendStatusUpdate(`Language data is not installed for ${settings.language}. Install language data from Welcome or Settings.`);
   }
+
+  activeDictionaryTargetLanguage = settings.dictionaryTargetLanguages?.[settings.language];
 
   pendingCriticalError = null;
   pendingStartupStatusMessage = null;
@@ -867,7 +871,7 @@ async function pythonFound(): Promise<boolean> {
 
   const args = [
     serverPath,
-    settings.language,
+    settings.language || 'und',
     resPath,
     llmEnabled ? 'true' : 'false',
     ocrEnabled ? 'true' : 'false',
@@ -888,6 +892,7 @@ async function pythonFound(): Promise<boolean> {
     pythonChildProcess = exec(command, {
       env: {
         ...process.env,
+        MLEARN_DICTIONARY_TARGET_LANGUAGES_JSON: dictionaryTargetLanguagesEnv,
         ...(activeDictionaryTargetLanguage ? { MLEARN_DICTIONARY_TARGET_LANGUAGE: activeDictionaryTargetLanguage } : {}),
       },
     });
@@ -902,6 +907,7 @@ async function pythonFound(): Promise<boolean> {
     ], {
       env: {
         ...process.env,
+        MLEARN_DICTIONARY_TARGET_LANGUAGES_JSON: dictionaryTargetLanguagesEnv,
         ...(activeDictionaryTargetLanguage ? { MLEARN_DICTIONARY_TARGET_LANGUAGE: activeDictionaryTargetLanguage } : {}),
       },
     });
@@ -943,20 +949,14 @@ function verifyPythonExecutable(pythonPath: string): Promise<boolean> {
 export async function findPython(): Promise<boolean> {
   log.info('Finding Python...');
 
-  const possibilities = [
-    path.join(userDataPath, 'env', 'bin', 'python3'),
-    path.join(userDataPath, 'env', 'python.exe'),
-    path.join(process.resourcesPath, 'env', 'bin', 'python3'),
-    path.join(resPath, 'env', 'bin', 'python3'),
-    path.join(process.resourcesPath, 'env', 'python.exe'),
-    path.join(resPath, 'env', 'python.exe'),
-  ];
+  const possibilities = getPythonExecutableCandidates();
 
   for (const pythonPath of possibilities) {
     if (fs.existsSync(pythonPath)) {
       const healthy = await verifyPythonExecutable(pythonPath);
       if (healthy) {
         log.info('Python found and healthy at:', pythonPath);
+        selectedPythonExecutablePath = pythonPath;
 
         // UserData Python persists across binary updates. Existing profiles should
         // keep using a healthy runtime instead of being sent back through onboarding.
@@ -983,6 +983,8 @@ export async function findPython(): Promise<boolean> {
           }
         }
 
+        waitingForInstallChoice = false;
+        isFirstTimeSetup = false;
         pythonSuccessInstall = true;
         return await pythonFound();
       }
@@ -1024,8 +1026,10 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
 
   pendingInstallOptions = options;
   waitingForInstallChoice = false;
+  isFirstTimeSetup = false;
   installInProgress = true;
   pythonSuccessInstall = false;
+  selectedPythonExecutablePath = null;
 
   const selectedComponents = ['Python runtime'];
   if (options.includeLLM) selectedComponents.push('Local language model support');
@@ -1061,6 +1065,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
     try {
       fs.mkdirSync(extractPath, { recursive: true });
       await extractFile(downloadPath, extractPath);
+      selectedPythonExecutablePath = getUserDataPythonExecutablePath();
       sendStatusUpdate('Extraction complete, installing libraries...');
 
       if (pipRequirements.length === 0) {
@@ -1136,6 +1141,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
             pythonSuccessInstall = true;
             setInstalledPythonVersion(app.getVersion());
             sendStatusUpdate('Installation complete');
+            await pythonFound();
           } else {
             log.error('Installation verification failed');
             waitingForInstallChoice = true;
@@ -1248,6 +1254,10 @@ export function setupPythonBackendIPC(): void {
     if (!serverLoaded && pendingCriticalError) {
       // Re-send buffered critical error
       event.sender.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, pendingCriticalError);
+    }
+
+    if (!serverLoaded && waitingForInstallChoice) {
+      event.sender.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
     }
   });
 

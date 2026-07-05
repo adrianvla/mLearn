@@ -354,7 +354,7 @@ describe('mergeFlashcards', () => {
     expect(Object.keys(local.flashcards).length).toBe(originalFlashcardKeys);
   });
 
-  it('handles cards without a language field using DEFAULT_SETTINGS language', async () => {
+  it('handles cards without a language field using an undetermined language key', async () => {
     const local = makeEmptyStore();
     const card = makeFlashcard({ id: 'no-lang', language: undefined, content: { type: 'word', front: 'test', back: 'b' } });
     delete card.language;
@@ -364,8 +364,8 @@ describe('mergeFlashcards', () => {
     const merged = await mergeFlashcards(local, remote);
 
     const hash = await toUniqueIdentifier('test');
-    const jaKey = 'ja:' + hash;
-    expect(merged.wordToCardMap[jaKey]).toBeDefined();
+    const undeterminedKey = 'und:' + hash;
+    expect(merged.wordToCardMap[undeterminedKey]).toBeDefined();
   });
 
   it('skips cards with empty front in wordToCardMap rebuild', async () => {
@@ -379,5 +379,4 @@ describe('mergeFlashcards', () => {
     expect(Object.keys(merged.wordToCardMap)).toHaveLength(0);
   });
 });
-
 

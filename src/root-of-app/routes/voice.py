@@ -12,6 +12,7 @@ Provides:
 import asyncio
 import gc
 import importlib
+import inspect
 import io
 import json
 import os
@@ -35,7 +36,7 @@ router = APIRouter()
 # ── Global state ──
 
 _voice_stt_model = None
-_voice_tts_pipeline = None  # Kokoro KPipeline instance
+_voice_tts_pipelines: dict[str, object] = {}  # Kokoro KPipeline instances by lang_code
 _voice_vad_model = None
 _voice_vad_lock = threading.Lock()
 _voice_stt_lock = threading.Lock()
@@ -56,30 +57,84 @@ _qwen3_model_loading = False  # True while model download/load is in progress
 # TTS provider config — reloaded from settings.json per-request
 _tts_provider: str = "kokoro"  # 'kokoro' | 'qwen3' | 'cloud'
 
-# Kokoro language code mapping (mLearn lang → Kokoro lang_code)
-_KOKORO_LANG_MAP = {
-    "ja": "j",
-    "en": "a",
-    "zh": "z",
-    "ko": "j",  # fallback to Japanese phonemizer
-    "fr": "f",
-    "es": "e",
-    "hi": "h",
-    "it": "i",
-    "pt": "p",
-}
+_DEFAULT_SENTENCE_TERMINATORS = ".!?。！？؟؛"
 
-# Default Kokoro voice per language
-_KOKORO_VOICE_MAP = {
-    "j": "jf_alpha",
-    "a": "af_heart",
-    "z": "zf_xiaobei",
-    "f": "ff_siwis",
-    "e": "ef_dora",
-    "h": "hf_alpha",
-    "i": "if_sara",
-    "p": "pf_dora",
-}
+
+def _tts_runtime(language: str) -> dict:
+    return config.language_runtime_config_for_language(language, "tts")
+
+
+def _stt_runtime(language: str) -> dict:
+    return config.language_runtime_config_for_language(language, "stt")
+
+
+def _stt_language_hint(language: str | None) -> str | None:
+    requested_language = language or config.LANGUAGE
+    if not requested_language:
+        return None
+    value = _stt_runtime(requested_language).get("whisperLanguage")
+    if value == "auto":
+        return None
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _stt_transcribe_options(language: str | None, **overrides) -> dict:
+    options = dict(overrides)
+    language_hint = _stt_language_hint(language)
+    if language_hint:
+        options["language"] = language_hint
+    return options
+
+
+def _kokoro_lang_code(language: str) -> str | None:
+    value = _tts_runtime(language).get("kokoroLangCode")
+    return str(value) if value else None
+
+
+def _kokoro_voice(language: str, lang_code: str) -> str:
+    value = _tts_runtime(language).get("kokoroVoice")
+    if isinstance(value, str) and value:
+        return value
+    raise RuntimeError(
+        f"Kokoro TTS voice is not configured for language '{language}' (lang={lang_code})"
+    )
+
+
+def _qwen3_language_name(language: str) -> str | None:
+    value = _tts_runtime(language).get("qwen3LanguageName")
+    return str(value) if value else None
+
+
+def _language_tts_engine(language: str) -> str | None:
+    value = _tts_runtime(language).get("engine")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _resolve_tts_engine(language: str | None, provider: str | None = None) -> str:
+    requested_language = language or config.LANGUAGE
+    if not requested_language:
+        raise RuntimeError("No language selected for TTS")
+    requested_provider = provider or _tts_provider
+    if requested_provider == "cloud":
+        return "cloud"
+    if requested_provider == "qwen3":
+        if _qwen3_language_name(requested_language):
+            return "qwen3"
+        raise RuntimeError(f"Qwen3 TTS is not configured for language '{requested_language}'")
+    if requested_provider == "kokoro":
+        if _kokoro_lang_code(requested_language):
+            return "kokoro"
+        if _qwen3_language_name(requested_language):
+            return "qwen3"
+        package_engine = _language_tts_engine(requested_language)
+        if package_engine:
+            return package_engine
+        raise RuntimeError(f"No TTS engine supports language '{requested_language}'")
+    raise RuntimeError(f"Unsupported TTS provider: {requested_provider}")
 
 
 def _reload_tts_settings():
@@ -146,7 +201,7 @@ def _voice_check_idle():
 
 
 def _voice_unload():
-    global _voice_stt_model, _voice_tts_pipeline, _voice_vad_model
+    global _voice_stt_model, _voice_vad_model
     any_unloaded = False
     with _voice_vad_lock:
         if _voice_vad_model is not None:
@@ -161,10 +216,9 @@ def _voice_unload():
             _voice_stt_model = None
             any_unloaded = True
     with _voice_tts_lock:
-        if _voice_tts_pipeline is not None:
+        if _voice_tts_pipelines:
             log.info("Voice idle — unloading TTS pipeline")
-            del _voice_tts_pipeline
-            _voice_tts_pipeline = None
+            _voice_tts_pipelines.clear()
             any_unloaded = True
     if any_unloaded:
         gc.collect()
@@ -264,30 +318,36 @@ def _ensure_stt_loaded():
             raise
 
 
-def _ensure_tts_loaded():
+def _ensure_tts_loaded(language: str | None = None):
     """Load the local Kokoro TTS pipeline (lazy, thread-safe)."""
-    global _voice_tts_pipeline, _voice_tts_downloading, _voice_tts_progress
-    if _voice_tts_pipeline is not None:
-        return _voice_tts_pipeline
+    global _voice_tts_downloading, _voice_tts_progress
+    requested_language = language or config.LANGUAGE
+    lang_code = _kokoro_lang_code(requested_language)
+    if not lang_code:
+        raise RuntimeError(
+            f"Kokoro TTS is not configured for language '{requested_language}'"
+        )
+    if lang_code in _voice_tts_pipelines:
+        return _voice_tts_pipelines[lang_code]
     with _voice_tts_lock:
-        if _voice_tts_pipeline is not None:
-            return _voice_tts_pipeline
+        if lang_code in _voice_tts_pipelines:
+            return _voice_tts_pipelines[lang_code]
         try:
             _voice_tts_downloading = True
             _voice_tts_progress = max(_voice_tts_progress, 0.05)
-            log.info("Loading Kokoro-82M TTS pipeline...")
+            log.info(f"Loading Kokoro-82M TTS pipeline (lang={lang_code})...")
             from kokoro import KPipeline
 
-            lang_code = _KOKORO_LANG_MAP.get(config.LANGUAGE, "a")
-            _voice_tts_pipeline = KPipeline(
+            pipeline = KPipeline(
                 lang_code=lang_code,
                 repo_id="hexgrad/Kokoro-82M",
             )
+            _voice_tts_pipelines[lang_code] = pipeline
             log.info(f"Kokoro TTS pipeline loaded (lang={lang_code})")
             _voice_touch()
             _voice_tts_progress = 1.0
             _voice_tts_downloading = False
-            return _voice_tts_pipeline
+            return pipeline
         except Exception as e:
             _voice_tts_progress = 0.0
             _voice_tts_downloading = False
@@ -295,11 +355,29 @@ def _ensure_tts_loaded():
             raise
 
 
-def _split_into_sentences(text: str) -> list:
+def _sentence_terminators(language: str | None) -> str:
+    requested_language = language or config.LANGUAGE
+    value = (
+        config.language_text_processing_config_for_language(requested_language)
+        .get("sentenceTerminators")
+    )
+    if isinstance(value, list):
+        configured = "".join(str(item) for item in value if isinstance(item, str) and item)
+        if configured:
+            return configured
+    return _DEFAULT_SENTENCE_TERMINATORS
+
+
+def _split_into_sentences(text: str, language: str | None = None) -> list:
     import re as _re
 
-    sentences = _re.split(r"(?<=[.!?。！？])\s*", text)
+    sentence_endings = _sentence_terminators(language)
+    sentences = _re.split(rf"(?<=[{_re.escape(sentence_endings)}])\s*", text)
     return [s.strip() for s in sentences if s.strip()]
+
+
+def _normalize_stt_hallucination_text(text: str, language: str | None = None) -> str:
+    return text.strip().lower().rstrip(_sentence_terminators(language))
 
 
 # ── Pydantic models ──
@@ -307,17 +385,23 @@ def _split_into_sentences(text: str) -> list:
 
 class TTSRequest(BaseModel):
     text: str
-    language: str = "en"
+    language: str = ""
     voiceSamplePath: Optional[str] = None
     speed: float = 1.0
     provider: Optional[str] = None
+
+
+def _requested_tts_language(req: TTSRequest) -> str:
+    return req.language or config.LANGUAGE
 
 
 # ── STT / TTS status endpoints ──
 
 
 @router.get("/voice/stt/status")
-async def voice_stt_status():
+async def voice_stt_status(language: Optional[str] = None):
+    requested_language = language or config.LANGUAGE
+    whisper_language = _stt_language_hint(requested_language) if requested_language else None
     downloaded = False
     loaded = _voice_stt_model is not None
     try:
@@ -332,12 +416,28 @@ async def voice_stt_status():
         "downloading": _voice_stt_downloading,
         "progress": _voice_stt_progress,
         "modelName": "openai/whisper-small",
+        "language": requested_language,
+        "whisperLanguage": whisper_language or "auto",
     }
 
 
 @router.get("/voice/tts/status")
-async def voice_tts_status():
-    if _tts_provider == "cloud":
+async def voice_tts_status(language: Optional[str] = None):
+    _reload_tts_settings()
+    requested_language = language or config.LANGUAGE
+    try:
+        engine = _resolve_tts_engine(requested_language)
+    except RuntimeError as exc:
+        return {
+            "downloaded": False,
+            "loaded": False,
+            "downloading": False,
+            "progress": 0.0,
+            "modelName": "Unavailable",
+            "error": str(exc),
+        }
+
+    if engine == "cloud":
         # Cloud TTS is handled entirely on the client side (CloudTTSAdapter).
         # Report as "loaded" so the UI doesn't show download/loading spinners.
         return {
@@ -350,8 +450,7 @@ async def voice_tts_status():
 
     # Kokoro or Qwen3 local
     package_installed = False
-    loaded = _voice_tts_pipeline is not None
-    if _tts_provider == "qwen3":
+    if engine == "qwen3":
         try:
             _install_sox_shim()
             from qwen_tts import Qwen3TTSModel  # noqa: F401
@@ -368,7 +467,30 @@ async def voice_tts_status():
             "modelName": "Qwen3-TTS-1.7B",
         }
 
+    if engine != "kokoro":
+        try:
+            language_module = config.get_or_load_language(requested_language)
+            has_handler = callable(getattr(language_module, "LANGUAGE_TTS", None))
+            return {
+                "downloaded": has_handler,
+                "loaded": has_handler,
+                "downloading": False,
+                "progress": 1.0 if has_handler else 0.0,
+                "modelName": engine,
+                "error": None if has_handler else f"TTS adapter is not installed for language '{requested_language}'",
+            }
+        except Exception as exc:
+            return {
+                "downloaded": False,
+                "loaded": False,
+                "downloading": False,
+                "progress": 0.0,
+                "modelName": engine,
+                "error": str(exc),
+            }
+
     # Kokoro
+    lang_code = _kokoro_lang_code(requested_language)
     try:
         from kokoro import KPipeline  # noqa: F401
 
@@ -377,7 +499,7 @@ async def voice_tts_status():
         pass
     return {
         "downloaded": package_installed,
-        "loaded": loaded,
+        "loaded": bool(lang_code and lang_code in _voice_tts_pipelines),
         "downloading": _voice_tts_downloading,
         "progress": _voice_tts_progress,
         "modelName": "Kokoro-82M",
@@ -388,7 +510,7 @@ async def voice_tts_status():
 
 
 @router.post("/voice/models/download")
-async def voice_download_models():
+async def voice_download_models(language: Optional[str] = None):
     global _voice_stt_downloading, _voice_tts_downloading
     global _voice_stt_progress, _voice_tts_progress
 
@@ -405,15 +527,22 @@ async def voice_download_models():
         _voice_stt_downloading = False
         errors.append(f"STT: {e}")
 
-    if _tts_provider in ("kokoro", "qwen3"):
+    requested_language = language or config.LANGUAGE
+    try:
+        tts_engine = _resolve_tts_engine(requested_language)
+    except RuntimeError as e:
+        tts_engine = "unavailable"
+        errors.append(f"TTS: {e}")
+
+    if tts_engine in ("kokoro", "qwen3"):
         try:
             _voice_tts_downloading = True
             _voice_tts_progress = 0.0
             log.info("Pre-downloading TTS model...")
-            if _tts_provider == "qwen3":
+            if tts_engine == "qwen3":
                 _ensure_qwen3_tts_loaded()
             else:
-                _ensure_tts_loaded()
+                _ensure_tts_loaded(requested_language)
             _voice_tts_progress = 1.0
             _voice_tts_downloading = False
         except Exception as e:
@@ -435,66 +564,93 @@ async def voice_tts_generate(req: TTSRequest):
     try:
         # Allow per-request provider override (e.g. flashcard TTS testing)
         provider = req.provider or _tts_provider
+        requested_language = _requested_tts_language(req)
         if provider == "cloud":
             raise HTTPException(
                 status_code=400,
                 detail="Cloud TTS is handled on the client side. This endpoint should not be called for cloud provider.",
             )
-        if provider == "qwen3":
-            return await _generate_tts_qwen3(req)
-        if provider == "kokoro" and req.language not in _KOKORO_LANG_MAP:
-            # Kokoro has no phonemizer for this language; delegate to Qwen3
-            # which supports a broader language set (see _QWEN3_LANG_MAP).
-            if req.language in _QWEN3_LANG_MAP:
-                log.info(
-                    f"Kokoro does not support language '{req.language}'; "
-                    "falling back to Qwen3-TTS"
-                )
-                return await _generate_tts_qwen3(req)
-            raise HTTPException(
-                status_code=400,
-                detail=f"No TTS engine supports language '{req.language}'",
-            )
-        return await _generate_tts_kokoro(req)
+        engine = _resolve_tts_engine(requested_language, provider)
+        if engine == "qwen3":
+            return await _generate_tts_qwen3(req, requested_language)
+        if engine == "kokoro":
+            return await _generate_tts_kokoro(req, requested_language)
+        return await _generate_tts_language_adapter(req, engine, requested_language)
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"TTS generation error: {e}", exc_info=True)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _generate_tts_kokoro(req: TTSRequest):
+async def _generate_tts_language_adapter(req: TTSRequest, engine: str, language: str):
+    """Generate TTS audio using a package-installed language adapter."""
+    language_module = config.get_or_load_language(language)
+    handler = getattr(language_module, "LANGUAGE_TTS", None)
+    if not callable(handler):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported TTS engine for language '{language}': {engine}",
+        )
+
+    options = {
+        "language": language,
+        "engine": engine,
+        "speed": req.speed,
+        "voiceSamplePath": req.voiceSamplePath,
+    }
+
+    if inspect.iscoroutinefunction(handler):
+        result = await handler(req.text, options)
+    else:
+        result = await asyncio.to_thread(handler, req.text, options)
+
+    media_type = "audio/wav"
+    sample_rate = 24000
+    sentence_boundaries = []
+    audio = result
+
+    if isinstance(result, dict):
+        audio = result.get("audio")
+        if "sampleRate" in result:
+            sample_rate = int(result["sampleRate"])
+        if isinstance(result.get("sentenceBoundaries"), list):
+            sentence_boundaries = result["sentenceBoundaries"]
+        if isinstance(result.get("mediaType"), str) and result["mediaType"]:
+            media_type = result["mediaType"]
+
+    if not isinstance(audio, (bytes, bytearray)):
+        raise HTTPException(status_code=500, detail=f"TTS adapter '{engine}' did not return audio bytes")
+
+    _voice_touch()
+    return Response(
+        content=bytes(audio),
+        media_type=media_type,
+        headers={
+            "X-Sentence-Boundaries": json.dumps(sentence_boundaries),
+            "X-Sample-Rate": str(sample_rate),
+        },
+    )
+
+
+async def _generate_tts_kokoro(req: TTSRequest, language: str):
     """Generate TTS audio using the local Kokoro pipeline."""
 
     def _run_sync():
-        pipeline = _ensure_tts_loaded()
+        pipeline = _ensure_tts_loaded(language)
         _voice_touch()
 
-        sentences = _split_into_sentences(req.text)
+        sentences = _split_into_sentences(req.text, language)
         if not sentences:
             sentences = [req.text]
 
-        lang_code = _KOKORO_LANG_MAP.get(req.language, "a")
-        voice = _KOKORO_VOICE_MAP.get(lang_code, "af_heart")
+        lang_code = _kokoro_lang_code(language)
+        if not lang_code:
+            raise RuntimeError(f"Kokoro TTS is not configured for language '{language}'")
+        voice = _kokoro_voice(language, lang_code)
 
-        # Recreate pipeline if language changed
         active_pipeline = pipeline
-        if active_pipeline.lang_code != lang_code:
-            global _voice_tts_downloading, _voice_tts_progress
-
-            try:
-                _voice_tts_downloading = True
-                _voice_tts_progress = max(_voice_tts_progress, 0.05)
-                from kokoro import KPipeline
-
-                active_pipeline = KPipeline(
-                    lang_code=lang_code, repo_id="hexgrad/Kokoro-82M"
-                )
-                _voice_tts_progress = 1.0
-                _voice_tts_downloading = False
-            except Exception:
-                _voice_tts_progress = 0.0
-                _voice_tts_downloading = False
-                raise
 
         all_audio = []
         sentence_boundaries = []
@@ -552,21 +708,6 @@ _qwen3_tts_lock = threading.Lock()
 _qwen3_voice_prompt_cache: dict[str, object] = {}
 
 _QWEN3_TTS_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
-
-# Qwen3-TTS supported languages (full names required by the model)
-_QWEN3_LANG_MAP = {
-    "zh": "chinese",
-    "en": "english",
-    "ja": "japanese",
-    "ko": "korean",
-    "de": "german",
-    "fr": "french",
-    "ru": "russian",
-    "pt": "portuguese",
-    "es": "spanish",
-    "it": "italian",
-}
-
 
 def _install_sox_shim():
     """Install a pure-numpy replacement for the ``sox`` (pysox) module.
@@ -777,18 +918,20 @@ def _get_qwen3_voice_prompt(model, voice_sample_path: str | None):
         return None
 
 
-async def _generate_tts_qwen3(req: TTSRequest):
+async def _generate_tts_qwen3(req: TTSRequest, language: str):
     """Generate TTS audio using local Qwen3-TTS model with optional voice cloning."""
 
     def _run_sync():
         model = _ensure_qwen3_tts_loaded()
         _voice_touch()
 
-        sentences = _split_into_sentences(req.text)
+        sentences = _split_into_sentences(req.text, language)
         if not sentences:
             sentences = [req.text]
 
-        lang = _QWEN3_LANG_MAP.get(req.language, "english")
+        lang = _qwen3_language_name(language)
+        if not lang:
+            raise RuntimeError(f"Qwen3 TTS is not configured for language '{language}'")
 
         # Get voice clone prompt if a sample is provided
         safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
@@ -885,6 +1028,7 @@ async def _generate_tts_qwen3(req: TTSRequest):
 
 class TranscribeRequest(BaseModel):
     voiceSamplePath: str
+    language: Optional[str] = None
 
 
 @router.post("/voice/transcribe")
@@ -896,12 +1040,16 @@ async def voice_transcribe(req: TranscribeRequest):
 
     stt_model = _ensure_stt_loaded()
     _voice_touch()
+    requested_language = req.language or config.LANGUAGE
     try:
         segments, info = await asyncio.to_thread(
             lambda: stt_model.transcribe(
                 audio_path,
-                beam_size=5,
-                vad_filter=True,
+                **_stt_transcribe_options(
+                    requested_language,
+                    beam_size=5,
+                    vad_filter=True,
+                ),
             )
         )
         text = " ".join(seg.text for seg in segments).strip()
@@ -934,7 +1082,7 @@ async def voice_stream_ws(websocket: WebSocket):
 
     await websocket.accept()
 
-    language = websocket.query_params.get("language", config.LANGUAGE or "en")
+    language = websocket.query_params.get("language") or config.LANGUAGE
     silence_threshold = float(websocket.query_params.get("silence", "1.5"))
     mode = websocket.query_params.get("mode", "vad")
 
@@ -945,9 +1093,14 @@ async def voice_stream_ws(websocket: WebSocket):
         stt_future = loop.run_in_executor(None, _ensure_stt_loaded)
 
         futures = [vad_future, stt_future]
-        if _tts_provider == "kokoro":
-            futures.append(loop.run_in_executor(None, _ensure_tts_loaded))
-        elif _tts_provider == "qwen3":
+        try:
+            tts_engine = _resolve_tts_engine(language)
+        except RuntimeError as exc:
+            log.warning("Skipping TTS warmup for %s: %s", language, exc)
+            tts_engine = "unavailable"
+        if tts_engine == "kokoro":
+            futures.append(loop.run_in_executor(None, _ensure_tts_loaded, language))
+        elif tts_engine == "qwen3":
             futures.append(loop.run_in_executor(None, _ensure_qwen3_tts_loaded))
 
         results = await asyncio.gather(*futures)
@@ -968,26 +1121,20 @@ async def voice_stream_ws(websocket: WebSocket):
         CHUNK_SAMPLES = 512
         MAX_SPEECH_SECONDS = 30
         MAX_SPEECH_BYTES = MAX_SPEECH_SECONDS * SAMPLE_RATE * 4
-
-        _HALLUCINATION_PATTERNS = {
-            "ご視聴ありがとうございます",
-            "ご視聴ありがとうございました",
-            "おやすみなさい",
-            "お疲れ様でした",
-            "次の動画でお会いしましょう",
-            "チャンネル登録",
-            "thank you for watching",
-            "thanks for watching",
-            "please subscribe",
-            "see you in the next video",
-            "like and subscribe",
+        stt_runtime = _stt_runtime(language) if language else {}
+        hallucination_phrases = {
+            _normalize_stt_hallucination_text(str(phrase), language)
+            for phrase in stt_runtime.get("hallucinationPhrases", [])
+            if str(phrase).strip()
         }
+        short_audio_max_seconds = float(stt_runtime.get("shortAudioMaxSeconds", 1.0))
+        short_audio_min_text_length = int(stt_runtime.get("shortAudioMinTextLength", 5))
 
         def _is_hallucination(text: str, audio_duration_s: float) -> bool:
-            stripped = text.strip().lower().rstrip("。！？.!?")
-            if audio_duration_s < 1.0 and len(stripped) > 5:
+            stripped = _normalize_stt_hallucination_text(text, language)
+            if audio_duration_s < short_audio_max_seconds and len(stripped) > short_audio_min_text_length:
                 return True
-            for pattern in _HALLUCINATION_PATTERNS:
+            for pattern in hallucination_phrases:
                 if pattern in stripped:
                     return True
             return False
@@ -1003,12 +1150,14 @@ async def voice_stream_ws(websocket: WebSocket):
                 segments, info = await asyncio.to_thread(
                     lambda: stt_model.transcribe(
                         speech_np,
-                        language=language,
-                        beam_size=5,
-                        vad_filter=False,
-                        condition_on_previous_text=False,
-                        no_speech_threshold=0.6,
-                        log_prob_threshold=-1.0,
+                        **_stt_transcribe_options(
+                            language,
+                            beam_size=5,
+                            vad_filter=False,
+                            condition_on_previous_text=False,
+                            no_speech_threshold=0.6,
+                            log_prob_threshold=-1.0,
+                        ),
                     )
                 )
                 final_text = " ".join(seg.text for seg in segments).strip()
@@ -1128,11 +1277,13 @@ async def voice_stream_ws(websocket: WebSocket):
                             segments, _ = await asyncio.to_thread(
                                 lambda: stt_model.transcribe(
                                     speech_np,
-                                    language=language,
-                                    beam_size=1,
-                                    vad_filter=False,
-                                    condition_on_previous_text=False,
-                                    no_speech_threshold=0.6,
+                                    **_stt_transcribe_options(
+                                        language,
+                                        beam_size=1,
+                                        vad_filter=False,
+                                        condition_on_previous_text=False,
+                                        no_speech_threshold=0.6,
+                                    ),
                                 )
                             )
                             partial_text = " ".join(

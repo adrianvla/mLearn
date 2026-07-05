@@ -1,13 +1,49 @@
 import { createRoot } from 'solid-js';
 import { useFlashcardTts } from './useFlashcardTts';
+import type { LanguageData } from '../../shared/types';
 
 const mockGetFlashcardTts = vi.fn<() => Promise<string | null>>().mockResolvedValue(null);
 const mockGetFlashcardTtsMeta = vi.fn().mockResolvedValue(null);
 const mockTtsSpeak = vi.fn();
 const mockShowToast = vi.fn();
-const mockStripFurigana = vi.fn((text: string) =>
+const mockStripReadingAnnotations = vi.fn((text: string) =>
   text.replace(/<rt[^>]*>.*?<\/rt>/gi, '').replace(/<\/?ruby>/gi, '').trim(),
 );
+const mockJapaneseLanguage: LanguageData = {
+  name: 'Japanese',
+  colour_codes: {},
+  settings: { fixed: {} },
+    runtime: {
+    tts: {
+      webSpeechLang: 'ja-JP',
+      webSpeechVoice: 'Kyoko',
+    },
+  },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+    lexemeNormalization: {
+      type: 'surface-reading',
+      surfaceScripts: ['Han'],
+      readingScripts: ['Hira', 'Kana'],
+    },
+  },
+};
+const mockLatinLanguage: LanguageData = {
+  name: 'Latin Language',
+  colour_codes: {},
+  settings: { fixed: {} },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Latn'] },
+    lexemeNormalization: {
+      type: 'identity',
+    },
+    readingAnnotation: {
+      type: 'none',
+      stripParentheticalReadings: false,
+    },
+  },
+};
+let mockCurrentLanguageData: LanguageData | null = mockJapaneseLanguage;
 
 vi.mock('../../shared/bridges', () => ({
   getBridge: () => ({
@@ -36,6 +72,18 @@ vi.mock('../context', () => ({
       return key;
     },
   })),
+  useLanguage: vi.fn(() => ({
+    langData: {
+      ja: mockJapaneseLanguage,
+      en: mockLatinLanguage,
+    },
+    currentLangData: () => mockCurrentLanguageData,
+  })),
+  useSettings: vi.fn(() => ({
+    settings: {
+      language: 'ja',
+    },
+  })),
 }));
 
 vi.mock('../components/common/Feedback/Toast', () => ({
@@ -43,7 +91,7 @@ vi.mock('../components/common/Feedback/Toast', () => ({
 }));
 
 vi.mock('../../shared/utils/textUtils', () => ({
-  stripFurigana: (...args: unknown[]) => mockStripFurigana(...args),
+  stripReadingAnnotations: (...args: unknown[]) => mockStripReadingAnnotations(...args),
 }));
 
 interface MockAudio {
@@ -78,6 +126,10 @@ async function flush(ticks = 5) {
 describe('useFlashcardTts', () => {
   beforeEach(async () => {
     setupAudioMock();
+    mockCurrentLanguageData = mockJapaneseLanguage;
+    mockStripReadingAnnotations.mockImplementation((text: string) =>
+      text.replace(/<rt[^>]*>.*?<\/rt>/gi, '').replace(/<\/?ruby>/gi, '').trim(),
+    );
     const platform = await import('../../shared/platform');
     vi.mocked(platform.isElectron).mockReturnValue(true);
   });
@@ -128,7 +180,7 @@ describe('useFlashcardTts', () => {
   });
 
   it('playTts skips text that becomes whitespace after strip', async () => {
-    mockStripFurigana.mockReturnValueOnce('   ');
+    mockStripReadingAnnotations.mockReturnValueOnce('   ');
     let hook!: ReturnType<typeof useFlashcardTts>;
     const dispose = createRoot((d) => {
       hook = useFlashcardTts();
@@ -139,14 +191,40 @@ describe('useFlashcardTts', () => {
     dispose();
   });
 
-  it('playTts calls stripFurigana on the text', async () => {
+  it('playTts passes the requested language metadata to reading annotation stripping', async () => {
     let hook!: ReturnType<typeof useFlashcardTts>;
     const dispose = createRoot((d) => {
       hook = useFlashcardTts();
       return d;
     });
     await hook.playTts('card1', '<ruby>漢字<rt>かんじ</rt></ruby>', 'ja', 'word');
-    expect(mockStripFurigana).toHaveBeenCalledWith('<ruby>漢字<rt>かんじ</rt></ruby>');
+    expect(mockStripReadingAnnotations).toHaveBeenCalledWith('<ruby>漢字<rt>かんじ</rt></ruby>', mockJapaneseLanguage);
+    dispose();
+  });
+
+  it('playTts uses installed card-language metadata instead of active language metadata', async () => {
+    mockCurrentLanguageData = mockJapaneseLanguage;
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot((d) => {
+      hook = useFlashcardTts();
+      return d;
+    });
+
+    await hook.playTts('card1', 'word(noun)', 'en', 'word');
+
+    expect(mockStripReadingAnnotations).toHaveBeenCalledWith('word(noun)', mockLatinLanguage);
+    dispose();
+  });
+
+  it('playTts does not fall back to current language metadata when card language metadata is unavailable', async () => {
+    mockCurrentLanguageData = mockLatinLanguage;
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot((d) => {
+      hook = useFlashcardTts();
+      return d;
+    });
+    await hook.playTts('card1', 'word(noun)', 'xx', 'word');
+    expect(mockStripReadingAnnotations).toHaveBeenCalledWith('word(noun)', null);
     dispose();
   });
 
@@ -253,7 +331,10 @@ describe('useFlashcardTts', () => {
     });
 
     await hook.playTts('card1', '食べる', 'ja', 'word');
-    expect(mockTtsSpeak).toHaveBeenCalledWith('食べる', 'ja');
+    expect(mockTtsSpeak).toHaveBeenCalledWith('食べる', 'ja', {
+      speechSynthesisLang: 'ja-JP',
+      speechSynthesisVoice: 'Kyoko',
+    });
     expect(mockGetFlashcardTts).not.toHaveBeenCalled();
     dispose();
   });

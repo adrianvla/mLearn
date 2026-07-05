@@ -20,7 +20,10 @@ const LOOKUP_STATUS: Record<number, string> = {
   [WORD_STATUS.KNOWN]: 'Learned',
 };
 
-// Migration tracking
+/**
+ * @deprecated Notification payload for the old localStorage word-status import.
+ * Current word status state should live in the KV-backed per-language store.
+ */
 interface LocalStorageMigrationInfo {
   occurred: boolean;
   backupData: Record<string, unknown> | null;
@@ -41,6 +44,8 @@ let localStorageMigrationInfo: LocalStorageMigrationInfo = {
 
 /**
  * Get migration info for notifications
+ *
+ * @deprecated Only used by the old localStorage word-status import toast.
  */
 export function getLocalStorageMigrationInfo(): LocalStorageMigrationInfo {
   return localStorageMigrationInfo;
@@ -48,6 +53,8 @@ export function getLocalStorageMigrationInfo(): LocalStorageMigrationInfo {
 
 /**
  * Reset migration info after notification
+ *
+ * @deprecated Only used by the old localStorage word-status import toast.
  */
 export function resetLocalStorageMigrationInfo(): void {
   localStorageMigrationInfo = { occurred: false, backupData: null, migratedWordCount: 0 };
@@ -60,8 +67,7 @@ const [isTrackingTime, setIsTrackingTime] = createSignal(false);
 
 let trackingInterval: ReturnType<typeof setInterval> | null = null;
 
-// Flag to track if we've already loaded word statuses
-let wordStatusesLoaded = false;
+let loadedWordStatusLanguage: string | null = null;
 
 /**
  * Initialize time watched from settings
@@ -130,7 +136,7 @@ export function getWordsLearnedInApp(): Record<string, number> {
  * Set a word's learning status
  * Stores under the preferred word form and can remove legacy aliases.
  */
-export function setWordStatus(word: string, status: number, aliases: readonly string[] = [], language: string = 'en'): void {
+export function setWordStatus(word: string, status: number, aliases: readonly string[] = [], language: string): void {
   setWordsLearnedInApp((prev) => {
     const next = {
       ...prev,
@@ -152,8 +158,10 @@ export function setWordStatus(word: string, status: number, aliases: readonly st
 
 /**
  * Change known status by word (legacy compatible)
+ *
+ * @deprecated Use `setWordStatus`; this alias exists for old call sites.
  */
-export function changeKnownStatus(word: string, status: number, aliases: readonly string[] = [], language: string = 'en'): void {
+export function changeKnownStatus(word: string, status: number, aliases: readonly string[] = [], language: string): void {
   setWordStatus(word, status, aliases, language);
 }
 
@@ -180,6 +188,9 @@ export function getWordStatus(word: string, aliases: readonly string[] = []): nu
 /**
  * Get known status with SRS query (like old app's getKnownStatus)
  * Combines local adjustments with SRS status
+ *
+ * @deprecated Prefer comprehensive knowledge/status resolution from
+ * FlashcardContext for new UI.
  */
 export async function getKnownStatus(word: string, srsCheck?: (word: string) => Promise<number>): Promise<number> {
   let status = wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN;
@@ -194,9 +205,9 @@ export async function getKnownStatus(word: string, srsCheck?: (word: string) => 
  * Load words from storage via KV store bridge
  * Safe to call multiple times - will only load once
  */
-export async function loadWordsFromStorage(language: string = 'en'): Promise<void> {
-  if (wordStatusesLoaded) return;
-  wordStatusesLoaded = true;
+export async function loadWordsFromStorage(language: string): Promise<void> {
+  if (loadedWordStatusLanguage === language) return;
+  loadedWordStatusLanguage = language;
 
   try {
     const bridge = getBridge();
@@ -274,7 +285,7 @@ async function loadFromMainProcessMigration(language: string): Promise<void> {
 /**
  * Save words to storage
  */
-export async function saveWordsToStorage(language: string = 'en'): Promise<void> {
+export async function saveWordsToStorage(language: string): Promise<void> {
   try {
     await getBridge().kvStore.kvSet(getWordStatusKey(language), JSON.stringify(wordsLearnedInApp()));
   } catch (e) {
@@ -322,11 +333,3 @@ export {
   LOOKUP_STATUS,
   localStorageMigrationInfo,
 };
-
-// Auto-load word statuses when module initializes
-// This ensures data is available before any component tries to access it
-if (typeof window !== 'undefined') {
-  loadWordsFromStorage().then(() => {
-    log.info('[statsService] Auto-initialized word statuses on module load');
-  });
-}

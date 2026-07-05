@@ -5,7 +5,7 @@
  */
 
 import { Component, createSignal, createMemo, createEffect, Show, For, Match, Switch } from 'solid-js';
-import { useLocalization, useSettings } from '../../context';
+import { useLanguage, useLocalization, useSettings } from '../../context';
 import {
   ModalForm,
   Input,
@@ -21,6 +21,7 @@ import { getBridge } from '../../../shared/bridges';
 import { exploreWikiForStoryContext } from './wikiExplorationAgent';
 import './RoleplayQuickStart.css';
 import { getLogger } from '../../../shared/utils/logger';
+import { getLocalizedLanguageName } from '../../utils/languageDisplayName';
 
 const log = getLogger("renderer.conversationAgent.roleplayQuickStart");
 
@@ -287,12 +288,10 @@ async function fetchChapterSummaries(
 export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const { currentLangData } = useLanguage();
 
   const langName = () => {
-    const code = settings.language || '';
-    const key = `mlearn.Languages.${code}`;
-    const localized = t(key);
-    return localized !== key ? localized : code;
+    return getLocalizedLanguageName(settings.language, currentLangData(), t, '', settings.uiLanguage);
   };
 
   const [step, setStep] = createSignal<Step>('character-name');

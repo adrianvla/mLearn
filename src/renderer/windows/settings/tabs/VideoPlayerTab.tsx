@@ -7,12 +7,20 @@ import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, VideoIcon, RangeInput } from '../../../components/common';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
+import {
+  hideReadingAnnotationsForKnownWords,
+  readingAnnotationsEnabled,
+} from '../../../../shared/readingAnnotationSettings';
+import {
+  getProsodyToggleDescription as getLanguageProsodyToggleDescription,
+  getProsodyToggleLabel as getLanguageProsodyToggleLabel,
+} from '../../../../shared/languageFeatures';
 import '../SettingsForm.css';
 
 export const VideoPlayerTab: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, showProsody, setProsodyVisible } = useSettings();
   const { t } = useLocalization();
-  const { getLanguageFeatures } = useLanguage();
+  const { getLanguageFeatures, currentLangData } = useLanguage();
 
   return (
     <TabContent
@@ -55,37 +63,43 @@ export const VideoPlayerTab: Component = () => {
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
-        <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ShowFurigana.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ShowFurigana.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.furigana}
-            onChange={(checked) => updateSettings({ furigana: checked })}
-          />
-        </SettingRow>
+        <Show when={getLanguageFeatures().supportsReadings}>
+          <SettingRow
+            label={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Label')}
+            description={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Description')}
+          >
+            <ToggleSwitch
+              checked={readingAnnotationsEnabled(settings)}
+              onChange={(checked) => updateSettings({
+                showReadingAnnotations: checked,
+              })}
+            />
+          </SettingRow>
+        </Show>
 
-        <Show when={getLanguageFeatures().supportsReadings && settings.furigana}>
+        <Show when={getLanguageFeatures().supportsReadings && readingAnnotationsEnabled(settings)}>
           <SettingRow
             label={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Label')}
             description={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Description')}
           >
             <ToggleSwitch
-              checked={settings.hideReadingForKnownWords ?? DEFAULT_SETTINGS.hideReadingForKnownWords!}
+              checked={hideReadingAnnotationsForKnownWords(settings)}
               onChange={(checked) => updateSettings({ hideReadingForKnownWords: checked })}
             />
           </SettingRow>
         </Show>
 
-        <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ShowPitchAccent.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ShowPitchAccent.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.showPitchAccent}
-            onChange={(checked) => updateSettings({ showPitchAccent: checked })}
-          />
-        </SettingRow>
+        <Show when={getLanguageFeatures().supportsProsody}>
+          <SettingRow
+            label={getLanguageProsodyToggleLabel(currentLangData()) ?? t('mlearn.Settings.DisplayOptions.ShowProsody.Label')}
+            description={getLanguageProsodyToggleDescription(currentLangData()) ?? t('mlearn.Settings.DisplayOptions.ShowProsody.Description')}
+          >
+            <ToggleSwitch
+              checked={showProsody()}
+              onChange={setProsodyVisible}
+            />
+          </SettingRow>
+        </Show>
 
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.ShowPos.Label')}
@@ -153,7 +167,7 @@ export const VideoPlayerTab: Component = () => {
         >
           <Select
             class="setting-select"
-            value={settings.videoFit || 'contain'}
+            value={settings.videoFit ?? DEFAULT_SETTINGS.videoFit}
             onChange={(e) => updateSettings({ videoFit: e.currentTarget.value as 'contain' | 'cover' | 'fill' })}
           >
             <option value="contain">{t('mlearn.Settings.VideoPlayer.Playback.VideoFit.Contain')}</option>
@@ -167,7 +181,7 @@ export const VideoPlayerTab: Component = () => {
           description={t('mlearn.Settings.VideoPlayer.Playback.ShowSubtitles.Description')}
         >
           <ToggleSwitch
-            checked={settings.showSubtitles !== false}
+            checked={settings.showSubtitles ?? DEFAULT_SETTINGS.showSubtitles!}
             onChange={(checked) => updateSettings({ showSubtitles: checked })}
           />
         </SettingRow>
@@ -177,7 +191,7 @@ export const VideoPlayerTab: Component = () => {
           description={t('mlearn.Settings.VideoPlayer.Playback.ShowTranslation.Description')}
         >
           <ToggleSwitch
-            checked={settings.showTranslation ?? false}
+            checked={settings.showTranslation ?? DEFAULT_SETTINGS.showTranslation!}
             onChange={(checked) => updateSettings({ showTranslation: checked })}
           />
         </SettingRow>
@@ -188,7 +202,7 @@ export const VideoPlayerTab: Component = () => {
         >
           <Select
             class="setting-select"
-            value={settings.subtitlePosition || 'bottom'}
+            value={settings.subtitlePosition ?? DEFAULT_SETTINGS.subtitlePosition}
             onChange={(e) => updateSettings({ subtitlePosition: e.currentTarget.value as 'top' | 'bottom' })}
           >
             <option value="bottom">{t('mlearn.Settings.VideoPlayer.Playback.SubtitlePosition.Bottom')}</option>
@@ -203,7 +217,7 @@ export const VideoPlayerTab: Component = () => {
           description={t('mlearn.Settings.VideoPlayer.SubtitleProcessing.RemoveParentheses.Description')}
         >
           <ToggleSwitch
-            checked={settings.removeParentheses ?? false}
+            checked={settings.removeParentheses ?? DEFAULT_SETTINGS.removeParentheses!}
             onChange={(checked) => updateSettings({ removeParentheses: checked })}
           />
         </SettingRow>
@@ -213,7 +227,7 @@ export const VideoPlayerTab: Component = () => {
           description={t('mlearn.Settings.VideoPlayer.SubtitleProcessing.RemoveSpeakerNames.Description')}
         >
           <ToggleSwitch
-            checked={settings.removeSpeakerNames ?? false}
+            checked={settings.removeSpeakerNames ?? DEFAULT_SETTINGS.removeSpeakerNames!}
             onChange={(checked) => updateSettings({ removeSpeakerNames: checked })}
           />
         </SettingRow>
@@ -226,7 +240,7 @@ export const VideoPlayerTab: Component = () => {
         >
           <Select
             class="setting-select"
-            value={settings.flashcardMediaType || 'image'}
+            value={settings.flashcardMediaType ?? DEFAULT_SETTINGS.flashcardMediaType}
             onChange={(e) => updateSettings({ flashcardMediaType: e.currentTarget.value as 'image' | 'video' })}
           >
             <option value="image">{t('mlearn.Settings.VideoPlayer.FlashcardMedia.MediaType.Image')}</option>

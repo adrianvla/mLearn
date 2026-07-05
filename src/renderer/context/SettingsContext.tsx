@@ -12,6 +12,8 @@ import { APP_THEMES, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend } from '../../shared/backends';
 import { isCapacitor } from '../../shared/platform';
+import { readingAnnotationsEnabled } from '../../shared/readingAnnotationSettings';
+import { prosodyVisible } from '../../shared/prosodySettings';
 import {
   ensureCloudAccessToken,
   hasSignedInCloudSession,
@@ -33,6 +35,10 @@ interface SettingsContextValue {
   isCloudReLoginModalOpen: () => boolean;
   openCloudReLoginModal: () => void;
   closeCloudReLoginModal: () => void;
+  /** Generic prosody/accent visibility toggle. */
+  showProsody: () => boolean;
+  /** Generic prosody/accent visibility setter. */
+  setProsodyVisible: (show: boolean) => void;
 }
 
 // Create context
@@ -40,6 +46,15 @@ const SettingsContext = createContext<SettingsContextValue>();
 
 // BroadcastChannel for cross-window sync
 const SETTINGS_CHANNEL = 'mlearn-settings';
+
+const LANGUAGE_RUNTIME_KEYS = new Set<keyof Settings>([
+  'language',
+  'uiLanguage',
+  'dictionaryTargetLanguages',
+  'llmEnabled',
+  'ocrEnabled',
+  'voiceEnabled',
+]);
 
 export const SettingsProvider: ParentComponent = (props) => {
   const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS });
@@ -65,6 +80,24 @@ export const SettingsProvider: ParentComponent = (props) => {
   };
 
   const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
+  const settingsValuesEqual = (left: unknown, right: unknown): boolean => {
+    if (Object.is(left, right)) return true;
+    if (left && right && typeof left === 'object' && typeof right === 'object') {
+      return JSON.stringify(left) === JSON.stringify(right);
+    }
+    return false;
+  };
+
+  const getChangedKeys = (currentSettings: Settings, nextSettings: Settings, keys: Iterable<keyof Settings>): Set<keyof Settings> => {
+    const changedKeys = new Set<keyof Settings>();
+    for (const key of keys) {
+      if (!settingsValuesEqual(currentSettings[key], nextSettings[key])) {
+        changedKeys.add(key);
+      }
+    }
+    return changedKeys;
+  };
+
   const resolveBackendUrl = (nextSettings: Settings): string => {
     return nextSettings.backendUrl;
   };
@@ -222,38 +255,62 @@ export const SettingsProvider: ParentComponent = (props) => {
     }
   };
 
+  const needsLanguageRuntimeRestart = (changedKeys?: Set<keyof Settings>): boolean => (
+    Boolean(changedKeys && [...changedKeys].some(k => LANGUAGE_RUNTIME_KEYS.has(k)))
+  );
+
+  const saveSettingsSnapshot = (snapshot: Settings, restartLanguageRuntime: boolean) => {
+    if (!hasLoaded()) {
+      return;
+    }
+
+    const bridge = getBridge();
+    if (restartLanguageRuntime) {
+      const cleanup = bridge.settings.onSettingsSaved(() => {
+        cleanup();
+        bridge.server.restartBackend();
+      });
+    }
+
+    bridge.settings.saveSettings(snapshot);
+    broadcastSettingsUpdate(snapshot);
+  };
+
   // Update a single setting
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    const currentSettings = serializeSettings(settings as Settings);
     const nextSettings = {
-      ...serializeSettings(settings as Settings),
+      ...currentSettings,
       [key]: value,
     } as Settings;
+    const changedKeys = getChangedKeys(currentSettings, nextSettings, [key]);
 
     setSettings(reconcile(nextSettings));
     syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
-    maybeReconfigureBackend(nextSettings, new Set([key]));
-    maybeClearAnkiCache(new Set([key]));
+    maybeReconfigureBackend(nextSettings, changedKeys);
+    maybeClearAnkiCache(changedKeys);
 
     if (!hasLoaded()) {
       pendingSettingsSnapshot = { ...pendingSettingsSnapshot, [key]: value };
       return;
     }
 
-    saveSettings();
+    saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
   };
 
   // Update multiple settings
   const updateSettings = (partial: Partial<Settings>) => {
+    const currentSettings = serializeSettings(settings as Settings);
     const nextSettings = {
-      ...serializeSettings(settings as Settings),
+      ...currentSettings,
       ...partial,
     } as Settings;
+    const changedKeys = getChangedKeys(currentSettings, nextSettings, Object.keys(partial) as (keyof Settings)[]);
 
     setSettings(reconcile(nextSettings));
     syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
-    const changedKeys = new Set(Object.keys(partial) as (keyof Settings)[]);
     maybeReconfigureBackend(nextSettings, changedKeys);
     maybeClearAnkiCache(changedKeys);
 
@@ -262,7 +319,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       return;
     }
 
-    saveSettings();
+    saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
   };
 
   // Save settings to main process
@@ -275,9 +332,11 @@ export const SettingsProvider: ParentComponent = (props) => {
       return;
     }
 
-    getBridge().settings.saveSettings(snapshot);
-    broadcastSettingsUpdate(snapshot);
+    saveSettingsSnapshot(snapshot, false);
   };
+
+  const showProsody = () => prosodyVisible(settings);
+  const setProsodyVisible = (show: boolean) => updateSetting('showProsody', show);
 
   // Broadcast settings to other windows
   const broadcastSettingsUpdate = (settingsSnapshot: Settings) => {
@@ -329,6 +388,8 @@ export const SettingsProvider: ParentComponent = (props) => {
     isCloudReLoginModalOpen,
     openCloudReLoginModal,
     closeCloudReLoginModal,
+    showProsody,
+    setProsodyVisible,
   };
 
   return (
@@ -358,21 +419,25 @@ export function useTheme() {
 }
 
 export function useSubtitleSettings() {
-  const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting, updateSettings } = useSettings();
+  const showProsody = () => prosodyVisible(settings);
+  const setProsodyVisible = (show: boolean) => updateSetting('showProsody', show);
 
   return {
     fontSize: () => settings.subtitle_font_size,
     fontWeight: () => settings.subtitle_font_weight,
     theme: () => settings.subtitleTheme,
     offset: () => settings.subsOffsetTime,
-    showFurigana: () => settings.furigana,
-    showPitchAccent: () => settings.showPitchAccent,
+    showReadingAnnotations: () => readingAnnotationsEnabled(settings),
+    showProsody,
     setFontSize: (size: number) => updateSetting('subtitle_font_size', size),
     setFontWeight: (weight: number) => updateSetting('subtitle_font_weight', weight),
     setTheme: (theme: SubtitleTheme) => updateSetting('subtitleTheme', theme),
     setOffset: (offset: number) => updateSetting('subsOffsetTime', offset),
-    setFurigana: (show: boolean) => updateSetting('furigana', show),
-    setPitchAccent: (show: boolean) => updateSetting('showPitchAccent', show),
+    setReadingAnnotations: (show: boolean) => updateSettings({
+      showReadingAnnotations: show,
+    }),
+    setProsodyVisible,
   };
 }
 

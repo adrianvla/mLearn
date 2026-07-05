@@ -1,13 +1,25 @@
-import type { FlashcardContent, DictionaryEntry, PitchData, Token, TranslationEntry } from '../../../shared/types';
+import type { FlashcardContent, DictionaryEntry, FlashcardProsody, LanguageData, Token, TranslationEntry } from '../../../shared/types';
 import { WORD_STATUS, SRS_EASE, ANKI_EASE } from '../../../shared/constants';
 import type { WordStatus } from '../../../shared/constants';
 import type { AnkiWordStatusRecord } from '../../../shared/backends/types';
-import { normalizeReading } from '../../../shared/utils/textUtils';
+import type { WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { getLogger } from '../../../shared/utils/logger';
 import { getBridge } from '../../../shared/bridges';
 import { generateUUID } from '../../services/srsAlgorithm';
 import { captureElementAndSave } from '../../services/canvasCapture';
+import { extractDefinitionValues, extractReadingValue } from '../../utils/translationCacheParsers';
+import {
+  extractProsodyFromTranslationData,
+  normalizeDictionaryReading,
+} from '../../utils/readingProsody';
+import {
+  getLanguageProsodyType,
+  getProsodyDisplayValueFromProsody,
+  getProsodyPositionFromOverride,
+  getProsodyPositionLabel,
+} from '../../../shared/languageFeatures';
+import { getProsodyOverlayRenderer, type ProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 
 const log = getLogger("renderer.components.wordHoverHelpers");
 
@@ -15,7 +27,7 @@ export type { WordStatus } from '../../../shared/constants';
 export { WORD_STATUS_VALUES } from '../../../shared/constants';
 
 export interface WordHoverTranslationData {
-  data?: (TranslationEntry | PitchData | null | undefined)[];
+  data?: unknown[];
 }
 
 export interface BuildWordHoverFlashcardContentParams {
@@ -28,9 +40,10 @@ export interface BuildWordHoverFlashcardContentParams {
   ocrImageElement?: HTMLImageElement | null;
   anchorRect?: DOMRect;
   wordUuid?: string;
-  level?: number;
+  level?: number | null;
   wordStatus: WordStatus;
   colourCodes: Record<string, string>;
+  languageData?: LanguageData | null;
   ocrCropPadding?: number;
   tokenize: (text: string) => Promise<Token[]>;
   /** When 'video', the caller will clip a video segment and attach it post-build */
@@ -165,87 +178,120 @@ export function getAnkiEaseForStatus(
   }
 }
 
-export function extractReadingFromEntries(entries: unknown[]): string {
+export function extractReadingFromEntries(entries: unknown[], languageData?: LanguageData | null): string {
   if (!Array.isArray(entries)) return '';
-  for (const entry of entries) {
-    if (entry && typeof entry === 'object' && 'reading' in entry) {
-      const reading = (entry as { reading?: unknown }).reading;
-      if (typeof reading === 'string' && reading) {
-        return reading;
-      }
-    }
-  }
-  return '';
+  return extractReadingValue(entries, languageData) ?? '';
 }
 
-export function extractPitchAccentFromTranslationData(data?: WordHoverTranslationData): number | undefined {
-  const items = data?.data;
-  if (!items || items.length <= 2) return undefined;
-
-  const pitchEntry = items[2];
-  if (!pitchEntry) return undefined;
-
-  if (Array.isArray(pitchEntry) && (pitchEntry[2] as { pitches?: Array<{ position?: number }> } | undefined)?.pitches) {
-    return (pitchEntry[2] as { pitches?: Array<{ position?: number }> }).pitches?.[0]?.position;
-  }
-
-  if (typeof pitchEntry === 'object' && pitchEntry !== null && 'pitches' in pitchEntry) {
-    return (pitchEntry as { pitches?: Array<{ position?: number }> }).pitches?.[0]?.position;
-  }
-
-  const findPitch = (value: unknown): number | undefined => {
-    if (!value || typeof value !== 'object') return undefined;
-    if ('pitches' in value) {
-      return (value as { pitches?: Array<{ position?: number }> }).pitches?.[0]?.position;
-    }
-    for (const child of Object.values(value)) {
-      const found = findPitch(child);
-      if (found !== undefined) return found;
-    }
-    return undefined;
-  };
-
-  return findPitch(pitchEntry);
-}
-
-export interface ResolvePitchAccentForHoverOptions {
+export interface ResolveProsodyForHoverOptions {
   word: string;
   reading?: string | null;
   translationData?: WordHoverTranslationData;
-  supportsPitchAccent: boolean;
-  showPitchAccent: boolean;
+  showProsody: boolean;
   getCanonicalForm: (word: string) => string;
-  getCachedTranslation: (word: string, language?: string) => WordHoverTranslationData | null;
+  getWordVariants?: (word: string) => string[];
+  getCachedTranslation: (word: string, language?: string, lookupOptions?: WordLookupCandidateOptions) => WordHoverTranslationData | null;
   language?: string;
+  languageData?: LanguageData | null;
+  dictionaryTargetLanguage?: string | (() => string | undefined);
+  fallbackLabel: string;
 }
 
-export function resolvePitchAccentForHover(
-  options: ResolvePitchAccentForHoverOptions,
-): { position: number; reading: string } | null {
-  if (!options.supportsPitchAccent || !options.showPitchAccent) return null;
+export interface ResolvedProsodyForHover {
+  type: NonNullable<FlashcardProsody['type']>;
+  renderer: 'inline-overlay' | 'label';
+  overlayRenderer?: ProsodyOverlayRenderer;
+  position?: number;
+  reading?: string;
+  label?: string;
+  value?: string;
+}
 
-  let position = extractPitchAccentFromTranslationData(options.translationData) ?? null;
-  let reading = normalizeReading(
-    options.reading || extractReadingFromEntries(options.translationData?.data || []),
+function resolveProsodyFromTranslationData(
+  data: WordHoverTranslationData | undefined,
+  languageData: LanguageData | null | undefined,
+  fallbackLabel: string,
+  word: string,
+  reading?: string | null,
+): ResolvedProsodyForHover | null {
+  const prosodyType = getLanguageProsodyType(languageData);
+  if (!prosodyType) return null;
+
+  const normalizedReading = normalizeDictionaryReading(
+    reading || extractReadingFromEntries(data?.data || [], languageData),
+    languageData,
   );
+  const overlayRenderer = getProsodyOverlayRenderer(languageData, prosodyType);
+  const candidates = [
+    normalizedReading ? extractProsodyFromTranslationData(data, languageData, normalizedReading) : undefined,
+    reading && normalizeDictionaryReading(reading, languageData) !== normalizedReading
+      ? extractProsodyFromTranslationData(data, languageData, reading)
+      : undefined,
+    extractProsodyFromTranslationData(data, languageData),
+  ];
+  const prosody = candidates.find((candidate) => {
+    if (!candidate || candidate.type !== prosodyType) return false;
+    if (overlayRenderer) return getProsodyPositionFromOverride(null, candidate) !== null;
+    return Boolean(getProsodyDisplayValueFromProsody(candidate));
+  });
+  if (!prosody || prosody.type !== prosodyType) return null;
 
-  if (position === null) {
-    const canonical = options.getCanonicalForm(options.word);
-    if (canonical && canonical !== options.word) {
-      const cached = options.getCachedTranslation(canonical, options.language);
-      if (cached) {
-        position = extractPitchAccentFromTranslationData(cached) ?? null;
-        if (!reading) {
-          reading = normalizeReading(extractReadingFromEntries(cached.data || []));
-        }
-      }
-    }
+  const position = getProsodyPositionFromOverride(null, prosody);
+  if (overlayRenderer) {
+    if (position === null) return null;
+
+    return {
+      type: prosodyType,
+      renderer: 'inline-overlay',
+      overlayRenderer,
+      position,
+      reading: normalizedReading || word,
+    };
   }
 
-  if (position === null) return null;
-  if (!reading) reading = options.word;
+  const value = getProsodyDisplayValueFromProsody(prosody);
+  if (!value) return null;
 
-  return { position, reading };
+  return {
+    type: prosodyType,
+    renderer: 'label',
+    label: getProsodyPositionLabel(languageData) ?? fallbackLabel,
+    value,
+    ...(position !== null ? { position } : {}),
+  };
+}
+
+export function resolveProsodyForHover(
+  options: ResolveProsodyForHoverOptions,
+): ResolvedProsodyForHover | null {
+  if (!options.showProsody || !getLanguageProsodyType(options.languageData)) return null;
+
+  const current = resolveProsodyFromTranslationData(
+    options.translationData,
+    options.languageData,
+    options.fallbackLabel,
+    options.word,
+    options.reading,
+  );
+  if (current) return current;
+
+  const canonical = options.getCanonicalForm(options.word);
+  if (!canonical || canonical === options.word) return null;
+
+  const cached = options.getCachedTranslation(canonical, options.language, {
+    getCanonicalForm: options.getCanonicalForm,
+    getWordVariants: options.getWordVariants,
+    dictionaryTargetLanguage: options.dictionaryTargetLanguage,
+    languageData: options.languageData,
+  });
+
+  return resolveProsodyFromTranslationData(
+    cached ?? undefined,
+    options.languageData,
+    options.fallbackLabel,
+    options.word,
+    options.reading,
+  );
 }
 
 async function screenshotVideo(cardId: string): Promise<string> {
@@ -403,14 +449,12 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
 
   if (translationItems && Array.isArray(translationItems)) {
     const firstEntry = translationItems[0] as TranslationEntry | undefined;
-    if (firstEntry?.definitions) {
-      translationArr = Array.isArray(firstEntry.definitions) ? firstEntry.definitions : [firstEntry.definitions];
-    }
+    const firstDefinitions = extractDefinitionValues(firstEntry, params.languageData);
+    if (firstDefinitions.length > 0) translationArr = firstDefinitions;
 
     const secondEntry = translationItems[1] as TranslationEntry | undefined;
-    if (secondEntry?.definitions) {
-      definitionHtml = Array.isArray(secondEntry.definitions) ? secondEntry.definitions : [secondEntry.definitions];
-    }
+    const secondDefinitions = extractDefinitionValues(secondEntry, params.languageData, { stripHtml: false });
+    if (secondDefinitions.length > 0) definitionHtml = secondDefinitions;
   }
 
   if (!translationArr && params.entry?.meanings) {
@@ -418,8 +462,9 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
   }
 
   const firstEntry = translationItems?.[0] as TranslationEntry | undefined;
-  const reading = normalizeReading(firstEntry?.reading || params.token.reading || '');
-  const pitchAccent = extractPitchAccentFromTranslationData(params.translationData);
+  const rawReading = normalizeDictionaryReading(extractReadingValue(firstEntry, params.languageData) || params.token.reading || '', params.languageData);
+  const reading = rawReading && rawReading !== word ? rawReading : '';
+  const prosody = extractProsodyFromTranslationData(params.translationData, params.languageData, reading);
   const cardId = generateUUID();
   let screenshot = '';
   if (params.screenshotDataUrl) {
@@ -437,7 +482,7 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     if (contextPhrase && contextPhrase !== '-') {
       try {
         const tokens = await params.tokenize(contextPhrase);
-        exampleHtml = tokensToColoredHtml(tokens, params.colourCodes, word);
+        exampleHtml = tokensToColoredHtml(tokens, params.colourCodes, word, params.languageData);
       } catch (e) {
         log.error("error", e);
         exampleHtml = contextPhrase;
@@ -453,14 +498,14 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     type: 'word',
     front: word,
     back: translationArr?.join('; ') || '-',
-    reading: reading || word,
-    pitchAccent,
+    reading: reading || undefined,
+    prosody,
     pos: params.token.partOfSpeech ?? params.token.type ?? '',
-    level: params.level ?? -1,
+    level: params.level ?? undefined,
     example: exampleHtml,
     exampleMeaning: '',
     word,
-    pronunciation: reading || word,
+    pronunciation: reading || undefined,
     translation: translationArr,
     definition: definitionHtml ?? (params.token.meaning ? [params.token.meaning] : undefined),
   };

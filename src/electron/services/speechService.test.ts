@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockIpcListeners = new Map<string, ((...args: unknown[]) => void)[]>();
+const mockLanguageData = vi.hoisted(() => ({
+  current: {} as Record<string, { runtime?: { tts?: { macosVoice?: string; espeakVoice?: string; windowsVoice?: string } } }>,
+}));
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -24,6 +27,10 @@ const mockKill = vi.fn();
 
 vi.mock('child_process', () => ({
   execFile: mockExecFile,
+}));
+
+vi.mock('./settings', () => ({
+  loadLangData: vi.fn(() => mockLanguageData.current),
 }));
 
 let mockIsMac = false;
@@ -63,6 +70,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mockIsMac = false;
   mockIsLinux = false;
+  mockLanguageData.current = {};
   mod = await import('./speechService');
 });
 
@@ -103,10 +111,13 @@ describe('TTS_SPEAK on macOS', () => {
     const sender = createMockSender();
     const listeners = mockIpcListeners.get('tts-speak') || [];
     listeners[0]({ sender }, 'hello world', 'en');
-    expect(mockExecFile).toHaveBeenCalledWith('say', expect.arrayContaining(['-v', 'Samantha', 'hello world']), expect.any(Function));
+    expect(mockExecFile).toHaveBeenCalledWith('say', ['hello world'], expect.any(Function));
   });
 
-  it('uses correct voice for Japanese', () => {
+  it('uses the macOS voice from installed language metadata', () => {
+    mockLanguageData.current = {
+      ja: { runtime: { tts: { macosVoice: 'Kyoko' } } },
+    };
     const fakeProcess = createMockProcess();
     mockExecFile.mockReturnValue(fakeProcess);
     const sender = createMockSender();
@@ -115,7 +126,10 @@ describe('TTS_SPEAK on macOS', () => {
     expect(mockExecFile).toHaveBeenCalledWith('say', expect.arrayContaining(['-v', 'Kyoko']), expect.any(Function));
   });
 
-  it('uses correct voice for Chinese', () => {
+  it('uses another metadata voice without language-specific mappings', () => {
+    mockLanguageData.current = {
+      zh: { runtime: { tts: { macosVoice: 'Ting-Ting' } } },
+    };
     const fakeProcess = createMockProcess();
     mockExecFile.mockReturnValue(fakeProcess);
     const sender = createMockSender();
@@ -124,13 +138,13 @@ describe('TTS_SPEAK on macOS', () => {
     expect(mockExecFile).toHaveBeenCalledWith('say', expect.arrayContaining(['-v', 'Ting-Ting']), expect.any(Function));
   });
 
-  it('uses English voice for unknown language', () => {
+  it('lets macOS choose a voice when metadata has no configured voice', () => {
     const fakeProcess = createMockProcess();
     mockExecFile.mockReturnValue(fakeProcess);
     const sender = createMockSender();
     const listeners = mockIpcListeners.get('tts-speak') || [];
     listeners[0]({ sender }, 'test', 'xyz');
-    expect(mockExecFile).toHaveBeenCalledWith('say', expect.arrayContaining(['-v', 'Samantha']), expect.any(Function));
+    expect(mockExecFile).toHaveBeenCalledWith('say', ['test'], expect.any(Function));
   });
 
   it('sends TTS_STATUS with speaking:true when starting', () => {
@@ -157,7 +171,7 @@ describe('TTS_SPEAK on macOS', () => {
     const listeners = mockIpcListeners.get('tts-speak') || [];
     listeners[0]({ sender }, longText, 'en');
     const callArgs = mockExecFile.mock.calls[0];
-    const passedText = callArgs[1][2];
+    const passedText = callArgs[1].at(-1);
     expect(passedText.length).toBeLessThanOrEqual(500);
   });
 
@@ -217,6 +231,18 @@ describe('TTS_SPEAK on Linux', () => {
     listeners[0]({ sender }, 'test', 'de');
     expect(mockExecFile).toHaveBeenCalledWith('espeak', ['-v', 'de', 'test'], expect.any(Function));
   });
+
+  it('uses the espeak voice from installed language metadata', () => {
+    mockLanguageData.current = {
+      fa: { runtime: { tts: { espeakVoice: 'fa' } } },
+    };
+    const fakeProcess = createMockProcess();
+    mockExecFile.mockReturnValue(fakeProcess);
+    const sender = createMockSender();
+    const listeners = mockIpcListeners.get('tts-speak') || [];
+    listeners[0]({ sender }, 'سلام', 'fa');
+    expect(mockExecFile).toHaveBeenCalledWith('espeak', ['-v', 'fa', 'سلام'], expect.any(Function));
+  });
 });
 
 describe('TTS_SPEAK on Windows', () => {
@@ -235,6 +261,21 @@ describe('TTS_SPEAK on Windows', () => {
     const listeners = mockIpcListeners.get('tts-speak') || [];
     listeners[0]({ sender }, 'hello', 'en');
     expect(mockExecFile).toHaveBeenCalledWith('powershell', expect.arrayContaining(['-Command']), expect.any(Function));
+  });
+
+  it('uses the Windows voice from installed language metadata', () => {
+    mockLanguageData.current = {
+      ar: { runtime: { tts: { windowsVoice: 'Microsoft Naayf Desktop' } } },
+    };
+    const fakeProcess = createMockProcess();
+    mockExecFile.mockReturnValue(fakeProcess);
+    const sender = createMockSender();
+    const listeners = mockIpcListeners.get('tts-speak') || [];
+    listeners[0]({ sender }, 'سلام', 'ar');
+    const callArgs = mockExecFile.mock.calls[0];
+    const psCommand = callArgs[1][1];
+    expect(psCommand).toContain("$s.SelectVoice('Microsoft Naayf Desktop');");
+    expect(psCommand).toContain("$s.Speak('سلام')");
   });
 
   it('escapes single quotes in PowerShell command', () => {
@@ -289,7 +330,7 @@ describe('newline replacement', () => {
     const listeners = mockIpcListeners.get('tts-speak') || [];
     listeners[0]({ sender }, 'line1\nline2', 'en');
     const callArgs = mockExecFile.mock.calls[0];
-    const passedText = callArgs[1][2];
+    const passedText = callArgs[1].at(-1);
     expect(passedText).toBe('line1 line2');
   });
 });

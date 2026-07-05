@@ -92,8 +92,8 @@
   background: rgba(0, 150, 255, 0.08);
 }
 
-/* Debug mode - furigana boxes (filtered-out furigana) */
-.ocr-box.debug-furigana {
+/* Debug mode - reading annotation boxes filtered out of OCR text */
+.ocr-box.debug-reading-annotation {
   opacity: 1;
   border: 2px solid rgba(255, 100, 0, 0.6);
   background: rgba(255, 100, 0, 0.08);

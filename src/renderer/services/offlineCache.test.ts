@@ -214,6 +214,22 @@ describe('offlineCache', () => {
       expect(await getCachedTranslationDB('b')).toEqual(entries[1].data);
     });
 
+    it('keeps target-language translation cache entries separate', async () => {
+      const {
+        getCachedTranslationByLanguageDB,
+        setCachedTranslationByLanguageDB,
+      } = await loadOfflineCache();
+      const english: TranslationResponse = { data: [{ definitions: 'red', reading: 'あかい' }] };
+      const french: TranslationResponse = { data: [{ definitions: 'rouge', reading: 'あかい' }] };
+
+      await setCachedTranslationByLanguageDB('赤い', english, 'ja', 'en');
+      await setCachedTranslationByLanguageDB('赤い', french, 'ja', 'fr');
+
+      expect(await getCachedTranslationByLanguageDB('赤い', 'ja', 'en')).toEqual(english);
+      expect(await getCachedTranslationByLanguageDB('赤い', 'ja', 'fr')).toEqual(french);
+      expect(await getCachedTranslationByLanguageDB('赤い', 'ja')).toBeNull();
+    });
+
     it('does nothing on empty batch', async () => {
       const { setCachedTranslationBatchDB } = await loadOfflineCache();
       await expect(setCachedTranslationBatchDB([])).resolves.toBeUndefined();
@@ -258,6 +274,22 @@ describe('offlineCache', () => {
       const result = await getCachedDictionaryDB('test', 'ちがう');
 
       expect(result).toBeNull();
+    });
+
+    it('keeps target-language dictionary cache entries separate', async () => {
+      const {
+        getCachedDictionaryByLanguageDB,
+        setCachedDictionaryByLanguageDB,
+      } = await loadOfflineCache();
+      const english: DictionaryEntry[] = [{ word: '赤い', reading: 'あかい', meanings: ['red'] }];
+      const french: DictionaryEntry[] = [{ word: '赤い', reading: 'あかい', meanings: ['rouge'] }];
+
+      await setCachedDictionaryByLanguageDB('赤い', 'あかい', english, 'ja', 'en');
+      await setCachedDictionaryByLanguageDB('赤い', 'あかい', french, 'ja', 'fr');
+
+      expect(await getCachedDictionaryByLanguageDB('赤い', 'あかい', 'ja', 'en')).toEqual(english);
+      expect(await getCachedDictionaryByLanguageDB('赤い', 'あかい', 'ja', 'fr')).toEqual(french);
+      expect(await getCachedDictionaryByLanguageDB('赤い', 'あかい', 'ja')).toBeNull();
     });
 
     it('clears all dictionary entries', async () => {
@@ -313,6 +345,19 @@ describe('offlineCache', () => {
       const result = await getCachedTokensDB('hello world');
 
       expect(result).toEqual(tokens);
+    });
+
+    it('stores language token caches in separate package namespaces', async () => {
+      const { getCachedTokensByLanguageDB, setCachedTokensByLanguageDB } = await loadOfflineCache();
+      const oldTokens: Token[] = [{ word: '旧', actual_word: '旧', type: 'OLD' }];
+      const newTokens: Token[] = [{ word: '新', actual_word: '新', type: 'NEW' }];
+
+      await setCachedTokensByLanguageDB('日本語', oldTokens, 'ja', 'ja-package-v1');
+      await setCachedTokensByLanguageDB('日本語', newTokens, 'ja', 'ja-package-v2');
+
+      expect(await getCachedTokensByLanguageDB('日本語', 'ja', 'ja-package-v1')).toEqual(oldTokens);
+      expect(await getCachedTokensByLanguageDB('日本語', 'ja', 'ja-package-v2')).toEqual(newTokens);
+      expect(await getCachedTokensByLanguageDB('日本語', 'ja')).toBeNull();
     });
 
     it('returns null for a different text', async () => {

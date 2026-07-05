@@ -4,11 +4,12 @@
  * Routes to built-in (node-llama-cpp) or Ollama based on user settings.
  */
 
-import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings, CloudLLMTier } from '../../shared/types';
+import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings, CloudLLMTier, LanguageData } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../shared/backends';
+import { getLanguagePromptName } from '../../shared/languageFeatures';
 import {
   CloudSessionCancelledError,
   CloudUnreachableError,
@@ -43,6 +44,7 @@ export type ExplainerMode = 'word' | 'phrase';
 
 export interface StreamExplanationOptions {
   mode?: ExplainerMode;
+  languageData?: LanguageData | null;
 }
 
 // ============================================================================
@@ -472,7 +474,8 @@ export function streamExplanation(
   options: StreamExplanationOptions = {},
 ): { abort: () => void } {
   const mode = options.mode ?? 'word';
-  const systemPrompt = buildExplainerSystemPrompt(language, mode);
+  const languagePromptName = getLanguagePromptName(language, options.languageData);
+  const systemPrompt = buildExplainerSystemPrompt(languagePromptName, mode);
   const userPrompt = buildExplainerUserPrompt(word, contextPhrase, mode);
   const requiredToolNames = getExplainerToolNames(mode);
 
@@ -573,7 +576,7 @@ export function streamExplanation(
         if (!aborted && hasGeneratedSomething && missingToolNames.length > 0 && repairAttempts < maxRepairAttempts) {
           repairAttempts += 1;
           startAttempt(
-            buildExplainerRepairMessages(word, contextPhrase, language, mode, missingToolNames, mergedToolCalls),
+            buildExplainerRepairMessages(word, contextPhrase, languagePromptName, mode, missingToolNames, mergedToolCalls),
             missingToolNames,
           );
           return;

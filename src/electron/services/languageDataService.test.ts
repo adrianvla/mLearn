@@ -25,7 +25,7 @@ function makeLangData(overrides: Partial<LanguageDataMap[string]> = {}): Languag
       name: 'Test Language',
       translatable: ['NOUN'],
       colour_codes: {},
-      fixed_settings: {},
+      settings: { fixed: {} },
       languageData: {
         assets: [
           {
@@ -62,6 +62,195 @@ describe('languageDataService', () => {
     expect(status.installed).toBe(false);
     expect(status.missingAssets).toEqual(['dictionary']);
     expect(status.dataRoot).toBe(path.join(tempDir.tmpDir, 'language-data'));
+  });
+
+  it('does not require component-scoped assets until that component is requested', () => {
+    const langData = makeLangData({
+      languageData: {
+        assets: [
+          {
+            id: 'ocr-model',
+            path: 'models/zz/ocr.bin',
+            required: true,
+            components: ['ocr'],
+          },
+        ],
+      },
+    });
+
+    const coreStatus = mod.getLanguageDataStatus('zz', langData);
+    const ocrStatus = mod.getLanguageDataStatus('zz', langData, undefined, { components: ['core', 'ocr'] });
+
+    expect(coreStatus.installed).toBe(true);
+    expect(coreStatus.missingAssets).toEqual([]);
+    expect(ocrStatus.installed).toBe(false);
+    expect(ocrStatus.missingAssets).toEqual(['ocr-model']);
+  });
+
+  it('requires custom language-brick components during a core language install', () => {
+    const langData = makeLangData({
+      languageData: {
+        assets: [
+          {
+            id: 'segmenter-model',
+            path: 'models/zz/segmenter.bin',
+            required: true,
+            components: ['segmentation'],
+          },
+          {
+            id: 'voice-model',
+            path: 'models/zz/voice.bin',
+            required: true,
+            components: ['voice'],
+          },
+        ],
+      },
+    });
+
+    const coreStatus = mod.getLanguageDataStatus('zz', langData);
+
+    expect(coreStatus.installed).toBe(false);
+    expect(coreStatus.missingAssets).toEqual(['segmenter-model']);
+  });
+
+  it('treats stale installed language metadata as missing so runtime features update', async () => {
+    const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(installedMetadataPath, JSON.stringify({ name: 'Old metadata' }), 'utf-8');
+
+    const metadataBytes = JSON.stringify({
+      name: 'Updated metadata',
+      runtime: {
+        ocr: {
+          recognitionEngine: 'mangaocr',
+          rapidLangType: 'JAPAN',
+          paddleLang: 'japan',
+        },
+      },
+    });
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'metadata-archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'zz.tar.gz');
+    const manifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      version: 'bundle-v2',
+      files: [
+        {
+          id: 'language-metadata',
+          path: 'languages/zz.json',
+          sizeBytes: Buffer.byteLength(metadataBytes),
+          sha256: sha256(metadataBytes),
+          required: true,
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'zz.json'), metadataBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'bundle-v2',
+        bundle: {
+          url: 'https://example.com/language-data/zz.tar.gz',
+          sizeBytes: fs.statSync(archivePath).size,
+          sha256: sha256(fs.readFileSync(archivePath)),
+        },
+        assets: manifest.files,
+      },
+    });
+
+    const beforeStatus = mod.getLanguageDataStatus('zz', langData);
+    expect(beforeStatus.installed).toBe(false);
+    expect(beforeStatus.missingAssets).toEqual(['language-metadata']);
+    expect(beforeStatus.assets[0].validationIssue).toMatch(/^size-mismatch:/);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+
+    await mod.ensureLanguageDataInstalled('zz', langData);
+
+    expect(JSON.parse(fs.readFileSync(installedMetadataPath, 'utf-8')).runtime.ocr.recognitionEngine).toBe('mangaocr');
+    expect(mockDownloadFileWithProgress).toHaveBeenCalledWith(
+      'https://example.com/language-data/zz.tar.gz',
+      expect.stringContaining('zz.tar.gz'),
+      undefined,
+    );
+  });
+
+  it('accepts same-version language metadata even when local normalized bytes differ from the catalog', () => {
+    const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(
+      installedMetadataPath,
+      JSON.stringify({
+        name: 'Updated metadata with package hotfix',
+        languageData: { version: 'bundle-v2' },
+        runtime: {
+          nlp: {
+            dictionary: {
+              prosody: {
+                table: 'pitch',
+                headwordColumn: 'headword',
+                dataColumn: 'data',
+              },
+            },
+          },
+        },
+      }),
+      'utf-8',
+    );
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'bundle-v2',
+        bundle: {
+          url: 'https://example.com/language-data/zz.tar.gz',
+        },
+        assets: [
+          {
+            id: 'language-metadata',
+            path: 'languages/zz.json',
+            sizeBytes: 1,
+            sha256: '0'.repeat(64),
+            required: true,
+          },
+        ],
+      },
+    });
+
+    const status = mod.getLanguageDataStatus('zz', langData);
+
+    expect(status.installed).toBe(true);
+    expect(status.missingAssets).toEqual([]);
+  });
+
+  it('resolves only explicitly available dictionary targets without sorted fallback', () => {
+    const langData = makeLangData({
+      languageData: {
+        assets: [],
+        dictionaryPacks: {
+          en: {
+            targetLanguage: 'en',
+            name: 'English',
+            bundle: { url: 'https://example.com/zz-en.tar.gz' },
+            assets: [],
+          },
+          fr: {
+            targetLanguage: 'fr',
+            name: 'French',
+            bundle: { url: 'https://example.com/zz-fr.tar.gz' },
+            assets: [],
+          },
+        },
+      },
+    });
+
+    expect(mod.resolveDictionaryTargetLanguage('zz', langData, 'fr')).toBe('fr');
+    expect(mod.resolveDictionaryTargetLanguage('zz', langData, 'ru')).toBeUndefined();
+    expect(mod.resolveDictionaryTargetLanguage('zz', langData)).toBeUndefined();
   });
 
   it('reports catalog install status for every known language without downloading assets', () => {
@@ -125,7 +314,7 @@ describe('languageDataService', () => {
         name: 'Bare Metadata',
         translatable: [],
         colour_codes: {},
-        fixed_settings: {},
+        settings: { fixed: {} },
       },
     };
 
@@ -235,6 +424,78 @@ describe('languageDataService', () => {
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.freq.json'), 'utf-8')).toBe(frequencyBytes);
   });
 
+  it('installs only assets scoped to the requested language components from a bundle', async () => {
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'component-archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'zz-components.tar.gz');
+    const coreBytes = JSON.stringify({ name: 'Component Test' });
+    const ocrBytes = 'ocr model bytes';
+    const segmentationBytes = 'segmentation model bytes';
+    const manifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      version: 'bundle-components-v1',
+      files: [
+        {
+          id: 'language-metadata',
+          path: 'languages/zz.json',
+          sizeBytes: Buffer.byteLength(coreBytes),
+          sha256: sha256(coreBytes),
+          required: true,
+          components: ['core'],
+        },
+        {
+          id: 'ocr-model',
+          path: 'models/zz/ocr.bin',
+          sizeBytes: Buffer.byteLength(ocrBytes),
+          sha256: sha256(ocrBytes),
+          required: true,
+          components: ['ocr'],
+        },
+        {
+          id: 'segmenter-model',
+          path: 'models/zz/segmenter.bin',
+          sizeBytes: Buffer.byteLength(segmentationBytes),
+          sha256: sha256(segmentationBytes),
+          required: true,
+          components: ['segmentation'],
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'models', 'zz'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'zz.json'), coreBytes, 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'models', 'zz', 'ocr.bin'), ocrBytes, 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'models', 'zz', 'segmenter.bin'), segmentationBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'bundle-components-v1',
+        bundle: {
+          url: 'https://example.com/language-data/zz-components.tar.gz',
+          sizeBytes: fs.statSync(archivePath).size,
+          sha256: sha256(fs.readFileSync(archivePath)),
+        },
+        assets: manifest.files,
+      },
+    });
+
+    await mod.ensureLanguageDataInstalled('zz', langData);
+
+    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json'))).toBe(true);
+    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'segmenter.bin'), 'utf-8')).toBe(segmentationBytes);
+    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'ocr.bin'))).toBe(false);
+
+    await mod.ensureLanguageDataInstalled('zz', langData, undefined, undefined, { components: ['core', 'ocr'] });
+
+    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'ocr.bin'), 'utf-8')).toBe(ocrBytes);
+  });
+
   it('ignores macOS metadata entries in language bundle archives', async () => {
     const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
     const archivePath = path.join(tempDir.tmpDir, 'zz-with-metadata.tar.gz');
@@ -314,12 +575,12 @@ describe('languageDataService', () => {
       fs.copyFileSync(archivePath, destPath);
     });
 
-    await (mod.ensureLanguageDataInstalled as unknown as (
+    const status = await (mod.ensureLanguageDataInstalled as unknown as (
       language: string,
       langData: LanguageDataMap,
       onProgress?: Parameters<typeof mod.ensureLanguageDataInstalled>[2],
       dictionaryTargetLanguage?: string,
-    ) => Promise<unknown>)('zz', makeLangData({
+    ) => Promise<ReturnType<typeof mod.getLanguageDataStatus>>)('zz', makeLangData({
       languageData: {
         version: 'core-v1',
         bundle: {
@@ -344,12 +605,71 @@ describe('languageDataService', () => {
       } as unknown as LanguageDataMap[string]['languageData'],
     }), undefined, 'fr');
 
+    expect(status).toMatchObject({
+      language: 'zz',
+      dictionaryTargetLanguage: 'fr',
+      installed: true,
+      missingAssets: [],
+    });
     expect(mockDownloadFileWithProgress).toHaveBeenCalledWith(
       'https://example.com/language-data/zz-fr-dictionary.tar.gz',
       expect.stringContaining('zz-fr-dictionary.tar.gz'),
       undefined,
     );
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+  });
+
+  it('rejects a dictionary pack archive that declares a different target language', async () => {
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'wrong-dictionary-target-source');
+    const archivePath = path.join(tempDir.tmpDir, 'zz-fr-dictionary.tar.gz');
+    const dictionaryBytes = 'english dictionary bytes';
+    const manifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      targetLanguage: 'en',
+      version: 'zz-en-dictionary-v1',
+      files: [
+        {
+          id: 'dictionary-fr',
+          path: 'dictionaries/zz/fr/dictionary.db',
+          sizeBytes: Buffer.byteLength(dictionaryBytes),
+          sha256: sha256(dictionaryBytes),
+          required: true,
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'dictionaries', 'zz', 'fr'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'dictionaries', 'zz', 'fr', 'dictionary.db'), dictionaryBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+
+    await expect(mod.ensureLanguageDataInstalled('zz', makeLangData({
+      languageData: {
+        version: 'core-v1',
+        assets: [],
+        dictionaryPacks: {
+          fr: {
+            targetLanguage: 'fr',
+            name: 'French',
+            version: 'zz-fr-dictionary-v1',
+            bundle: {
+              url: 'https://example.com/language-data/zz-fr-dictionary.tar.gz',
+              sizeBytes: fs.statSync(archivePath).size,
+              sha256: sha256(fs.readFileSync(archivePath)),
+            },
+            assets: manifest.files,
+          },
+        },
+      } as unknown as LanguageDataMap[string]['languageData'],
+    }), undefined, 'fr')).rejects.toThrow(
+      'Language data bundle manifest target mismatch for zz:fr; got en',
+    );
+
+    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'fr', 'dictionary.db'))).toBe(false);
   });
 
   it('reports the selected dictionary bundle when its archive checksum does not match', async () => {
@@ -466,6 +786,62 @@ describe('languageDataService', () => {
 
     expect(mockDownloadFileWithProgress).toHaveBeenCalledTimes(1);
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'fr', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+  });
+
+  it('does not delete undeclared stale language adapter files during a core bundle install', async () => {
+    const installedLanguageDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    const staleAdapterPath = path.join(installedLanguageDir, 'zz.py');
+    const staleAdapterBytes = "raise RuntimeError('stale adapter should be ignored by metadata')\n";
+    fs.mkdirSync(installedLanguageDir, { recursive: true });
+    fs.writeFileSync(staleAdapterPath, staleAdapterBytes, 'utf-8');
+
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'metadata-only-archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'zz-metadata-only.tar.gz');
+    const metadataBytes = JSON.stringify({
+      name: 'Metadata Only',
+      runtime: {
+        nlp: {
+          tokenizer: { type: 'unicode-word' },
+        },
+      },
+    });
+    const manifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      version: 'metadata-only-v1',
+      files: [
+        {
+          id: 'language-metadata',
+          path: 'languages/zz.json',
+          sizeBytes: Buffer.byteLength(metadataBytes),
+          sha256: sha256(metadataBytes),
+          required: true,
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'zz.json'), metadataBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+
+    await mod.ensureLanguageDataInstalled('zz', makeLangData({
+      languageData: {
+        version: 'metadata-only-v1',
+        bundle: {
+          url: 'https://example.com/language-data/zz-metadata-only.tar.gz',
+          sizeBytes: fs.statSync(archivePath).size,
+          sha256: sha256(fs.readFileSync(archivePath)),
+        },
+        assets: manifest.files,
+      },
+    }));
+
+    expect(fs.readFileSync(staleAdapterPath, 'utf-8')).toBe(staleAdapterBytes);
+    expect(fs.readFileSync(path.join(installedLanguageDir, 'zz.json'), 'utf-8')).toBe(metadataBytes);
   });
 
   it('rejects language asset paths that escape the language data root', async () => {

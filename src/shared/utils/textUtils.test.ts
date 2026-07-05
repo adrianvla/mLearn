@@ -1,184 +1,115 @@
 import { describe, it, expect } from 'vitest'
+import * as textUtilsModule from '@shared/utils/textUtils'
+import type { LanguageData } from '@shared/types'
 import {
-  KANJI_REGEX,
-  KANA_ONLY_REGEX,
-  KANA_EXTRACT_REGEX,
-  SMALL_KANA,
-  containsKanji,
-  isAllKana,
+  HAN_IDEOGRAPH_REGEX,
+  containsHanCharacters,
+  isTextOnlyInScripts,
   katakanaToHiragana,
-  extractKanjiChars,
-  extractKana,
+  extractHanCharacters,
   isLatinOnly,
   isWordInLanguageScript,
   isValidSTTResult,
   normalizeReading,
+  normalizeWordLookupText,
   escapeHtml,
-  stripFurigana,
+  stripRubyAnnotations,
+  stripReadingAnnotations,
+  findConfiguredParentheticalReadings,
   applyRubyReadings,
   stripHtmlForTts,
   getLanguageDisplayName,
 } from '@shared/utils/textUtils'
 
-describe('KANJI_REGEX', () => {
-  it('matches a common kanji', () => {
-    expect(KANJI_REGEX.test('日')).toBe(true)
+describe('HAN_IDEOGRAPH_REGEX', () => {
+  it('matches a common Han ideograph', () => {
+    expect(HAN_IDEOGRAPH_REGEX.test('日')).toBe(true)
   })
 
-  it('matches kanji in mixed text', () => {
-    expect(KANJI_REGEX.test('今日はいい天気です')).toBe(true)
+  it('matches Han ideographs in mixed text', () => {
+    expect(HAN_IDEOGRAPH_REGEX.test('今日はいい天気です')).toBe(true)
   })
 
   it('does not match hiragana', () => {
-    expect(KANJI_REGEX.test('あいうえお')).toBe(false)
+    expect(HAN_IDEOGRAPH_REGEX.test('あいうえお')).toBe(false)
   })
 
   it('does not match katakana', () => {
-    expect(KANJI_REGEX.test('アイウエオ')).toBe(false)
+    expect(HAN_IDEOGRAPH_REGEX.test('アイウエオ')).toBe(false)
   })
 
   it('does not match Latin text', () => {
-    expect(KANJI_REGEX.test('hello world')).toBe(false)
-  })
-})
-
-describe('KANA_ONLY_REGEX', () => {
-  it('matches pure hiragana', () => {
-    expect(KANA_ONLY_REGEX.test('あいうえお')).toBe(true)
+    expect(HAN_IDEOGRAPH_REGEX.test('hello world')).toBe(false)
   })
 
-  it('matches pure katakana', () => {
-    expect(KANA_ONLY_REGEX.test('アイウエオ')).toBe(true)
-  })
-
-  it('matches mixed hiragana and katakana', () => {
-    expect(KANA_ONLY_REGEX.test('あいアイ')).toBe(true)
-  })
-
-  it('does not match text with kanji', () => {
-    expect(KANA_ONLY_REGEX.test('漢字あいう')).toBe(false)
-  })
-
-  it('does not match Latin text', () => {
-    expect(KANA_ONLY_REGEX.test('hello')).toBe(false)
-  })
-
-  it('matches kana with whitespace', () => {
-    expect(KANA_ONLY_REGEX.test('あいう えお')).toBe(true)
-  })
-})
-
-describe('KANA_EXTRACT_REGEX', () => {
-  it('is a global regex', () => {
-    expect(KANA_EXTRACT_REGEX.flags).toContain('g')
-  })
-
-  it('matches hiragana characters', () => {
-    const matches = 'あ日う'.match(KANA_EXTRACT_REGEX)
-    expect(matches).toEqual(['あ', 'う'])
-  })
-
-  it('matches katakana characters', () => {
-    const matches = 'アBイ'.match(KANA_EXTRACT_REGEX)
-    expect(matches).toEqual(['ア', 'イ'])
-  })
-
-  it('returns null when no kana present', () => {
-    expect('hello 123'.match(KANA_EXTRACT_REGEX)).toBeNull()
-  })
-})
-
-describe('SMALL_KANA', () => {
-  it('is a Set', () => {
-    expect(SMALL_KANA).toBeInstanceOf(Set)
-  })
-
-  it('contains small hiragana ya', () => {
-    expect(SMALL_KANA.has('ゃ')).toBe(true)
-  })
-
-  it('contains small katakana yu', () => {
-    expect(SMALL_KANA.has('ュ')).toBe(true)
-  })
-
-  it('contains small hiragana a', () => {
-    expect(SMALL_KANA.has('ぁ')).toBe(true)
-  })
-
-  it('does not contain regular hiragana a', () => {
-    expect(SMALL_KANA.has('あ')).toBe(false)
-  })
-
-  it('does not contain kanji', () => {
-    expect(SMALL_KANA.has('漢')).toBe(false)
+  it('does not expose the deprecated kanji regex alias', () => {
+    expect('KANJI_REGEX' in textUtilsModule).toBe(false)
   })
 })
 
 // ============================================================================
-// containsKanji
+// containsHanCharacters
 // ============================================================================
 
-describe('containsKanji', () => {
-  it('returns true for a single kanji', () => {
-    expect(containsKanji('字')).toBe(true)
+describe('containsHanCharacters', () => {
+  it('detects Han ideographs through the neutral helper', () => {
+    expect(containsHanCharacters('北京')).toBe(true)
+    expect(containsHanCharacters('ひらがな')).toBe(false)
   })
 
-  it('returns true for kanji in mixed text', () => {
-    expect(containsKanji('東京に行きます')).toBe(true)
+  it('does not expose the deprecated kanji helper alias', () => {
+    expect('containsKanji' in textUtilsModule).toBe(false)
+  })
+
+  it('returns true for a single Han ideograph', () => {
+    expect(containsHanCharacters('字')).toBe(true)
+  })
+
+  it('returns true for Han ideographs in mixed text', () => {
+    expect(containsHanCharacters('東京に行きます')).toBe(true)
   })
 
   it('returns true for Chinese text', () => {
-    expect(containsKanji('北京是中国的首都')).toBe(true)
+    expect(containsHanCharacters('北京是中国的首都')).toBe(true)
   })
 
   it('returns false for pure hiragana', () => {
-    expect(containsKanji('ひらがな')).toBe(false)
+    expect(containsHanCharacters('ひらがな')).toBe(false)
   })
 
   it('returns false for pure katakana', () => {
-    expect(containsKanji('カタカナ')).toBe(false)
+    expect(containsHanCharacters('カタカナ')).toBe(false)
   })
 
   it('returns false for Latin text', () => {
-    expect(containsKanji('hello')).toBe(false)
+    expect(containsHanCharacters('hello')).toBe(false)
   })
 
   it('returns false for empty string', () => {
-    expect(containsKanji('')).toBe(false)
+    expect(containsHanCharacters('')).toBe(false)
   })
 })
 
-// ============================================================================
-// isAllKana
-// ============================================================================
-
-describe('isAllKana', () => {
-  it('returns true for pure hiragana', () => {
-    expect(isAllKana('あいうえお')).toBe(true)
+describe('isTextOnlyInScripts', () => {
+  it('allows non-letter tone markers around matching script letters', () => {
+    expect(isTextOnlyInScripts('nǐ hǎo 3', ['Latn'])).toBe(true)
   })
 
-  it('returns true for pure katakana', () => {
-    expect(isAllKana('アイウエオ')).toBe(true)
+  it('rejects letters outside the configured scripts', () => {
+    expect(isTextOnlyInScripts('nǐ 好', ['Latn'])).toBe(false)
   })
 
-  it('returns true for mixed kana with whitespace', () => {
-    expect(isAllKana('あいう アイウ')).toBe(true)
+  it('allows package-declared transliteration letters outside the base script', () => {
+    expect(isTextOnlyInScripts('al-ʿarabiyya', ['Latn'], ['ʿ'])).toBe(true)
+    expect(isTextOnlyInScripts('al-ʿarabiyya', ['Latn'])).toBe(false)
   })
 
-  it('returns false for text with kanji', () => {
-    expect(isAllKana('漢字')).toBe(false)
+  it('does not count extra transliteration characters as script letters by themselves', () => {
+    expect(isTextOnlyInScripts('ʿʾ', ['Latn'], ['ʿ', 'ʾ'])).toBe(false)
   })
 
-  it('returns false for text with Latin letters', () => {
-    expect(isAllKana('あいuえお')).toBe(false)
-  })
-
-  it('returns false for empty string', () => {
-    expect(isAllKana('')).toBe(false)
-  })
-
-  it('returns true for katakana phonetic extension characters', () => {
-    expect(isAllKana('ヲァィ')).toBe(true)
+  it('requires at least one letter', () => {
+    expect(isTextOnlyInScripts('123 - ', ['Latn'])).toBe(false)
   })
 })
 
@@ -221,81 +152,59 @@ describe('katakanaToHiragana', () => {
 })
 
 // ============================================================================
-// extractKanjiChars
+// extractHanCharacters
 // ============================================================================
 
-describe('extractKanjiChars', () => {
-  it('extracts distinct kanji from mixed text', () => {
-    expect(extractKanjiChars('東京に行きます')).toEqual(new Set(['東', '京', '行']))
+describe('extractHanCharacters', () => {
+  it('extracts Han ideographs through the neutral helper', () => {
+    expect(extractHanCharacters('北京是中国')).toEqual(new Set(['北', '京', '是', '中', '国']))
+  })
+
+  it('does not expose the deprecated kanji extractor alias', () => {
+    expect('extractKanjiChars' in textUtilsModule).toBe(false)
+  })
+
+  it('extracts distinct Han ideographs from mixed text', () => {
+    expect(extractHanCharacters('東京に行きます')).toEqual(new Set(['東', '京', '行']))
   })
 
   it('returns empty set for pure hiragana', () => {
-    expect(extractKanjiChars('あいうえお')).toEqual(new Set())
+    expect(extractHanCharacters('あいうえお')).toEqual(new Set())
   })
 
   it('returns empty set for pure katakana', () => {
-    expect(extractKanjiChars('アイウエオ')).toEqual(new Set())
+    expect(extractHanCharacters('アイウエオ')).toEqual(new Set())
   })
 
   it('returns empty set for Latin text', () => {
-    expect(extractKanjiChars('hello')).toEqual(new Set())
+    expect(extractHanCharacters('hello')).toEqual(new Set())
   })
 
   it('returns empty set for empty string', () => {
-    expect(extractKanjiChars('')).toEqual(new Set())
+    expect(extractHanCharacters('')).toEqual(new Set())
   })
 
-  it('deduplicates repeated kanji', () => {
-    expect(extractKanjiChars('漢漢漢')).toEqual(new Set(['漢']))
+  it('deduplicates repeated Han ideographs', () => {
+    expect(extractHanCharacters('漢漢漢')).toEqual(new Set(['漢']))
   })
 
   it('handles Chinese text', () => {
-    expect(extractKanjiChars('北京是中国的首都')).toEqual(new Set(['北', '京', '是', '中', '国', '的', '首', '都']))
+    expect(extractHanCharacters('北京是中国的首都')).toEqual(new Set(['北', '京', '是', '中', '国', '的', '首', '都']))
   })
 
-  it('ignores kana mixed with kanji', () => {
-    const result = extractKanjiChars('漢あ字い')
+  it('ignores kana mixed with Han ideographs', () => {
+    const result = extractHanCharacters('漢あ字い')
     expect(result).toEqual(new Set(['漢', '字']))
     expect(result.has('あ')).toBe(false)
     expect(result.has('い')).toBe(false)
   })
 
   it('handles CJK Extension A characters', () => {
-    expect(extractKanjiChars('\u3400')).toEqual(new Set(['\u3400']))
+    expect(extractHanCharacters('\u3400')).toEqual(new Set(['\u3400']))
   })
 
   it('handles CJK Compatibility Ideographs', () => {
-    expect(extractKanjiChars('\uF900')).toEqual(new Set(['\uF900']))
-  })
-})
-
-// ============================================================================
-// extractKana
-// ============================================================================
-
-describe('extractKana', () => {
-  it('extracts hiragana from mixed text', () => {
-    expect(extractKana('東京あいう')).toBe('あいう')
-  })
-
-  it('extracts katakana from mixed text', () => {
-    expect(extractKana('TokyoアイウEFG')).toBe('アイウ')
-  })
-
-  it('extracts both hiragana and katakana from mixed text', () => {
-    expect(extractKana('日本語あいアイ漢字')).toBe('あいアイ')
-  })
-
-  it('returns empty string when no kana present', () => {
-    expect(extractKana('hello 123 漢字')).toBe('')
-  })
-
-  it('returns empty string for empty input', () => {
-    expect(extractKana('')).toBe('')
-  })
-
-  it('returns all kana when input is pure kana', () => {
-    expect(extractKana('あいうえお')).toBe('あいうえお')
+    expect(extractHanCharacters('\uF900')).toEqual(new Set(['\uF900']))
   })
 })
 
@@ -346,6 +255,18 @@ describe('isLatinOnly', () => {
 // ============================================================================
 
 describe('isWordInLanguageScript', () => {
+  const thirdPartyArabicScriptLanguage: LanguageData = {
+    name: 'Third Party Arabic Script',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: {
+        acceptedScripts: ['Arab'],
+        minWordCodePoints: 2,
+      },
+    },
+  }
+
   describe('Japanese (ja)', () => {
     it('returns true for a hiragana word', () => {
       expect(isWordInLanguageScript('あいうえお', 'ja')).toBe(true)
@@ -432,6 +353,86 @@ describe('isWordInLanguageScript', () => {
     it('rejects pure Latin words for Russian', () => {
       expect(isWordInLanguageScript('hello', 'ru')).toBe(false)
     })
+
+    it('uses installed metadata for unknown third-party language codes', () => {
+      expect(isWordInLanguageScript('سلام', 'x-mlearn-third-party', thirdPartyArabicScriptLanguage)).toBe(true)
+      expect(isWordInLanguageScript('hello', 'x-mlearn-third-party', thirdPartyArabicScriptLanguage)).toBe(false)
+    })
+
+    it('does not fail open when a package uses a script outside the built-in table', () => {
+      const thirdPartySyriacLanguage: LanguageData = {
+        name: 'Third Party Syriac',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Syrc'],
+            minWordCodePoints: 2,
+          },
+        },
+      }
+
+      expect(isWordInLanguageScript('ܫܠܡܐ', 'x-mlearn-third-party', thirdPartySyriacLanguage)).toBe(true)
+      expect(isWordInLanguageScript('hello', 'x-mlearn-third-party', thirdPartySyriacLanguage)).toBe(false)
+    })
+
+    it('keeps mixed-script words valid by default when they contain the required script', () => {
+      expect(isWordInLanguageScript('سلامhello', 'x-mlearn-third-party', thirdPartyArabicScriptLanguage)).toBe(true)
+    })
+
+    it('can require every letter to be in accepted scripts for strict language packages', () => {
+      const strictArabicScriptLanguage: LanguageData = {
+        ...thirdPartyArabicScriptLanguage,
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Arab'],
+            minWordCodePoints: 2,
+            wordScriptValidation: 'only-accepted',
+          },
+        },
+      }
+
+      expect(isWordInLanguageScript('سلام', 'x-mlearn-third-party', strictArabicScriptLanguage)).toBe(true)
+      expect(isWordInLanguageScript('سلامhello', 'x-mlearn-third-party', strictArabicScriptLanguage)).toBe(false)
+    })
+
+    it('accepts romanized Latin words when package metadata allows romanization', () => {
+      const pinyinAwareLanguage: LanguageData = {
+        name: 'Pinyin Aware Chinese',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Han'],
+            requiredScripts: ['Han'],
+            allowsRomanization: true,
+            minWordCodePoints: 2,
+          },
+        },
+      }
+
+      expect(isWordInLanguageScript('北京', 'x-mlearn-pinyin', pinyinAwareLanguage)).toBe(true)
+      expect(isWordInLanguageScript('nǐ hǎo', 'x-mlearn-pinyin', pinyinAwareLanguage)).toBe(true)
+      expect(isWordInLanguageScript('ni3 hao3', 'x-mlearn-pinyin', pinyinAwareLanguage)).toBe(true)
+      expect(isWordInLanguageScript('helloسلام', 'x-mlearn-pinyin', pinyinAwareLanguage)).toBe(false)
+    })
+
+    it('keeps strict script validation strict even when romanization is enabled', () => {
+      const strictRomanizedArabicLanguage: LanguageData = {
+        ...thirdPartyArabicScriptLanguage,
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Arab'],
+            allowsRomanization: true,
+            minWordCodePoints: 2,
+            wordScriptValidation: 'only-accepted',
+          },
+        },
+      }
+
+      expect(isWordInLanguageScript('سلام', 'x-mlearn-strict-ar', strictRomanizedArabicLanguage)).toBe(true)
+      expect(isWordInLanguageScript('salaam', 'x-mlearn-strict-ar', strictRomanizedArabicLanguage)).toBe(false)
+    })
   })
 })
 
@@ -440,6 +441,18 @@ describe('isWordInLanguageScript', () => {
 // ============================================================================
 
 describe('isValidSTTResult', () => {
+  const thirdPartyCyrillicLanguage: LanguageData = {
+    name: 'Third Party Cyrillic',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: {
+        acceptedScripts: ['Cyrl'],
+        minWordCodePoints: 2,
+      },
+    },
+  }
+
   describe('empty / trivial inputs', () => {
     it('returns false for empty string', () => {
       expect(isValidSTTResult('', 'ja')).toBe(false)
@@ -455,42 +468,95 @@ describe('isValidSTTResult', () => {
   })
 
   describe('Japanese (ja)', () => {
+    const japaneseMetadata: LanguageData = {
+      name: 'Japanese',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: {
+          acceptedScripts: ['Hira', 'Kana', 'Han'],
+          requiredScripts: ['Hira', 'Kana', 'Han'],
+          allowsRomanization: true,
+          sttRejectPureScripts: ['Han'],
+        },
+      },
+    }
+
     it('returns true for text with hiragana', () => {
-      expect(isValidSTTResult('こんにちは', 'ja')).toBe(true)
+      expect(isValidSTTResult('こんにちは', 'ja', japaneseMetadata)).toBe(true)
     })
 
     it('returns true for text with katakana', () => {
-      expect(isValidSTTResult('コンピュータ', 'ja')).toBe(true)
+      expect(isValidSTTResult('コンピュータ', 'ja', japaneseMetadata)).toBe(true)
     })
 
     it('returns true for mixed kanji and kana', () => {
-      expect(isValidSTTResult('東京に行く', 'ja')).toBe(true)
+      expect(isValidSTTResult('東京に行く', 'ja', japaneseMetadata)).toBe(true)
     })
 
     it('returns true for Latin-only (romaji)', () => {
-      expect(isValidSTTResult('konnichiwa', 'ja')).toBe(true)
+      expect(isValidSTTResult('konnichiwa', 'ja', japaneseMetadata)).toBe(true)
     })
 
-    it('returns false for short pure-CJK without kana (Chinese noise)', () => {
-      expect(isValidSTTResult('哦呢', 'ja')).toBe(false)
+    it('does not infer romanized Latin acceptance from the language code alone', () => {
+      const metadataWithoutRomanization: LanguageData = {
+        ...japaneseMetadata,
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Hira', 'Kana', 'Han'],
+            requiredScripts: ['Hira', 'Kana', 'Han'],
+            sttRejectPureScripts: ['Han'],
+          },
+        },
+      }
+
+      expect(isValidSTTResult('konnichiwa', 'ja', metadataWithoutRomanization)).toBe(false)
     })
 
-    it('returns false for Chinese noise particle', () => {
-      expect(isValidSTTResult('哦', 'ja')).toBe(false)
+    it('lets package metadata reject short pure-Han noise for Japanese STT', () => {
+      expect(isValidSTTResult('哦呢', 'ja', japaneseMetadata)).toBe(false)
+    })
+
+    it('does not reject pure-Han STT snippets for Japanese unless metadata declares it', () => {
+      const metadataWithoutPureScriptReject: LanguageData = {
+        ...japaneseMetadata,
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Hira', 'Kana', 'Han'],
+            requiredScripts: ['Hira', 'Kana', 'Han'],
+          },
+        },
+      }
+
+      expect(isValidSTTResult('哦呢', 'ja', metadataWithoutPureScriptReject)).toBe(true)
     })
   })
 
   describe('Korean (ko)', () => {
+    const koreanMetadata: LanguageData = {
+      name: 'Korean',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: {
+          acceptedScripts: ['Hang', 'Han'],
+          requiredScripts: ['Hang', 'Han'],
+          allowsRomanization: true,
+          sttRejectPureScripts: ['Han'],
+        },
+      },
+    }
+
     it('returns true for Hangul text', () => {
-      expect(isValidSTTResult('안녕하세요', 'ko')).toBe(true)
+      expect(isValidSTTResult('안녕하세요', 'ko', koreanMetadata)).toBe(true)
     })
 
     it('returns true for Latin text in Korean context', () => {
-      expect(isValidSTTResult('hello', 'ko')).toBe(true)
+      expect(isValidSTTResult('hello', 'ko', koreanMetadata)).toBe(true)
     })
 
-    it('returns false for pure CJK without Hangul', () => {
-      expect(isValidSTTResult('北京', 'ko')).toBe(false)
+    it('lets package metadata reject pure Han without Hangul', () => {
+      expect(isValidSTTResult('北京', 'ko', koreanMetadata)).toBe(false)
     })
   })
 
@@ -502,11 +568,49 @@ describe('isValidSTTResult', () => {
     it('returns true for Chinese noise chars when target is zh', () => {
       expect(isValidSTTResult('哦呢', 'zh')).toBe(true)
     })
+
+    it('lets language metadata declare exact CJK STT noise strings', () => {
+      const metadata: LanguageData = {
+        name: 'Chinese',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Han'],
+            sttNoiseCharacters: ['哦呢'],
+          },
+        },
+      }
+
+      expect(isValidSTTResult('哦呢', 'zh', metadata)).toBe(false)
+      expect(isValidSTTResult('你好世界', 'zh', metadata)).toBe(true)
+    })
   })
 
   describe('Latin-script languages (default)', () => {
     it('returns true for English text', () => {
       expect(isValidSTTResult('hello world', 'en')).toBe(true)
+    })
+
+    it('does not reject exact STT noise strings unless language metadata declares them', () => {
+      expect(isValidSTTResult('um', 'en')).toBe(true)
+    })
+
+    it('lets language metadata declare exact STT noise strings', () => {
+      const metadata: LanguageData = {
+        name: 'English',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: {
+          scriptProfile: {
+            acceptedScripts: ['Latn'],
+            sttNoiseCharacters: ['um'],
+          },
+        },
+      }
+
+      expect(isValidSTTResult('um', 'en', metadata)).toBe(false)
+      expect(isValidSTTResult('umbrella', 'en', metadata)).toBe(true)
     })
 
     it('returns false for pure CJK in English context', () => {
@@ -534,6 +638,11 @@ describe('isValidSTTResult', () => {
     it('returns false for pure CJK text in German context', () => {
       expect(isValidSTTResult('北京', 'de')).toBe(false)
     })
+
+    it('uses installed metadata for unknown third-party language codes', () => {
+      expect(isValidSTTResult('привет мир', 'x-mlearn-third-party', thirdPartyCyrillicLanguage)).toBe(true)
+      expect(isValidSTTResult('hello world', 'x-mlearn-third-party', thirdPartyCyrillicLanguage)).toBe(false)
+    })
   })
 })
 
@@ -557,6 +666,27 @@ describe('normalizeReading', () => {
 
   it('replaces non-breaking spaces', () => {
     expect(normalizeReading('き\u00A0ょう')).toBe('きょう')
+  })
+
+  it('preserves collapsed reading spaces for metadata-declared spaced readings', () => {
+    const hanPinyinLanguage: LanguageData = {
+      name: 'Han Pinyin Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+        },
+      },
+    }
+
+    expect(normalizeReading('<span>nǐ\u00A0\u00A0hǎo</span>', hanPinyinLanguage)).toBe('nǐ hǎo')
   })
 
   it('returns empty string for non-string input', () => {
@@ -613,40 +743,202 @@ describe('escapeHtml', () => {
 })
 
 // ============================================================================
-// stripFurigana
+// stripRubyAnnotations
 // ============================================================================
 
-describe('stripFurigana', () => {
+describe('stripRubyAnnotations', () => {
+  it('does not expose the deprecated furigana-named alias', () => {
+    expect('stripFurigana' in textUtilsModule).toBe(false)
+  })
+
   it('removes rt content from ruby markup', () => {
-    expect(stripFurigana('<ruby>漢字<rt>かんじ</rt></ruby>')).toBe('漢字')
+    expect(stripRubyAnnotations('<ruby>漢字<rt>かんじ</rt></ruby>')).toBe('漢字')
   })
 
   it('removes ruby tags but keeps base text', () => {
-    expect(stripFurigana('<ruby>主<rt>おも</rt></ruby>に')).toBe('主に')
+    expect(stripRubyAnnotations('<ruby>主<rt>おも</rt></ruby>に')).toBe('主に')
   })
 
-  it('removes parenthesized hiragana readings', () => {
-    expect(stripFurigana('漢字(かんじ)')).toBe('漢字')
+  it('keeps parenthesized hiragana without language metadata', () => {
+    expect(stripRubyAnnotations('漢字(かんじ)')).toBe('漢字(かんじ)')
   })
 
-  it('removes parenthesized katakana readings', () => {
-    expect(stripFurigana('漢字(カンジ)')).toBe('漢字')
+  it('keeps parenthesized katakana without language metadata', () => {
+    expect(stripRubyAnnotations('漢字(カンジ)')).toBe('漢字(カンジ)')
   })
 
-  it('removes full-width parenthesized readings', () => {
-    expect(stripFurigana('漢字（かんじ）')).toBe('漢字')
+  it('keeps full-width parenthesized readings without language metadata', () => {
+    expect(stripRubyAnnotations('漢字（かんじ）')).toBe('漢字（かんじ）')
   })
 
   it('removes rp tags', () => {
-    expect(stripFurigana('<ruby>字<rp>(</rp><rt>じ</rt><rp>)</rp></ruby>')).toBe('字()')
+    expect(stripRubyAnnotations('<ruby>字<rp>(</rp><rt>じ</rt><rp>)</rp></ruby>')).toBe('字()')
   })
 
   it('returns empty string for empty input', () => {
-    expect(stripFurigana('')).toBe('')
+    expect(stripRubyAnnotations('')).toBe('')
   })
 
   it('passes plain text through unchanged', () => {
-    expect(stripFurigana('こんにちは')).toBe('こんにちは')
+    expect(stripRubyAnnotations('こんにちは')).toBe('こんにちは')
+  })
+})
+
+describe('stripReadingAnnotations', () => {
+  const hanPinyinLanguage: LanguageData = {
+    name: 'Han Pinyin Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      lexemeNormalization: {
+        type: 'reading',
+        surfaceScripts: ['Han'],
+        readingScripts: ['Latn'],
+      },
+      readingAnnotation: {
+        type: 'script-reading',
+        annotationScripts: ['Han'],
+        stripParentheticalReadings: true,
+      },
+    },
+  }
+  const latinLanguage: LanguageData = {
+    name: 'Latin Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: { acceptedScripts: ['Latn'] },
+      lexemeNormalization: {
+        type: 'identity',
+      },
+      readingAnnotation: {
+        type: 'none',
+        stripParentheticalReadings: false,
+      },
+    },
+  }
+
+  it('keeps parenthetical readings without metadata', () => {
+    expect(stripReadingAnnotations('漢字(かんじ)')).toBe('漢字(かんじ)')
+  })
+
+  it('keeps parenthetical kana when language metadata has no reading annotation stripping', () => {
+    expect(stripReadingAnnotations('Example(かな)', latinLanguage)).toBe('Example(かな)')
+  })
+
+  it('keeps parenthetical notes for non-reading metadata', () => {
+    expect(stripReadingAnnotations('word(noun)', latinLanguage)).toBe('word(noun)')
+  })
+
+  it('still strips ruby markup with non-reading metadata', () => {
+    expect(stripReadingAnnotations('<ruby>word<rt>reading</rt></ruby>', latinLanguage)).toBe('word')
+  })
+
+  it('strips metadata-configured parenthetical readings', () => {
+    expect(stripReadingAnnotations('你好(ni hao)', hanPinyinLanguage)).toBe('你好')
+  })
+
+  it('does not strip parenthetical text when scripts do not match metadata', () => {
+    expect(stripReadingAnnotations('hello(world)', hanPinyinLanguage)).toBe('hello(world)')
+  })
+
+  it('does not strip metadata readings unless the package opts in', () => {
+    expect(stripReadingAnnotations('你好(ni hao)', {
+      ...hanPinyinLanguage,
+      textProcessing: {
+        ...hanPinyinLanguage.textProcessing,
+        readingAnnotation: {
+          ...hanPinyinLanguage.textProcessing?.readingAnnotation,
+          stripParentheticalReadings: false,
+        },
+      },
+    })).toBe('你好(ni hao)')
+  })
+
+  it('finds metadata-configured parenthetical readings without requiring stripping', () => {
+    expect(findConfiguredParentheticalReadings('你好(ni hao)', {
+      ...hanPinyinLanguage,
+      textProcessing: {
+        ...hanPinyinLanguage.textProcessing,
+        readingAnnotation: {
+          ...hanPinyinLanguage.textProcessing?.readingAnnotation,
+          stripParentheticalReadings: false,
+        },
+      },
+    })).toEqual([
+      { raw: '你好(ni hao)', word: '你好', reading: 'ni hao', index: 0 },
+    ])
+    expect(findConfiguredParentheticalReadings('hello(world)', hanPinyinLanguage)).toEqual([])
+  })
+})
+
+describe('normalizeWordLookupText', () => {
+  const hanPinyinLanguage: LanguageData = {
+    name: 'Han Pinyin Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      lexemeNormalization: {
+        type: 'reading',
+        surfaceScripts: ['Han'],
+        readingScripts: ['Latn'],
+      },
+      readingAnnotation: {
+        type: 'script-reading',
+        annotationScripts: ['Han'],
+        stripParentheticalReadings: true,
+      },
+    },
+  }
+  const latinLanguage: LanguageData = {
+    name: 'Latin Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: {
+      scriptProfile: { acceptedScripts: ['Latn'] },
+      lexemeNormalization: {
+        type: 'identity',
+      },
+      readingAnnotation: {
+        type: 'none',
+        stripParentheticalReadings: false,
+      },
+    },
+  }
+
+  it('keeps parenthetical kana when the language package disables reading stripping', () => {
+    expect(normalizeWordLookupText('Example(かな)', latinLanguage)).toBe('Example(かな)')
+  })
+
+  it('keeps metadata-free parenthetical readings in lookup keys', () => {
+    expect(normalizeWordLookupText('漢字(かんじ)')).toBe('漢字(かんじ)')
+  })
+
+  it('strips configured parenthetical readings for languages that declare them', () => {
+    expect(normalizeWordLookupText('你好(ni hao)', hanPinyinLanguage)).toBe('你好')
+  })
+
+  it('strips default zero-width junk when no language tokenizer preserves it', () => {
+    expect(normalizeWordLookupText('word\u200b\u200c\u200d')).toBe('word')
+  })
+
+  it('preserves tokenizer-declared format characters for dictionary lookup', () => {
+    const persianLanguage: LanguageData = {
+      name: 'Persian-like',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      runtime: {
+        nlp: {
+          tokenizer: {
+            type: 'unicode-word',
+            innerTokenCharacters: ['\u200c'],
+          },
+        },
+      },
+    }
+
+    expect(normalizeWordLookupText('خانه\u200cها\u200b', persianLanguage)).toBe('خانه\u200cها')
   })
 })
 
@@ -664,6 +956,23 @@ describe('applyRubyReadings', () => {
     expect(applyRubyReadings(input)).toBe('ひがしきょう')
   })
 
+  it('joins adjacent ruby readings with spaces for romanized reading metadata', () => {
+    const hanPinyinLanguage: LanguageData = {
+      name: 'Han Pinyin Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+      },
+    }
+    const input = '<ruby>你<rt>ni</rt></ruby><ruby>好<rt>hao</rt></ruby>'
+    expect(applyRubyReadings(input, hanPinyinLanguage)).toBe('ni hao')
+  })
+
   it('strips remaining HTML tags after ruby replacement', () => {
     expect(applyRubyReadings('<b>hello</b>')).toBe('hello')
   })
@@ -678,6 +987,27 @@ describe('applyRubyReadings', () => {
 
   it('trims leading/trailing whitespace from result', () => {
     expect(applyRubyReadings('  <ruby>字<rt>じ</rt></ruby>  ')).toBe('じ')
+  })
+
+  it('applies metadata-configured parenthetical readings', () => {
+    const hanPinyinLanguage: LanguageData = {
+      name: 'Han Pinyin Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: true,
+        },
+      },
+    }
+    expect(applyRubyReadings('你好(ni hao)', hanPinyinLanguage)).toBe('ni hao')
   })
 })
 
@@ -709,6 +1039,74 @@ describe('stripHtmlForTts', () => {
   it('handles useReadings=false on plain text', () => {
     expect(stripHtmlForTts('日本語', false)).toBe('日本語')
   })
+
+  it('keeps metadata-free parenthetical readings for surface TTS text', () => {
+    expect(stripHtmlForTts('漢字(かんじ)', false)).toBe('漢字(かんじ)')
+  })
+
+  it('keeps metadata-free parenthetical readings for reading TTS text', () => {
+    expect(stripHtmlForTts('漢字(かんじ)', true)).toBe('漢字(かんじ)')
+  })
+
+  it('strips metadata-configured parenthetical readings for TTS surface text', () => {
+    const hanPinyinLanguage: LanguageData = {
+      name: 'Han Pinyin Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: true,
+        },
+      },
+    }
+    expect(stripHtmlForTts('你好(ni hao)', false, hanPinyinLanguage)).toBe('你好')
+  })
+
+  it('uses metadata-configured parenthetical readings for TTS reading text', () => {
+    const hanPinyinLanguage: LanguageData = {
+      name: 'Han Pinyin Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          stripParentheticalReadings: true,
+        },
+      },
+    }
+    expect(stripHtmlForTts('你好(ni hao)', true, hanPinyinLanguage)).toBe('ni hao')
+  })
+
+  it('uses language reading separators for adjacent ruby TTS reading text', () => {
+    const hanPinyinLanguage: LanguageData = {
+      name: 'Han Pinyin Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+        },
+      },
+    }
+    expect(
+      stripHtmlForTts('<ruby>你<rt>ni</rt></ruby><ruby>好<rt>hao</rt></ruby>', true, hanPinyinLanguage)
+    ).toBe('ni hao')
+  })
 })
 
 // ============================================================================
@@ -736,6 +1134,11 @@ describe('getLanguageDisplayName', () => {
     expect(getLanguageDisplayName('de')).toBe('German')
   })
 
+  it('uses the requested display locale for built-in language names', () => {
+    expect(getLanguageDisplayName('de', null, 'fr')).toBe('allemand')
+    expect(getLanguageDisplayName('ru', null, 'de')).toBe('Russisch')
+  })
+
   it('returns the code itself for unknown codes', () => {
     expect(getLanguageDisplayName('xx')).toBe('xx')
   })
@@ -746,6 +1149,14 @@ describe('getLanguageDisplayName', () => {
 
   it('returns Arabic for ar', () => {
     expect(getLanguageDisplayName('ar')).toBe('Arabic')
+  })
+
+  it('prefers installed language metadata names for custom language codes', () => {
+    expect(getLanguageDisplayName('x-third-party', {
+      name: 'Example Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+    }, 'fr')).toBe('Example Language')
   })
 })
 

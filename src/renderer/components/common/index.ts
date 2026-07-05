@@ -218,18 +218,10 @@ export {
 
 // Text Components
 export { 
-  PitchAccent,
-  PitchAccentOverlay,
-  RubyText,
-  WordWithReading,
   FrequencyStars,
   HintText,
   BreakdownRow,
   LogConsole,
-  type PitchAccentProps,
-  type PitchAccentOverlayProps,
-  type RubyTextProps,
-  type WordWithReadingProps,
   type FrequencyStarsProps,
   type HintTextProps,
   type BreakdownRowProps,

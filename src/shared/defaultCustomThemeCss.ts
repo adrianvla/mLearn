@@ -41,7 +41,7 @@ body.theme-custom {
     --bg-opaque: #000;
     --bg-nt-primary: rgb(26,26,26);
     --bg-nt-secondary: rgb(38,38,38);
-    --kanji-grid-unknown-bg: #616161;
+    --character-grid-unknown-bg: #616161;
     --text-primary: #f0f0f0;
     --text-secondary: #a0a0a0;
     --text-tertiary: rgba(255, 255, 255, 0.4);
@@ -68,26 +68,22 @@ body.theme-custom {
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
 }
 
-/* === PitchAccent === */
-body.theme-custom .pitch-accent-container,
-.theme-custom .pitch-accent-container {
+/* === Prosody renderer === */
+body.theme-custom .prosody-overlay-wrapper,
+.theme-custom .prosody-overlay-wrapper {
     color: var(--text-primary);
 }
 
-.subtitle_hover .pitch-accent {
-    --pitch-accent-height: 2px;
+.subtitle_hover {
+    --prosody-overlay-height: 2px;
 }
 
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent {
-    --pitch-accent-height: 2px;
-}
-
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+.subtitle_hover .pill {
     position: relative;
 }
 
-body.theme-custom .subtitle_hover .pitch-accent,
-.subtitle_hover.theme-custom .pitch-accent {
+body.theme-custom .subtitle_hover .prosody-overlay-wrapper,
+.subtitle_hover.theme-custom .prosody-overlay-wrapper {
     filter: none;
     color: var(--text-primary);
 }
@@ -96,7 +92,6 @@ body.theme-custom .subtitle_hover .pitch-accent,
 body.theme-custom .label-pill,
 body.theme-custom .btn-pill,
 body.theme-custom .label-status {
-    filter: invert(1) hue-rotate(180deg) saturate(200%);
     box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }

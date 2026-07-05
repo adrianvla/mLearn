@@ -7,6 +7,7 @@ const SOURCE_NONE: WordKnowledgeSource = 'None';
 
 export interface ComprehensiveKnowledgeDeps {
   getCanonicalForm: (word: string) => string;
+  getWordForms?: (word: string) => string[];
   hashWordSync: (word: string) => string;
   langKey: (language: string, hash: string) => string;
   language: string;
@@ -33,33 +34,64 @@ interface SourceResult {
   timesSeen: number;
 }
 
+interface WordFormMatch {
+  word: string;
+  lk: string;
+}
+
+function buildWordFormMatches(word: string, deps: ComprehensiveKnowledgeDeps): WordFormMatch[] {
+  const forms = deps.getWordForms?.(word) ?? (() => {
+    const canonical = deps.getCanonicalForm(word);
+    return canonical && canonical !== word ? [canonical, word] : [word];
+  })();
+  const matches: WordFormMatch[] = [];
+  const seen = new Set<string>();
+
+  for (const form of forms) {
+    const normalized = form.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    matches.push({
+      word: normalized,
+      lk: deps.langKey(deps.language, deps.hashWordSync(normalized)),
+    });
+  }
+
+  return matches;
+}
+
 function getStatusFromSource(
   src: KnowledgeSource,
-  word: string,
-  lk: string,
+  matches: readonly WordFormMatch[],
   deps: ComprehensiveKnowledgeDeps
 ): SourceResult | null {
   switch (src) {
     case 'knownWordsList': {
-      if (deps.knownUntracked[lk]) {
-        return { source: src, status: 'known', timesSeen: 0 };
+      for (const match of matches) {
+        if (deps.knownUntracked[match.lk]) {
+          return { source: src, status: 'known', timesSeen: 0 };
+        }
       }
       return null;
     }
     case 'ignoredWords': {
-      if (deps.ignoredWords[lk]) {
-        return { source: src, status: 'known', timesSeen: 0 };
+      for (const match of matches) {
+        if (deps.ignoredWords[match.lk]) {
+          return { source: src, status: 'known', timesSeen: 0 };
+        }
       }
       return null;
     }
     case 'srs': {
-      const card = deps.getCardByWordSync(word);
-      if (card) {
-        if (card.state === 'review') {
-          return { source: src, status: 'known', timesSeen: 0 };
-        }
-        if (card.state === 'learning' || card.state === 'relearning') {
-          return { source: src, status: 'learning', timesSeen: 0 };
+      for (const match of matches) {
+        const card = deps.getCardByWordSync(match.word);
+        if (card) {
+          if (card.state === 'review') {
+            return { source: src, status: 'known', timesSeen: 0 };
+          }
+          if (card.state === 'learning' || card.state === 'relearning') {
+            return { source: src, status: 'learning', timesSeen: 0 };
+          }
         }
       }
       return null;
@@ -71,13 +103,15 @@ function getStatusFromSource(
       return null;
     }
     case 'passiveTracking': {
-      const knowledge = deps.wordKnowledge[lk];
-      if (knowledge) {
-        if (knowledge.ease >= deps.knownEaseThreshold) {
-          return { source: src, status: 'known', timesSeen: knowledge.timesSeen };
-        }
-        if (knowledge.ease >= deps.learningThreshold) {
-          return { source: src, status: 'learning', timesSeen: knowledge.timesSeen };
+      for (const match of matches) {
+        const knowledge = deps.wordKnowledge[match.lk];
+        if (knowledge) {
+          if (knowledge.ease >= deps.knownEaseThreshold) {
+            return { source: src, status: 'known', timesSeen: knowledge.timesSeen };
+          }
+          if (knowledge.ease >= deps.learningThreshold) {
+            return { source: src, status: 'learning', timesSeen: knowledge.timesSeen };
+          }
         }
       }
       return null;
@@ -121,9 +155,7 @@ export function getComprehensiveWordStatusWithSource(
   word: string,
   deps: ComprehensiveKnowledgeDeps
 ): ComprehensiveWordStatusResult {
-  const canonical = deps.getCanonicalForm(word);
-  const wordHash = deps.hashWordSync(canonical);
-  const lk = deps.langKey(deps.language, wordHash);
+  const matches = buildWordFormMatches(word, deps);
 
   const available: SourceResult[] = [];
 
@@ -131,7 +163,7 @@ export function getComprehensiveWordStatusWithSource(
     // DEPRECATED (v2.0 migration): 'manual' was the old name for passiveTracking.
     // Remove this mapping after all active users have migrated (safe to remove ~2026-12).
     const mappedSrc = (src as string) === 'manual' ? 'passiveTracking' : src;
-    const result = getStatusFromSource(mappedSrc as KnowledgeSource, word, lk, deps);
+    const result = getStatusFromSource(mappedSrc as KnowledgeSource, matches, deps);
     if (result !== null) {
       available.push(result);
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { MediaStats, LevelPercentages } from '@shared/types';
+import type { LanguageData, MediaStats, LevelPercentages } from '@shared/types';
 import {
   computeWordLevelPercentages,
   computeGrammarLevelPercentages,
@@ -67,11 +67,22 @@ describe('computeWordLevelPercentages', () => {
     expect(result.totalOccurrences).toBe(0);
   });
 
-  it('returns empty result when level names are empty', () => {
+  it('derives word level buckets from frequency entries when level names are empty', () => {
     const stats = createMediaStats({ hello: { word: 'hello', ease: 1, timesSeen: 3, timesHovered: 0 } });
     const lookup = createFreqLookupWithLevelNames({ hello: { raw_level: 1, level: 'A1' } }, {});
     const result = computeWordLevelPercentages(stats, lookup);
-    expect(result).toEqual({ entries: [], totalUnique: 0, totalOccurrences: 0 });
+    expect(result.entries).toEqual([
+      {
+        level: 1,
+        levelName: 'Level 1',
+        uniquePercent: 100,
+        occurrencePercent: 100,
+        uniqueCount: 1,
+        occurrenceCount: 3,
+      },
+    ]);
+    expect(result.totalUnique).toBe(1);
+    expect(result.totalOccurrences).toBe(3);
   });
 
   it('handles single word at one level', () => {
@@ -147,6 +158,29 @@ describe('computeWordLevelPercentages', () => {
     const result = computeWordLevelPercentages(stats, lookup);
     const levels = result.entries.map(e => e.level);
     expect(levels).toEqual([3, 2, 1]);
+  });
+
+  it('sorts entries by ascending difficulty when language metadata says higher numbers are harder', () => {
+    const languageData: LanguageData = {
+      name: 'Ascending Difficulty Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        difficulty: 'higher-is-harder',
+      },
+    };
+    const stats = createMediaStats({
+      a: { word: 'a', ease: 1, timesSeen: 1, timesHovered: 0 },
+      b: { word: 'b', ease: 1, timesSeen: 1, timesHovered: 0 },
+      c: { word: 'c', ease: 1, timesSeen: 1, timesHovered: 0 },
+    });
+    const lookup = createFreqLookup({
+      a: { raw_level: 3, level: 'B1' },
+      b: { raw_level: 1, level: 'A1' },
+      c: { raw_level: 2, level: 'A2' },
+    });
+    const result = computeWordLevelPercentages(stats, lookup, languageData);
+    expect(result.entries.map(e => e.level)).toEqual([1, 2, 3]);
   });
 
   it('uniquePercent values sum to ~100 when all words are in the frequency list', () => {
@@ -235,6 +269,101 @@ describe('computeWordLevelPercentages', () => {
     expect(empty.uniquePercent).toBe(0);
     expect(empty.occurrencePercent).toBe(0);
   });
+
+  it('includes discovered frequency levels that are missing from the level name map', () => {
+    const stats = createMediaStats({
+      word1: { word: 'word1', ease: 1, timesSeen: 2, timesHovered: 0 },
+      word2: { word: 'word2', ease: 1, timesSeen: 1, timesHovered: 0 },
+    });
+    const lookup = createFreqLookupWithLevelNames(
+      {
+        word1: { raw_level: 1, level: 'A1' },
+        word2: { raw_level: 4, level: 'B2' },
+      },
+      { '1': 'A1' },
+    );
+
+    const result = computeWordLevelPercentages(stats, lookup);
+
+    expect(result.entries.map((entry) => [entry.level, entry.levelName, entry.uniqueCount])).toEqual([
+      [4, 'Level 4', 1],
+      [1, 'A1', 1],
+    ]);
+  });
+
+  it('ignores negative sentinel frequency levels', () => {
+    const stats = createMediaStats({
+      marker: { word: 'marker', ease: 1, timesSeen: 5, timesHovered: 0 },
+      word1: { word: 'word1', ease: 1, timesSeen: 2, timesHovered: 0 },
+    });
+    const lookup = createFreqLookupWithLevelNames(
+      {
+        marker: { raw_level: -1, level: '' },
+        word1: { raw_level: 5, level: 'N5' },
+      },
+      { '5': 'N5' },
+    );
+
+    const result = computeWordLevelPercentages(stats, lookup);
+
+    expect(result.totalUnique).toBe(1);
+    expect(result.totalOccurrences).toBe(2);
+    expect(result.entries.map((entry) => [entry.level, entry.levelName, entry.uniqueCount])).toEqual([
+      [5, 'N5', 1],
+    ]);
+  });
+
+  it('keeps zero as a word level when the language declares it', () => {
+    const stats = createMediaStats({
+      starter: { word: 'starter', ease: 1, timesSeen: 3, timesHovered: 0 },
+      a1: { word: 'a1', ease: 1, timesSeen: 1, timesHovered: 0 },
+    });
+    const lookup = createFreqLookupWithLevelNames(
+      {
+        starter: { raw_level: 0, level: 'Starter' },
+        a1: { raw_level: 1, level: 'A1' },
+      },
+      { '0': 'Starter', '1': 'A1' },
+    );
+    const languageData: LanguageData = {
+      name: 'Declared Zero Level Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        difficulty: 'higher-is-harder',
+        names: { '0': 'Starter', '1': 'A1' },
+      },
+    };
+
+    const result = computeWordLevelPercentages(stats, lookup, languageData);
+
+    expect(result.entries.map((entry) => [entry.level, entry.levelName, entry.uniqueCount])).toEqual([
+      [0, 'Starter', 1],
+      [1, 'A1', 1],
+    ]);
+  });
+
+  it('uses language metadata fallback templates for unnamed word levels', () => {
+    const stats = createMediaStats({
+      word1: { word: 'word1', ease: 1, timesSeen: 2, timesHovered: 0 },
+    });
+    const lookup = createFreqLookupWithLevelNames(
+      { word1: { raw_level: 3, level: 'Ignored Source Label' } },
+      {},
+    );
+    const languageData: LanguageData = {
+      name: 'Band Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        fallbackLabelTemplate: 'Band {level}',
+      },
+    };
+
+    const result = computeWordLevelPercentages(stats, lookup, languageData);
+
+    expect(result.entries.map((entry) => entry.levelName)).toEqual(['Band 3']);
+  });
 });
 
 describe('computeGrammarLevelPercentages', () => {
@@ -247,14 +376,25 @@ describe('computeGrammarLevelPercentages', () => {
     expect(result.totalOccurrences).toBe(0);
   });
 
-  it('returns empty result when level names are empty', () => {
+  it('derives grammar level buckets from grammar entries when level names are empty', () => {
     const stats = createMediaStats(
       {},
       { pat1: { pattern: 'pat1', ease: 1, timesFailed: 0 } },
     );
     const lookup = createGrammarLookup({ pat1: { level: 1, levelName: 'G1' } }, {});
     const result = computeGrammarLevelPercentages(stats, lookup);
-    expect(result).toEqual({ entries: [], totalUnique: 0, totalOccurrences: 0 });
+    expect(result.entries).toEqual([
+      {
+        level: 1,
+        levelName: 'Level 1',
+        uniquePercent: 100,
+        occurrencePercent: 100,
+        uniqueCount: 1,
+        occurrenceCount: 1,
+      },
+    ]);
+    expect(result.totalUnique).toBe(1);
+    expect(result.totalOccurrences).toBe(1);
   });
 
   it('handles grammar points at various levels', () => {
@@ -282,6 +422,35 @@ describe('computeGrammarLevelPercentages', () => {
 
     expect(l1.uniqueCount).toBe(2);
     expect(l2.uniqueCount).toBe(1);
+  });
+
+  it('orders grammar percentages using language grammar level metadata', () => {
+    const stats = createMediaStats(
+      {},
+      {
+        pat1: { pattern: 'pat1', ease: 1, timesFailed: 0 },
+        pat2: { pattern: 'pat2', ease: 1, timesFailed: 0 },
+      },
+    );
+    const lookup = createGrammarLookup(
+      {
+        pat1: { level: 1, levelName: 'A1' },
+        pat2: { level: 3, levelName: 'B1' },
+      },
+      { '1': 'A1', '2': 'A2', '3': 'B1' },
+    );
+    const languageData: LanguageData = {
+      name: 'CEFR Grammar',
+      colour_codes: {},
+      settings: { fixed: {} },
+      grammarLevels: {
+        difficulty: 'higher-is-harder',
+      },
+    };
+
+    const result = computeGrammarLevelPercentages(stats, lookup, languageData);
+
+    expect(result.entries.map((entry) => entry.level)).toEqual([1, 2, 3]);
   });
 
   it('skips grammar point when getGrammarPoint returns null', () => {
@@ -402,6 +571,50 @@ describe('computeGrammarLevelPercentages', () => {
     expect(empty.uniqueCount).toBe(0);
     expect(empty.uniquePercent).toBe(0);
   });
+
+  it('includes discovered grammar levels that are missing from the level name map', () => {
+    const stats = createMediaStats(
+      {},
+      {
+        pat1: { pattern: 'pat1', ease: 1, timesFailed: 0 },
+        pat2: { pattern: 'pat2', ease: 1, timesFailed: 1 },
+      },
+    );
+    const lookup = createGrammarLookup(
+      {
+        pat1: { level: 1, levelName: 'A1' },
+        pat2: { level: 4, levelName: 'B2' },
+      },
+      { '1': 'A1' },
+    );
+
+    const result = computeGrammarLevelPercentages(stats, lookup);
+
+    expect(result.entries.map((entry) => [entry.level, entry.levelName, entry.uniqueCount])).toEqual([
+      [4, 'Level 4', 1],
+      [1, 'A1', 1],
+    ]);
+  });
+
+  it('uses language metadata fallback templates for unnamed grammar levels', () => {
+    const stats = createMediaStats(
+      {},
+      { pat1: { pattern: 'pat1', ease: 1, timesFailed: 0 } },
+    );
+    const lookup = createGrammarLookup({ pat1: { level: 2, levelName: 'Ignored Grammar Label' } }, {});
+    const languageData: LanguageData = {
+      name: 'Grammar Template Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      grammarLevels: {
+        fallbackLabelTemplate: 'Pattern {level}',
+      },
+    };
+
+    const result = computeGrammarLevelPercentages(stats, lookup, languageData);
+
+    expect(result.entries.map((entry) => entry.levelName)).toEqual(['Pattern 2']);
+  });
 });
 
 describe('assessMediaLevel', () => {
@@ -502,5 +715,25 @@ describe('assessMediaLevel', () => {
       totalOccurrences: 100,
     };
     expect(assessMediaLevel(data)).toBe(1);
+  });
+
+  it('uses metadata when assessing languages whose higher levels are harder', () => {
+    const languageData: LanguageData = {
+      name: 'Ascending Difficulty Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        difficulty: 'higher-is-harder',
+      },
+    };
+    const data: LevelPercentages = {
+      entries: [
+        { level: 1, levelName: 'A1', uniquePercent: 50, occurrencePercent: 50, uniqueCount: 5, occurrenceCount: 5 },
+        { level: 3, levelName: 'B1', uniquePercent: 50, occurrencePercent: 50, uniqueCount: 5, occurrenceCount: 5 },
+      ],
+      totalUnique: 10,
+      totalOccurrences: 10,
+    };
+    expect(assessMediaLevel(data, languageData)).toBe(3);
   });
 });

@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "Common": {
+      "Status": {
+        "Unknown": "Inconnu"
+      }
+    },
     "AI": {
       "CloudUnreachable": "Le service cloud est inaccessible. Vérifiez votre connexion et réessayez.",
       "DownloadModel": "Télécharger le modèle",
@@ -201,10 +206,12 @@
         "DefinitionsPlaceholder": "Une définition par ligne",
         "ExampleSentence": "Phrase d'exemple (HTML autorisé)",
         "ExampleTranslation": "Traduction de l'exemple",
-        "PitchAccent": "Accent tonal",
-        "PitchAccentPlaceholder": "0 (plat), 1, 2, 3…",
+        "JapanesePitchAccent": "Accent tonal",
+        "JapanesePitchAccentPlaceholder": "0 (plat), 1, 2, 3…",
+        "ProsodyPosition": "Position prosodique",
+        "ProsodyPositionPlaceholder": "0, 1, 2, 3…",
         "Reading": "Lecture",
-        "ReadingPlaceholder": "Kana / lecture",
+        "ReadingPlaceholder": "Lecture / prononciation",
         "StructuredContent": "Contenu structuré (HTML libre)",
         "SurfaceNote": "(mot)",
         "Translation": "Traduction (virgules ou retours à la ligne)",
@@ -212,7 +219,7 @@
         "WordPlaceholder": "Entrez un mot..."
       },
       "GenerateTtsAction": "Générer",
-      "Hint": "Traduction : virgules ou retours à la ligne. L'accent tonal est la position mora de descente (0=plat).",
+      "Hint": "Traductions : virgules ou retours à la ligne. Les détails prosodiques sont enregistrés quand le paquet de langue les prend en charge.",
       "NoCloudAuth": "Non authentifié avec le cloud. Connectez-vous via Paramètres → Serveur.",
       "Regenerate": {
         "AllCompleted": "Toutes les tâches terminées",
@@ -993,9 +1000,9 @@
           "IgnoreSeen": "Ignorer les vus",
           "Title": "Sync des mots"
         },
-        "ExamCentricStudy": {
-          "Description": "Word Sync, Character Grid, and Exam Study in one place",
-          "Title": "Exam-centric Study"
+        "LevelStudy": {
+          "Description": "Word Sync, grille de caractères et étude par niveau au même endroit",
+          "Title": "Étude par niveau"
         }
       },
       "Errors": {
@@ -1010,6 +1017,9 @@
       }
     },
     "Installer": {
+      "Title": {
+        "ComponentsRequired": "Configuration requise"
+      },
       "Alerts": {
         "NetworkError": "Une erreur réseau s'est produite. Vérifiez votre connexion et réessayez."
       },
@@ -1019,6 +1029,7 @@
         "StartInstallation": "Démarrer l'installation",
         "CancelInstall": "Cancel Installation",
         "CancelRestart": "Cancel Restart",
+        "InstallRequiredComponents": "Installer les composants requis",
         "InstallLanguageData": "Installer les données linguistiques sélectionnées",
         "FinishSetup": "Terminer la configuration"
       },
@@ -1083,23 +1094,21 @@
         "NotAvailable": "non disponible"
       }
     },
-    "ExamCentricStudy": {
-      "Title": "Exam-centric Study",
+    "LevelStudy": {
+      "Title": "Étude par niveau",
       "Tabs": {
-        "WordSync": "Word Sync",
-        "CharacterGrid": "Character Grid",
-        "ExamStudy": "Exam Study"
-      }
-    },
-    "ExamStudy": {
+        "WordSync": "Sync des mots",
+        "CharacterGrid": "Grille de caractères",
+        "LevelStudy": "Étude par niveau"
+      },
       "EmptyState": {
-        "Title": "Préparation aux examens",
-        "Description": "Étudiez des mots organisés par niveau d'examen. Suivez vos progrès et ajoutez des mots aux flashcards."
+        "Title": "Étude par niveau",
+        "Description": "Étudiez des mots organisés par niveau. Suivez vos progrès et ajoutez des mots aux flashcards."
       },
       "Coverage": {
-        "Title": "Couverture des mots d'examen",
+        "Title": "Couverture des mots par niveau",
         "Words": "mots",
-        "Complete": "Tous les mots d'examen sont suivis!",
+        "Complete": "Tous les mots de niveau sont suivis!",
         "Hint": "Cliquez sur un niveau ci-dessous pour voir et ajouter des mots"
       },
       "PopulationStats": {
@@ -1141,39 +1150,6 @@
         "Adding": "Ajout...",
         "LoadMore": "Charger plus",
         "Error": "Échec de l'ajout"
-      }
-    },
-    "KanjiGrid": {
-      "CharactersByExamLevel": "Caractères par niveau d'examen :",
-      "Disclaimer": {
-        "Description": "Les kanji JLPT affichés ici sont déduits à partir des mots associés à chaque niveau JLPT, puis extraits de ces mots. Cette grille reste donc approximative : certains niveaux contiennent des mots dont les kanji eux-mêmes ne sont pas forcément requis.",
-        "Title": "Les kanji JLPT sont estimés"
-      },
-      "Description": "Couleurs : en apprentissage (orange→jaune), connu (vert→vert clair), inconnu (gris). Survolez pour les détails.",
-      "EmptyState": {
-        "Description": "Les caractères rencontrés dans les vidéos ou le texte apparaîtront ici.",
-        "Hint": "Commencez à visionner ou lire du contenu pour débuter le suivi !",
-        "Title": "Aucun caractère suivi pour le moment"
-      },
-      "Legend": {
-        "Known": "Connu :",
-        "Learning": "En apprentissage :",
-        "Unknown": "Inconnu :"
-      },
-      "LevelFallback": "Niveau {level}",
-      "Loading": "Chargement des données de caractères...",
-      "Stats": {
-        "Known": "Connus :",
-        "Learning": "En apprentissage :",
-        "TotalFound": "Total :",
-        "Unknown": "Inconnus :"
-      },
-      "Title": "Maîtrise des caractères",
-      "Tooltip": {
-        "KnownCount": "Connus",
-        "LearningCount": "En apprentissage",
-        "Score": "Score",
-        "WordsContaining": "Mots contenant {char}"
       }
     },
     "Languages": {
@@ -1218,7 +1194,7 @@
       "MigrationWordStatuses": "{count} statuts de mots ont été migrés depuis la v1. Une sauvegarde a été créée.",
       "UpdateAvailable": "Version {latestVersion} disponible (vous utilisez {currentVersion}). Rendez-vous sur le site web pour télécharger."
     },
-    "PitchAccent": {
+    "JapanesePitchAccent": {
       "Atamadaka": "Tête haute (atamadaka)",
       "DropAfterMora": "Descente après la mora {mora}",
       "Heiban": "Plat (heiban)",
@@ -1230,8 +1206,8 @@
       "CollatePages": "Assembler les pages",
       "UncollatePages": "Séparer les pages",
       "CopyPhrase": "Copier la phrase",
-      "HideFurigana": "Masquer la lecture",
-      "ShowFurigana": "Afficher la lecture",
+      "HideReadingAnnotations": "Masquer les annotations de lecture",
+      "ShowReadingAnnotations": "Afficher les annotations de lecture",
       "Requirements": {
         "OcrTurboLowRam": {
           "Title": "L’OCR peut être lent",
@@ -1280,13 +1256,13 @@
         "DebugOverlayOff": "Débogage : Désactivé",
         "DebugOverlayOn": "Débogage : Activé",
         "DebugOverlayTitle": "Basculer la couche de débogage pour visualiser le texte OCR et la détection des annotations de lecture",
-        "FuriganaDetectionOff": "Lecture : Désactivé",
-        "FuriganaDetectionOn": "Lecture : Activé",
+        "ReadingAnnotationDetectionOff": "Annotations de lecture : Désactivé",
+        "ReadingAnnotationDetectionOn": "Annotations de lecture : Activé",
         "MagnifierHint": "Appuyez sur {key} pour la loupe",
         "OpenConversationAgent": "Tuteur IA",
         "OpenConversationAgentTitle": "Ouvrir le tuteur conversationnel IA",
-        "PaddleDownscaleLabel": "Échelle PaddleOCR : {value}%",
-        "PaddleDownscaleTitle": "Réduire l'image avant le traitement PaddleOCR (dev)",
+        "DetectionScaleLabel": "Échelle de détection OCR : {value}%",
+        "DetectionScaleTitle": "Réduire l'image avant la détection/reconnaissance OCR (dev)",
         "Ready": "Prêt",
         "ShowTooltipOn": "Info-bulle :",
         "TimingDetection": "Dét",
@@ -1315,6 +1291,8 @@
         "PageLayoutPaired": "1+2|3+4",
         "PageLayoutSingle": "1|2+3",
         "SinglePage": "Page simple",
+        "SpreadLeftToRight": "Pages G→D",
+        "SpreadRightToLeft": "Pages D→G",
         "ToggleUnknownWordsSidebar": "Afficher ou masquer la barre des mots inconnus"
       },
       "UI": {
@@ -1411,17 +1389,17 @@
           "Description": "Afficher un panneau latéral avec les traductions des mots lors de l'apparition des sous-titres",
           "Label": "Panneau de traduction en direct"
         },
-        "ShowFurigana": {
-          "Description": "Afficher la lecture au-dessus des mots",
-          "Label": "Afficher la lecture"
+        "ShowReadingAnnotations": {
+          "Label": "Afficher les annotations de lecture",
+          "Description": "Afficher les annotations de lecture au-dessus des mots"
         },
         "HideReadingForKnownWords": {
           "Description": "Masquer automatiquement la lecture pour les mots déjà connus",
           "Label": "Masquer la lecture des mots connus"
         },
-        "ShowPitchAccent": {
-          "Description": "Afficher les informations d'accent tonal des mots",
-          "Label": "Afficher l'accent tonal"
+        "ShowProsody": {
+          "Description": "Afficher les informations de prosodie, de ton, d'accentuation ou d'accent des mots",
+          "Label": "Afficher la prosodie et l'accent"
         },
         "ShowPos": {
           "Description": "Afficher les informations grammaticales des mots",
@@ -1487,6 +1465,7 @@
         },
         "LanguageData": {
           "Install": "Installer les données linguistiques",
+          "Installing": "Installation des données linguistiques...",
           "Installed": "Données linguistiques installées",
           "InstallFailed": "Échec de l'installation des données linguistiques",
           "MissingRequired": "Données linguistiques requises"
@@ -1587,12 +1566,12 @@
       },
       "Reader": {
         "Description": "Paramètres OCR et lecteur",
-        "Furigana": {
+        "ReadingAnnotations": {
+          "Title": "Annotations de lecture",
           "Hide": {
-            "Description": "Couvrir les annotations de lecture détectées avec un bloc blanc, révéler au survol (pour pratiquer la lecture)",
-            "Label": "Masquer la lecture"
-          },
-          "Title": "Lecture"
+            "Label": "Masquer les annotations de lecture",
+            "Description": "Couvrir les annotations de lecture détectées avec un bloc blanc, révéler au survol (pour pratiquer la lecture)"
+          }
         },
         "LlmIntegration": {
           "Enable": {
@@ -1651,9 +1630,9 @@
             "Description": "Activer la reconnaissance optique de caractères pour les images",
             "Label": "Activer l'OCR"
           },
-          "FuriganaDetection": {
-            "Description": "Détecter et filtrer les annotations de lecture dans les résultats OCR. Désactivé, les blocs de texte détectés sont affichés tels quels.",
-            "Label": "Détection des annotations de lecture"
+          "ReadingAnnotationDetection": {
+            "Label": "Détection des annotations de lecture",
+            "Description": "Détecter et filtrer les annotations de lecture dans les résultats OCR. Désactivé, les blocs de texte détectés sont affichés tels quels."
           },
           "RamSaver": {
             "Description": "Utilise une détection de texte légère basée sur OpenCV au lieu du réseau neuronal. Économise ~1,5 Go de RAM mais peut être moins précis pour les mises en page complexes. La qualité de reconnaissance n'est pas affectée.",
@@ -1785,9 +1764,9 @@
             "Description": "Utiliser le système de répétition espacée intégré de mLearn au lieu d'Anki",
             "Label": "Utiliser le SRS mLearn"
           },
-          "ExamCardProportion": {
-            "Description": "Proportion des cartes auto-créées de niveau examen (0-1)",
-            "Label": "Proportion de cartes d'examen"
+          "LevelCardProportion": {
+            "Description": "Proportion des cartes auto-créées à partir des niveaux de langue (0-1)",
+            "Label": "Proportion de cartes par niveau"
           },
           "FlipAnimation": {
             "Description": "Afficher une animation 3D de retournement en révélant la réponse",
@@ -2106,8 +2085,8 @@
       "Actions": {
         "EditWordDatabase": "Éditeur de base de mots",
         "OpenAiAnalytics": "Analyse IA des médias",
-        "OpenExamCentricStudy": "Open Exam-centric Study",
-        "ViewKanjiGrid": "Grille de kanji"
+        "OpenLevelStudy": "Ouvrir l'étude par niveau",
+        "ViewCharacterGrid": "Grille de caractères"
       },
       "CurrentlyLearning": "En cours d'apprentissage",
       "Dashboard": {
@@ -2193,7 +2172,7 @@
       "LevelColumn": "Niveau",
       "TimeWatched": "Temps visionné",
       "Title": "Statistiques d'apprentissage",
-      "WordsByExamLevel": "Mots par niveau d'examen",
+      "WordsByLevel": "Mots par niveau",
       "WordsByStatus": "Mots par statut",
       "WordsLearned": "Mots appris",
       "WordsTracked": "Mots suivis"
@@ -2536,7 +2515,7 @@
       "Flashcards": "Cartes mémoire",
       "ForceRecreateFlashcards": "Forcer la recréation des cartes pour aujourd'hui",
       "Help": "Aide",
-      "HideReading": "Masquer la lecture",
+      "HideReading": "Masquer les annotations de lecture",
       "OpenDevTools": "Ouvrir les DevTools",
       "OpenLiveWordTranslator": "Ouvrir le traducteur de mots en direct",
       "OpenSyncingWindow": "Ouvrir la fenêtre de synchronisation",
@@ -2548,10 +2527,9 @@
       },
       "ReviewFlashcards": "Réviser les cartes",
       "Settings": "Paramètres",
-      "ExamCentricStudy": "Exam-centric Study",
-      "ShowKanjiGrid": "Afficher la grille des kanji",
+      "LevelStudy": "Étude par niveau",
       "ShowLearningStatistics": "Afficher les statistiques d'apprentissage",
-      "ShowReading": "Afficher la lecture",
+      "ShowReading": "Afficher les annotations de lecture",
       "Statistics": "Statistiques",
       "StopWatchTogether": "Arrêter Watch Together",
       "SyncSubtitles": "Synchroniser les sous-titres avec la vidéo",
@@ -2607,6 +2585,10 @@
           "Title": "Modèle MangaOCR",
           "Description": "Reconnaissance du japonais dans les mangas et le texte vertical."
         },
+        "GenericOCR": {
+          "Title": "Environnement OCR {engine}",
+          "Description": "Environnement OCR déclaré par les données de langue installées."
+        },
         "WhisperSmall": {
           "Title": "Modèle STT Whisper small",
           "Description": "Reconnaissance vocale locale pour les conversations vocales."
@@ -2622,6 +2604,10 @@
         "QwenTts": {
           "Title": "Modèle TTS Qwen3",
           "Description": "Clonage vocal local optionnel et TTS multilingue."
+        },
+        "GenericTTS": {
+          "Title": "Runtime TTS {engine}",
+          "Description": "Runtime de synthèse vocale déclaré par les données de langue installées."
         },
         "DictionaryPack": {
           "Description": "Définitions pour {language}."
@@ -2694,6 +2680,43 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved"
+    },
+    "CharacterGrid": {
+      "CharactersByLevel": "Caractères par niveau :",
+      "Disclaimer": {
+        "Title": "Les niveaux des caractères sont estimés",
+        "Description": "Les caractères affichés ici sont déduits à partir des mots associés à chaque niveau, puis extraits de ces mots. Cette grille reste donc approximative : certains niveaux contiennent des mots dont les caractères eux-mêmes ne sont pas forcément requis."
+      },
+      "Description": "Couleurs : en apprentissage (orange→jaune), connu (vert→vert clair), inconnu (gris). Survolez pour les détails.",
+      "EmptyState": {
+        "Description": "Les caractères rencontrés dans les vidéos ou le texte apparaîtront ici.",
+        "Hint": "Commencez à visionner ou lire du contenu pour débuter le suivi !",
+        "Title": "Aucun caractère suivi pour le moment"
+      },
+      "Unsupported": {
+        "Description": "Ce paquet de langue ne définit pas de scripts pour l'étude des caractères.",
+        "Title": "L'étude des caractères n'est pas disponible pour cette langue"
+      },
+      "Legend": {
+        "Known": "Connu :",
+        "Learning": "En apprentissage :",
+        "Unknown": "Inconnu :"
+      },
+      "LevelFallback": "Niveau {level}",
+      "Loading": "Chargement des données de caractères...",
+      "Stats": {
+        "Known": "Connus :",
+        "Learning": "En apprentissage :",
+        "TotalFound": "Total :",
+        "Unknown": "Inconnus :"
+      },
+      "Title": "Maîtrise des caractères",
+      "Tooltip": {
+        "KnownCount": "Connus",
+        "LearningCount": "En apprentissage",
+        "Score": "Score",
+        "WordsContaining": "Mots contenant {char}"
+      }
     }
   }
 }

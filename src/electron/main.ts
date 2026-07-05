@@ -12,7 +12,7 @@ import { setupFlashcardIPC } from './services/flashcardStorage';
 import { setupFlashcardImageIPC, registerFlashcardImageScheme, setupFlashcardImageProtocol } from './services/flashcardImageStorage';
 import { setupFlashcardTtsIPC, registerFlashcardAudioScheme, setupFlashcardAudioProtocol } from './services/flashcardTtsStorage';
 import { setupFlashcardVideoIPC, registerFlashcardVideoScheme, setupFlashcardVideoProtocol } from './services/flashcardVideoStorage';
-import { hasSettingsFile, setupSettingsIPC } from './services/settings';
+import { hasExistingProfile, setupSettingsIPC } from './services/settings';
 import { setupLoggingService } from './services/loggingService';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnosticsWindow } from './services/windowManager';
@@ -328,24 +328,13 @@ async function createAppWindows(): Promise<void> {
     return;
   }
 
-  const hasExistingProfile = hasSettingsFile();
-
-  // Existing user data means an app update/repair path, not first-run onboarding.
-  if (hasExistingProfile) {
+  if (hasExistingProfile()) {
     createMainWindow();
   } else {
     createWelcomeWindow();
   }
 
-  // Start Python backend
-  const pythonFound = await findPython();
-
-  // Create appropriate window FIRST so it can receive error messages
-  if (!pythonFound && !hasExistingProfile) {
-    createWelcomeWindow();
-  } else if (pythonFound) {
-    createMainWindow();
-  }
+  await findPython();
 
   // Start web server for tethered mode AFTER window is created
   // This ensures any errors (like EADDRINUSE) can be displayed to the user

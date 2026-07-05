@@ -76,12 +76,11 @@ export interface GrammarCardProps {
  */
 const ColoredPhrase: Component<{ phrase: string; targetWord?: string }> = (props) => {
   const { settings } = useSettings();
-  const { tokenize } = useTokenizer({ language: settings.language });
   const { currentLangData } = useLanguage();
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   
   const colourCodes = createMemo(() => {
-    const langData = currentLangData();
-    return langData?.colour_codes || {};
+    return settings.colour_codes || {};
   });
   
   // Create a resource for async tokenization
@@ -92,7 +91,7 @@ const ColoredPhrase: Component<{ phrase: string; targetWord?: string }> = (props
       try {
         const tokens: Token[] = await tokenize(phrase);
         if (tokens && tokens.length > 0) {
-          return tokensToColoredHtml(tokens, colors, target);
+          return tokensToColoredHtml(tokens, colors, target, currentLangData());
         }
       } catch (e) {
         log.error("error", e);

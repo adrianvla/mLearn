@@ -13,8 +13,13 @@ import { ipcMain, type IpcMainEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { execFile, type ChildProcess } from 'child_process';
 import { isMac, isLinux } from '../utils/platform';
+import { loadLangData } from './settings';
 
 let ttsProcess: ChildProcess | null = null;
+
+function getLanguageTtsRuntime(language: string) {
+  return loadLangData()[language]?.runtime?.tts ?? {};
+}
 
 /**
  * Speak text using system TTS
@@ -33,31 +38,17 @@ function speak(text: string, language: string, sender: Electron.WebContents): vo
   const sanitized = text.replace(/\n/g, ' ').substring(0, 500);
 
   if (isMac) {
-    // macOS: use built-in `say` command
-    // Map language codes to macOS voice names
-    const voiceMap: Record<string, string> = {
-      ja: 'Kyoko',
-      zh: 'Ting-Ting',
-      ko: 'Yuna',
-      en: 'Samantha',
-      es: 'Monica',
-      fr: 'Thomas',
-      de: 'Anna',
-      it: 'Alice',
-      pt: 'Luciana',
-      ru: 'Milena',
-    };
-
-    const voice = voiceMap[language] || voiceMap.en;
-    ttsProcess = execFile('say', ['-v', voice, sanitized], () => {
+    const voice = getLanguageTtsRuntime(language).macosVoice;
+    const args = voice ? ['-v', voice, sanitized] : [sanitized];
+    ttsProcess = execFile('say', args, () => {
       ttsProcess = null;
       if (!sender.isDestroyed()) {
         sender.send(IPC_CHANNELS.TTS_STATUS, { speaking: false, progress: 1 });
       }
     });
   } else if (isLinux) {
-    // Linux: try espeak
-    ttsProcess = execFile('espeak', ['-v', language, sanitized], () => {
+    const voice = getLanguageTtsRuntime(language).espeakVoice || language;
+    ttsProcess = execFile('espeak', ['-v', voice, sanitized], () => {
       ttsProcess = null;
       if (!sender.isDestroyed()) {
         sender.send(IPC_CHANNELS.TTS_STATUS, { speaking: false, progress: 1 });
@@ -65,7 +56,11 @@ function speak(text: string, language: string, sender: Electron.WebContents): vo
     });
   } else {
     // Windows: use PowerShell
-    const psCommand = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak('${sanitized.replace(/'/g, "''")}')`;
+    const voice = getLanguageTtsRuntime(language).windowsVoice;
+    const voiceCommand = typeof voice === 'string' && voice.trim()
+      ? `$s.SelectVoice('${voice.replace(/'/g, "''")}'); `
+      : '';
+    const psCommand = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; ${voiceCommand}$s.Speak('${sanitized.replace(/'/g, "''")}')`;
     ttsProcess = execFile('powershell', ['-Command', psCommand], () => {
       ttsProcess = null;
       if (!sender.isDestroyed()) {

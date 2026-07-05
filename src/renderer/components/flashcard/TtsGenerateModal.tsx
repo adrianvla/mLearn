@@ -10,12 +10,15 @@ import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressConten
 import { ConfirmDialog } from '../common/Modal/ConfirmDialog';
 import { useSettings, useLocalization, useLanguage, useFlashcards, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { getBackend, resolveCloudApiUrl } from '../../../shared/backends';
+import { resolveCloudApiUrl } from '../../../shared/backends';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
-import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { colorizeTokenizedText, textToReadingText } from '../../utils/languageTokenization';
 import { withCloudAuth } from '../../services/cloudSessionManager';
-import { DEFAULT_SETTINGS, type TTSProvider } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageData, type TTSProvider } from '../../../shared/types';
+import { getReadingAnnotationScripts } from '../../../shared/languageFeatures';
+import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
+import { resolveTtsLanguageData } from './ttsLanguageData';
 import './TtsGenerateModal.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -25,6 +28,8 @@ export interface TtsGenerateModalProps {
   isOpen: boolean;
   onClose: () => void;
   cardId: string;
+  language?: string;
+  languageData?: LanguageData | null;
   wordText: string;
   exampleText?: string;
   reading?: string;
@@ -36,7 +41,7 @@ export interface TtsGenerateModalProps {
 export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { getLanguageFeatures } = useLanguage();
+  const { langData, currentLangData } = useLanguage();
   const { generateExampleSentenceWithLLM, updateFlashcardContent, translateExampleSentence } = useFlashcards();
   const { requestAccess } = useLowPowerGate();
 
@@ -55,6 +60,13 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
 
   const [confirmOpen, setConfirmOpen] = createSignal(false);
   let confirmResolve: ((result: boolean) => void) | null = null;
+  const cardLanguage = () => props.language || settings.language;
+  const cardLanguageData = () => resolveTtsLanguageData(cardLanguage(), {
+    explicitLanguageData: props.languageData,
+    installedLanguageData: langData,
+    activeLanguage: settings.language,
+    activeLanguageData: currentLangData(),
+  });
 
   const askContinueAfterLLMFailure = (): Promise<boolean> => {
     setConfirmOpen(true);
@@ -76,12 +88,11 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   };
 
   const showReadingToggles = createMemo(() => {
-    const features = getLanguageFeatures();
-    return features.supportsReadings;
+    return getReadingAnnotationScripts(cardLanguageData()).length > 0;
   });
 
   const hasExample = createMemo(() => {
-    const ex = stripHtmlForTts(props.exampleText || '');
+    const ex = stripHtmlForTts(props.exampleText || '', false, cardLanguageData());
     return !!ex && ex !== '-';
   });
 
@@ -96,21 +107,17 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   ];
 
   const buildReadingText = async (text: string): Promise<string> => {
-    // Strip all HTML and furigana to get raw text with kanji
-    const plainText = stripHtmlForTts(text);
+    // Strip all HTML and reading annotations to get the raw surface text
+    const plainText = stripHtmlForTts(text, false, cardLanguageData());
     if (!plainText) return '';
 
     // Re-tokenize plain text so we can extract readings for each token
-    const backend = getBackend({
-      mode: settings.backendMode,
-      url: settings.backendUrl,
-      authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
+    return textToReadingText({
+      text: plainText,
+      language: cardLanguage(),
+      languageData: cardLanguageData(),
+      settings,
     });
-    const tokens = await backend.tokenize(plainText, settings.language);
-    if (tokens.length > 0) {
-      return tokens.map(tok => tok.reading || tok.word).join('');
-    }
-    return plainText;
   };
 
   const handleGenerate = async () => {
@@ -119,7 +126,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
     const bridge = getBridge();
     const prov = provider();
     const sampleId = voiceSampleId() || undefined;
-    const language = settings.language;
+    const language = cardLanguage();
     const cloudApiUrl = resolveCloudApiUrl(settings);
 
     // Build task list
@@ -160,20 +167,15 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       try {
         const result = await generateExampleSentenceWithLLM(props.wordText, props.cardBack!, language);
         if (result.sentence) {
-          let exampleHtml = result.sentence;
-          try {
-            const backend = getBackend({
-              mode: settings.backendMode,
-              url: settings.backendUrl,
-              authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-            });
-            const tokens = await backend.tokenize(result.sentence, language);
-            if (tokens.length > 0) {
-              exampleHtml = tokensToColoredHtml(tokens, settings.colour_codes || {}, props.wordText);
-            }
-          } catch (e) {
-            log.error("error", e);
-          }
+          const languageData = cardLanguageData();
+          const exampleHtml = await colorizeTokenizedText({
+            text: result.sentence,
+            language,
+            languageData,
+            settings,
+            colourCodes: resolveFlashcardColourCodes(languageData, settings.colour_codes),
+            targetWord: props.wordText,
+          });
           updateFlashcardContent(props.cardId, {
             example: exampleHtml,
             exampleMeaning: result.meaning || undefined,
@@ -225,7 +227,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         if (useReadingForWord() && showReadingToggles() && props.reading) {
           wordForTts = props.reading;
         }
-        const clean = stripHtmlForTts(wordForTts);
+        const clean = stripHtmlForTts(wordForTts, false, cardLanguageData());
         if (clean && clean !== '-') {
           let wordGateAllowed = true;
           if (prov !== 'cloud') {
@@ -263,7 +265,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         if (useReadingForExample() && showReadingToggles()) {
           textForTts = await buildReadingText(exText);
         } else {
-          textForTts = stripHtmlForTts(exText);
+          textForTts = stripHtmlForTts(exText, false, cardLanguageData());
         }
         if (textForTts && textForTts !== '-') {
           let exGateAllowed = true;
@@ -298,10 +300,14 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       updateTask('translation', 'running');
       try {
         const exText = latestExampleText || props.exampleText || '';
-        const plain = stripHtmlForTts(exText);
+        const plain = stripHtmlForTts(exText, false, cardLanguageData());
         if (plain && plain !== '-') {
-          const sourceLangName = getLanguageDisplayName(language);
-          const translated = await translateExampleSentence(plain, sourceLangName);
+          const sourceLangName = getLanguageDisplayName(
+            language,
+            cardLanguageData(),
+            settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage,
+          );
+          const translated = await translateExampleSentence(plain, sourceLangName, language);
           if (translated) {
             updateFlashcardContent(props.cardId, { exampleMeaning: translated });
           }

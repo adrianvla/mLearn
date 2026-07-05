@@ -7,6 +7,7 @@ import type { JSX } from 'solid-js';
 const testSettings = {
   language: 'de',
 };
+let settingsLoading = false;
 
 const languageProviderMock = vi.fn((props: { language?: string; children?: JSX.Element }) => <>{props.children}</>);
 
@@ -14,7 +15,7 @@ vi.mock('./SettingsContext', () => ({
   SettingsProvider: (props: { children?: JSX.Element }) => <>{props.children}</>,
   useSettings: () => ({
     settings: testSettings,
-    isLoading: () => false,
+    isLoading: () => settingsLoading,
     isCloudReLoginModalOpen: () => false,
     closeCloudReLoginModal: vi.fn(),
   }),
@@ -95,6 +96,7 @@ describe('WindowWrapper', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    settingsLoading = false;
     languageProviderMock.mockClear();
   });
 
@@ -108,6 +110,16 @@ describe('WindowWrapper', () => {
 
     expect(languageProviderMock).toHaveBeenCalled();
     expect(languageProviderMock.mock.calls[0]?.[0]?.language).toBe('de');
+
+    dispose();
+  });
+
+  it('does not mount language-dependent providers before settings have loaded', async () => {
+    settingsLoading = true;
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
+
+    expect(languageProviderMock).not.toHaveBeenCalled();
 
     dispose();
   });

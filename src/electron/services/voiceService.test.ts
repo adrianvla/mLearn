@@ -383,6 +383,20 @@ describe('VOICE_MODEL_STATUS handler', () => {
     expect(result.vadDownloaded).toBe(true);
   });
 
+  it('checks TTS model status for the requested language', async () => {
+    mod.setupVoiceIPC();
+    httpGetFn.mockImplementation(
+      makeJsonHttpGetMock({ downloaded: true, downloading: false, progress: 1 }),
+    );
+
+    await handleHandlers.get('voice-model-status')?.({}, 'ja');
+
+    expect(httpGetFn).toHaveBeenCalledWith(
+      expect.stringContaining('/voice/tts/status?language=ja'),
+      expect.any(Function),
+    );
+  });
+
   it('returns error field when HTTP request fails', async () => {
     mod.setupVoiceIPC();
     httpGetFn.mockImplementation((_url: string, _cb: unknown) => ({
@@ -739,20 +753,34 @@ describe('VOICE_SAMPLE_TRANSCRIBE handler', () => {
     await expect(handleHandlers.get('voice-sample-transcribe')?.({}, 'missing')).rejects.toThrow('Voice sample not found');
   });
 
-  it('posts to transcribe API and returns text and language', async () => {
+  it('posts selected language to transcribe API and returns text and language', async () => {
     mod.setupVoiceIPC();
     const samples = [{ id: 'tr1', name: 'Test', filename: 'tr1.wav', createdAt: 1 }];
     existsSyncFn.mockReturnValue(true);
     readFileSyncFn.mockReturnValue(JSON.stringify(samples));
-    httpRequestFn.mockImplementation(
-      makeJsonHttpRequestMock({ text: 'hello there', language: 'en' }),
-    );
+    const writtenChunks: string[] = [];
+    httpRequestFn.mockImplementation((_opts: unknown, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const body = JSON.stringify({ text: 'hello there', language: 'fa' });
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      return {
+        write: vi.fn((chunk: string | Buffer) => writtenChunks.push(chunk.toString())),
+        end: vi.fn(() => {
+          Promise.resolve().then(() => {
+            fakeRes._emit('data', Buffer.from(body));
+            fakeRes._emit('end');
+          });
+        }),
+        on: vi.fn(),
+      };
+    });
 
-    const result = await handleHandlers.get('voice-sample-transcribe')?.({}, 'tr1') as {
+    const result = await handleHandlers.get('voice-sample-transcribe')?.({}, 'tr1', 'fa') as {
       text: string; language: string;
     };
     expect(result.text).toBe('hello there');
-    expect(result.language).toBe('en');
+    expect(result.language).toBe('fa');
+    expect(JSON.parse(writtenChunks.join(''))).toMatchObject({ language: 'fa' });
   });
 
   it('throws when transcription response contains a detail error', async () => {
@@ -904,6 +932,23 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
     expect(progressCalls.length).toBeGreaterThan(1);
   });
 
+  it('downloads TTS models for the requested language', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ downloaded: true, downloading: false, progress: 1 }));
+    httpRequestFn.mockImplementation(makeJsonHttpRequestMock({ success: true }));
+
+    await onHandlers.get('voice-model-download')?.(event, 'ja');
+
+    expect(httpRequestFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: expect.stringContaining('/voice/models/download?language=ja'),
+      }),
+      expect.any(Function),
+    );
+  });
+
   it('polls Python model status while model download is still running', async () => {
     vi.useFakeTimers();
     mod.setupVoiceIPC();
@@ -979,6 +1024,22 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     const statusCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-status');
     expect(statusCalls.length).toBeGreaterThanOrEqual(1);
     expect(statusCalls[0][1]).toMatchObject({ generating: true });
+  });
+
+  it('checks TTS loading status for the requested speech language', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true, downloading: false, progress: 1 }));
+    httpRequestFn.mockImplementation(makeJsonHttpRequestMock({}, { 'x-sample-rate': '24000' }));
+
+    onHandlers.get('voice-tts-generate')?.(event, 'こんにちは', 'ja', 1.0, undefined, undefined);
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(httpGetFn).toHaveBeenCalledWith(
+      expect.stringContaining('/voice/tts/status?language=ja'),
+      expect.any(Function),
+    );
   });
 
   it('sends VOICE_TTS_AUDIO with samples and sampleRate after successful TTS response', async () => {

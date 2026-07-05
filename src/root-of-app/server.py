@@ -14,6 +14,7 @@ import traceback
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # ── Bootstrap configuration (CLI args, settings.json, language module) ──
 import config
@@ -44,19 +45,22 @@ from routes import nlp, ocr, llm, voice
 # ── FastAPI app ──
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Mount routers
 app.include_router(nlp.router)
 app.include_router(ocr.router)
 app.include_router(llm.router)
 app.include_router(voice.router)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    log.error("Unhandled HTTP exception:", exc_info=True)
+    response = JSONResponse(status_code=500, content={"detail": str(exc)})
+    if request.headers.get("origin"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 
 # ── Middleware ──
@@ -72,6 +76,15 @@ async def log_requests(request: Request, call_next):
     except Exception:
         log.error("HTTP Exception during handling:", exc_info=True)
         raise
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ── Health endpoint ──
@@ -121,9 +134,8 @@ async def startup_event():
     except Exception as e:
         log.error(f"Failed to enable faulthandler: {e}", exc_info=True)
 
-    # Mark transformers preimport as not yet done; it will be triggered
-    # lazily via POST /ocr/warmup when the reader is first opened,
-    # avoiding unnecessary CPU usage on startup.
+    # Mark transformer-based OCR preimport as not yet done; /ocr/warmup
+    # starts it lazily only for languages whose OCR metadata needs it.
     preimport_event = ocr.get_transformers_preimport_event()
     if not config.OCR_ALLOWED:
         preimport_event.set()

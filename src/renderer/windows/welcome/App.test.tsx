@@ -220,6 +220,25 @@ describe('WelcomeApp', () => {
     dispose();
   });
 
+  it('keeps installed local languages selectable when the remote catalog is narrower', async () => {
+    testLanguages = {
+      xx: { name: 'Example Language', name_translated: 'Example Native' },
+    };
+
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Japanese');
+      expect(container.textContent).toContain('German');
+      expect(container.textContent).toContain('Example Language (Example Native)');
+    });
+
+    dispose();
+  });
+
   it('disables continue when installation completes without any supported languages', async () => {
     testLanguages = {};
     setLanguageDataCatalog([]);

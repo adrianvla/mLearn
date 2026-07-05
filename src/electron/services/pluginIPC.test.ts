@@ -74,6 +74,10 @@ vi.mock('./windowManager', () => ({
   openManagedChildWindow: mockOpenManagedChildWindow,
 }));
 
+vi.mock('./settings', () => ({
+  loadSettings: vi.fn(() => ({ language: 'ja', uiLanguage: 'en', dictionaryTargetLanguages: {} })),
+}));
+
 function getPluginOpenWindowHandler() {
   const handler = ipcHandleHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_OPEN_WINDOW);
   if (!handler) {
@@ -198,7 +202,7 @@ describe('pluginIPC pluginOpenWindow', () => {
       {
         pluginId: 'demo.plugin',
         pluginName: 'Demo Plugin',
-        initialContext: { word: 'neko', __mlearnLanguage: 'ja' },
+        initialContext: { word: 'neko', __mlearnLanguage: 'ja', __mlearnDictionaryTargetLanguage: 'en' },
         ui: {
           type: 'schema',
           schema: {

@@ -5,7 +5,7 @@
 
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { useSettings, useLocalization } from '../../../context';
+import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, type RecentItem } from '../../../components/common';
@@ -19,6 +19,7 @@ import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 import { getLogger } from '../../../../shared/utils/logger';
+import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
 
 const log = getLogger("renderer.welcome");
 
@@ -43,6 +44,7 @@ export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
   const { settings } = useSettings();
   const { t } = useLocalization();
+  const { currentLangData } = useLanguage();
   
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
   const [showTutorModal, setShowTutorModal] = createSignal(false);
@@ -115,11 +117,11 @@ export const WelcomeRoute: Component = () => {
     }
   };
 
-  const openExamCentricStudy = () => {
+  const openLevelStudy = () => {
     if (isMobile()) {
-      navigate('/exam-centric-study');
+      navigate('/level-study');
     } else {
-      getBridge().window.openWindow({ type: 'exam-centric-study' });
+      getBridge().window.openWindow({ type: 'level-study' });
     }
   };
 
@@ -166,10 +168,14 @@ export const WelcomeRoute: Component = () => {
     }
   };
 
-  // Get the language name from the localization system
   const getLanguageName = () => {
-    const langKey = `mlearn.Languages.${settings.language}`;
-    return t(langKey);
+    return getLocalizedLanguageName(
+      settings.language,
+      currentLangData(),
+      t,
+      t('mlearn.Common.Status.Unknown'),
+      settings.uiLanguage,
+    );
   };
 
   return (
@@ -233,9 +239,9 @@ export const WelcomeRoute: Component = () => {
 
         <ActionCard
           icon={<TargetIcon size={24} />}
-          title={t('mlearn.Home.Cards.ExamCentricStudy.Title')}
-          description={t('mlearn.Home.Cards.ExamCentricStudy.Description')}
-          onClick={openExamCentricStudy}
+          title={t('mlearn.Home.Cards.LevelStudy.Title')}
+          description={t('mlearn.Home.Cards.LevelStudy.Description')}
+          onClick={openLevelStudy}
         />
 
         <Show

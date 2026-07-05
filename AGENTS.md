@@ -24,7 +24,8 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 | Add component | `src/renderer/components/common/{Name}/{Name}.tsx` + `.css` → `common/index.ts` |
 | Add backend endpoint | `shared/backends/types.ts` → `shared/backends/httpBackend.ts` → `src/root-of-app/routes/{name}.py` |
 | Add setting | `shared/types.ts` (Settings + DEFAULT_SETTINGS) → settings context |
-| Add language module | `src/root-of-app/languages/{lang}.py` + `{lang}.json` |
+| Add language runtime capability | `src/shared/types.ts` language metadata schema + `src/root-of-app/generic_language.py` |
+| Add language package/data | `~/Desktop/projects/mlearn-website` language-data packaging, then install via catalog |
 | Platform-specific code | `src/shared/platform.ts` helpers; never hardcode OS checks in renderer |
 
 ## CONVENTIONS
@@ -44,6 +45,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Capacitor stub**: `electron` imports are aliased to `src/shared/stubs/electron.ts` in Capacitor builds.
 - **Barrel exports**: Every new common component must be exported from `src/renderer/components/common/index.ts`.
 - **Icons**: Use SVGs from `https://blendicons.com/free-icons/all-styles`. Do not use emojis.
+- **Language data**: Runtime language metadata, dictionaries, frequencies, and optional adapters are downloaded into user `language-data/`. Do not add bundled app-source language modules or dictionaries.
 - **Deprecation**: If you encounter legacy code worth removing, flag it for discussion rather than silently deleting.
 
 ## ANTI-PATTERNS
@@ -51,6 +53,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Never call `window.mLearnIPC` or `ipcRenderer` directly in renderer** — use `getBridge()`
 - **Never use raw `setStore` for settings** — use `updateSetting()` from context
 - No hardcoding for any specific language (e.g., N1-N5 JLPT levels)
+- Do not add `src/root-of-app/languages/{lang}.py`, `{lang}.json`, or bundled dictionary payloads; language packages belong in the cloud packaging repo and install on demand.
 - No timeouts/timers unless required (race conditions)
 - Avoid inline CSS in TSX unless unavoidable
 - No AI-aesthetic styling (purple gradients, etc.)

@@ -64,4 +64,16 @@ describe('collectDroppedMediaFiles', () => {
     expect(result.video!.displayName).toBe('The Queens Classroom S01E1');
     expect(result.video!.filePath).toBe('/videos/The.Queens.Classroom.S01E01.1080p.NF.WEB-DL.DDP2.0.x264-HBO.mkv');
   });
+
+  it('passes caller language tags into display-name cleanup', async () => {
+    const video = new File(['video-bytes'], 'Lesson.S01E01.fa.mp4', { type: 'video/mp4' });
+
+    const result = await collectDroppedMediaFiles(
+      [video],
+      (file) => `/videos/${file.name}`,
+      { languageCodes: ['fa'] },
+    );
+
+    expect(result.video?.displayName).toBe('Lesson S01E1');
+  });
 });

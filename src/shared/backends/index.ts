@@ -35,10 +35,33 @@ export function resolveCloudApiUrl(settings: CloudUrlSettings): string {
 let cached: BackendAdapter | null = null;
 let cachedKey = '';
 
+function isViteDevRendererOrigin(): boolean {
+  const location = globalThis.location;
+  if (!location) return false;
+  return location.protocol === 'http:'
+    && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    && location.port === '3000';
+}
+
+function isLocalPythonBackendUrl(userUrl?: string): boolean {
+  if (!userUrl) return false;
+  try {
+    const parsed = new URL(userUrl);
+    return (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1')
+      && parsed.port === String(PYTHON_BACKEND_PORT);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Build the base URL for a given backend mode and optional user URL.
  */
 function resolveBaseUrl(mode: BackendMode, userUrl?: string): string {
+  if (isViteDevRendererOrigin() && (mode === 'local' || isLocalPythonBackendUrl(userUrl))) {
+    return '';
+  }
+
   switch (mode) {
     case 'tethered':
       return userUrl?.replace(/\/+$/, '') || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;

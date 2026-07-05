@@ -7,6 +7,7 @@ import { PillBtn } from '../Button';
 import { ClockIcon } from '../Misc';
 import { EasePill } from './EasePill';
 import { getLogger } from '../../../../shared/utils/logger';
+import { getBackend } from '../../../../shared/backends';
 
 const log = getLogger("renderer.components.resourcePill");
 
@@ -15,6 +16,7 @@ const ICON_ANKI = 'anki';
 
 export interface ResourcePillProps {
   word: string;
+  language?: string;
   isTracked: boolean;
   isAdding: boolean;
   isInAnki: boolean;
@@ -28,7 +30,8 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getCardByWordSync } = useFlashcards();
-  const builtInCard = createMemo(() => getCardByWordSync(props.word));
+  const targetLanguage = createMemo(() => props.language ?? settings.language);
+  const builtInCard = createMemo(() => getCardByWordSync(props.word, targetLanguage()));
   const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
   const [ankiHoverCardInfo, setAnkiHoverCardInfo] = createSignal<AnkiCardSchedulingInfo | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
@@ -61,7 +64,6 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
     setAnkiHoverLoading(true);
 
     try {
-      const { getBackend } = await import('../../../../shared/backends');
       const result = await getBackend().getCard({ word }) as {
         cards: Array<{
           fields: AnkiCardFields;

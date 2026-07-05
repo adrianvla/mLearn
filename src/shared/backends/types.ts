@@ -42,15 +42,23 @@ export interface OCRResult {
 }
 
 export interface OCRRequestOptions {
+  language?: string;
   turbo?: boolean;
   ramSaver?: boolean;
   devMode?: boolean;
-  paddleMaxWidth?: number;
-  paddleMaxHeight?: number;
+  /** Generic OCR detector/recognizer max width override for diagnostics/dev tuning. */
+  detectionMaxWidth?: number;
+  /** Generic OCR detector/recognizer max height override for diagnostics/dev tuning. */
+  detectionMaxHeight?: number;
 }
 
 export interface OCRWarmupResult {
-  status: 'disabled' | 'already_done' | 'in_progress' | 'started' | string;
+  status: 'disabled' | 'not_needed' | 'already_done' | 'in_progress' | 'started' | string;
+  language?: string;
+}
+
+export interface TranslateRequestOptions {
+  dictionaryTargetLanguage?: string;
 }
 
 export interface AnkiWordStatusRecord {
@@ -68,11 +76,11 @@ export interface BackendAdapter {
   /** Tokenize text into language tokens */
   tokenize(text: string, language?: string): Promise<Token[]>;
   /** Translate/look up a word */
-  translate(word: string, language?: string): Promise<TranslationResponse>;
+  translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse>;
   /** Run OCR on image data */
   ocr(imageData: string | Blob, options?: OCRRequestOptions): Promise<OCRResult>;
   /** Warm up local OCR models when supported */
-  warmupOcr(): Promise<OCRWarmupResult>;
+  warmupOcr(language?: string): Promise<OCRWarmupResult>;
   /** Get Anki-compatible card data */
   getCard(params: Record<string, unknown>): Promise<unknown>;
   /** Get the list of all expression values from the Anki cache */

@@ -68,8 +68,10 @@ export interface LabelProps {
   status?: StatusType;
   /** Size of the label */
   size?: LabelSize;
-  /** Frequency/JLPT level (1-7) - determines color for pills */
+  /** Language-defined frequency/proficiency level - determines color for level pills */
   level?: number;
+  /** Bounded visual rank derived from language metadata. Defaults to level for legacy callers. */
+  visualLevel?: number;
   /** Icon element, path, or icon name (e.g., 'check', 'cross2') */
   icon?: JSX.Element | string;
   /** Whether to show only icon (no text) */
@@ -164,6 +166,7 @@ export const Label: Component<LabelProps> = (props) => {
   const size = () => props.size || 'md';
   const clickable = () => props.clickable === true || !!props.onClick;
   const showIcon = () => props.showIcon !== false; // defaults to true
+  const dataLevel = createMemo(() => props.visualLevel ?? props.level);
   
   // For status type, derive variant and icon
   const statusConfig = createMemo(() => {
@@ -248,7 +251,8 @@ export const Label: Component<LabelProps> = (props) => {
   return (
     <span
       class={labelClass()}
-      data-level={props.level}
+      data-level={dataLevel()}
+      data-raw-level={props.level}
       onClick={clickable() ? handleClick : undefined}
       onMouseEnter={props.onMouseEnter}
       onMouseLeave={props.onMouseLeave}

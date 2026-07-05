@@ -5,53 +5,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { CONTENT_FIELDS, parseFieldValue, valueToDraftValue } from './flashcardEditFields';
 
-// Re-implement the pure functions from FlashcardEditModal for testing
-// (they are module-private, so we replicate the logic here)
-
-type DraftValue = string | boolean;
-
-function valueToDraftValue(val: unknown): DraftValue {
-  if (val === undefined || val === null) return '';
-  if (typeof val === 'boolean') return val;
-  if (typeof val === 'string') return val;
-  if (typeof val === 'number') return String(val);
-  return JSON.stringify(val, null, 2);
-}
-
-function parseFieldValue(key: string, raw: DraftValue): unknown {
-  if (typeof raw === 'boolean') return raw;
-
-  const trimmed = raw.trim();
-  if (trimmed === '') return undefined;
-
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-
-  const numFields = new Set([
-    'pitchAccent', 'level', 'ease', 'interval', 'dueDate', 'reviews',
-    'lapses', 'learningStep', 'createdAt', 'lastReviewed', 'lastUpdated',
-  ]);
-  if (numFields.has(key)) {
-    const n = Number(trimmed);
-    if (!isNaN(n)) return n;
-  }
-
-  if (key === 'state') {
-    return trimmed;
-  }
-
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return trimmed;
-    }
-  }
-
-  return trimmed;
-}
+describe('CONTENT_FIELDS', () => {
+  it('exposes generic prosody without legacy Japanese pitch fields in the advanced editor', () => {
+    expect(CONTENT_FIELDS).toContain('prosody');
+    expect(CONTENT_FIELDS).not.toContain('pitchAccent' as never);
+  });
+});
 
 describe('valueToDraftValue', () => {
   it('returns empty string for undefined', () => {
@@ -112,7 +73,6 @@ describe('parseFieldValue', () => {
     expect(parseFieldValue('level', '3')).toBe(3);
     expect(parseFieldValue('interval', '86400000')).toBe(86400000);
     expect(parseFieldValue('reviews', '0')).toBe(0);
-    expect(parseFieldValue('pitchAccent', '1')).toBe(1);
   });
 
   it('returns string for non-numeric input in numeric fields', () => {
@@ -133,6 +93,13 @@ describe('parseFieldValue', () => {
 
   it('parses JSON objects', () => {
     expect(parseFieldValue('extra', '{"key": "value"}')).toEqual({ key: 'value' });
+  });
+
+  it('parses generic prosody JSON for package-defined language models', () => {
+    expect(parseFieldValue('prosody', '{"type":"tone-contour","raw":{"tone":"rising"}}')).toEqual({
+      type: 'tone-contour',
+      raw: { tone: 'rising' },
+    });
   });
 
   it('parses JSON arrays', () => {

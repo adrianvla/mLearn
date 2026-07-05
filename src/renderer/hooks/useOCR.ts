@@ -5,13 +5,15 @@
  */
 
 import { createSignal } from 'solid-js';
-import { useServer, useLowPowerGate } from '../context';
+import { useServer, useLowPowerGate, useLanguage } from '../context';
 import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
 import type { OCRRequestOptions } from '../../shared/backends/types';
 import { withCloudAuth } from '../services/cloudSessionManager';
 import { DEFAULT_SETTINGS } from '../../shared/types';
+import { getOcrRuntimeConfig, resolveCloudOcrEngine } from '../../shared/languageFeatures';
 import { getLogger } from '../../shared/utils/logger';
+import type { LanguageData } from '../../shared/types';
 
 const log = getLogger("renderer.hooks.useOCR");
 
@@ -43,6 +45,28 @@ interface PreparedImage {
   originalH: number;
   sentW: number;
   sentH: number;
+}
+
+export function getOcrLanguageDataReadinessError(
+  language: string | undefined,
+  languageData: LanguageData | null | undefined,
+): string | null {
+  if (!language) return null;
+  if (!languageData) {
+    return `Language data is required before running OCR for ${language}`;
+  }
+  const recognitionEngine = getOcrRuntimeConfig(languageData).recognitionEngine;
+  if (typeof recognitionEngine !== 'string' || recognitionEngine.trim().length === 0) {
+    return `OCR runtime language data is required for ${language}`;
+  }
+  return null;
+}
+
+export function assertOcrLanguageDataReady(language: string | undefined, languageData: LanguageData | null | undefined): void {
+  const readinessError = getOcrLanguageDataReadinessError(language, languageData);
+  if (readinessError) {
+    throw new Error(readinessError);
+  }
 }
 
 /**
@@ -334,19 +358,21 @@ async function inputToBlobForOCR(
  */
 async function sendImageForOCR(
   imageInput: Blob | HTMLCanvasElement | HTMLImageElement | string,
-  options: OCRRequestOptions & { paddleScale?: number } = {},
+  options: OCRRequestOptions & { detectionScale?: number } = {},
 ): Promise<OCRResult> {
   const turbo = options.turbo ?? DEFAULT_SETTINGS.ocrTurboMode!;
   const prepared = await inputToBlobForOCR(imageInput, turbo);
+  const detectionScale = options.detectionScale;
   const requestOptions: OCRRequestOptions = {
+    language: options.language,
     turbo,
     ramSaver: options.ramSaver,
     devMode: options.devMode,
   };
 
-  if (options.devMode && !turbo && options.paddleScale !== undefined && options.paddleScale < 100) {
-    requestOptions.paddleMaxWidth = Math.max(1, Math.round(prepared.sentW * (options.paddleScale / 100)));
-    requestOptions.paddleMaxHeight = Math.max(1, Math.round(prepared.sentH * (options.paddleScale / 100)));
+  if (options.devMode && !turbo && detectionScale !== undefined && detectionScale < 100) {
+    requestOptions.detectionMaxWidth = Math.max(1, Math.round(prepared.sentW * (detectionScale / 100)));
+    requestOptions.detectionMaxHeight = Math.max(1, Math.round(prepared.sentH * (detectionScale / 100)));
   }
 
   const result = await getBackend().ocr(prepared.blob, requestOptions) as OCRResult;
@@ -363,6 +389,7 @@ async function sendImageForOCR(
 export function useOCR() {
   const { isConnected } = useServer();
   const { settings } = useSettings();
+  const { currentLangData } = useLanguage();
   const { requestAccess } = useLowPowerGate();
   const [isProcessing, setIsProcessing] = createSignal(false);
   const [lastResult, setLastResult] = createSignal<OCRResult | null>(null);
@@ -374,7 +401,9 @@ export function useOCR() {
   const recognizeViaCloud = async (imageBlob: Blob, turbo: boolean): Promise<OCRResult> => {
     const cloudApiUrl = resolveCloudApiUrl(settings);
     const language = settings.language;
-    const engine = turbo ? 'rapid' : undefined;
+    const languageData = currentLangData();
+    assertOcrLanguageDataReady(language, languageData);
+    const engine = resolveCloudOcrEngine(languageData, turbo);
     const result = await withCloudAuth(async (cloudToken) => {
       const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
       return adapter.recognize(imageBlob, language, engine);
@@ -409,6 +438,8 @@ export function useOCR() {
 
     try {
       const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
+      const languageData = currentLangData();
+      assertOcrLanguageDataReady(settings.language, languageData);
 
       if (isCloudOCR()) {
         // Prepare the blob, then send via CloudOCRAdapter
@@ -425,6 +456,7 @@ export function useOCR() {
       const result = await sendImageForOCR(
         input,
         {
+          language: settings.language,
           turbo,
           ramSaver: settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver,
           devMode: settings.devMode ? true : undefined,

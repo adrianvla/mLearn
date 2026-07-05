@@ -126,10 +126,10 @@ sendLogRecord: (record: unknown) => void;
   onOpenSettings: (callback: (section?: string) => void) => () => void;
   onOpenAside: (callback: () => void) => () => void;
   onContextMenuCommand: (callback: (command: string) => void) => () => void;
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
+  showReaderCtxMenu: (options: { readingAnnotationHiderEnabled: boolean; hasContextPhrase: boolean; canToggleReadingHider?: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
   onReaderContextMenuCommand: (callback: (command: string) => void) => () => void;
   onOpenWordDbEditor: (callback: () => void) => () => void;
-  onOpenExamCentricStudy: (callback: () => void) => () => void;
+  onOpenLevelStudy: (callback: () => void) => () => void;
   
   // Watch Together
   isWatchingTogether: () => void;
@@ -280,7 +280,7 @@ sendLogRecord: (record: unknown) => void;
   voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;
   voiceSampleDelete: (id: string) => Promise<boolean>;
   voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
-  voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
+  voiceSampleTranscribe: (id: string, language?: string) => Promise<{ text: string; language: string }>;
   voiceSampleGetPath: (id: string) => Promise<string | null>;
 
   // KV Store

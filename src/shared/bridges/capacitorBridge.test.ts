@@ -872,7 +872,7 @@ describe('Window Bridge', () => {
     const bridge = createCapacitorBridge();
     const events: Event[] = [];
     window.addEventListener('mlearn-ctx-menu', e => events.push(e));
-    bridge.window.showReaderCtxMenu({ furiganaHiderEnabled: false, hasContextPhrase: true });
+    bridge.window.showReaderCtxMenu({ readingAnnotationHiderEnabled: false, hasContextPhrase: true });
     expect(events.length).toBe(1);
     expect((events[0] as CustomEvent).detail.type).toBe('reader');
   });
@@ -926,7 +926,7 @@ describe('Window Bridge', () => {
     expect(typeof bridge.window.onOpenSettings(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenAside(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenWordDbEditor(vi.fn())).toBe('function');
-    expect(typeof bridge.window.onOpenExamCentricStudy(vi.fn())).toBe('function');
+    expect(typeof bridge.window.onOpenLevelStudy(vi.fn())).toBe('function');
     expect(typeof bridge.window.onOpenPrompt(vi.fn())).toBe('function');
     expect(typeof bridge.window.onAuthDeepLink(vi.fn())).toBe('function');
     expect(typeof bridge.window.onLookupDeepLink(vi.fn())).toBe('function');
@@ -1291,6 +1291,7 @@ describe('Speech Bridge', () => {
       (window as unknown as Record<string, unknown>).SpeechSynthesisUtterance = class {
         text: string;
         lang = '';
+        voice: SpeechSynthesisVoice | null = null;
         onend: (() => void) | null = null;
         onerror: (() => void) | null = null;
         onboundary: (() => void) | null = null;
@@ -1306,6 +1307,23 @@ describe('Speech Bridge', () => {
     bridge.speech.ttsSpeak('hello', 'en');
     expect(speakSpy).toHaveBeenCalledOnce();
     speakSpy.mockRestore();
+  });
+
+  it('ttsSpeak applies language-package Web Speech metadata when provided', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const voice = { name: 'Microsoft Naayf Desktop', lang: 'ar-SA' } as SpeechSynthesisVoice;
+    vi.spyOn(speechSynthesis, 'getVoices').mockReturnValue([voice]);
+    const speakSpy = vi.spyOn(speechSynthesis, 'speak').mockImplementation(() => {});
+
+    bridge.speech.ttsSpeak('سلام', 'ar', {
+      speechSynthesisLang: 'ar-SA',
+      speechSynthesisVoice: 'Microsoft Naayf Desktop',
+    });
+
+    const utterance = speakSpy.mock.calls[0]?.[0] as SpeechSynthesisUtterance;
+    expect(utterance.lang).toBe('ar-SA');
+    expect(utterance.voice).toBe(voice);
   });
 
   it('ttsSpeak emits tts-status with speaking: true', async () => {

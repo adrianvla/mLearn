@@ -1,14 +1,15 @@
 import { createRoot } from 'solid-js';
-import type { TranslationResponse, DictionaryEntry } from '../../shared/types';
+import type { TranslationResponse, DictionaryEntry, LanguageData } from '../../shared/types';
 
-const mockTranslate = vi.fn<(word: string, language?: string) => Promise<TranslationResponse>>();
+type MockTranslateOptions = { dictionaryTargetLanguage?: string };
+const mockTranslate = vi.fn<(word: string, language?: string, options?: MockTranslateOptions) => Promise<TranslationResponse>>();
 const mockTokenize = vi.fn<(text: string, language?: string) => Promise<unknown[]>>();
 const mockKvGet = vi.fn<(key: string) => Promise<string | null>>().mockResolvedValue(null);
 const mockKvSet = vi.fn<(key: string, value: string) => Promise<void>>().mockResolvedValue(undefined);
 
 vi.mock('../../shared/backends', () => ({
   getBackend: () => ({
-    translate: (...args: unknown[]) => mockTranslate(...(args as [string, string?])),
+    translate: (...args: unknown[]) => mockTranslate(...(args as [string, string?, MockTranslateOptions?])),
     tokenize: (...args: unknown[]) => mockTokenize(...(args as [string, string?])),
   }),
 }));
@@ -27,7 +28,7 @@ const mockSetCachedTranslationByLanguageDB = vi.fn<(word: string, data: Translat
 const mockSetCachedTranslationBatchByLanguageDB = vi.fn().mockResolvedValue(undefined);
 const mockGetCachedDictionaryByLanguageDB = vi.fn<(word: string, reading: string, language?: string) => Promise<DictionaryEntry[] | null>>().mockResolvedValue(null);
 const mockSetCachedDictionaryByLanguageDB = vi.fn().mockResolvedValue(undefined);
-const mockGetCachedTokensByLanguageDB = vi.fn<(text: string, language?: string) => Promise<unknown[] | null>>().mockResolvedValue(null);
+const mockGetCachedTokensByLanguageDB = vi.fn<(text: string, language?: string, namespace?: string) => Promise<unknown[] | null>>().mockResolvedValue(null);
 const mockSetCachedTokensByLanguageDB = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../services/offlineCache', () => ({
@@ -36,7 +37,7 @@ vi.mock('../services/offlineCache', () => ({
   setCachedTranslationBatchByLanguageDB: (...args: unknown[]) => mockSetCachedTranslationBatchByLanguageDB(...args),
   getCachedDictionaryByLanguageDB: (...args: unknown[]) => mockGetCachedDictionaryByLanguageDB(...(args as [string, string, string?])),
   setCachedDictionaryByLanguageDB: (...args: unknown[]) => mockSetCachedDictionaryByLanguageDB(...args),
-  getCachedTokensByLanguageDB: (...args: unknown[]) => mockGetCachedTokensByLanguageDB(...(args as [string, string?])),
+  getCachedTokensByLanguageDB: (...args: unknown[]) => mockGetCachedTokensByLanguageDB(...(args as [string, string?, string?])),
   setCachedTokensByLanguageDB: (...args: unknown[]) => mockSetCachedTokensByLanguageDB(...args),
 }));
 
@@ -50,6 +51,34 @@ function makeTranslationResponse(word: string): TranslationResponse {
     ],
   };
 }
+
+const pinyinLanguageData: LanguageData = {
+  name: 'Chinese',
+  colour_codes: {},
+  settings: { fixed: {} },
+  textProcessing: { scriptProfile: { acceptedScripts: ['Han', 'Latn'] } },
+  runtime: {
+    nlp: {
+      dictionary: {
+        readingPath: ['pinyin', 'value'],
+      },
+    },
+  },
+};
+
+const nestedGlossLanguageData = {
+  name: 'Nested Gloss Language',
+  colour_codes: {},
+  settings: { fixed: {} },
+  runtime: {
+    nlp: {
+      dictionary: {
+        readingPath: ['pinyin', 'value'],
+        definitionsPath: ['glosses', 'english'],
+      },
+    },
+  },
+} as unknown as LanguageData;
 
 describe('useTranslation', () => {
   beforeEach(async () => {
@@ -200,6 +229,161 @@ describe('fetchTranslation', () => {
     expect(mockTranslate).toHaveBeenCalledWith('haus', 'de');
     expect(mockSetCachedTranslationByLanguageDB).toHaveBeenCalledWith('haus', expect.any(Object), 'de');
   });
+
+  it('versions translation cache keys by installed language and dictionary package metadata', async () => {
+    const languageData: LanguageData = {
+      name: 'Japanese',
+      languageData: {
+        version: 'ja-package-2026.06.29',
+        assets: [],
+        dictionaryPacks: {
+          en: {
+            targetLanguage: 'en',
+            name: 'English',
+            version: 'ja-en-dictionary-2026.06.29',
+            assets: [],
+          },
+        },
+      },
+    };
+    const { fetchTranslation, getCachedTranslation } = await import('./useTranslation');
+
+    await fetchTranslation('開く', 'ja', {
+      dictionaryTargetLanguage: 'en',
+      languageData,
+    });
+
+    const cacheLanguage = 'ja@language:ja-package-2026.06.29@dictionary:en:ja-en-dictionary-2026.06.29';
+    expect(mockGetCachedTranslationByLanguageDB).toHaveBeenCalledWith('開く', cacheLanguage, 'en');
+    expect(mockSetCachedTranslationByLanguageDB).toHaveBeenCalledWith('開く', expect.any(Object), cacheLanguage, 'en');
+    expect(getCachedTranslation('開く', 'ja', { dictionaryTargetLanguage: 'en' })).toBeNull();
+    expect(getCachedTranslation('開く', 'ja', { dictionaryTargetLanguage: 'en', languageData })).toEqual(makeTranslationResponse('開く'));
+  });
+
+  it('keeps translation cache lanes separate for different dictionary target languages', async () => {
+    const english = { data: [{ definitions: ['red'], reading: 'あかい' }] } as TranslationResponse;
+    const french = { data: [{ definitions: ['rouge'], reading: 'あかい' }] } as TranslationResponse;
+    mockTranslate
+      .mockResolvedValueOnce(english)
+      .mockResolvedValueOnce(french);
+
+    const { fetchTranslation, getCachedTranslation } = await import('./useTranslation');
+    await fetchTranslation('赤い', 'ja', { dictionaryTargetLanguage: 'en' });
+    await fetchTranslation('赤い', 'ja', { dictionaryTargetLanguage: 'fr' });
+
+    expect(mockTranslate).toHaveBeenCalledTimes(2);
+    expect(mockTranslate).toHaveBeenNthCalledWith(1, '赤い', 'ja', { dictionaryTargetLanguage: 'en' });
+    expect(mockTranslate).toHaveBeenNthCalledWith(2, '赤い', 'ja', { dictionaryTargetLanguage: 'fr' });
+    expect(mockGetCachedTranslationByLanguageDB).toHaveBeenNthCalledWith(1, '赤い', 'ja', 'en');
+    expect(mockGetCachedTranslationByLanguageDB).toHaveBeenNthCalledWith(2, '赤い', 'ja', 'fr');
+    expect(mockSetCachedTranslationByLanguageDB).toHaveBeenNthCalledWith(1, '赤い', english, 'ja', 'en');
+    expect(mockSetCachedTranslationByLanguageDB).toHaveBeenNthCalledWith(2, '赤い', french, 'ja', 'fr');
+    expect(getCachedTranslation('赤い', 'ja', { dictionaryTargetLanguage: 'en' })).toEqual(english);
+    expect(getCachedTranslation('赤い', 'ja', { dictionaryTargetLanguage: 'fr' })).toEqual(french);
+  });
+
+  it('buildTranslationLookupCandidates keeps direct lookup first before canonical and variant forms', async () => {
+    const { buildTranslationLookupCandidates } = await import('./useTranslation');
+    const candidates = buildTranslationLookupCandidates(
+      'идут',
+      (word) => word === 'идут' ? 'идти' : word,
+      (word) => word === 'идут' ? ['идти', 'идти', 'ходить'] : [],
+    );
+    expect(candidates).toEqual(['идут', 'идти', 'ходить']);
+  });
+
+  it('buildTranslationLookupCandidates includes metadata-normalized dictionary candidates', async () => {
+    const { buildTranslationLookupCandidates } = await import('./useTranslation');
+    const languageData: LanguageData = {
+      name: 'German',
+      targetLanguage: 'de',
+      runtime: {
+        nlp: {
+          dictionary: {
+            lookup: {
+              normalizers: ['casefold'],
+            },
+          },
+        },
+      },
+    };
+
+    const candidates = buildTranslationLookupCandidates(
+      'Straße',
+      (word) => word,
+      undefined,
+      languageData,
+    );
+
+    expect(candidates).toEqual(['Straße', 'strasse']);
+  });
+
+  it('fetchTranslation tries reading-script input before canonical surface forms', async () => {
+    const languageData: LanguageData = {
+      name: 'Japanese',
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Han', 'Hira', 'Kana'] },
+        lexemeNormalization: {
+          type: 'surface-reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Hira', 'Kana'],
+          readingNormalizer: 'kana-to-hiragana',
+        },
+      },
+    };
+    const readingSpecific = {
+      data: [{ reading: 'ひらく', definitions: ['to open'] }],
+    } satisfies TranslationResponse;
+    mockTranslate.mockImplementation(async (word: string) => (
+      word === 'ひらく' ? readingSpecific : makeTranslationResponse(word)
+    ));
+
+    const { fetchTranslation } = await import('./useTranslation');
+    const result = await fetchTranslation('ひらく', 'ja', {
+      getCanonicalForm: (word) => word === 'ひらく' ? '開く' : word,
+      languageData,
+    });
+
+    expect(result).toEqual(readingSpecific);
+    expect(mockTranslate).toHaveBeenCalledTimes(1);
+    expect(mockTranslate).toHaveBeenCalledWith('ひらく', 'ja');
+    expect(mockTranslate).not.toHaveBeenCalledWith('開く', 'ja');
+  });
+
+  it('fetchTranslation falls back to canonical forms for inflected words', async () => {
+    mockTranslate.mockImplementation(async (word: string) => {
+      if (word === 'идут') return { data: [] };
+      return makeTranslationResponse(word);
+    });
+
+    const { fetchTranslation, getCachedTranslation } = await import('./useTranslation');
+    const result = await fetchTranslation('идут', 'ru', {
+      getCanonicalForm: (word) => word === 'идут' ? 'идти' : word,
+    });
+
+    expect(mockTranslate).toHaveBeenNthCalledWith(1, 'идут', 'ru');
+    expect(mockTranslate).toHaveBeenNthCalledWith(2, 'идти', 'ru');
+    expect(result).toEqual(makeTranslationResponse('идти'));
+    expect(getCachedTranslation('идут', 'ru')).toEqual(result);
+    expect(mockSetCachedTranslationByLanguageDB).toHaveBeenCalledWith('идут', result, 'ru');
+  });
+
+  it('fetchTranslation does not let a cached empty surface miss block variant metadata', async () => {
+    const variantTranslation = makeTranslationResponse('كتب');
+    mockGetCachedTranslationByLanguageDB.mockImplementation(async (word: string) => {
+      if (word === 'يكتب') return { data: [] };
+      if (word === 'كتب') return variantTranslation;
+      return null;
+    });
+
+    const { fetchTranslation } = await import('./useTranslation');
+    const result = await fetchTranslation('يكتب', 'ar', {
+      getWordVariants: (word) => word === 'يكتب' ? ['كتب'] : [],
+    });
+
+    expect(result).toEqual(variantTranslation);
+    expect(mockTranslate).not.toHaveBeenCalled();
+  });
 });
 
 describe('getCachedTranslation', () => {
@@ -222,6 +406,21 @@ describe('getCachedTranslation', () => {
     mockTranslate.mockResolvedValue(data);
     await fetchTranslation('test');
     expect(getCachedTranslation('test')).toEqual(data);
+  });
+
+  it('candidate-aware cache reads skip exact empty misses when a variant has data', async () => {
+    const { getCachedTranslation, fetchTranslation } = await import('./useTranslation');
+    mockTranslate.mockImplementation(async (word: string) => word === 'يكتب'
+      ? { data: [] }
+      : makeTranslationResponse(word));
+
+    await fetchTranslation('يكتب', 'ar');
+    await fetchTranslation('كتب', 'ar');
+
+    expect(getCachedTranslation('يكتب', 'ar')).toEqual({ data: [] });
+    expect(getCachedTranslation('يكتب', 'ar', {
+      getWordVariants: (word) => word === 'يكتب' ? ['كتب'] : [],
+    })).toEqual(makeTranslationResponse('كتب'));
   });
 });
 
@@ -246,6 +445,35 @@ describe('getCachedReading', () => {
     });
     await fetchTranslation('読み');
     expect(getCachedReading('読み')).toBe('よみ');
+  });
+
+  it('returns package-declared dictionary readings from cached translations', async () => {
+    const { fetchTranslation, getCachedReading } = await import('./useTranslation');
+    mockTranslate.mockResolvedValue({
+      data: [{
+        word: '你好',
+        pinyin: { value: 'nǐ hǎo' },
+        definitions: ['hello'],
+      }],
+    });
+    await fetchTranslation('你好', 'zh', { languageData: pinyinLanguageData });
+
+    expect(getCachedReading('你好', 'zh', { languageData: pinyinLanguageData })).toBe('nǐ hǎo');
+  });
+
+  it('candidate-aware reading cache reads use variant metadata after exact empty misses', async () => {
+    const { fetchTranslation, getCachedReading } = await import('./useTranslation');
+    mockTranslate.mockImplementation(async (word: string) => word === 'يكتب'
+      ? { data: [] }
+      : { data: [{ reading: 'kataba', definitions: ['to write'] }] });
+
+    await fetchTranslation('يكتب', 'ar');
+    await fetchTranslation('كتب', 'ar');
+
+    expect(getCachedReading('يكتب', 'ar')).toBeNull();
+    expect(getCachedReading('يكتب', 'ar', {
+      getWordVariants: (word) => word === 'يكتب' ? ['كتب'] : [],
+    })).toBe('kataba');
   });
 
   it('strips HTML from reading', async () => {
@@ -325,6 +553,25 @@ describe('useTranslation.setOverride', () => {
     await setOverrideFn('hello', customResponse);
     const result = await fetchTranslation('hello');
     expect(result).toEqual(customResponse);
+    expect(mockTranslate).not.toHaveBeenCalled();
+  });
+
+  it('setOverride updates the in-memory cache immediately', async () => {
+    const { cacheVersion, getCachedReading, useTranslation } = await import('./useTranslation');
+    const customResponse = makeTranslationResponse('custom');
+
+    let setOverrideFn!: ReturnType<typeof useTranslation>['setOverride'];
+    createRoot((dispose) => {
+      const hook = useTranslation();
+      setOverrideFn = hook.setOverride;
+      dispose();
+    });
+
+    const before = cacheVersion();
+    await setOverrideFn('hello', customResponse);
+
+    expect(getCachedReading('hello')).toBe('customreading');
+    expect(cacheVersion()).toBe(before + 1);
     expect(mockTranslate).not.toHaveBeenCalled();
   });
 
@@ -473,6 +720,35 @@ describe('warmTranslationCache', () => {
     expect(mockSetCachedTranslationBatchByLanguageDB).toHaveBeenCalledTimes(1);
   });
 
+  it('pre-warms versioned cache lanes when language package metadata is supplied', async () => {
+    const languageData: LanguageData = {
+      name: 'Japanese',
+      languageData: {
+        version: 'ja-package-2026.06.29',
+        assets: [],
+        dictionaryPacks: {
+          en: {
+            targetLanguage: 'en',
+            name: 'English',
+            version: 'ja-en-dictionary-2026.06.29',
+            assets: [],
+          },
+        },
+      },
+    };
+    const { warmTranslationCache, getCachedTranslation } = await import('./useTranslation');
+
+    await warmTranslationCache(['開く'], undefined, undefined, 'ja', 'en', languageData);
+
+    const cacheLanguage = 'ja@language:ja-package-2026.06.29@dictionary:en:ja-en-dictionary-2026.06.29';
+    expect(mockSetCachedTranslationBatchByLanguageDB).toHaveBeenCalledWith(
+      [{ word: '開く', data: makeTranslationResponse('開く') }],
+      cacheLanguage,
+      'en',
+    );
+    expect(getCachedTranslation('開く', 'ja', { dictionaryTargetLanguage: 'en', languageData })).toEqual(makeTranslationResponse('開く'));
+  });
+
   it('ignores individual translation errors silently', async () => {
     const { warmTranslationCache } = await import('./useTranslation');
     mockTranslate.mockRejectedValueOnce(new Error('network error'));
@@ -540,15 +816,85 @@ describe('useTokenizer', () => {
     const { useTokenizer } = await import('./useTranslation');
     const { tokenize } = useTokenizer();
     await tokenize('save this');
-    expect(mockSetCachedTokensByLanguageDB).toHaveBeenCalledWith('save this', tokens, undefined);
+    expect(mockSetCachedTokensByLanguageDB).toHaveBeenCalledWith('save this', tokens, undefined, undefined);
   });
 
-  it('tokenize returns fallback token on backend error', async () => {
+  it('tokenize rethrows backend errors without language fallback metadata', async () => {
     mockTokenize.mockRejectedValue(new Error('network error'));
     const { useTokenizer } = await import('./useTranslation');
     const { tokenize } = useTokenizer();
+    await expect(tokenize('fail text')).rejects.toThrow('network error');
+  });
+
+  it('tokenize returns a fallback token when language metadata allows unicode-word fallback', async () => {
+    mockTokenize.mockRejectedValue(new Error('network error'));
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenize } = useTokenizer({
+      language: 'en',
+      languageData: {
+        name: 'English',
+        colour_codes: {},
+        settings: { fixed: {} },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'unicode-word',
+            },
+          },
+        },
+      },
+    });
     const result = await tokenize('fail text');
-    expect(result).toEqual([{ actual_word: 'fail text', word: 'fail text', type: 'UNKNOWN' }]);
+    expect(result).toEqual([
+      { actual_word: 'fail', word: 'fail', type: 'WORD', surface: 'fail' },
+      { actual_word: 'text', word: 'text', type: 'WORD', surface: 'text' },
+    ]);
+  });
+
+  it('tokenize rethrows backend errors when language metadata requires the tokenizer', async () => {
+    mockTokenize.mockRejectedValue(new Error('required tokenizer missing'));
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenize } = useTokenizer({
+      language: 'ja',
+      languageData: {
+        name: 'Japanese',
+        colour_codes: {},
+        settings: { fixed: {} },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'sudachi',
+              required: true,
+            },
+          },
+        },
+      },
+    });
+
+    await expect(tokenize('漢字')).rejects.toThrow('required tokenizer missing');
+  });
+
+  it('tokenize rethrows backend errors when rough fallback would drop all letters', async () => {
+    mockTokenize.mockRejectedValue(new Error('network error'));
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenize } = useTokenizer({
+      language: 'xx',
+      languageData: {
+        name: 'Latin fallback language',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'unicode-word',
+            },
+          },
+        },
+      },
+    });
+
+    await expect(tokenize('漢字')).rejects.toThrow('network error');
   });
 
   it('concurrent tokenize calls for same text are deduplicated', async () => {
@@ -574,9 +920,51 @@ describe('useTokenizer', () => {
     const { useTokenizer } = await import('./useTranslation');
     const { tokenize } = useTokenizer({ language: 'de' });
     await tokenize('Haus');
-    expect(mockGetCachedTokensByLanguageDB).toHaveBeenCalledWith('Haus', 'de');
+    expect(mockGetCachedTokensByLanguageDB).toHaveBeenCalledWith('Haus', 'de', undefined);
     expect(mockTokenize).toHaveBeenCalledWith('Haus', 'de');
-    expect(mockSetCachedTokensByLanguageDB).toHaveBeenCalledWith('Haus', tokens, 'de');
+    expect(mockSetCachedTokensByLanguageDB).toHaveBeenCalledWith('Haus', tokens, 'de', undefined);
+  });
+
+  it('tokenize separates cache lanes when the same language installs a new tokenizer package', async () => {
+    const oldTokens = [{ actual_word: '旧', word: '旧', type: 'OLD' }];
+    const newTokens = [{ actual_word: '新', word: '新', type: 'NEW' }];
+    mockTokenize
+      .mockResolvedValueOnce(oldTokens)
+      .mockResolvedValueOnce(newTokens);
+
+    const oldLanguageData: LanguageData = {
+      name: 'Japanese',
+      colour_codes: {},
+      settings: { fixed: {} },
+      languageData: { version: 'ja-package-v1', assets: [] },
+      runtime: { nlp: { tokenizer: { type: 'sudachi', required: true } } },
+    };
+    const newLanguageData: LanguageData = {
+      ...oldLanguageData,
+      languageData: { version: 'ja-package-v2', assets: [] },
+    };
+
+    const { useTokenizer } = await import('./useTranslation');
+    const { getTokenizerCacheNamespace } = await import('../../shared/languageFeatures');
+    const first = useTokenizer({ language: 'ja', languageData: oldLanguageData });
+    const second = useTokenizer({ language: 'ja', languageData: newLanguageData });
+
+    await first.tokenize('日本語');
+    await second.tokenize('日本語');
+
+    expect(mockTokenize).toHaveBeenCalledTimes(2);
+    expect(mockGetCachedTokensByLanguageDB).toHaveBeenNthCalledWith(
+      1,
+      '日本語',
+      'ja',
+      getTokenizerCacheNamespace(oldLanguageData),
+    );
+    expect(mockGetCachedTokensByLanguageDB).toHaveBeenNthCalledWith(
+      2,
+      '日本語',
+      'ja',
+      getTokenizerCacheNamespace(newLanguageData),
+    );
   });
 });
 
@@ -790,6 +1178,36 @@ describe('useDictionary', () => {
     expect(result[0].meanings).toEqual(['single string definition']);
   });
 
+  it('lookup maps package-declared dictionary readings into dictionary entries', async () => {
+    mockTranslate.mockResolvedValue({
+      data: [{
+        word: '你好',
+        pinyin: { value: 'nǐ hǎo' },
+        definitions: ['hello'],
+      }],
+    });
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary({ language: 'zh', languageData: pinyinLanguageData });
+    const result = await lookup('你好');
+
+    expect(result).toEqual([{ word: '你好', reading: 'nǐ hǎo', meanings: ['hello'] }]);
+  });
+
+  it('lookup maps package-declared dictionary definitions into dictionary entries', async () => {
+    mockTranslate.mockResolvedValue({
+      data: [{
+        word: '你好',
+        pinyin: { value: 'nǐ hǎo' },
+        glosses: { english: ['hello', 'hi'] },
+      }],
+    });
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary({ language: 'zh', languageData: nestedGlossLanguageData });
+    const result = await lookup('你好');
+
+    expect(result).toEqual([{ word: '你好', reading: 'nǐ hǎo', meanings: ['hello', 'hi'] }]);
+  });
+
   it('lookup uses empty string as default reading key', async () => {
     const { useDictionary } = await import('./useTranslation');
     const { lookup } = useDictionary();
@@ -804,6 +1222,144 @@ describe('useDictionary', () => {
     expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('Haus', '', 'de');
     expect(mockTranslate).toHaveBeenCalledWith('Haus', 'de');
     expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('Haus', '', expect.any(Array), 'de');
+  });
+
+  it('versions dictionary cache keys by installed language and dictionary package metadata', async () => {
+    const languageData: LanguageData = {
+      name: 'Japanese',
+      languageData: {
+        version: 'ja-package-2026.06.29',
+        assets: [],
+        dictionaryPacks: {
+          en: {
+            targetLanguage: 'en',
+            name: 'English',
+            version: 'ja-en-dictionary-2026.06.29',
+            assets: [],
+          },
+        },
+      },
+    };
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary({
+      language: 'ja',
+      dictionaryTargetLanguage: 'en',
+      languageData,
+    });
+
+    await lookup('開く', 'ひらく');
+
+    const cacheLanguage = 'ja@language:ja-package-2026.06.29@dictionary:en:ja-en-dictionary-2026.06.29';
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('開く', 'ひらく', cacheLanguage, 'en');
+    expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenCalledWith(
+      '開く',
+      'ひらく',
+      [{ word: '開く', reading: '開くreading', meanings: ['definition of 開く'] }],
+      cacheLanguage,
+      'en',
+    );
+  });
+
+  it('lookup keeps dictionary cache lanes separate for different dictionary target languages', async () => {
+    mockTranslate
+      .mockResolvedValueOnce({ data: [{ word: '赤い', reading: 'あかい', definitions: ['red'] }] })
+      .mockResolvedValueOnce({ data: [{ word: '赤い', reading: 'あかい', definitions: ['rouge'] }] });
+
+    const { useDictionary } = await import('./useTranslation');
+    const english = useDictionary({ language: 'ja', dictionaryTargetLanguage: 'en' });
+    const french = useDictionary({ language: 'ja', dictionaryTargetLanguage: 'fr' });
+
+    expect(await english.lookup('赤い')).toEqual([{ word: '赤い', reading: 'あかい', meanings: ['red'] }]);
+    expect(await french.lookup('赤い')).toEqual([{ word: '赤い', reading: 'あかい', meanings: ['rouge'] }]);
+    expect(mockTranslate).toHaveBeenCalledTimes(2);
+    expect(mockTranslate).toHaveBeenNthCalledWith(1, '赤い', 'ja', { dictionaryTargetLanguage: 'en' });
+    expect(mockTranslate).toHaveBeenNthCalledWith(2, '赤い', 'ja', { dictionaryTargetLanguage: 'fr' });
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenNthCalledWith(1, '赤い', '', 'ja', 'en');
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenNthCalledWith(2, '赤い', '', 'ja', 'fr');
+    expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenNthCalledWith(
+      1,
+      '赤い',
+      '',
+      [{ word: '赤い', reading: 'あかい', meanings: ['red'] }],
+      'ja',
+      'en',
+    );
+    expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenNthCalledWith(
+      2,
+      '赤い',
+      '',
+      [{ word: '赤い', reading: 'あかい', meanings: ['rouge'] }],
+      'ja',
+      'fr',
+    );
+  });
+
+  it('buildDictionaryLookupCandidates keeps direct lookup first before canonical and variant forms', async () => {
+    const { buildDictionaryLookupCandidates } = await import('./useTranslation');
+    const candidates = buildDictionaryLookupCandidates(
+      'идут',
+      (word) => word === 'идут' ? 'идти' : word,
+      (word) => word === 'идут' ? ['идти', 'идти', 'ходить'] : [],
+    );
+    expect(candidates).toEqual(['идут', 'идти', 'ходить']);
+  });
+
+  it('lookup falls back to canonical forms for inflected words', async () => {
+    mockTranslate.mockImplementation(async (word: string) => {
+      if (word === 'идут') return { data: [] };
+      return { data: [{ word, reading: '', definitions: [`definition of ${word}`] }] };
+    });
+
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary({
+      language: 'ru',
+      getCanonicalForm: (word) => word === 'идут' ? 'идти' : word,
+    });
+
+    const result = await lookup('идут');
+    expect(mockTranslate).toHaveBeenNthCalledWith(1, 'идут', 'ru');
+    expect(mockTranslate).toHaveBeenNthCalledWith(2, 'идти', 'ru');
+    expect(result).toEqual([{ word: 'идти', reading: '', meanings: ['definition of идти'] }]);
+    expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('идут', '', result, 'ru');
+  });
+
+  it('lookup does not let a cached empty surface miss block variant dictionary entries', async () => {
+    const variantEntries: DictionaryEntry[] = [{ word: 'كتب', reading: '', meanings: ['to write'] }];
+    mockGetCachedDictionaryByLanguageDB.mockImplementation(async (word: string) => {
+      if (word === 'يكتب') return [];
+      if (word === 'كتب') return variantEntries;
+      return null;
+    });
+
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary({
+      language: 'ar',
+      getWordVariants: (word) => word === 'يكتب' ? ['كتب'] : [],
+    });
+
+    const result = await lookup('يكتب');
+    expect(result).toEqual(variantEntries);
+    expect(mockTranslate).not.toHaveBeenCalled();
+  });
+
+  it('lookup checks normalized reading cache variants before calling the backend', async () => {
+    const cachedEntries: DictionaryEntry[] = [{ word: '你好', reading: 'ni hao', meanings: ['hello'] }];
+    mockGetCachedDictionaryByLanguageDB.mockImplementation(async (_word: string, reading: string) => (
+      reading === 'ni hao' ? cachedEntries : null
+    ));
+
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary({
+      language: 'zh',
+      getReadingVariants: (reading) => [reading, reading.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC')],
+    });
+
+    const result = await lookup('你好', 'nǐ hǎo');
+
+    expect(result).toEqual(cachedEntries);
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenNthCalledWith(1, '你好', 'nǐ hǎo', 'zh');
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenNthCalledWith(2, '你好', 'ni hao', 'zh');
+    expect(mockTranslate).not.toHaveBeenCalled();
   });
 
   it('translationCache evicts oldest entries past cap (FIFO, prevents unbounded growth)', async () => {

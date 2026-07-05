@@ -5,5 +5,5 @@
 
 export { OcrOverlay, type OcrOverlayProps, type OcrBox, type OcrResult, type OcrProcessingTimes } from './OcrOverlay';
 export { OcrWord, type OcrWordProps } from './OcrWord';
-export { FuriganaHider, type FuriganaHiderProps } from './FuriganaHider';
+export { ReadingAnnotationHider, type ReadingAnnotationHiderProps } from './ReadingAnnotationHider';
 export { MagnifyingGlass, type MagnifyingGlassProps } from './MagnifyingGlass';

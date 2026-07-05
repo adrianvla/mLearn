@@ -1,7 +1,50 @@
 import { describe, it, expect } from 'vitest';
-import { extractCharacters, buildCharacterContext } from './characterExtraction';
+import type { LanguageData } from '../../shared/types';
+import {
+  extractCharacters as extractCharactersRaw,
+  buildCharacterContext as buildCharacterContextRaw,
+  type CharacterExtractionOptions,
+} from './characterExtraction';
+
+const defaultCharacterLanguageData: LanguageData = {
+  name: 'Subtitle Character Language',
+  colour_codes: {},
+  settings: { fixed: {} },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Latn', 'Hira', 'Kana', 'Han', 'Hang'] },
+    subtitle: {
+      characterNamePrefix: {
+        enabled: true,
+        scripts: ['Latn', 'Hira', 'Kana', 'Han', 'Hang'],
+        allowLatinFallback: true,
+      },
+    },
+  },
+};
+
+function extractCharacters(lines: string[], options: CharacterExtractionOptions = {}) {
+  return extractCharactersRaw(lines, {
+    ...options,
+    languageData: options.languageData ?? defaultCharacterLanguageData,
+  });
+}
+
+function buildCharacterContext(lines: string[], options: CharacterExtractionOptions = {}) {
+  return buildCharacterContextRaw(lines, {
+    ...options,
+    languageData: options.languageData ?? defaultCharacterLanguageData,
+  });
+}
 
 describe('extractCharacters', () => {
+  it('does not extract without language metadata declaring subtitle character prefixes', () => {
+    const result = extractCharactersRaw([
+      'Alice: Hello there',
+      'Alice: Goodbye',
+    ]);
+    expect(result).toEqual([]);
+  });
+
   it('returns empty array for empty input', () => {
     const result = extractCharacters([]);
     expect(result).toEqual([]);
@@ -246,6 +289,128 @@ describe('extractCharacters', () => {
       '(Guard1) We are here to help',
     ]);
     expect(result).toEqual([{ name: 'Guard1', lineCount: 2 }]);
+  });
+
+  it('disables extraction when installed language metadata does not support character names', () => {
+    const latinLanguage: LanguageData = {
+      name: 'Latin Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+          };
+
+    const result = extractCharacters([
+      'Alice: Hello there',
+      'Alice: Goodbye',
+    ], { languageData: latinLanguage });
+
+    expect(result).toEqual([]);
+  });
+
+  it('requires subtitle parser metadata before extracting character labels', () => {
+    const unconfiguredLanguage: LanguageData = {
+      name: 'Unconfigured Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+      },
+    };
+
+    const result = extractCharacters([
+      'Alice: Hello there',
+      'Alice: Goodbye',
+    ], { languageData: unconfiguredLanguage });
+
+    expect(result).toEqual([]);
+  });
+
+  it('uses language metadata to extract Cyrillic character labels', () => {
+    const russianLanguage: LanguageData = {
+      name: 'Russian',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Cyrl'] },
+        subtitle: {
+          characterNamePrefix: {
+            enabled: true,
+            scripts: ['Cyrl'],
+            delimiters: [':'],
+          },
+        },
+      },
+    };
+
+    const result = extractCharacters([
+      'Анна: Привет',
+      'Анна: Пока',
+    ], { languageData: russianLanguage });
+
+    expect(result).toEqual([{ name: 'Анна', lineCount: 2 }]);
+  });
+
+  it('does not extract Latin character labels for non-Latin packages unless metadata opts in', () => {
+    const japaneseLanguage: LanguageData = {
+      name: 'Japanese',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        subtitle: {
+          characterNamePrefix: {
+            enabled: true,
+            scripts: ['Hira', 'Kana', 'Han'],
+            delimiters: [':'],
+          },
+        },
+      },
+    };
+
+    expect(extractCharacters([
+      'Alice: こんにちは',
+      'Alice: また明日',
+    ], { languageData: japaneseLanguage })).toEqual([]);
+    expect(extractCharacters([
+      'Alice: こんにちは',
+      'Alice: また明日',
+    ], {
+      languageData: {
+        ...japaneseLanguage,
+        textProcessing: {
+          subtitle: {
+            characterNamePrefix: {
+              ...japaneseLanguage.textProcessing!.subtitle!.characterNamePrefix!,
+              allowLatinFallback: true,
+            },
+          },
+        },
+      },
+    })).toEqual([{ name: 'Alice', lineCount: 2 }]);
+  });
+
+  it('uses language metadata to extract Arabic character labels with custom brackets', () => {
+    const arabicLanguage: LanguageData = {
+      name: 'Arabic',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Arab'] },
+        subtitle: {
+          characterNamePrefix: {
+            enabled: true,
+            scripts: ['Arab'],
+            bracketPairs: [['[', ']']],
+            minLineCount: 1,
+          },
+        },
+      },
+    };
+
+    const result = extractCharacters([
+      '[سارة] مرحبا',
+    ], { languageData: arabicLanguage });
+
+    expect(result).toEqual([{ name: 'سارة', lineCount: 1 }]);
   });
 });
 
