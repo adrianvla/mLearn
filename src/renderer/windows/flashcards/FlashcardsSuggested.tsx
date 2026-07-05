@@ -112,10 +112,20 @@ export const FlashcardsSuggested: Component = () => {
     { value: 'dict', label: t('mlearn.Flashcards.Suggested.Filter.DictionaryOnly') },
   ]);
 
+  const failedSuggestionWordKeys = createMemo(() => {
+    const keys = new Set<string>();
+    for (const entry of Object.values(store.wordKnowledge)) {
+      if (!isWordMarkedFailed(entry, settings)) continue;
+      keys.add(`${entry.language || settings.language}:${entry.word}`);
+    }
+    return keys;
+  });
+
   const filtered = createMemo<SuggestedFlashcard[]>(() => {
     const q = search().trim().toLowerCase();
     const qf = quickFilter();
     const lvl = levelFilter();
+    const failedKeys = qf === 'failed' ? failedSuggestionWordKeys() : null;
 
     return suggestions().filter((s) => {
       if (q && !s.word.toLowerCase().includes(q) && !(s.reading || '').toLowerCase().includes(q)) {
@@ -132,13 +142,7 @@ export const FlashcardsSuggested: Component = () => {
       }
 
       if (qf === 'failed') {
-        const lk = s.language + ':';
-        const matches = Object.entries(store.wordKnowledge).find(([k, entry]) =>
-          k.startsWith(lk) && entry.word === s.word
-        );
-        if (!matches) return false;
-        const [, entry] = matches;
-        if (!isWordMarkedFailed(entry, settings)) return false;
+        if (!failedKeys?.has(`${s.language}:${s.word}`)) return false;
       }
 
       return true;
