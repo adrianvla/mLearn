@@ -1,4 +1,4 @@
-import { Component, createMemo, createSignal, For, Show } from 'solid-js';
+import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
 import { Modal, Btn } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
@@ -47,22 +47,38 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     getReadingAnnotationScripts(activeLanguageData()).length > 0
   ));
 
-  const wordsForLevel = createMemo(() => {
+  const buildWordsForLevelSnapshot = (): WordListItem[] => {
     const lang = activeLanguage();
     const langData = activeLanguageData();
     const freq = resolveLevelStudyWordFrequency({}, langData);
-    const store = flashcards.store;
-    const knownSet = buildKnownWordSetFromStore(store, settings.known_ease_threshold);
-    const learningSet = buildLearningWordSet(store, settings.srsLearningThreshold, settings.known_ease_threshold);
-    const trackedSet = buildTrackedWordSet(store, lang);
+    const knownThreshold = settings.known_ease_threshold;
+    const learningThreshold = settings.srsLearningThreshold;
 
-    const result: WordListItem[] = [];
-    for (const [word, entry] of Object.entries(freq)) {
-      if (entry.raw_level !== props.level) continue;
-      const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet);
-      result.push({ word, reading: entry.reading || '', status });
-    }
-    return result.sort((a, b) => a.word.localeCompare(b.word));
+    return untrack(() => {
+      const store = flashcards.store;
+      const knownSet = buildKnownWordSetFromStore(store, knownThreshold);
+      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
+      const trackedSet = buildTrackedWordSet(store, lang);
+
+      const result: WordListItem[] = [];
+      for (const [word, entry] of Object.entries(freq)) {
+        if (entry.raw_level !== props.level) continue;
+        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet);
+        result.push({ word, reading: entry.reading || '', status });
+      }
+      return result.sort((a, b) => a.word.localeCompare(b.word));
+    });
+  };
+
+  const [wordsForLevel, setWordsForLevel] = createSignal<WordListItem[]>([], { equals: false });
+
+  createEffect(() => {
+    props.level;
+    activeLanguage();
+    activeLanguageData();
+    settings.known_ease_threshold;
+    settings.srsLearningThreshold;
+    setWordsForLevel(buildWordsForLevelSnapshot());
   });
 
   const selectedWords = createMemo(() => {

@@ -246,8 +246,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   // Selected words set for O(1) lookup
   const selectedWords = createMemo(() => new Set(props.selected.map(s => s.word)));
 
-  // Filter and sort
-  const filteredWords = createMemo(() => {
+  const queryFilteredWords = createMemo(() => {
     const query = searchQuery().toLowerCase().trim();
     const level = levelFilter();
 
@@ -271,22 +270,25 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       );
     }
 
-    // Sort: selected first, then by ease ascending (least known first)
-    const combined = allWords();
-    const orderIndex = new Map<string, number>();
-    for (let i = 0; i < combined.length; i++) {
-      orderIndex.set(combined[i].word, i);
+    return items;
+  });
+
+  // Keep selection interactions cheap: only partition the current query
+  // snapshot instead of rebuilding or sorting the full source list.
+  const filteredWords = createMemo(() => {
+    const selected = selectedWords();
+    const selectedItems: PassiveWordKnowledge[] = [];
+    const unselectedItems: PassiveWordKnowledge[] = [];
+
+    for (const item of queryFilteredWords()) {
+      if (selected.has(item.word)) {
+        selectedItems.push(item);
+      } else {
+        unselectedItems.push(item);
+      }
     }
 
-    return items.sort((a, b) => {
-      const aSelected = selectedWords().has(a.word) ? 0 : 1;
-      const bSelected = selectedWords().has(b.word) ? 0 : 1;
-      if (aSelected !== bSelected) return aSelected - bSelected;
-
-      const aIdx = orderIndex.get(a.word) ?? Infinity;
-      const bIdx = orderIndex.get(b.word) ?? Infinity;
-      return aIdx - bIdx;
-    });
+    return [...selectedItems, ...unselectedItems];
   });
 
   const legendItems = createMemo(() => ([
