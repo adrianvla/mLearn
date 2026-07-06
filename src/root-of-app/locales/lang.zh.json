@@ -511,7 +511,7 @@
         "TtsSpeed": "语速",
         "UploadSample": "上传语音样本",
         "VoiceSample": "语音克隆",
-        "VoiceSampleDisabledLocal": "自定义语音上传仅适用于 Qwen3-TTS 或云端 TTS"
+        "VoiceSampleDisabledLocal": "自定义语音上传仅适用于 Qwen3-TTS"
       },
       "Memory": {
         "ClearAll": "清除所有记忆",

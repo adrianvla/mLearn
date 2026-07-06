@@ -37,6 +37,7 @@ export const API_ENDPOINTS = {
   quit: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/quit`,
   // Voice endpoints
   voiceStream: `ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stream`,
+  voiceTtsStream: `ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/stream`,
   voiceTts: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts`,
   voiceSttStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stt/status`,
   voiceTtsStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/status`,
@@ -58,6 +59,7 @@ export const API_PATHS = {
   control: '/control',
   quit: '/quit',
   voiceStream: '/voice/stream',
+  voiceTtsStream: '/voice/tts/stream',
   voiceTts: '/voice/tts',
   voiceSttStatus: '/voice/stt/status',
   voiceTtsStatus: '/voice/tts/status',
@@ -412,7 +414,7 @@ export const PASSIVE_HOVER_FAIL_ACTIONS = ['decrease-ease', 'decrease-ease-and-f
 export type PassiveHoverFailAction = typeof PASSIVE_HOVER_FAIL_ACTIONS[number];
 
 // Python download URLs
-// NOTE: Voice TTS uses Kokoro-82M locally (fast, CPU/MPS), Qwen3-TTS (voice cloning), or Cloud TTS.
+// NOTE: Conversation voice TTS is local: Kokoro-82M (fast, CPU/MPS) or Qwen3-TTS (voice cloning).
 // Update packaged-python repo with 3.11 builds from indygreg/python-build-standalone:
 //   - aarch64-apple-darwin: cpython-3.11.x+...aarch64-apple-darwin-install_only.tar.gz
 //   - x86_64-apple-darwin:  cpython-3.11.x+...x86_64-apple-darwin-install_only.tar.gz

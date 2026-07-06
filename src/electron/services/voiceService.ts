@@ -1,19 +1,18 @@
 /**
  * Voice Service — relays audio between renderer IPC and Python backend
- * for STT (faster-whisper), TTS (Kokoro / Qwen3-TTS / Cloud), and VAD (Silero).
+ * for STT (faster-whisper), local TTS (Kokoro / Qwen3-TTS), and VAD (Silero).
  *
  * All speech models run in the Python backend (server.py).
  * Audio streams from renderer via IPC → this service → Python WebSocket.
- * TTS is requested via HTTP POST, audio returned and forwarded to renderer.
+ * Realtime TTS streams from the local Python backend and is forwarded to renderer.
  */
 
 import { ipcMain, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
-import * as https from 'https';
 import { spawn } from 'child_process';
-import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared/constants';
+import { IPC_CHANNELS, API_ENDPOINTS } from '../../shared/constants';
 import { limitConsecutiveDots } from '../../shared/utils/textUtils';
 import type {
   VoiceModelStatus,
@@ -30,7 +29,6 @@ import {
   getPythonExecutablePath,
   isWindows,
 } from '../utils/platform';
-import { loadSettings } from './settings';
 import { getQuitToken, readResourceFile } from './pythonBackend';
 import WebSocket from 'ws';
 import { getLogger } from '../../shared/utils/logger';
@@ -79,6 +77,56 @@ function saveSamplesManifest(samples: VoiceSample[]): void {
 
 export function getVoiceSamplePath(sample: VoiceSample): string {
   return path.join(getVoiceSamplesDir(), sample.filename);
+}
+
+function getVoiceSampleTranscriptPath(sample: VoiceSample): string {
+  return getVoiceSamplePath(sample).replace(/\.[^.]+$/, '.txt');
+}
+
+async function ensureVoiceSampleTranscript(
+  sample: VoiceSample,
+  samples: VoiceSample[],
+  language: string,
+  force = false,
+): Promise<{ text: string; language: string }> {
+  if (!force && typeof sample.transcript === 'string' && sample.transcript.trim()) {
+    return { text: sample.transcript.trim(), language: sample.language || language };
+  }
+
+  const txtPath = getVoiceSampleTranscriptPath(sample);
+  if (!force && fs.existsSync(txtPath)) {
+    const transcript = fs.readFileSync(txtPath, 'utf-8').trim();
+    if (transcript) {
+      sample.transcript = transcript;
+      saveSamplesManifest(samples);
+      return { text: transcript, language: sample.language || language };
+    }
+  }
+
+  const payload: { voiceSamplePath: string; language?: string } = {
+    voiceSamplePath: getVoiceSamplePath(sample),
+  };
+  if (language) {
+    payload.language = language;
+  }
+  const { data } = await postJson(API_ENDPOINTS.voiceTranscribe, payload);
+  const parsed = JSON.parse(data.toString('utf-8'));
+  if (parsed.detail) {
+    throw new Error(typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail));
+  }
+  const result = parsed as { text?: string; language?: string };
+  const transcript = result.text?.trim();
+  if (!transcript) {
+    throw new Error('Transcription returned empty text');
+  }
+
+  fs.writeFileSync(txtPath, transcript, 'utf-8');
+  sample.transcript = transcript;
+  if (result.language) {
+    sample.language = result.language;
+  }
+  saveSamplesManifest(samples);
+  return { text: transcript, language: result.language || language };
 }
 
 // ============================================================================
@@ -282,6 +330,7 @@ let pendingTokenTimer: NodeJS.Timeout | null = null;
 // ============================================================================
 
 let ttsAbortController: AbortController | null = null;
+let activeTtsWs: WebSocket | null = null;
 
 // ============================================================================
 // Model Status Check
@@ -316,6 +365,17 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatus> {
   }
 
   return status;
+}
+
+async function isQwen3TtsEngine(language: string): Promise<boolean> {
+  try {
+    const ttsStatus = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
+    const modelName = String(ttsStatus.modelName ?? '');
+    return modelName.toLowerCase().includes('qwen3');
+  } catch (err) {
+    log.error("error", err);
+    return false;
+  }
 }
 
 function wait(ms: number): Promise<void> {
@@ -524,186 +584,6 @@ function sendSilenceThresholdUpdate(threshold: number): void {
 }
 
 // ============================================================================
-// TTS Generation via Cloud (BFF Worker → Modal)
-// ============================================================================
-
-async function generateCloudTTS(
-  text: string,
-  language: string,
-  sender: Electron.WebContents,
-  cloudAuthToken?: string,
-): Promise<void> {
-  ttsAbortController = new AbortController();
-  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false });
-
-  try {
-    const settings = loadSettings();
-    const authToken = cloudAuthToken || settings.cloudAuthAccessToken || settings.cloudAuthToken;
-    if (!authToken) {
-      throw new Error('Cloud TTS requires authentication. Please sign in to mLearn Cloud.');
-    }
-
-    const baseUrl = ((settings.overrideCloudEndpointUrl && settings.cloudApiUrl)
-      ? settings.cloudApiUrl
-      : DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
-
-    // Step 1: Request stream URL from BFF
-    const streamUrlObj = new URL(`${baseUrl}/api/tts/stream`);
-    const body = JSON.stringify({ text, language, provider: 'moss-realtime' });
-
-    const streamInfo = await new Promise<{ streamUrl: string }>((resolve, reject) => {
-      if (ttsAbortController?.signal.aborted) { reject(new Error('Aborted')); return; }
-      const proto = streamUrlObj.protocol === 'https:' ? https : http;
-      const req = proto.request(
-        {
-          hostname: streamUrlObj.hostname,
-          port: streamUrlObj.port,
-          path: streamUrlObj.pathname,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(body),
-            'Authorization': `Bearer ${authToken}`,
-          },
-          timeout: 30000,
-        },
-        (res: http.IncomingMessage) => {
-          if (res.statusCode !== 200) {
-            res.resume();
-            reject(new Error(`Cloud TTS setup failed: HTTP ${res.statusCode}`));
-            return;
-          }
-          const chunks: Buffer[] = [];
-          res.on('data', (chunk: Buffer) => chunks.push(chunk));
-          res.on('end', () => {
-            try {
-              const data = JSON.parse(Buffer.concat(chunks).toString());
-              const url = data.actions?.stream_url;
-              if (!url) {
-                reject(new Error('Cloud TTS: no stream_url in response'));
-                return;
-              }
-              resolve({ streamUrl: url });
-            } catch (e) {
-              log.error("error", e);
-              reject(e);
-            }
-          });
-          res.on('error', reject);
-        },
-      );
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS setup timeout')); });
-      req.write(body);
-      req.end();
-    });
-
-    if (ttsAbortController?.signal.aborted) return;
-
-    // Step 2: Stream audio from Modal endpoint
-    // The Modal endpoint returns chunked WAV — each chunk is a separate WAV file (~100ms of PCM_16 @ 24kHz)
-    const sampleRate = 24000;
-    const WAV_HEADER_SIZE = 44;
-
-    const streamAudio = (streamUrl: string, redirectsLeft = 5): Promise<void> => {
-      return new Promise((resolve, reject) => {
-        if (redirectsLeft <= 0) {
-          reject(new Error('Too many redirects'));
-          return;
-        }
-        if (ttsAbortController?.signal.aborted) { resolve(); return; }
-
-        const url = new URL(streamUrl);
-        const proto = url.protocol === 'https:' ? https : http;
-        const req = proto.request(
-          {
-            hostname: url.hostname,
-            port: url.port,
-            path: url.pathname + url.search,
-            method: 'GET',
-            timeout: 120000,
-          },
-          (res: http.IncomingMessage) => {
-            if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-              res.resume();
-              streamAudio(new URL(res.headers.location, url.toString()).toString(), redirectsLeft - 1)
-                .then(resolve, reject);
-              return;
-            }
-
-            if (res.statusCode !== 200) {
-              res.resume();
-              reject(new Error(`Cloud TTS stream failed: HTTP ${res.statusCode}`));
-              return;
-            }
-
-            // Accumulate incoming data and extract WAV chunks.
-            // Each chunk from Modal is a full WAV file (header + PCM data).
-            let pending = Buffer.alloc(0);
-            let sentenceIndex = 0;
-
-            res.on('data', (chunk: Buffer) => {
-              if (ttsAbortController?.signal.aborted) {
-                res.destroy();
-                return;
-              }
-              pending = Buffer.concat([pending, chunk]);
-
-              // Try to extract complete WAV chunks from the buffer
-              while (pending.length > WAV_HEADER_SIZE) {
-                // Read data size from WAV header bytes 40-43 (little-endian uint32)
-                const dataSize = pending.readUInt32LE(40);
-                const totalSize = WAV_HEADER_SIZE + dataSize;
-                if (pending.length < totalSize) break;
-
-                // Extract this WAV chunk's PCM data
-                const pcmData = pending.subarray(WAV_HEADER_SIZE, totalSize);
-                pending = pending.subarray(totalSize);
-
-                // Convert Int16 PCM to Float32
-                const int16View = new Int16Array(
-                  pcmData.buffer,
-                  pcmData.byteOffset,
-                  pcmData.byteLength / 2,
-                );
-                const float32Samples = new Float32Array(int16View.length);
-                for (let i = 0; i < int16View.length; i++) {
-                  float32Samples[i] = int16View[i] / 32768;
-                }
-
-                const audio: VoiceTtsAudio = {
-                  samples: float32Samples,
-                  sampleRate,
-                  sentenceIndex: sentenceIndex++,
-                  sentenceText: sentenceIndex === 1 ? text : '',
-                  totalSentences: 1,
-                };
-                sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
-              }
-            });
-
-            res.on('end', resolve);
-            res.on('error', reject);
-          },
-        );
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS stream timeout')); });
-        req.end();
-      });
-    };
-
-    await streamAudio(streamInfo.streamUrl);
-  } catch (err) {
-    if (!ttsAbortController?.signal.aborted) {
-      log.error('[VoiceService] Cloud TTS error:', err);
-    }
-  }
-
-  ttsAbortController = null;
-  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
-}
-
-// ============================================================================
 // TTS Generation via Python Backend
 // ============================================================================
 
@@ -714,17 +594,20 @@ async function generateTTS(
   voiceSampleId: string | undefined,
   sender: Electron.WebContents,
   provider?: string,
-  cloudAuthToken?: string,
 ): Promise<void> {
   // Sanitize consecutive dots to prevent TTS backend failures
   const sanitizedText = limitConsecutiveDots(text);
 
-  // Cloud TTS has a completely different path — BFF → Modal streaming
   if (provider === 'cloud') {
-    return generateCloudTTS(sanitizedText, language, sender, cloudAuthToken);
+    sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+    sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+      error: 'Cloud realtime TTS is temporarily disabled. Choose a local TTS provider.',
+    });
+    return;
   }
 
-  ttsAbortController = new AbortController();
+  const abortController = new AbortController();
+  ttsAbortController = abortController;
 
   // Check if TTS model is loaded — if not, signal that model loading is in progress
   let modelLoading = false;
@@ -742,7 +625,7 @@ async function generateTTS(
   let progressPollTimer: ReturnType<typeof setInterval> | null = null;
   if (modelLoading) {
     progressPollTimer = setInterval(async () => {
-      if (ttsAbortController?.signal.aborted) {
+      if (abortController.signal.aborted) {
         if (progressPollTimer) { clearInterval(progressPollTimer); progressPollTimer = null; }
         return;
       }
@@ -762,102 +645,180 @@ async function generateTTS(
 
   try {
     // Resolve voice sample path if provided
+    const requestedProvider = provider || 'qwen3';
     let voiceSamplePath: string | undefined;
     if (voiceSampleId) {
       const samples = loadSamplesManifest();
       const sample = samples.find((s) => s.id === voiceSampleId);
       if (sample) {
+        if (requestedProvider === 'qwen3') {
+          await ensureVoiceSampleTranscript(sample, samples, language);
+        }
         voiceSamplePath = getVoiceSamplePath(sample);
       }
     }
 
-    const body: Record<string, unknown> = { text: sanitizedText, language, speed };
+    const body: Record<string, unknown> = {
+      text: sanitizedText,
+      language,
+      speed,
+      provider: requestedProvider,
+    };
     if (voiceSamplePath) {
       body.voiceSamplePath = voiceSamplePath;
     }
-    if (provider) {
-      body.provider = provider;
-    }
 
-    const { data, headers } = await postJson(API_ENDPOINTS.voiceTts, body);
-
-    if (ttsAbortController?.signal.aborted) return;
-
-    // Parse sentence boundaries from response header
-    const boundariesHeader = headers['x-sentence-boundaries'];
-    const sampleRateHeader = headers['x-sample-rate'];
-    const sampleRate = sampleRateHeader ? parseInt(sampleRateHeader as string, 10) : 24000;
-
-    let boundaries: Array<{
-      index: number;
-      text: string;
-      sampleOffset: number;
-      sampleCount: number;
-    }> = [];
-
-    if (boundariesHeader) {
-      try { boundaries = JSON.parse(boundariesHeader as string); } catch (e) {
-        log.error("error", e);
-      }
-    }
-
-    // Extract WAV PCM data (skip 44-byte WAV header)
-    const wavHeader = 44;
-    const pcmData = data.subarray(wavHeader);
-
-    // Convert Int16 PCM to Float32
-    const int16View = new Int16Array(
-      pcmData.buffer,
-      pcmData.byteOffset,
-      pcmData.byteLength / 2,
-    );
-    const float32Samples = new Float32Array(int16View.length);
-    for (let i = 0; i < int16View.length; i++) {
-      float32Samples[i] = int16View[i] / 32768;
-    }
-
-    if (ttsAbortController?.signal.aborted) return;
-
-    if (boundaries.length > 0) {
-      // Send audio per-sentence for precise interruption tracking
-      for (const boundary of boundaries) {
-        if (ttsAbortController?.signal.aborted) break;
-
-        const sentenceSamples = float32Samples.slice(
-          boundary.sampleOffset,
-          boundary.sampleOffset + boundary.sampleCount,
-        );
-
-        const audio: VoiceTtsAudio = {
-          samples: sentenceSamples,
-          sampleRate,
-          sentenceIndex: boundary.index,
-          sentenceText: boundary.text,
-          totalSentences: boundaries.length,
-          sampleOffset: boundary.sampleOffset,
-          sampleCount: boundary.sampleCount,
-        };
-        sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
-      }
-    } else {
-      // Fallback: send entire audio at once
-      const audio: VoiceTtsAudio = { samples: float32Samples, sampleRate };
-      sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
-    }
+    await streamLocalTTS(body, sender, abortController.signal);
   } catch (err) {
-    if (!ttsAbortController?.signal.aborted) {
+    if (!abortController.signal.aborted) {
       log.error('[VoiceService] TTS generation error:', err);
     }
   }
 
   if (progressPollTimer) { clearInterval(progressPollTimer); progressPollTimer = null; }
-  ttsAbortController = null;
+  if (ttsAbortController === abortController) {
+    ttsAbortController = null;
+  }
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+}
+
+function streamLocalTTS(
+  body: Record<string, unknown>,
+  sender: Electron.WebContents,
+  signal: AbortSignal,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(API_ENDPOINTS.voiceTtsStream);
+    activeTtsWs = ws;
+    let pendingAudioMeta: {
+      sampleRate: number;
+      sentenceIndex?: number;
+      sentenceText?: string;
+      totalSentences?: number;
+      sampleOffset?: number;
+      sampleCount?: number;
+      byteLength?: number;
+    } | null = null;
+
+    const rawDataToBuffer = (rawData: WebSocket.RawData): Buffer | null => {
+      if (Buffer.isBuffer(rawData)) return rawData;
+      if (rawData instanceof ArrayBuffer) return Buffer.from(rawData);
+      if (Array.isArray(rawData)) return Buffer.concat(rawData);
+      return null;
+    };
+
+    const emitTtsAudio = (samples: Float32Array, meta: typeof pendingAudioMeta) => {
+      if (!meta || signal.aborted) return;
+      const audio: VoiceTtsAudio = {
+        samples,
+        sampleRate: meta.sampleRate,
+        sentenceIndex: meta.sentenceIndex,
+        sentenceText: meta.sentenceText,
+        totalSentences: meta.totalSentences,
+        sampleOffset: meta.sampleOffset,
+        sampleCount: meta.sampleCount ?? samples.length,
+      };
+      sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
+    };
+
+    const abortStream = () => {
+      try {
+        ws.close();
+      } catch (e) {
+        log.error("error", e);
+      }
+    };
+
+    signal.addEventListener('abort', abortStream, { once: true });
+
+    ws.on('open', () => {
+      if (signal.aborted) {
+        ws.close();
+        return;
+      }
+      ws.send(JSON.stringify(body));
+    });
+
+    ws.on('message', (rawData: WebSocket.RawData, isBinary: boolean) => {
+      if (sender.isDestroyed() || signal.aborted) return;
+      try {
+        if (pendingAudioMeta && isBinary) {
+          const binaryFrame = rawDataToBuffer(rawData);
+          if (binaryFrame) {
+            if (typeof pendingAudioMeta.byteLength === 'number' && binaryFrame.byteLength !== pendingAudioMeta.byteLength) {
+              log.warn(`[VoiceService] TTS binary frame length mismatch: expected ${pendingAudioMeta.byteLength}, got ${binaryFrame.byteLength}`);
+            }
+            const samples = new Float32Array(
+              binaryFrame.buffer,
+              binaryFrame.byteOffset,
+              Math.floor(binaryFrame.byteLength / Float32Array.BYTES_PER_ELEMENT),
+            );
+            emitTtsAudio(new Float32Array(samples), pendingAudioMeta);
+            pendingAudioMeta = null;
+            return;
+          }
+        }
+
+        const msg = JSON.parse(rawData.toString());
+        switch (msg.type) {
+          case 'audio': {
+            pendingAudioMeta = {
+              sampleRate: Number(msg.sampleRate) || 24000,
+              sentenceIndex: typeof msg.sentenceIndex === 'number' ? msg.sentenceIndex : undefined,
+              sentenceText: typeof msg.sentenceText === 'string' ? msg.sentenceText : undefined,
+              totalSentences: typeof msg.totalSentences === 'number' ? msg.totalSentences : undefined,
+              sampleOffset: typeof msg.sampleOffset === 'number' ? msg.sampleOffset : undefined,
+              sampleCount: typeof msg.sampleCount === 'number' ? msg.sampleCount : undefined,
+              byteLength: typeof msg.byteLength === 'number' ? msg.byteLength : undefined,
+            };
+            if (Array.isArray(msg.samples)) {
+              const samples = Float32Array.from(msg.samples);
+              emitTtsAudio(samples, pendingAudioMeta);
+              pendingAudioMeta = null;
+            }
+            break;
+          }
+          case 'status':
+            sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+              generating: msg.generating !== false,
+              playing: false,
+              modelLoading: msg.modelLoading,
+              downloadProgress: msg.downloadProgress,
+            });
+            break;
+          case 'done':
+            ws.close();
+            break;
+          case 'error':
+            reject(new Error(String(msg.message || 'TTS stream error')));
+            ws.close();
+            break;
+        }
+      } catch (e) {
+        log.error('[VoiceService] Failed to parse TTS stream message:', e);
+      }
+    });
+
+    ws.on('error', reject);
+    ws.on('close', () => {
+      signal.removeEventListener('abort', abortStream);
+      if (activeTtsWs === ws) {
+        activeTtsWs = null;
+      }
+      resolve();
+    });
+  });
 }
 
 function stopTTS(): void {
   if (ttsAbortController) {
     ttsAbortController.abort();
+  }
+  if (activeTtsWs) {
+    try { activeTtsWs.close(); } catch (e) {
+      log.error("error", e);
+    }
+    activeTtsWs = null;
   }
 }
 
@@ -894,10 +855,11 @@ export function setupVoiceIPC(): void {
       // Step 1: Check if voice packages are installed
       const initialStatus = await checkModelStatus(language);
       const needsPackageInstall = !initialStatus.sttDownloaded || !initialStatus.ttsDownloaded;
+      const includeQwen3 = !initialStatus.ttsDownloaded && await isQwen3TtsEngine(language);
 
       if (needsPackageInstall) {
         // Install voice pip packages first
-        const pipSuccess = await installVoicePackages(emitProgress);
+        const pipSuccess = await installVoicePackages(emitProgress, includeQwen3);
         if (!pipSuccess) {
           emitProgress({
             sttDownloaded: false,
@@ -996,8 +958,8 @@ export function setupVoiceIPC(): void {
   // TTS generation request
   ipcMain.on(
     IPC_CHANNELS.VOICE_TTS_GENERATE,
-    (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) => {
-      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider, cloudAuthToken).catch((err) => {
+    (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, _cloudAuthToken?: string) => {
+      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider).catch((err) => {
         log.error('[VoiceService] TTS error:', err);
       });
     },
@@ -1082,32 +1044,7 @@ export function setupVoiceIPC(): void {
       const sample = samples.find((s) => s.id === id);
       if (!sample) throw new Error('Voice sample not found');
 
-      const samplePath = getVoiceSamplePath(sample);
-      const payload: { voiceSamplePath: string; language?: string } = {
-        voiceSamplePath: samplePath,
-      };
-      if (language) {
-        payload.language = language;
-      }
-      const { data } = await postJson(API_ENDPOINTS.voiceTranscribe, payload);
-      const parsed = JSON.parse(data.toString('utf-8'));
-      if (parsed.detail) {
-        throw new Error(typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail));
-      }
-      const result = parsed as { text: string; language: string };
-      if (!result.text) {
-        throw new Error('Transcription returned empty text');
-      }
-
-      // Save transcript as sidecar .txt file
-      const txtPath = samplePath.replace(/\.[^.]+$/, '.txt');
-      fs.writeFileSync(txtPath, result.text, 'utf-8');
-
-      // Update manifest with transcript
-      sample.transcript = result.text;
-      saveSamplesManifest(samples);
-
-      return result;
+      return ensureVoiceSampleTranscript(sample, samples, language || '', true);
     },
   );
 

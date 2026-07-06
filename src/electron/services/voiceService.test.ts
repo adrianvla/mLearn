@@ -608,6 +608,37 @@ describe('VOICE_TTS_STOP handler', () => {
     onHandlers.get('voice-tts-stop')?.(event);
     expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', { generating: false, playing: false });
   });
+
+  it('closes the active local TTS WebSocket and ignores late audio frames', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    existsSyncFn.mockReturnValue(false);
+    readFileSyncFn.mockReturnValue('[]');
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Stop me', 'en', 1.0, undefined, 'qwen3');
+    await flushMicrotasks();
+    const ws = lastCreatedWebSocket;
+    ws?._emit('open');
+
+    onHandlers.get('voice-tts-stop')?.(event);
+
+    expect(ws?.close).toHaveBeenCalled();
+
+    ws?._emit('message', JSON.stringify({
+      type: 'audio',
+      sampleRate: 24000,
+      sampleCount: 1,
+      byteLength: 4,
+      encoding: 'f32le',
+    }));
+    ws?._emit('message', Buffer.from(new Float32Array([0.5]).buffer), true);
+    await flushMicrotasks();
+
+    const audioCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-audio');
+    expect(audioCalls).toHaveLength(0);
+  });
 });
 
 describe('VOICE_SAMPLE_LIST handler', () => {
@@ -932,6 +963,51 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
     expect(progressCalls.length).toBeGreaterThan(1);
   });
 
+  it('installs Qwen3 dependency group when the requested TTS engine is Qwen3', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation((url: string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const isTtsStatus = url.includes('/voice/tts/status');
+      const body = JSON.stringify({
+        downloaded: false,
+        loaded: false,
+        downloading: false,
+        progress: 0,
+        modelName: isTtsStatus ? 'Qwen3-TTS-12Hz-0.6B-MLX' : 'openai/whisper-small',
+      });
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      Promise.resolve().then(() => {
+        fakeRes._emit('data', body);
+        fakeRes._emit('end');
+      });
+      return { on: vi.fn() };
+    });
+
+    readFileSyncFn.mockImplementation((p: string) => {
+      if ((p as string).includes('pip_requirements')) {
+        return JSON.stringify({ voice: ['faster-whisper'], 'qwen3-tts': ['mlx-audio'] });
+      }
+      return '[]';
+    });
+    existsSyncFn.mockReturnValue(true);
+
+    const mockChildProcess = new MockChildProcess();
+    spawnFn.mockReturnValue(mockChildProcess);
+
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'fa');
+    await flushMicrotasks();
+    mockChildProcess._emit('close', 1);
+    await handlerPromise;
+
+    expect(spawnFn).toHaveBeenCalledWith(
+      '/env/bin/pip',
+      expect.arrayContaining(['install', 'faster-whisper', 'qwen3-tts-package']),
+      expect.any(Object),
+    );
+  });
+
   it('downloads TTS models for the requested language', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
@@ -1008,22 +1084,25 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
 });
 
 describe('VOICE_TTS_GENERATE handler — local TTS', () => {
-  it('sends VOICE_TTS_STATUS generating:true at start of TTS request', async () => {
+  it('opens the local TTS stream websocket and sends the generation payload', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
 
     httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true, downloading: false, progress: 1 }));
-    httpRequestFn.mockImplementation(makeJsonHttpRequestMock({}, { 'x-sample-rate': '24000' }));
-
     existsSyncFn.mockReturnValue(false);
     readFileSyncFn.mockReturnValue('[]');
 
-    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.0, undefined, undefined);
-    await new Promise((r) => setTimeout(r, 50));
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.25, undefined, 'qwen3');
+    await flushMicrotasks();
+    lastCreatedWebSocket?._emit('open');
 
-    const statusCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-status');
-    expect(statusCalls.length).toBeGreaterThanOrEqual(1);
-    expect(statusCalls[0][1]).toMatchObject({ generating: true });
+    expect(lastCreatedWebSocket?.url).toContain('/voice/tts/stream');
+    expect(lastCreatedWebSocket?.send).toHaveBeenCalledWith(JSON.stringify({
+      text: 'Hello',
+      language: 'en',
+      speed: 1.25,
+      provider: 'qwen3',
+    }));
   });
 
   it('checks TTS loading status for the requested speech language', async () => {
@@ -1031,9 +1110,8 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     const event = createFakeEvent();
 
     httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true, downloading: false, progress: 1 }));
-    httpRequestFn.mockImplementation(makeJsonHttpRequestMock({}, { 'x-sample-rate': '24000' }));
 
-    onHandlers.get('voice-tts-generate')?.(event, 'こんにちは', 'ja', 1.0, undefined, undefined);
+    onHandlers.get('voice-tts-generate')?.(event, 'こんにちは', 'ja', 1.0, undefined, 'qwen3');
     await new Promise((r) => setTimeout(r, 50));
 
     expect(httpGetFn).toHaveBeenCalledWith(
@@ -1042,21 +1120,70 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     );
   });
 
-  it('sends VOICE_TTS_AUDIO with samples and sampleRate after successful TTS response', async () => {
+  it('sends VOICE_TTS_AUDIO with binary PCM samples and sampleRate after successful TTS response', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
 
     httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    existsSyncFn.mockReturnValue(false);
+    readFileSyncFn.mockReturnValue('[]');
 
-    const wavBuffer = buildMinimalWavBuffer(4);
+    onHandlers.get('voice-tts-generate')?.(event, 'Test audio', 'en', 1.0, undefined, 'qwen3');
+    await flushMicrotasks();
+    lastCreatedWebSocket?._emit('open');
+    lastCreatedWebSocket?._emit('message', JSON.stringify({
+      type: 'audio',
+      sampleRate: 24000,
+      sentenceIndex: 0,
+      sentenceText: 'Test audio',
+      totalSentences: 1,
+      chunkIndex: 0,
+      sampleCount: 4,
+      byteLength: 16,
+      encoding: 'f32le',
+    }));
+    lastCreatedWebSocket?._emit('message', Buffer.from(new Float32Array([0, 0.5, -0.5, 1]).buffer), true);
+    await new Promise((r) => setTimeout(r, 50));
+
+    const audioCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-audio');
+    expect(audioCalls.length).toBeGreaterThanOrEqual(1);
+    expect(audioCalls[0][1]).toMatchObject({
+      sampleRate: 24000,
+      sentenceIndex: 0,
+      sentenceText: 'Test audio',
+      totalSentences: 1,
+      sampleCount: 4,
+    });
+    expect(Array.from(audioCalls[0][1].samples)).toEqual([0, 0.5, -0.5, 1]);
+  });
+
+  it('transcribes a selected Qwen3 voice sample before starting the local TTS stream when transcript is missing', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const samples = [{ id: 'sample-1', name: 'Clone', filename: 'sample-1.wav', createdAt: 1 }];
+    const writtenRequests: string[] = [];
+
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    existsSyncFn.mockImplementation((p: string) => {
+      const path = String(p);
+      if (path.endsWith('voice-samples.json')) return true;
+      if (path.endsWith('sample-1.wav')) return true;
+      if (path.endsWith('sample-1.txt')) return false;
+      return false;
+    });
+    readFileSyncFn.mockImplementation((p: string) => {
+      if (String(p).endsWith('voice-samples.json')) return JSON.stringify(samples);
+      return '';
+    });
     httpRequestFn.mockImplementation((_opts: unknown, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
-      const fakeRes = makeFakeResponse(200, wavBuffer, { 'x-sample-rate': '24000' });
+      const body = JSON.stringify({ text: 'reference transcript', language: 'en' });
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
       cb(fakeRes);
       return {
-        write: vi.fn(),
+        write: vi.fn((chunk: string | Buffer) => writtenRequests.push(chunk.toString())),
         end: vi.fn(() => {
           Promise.resolve().then(() => {
-            fakeRes._emit('data', wavBuffer);
+            fakeRes._emit('data', Buffer.from(body));
             fakeRes._emit('end');
           });
         }),
@@ -1064,61 +1191,40 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
       };
     });
 
-    existsSyncFn.mockReturnValue(false);
-    readFileSyncFn.mockReturnValue('[]');
+    onHandlers.get('voice-tts-generate')?.(event, 'Speak with clone', 'en', 1.0, 'sample-1', 'qwen3');
+    await flushMicrotasks();
+    lastCreatedWebSocket?._emit('open');
 
-    onHandlers.get('voice-tts-generate')?.(event, 'Test audio', 'en', 1.0, undefined, undefined);
-    await new Promise((r) => setTimeout(r, 50));
-
-    const audioCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-audio');
-    expect(audioCalls.length).toBeGreaterThanOrEqual(1);
-    expect(audioCalls[0][1]).toHaveProperty('samples');
-    expect(audioCalls[0][1]).toHaveProperty('sampleRate', 24000);
+    expect(JSON.parse(writtenRequests.join(''))).toMatchObject({
+      language: 'en',
+      voiceSamplePath: expect.stringContaining('sample-1.wav'),
+    });
+    expect(writeFileSyncFn.mock.calls).toEqual(
+      expect.arrayContaining([
+        expect.arrayContaining([
+          expect.stringContaining('sample-1.txt'),
+          'reference transcript',
+          'utf-8',
+        ]),
+      ]),
+    );
+    expect(lastCreatedWebSocket?.send).toHaveBeenCalledWith(expect.stringContaining('"voiceSamplePath"'));
   });
 });
 
-describe('VOICE_TTS_GENERATE handler — cloud TTS', () => {
-  it('sends VOICE_TTS_STATUS generating:true when cloud provider is specified', async () => {
+describe('VOICE_TTS_GENERATE handler — removed cloud TTS stream', () => {
+  it('does not call the online streaming service when cloud provider is specified', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
-    loadSettingsFn.mockReturnValue({
-      cloudAuthAccessToken: 'test-token',
-      cloudApiUrl: '',
-      overrideCloudEndpointUrl: false,
-    });
-
-    httpRequestFn.mockImplementation((_opts: unknown, _cb: unknown) => ({
-      write: vi.fn(),
-      end: vi.fn(),
-      on: (_evt: string, cb: (e: Error) => void) => {
-        if (_evt === 'error') Promise.resolve().then(() => cb(new Error('no network')));
-        return { on: vi.fn() };
-      },
-    }));
 
     onHandlers.get('voice-tts-generate')?.(event, 'Hello cloud', 'en', 1.0, undefined, 'cloud');
-    await new Promise((r) => setTimeout(r, 30));
+    await flushMicrotasks();
+
+    expect(httpRequestFn).not.toHaveBeenCalled();
+    expect(httpsRequestFn).not.toHaveBeenCalled();
+    expect(lastCreatedWebSocket).toBeNull();
 
     const statusCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-status');
-    expect(statusCalls.length).toBeGreaterThanOrEqual(1);
-    expect(statusCalls[0][1]).toMatchObject({ generating: true });
-  });
-
-  it('ends with VOICE_TTS_STATUS generating:false when auth token is missing', async () => {
-    mod.setupVoiceIPC();
-    const event = createFakeEvent();
-    loadSettingsFn.mockReturnValue({
-      cloudAuthAccessToken: '',
-      cloudAuthToken: '',
-      cloudApiUrl: '',
-      overrideCloudEndpointUrl: false,
-    });
-
-    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.0, undefined, 'cloud');
-    await new Promise((r) => setTimeout(r, 30));
-
-    const statusCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-status');
-    const finalStatus = statusCalls[statusCalls.length - 1];
-    expect(finalStatus?.[1]).toMatchObject({ generating: false });
+    expect(statusCalls.at(-1)?.[1]).toMatchObject({ generating: false, playing: false });
   });
 });

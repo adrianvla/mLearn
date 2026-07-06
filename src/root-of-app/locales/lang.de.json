@@ -511,7 +511,7 @@
         "TtsSpeed": "Sprechgeschwindigkeit",
         "UploadSample": "Stimmprobe hochladen",
         "VoiceSample": "Stimmklon",
-        "VoiceSampleDisabledLocal": "Benutzerdefinierter Stimmen-Upload ist nur mit Qwen3-TTS oder Cloud-TTS verfügbar"
+        "VoiceSampleDisabledLocal": "Benutzerdefinierter Stimmen-Upload ist nur mit Qwen3-TTS verfügbar"
       },
       "Memory": {
         "ClearAll": "Alle Erinnerungen löschen",

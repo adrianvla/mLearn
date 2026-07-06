@@ -3,8 +3,8 @@
  */
 
 import http from 'http';
-import https from 'https';
-import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_API_URL } from '../../../../shared/constants';
+import WebSocket from 'ws';
+import { PYTHON_BACKEND_PORT } from '../../../../shared/constants';
 import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
 import type { LanguageData, Settings } from '../../../../shared/types';
@@ -164,178 +164,89 @@ registerDiagnosticSuite({
       },
     },
     {
-      name: 'tts-cloud-stream',
-      timeoutMs: 30_000,
-      async fn() {
-        const settings = loadSettings();
-        const authToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
-        if (!authToken) {
-          skipTest('No cloud auth token configured');
-        }
-        const language = settings.language?.trim();
-        if (!language) {
-          skipTest('No learning language configured');
-        }
-        const languageData = loadLangData()[language];
-        const baseUrl = (settings.overrideCloudEndpointUrl && settings.cloudApiUrl
-          ? settings.cloudApiUrl
-          : DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
-
-        const payload = JSON.stringify({
-          text: getDiagnosticText(language, languageData),
-          language,
-          provider: 'moss-realtime',
-        });
-        const url = new URL(`${baseUrl}/api/tts/stream`);
-        const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-          const proto = url.protocol === 'https:' ? https : http;
-          const req = proto.request(
-            {
-              hostname: url.hostname,
-              port: url.port,
-              path: url.pathname,
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(payload),
-                'Authorization': `Bearer ${authToken}`,
-              },
-              timeout: 30_000,
-            },
-            (response) => {
-              let responseBody = '';
-              response.on('data', (chunk: Buffer) => { responseBody += chunk; });
-              response.on('end', () => {
-                resolve({ status: response.statusCode ?? 0, body: responseBody });
-              });
-              response.on('error', reject);
-            },
-          );
-          req.on('error', reject);
-          req.on('timeout', () => {
-            req.destroy();
-            reject(new Error('Cloud TTS stream setup timed out'));
-          });
-          req.write(payload);
-          req.end();
-        });
-
-        if (res.status !== 200) {
-          throw new Error(`Cloud TTS stream setup returned status ${res.status}: ${res.body.slice(0, 200)}`);
-        }
-        const data = JSON.parse(res.body);
-        const streamUrl = data.actions?.stream_url;
-        if (!streamUrl) {
-          throw new Error('Cloud TTS stream setup returned no stream_url');
-        }
-
-        const streamRes = await new Promise<{ status: number; bytes: number }>((resolve, reject) => {
-          const streamUrlObj = new URL(streamUrl);
-          const proto = streamUrlObj.protocol === 'https:' ? https : http;
-          const req = proto.request(
-            {
-              hostname: streamUrlObj.hostname,
-              port: streamUrlObj.port,
-              path: streamUrlObj.pathname + streamUrlObj.search,
-              method: 'GET',
-              timeout: 10_000,
-            },
-            (response) => {
-              let byteCount = 0;
-              response.on('data', (chunk: Buffer) => {
-                byteCount += chunk.length;
-                if (byteCount >= 1024) {
-                  req.destroy();
-                  resolve({ status: response.statusCode ?? 0, bytes: byteCount });
-                }
-              });
-              response.on('end', () => {
-                resolve({ status: response.statusCode ?? 0, bytes: byteCount });
-              });
-              response.on('error', reject);
-            },
-          );
-          req.on('error', reject);
-          req.on('timeout', () => {
-            req.destroy();
-            reject(new Error('Cloud TTS stream data fetch timed out'));
-          });
-          req.end();
-        });
-
-        if (streamRes.status !== 200) {
-          throw new Error(`Cloud TTS stream returned status ${streamRes.status}`);
-        }
-        if (streamRes.bytes < 100) {
-          throw new Error(`Cloud TTS stream returned only ${streamRes.bytes} bytes`);
-        }
-      },
-    },
-    {
-      name: 'tts-cloud-batch',
+      name: 'tts-local-stream',
       timeoutMs: 60_000,
       async fn() {
-        const settings = loadSettings();
-        const authToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
-        if (!authToken) {
-          skipTest('No cloud auth token configured');
+        const { settings, language, languageData } = getVoiceDiagnosticContext();
+        if (settings.ttsProvider !== 'qwen3') {
+          skipTest('Qwen3-TTS is not selected');
         }
-        const language = settings.language?.trim();
-        if (!language) {
-          skipTest('No learning language configured');
+
+        const { status: statusStatus, body: statusBody } = await httpGet(
+          backendTtsStatusUrl(language),
+          10_000,
+        );
+        if (statusStatus !== 200) {
+          throw new Error(`TTS status check failed with status ${statusStatus}`);
         }
-        const languageData = loadLangData()[language];
-        const baseUrl = (settings.overrideCloudEndpointUrl && settings.cloudApiUrl
-          ? settings.cloudApiUrl
-          : DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
+        const statusData = JSON.parse(statusBody);
+        if (statusData.error) {
+          skipTest(`TTS unavailable for ${language}: ${statusData.error}`);
+        }
+        if (!statusData.downloaded) {
+          skipTest('Qwen3-TTS model not downloaded');
+        }
+        if (!statusData.loaded) {
+          skipTest('Qwen3-TTS model still loading');
+        }
 
         const payload = JSON.stringify({
           text: getDiagnosticText(language, languageData),
           language,
           provider: 'qwen3',
         });
-        const url = new URL(`${baseUrl}/api/tts/jobs`);
-        const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-          const proto = url.protocol === 'https:' ? https : http;
-          const req = proto.request(
-            {
-              hostname: url.hostname,
-              port: url.port,
-              path: url.pathname,
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(payload),
-                'Authorization': `Bearer ${authToken}`,
-              },
-              timeout: 60_000,
-            },
-            (response) => {
-              let responseBody = '';
-              response.on('data', (chunk: Buffer) => { responseBody += chunk; });
-              response.on('end', () => {
-                resolve({ status: response.statusCode ?? 0, body: responseBody });
-              });
-              response.on('error', reject);
-            },
-          );
-          req.on('error', reject);
-          req.on('timeout', () => {
-            req.destroy();
-            reject(new Error('Cloud TTS batch job creation timed out'));
-          });
-          req.write(payload);
-          req.end();
-        });
+        await new Promise<void>((resolve, reject) => {
+          const ws = new WebSocket(`ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/stream`);
+          const timer = setTimeout(() => {
+            ws.terminate();
+            reject(new Error('Local Qwen3-TTS stream timed out'));
+          }, 60_000);
+          let sawAudioMeta = false;
+          let sawAudioBytes = false;
 
-        if (res.status !== 200) {
-          throw new Error(`Cloud TTS batch job creation returned status ${res.status}: ${res.body.slice(0, 200)}`);
-        }
-        const data = JSON.parse(res.body);
-        const jobId = data.jobId;
-        if (!jobId) {
-          throw new Error('Cloud TTS batch job creation returned no jobId');
-        }
+          ws.on('open', () => {
+            ws.send(payload);
+          });
+          ws.on('message', (data, isBinary) => {
+            if (isBinary) {
+              const byteLength = Array.isArray(data)
+                ? Buffer.concat(data).byteLength
+                : Buffer.byteLength(data);
+              sawAudioBytes = sawAudioBytes || byteLength >= Float32Array.BYTES_PER_ELEMENT;
+              return;
+            }
+            const message = JSON.parse(data.toString());
+            if (message.type === 'error') {
+              clearTimeout(timer);
+              ws.close();
+              reject(new Error(String(message.message || 'Local Qwen3-TTS stream returned an error')));
+              return;
+            }
+            if (message.type === 'audio') {
+              if (message.encoding !== 'f32le') {
+                clearTimeout(timer);
+                ws.close();
+                reject(new Error(`Local Qwen3-TTS stream returned unexpected encoding ${message.encoding}`));
+                return;
+              }
+              sawAudioMeta = true;
+              return;
+            }
+            if (message.type === 'done') {
+              clearTimeout(timer);
+              ws.close();
+              if (!sawAudioMeta || !sawAudioBytes) {
+                reject(new Error('Local Qwen3-TTS stream ended before audio was received'));
+                return;
+              }
+              resolve();
+            }
+          });
+          ws.on('error', (error) => {
+            clearTimeout(timer);
+            reject(error);
+          });
+        });
       },
     },
   ],

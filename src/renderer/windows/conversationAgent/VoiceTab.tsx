@@ -7,7 +7,6 @@
 import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { withCloudAuth } from '../../services/cloudSessionManager';
 import {
   Btn,
   IconBtn,
@@ -26,6 +25,15 @@ import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
 import { getLogger } from '../../../shared/utils/logger';
+import { scheduleAudioChunk } from './ttsScheduling';
+import {
+  abortVoiceTtsTurn,
+  createVoiceTtsTurnState,
+  enqueueVoiceTtsPhrasesForMessage,
+  finishVoiceTtsPhraseRequest,
+  resetVoiceTtsTurnState,
+  takeNextVoiceTtsPhrase,
+} from './voiceTtsTurn';
 
 const log = getLogger("renderer.conversationAgent.voice");
 
@@ -128,17 +136,23 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // TTS sentence queue for interruption tracking
   let ttsQueue: VoiceTtsAudio[] = [];
   let ttsQueueIndex = 0;
-  let ttsSource: AudioBufferSourceNode | null = null;
+  let ttsSources: AudioBufferSourceNode[] = [];
   let ttsPlaying = false;
-  let ttsSentenceTexts: string[] = []; // full ordered list of sentence texts for this TTS turn
+  let ttsGenerationActive = false;
+  const voiceTtsTurn = createVoiceTtsTurnState();
   let ttsCurrentSentenceIdx = 0;
   let ttsAudioContext: AudioContext | null = null; // separate context for TTS playback
+  let ttsNextStartTime: number | null = null;
+  let ttsPlaybackTimer: ReturnType<typeof setTimeout> | null = null;
 
   // TTS generation guard — prevents stale audio from playing after cancellation
   let ttsAborted = false;
   // Sentence timing for estimating interruption position within a sentence
   let ttsCurrentSentenceStartTime = 0;
   let ttsCurrentSentenceDuration = 0;
+  let ttsTimingPhraseIndex = -1;
+  let ttsTurnStartTime = 0;
+  let ttsScheduledDuration = 0;
   let currentTtsText = '';
   // Barge-in detection: consecutive mic-loud frames during TTS playback
   let bargeInFrames = 0;
@@ -153,6 +167,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let currentVoiceMode: VoiceMode = voiceMode();
   createEffect(() => {
     currentVoiceMode = voiceMode();
+  });
+
+  createEffect(() => {
+    if (settings.ttsProvider === 'cloud') {
+      updateSettings({ ...settings, ttsProvider: 'qwen3' });
+    }
   });
 
   // ============================================================================
@@ -236,21 +256,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       }
     }));
 
-    // TTS audio — queue sentences for sequential playback
+    // TTS audio — schedule streamed chunks for gapless playback
     cleanups.push(bridge.voice.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
       if (ttsAborted) return; // ignore audio from a cancelled generation
       ttsQueue.push(audio);
-      // Collect sentence texts for interruption tracking
-      if (audio.sentenceText && audio.sentenceIndex !== undefined) {
-        while (ttsSentenceTexts.length <= audio.sentenceIndex) {
-          ttsSentenceTexts.push('');
-        }
-        ttsSentenceTexts[audio.sentenceIndex] = audio.sentenceText;
-      }
-      // Start playing if not already playing
-      if (!ttsPlaying) {
-        playNextSentence();
-      }
+      scheduleTtsAudio(audio);
     }));
 
     // TTS status
@@ -260,10 +270,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         setTtsDownloadProgress(status.downloadProgress);
       }
       if (status.generating) {
+        ttsGenerationActive = true;
         setCallState('processing');
       } else {
+        ttsGenerationActive = false;
+        finishVoiceTtsPhraseRequest(voiceTtsTurn);
         setTtsModelLoading(false);
         setTtsDownloadProgress(0);
+        requestNextVoiceTtsPhrase();
+        finishTtsIfPlaybackDrained();
       }
     }));
 
@@ -313,42 +328,64 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   });
 
   // ============================================================================
-  // Auto-play TTS for new assistant messages during call
+  // Stream TTS for assistant phrases as the LLM response arrives
   // ============================================================================
+
+  function resetVoiceTtsTurn(initialText: string, messageIndex: number): void {
+    stopTTSPlayback();
+    resetVoiceTtsTurnState(voiceTtsTurn, messageIndex);
+    currentTtsText = initialText;
+    ttsAborted = false;
+    ttsQueue = [];
+    ttsQueueIndex = 0;
+    ttsCurrentSentenceIdx = 0;
+    bargeInFrames = 0;
+  }
+
+  function requestNextVoiceTtsPhrase(): void {
+    if (ttsAborted || !isCallActive()) return;
+    const next = takeNextVoiceTtsPhrase(voiceTtsTurn);
+    if (!next) return;
+
+    const configuredProvider = settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider;
+    const provider = configuredProvider === 'cloud' ? 'qwen3' : configuredProvider;
+    const sampleId = provider === 'qwen3' ? (selectedSampleId() || undefined) : undefined;
+
+    ttsGenerationActive = true;
+
+    void (async () => {
+      try {
+        const allowed = await requestAccess('tts');
+        if (!allowed || ttsAborted || !isCallActive()) {
+          finishVoiceTtsPhraseRequest(voiceTtsTurn);
+          ttsGenerationActive = false;
+          return;
+        }
+        getBridge().voice.voiceTtsGenerate(next.phrase, props.language, ttsSpeed(), sampleId, provider);
+      } catch (error) {
+        log.error('[VoiceTab] Failed to request streamed TTS phrase:', error);
+        finishVoiceTtsPhraseRequest(voiceTtsTurn);
+        ttsGenerationActive = false;
+      }
+    })();
+  }
 
   createEffect(() => {
     if (!isCallActive()) return;
     const msgs = props.messages;
     if (msgs.length === 0) return;
+    const lastIndex = msgs.length - 1;
     const last = msgs[msgs.length - 1];
-    // Skip TTS for interrupted messages to avoid re-reading already-spoken text
-    if (last.role === 'assistant' && last.content && !props.isStreaming && !last.interrupted) {
-      stopTTSPlayback();
-      // Reset sentence queue for new TTS turn
-      currentTtsText = last.content;
-      ttsAborted = false;
-      ttsQueue = [];
-      ttsQueueIndex = 0;
-      ttsSentenceTexts = [];
-      ttsCurrentSentenceIdx = 0;
-      bargeInFrames = 0;
-      // Generate TTS for the final assistant response with optional voice cloning
-      const sampleId = selectedSampleId() || undefined;
-      const provider = settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider;
-      if (provider !== 'cloud') {
-        (async () => {
-          const allowed = await requestAccess('tts');
-          if (allowed) {
-            getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
-          }
-        })();
-      } else {
-        void withCloudAuth(async (token) => {
-            getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider, token);
-        }).catch((error) => {
-          log.error("error", error);
-        });
-      }
+    if (last.role !== 'assistant' || !last.content || last.interrupted) return;
+
+    if (voiceTtsTurn.messageIndex !== lastIndex) {
+      resetVoiceTtsTurn(last.content, lastIndex);
+    }
+
+    currentTtsText = last.content;
+    const queued = enqueueVoiceTtsPhrasesForMessage(voiceTtsTurn, lastIndex, last.content, props.isStreaming);
+    if (queued.length > 0) {
+      requestNextVoiceTtsPhrase();
     }
   });
 
@@ -469,23 +506,24 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   };
 
   // ============================================================================
-  // TTS Playback — Sentence Queue
+  // TTS Playback — Gapless Stream Scheduler
   // ============================================================================
 
-  const playNextSentence = () => {
-    if (ttsQueueIndex >= ttsQueue.length) {
-      // All sentences played
-      ttsPlaying = false;
-      bargeInFrames = 0;
-      if (isCallActive()) {
-        setCallState('listening');
-      }
-      return;
+  const finishTtsIfPlaybackDrained = () => {
+    if (ttsGenerationActive || voiceTtsTurn.requestActive || voiceTtsTurn.pendingPhrases.length > 0 || ttsSources.length > 0) return;
+    ttsPlaying = false;
+    bargeInFrames = 0;
+    ttsNextStartTime = null;
+    if (ttsPlaybackTimer) {
+      clearTimeout(ttsPlaybackTimer);
+      ttsPlaybackTimer = null;
     }
+    if (isCallActive()) {
+      setCallState('listening');
+    }
+  };
 
-    const audio = ttsQueue[ttsQueueIndex];
-    ttsCurrentSentenceIdx = audio.sentenceIndex ?? ttsQueueIndex;
-
+  const scheduleTtsAudio = (audio: VoiceTtsAudio) => {
     if (!ttsAudioContext) {
       ttsAudioContext = new AudioContext();
     }
@@ -496,24 +534,51 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     const buffer = ttsAudioContext.createBuffer(1, audio.samples.length, audio.sampleRate);
     buffer.getChannelData(0).set(audio.samples);
 
-    ttsSource = ttsAudioContext.createBufferSource();
-    ttsSource.buffer = buffer;
-    ttsSource.connect(ttsAudioContext.destination);
+    const scheduled = scheduleAudioChunk(
+      ttsAudioContext.currentTime,
+      ttsNextStartTime,
+      buffer.duration,
+    );
+    ttsNextStartTime = scheduled.nextStartTime;
+    ttsScheduledDuration += buffer.duration;
+    if (ttsTurnStartTime === 0) {
+      ttsTurnStartTime = Date.now() + Math.max(0, scheduled.startAt - ttsAudioContext.currentTime) * 1000;
+    }
 
-    ttsSource.onended = () => {
+    const phraseIndex = voiceTtsTurn.activePhraseIndex >= 0
+      ? voiceTtsTurn.activePhraseIndex
+      : (audio.sentenceIndex ?? ttsCurrentSentenceIdx);
+    if (phraseIndex !== ttsTimingPhraseIndex) {
+      ttsTimingPhraseIndex = phraseIndex;
+      ttsCurrentSentenceIdx = phraseIndex;
+      ttsCurrentSentenceStartTime = Date.now() + Math.max(0, scheduled.startAt - ttsAudioContext.currentTime) * 1000;
+      ttsCurrentSentenceDuration = 0;
+    }
+    ttsCurrentSentenceDuration += buffer.duration;
+
+    const source = ttsAudioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ttsAudioContext.destination);
+    ttsSources.push(source);
+
+    source.onended = () => {
+      ttsSources = ttsSources.filter((s) => s !== source);
       ttsQueueIndex++;
-      playNextSentence();
+      finishTtsIfPlaybackDrained();
     };
 
-    ttsSource.start();
-    // Record timing for interruption position estimation
-    ttsCurrentSentenceStartTime = Date.now();
-    ttsCurrentSentenceDuration = buffer.duration;
+    source.start(scheduled.startAt);
+
+    if (ttsPlaybackTimer) {
+      clearTimeout(ttsPlaybackTimer);
+    }
+    const msUntilEnd = Math.max(0, (ttsNextStartTime - ttsAudioContext.currentTime) * 1000) + 50;
+    ttsPlaybackTimer = setTimeout(finishTtsIfPlaybackDrained, msUntilEnd);
   };
 
   /** Handle TTS interruption — compute spoken vs interrupted text */
   const handleTTSInterruption = () => {
-    if (ttsSentenceTexts.length === 0) {
+    if (voiceTtsTurn.sentenceTexts.length === 0) {
       stopTTSPlayback();
       return;
     }
@@ -521,11 +586,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // Sentences fully played = indices 0..ttsCurrentSentenceIdx-1
     const spokenParts: string[] = [];
     for (let i = 0; i < ttsCurrentSentenceIdx; i++) {
-      if (ttsSentenceTexts[i]) spokenParts.push(ttsSentenceTexts[i]);
+      if (voiceTtsTurn.sentenceTexts[i]) spokenParts.push(voiceTtsTurn.sentenceTexts[i]);
     }
 
     // Estimate how much of the current sentence was actually played
-    const currentText = ttsSentenceTexts[ttsCurrentSentenceIdx] || '';
+    const currentText = voiceTtsTurn.sentenceTexts[ttsCurrentSentenceIdx] || '';
     if (currentText) {
       if (ttsCurrentSentenceDuration > 0 && ttsCurrentSentenceStartTime > 0) {
         const elapsedMs = Date.now() - ttsCurrentSentenceStartTime;
@@ -548,8 +613,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       const rest = currentText.substring(charIdx).trim();
       if (rest) remainingParts.push(rest);
     }
-    for (let i = ttsCurrentSentenceIdx + 1; i < ttsSentenceTexts.length; i++) {
-      if (ttsSentenceTexts[i]) remainingParts.push(ttsSentenceTexts[i]);
+    for (let i = ttsCurrentSentenceIdx + 1; i < voiceTtsTurn.sentenceTexts.length; i++) {
+      if (voiceTtsTurn.sentenceTexts[i]) remainingParts.push(voiceTtsTurn.sentenceTexts[i]);
     }
     const interruptedAt = remainingParts.join(' ');
 
@@ -561,22 +626,31 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   };
 
   const stopTTSPlayback = () => {
-    if (ttsSource) {
-      try { ttsSource.stop(); } catch (e) {
+    for (const source of ttsSources) {
+      try { source.stop(); } catch (e) {
         log.error("error", e);
       }
-      ttsSource = null;
     }
+    ttsSources = [];
     ttsPlaying = false;
+    ttsGenerationActive = false;
+    abortVoiceTtsTurn(voiceTtsTurn);
     ttsAborted = true; // reject any in-flight audio from this generation
     ttsQueue = [];
     ttsQueueIndex = 0;
-    ttsSentenceTexts = [];
     ttsCurrentSentenceIdx = 0;
+    ttsTimingPhraseIndex = -1;
+    ttsNextStartTime = null;
     ttsCurrentSentenceStartTime = 0;
     ttsCurrentSentenceDuration = 0;
+    ttsTurnStartTime = 0;
+    ttsScheduledDuration = 0;
     currentTtsText = '';
     bargeInFrames = 0;
+    if (ttsPlaybackTimer) {
+      clearTimeout(ttsPlaybackTimer);
+      ttsPlaybackTimer = null;
+    }
     if (ttsAudioContext) {
       ttsAudioContext.close();
       ttsAudioContext = null;
@@ -711,7 +785,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       if (!filePath) return;
       const name = file.name.replace(/\.[^.]+$/, '');
       try {
-        await getBridge().voice.voiceSampleUpload(filePath, name);
+        const newSample = await getBridge().voice.voiceSampleUpload(filePath, name);
+        if (newSample?.id) {
+          setSelectedSampleId(newSample.id);
+          try {
+            await getBridge().voice.voiceSampleTranscribe(newSample.id, props.language);
+          } catch (err) {
+            log.error('[VoiceTab] Failed to transcribe voice sample:', err);
+          }
+        }
         await loadVoiceSamples();
       } catch (err) {
         log.error('[VoiceTab] Failed to upload voice sample:', err);
@@ -1011,14 +1093,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   >
                     {t('mlearn.ConversationAgent.Voice.Qwen3Tts')}
                   </Btn>
-                  <Btn
-                    size="sm"
-                    variant={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud' ? 'primary' : 'ghost'}
-                    onClick={() => setTtsProvider('cloud')}
-                    class="voice-mode-btn"
-                  >
-                    {t('mlearn.ConversationAgent.Voice.CloudTts')}
-                  </Btn>
                 </div>
               </div>
             </Show>
@@ -1055,8 +1129,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
             {/* Voice sample selector */}
             <Show when={isCallActive() && !isInitializing()}>
-              <div class={`voice-sample-row ${((settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud') ? 'disabled' : ''}`}
-                title={((settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud') ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
+              <div class={`voice-sample-row ${(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3' ? 'disabled' : ''}`}
+                title={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3' ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
               >
                 <label>{t('mlearn.ConversationAgent.Voice.VoiceSample')}</label>
                 <Select
@@ -1064,14 +1138,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   value={selectedSampleId()}
                   onChange={(e) => setSelectedSampleId(e.currentTarget.value)}
                   size="sm"
-                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud'}
+                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3'}
                 />
                 <IconBtn
                   icon={<UploadIcon />}
                   variant="ghost"
                   size="sm"
                   onClick={handleSampleUpload}
-                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud'}
+                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3'}
                   aria-label={t('mlearn.ConversationAgent.Voice.UploadSample')}
                 />
               </div>
