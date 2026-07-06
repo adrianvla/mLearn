@@ -153,6 +153,7 @@ describe('localMediaProtocol', () => {
       expect(response.headers.get('Content-Type')).toBe('video/mp4');
       expect(response.headers.get('Content-Length')).toBe('100');
       expect(response.headers.get('Accept-Ranges')).toBe('bytes');
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     });
 
     it('returns 200 with correct MIME type for an mp3 file', async () => {
@@ -208,6 +209,23 @@ describe('localMediaProtocol', () => {
       expect(response.headers.get('Content-Length')).toBe('500');
       expect(response.headers.get('Accept-Ranges')).toBe('bytes');
       expect(response.headers.get('Content-Type')).toBe('video/mp4');
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    });
+
+    it('handles CORS preflight requests', async () => {
+      const { setupLocalMediaProtocol } = await import('./localMediaProtocol');
+      setupLocalMediaProtocol();
+
+      const handler = mockProtocolHandlers.get('local-media');
+      expect(handler).toBeDefined();
+
+      const response = await handler!(new Request(`local-media://${path.join(tempDir.tmpDir, 'video.mp4')}`, {
+        method: 'OPTIONS',
+      }));
+
+      expect(response.status).toBe(204);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Range');
     });
 
     it('handles Range requests with open-ended end byte', async () => {

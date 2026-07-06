@@ -1177,6 +1177,60 @@ describe('createConversationAgent', () => {
       await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
       expect(onToolCall).not.toHaveBeenCalled();
     });
+
+    it('ignores empty note_mistake tool calls', async () => {
+      const onVoiceMistake = vi.fn();
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        onVoiceMistake,
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks, onDone } = createCallbacks();
+
+      agent.processMessage('元気', [], callbacks);
+      sendDone([
+        {
+          id: 'nm-empty',
+          name: 'note_mistake',
+          arguments: {
+            word: '',
+            context: '',
+            correction: '',
+            type: 'vocabulary',
+          },
+        },
+      ]);
+
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onVoiceMistake).not.toHaveBeenCalled();
+    });
+
+    it('ignores note_mistake when the noted word is not in the copied context', async () => {
+      const onVoiceMistake = vi.fn();
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        onVoiceMistake,
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks, onDone } = createCallbacks();
+
+      agent.processMessage('元気', [], callbacks);
+      sendDone([
+        {
+          id: 'nm-mismatch',
+          name: 'note_mistake',
+          arguments: {
+            word: 'ビキン',
+            context: '元気',
+            correction: 'ボルダリングしてるんだね',
+            type: 'vocabulary',
+          },
+        },
+      ]);
+
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onVoiceMistake).not.toHaveBeenCalled();
+    });
   });
 
   // ==========================================================================
@@ -1885,6 +1939,18 @@ describe('createConversationAgent', () => {
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       expect(messages[0].content).toContain('Speech Correction Guidelines');
       expect(messages[0].content).toContain('Accept missing short vowel marks when they do not change meaning.');
+    });
+
+    it('tells voice mode not to invent or emit empty note_mistake calls', () => {
+      const deps = createMockDeps({ isVoiceMode: () => true });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('元気', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('Copy the word and context from that transcript');
+      expect(messages[0].content).toContain('Do NOT call "note_mistake" with empty fields');
     });
 
     it('includes package-declared shared correction guidance in voice prompts', () => {

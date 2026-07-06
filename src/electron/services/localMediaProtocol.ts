@@ -19,6 +19,11 @@ const log = getLogger('electron.localMediaProtocol');
 
 const SCHEME = 'local-media';
 const PLUGIN_UI_SCHEME = 'plugin-ui';
+const LOCAL_MEDIA_RESPONSE_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+  'Access-Control-Allow-Headers': 'Range',
+};
 
 /** Simple MIME lookup for common media types */
 const MIME_TYPES: Record<string, string> = {
@@ -148,6 +153,13 @@ function isPathAllowed(resolvedPath: string): boolean {
 
 export function setupLocalMediaProtocol(): void {
   protocol.handle(SCHEME, async (request) => {
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: LOCAL_MEDIA_RESPONSE_HEADERS,
+      });
+    }
+
     // Use the URL API to reliably extract the pathname regardless of how
     // Chromium parsed the host portion (standard schemes may treat the first
     // path segment as host when no explicit host is present).
@@ -199,6 +211,7 @@ export function setupLocalMediaProtocol(): void {
         return new Response(readable, {
           status: 206,
           headers: {
+            ...LOCAL_MEDIA_RESPONSE_HEADERS,
             'Content-Range': `bytes ${start}-${end}/${fileSize}`,
             'Accept-Ranges': 'bytes',
             'Content-Length': String(chunkSize),
@@ -223,6 +236,7 @@ export function setupLocalMediaProtocol(): void {
     return new Response(readable, {
       status: 200,
       headers: {
+        ...LOCAL_MEDIA_RESPONSE_HEADERS,
         'Content-Length': String(fileSize),
         'Content-Type': mimeType,
         'Accept-Ranges': 'bytes',

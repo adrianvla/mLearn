@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
+import { Component, Show, createSignal, createMemo, createEffect, onMount, onCleanup, createResource, untrack } from 'solid-js';
 import {
   WindowWrapper,
   useLocalization,
@@ -44,7 +44,6 @@ import {
   isWordEligible,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
-import { fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { FlashcardWordTitle } from '../../components/flashcard/FlashcardWordTitle';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import './WordSync.css';
@@ -75,7 +74,6 @@ export const WordSyncContent: Component = () => {
     markWordSyncSeen,
     clearAllWordSyncSeen,
     getWordKnowledge,
-    getComprehensiveWordStatusWithSourceSync,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
@@ -90,27 +88,6 @@ export const WordSyncContent: Component = () => {
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
-  const ankiCacheOptions = createMemo(() => ({
-    language: settings.language,
-    languageData: langCtx.currentLangData(),
-  }));
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
-
-  createEffect(() => {
-    if (!settings.use_anki) {
-      setAnkiCacheReady(false);
-      return;
-    }
-
-    const options = ankiCacheOptions();
-    if (isAnkiCacheFetched(options)) {
-      setAnkiCacheReady(true);
-      return;
-    }
-
-    setAnkiCacheReady(false);
-    fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true)).catch(() => setAnkiCacheReady(true));
-  });
 
   // ─── Translation for current word ───────────────────
   const [translation] = createResource(
@@ -174,31 +151,13 @@ export const WordSyncContent: Component = () => {
     return { ok: false as const, errors: result.errors };
   });
 
-  function getWordSyncStorageKey(word: string, language: string): string {
-    const storageWord = langCtx.getCanonicalFormForLanguage(language, word);
-    return `${language}:${hashWordSync(storageWord)}`;
-  }
-
-  function isSyncSeenRecently(word: string, language: string): boolean {
-    const lk = getWordSyncStorageKey(word, language);
-    const ts = store.wordSyncSeen[lk];
-    if (!ts) return false;
-    return (Date.now() - ts) < THIRTY_DAYS_MS;
-  }
-
   function isSyncSeenRecentlyByKey(lk: string, now: number): boolean {
     const ts = store.wordSyncSeen[lk];
     if (!ts) return false;
     return (now - ts) < THIRTY_DAYS_MS;
   }
 
-  const wordStatusToNumeric = (status: string): number => {
-    if (status === 'known') return WORD_STATUS.KNOWN;
-    if (status === 'learning') return WORD_STATUS.LEARNING;
-    return WORD_STATUS.UNKNOWN;
-  };
-
-  function resolveWordSyncFilterStatus(word: string, lk: string, knowledge: ReturnType<typeof getWordKnowledge>): string {
+  function resolveWordSyncFilterStatus(lk: string, knowledge: ReturnType<typeof getWordKnowledge>): string {
     if (store.knownUntracked[lk] || store.ignoredWords[lk]) return String(WORD_STATUS.KNOWN);
 
     const cardIds = store.wordToCardMap?.[lk] ?? [];
@@ -213,13 +172,6 @@ export const WordSyncContent: Component = () => {
       if (knowledge.ease >= settings.easeThresholdKnown) return String(WORD_STATUS.KNOWN);
       if (knowledge.ease >= settings.easeThresholdLearning) return String(WORD_STATUS.LEARNING);
       return String(WORD_STATUS.UNKNOWN);
-    }
-
-    if (settings.use_anki) {
-      const comprehensive = getComprehensiveWordStatusWithSourceSync(word, settings.language);
-      if (comprehensive.source !== 'None') {
-        return String(wordStatusToNumeric(comprehensive.status));
-      }
     }
 
     return WORD_SYNC_STATUS_UNTRACKED;
@@ -249,9 +201,6 @@ export const WordSyncContent: Component = () => {
   const [wordPool, setWordPool] = createSignal<Map<number, PoolEntry[]>>(new Map(), { equals: false });
 
   function buildWordPoolSnapshot(): Map<number, PoolEntry[]> {
-    const ankiReady = ankiCacheReady();
-    void ankiReady;
-
     const freq = langCtx.getWordFrequency();
     const names = levelNames();
     const staleDaysMs = settings.wordSyncStaleLearningDays * 24 * 60 * 60 * 1000;
@@ -279,7 +228,7 @@ export const WordSyncContent: Component = () => {
         const knowledge = getWordKnowledge(lk);
         const seenRecently = isSyncSeenRecentlyByKey(lk, now);
         const record = {
-          status: resolveWordSyncFilterStatus(word, lk, knowledge),
+          status: resolveWordSyncFilterStatus(lk, knowledge),
           level: entry.raw_level,
           seenRecently,
         };
@@ -448,31 +397,6 @@ export const WordSyncContent: Component = () => {
       pickNext();
     }
   });
-
-  // Re-evaluate current word when Anki cache arrives after initial pick
-  createEffect(on(ankiCacheReady, (ready) => {
-    if (!ready || !initialized() || !settings.use_anki) return;
-    const word = currentWord();
-    if (word) {
-      const ast = filterAst();
-      if (!ast.ok || !ast.ast) return;
-      const lk = getWordSyncStorageKey(word.word, settings.language);
-
-      const record = {
-        status: resolveWordSyncFilterStatus(word.word, lk, getWordKnowledge(lk)),
-        level: word.level,
-        seenRecently: isSyncSeenRecently(word.word, settings.language),
-      };
-
-      if (evaluateAst<unknown>(ast.ast, record, filterResolvers())) {
-        return;
-      }
-
-      levelCursors = new Map();
-      rebuildWordPool();
-      pickNext();
-    }
-  }, { defer: true }));
 
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown);

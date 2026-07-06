@@ -723,6 +723,8 @@ function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentCon
 ${registerLine}
 - If the learner makes a mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
 - The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
+- Only call "note_mistake" for words that appear exactly in the learner's latest transcribed message. Copy the word and context from that transcript; never invent or infer a different word.
+- Do NOT call "note_mistake" with empty fields. If you are unsure whether the transcript is correct or whether there was a mistake, do not call it.
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
 - If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
 ${correctionGuidance}
@@ -779,6 +781,24 @@ function parseCorrectionEntry(
   return data;
 }
 
+function parseVoiceMistake(args: Record<string, unknown>): VoiceMistake | null {
+  const word = ((args.word as string) || '').trim();
+  const context = ((args.context as string) || '').trim();
+  const correction = ((args.correction as string) || '').trim();
+  if (!word || !context || !correction) return null;
+  if (!context.includes(word)) return null;
+
+  const type = ((args.type as string) || 'vocabulary').trim() as VoiceMistake['type'];
+  const reading = ((args.reading as string) || '').trim();
+  return {
+    word,
+    reading: reading || undefined,
+    context,
+    correction,
+    type,
+  };
+}
+
 function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidget[] | null {
   const args = toolCall.arguments;
 
@@ -803,13 +823,8 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidg
 
     case 'note_mistake': {
       // Voice mode mistake — report to the callback for aftermath tracking
-      const mistake: VoiceMistake = {
-        word: (args.word as string) || '',
-        reading: args.reading as string | undefined,
-        context: (args.context as string) || '',
-        correction: (args.correction as string) || '',
-        type: (args.type as VoiceMistake['type']) || 'vocabulary',
-      };
+      const mistake = parseVoiceMistake(args);
+      if (!mistake) return null;
       deps.onVoiceMistake?.(mistake);
       return null;
     }

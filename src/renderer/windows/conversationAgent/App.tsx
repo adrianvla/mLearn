@@ -168,7 +168,7 @@ const MicIcon: Component = () => (
 );
 
 export const ConversationContent: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, openCloudReLoginModal } = useSettings();
   const {
     currentLangData,
     isTokenTranslatable,
@@ -194,6 +194,12 @@ export const ConversationContent: Component = () => {
     || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
   const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
     || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
+  const isValidVoiceMistake = (mistake: VoiceMistake): boolean => {
+    const word = mistake.word.trim();
+    const context = mistake.context.trim();
+    const correction = mistake.correction.trim();
+    return Boolean(word && context && correction && context.includes(word));
+  };
 
   const [activeTab, setActiveTab] = createSignal<string>('chat');
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
@@ -215,6 +221,11 @@ export const ConversationContent: Component = () => {
 
   const [showSplash, setShowSplash] = createSignal(true);
   const [showDisclaimer, setShowDisclaimer] = createSignal(true);
+  const canOpenCloudSignIn = () => (
+    settings.llmProvider === 'cloud'
+    && !isCheckingConnection()
+    && !isConnected()
+  );
 
   // Knowledge info toggle — controls whether failed words/grammar are included in the LLM context
   const [includeKnowledgeInfo, setIncludeKnowledgeInfo] = createSignal(true);
@@ -314,6 +325,7 @@ export const ConversationContent: Component = () => {
     getLevelName,
     isVoiceMode: () => activeTab() === 'voice' && isVoiceCallActive(),
     onVoiceMistake: (mistake: VoiceMistake) => {
+      if (!isValidVoiceMistake(mistake)) return;
       setVoiceMistakes((prev) => [...prev, mistake]);
       // Lower ease of the word in flashcard context
       flashcardCtx.trackGrammarFailed(mistake.word);
@@ -1268,6 +1280,11 @@ export const ConversationContent: Component = () => {
     agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
   };
 
+  const handleConnectionStatusClick = () => {
+    if (!canOpenCloudSignIn()) return;
+    openCloudReLoginModal();
+  };
+
   const handleSend = async () => {
     const text = inputText().trim();
     if (!text || isStreaming()) return;
@@ -1567,7 +1584,13 @@ export const ConversationContent: Component = () => {
       <div class="ca-header">
         <div class="ca-header-left">
           <span class="ca-header-title">{t('mlearn.ConversationAgent.Title')}</span>
-          <div class="ca-connection-info">
+          <button
+            type="button"
+            class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
+            onClick={handleConnectionStatusClick}
+            aria-disabled={!canOpenCloudSignIn()}
+            aria-label={canOpenCloudSignIn() ? t('mlearn.Connection.SignIn') : undefined}
+          >
             <Tag class="ca-provider-label" headless size="sm">
               {providerLabel()}
             </Tag>
@@ -1576,7 +1599,7 @@ export const ConversationContent: Component = () => {
                 showLabel={!isConnected()}
                 size="sm"
             />
-          </div>
+          </button>
         </div>
         <TabContainer
           tabs={topTabs()}
@@ -1831,7 +1854,7 @@ export const ConversationContent: Component = () => {
                   }
 
                   // Build aftermath when call ends
-                  const mistakes = voiceMistakes();
+                  const mistakes = voiceMistakes().filter(isValidVoiceMistake);
                   if (mistakes.length > 0 || voiceSessionStart() > 0) {
                     setVoiceAftermath({
                       mistakes,

@@ -162,6 +162,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
         <video
             ref={videoRef}
             class={`video-element ${videoFitClass()}`}
+            crossorigin="anonymous"
             autoplay={props.autoplay}
             onEnded={props.onEnded}
         />

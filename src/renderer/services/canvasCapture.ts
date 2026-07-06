@@ -7,6 +7,8 @@ export interface CanvasCaptureOptions {
   maxWidth?: number;
   quality?: number;
   format?: 'image/jpeg' | 'image/png';
+  rejectBlank?: boolean;
+  onCaptureBlocked?: () => void;
 }
 
 function isVideoSource(source: HTMLVideoElement | HTMLImageElement): source is HTMLVideoElement {
@@ -17,6 +19,25 @@ function isCanvasSecurityError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'SecurityError';
 }
 
+function isMostlyBlankCanvas(ctx: CanvasRenderingContext2D, width: number, height: number): boolean {
+  const sampleWidth = Math.min(width, 64);
+  const sampleHeight = Math.min(height, 64);
+  const imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+  let lumaSum = 0;
+  let lumaSquaredSum = 0;
+  const pixelCount = imageData.length / 4;
+
+  for (let index = 0; index < imageData.length; index += 4) {
+    const luma = (imageData[index] * 0.2126) + (imageData[index + 1] * 0.7152) + (imageData[index + 2] * 0.0722);
+    lumaSum += luma;
+    lumaSquaredSum += luma * luma;
+  }
+
+  const mean = lumaSum / pixelCount;
+  const variance = (lumaSquaredSum / pixelCount) - (mean * mean);
+  return mean < 8 && variance < 12;
+}
+
 /**
  * Capture a video or image element to a data URL.
  * @returns JPEG/PNG data URL, or null when the source has no dimensions.
@@ -25,7 +46,7 @@ export function captureElementToDataUrl(
   source: HTMLVideoElement | HTMLImageElement,
   options?: CanvasCaptureOptions,
 ): string | null {
-  const { maxWidth = 480, quality = 0.5, format = 'image/jpeg' } = options ?? {};
+  const { maxWidth = 480, quality = 0.5, format = 'image/jpeg', rejectBlank = false, onCaptureBlocked } = options ?? {};
 
   try {
     const canvas = document.createElement('canvas');
@@ -60,10 +81,14 @@ export function captureElementToDataUrl(
 
     ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
 
+    if (rejectBlank && isMostlyBlankCanvas(ctx, targetWidth, targetHeight)) {
+      return null;
+    }
+
     return canvas.toDataURL(format, quality);
   } catch (e) {
     if (isCanvasSecurityError(e)) {
-      log.debug('Skipping thumbnail capture because the canvas is tainted by the media source');
+      onCaptureBlocked?.();
       return null;
     }
     log.error('Failed to capture element:', e);
