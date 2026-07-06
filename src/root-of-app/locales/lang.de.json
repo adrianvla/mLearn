@@ -150,6 +150,7 @@
     "AITutorSetup": {
       "AllLevels": "Alle",
       "FailedWords": "Schwierige Wörter",
+      "GrammarFailureStats": "{failed}/{seen} gesehen fehlgeschlagen",
       "GenerateBtn": "Generieren",
       "GenerateError": "Vokabeln konnten nicht generiert werden. Bitte erneut versuchen.",
       "GenerateTopicPlaceholder": "Thema eingeben, um Vokabeln zu generieren...",
@@ -485,6 +486,7 @@
         "DownloadFailed": "Herunterladen der Sprachmodelle fehlgeschlagen. Möglicherweise sind erforderliche Abhängigkeiten nicht installiert. Installieren Sie die Anwendung neu oder überprüfen Sie die Protokolle.",
         "DownloadModels": "Sprachmodelle herunterladen",
         "DownloadingModels": "Sprachmodelle werden heruntergeladen…",
+        "CheckingModels": "Lokale STT-, TTS- und VAD-Modelle werden geprüft…",
         "EmptyHint": "Starten Sie einen Sprachanruf, um das Sprechen mit dem KI-Tutor zu üben.",
         "EndCall": "Anruf beenden",
         "HandsFree": "Freisprechen",

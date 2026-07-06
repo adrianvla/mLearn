@@ -150,6 +150,7 @@
     "AITutorSetup": {
       "AllLevels": "全部",
       "FailedWords": "困难单词",
+      "GrammarFailureStats": "{seen} 次见过，失败 {failed} 次",
       "GenerateBtn": "生成",
       "GenerateError": "生成词汇失败。请重试。",
       "GenerateTopicPlaceholder": "输入主题以生成词汇…",
@@ -485,6 +486,7 @@
         "DownloadFailed": "下载语音模型失败。可能未安装所需依赖。请重新安装应用程序或查看日志了解详情。",
         "DownloadModels": "下载语音模型",
         "DownloadingModels": "正在下载语音模型…",
+        "CheckingModels": "正在检查本地 STT、TTS 和 VAD 模型…",
         "EmptyHint": "开始语音通话，与 AI 导师练习口语。",
         "EndCall": "结束通话",
         "HandsFree": "免提模式",

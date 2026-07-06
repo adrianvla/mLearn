@@ -8,7 +8,7 @@ import { Component, createSignal, createMemo, For, Show } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import { useLanguage, type GrammarEntry } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
-import { Input, SelectableCard, PillLabel, EmptyState, Tag, HintText, LevelPillsFilter, CollapsibleStickyHeader } from '../common';
+import { Input, SelectableCard, PillLabel, EmptyState, HintText, LevelPillsFilter, CollapsibleStickyHeader, HoverReveal } from '../common';
 import type { TutorGrammarSelection } from '../../../shared/types';
 import { compareGrammarLevelsForDisplay, getGrammarLevelLabel, getGrammarLevelVisualRank, sortGrammarLevelsForDisplay } from '../../../shared/languageFeatures';
 import './GrammarSelector.css';
@@ -146,6 +146,10 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
         <For each={filteredGrammar()}>
           {(gp) => {
             const knowledge = () => flashcardCtx.getGrammarKnowledge(gp.pattern);
+            const failureLabel = () => t('mlearn.AITutorSetup.GrammarFailureStats', {
+              failed: String(knowledge()?.timesFailed ?? 0),
+              seen: String(knowledge()?.timesEncountered ?? 0),
+            });
             return (
               <SelectableCard
                 selected={selectedPatterns().has(gp.pattern)}
@@ -158,11 +162,13 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
               >
                 <p class="grammar-selector__card-meaning">{gp.meaning}</p>
                 <Show when={(knowledge()?.timesFailed ?? 0) > 0}>
-                  <div class="grammar-selector__card-meta">
-                    <Tag size="sm" variant={knowledge()!.ease < settings.easeThresholdLearning ? 'error' : knowledge()!.ease < settings.easeThresholdKnown ? 'warning' : 'default'}>
-                      {`${knowledge()!.timesFailed}/${knowledge()!.timesEncountered}`}
-                    </Tag>
-                  </div>
+                  <HoverReveal
+                    icon={<span class="grammar-selector__failure-count">{`${knowledge()!.timesFailed}/${knowledge()!.timesEncountered}`}</span>}
+                    label={failureLabel()}
+                    title={failureLabel()}
+                    class={`grammar-selector__card-meta grammar-selector__card-meta--${knowledge()!.ease < settings.easeThresholdLearning ? 'error' : knowledge()!.ease < settings.easeThresholdKnown ? 'warning' : 'default'}`}
+                    onClick={(e) => e.stopPropagation()}
+                  />
                 </Show>
               </SelectableCard>
             );

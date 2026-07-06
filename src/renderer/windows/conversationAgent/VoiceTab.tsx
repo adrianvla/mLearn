@@ -48,8 +48,10 @@ const PhoneIcon: Component = () => (
 );
 
 const PhoneOffIcon: Component = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-    <path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.42 19.42 0 01-3.33-2.67M1 1l22 22M4.22 4.22A19.13 19.13 0 002.12 4.18 2 2 0 004.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+    <path d="M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4 13 13 0 0 0 2.8.7 2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-3.3-2.7" />
+    <path d="M4.2 4.2A19.8 19.8 0 0 0 2.1 12.2 2 2 0 0 0 4.1 14h3a2 2 0 0 0 2-1.7 13 13 0 0 1 .7-2.8 2 2 0 0 0-.4-2.1L8.1 6.1A16 16 0 0 1 12.8 3" />
+    <line x1="2" y1="2" x2="22" y2="22" />
   </svg>
 );
 
@@ -83,7 +85,7 @@ export interface VoiceTabProps {
   /** Called when user interrupts TTS — provides the text spoken so far and remaining text */
   onInterrupted?: (spokenText: string, interruptedAt: string) => void;
   /** Called when voice call starts or stops */
-  onCallStateChange?: (active: boolean) => void;
+  onCallStateChange?: (active: boolean, reason?: 'completed' | 'failed' | 'cleanup') => void;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onTokenLeave?: () => void;
   triggerMode?: WordHoverTriggerMode;
@@ -292,7 +294,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     cleanups.push(bridge.voice.onVoiceSessionError((data) => {
       setIsInitializing(false);
       setIsCallActive(false);
-      props.onCallStateChange?.(false);
+      props.onCallStateChange?.(false, 'failed');
       setCallState('idle');
       stopAudioCapture();
 
@@ -311,7 +313,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // Clean up call on component unmount
   onCleanup(() => {
-    stopCall();
+    stopCall('cleanup');
   });
 
   // ============================================================================
@@ -711,9 +713,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   });
 
-  const stopCall = () => {
+  const stopCall = (reason: 'completed' | 'cleanup' = 'completed') => {
+    if (!isCallActive() && !isInitializing()) return;
+
     setIsCallActive(false);
-    props.onCallStateChange?.(false);
+    props.onCallStateChange?.(false, reason);
     setIsInitializing(false);
     setCallState('idle');
     setPartialTranscript('');
@@ -899,7 +903,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       {/* Checking model status */}
       <Show when={isChecking()}>
         <div class="voice-download-section">
-          <Spinner size={32} />
+          <Spinner
+            size={44}
+            shape="square"
+            strokeWidth={8}
+            cornerRadius={0}
+            text={t('mlearn.ConversationAgent.Voice.CheckingModels')}
+          />
         </div>
       </Show>
 
@@ -951,7 +961,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             {/* Initializing engines indicator */}
             <Show when={isInitializing()}>
               <div class="voice-initializing">
-                <Spinner size={32} />
+                <Spinner size={32} shape="square" strokeWidth={6} cornerRadius={0} />
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.Initializing')}
                 </span>
@@ -961,7 +971,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             {/* TTS model loading indicator */}
             <Show when={!isInitializing() && ttsModelLoading()}>
               <div class="voice-initializing">
-                <Spinner size={32} />
+                <Spinner size={32} shape="square" strokeWidth={6} cornerRadius={0} />
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.LoadingTtsModel')}
                 </span>
@@ -1050,7 +1060,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   variant="danger"
                   size="lg"
                   icon={<PhoneOffIcon />}
-                  onClick={stopCall}
+                  onClick={() => stopCall()}
                   aria-label={t('mlearn.ConversationAgent.Voice.EndCall')}
                   class="voice-end-btn"
                 />

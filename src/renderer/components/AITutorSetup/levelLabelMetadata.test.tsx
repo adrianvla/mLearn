@@ -34,6 +34,18 @@ const wordKnowledge = {
   },
 };
 
+const grammarKnowledge = {
+  'uses-alpha': {
+    pattern: 'uses-alpha',
+    ease: 1.5,
+    timesEncountered: 2529,
+    timesFailed: 4,
+    lastSeen: 0,
+    level: 1,
+    language: 'xx',
+  },
+};
+
 const frequencyLanguage: LanguageData = {
   name: 'Template Frequency Language',
   settings: { fixed: {} },
@@ -76,6 +88,7 @@ vi.mock('../../context', () => ({
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string | number>) => {
       if (key === 'mlearn.AITutorSetup.AllLevels') return 'All levels';
+      if (key === 'mlearn.AITutorSetup.GrammarFailureStats') return `failed ${params?.failed}/${params?.seen} seen`;
       if (key === 'mlearn.AITutorSetup.ItemsSelected') return `${params?.count ?? 0} selected`;
       return key;
     },
@@ -110,7 +123,7 @@ vi.mock('../../context/FlashcardContext', () => ({
       wordKnowledge,
       flashcards: {},
     },
-    getGrammarKnowledge: () => null,
+    getGrammarKnowledge: (pattern: string) => grammarKnowledge[pattern as keyof typeof grammarKnowledge] ?? null,
   }),
 }));
 
@@ -134,6 +147,12 @@ vi.mock('../common', () => ({
   CollapsibleStickyHeader: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   EmptyState: (props: { title?: string }) => <div>{props.title}</div>,
   HintText: (props: { children?: JSX.Element }) => <p>{props.children}</p>,
+  HoverReveal: (props: { icon?: JSX.Element; label: string; title?: string; class?: string }) => (
+    <span class={props.class} title={props.title ?? props.label}>
+      {props.icon}
+      <span>{props.label}</span>
+    </span>
+  ),
   Input: (props: {
     value?: string;
     placeholder?: string;
@@ -168,7 +187,6 @@ vi.mock('../common', () => ({
     </article>
   ),
   SparklesIcon: () => <span />,
-  Tag: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
 }));
 
 describe('AI tutor setup level labels', () => {
@@ -231,6 +249,27 @@ describe('AI tutor setup level labels', () => {
     expect(cardText).toContain('Pattern 1');
     expect(cardText).toContain('Pattern 2');
     expect(cardText).not.toContain('Fallback 1');
+
+    dispose();
+  });
+
+  it('shows grammar failure counts with hover-reveal detail copy', async () => {
+    activeLanguageData = grammarLanguage;
+
+    const { GrammarSelector } = await import('./GrammarSelector');
+    const dispose = render(() => (
+      <GrammarSelector
+        selected={[]}
+        onSelectionChange={vi.fn()}
+      />
+    ), container);
+
+    const cardText = Array.from(container.querySelectorAll('article'))
+      .map((article) => article.textContent ?? '')
+      .join('\n');
+    expect(cardText).toContain('4/2529');
+    expect(cardText).toContain('failed 4/2529 seen');
+    expect(cardText).not.toContain('0/0');
 
     dispose();
   });

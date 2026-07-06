@@ -1803,62 +1803,66 @@ export const ConversationContent: Component = () => {
 
       {/* Voice panel */}
       <TabPanel tabId="voice" activeTab={activeTab()} class="ca-voice-panel">
-        <VoiceTab
-          messages={messages()}
-          isStreaming={isStreaming()}
-          onSendMessage={sendTextMessage}
-          onRequestGreeting={handleRequestGreeting}
-          onAbort={handleAbort}
-          defaultVoiceSampleId={activeAgent()?.voiceSampleId}
-          onCallStateChange={(active) => {
-            setIsVoiceCallActive(active);
-            if (active) {
-              setVoiceMistakes([]);
-              setVoiceSessionStart(Date.now());
-              setVoiceAftermath(null);
-            } else {
-              // Build aftermath when call ends
-              const mistakes = voiceMistakes();
-              if (mistakes.length > 0 || voiceSessionStart() > 0) {
-                setVoiceAftermath({
-                  mistakes,
-                  duration: Date.now() - voiceSessionStart(),
-                  messageCount: messages().filter(m => m.role !== 'system').length,
-                });
-              }
-            }
-          }}
-          onInterrupted={(spokenText, _interruptedAt) => {
-            // Update LLM conversation history to reflect what was actually heard
-            agent.markInterrupted(spokenText);
+        <Show when={voiceAftermath()} fallback={
+          <VoiceTab
+            messages={messages()}
+            isStreaming={isStreaming()}
+            onSendMessage={sendTextMessage}
+            onRequestGreeting={handleRequestGreeting}
+            onAbort={handleAbort}
+            defaultVoiceSampleId={activeAgent()?.voiceSampleId}
+            onCallStateChange={(active, reason) => {
+              setIsVoiceCallActive(active);
+              if (active) {
+                setVoiceMistakes([]);
+                setVoiceSessionStart(Date.now());
+                setVoiceAftermath(null);
+              } else {
+                if (reason !== 'completed') {
+                  setVoiceSessionStart(0);
+                  return;
+                }
 
-            // Mark the last assistant message as interrupted with only the spoken text
-            setMessages((prev) => {
-              const updated = [...prev];
-              for (let i = updated.length - 1; i >= 0; i--) {
-                if (updated[i].role === 'assistant') {
-                  updated[i] = {
-                    ...updated[i],
-                    interrupted: true,
-                    interruptedAt: spokenText,
-                    content: spokenText,
-                  };
-                  break;
+                // Build aftermath when call ends
+                const mistakes = voiceMistakes();
+                if (mistakes.length > 0 || voiceSessionStart() > 0) {
+                  setVoiceAftermath({
+                    mistakes,
+                    duration: Date.now() - voiceSessionStart(),
+                    messageCount: messages().filter(m => m.role !== 'system').length,
+                  });
                 }
               }
-              return updated;
-            });
-          }}
-          onTokenHover={handleTokenHover}
-          onTokenLeave={handleTokenLeave}
-          triggerMode={currentTriggerMode()}
-          triggerKey={currentKey()}
-          isConnected={isConnected()}
-          language={settings.language}
-        />
+            }}
+            onInterrupted={(spokenText, _interruptedAt) => {
+              // Update LLM conversation history to reflect what was actually heard
+              agent.markInterrupted(spokenText);
 
-        {/* Voice session aftermath overlay — scoped inside voice panel */}
-        <Show when={voiceAftermath()}>
+              // Mark the last assistant message as interrupted with only the spoken text
+              setMessages((prev) => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = {
+                      ...updated[i],
+                      interrupted: true,
+                      interruptedAt: spokenText,
+                      content: spokenText,
+                    };
+                    break;
+                  }
+                }
+                return updated;
+              });
+            }}
+            onTokenHover={handleTokenHover}
+            onTokenLeave={handleTokenLeave}
+            triggerMode={currentTriggerMode()}
+            triggerKey={currentKey()}
+            isConnected={isConnected()}
+            language={settings.language}
+          />
+        }>
           {(aftermath) => (
             <VoiceAftermath
               aftermath={aftermath()}

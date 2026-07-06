@@ -103,9 +103,11 @@
   overflow: hidden;
 }
 
-/* Voice panel — needs relative positioning to scope the aftermath overlay */
+/* Voice panel */
 .ca-voice-panel {
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Stats/context panel */
@@ -285,4 +287,3 @@ textarea.ca-chat-textarea,
   user-select: none;
   flex-shrink: 0;
 }
-
