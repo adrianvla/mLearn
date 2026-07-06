@@ -150,6 +150,7 @@
     "AITutorSetup": {
       "AllLevels": "すべて",
       "FailedWords": "苦手な単語",
+      "GrammarFailureStats": "{seen}回中{failed}回失敗",
       "GenerateBtn": "生成",
       "GenerateError": "語彙の生成に失敗しました。もう一度お試しください。",
       "GenerateTopicPlaceholder": "トピックを入力して語彙を生成...",
@@ -485,6 +486,7 @@
         "DownloadFailed": "音声モデルのダウンロードに失敗しました。必要な依存関係がインストールされていない可能性があります。アプリケーションを再インストールするか、ログを確認してください。",
         "DownloadModels": "音声モデルをダウンロード",
         "DownloadingModels": "音声モデルをダウンロード中…",
+        "CheckingModels": "ローカルのSTT、TTS、VADモデルを確認中…",
         "EmptyHint": "音声通話を開始してAIチューターとスピーキングを練習しましょう。",
         "EndCall": "通話を終了",
         "HandsFree": "ハンズフリー",

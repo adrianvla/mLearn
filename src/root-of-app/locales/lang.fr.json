@@ -150,6 +150,7 @@
     "AITutorSetup": {
       "AllLevels": "Tous",
       "FailedWords": "Mots difficiles",
+      "GrammarFailureStats": "échec {failed}/{seen} vus",
       "GenerateBtn": "Générer",
       "GenerateError": "Échec de la génération du vocabulaire. Veuillez réessayer.",
       "GenerateTopicPlaceholder": "Entrez un sujet pour générer du vocabulaire...",
@@ -485,6 +486,7 @@
         "DownloadFailed": "Échec du téléchargement des modèles vocaux. Les dépendances requises ne sont peut-être pas installées. Réinstallez l'application ou consultez les journaux.",
         "DownloadModels": "Télécharger les modèles vocaux",
         "DownloadingModels": "Téléchargement des modèles vocaux…",
+        "CheckingModels": "Vérification des modèles STT, TTS et VAD locaux…",
         "EmptyHint": "Démarrez un appel vocal pour pratiquer l'expression orale avec le tuteur IA.",
         "EndCall": "Terminer l'appel",
         "HandsFree": "Mains libres",

@@ -150,6 +150,7 @@
     "AITutorSetup": {
       "AllLevels": "All",
       "FailedWords": "Struggled words",
+      "GrammarFailureStats": "failed {failed}/{seen} seen",
       "GenerateBtn": "Generate",
       "GenerateError": "Failed to generate vocabulary. Please try again.",
       "GenerateTopicPlaceholder": "Enter a topic to generate vocabulary...",
@@ -485,6 +486,7 @@
         "DownloadFailed": "Failed to download voice models. The required dependencies may not be installed. Please reinstall the application or check the logs for details.",
         "DownloadModels": "Download Voice Models",
         "DownloadingModels": "Downloading voice models…",
+        "CheckingModels": "Checking local STT, TTS, and VAD models…",
         "EmptyHint": "Start a voice call to practice speaking with the AI tutor.",
         "EndCall": "End call",
         "HandsFree": "Hands-Free",

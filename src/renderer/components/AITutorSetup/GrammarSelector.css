@@ -63,12 +63,43 @@
 }
 
 .grammar-selector__card-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-1);
-  font-size: var(--font-size-xs);
+  position: absolute;
+  left: var(--spacing-2);
+  bottom: var(--spacing-2);
+  z-index: var(--z-foreground);
   color: var(--text-secondary);
+}
+
+.grammar-selector__card-meta .hover-reveal-label {
+  max-width: 0;
+}
+
+.grammar-selector__card-meta:hover .hover-reveal-label {
+  max-width: 160px;
+}
+
+.grammar-selector__failure-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 var(--spacing-1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+.grammar-selector__card-meta--error .grammar-selector__failure-count {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.grammar-selector__card-meta--warning .grammar-selector__failure-count {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
 }
 
 .grammar-selector__card-meaning {

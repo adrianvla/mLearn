@@ -265,10 +265,10 @@
 /* ------ Voice Aftermath ------ */
 
 .voice-aftermath {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  background: var(--bg-primary);
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   padding: var(--spacing-6);
