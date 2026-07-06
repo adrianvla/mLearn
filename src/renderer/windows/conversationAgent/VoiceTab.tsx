@@ -19,8 +19,9 @@ import {
   MicrophoneIcon,
 } from '../../components/common';
 import type { SelectOption } from '../../components/common';
+import { showToast } from '../../components/common/Feedback/Toast';
 import { ChatBubble } from './ChatBubble';
-import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceSample, Token, TTSProvider } from '../../../shared/types';
+import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
@@ -48,10 +49,10 @@ const PhoneIcon: Component = () => (
 );
 
 const PhoneOffIcon: Component = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-    <path d="M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4 13 13 0 0 0 2.8.7 2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-3.3-2.7" />
-    <path d="M4.2 4.2A19.8 19.8 0 0 0 2.1 12.2 2 2 0 0 0 4.1 14h3a2 2 0 0 0 2-1.7 13 13 0 0 1 .7-2.8 2 2 0 0 0-.4-2.1L8.1 6.1A16 16 0 0 1 12.8 3" />
-    <line x1="2" y1="2" x2="22" y2="22" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
+    <path d="M5.5 14.5c3.9-3 9.1-3 13 0" />
+    <path d="M7.8 12.9l-1.9 2.2c-.7.8-.2 2 1 2h2.5c.6 0 1.1-.4 1.3-.9l.5-1.5" />
+    <path d="M16.2 12.9l1.9 2.2c.7.8.2 2-1 2h-2.5c-.6 0-1.1-.4-1.3-.9l-.5-1.5" />
   </svg>
 );
 
@@ -64,17 +65,49 @@ const MicIcon: Component = () => (
   </svg>
 );
 
-const UploadIcon: Component = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-    <polyline points="17 8 12 3 7 8" />
-    <line x1="12" y1="3" x2="12" y2="15" />
-  </svg>
-);
-
 // ============================================================================
 // Props
 // ============================================================================
+
+type VoiceTtsChoice = 'system' | 'lightweight' | 'voice-clone';
+type LocalVoiceTtsProvider = 'system' | 'kokoro' | 'qwen3';
+type VoiceDebugTone = 'info' | 'active' | 'warn' | 'error';
+type VoiceDebugEvent = {
+  id: number;
+  time: string;
+  label: string;
+  detail: string;
+  tone: VoiceDebugTone;
+};
+type VoiceTimelinePhrase = {
+  phraseIndex: number;
+  text: string;
+};
+type VoiceTimelineChunk = {
+  id: number;
+  phraseIndex: number;
+  startOffset: number;
+  duration: number;
+  sampleCount: number;
+};
+
+function voiceTtsChoiceFromProvider(provider: VoiceCallTTSProvider | undefined): VoiceTtsChoice {
+  switch (provider) {
+    case 'qwen3': return 'voice-clone';
+    case 'kokoro': return 'lightweight';
+    case 'system': return 'system';
+    case 'cloud': return 'voice-clone';
+    default: return 'system';
+  }
+}
+
+function providerFromVoiceTtsChoice(choice: VoiceTtsChoice): LocalVoiceTtsProvider {
+  switch (choice) {
+    case 'system': return 'system';
+    case 'lightweight': return 'kokoro';
+    case 'voice-clone': return 'qwen3';
+  }
+}
 
 export interface VoiceTabProps {
   messages: ConversationMessage[];
@@ -120,12 +153,18 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [micError, setMicError] = createSignal('');
   const [ttsModelLoading, setTtsModelLoading] = createSignal(false);
   const [ttsDownloadProgress, setTtsDownloadProgress] = createSignal(0);
+  const [sessionStatus, setSessionStatus] = createSignal<VoiceSessionStatus | null>(null);
+  const [ttsChunkCount, setTtsChunkCount] = createSignal(0);
+  const [lastInterruption, setLastInterruption] = createSignal('');
+  const [debugEvents, setDebugEvents] = createSignal<VoiceDebugEvent[]>([]);
+  const [microphones, setMicrophones] = createSignal<MediaDeviceInfo[]>([]);
+  const [selectedMicrophoneId, setSelectedMicrophoneId] = createSignal('');
   // Tick counter drives continuous visualizer animation independent of audio level
   const [tick, setTick] = createSignal(0);
 
-  // Voice sample state
-  const [voiceSamples, setVoiceSamples] = createSignal<VoiceSample[]>([]);
-  const [selectedSampleId, setSelectedSampleId] = createSignal<string>(props.defaultVoiceSampleId || '');
+  const [ttsChoice, setTtsChoice] = createSignal<VoiceTtsChoice>(
+    voiceTtsChoiceFromProvider(settings.ttsProvider ?? DEFAULT_SETTINGS.ttsProvider),
+  );
 
   // Refs
   let messagesRef: HTMLDivElement | undefined;
@@ -134,6 +173,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let scriptNode: ScriptProcessorNode | null = null;
   let analyserNode: AnalyserNode | null = null;
   let animFrameId: number | null = null;
+  let ttsTimelineCanvas: HTMLCanvasElement | undefined;
+  let ttsTimelineDrawFrameId: number | null = null;
 
   // TTS sentence queue for interruption tracking
   let ttsQueue: VoiceTtsAudio[] = [];
@@ -156,10 +197,19 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let ttsTurnStartTime = 0;
   let ttsScheduledDuration = 0;
   let currentTtsText = '';
+  let ttsHadError = false;
   // Barge-in detection: consecutive mic-loud frames during TTS playback
   let bargeInFrames = 0;
   const BARGE_IN_THRESHOLD = 0.15;
   const BARGE_IN_FRAMES_REQUIRED = 3;
+  const BARGE_IN_GRACE_MS = 900;
+  let debugEventId = 0;
+  let ttsTimelinePhrases: VoiceTimelinePhrase[] = [];
+  let ttsTimelineChunks: VoiceTimelineChunk[] = [];
+  let ttsTimelineChunkId = 0;
+  let ttsTimelineBaseTime: number | null = null;
+  let ttsTimelineInterruptedAt: number | null = null;
+  const [ttsTimelineRevision, setTtsTimelineRevision] = createSignal(0);
 
   // Voice mode from settings
   const voiceMode = () => (settings.voiceMode || DEFAULT_SETTINGS.voiceMode) as VoiceMode;
@@ -171,15 +221,283 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     currentVoiceMode = voiceMode();
   });
 
-  createEffect(() => {
-    if (settings.ttsProvider === 'cloud') {
-      updateSettings({ ...settings, ttsProvider: 'qwen3' });
+  const addDebugEvent = (label: string, detail: string, tone: VoiceDebugTone = 'info') => {
+    const time = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const event = { id: debugEventId++, time, label, detail, tone };
+    setDebugEvents(events => [event, ...events].slice(0, 10));
+  };
+
+  const bumpTtsTimeline = () => {
+    setTtsTimelineRevision(value => value + 1);
+  };
+
+  const resetTtsTimeline = () => {
+    ttsTimelinePhrases = [];
+    ttsTimelineChunks = [];
+    ttsTimelineChunkId = 0;
+    ttsTimelineBaseTime = null;
+    ttsTimelineInterruptedAt = null;
+    bumpTtsTimeline();
+  };
+
+  const appendTtsTimelinePhrases = (phrases: string[], startIndex: number) => {
+    if (phrases.length === 0) return;
+    const existing = new Set(ttsTimelinePhrases.map(phrase => phrase.phraseIndex));
+    const nextPhrases = phrases
+      .map((text, offset) => ({ phraseIndex: startIndex + offset, text }))
+      .filter(phrase => !existing.has(phrase.phraseIndex));
+    if (nextPhrases.length === 0) return;
+    ttsTimelinePhrases = [...ttsTimelinePhrases, ...nextPhrases];
+    bumpTtsTimeline();
+  };
+
+  const appendTtsTimelineChunk = (
+    phraseIndex: number,
+    sampleCount: number,
+    startAt: number,
+    duration: number,
+  ) => {
+    if (ttsTimelineBaseTime === null) {
+      ttsTimelineBaseTime = startAt;
     }
+    ttsTimelineChunks = [
+      ...ttsTimelineChunks,
+      {
+        id: ttsTimelineChunkId++,
+        phraseIndex,
+        startOffset: Math.max(0, startAt - ttsTimelineBaseTime),
+        duration,
+        sampleCount,
+      },
+    ];
+    bumpTtsTimeline();
+  };
+
+  const markTtsTimelineInterrupted = () => {
+    if (ttsAudioContext && ttsTimelineBaseTime !== null) {
+      ttsTimelineInterruptedAt = Math.max(0, ttsAudioContext.currentTime - ttsTimelineBaseTime);
+    } else {
+      ttsTimelineInterruptedAt = 0;
+    }
+    bumpTtsTimeline();
+  };
+
+  const drawRoundedRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+  ) => {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  };
+
+  const fitCanvasText = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number,
+  ): string => {
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (ctx.measureText(`${text.slice(0, mid)}...`).width <= maxWidth) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return `${text.slice(0, lo)}...`;
+  };
+
+  const drawTtsTimeline = () => {
+    const canvas = ttsTimelineCanvas;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    const pixelWidth = Math.max(1, Math.round(width * dpr));
+    const pixelHeight = Math.max(1, Math.round(height * dpr));
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const styles = getComputedStyle(canvas);
+    const chunkColor = styles.getPropertyValue('--voice-timeline-chunk').trim();
+    const separatorColor = styles.getPropertyValue('--voice-timeline-separator').trim();
+    const playheadColor = styles.getPropertyValue('--voice-timeline-playhead').trim();
+    const phraseColor = styles.getPropertyValue('--voice-timeline-phrase').trim();
+    const phraseTextColor = styles.getPropertyValue('--voice-timeline-phrase-text').trim();
+    const mutedColor = styles.getPropertyValue('--voice-timeline-muted').trim();
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const left = 14;
+    const right = 14;
+    const timelineWidth = Math.max(1, width - left - right);
+    const labelY = 8;
+    const chunkY = 62;
+    const chunkHeight = 24;
+    const minChunkWidth = 5;
+
+    const phraseRanges = new Map<number, { start: number; end: number }>();
+    let placeholderCursor = 0;
+    for (const phrase of ttsTimelinePhrases) {
+      const chunks = ttsTimelineChunks.filter(chunk => chunk.phraseIndex === phrase.phraseIndex);
+      if (chunks.length > 0) {
+        const start = Math.min(...chunks.map(chunk => chunk.startOffset));
+        const end = Math.max(...chunks.map(chunk => chunk.startOffset + chunk.duration));
+        phraseRanges.set(phrase.phraseIndex, { start, end });
+        placeholderCursor = Math.max(placeholderCursor, end + 0.06);
+      } else {
+        const duration = Math.max(0.55, Math.min(2.2, phrase.text.length * 0.045));
+        phraseRanges.set(phrase.phraseIndex, {
+          start: placeholderCursor,
+          end: placeholderCursor + duration,
+        });
+        placeholderCursor += duration + 0.12;
+      }
+    }
+
+    const chunkEnd = ttsTimelineChunks.reduce(
+      (max, chunk) => Math.max(max, chunk.startOffset + chunk.duration),
+      0,
+    );
+    const phraseEnd = Array.from(phraseRanges.values()).reduce(
+      (max, range) => Math.max(max, range.end),
+      0,
+    );
+    const totalDuration = Math.max(1.4, chunkEnd, phraseEnd, ttsScheduledDuration) + 0.2;
+    const xForTime = (seconds: number) => left + (seconds / totalDuration) * timelineWidth;
+
+    ctx.strokeStyle = mutedColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(left, chunkY + chunkHeight + 12);
+    ctx.lineTo(width - right, chunkY + chunkHeight + 12);
+    ctx.stroke();
+
+    for (const phrase of ttsTimelinePhrases) {
+      const range = phraseRanges.get(phrase.phraseIndex);
+      if (!range) continue;
+      const startX = xForTime(range.start);
+      const endX = xForTime(range.end);
+      const labelWidth = Math.max(44, endX - startX);
+      const labelX = Math.max(left, Math.min(startX, width - right - labelWidth));
+
+      ctx.strokeStyle = phraseColor;
+      ctx.fillStyle = phraseColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(startX, labelY + 28);
+      ctx.lineTo(startX, labelY + 38);
+      ctx.moveTo(startX, labelY + 38);
+      ctx.lineTo(endX, labelY + 38);
+      ctx.moveTo(endX, labelY + 28);
+      ctx.lineTo(endX, labelY + 38);
+      ctx.stroke();
+
+      drawRoundedRect(ctx, labelX, labelY, labelWidth, 22, 4);
+      ctx.fill();
+      ctx.fillStyle = phraseTextColor;
+      ctx.font = '11px sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText(fitCanvasText(ctx, phrase.text, labelWidth - 8), labelX + labelWidth / 2, labelY + 11);
+    }
+
+    for (const chunk of ttsTimelineChunks) {
+      const x = xForTime(chunk.startOffset);
+      const nextX = xForTime(chunk.startOffset + chunk.duration);
+      const chunkWidth = Math.max(minChunkWidth, nextX - x);
+      ctx.fillStyle = chunkColor;
+      drawRoundedRect(ctx, x, chunkY, chunkWidth, chunkHeight, 3);
+      ctx.fill();
+      ctx.strokeStyle = separatorColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, chunkY - 5);
+      ctx.lineTo(x, chunkY + chunkHeight + 5);
+      ctx.moveTo(x + chunkWidth, chunkY - 5);
+      ctx.lineTo(x + chunkWidth, chunkY + chunkHeight + 5);
+      ctx.stroke();
+    }
+
+    const playheadSeconds = ttsTimelineInterruptedAt
+      ?? (ttsAudioContext && ttsTimelineBaseTime !== null ? ttsAudioContext.currentTime - ttsTimelineBaseTime : 0);
+    const playheadX = Math.max(left, Math.min(width - right, xForTime(Math.max(0, playheadSeconds))));
+    ctx.strokeStyle = playheadColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(playheadX, 4);
+    ctx.lineTo(playheadX, height - 8);
+    ctx.stroke();
+  };
+
+  const drawTtsTimelineSoon = () => {
+    if (ttsTimelineDrawFrameId !== null) return;
+    ttsTimelineDrawFrameId = requestAnimationFrame(() => {
+      ttsTimelineDrawFrameId = null;
+      drawTtsTimeline();
+    });
+  };
+
+  createEffect(() => {
+    void ttsTimelineRevision();
+    drawTtsTimelineSoon();
   });
 
   // ============================================================================
   // Check model status on mount and language change
   // ============================================================================
+
+  const microphoneOptions = (): SelectOption[] => [
+    { value: '', label: t('mlearn.ConversationAgent.Voice.DefaultMicrophone') },
+    ...microphones().map((device, index) => ({
+      value: device.deviceId,
+      label: device.label || t('mlearn.ConversationAgent.Voice.MicrophoneNumber', { index: String(index + 1) }),
+    })),
+  ];
+
+  const refreshMicrophones = async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(device => device.kind === 'audioinput');
+      setMicrophones(audioInputs);
+      if (selectedMicrophoneId() && !audioInputs.some(device => device.deviceId === selectedMicrophoneId())) {
+        setSelectedMicrophoneId('');
+      }
+    } catch (error) {
+      log.error('[VoiceTab] Failed to enumerate microphones:', error);
+    }
+  };
 
   const checkModels = async (language: string) => {
     setIsChecking(true);
@@ -199,24 +517,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   };
 
-  // Load voice samples
-  const loadVoiceSamples = async () => {
-    try {
-      const samples = await getBridge().voice.voiceSampleList();
-      if (samples) setVoiceSamples(samples);
-    } catch (e) {
-      log.error("error", e);
-      // ignore
-    }
-  };
-
   createEffect(() => {
     const lang = props.language;
     checkModels(lang);
-  });
-
-  onMount(() => {
-    loadVoiceSamples();
   });
 
   // ============================================================================
@@ -227,6 +530,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   onMount(() => {
     const bridge = getBridge();
     const cleanups: Array<() => void> = [];
+    refreshMicrophones();
+    navigator.mediaDevices?.addEventListener?.('devicechange', refreshMicrophones);
 
     // Model download progress
     cleanups.push(bridge.voice.onVoiceModelProgress((status) => {
@@ -239,6 +544,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     cleanups.push(bridge.voice.onVoiceSttResult((result: VoiceSTTResult) => {
       setPartialTranscript(result.text);
       if (result.isFinal && result.text.trim()) {
+        addDebugEvent('STT', `${result.text.trim().length} chars final`, 'active');
         setCallState('processing');
         props.onSendMessage(result.text.trim());
         setPartialTranscript('');
@@ -250,8 +556,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     cleanups.push(bridge.voice.onVoiceVadEvent((event) => {
       if (event.type === 'speech-start') {
         if (ttsPlaying) return; // safety guard — barge-in handled locally
+        addDebugEvent('VAD', 'Speech started', 'active');
         setCallState('listening');
       } else if (event.type === 'speech-end') {
+        addDebugEvent('VAD', 'Speech ended', 'info');
         if (callState() === 'listening') {
           setCallState('processing');
         }
@@ -261,24 +569,47 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // TTS audio — schedule streamed chunks for gapless playback
     cleanups.push(bridge.voice.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
       if (ttsAborted) return; // ignore audio from a cancelled generation
+      log.info('[VoiceTab] TTS audio received', {
+        samples: audio.samples.length,
+        sampleRate: audio.sampleRate,
+        sentenceIndex: audio.sentenceIndex,
+      });
+      addDebugEvent('TTS chunk', `${audio.samples.length} samples @ ${audio.sampleRate} Hz`, 'active');
       ttsQueue.push(audio);
       scheduleTtsAudio(audio);
     }));
 
     // TTS status
     cleanups.push(bridge.voice.onVoiceTtsStatus((status) => {
+      log.info('[VoiceTab] TTS status', status);
+      if (status.error) {
+        ttsHadError = true;
+        addDebugEvent('TTS error', status.error, 'error');
+      }
       setTtsModelLoading(status.modelLoading ?? false);
       if (status.downloadProgress !== undefined) {
         setTtsDownloadProgress(status.downloadProgress);
       }
       if (status.generating) {
+        ttsHadError = false;
         ttsGenerationActive = true;
-        setCallState('processing');
+        addDebugEvent('TTS', status.playing ? 'Playback started' : 'Generating audio', 'active');
+        if (status.playing) {
+          ttsPlaying = true;
+          setCallState('speaking');
+        } else {
+          setCallState('processing');
+        }
       } else {
         ttsGenerationActive = false;
         finishVoiceTtsPhraseRequest(voiceTtsTurn);
         setTtsModelLoading(false);
         setTtsDownloadProgress(0);
+        if (ttsHadError) {
+          ttsHadError = false;
+        } else {
+          addDebugEvent('TTS', 'Generation finished', 'info');
+        }
         requestNextVoiceTtsPhrase();
         finishTtsIfPlaybackDrained();
       }
@@ -287,7 +618,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // Voice session ready
     cleanups.push(bridge.voice.onVoiceSessionReady(() => {
       setIsInitializing(false);
+      setSessionStatus(null);
       setInitError('');
+      addDebugEvent('Session', 'Voice backend ready', 'active');
+    }));
+
+    cleanups.push(bridge.voice.onVoiceSessionStatus((status) => {
+      log.info('[VoiceTab] Voice session status', status);
+      setSessionStatus(status);
+      addDebugEvent('Load', `${status.stage}: ${status.message}`, 'info');
     }));
 
     // Voice session error
@@ -296,6 +635,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       setIsCallActive(false);
       props.onCallStateChange?.(false, 'failed');
       setCallState('idle');
+      setSessionStatus(null);
       stopAudioCapture();
 
       const err = data.error.toLowerCase();
@@ -304,15 +644,21 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       } else {
         setInitError(data.error);
       }
+      addDebugEvent('Error', data.error, 'error');
     }));
 
     onCleanup(() => {
+      navigator.mediaDevices?.removeEventListener?.('devicechange', refreshMicrophones);
       cleanups.forEach(fn => fn());
     });
   });
 
   // Clean up call on component unmount
   onCleanup(() => {
+    if (ttsTimelineDrawFrameId !== null) {
+      cancelAnimationFrame(ttsTimelineDrawFrameId);
+      ttsTimelineDrawFrameId = null;
+    }
     stopCall('cleanup');
   });
 
@@ -342,6 +688,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsQueueIndex = 0;
     ttsCurrentSentenceIdx = 0;
     bargeInFrames = 0;
+    resetTtsTimeline();
   }
 
   function requestNextVoiceTtsPhrase(): void {
@@ -349,9 +696,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     const next = takeNextVoiceTtsPhrase(voiceTtsTurn);
     if (!next) return;
 
-    const configuredProvider = settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider;
-    const provider = configuredProvider === 'cloud' ? 'qwen3' : configuredProvider;
-    const sampleId = provider === 'qwen3' ? (selectedSampleId() || undefined) : undefined;
+    const provider = activeTtsProvider();
+    const sampleId = activeVoiceSampleId();
+    log.info('[VoiceTab] Requesting TTS phrase', {
+      provider,
+      language: props.language,
+      chars: next.phrase.length,
+      hasVoiceSample: Boolean(sampleId),
+    });
+    addDebugEvent('LLM -> TTS', `${next.phrase.length} chars queued for streamed TTS`, 'active');
 
     ttsGenerationActive = true;
 
@@ -387,6 +740,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     currentTtsText = last.content;
     const queued = enqueueVoiceTtsPhrasesForMessage(voiceTtsTurn, lastIndex, last.content, props.isStreaming);
     if (queued.length > 0) {
+      appendTtsTimelinePhrases(queued, voiceTtsTurn.sentenceTexts.length - queued.length);
       requestNextVoiceTtsPhrase();
     }
   });
@@ -395,27 +749,45 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // Audio Capture
   // ============================================================================
 
+  const getMicrophoneAudioConstraints = (): MediaTrackConstraints => {
+    const microphoneId = selectedMicrophoneId();
+    return {
+      ...(microphoneId ? { deviceId: { exact: microphoneId } } : {}),
+      sampleRate: 16000,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    };
+  };
+
   const startAudioCapture = async () => {
     // Clean up any existing capture to prevent duplicate pipelines
     stopAudioCapture();
 
+    try {
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            sampleRate: 16000,
-            channelCount: 1,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
+          audio: getMicrophoneAudioConstraints(),
         });
+      } catch (error) {
+        if (!selectedMicrophoneId()) throw error;
+        log.error('[VoiceTab] Selected microphone failed, falling back to default:', error);
+        setSelectedMicrophoneId('');
+        await refreshMicrophones();
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: getMicrophoneAudioConstraints(),
+        });
+      }
 
-        if (!isCallActive()) {
-          stopAudioCapture();
-          return;
-        }
+      if (!isCallActive()) {
+        stopAudioCapture();
+        return;
+      }
 
-        audioContext = new AudioContext({ sampleRate: 16000 });
+      await refreshMicrophones();
+
+      audioContext = new AudioContext({ sampleRate: 16000 });
       const source = audioContext.createMediaStreamSource(mediaStream);
 
       // Analyser for visualizer
@@ -491,10 +863,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // Barge-in detection: when TTS is playing, local mic level above threshold
     // for several consecutive frames indicates the user is actually speaking
     // (not just echo from TTS output).
-    if (ttsPlaying) {
+    if (ttsPlaying && Date.now() - ttsTurnStartTime > BARGE_IN_GRACE_MS) {
       if (avg > BARGE_IN_THRESHOLD) {
         bargeInFrames++;
         if (bargeInFrames >= BARGE_IN_FRAMES_REQUIRED) {
+          log.info('[VoiceTab] Barge-in detected', { avg });
+          addDebugEvent('Interrupt', `Mic level ${avg.toFixed(2)} during TTS`, 'warn');
           bargeInFrames = 0;
           handleTTSInterruption();
           props.onAbort();
@@ -504,6 +878,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       }
     }
 
+    drawTtsTimeline();
     animFrameId = requestAnimationFrame(updateVisualizer);
   };
 
@@ -549,7 +924,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     const phraseIndex = voiceTtsTurn.activePhraseIndex >= 0
       ? voiceTtsTurn.activePhraseIndex
-      : (audio.sentenceIndex ?? ttsCurrentSentenceIdx);
+      : (audio.sentenceIndex ?? Math.max(0, ttsTimelinePhrases.length - 1, ttsCurrentSentenceIdx));
     if (phraseIndex !== ttsTimingPhraseIndex) {
       ttsTimingPhraseIndex = phraseIndex;
       ttsCurrentSentenceIdx = phraseIndex;
@@ -557,6 +932,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       ttsCurrentSentenceDuration = 0;
     }
     ttsCurrentSentenceDuration += buffer.duration;
+    appendTtsTimelineChunk(
+      phraseIndex,
+      audio.sampleCount ?? audio.samples.length,
+      scheduled.startAt,
+      buffer.duration,
+    );
+    setTtsChunkCount(count => count + 1);
 
     const source = ttsAudioContext.createBufferSource();
     source.buffer = buffer;
@@ -620,9 +1002,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
     const interruptedAt = remainingParts.join(' ');
 
+    markTtsTimelineInterrupted();
     stopTTSPlayback();
 
     if (props.onInterrupted) {
+      log.info('[VoiceTab] TTS interrupted', { spokenText, interruptedAt });
+      setLastInterruption(spokenText || currentTtsText);
+      addDebugEvent('Interrupted', `${spokenText.length} chars spoken before abort`, 'warn');
       props.onInterrupted(spokenText || '', interruptedAt || currentTtsText);
     }
   };
@@ -649,6 +1035,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsScheduledDuration = 0;
     currentTtsText = '';
     bargeInFrames = 0;
+    ttsHadError = false;
     if (ttsPlaybackTimer) {
       clearTimeout(ttsPlaybackTimer);
       ttsPlaybackTimer = null;
@@ -665,12 +1052,27 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // ============================================================================
 
   const startCall = async () => {
+    log.info('[VoiceTab] Starting voice call', {
+      language: props.language,
+      mode: voiceMode(),
+      ttsProvider: activeTtsProvider(),
+    });
     setIsInitializing(true);
     setInitError('');
     setIsCallActive(true);
     props.onCallStateChange?.(true);
     setCallState('idle');
     setPartialTranscript('');
+    setTtsChunkCount(0);
+    setLastInterruption('');
+    setDebugEvents([]);
+    resetTtsTimeline();
+    addDebugEvent('Session', `Starting ${activeTtsProvider()} voice backend`, 'info');
+    setSessionStatus({
+      stage: 'starting',
+      message: t('mlearn.ConversationAgent.Voice.Initializing'),
+      progress: 0,
+    });
 
     // Start voice session — engines init in main process.
     // The VOICE_SESSION_READY event will confirm when engines are loaded,
@@ -680,6 +1082,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       props.language,
       voiceMode(),
       settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold,
+      activeTtsProvider(),
     );
   };
 
@@ -719,6 +1122,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     setIsCallActive(false);
     props.onCallStateChange?.(false, reason);
     setIsInitializing(false);
+    setSessionStatus(null);
     setCallState('idle');
     setPartialTranscript('');
 
@@ -756,6 +1160,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             props.language,
             mode as VoiceMode,
             settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold,
+            activeTtsProvider(),
           );
           await startAudioCapture();
         }
@@ -763,60 +1168,94 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ),
   );
 
-  const setTtsProvider = (provider: TTSProvider) => {
-    updateSettings({ ...settings, ttsProvider: provider });
-  };
-
-  const setTtsSpeed = (speed: number) => {
-    updateSettings({ ...settings, voiceTtsSpeed: speed });
-  };
-
   const setSilenceThreshold = (threshold: number) => {
     updateSettings({ ...settings, voiceSilenceThreshold: threshold });
     // Update the server-side threshold in real-time
     getBridge().voice.voiceUpdateSilenceThreshold(threshold);
   };
 
-  // Voice sample upload
-  const handleSampleUpload = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'audio/*';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const filePath = getBridge().files.getPathForFile(file);
-      if (!filePath) return;
-      const name = file.name.replace(/\.[^.]+$/, '');
-      try {
-        const newSample = await getBridge().voice.voiceSampleUpload(filePath, name);
-        if (newSample?.id) {
-          setSelectedSampleId(newSample.id);
-          try {
-            await getBridge().voice.voiceSampleTranscribe(newSample.id, props.language);
-          } catch (err) {
-            log.error('[VoiceTab] Failed to transcribe voice sample:', err);
-          }
-        }
-        await loadVoiceSamples();
-      } catch (err) {
-        log.error('[VoiceTab] Failed to upload voice sample:', err);
-      }
-    };
-    input.click();
+  const ttsChoiceOptions = (): SelectOption[] => [
+    { value: 'system', label: t('mlearn.ConversationAgent.Voice.SystemVoice') },
+    { value: 'lightweight', label: t('mlearn.ConversationAgent.Voice.LightweightVoice') },
+    { value: 'voice-clone', label: t('mlearn.ConversationAgent.Voice.VoiceSample') },
+  ];
+
+  const activeTtsProvider = (): LocalVoiceTtsProvider => providerFromVoiceTtsChoice(ttsChoice());
+  const activeTtsLabel = () => (
+    ttsChoiceOptions().find(option => option.value === ttsChoice())?.label ?? activeTtsProvider()
+  );
+  const activeVoiceSampleId = (): string | undefined => (
+    ttsChoice() === 'voice-clone' ? props.defaultVoiceSampleId || undefined : undefined
+  );
+
+  const agentVoiceSampleExists = async (): Promise<boolean> => {
+    const voiceSampleId = props.defaultVoiceSampleId;
+    if (!voiceSampleId) return false;
+    try {
+      return Boolean(await getBridge().voice.voiceSampleGetPath(voiceSampleId));
+    } catch (error) {
+      log.error('[VoiceTab] Failed to validate agent voice sample:', error);
+      return false;
+    }
   };
 
-  const voiceSampleOptions = (): SelectOption[] => {
-    const opts: SelectOption[] = [{ value: '', label: t('mlearn.ConversationAgent.Voice.DefaultVoice') }];
-    for (const s of voiceSamples()) {
-      opts.push({ value: s.id, label: s.name });
+  const handleTtsChoiceChange = async (event: Event) => {
+    const select = event.currentTarget as HTMLSelectElement;
+    const next = select.value as VoiceTtsChoice;
+    if (next === 'voice-clone' && !(await agentVoiceSampleExists())) {
+      showToast({
+        message: t('mlearn.ConversationAgent.Voice.AddAgentVoice'),
+        variant: 'warning',
+        duration: 5000,
+      });
+      setTtsChoice('system');
+      select.value = 'system';
+      return;
     }
-    return opts;
+
+    setTtsChoice(next);
+    updateSettings({ ...settings, ttsProvider: providerFromVoiceTtsChoice(next) });
   };
+
+  const handleMicrophoneChange = async (event: Event) => {
+    const select = event.currentTarget as HTMLSelectElement;
+    setSelectedMicrophoneId(select.value);
+    if (isCallActive() && !isInitializing()) {
+      await startAudioCapture();
+    }
+  };
+
+  createEffect(
+    on(
+      () => [props.defaultVoiceSampleId, settings.ttsProvider] as const,
+      ([voiceSampleId, savedProvider]) => {
+        const savedChoice = voiceTtsChoiceFromProvider(savedProvider ?? DEFAULT_SETTINGS.ttsProvider);
+        if (!voiceSampleId && savedChoice === 'voice-clone') {
+          setTtsChoice('system');
+        } else if (ttsChoice() !== savedChoice) {
+          setTtsChoice(savedChoice);
+        }
+      },
+    ),
+  );
 
   // ============================================================================
   // PTT Handlers
   // ============================================================================
+
+  const isEditableKeyTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    return target instanceof HTMLInputElement
+      || target instanceof HTMLTextAreaElement
+      || target instanceof HTMLSelectElement;
+  };
+
+  const canUseKeyboardPtt = () => (
+    isCallActive()
+    && !isInitializing()
+    && voiceMode() === 'push-to-talk'
+  );
 
   const handlePttDown = () => setPttActive(true);
   const handlePttUp = () => {
@@ -827,13 +1266,37 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   };
 
+  const handlePttKeyDown = (event: KeyboardEvent) => {
+    if (event.code !== 'Space' || event.repeat || isEditableKeyTarget(event.target)) return;
+    if (!canUseKeyboardPtt()) return;
+    event.preventDefault();
+    handlePttDown();
+  };
+
+  const handlePttKeyUp = (event: KeyboardEvent) => {
+    if (event.code !== 'Space' || isEditableKeyTarget(event.target)) return;
+    if (!canUseKeyboardPtt() && !pttActive()) return;
+    event.preventDefault();
+    handlePttUp();
+  };
+
+  onMount(() => {
+    window.addEventListener('keydown', handlePttKeyDown);
+    window.addEventListener('keyup', handlePttKeyUp);
+  });
+
+  onCleanup(() => {
+    window.removeEventListener('keydown', handlePttKeyDown);
+    window.removeEventListener('keyup', handlePttKeyUp);
+  });
+
   // ============================================================================
   // Derived State
   // ============================================================================
 
   const modelsReady = () => {
     const s = modelStatus();
-    return s && s.sttDownloaded && s.ttsDownloaded && s.vadDownloaded;
+    return s && s.sttDownloaded && (ttsChoice() === 'system' || s.ttsDownloaded) && s.vadDownloaded;
   };
 
   const statusText = () => {
@@ -961,28 +1424,43 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             {/* Initializing engines indicator */}
             <Show when={isInitializing()}>
               <div class="voice-initializing">
-                <Spinner size={32} shape="square" strokeWidth={6} cornerRadius={0} />
-                <span class="voice-initializing-text">
-                  {t('mlearn.ConversationAgent.Voice.Initializing')}
-                </span>
+                <div class="voice-initializing-row">
+                  <Spinner size={32} shape="square" strokeWidth={6} cornerRadius={0} />
+                  <span class="voice-initializing-text">
+                    {sessionStatus()?.message || t('mlearn.ConversationAgent.Voice.Initializing')}
+                  </span>
+                </div>
+                <div class="voice-initializing-row">
+                  <ProgressBar
+                    value={Math.round((sessionStatus()?.progress ?? 0) * 100)}
+                    showPercent
+                    variant="primary"
+                    size="sm"
+                    class="voice-initializing-progress"
+                  />
+                </div>
               </div>
             </Show>
 
             {/* TTS model loading indicator */}
             <Show when={!isInitializing() && ttsModelLoading()}>
               <div class="voice-initializing">
-                <Spinner size={32} shape="square" strokeWidth={6} cornerRadius={0} />
-                <span class="voice-initializing-text">
-                  {t('mlearn.ConversationAgent.Voice.LoadingTtsModel')}
-                </span>
-                <ProgressBar
-                  value={Math.round(ttsDownloadProgress() * 100)}
-                  showPercent
-                  variant="primary"
-                  size="sm"
-                  animated={ttsDownloadProgress() < 0.05}
-                  class="voice-initializing-progress"
-                />
+                <div class="voice-initializing-row">
+                  <Spinner size={32} shape="square" strokeWidth={6} cornerRadius={0} />
+                  <span class="voice-initializing-text">
+                    {t('mlearn.ConversationAgent.Voice.LoadingTtsModel')}
+                  </span>
+                </div>
+                <div class="voice-initializing-row">
+                  <ProgressBar
+                    value={Math.round(ttsDownloadProgress() * 100)}
+                    showPercent
+                    variant="primary"
+                    size="sm"
+                    animated={ttsDownloadProgress() < 0.05}
+                    class="voice-initializing-progress"
+                  />
+                </div>
               </div>
             </Show>
 
@@ -997,25 +1475,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 ))}
               </div>
 
-              {/* Status + Stage indicator */}
+              {/* Status */}
               <div class={`voice-status-text ${isCallActive() ? 'active' : ''}`}>
                 {isCallActive() ? statusText() : ''}
               </div>
-              <Show when={isCallActive()}>
-                <div class="voice-stage-indicator">
-                  <span class={`voice-stage-pill ${activeStage() === 'stt' ? 'active' : ''}`}>
-                    {t('mlearn.ConversationAgent.Voice.Stage.STT')}
-                  </span>
-                  <span class="voice-stage-arrow">›</span>
-                  <span class={`voice-stage-pill ${activeStage() === 'llm' ? 'active' : ''}`}>
-                    {t('mlearn.ConversationAgent.Voice.Stage.LLM')}
-                  </span>
-                  <span class="voice-stage-arrow">›</span>
-                  <span class={`voice-stage-pill ${activeStage() === 'tts' ? 'active' : ''}`}>
-                    {t('mlearn.ConversationAgent.Voice.Stage.TTS')}
-                  </span>
-                </div>
-              </Show>
             </Show>
 
             {/* Controls */}
@@ -1023,14 +1486,32 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
               <Show
                 when={isCallActive()}
                 fallback={
-                  <Btn
-                    variant="primary"
-                    icon={<PhoneIcon />}
-                    onClick={startCall}
-                    disabled={!props.isConnected}
-                  >
-                    {t('mlearn.ConversationAgent.Voice.StartCall')}
-                  </Btn>
+                  <div class="voice-start-panel">
+                    <Btn
+                      variant="primary"
+                      icon={<PhoneIcon />}
+                      onClick={startCall}
+                      disabled={!props.isConnected}
+                    >
+                      {t('mlearn.ConversationAgent.Voice.StartCall')}
+                    </Btn>
+                    <div class="voice-start-selectors">
+                      <Select
+                        options={ttsChoiceOptions()}
+                        value={ttsChoice()}
+                        onChange={handleTtsChoiceChange}
+                        aria-label={t('mlearn.ConversationAgent.Voice.TtsProvider')}
+                        size="sm"
+                      />
+                      <Select
+                        options={microphoneOptions()}
+                        value={selectedMicrophoneId()}
+                        onChange={handleMicrophoneChange}
+                        aria-label={t('mlearn.ConversationAgent.Voice.Microphone')}
+                        size="sm"
+                      />
+                    </div>
+                  </div>
                 }
               >
                 {/* Mode toggle */}
@@ -1079,46 +1560,19 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 onTouchStart={handlePttDown}
                 onTouchEnd={handlePttUp}
                 aria-label={t('mlearn.ConversationAgent.Voice.PushToTalk')}
+                aria-keyshortcuts="Space"
               />
             </Show>
 
-            {/* TTS provider selector */}
             <Show when={isCallActive() && !isInitializing()}>
-              <div class="voice-speed-row">
-                <label>{t('mlearn.ConversationAgent.Voice.TtsProvider')}</label>
-                <div class="voice-mode-toggle">
-                  <Btn
-                    size="sm"
-                    variant={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' ? 'primary' : 'ghost'}
-                    onClick={() => setTtsProvider('kokoro')}
-                    class="voice-mode-btn"
-                  >
-                    {t('mlearn.ConversationAgent.Voice.LocalTts')}
-                  </Btn>
-                  <Btn
-                    size="sm"
-                    variant={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'qwen3' ? 'primary' : 'ghost'}
-                    onClick={() => setTtsProvider('qwen3')}
-                    class="voice-mode-btn"
-                  >
-                    {t('mlearn.ConversationAgent.Voice.Qwen3Tts')}
-                  </Btn>
-                </div>
-              </div>
-            </Show>
-
-            {/* TTS speed control */}
-            <Show when={isCallActive() && !isInitializing()}>
-              <div class="voice-speed-row">
-                <label>{t('mlearn.ConversationAgent.Voice.TtsSpeed')}</label>
-                <RangeInput
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  value={ttsSpeed()}
-                  onChange={(v) => setTtsSpeed(v)}
+              <div class="voice-start-selectors">
+                <Select
+                  options={microphoneOptions()}
+                  value={selectedMicrophoneId()}
+                  onChange={handleMicrophoneChange}
+                  aria-label={t('mlearn.ConversationAgent.Voice.Microphone')}
+                  size="sm"
                 />
-                <span class="voice-speed-value">{ttsSpeed().toFixed(1)}x</span>
               </div>
             </Show>
 
@@ -1127,7 +1581,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
               <div class="voice-speed-row">
                 <label>{t('mlearn.ConversationAgent.Voice.SilenceThreshold')}</label>
                 <RangeInput
-                  min={0.5}
+                  min={0.3}
                   max={5.0}
                   step={0.1}
                   value={silenceThreshold()}
@@ -1137,29 +1591,58 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
               </div>
             </Show>
 
-            {/* Voice sample selector */}
             <Show when={isCallActive() && !isInitializing()}>
-              <div class={`voice-sample-row ${(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3' ? 'disabled' : ''}`}
-                title={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3' ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
-              >
-                <label>{t('mlearn.ConversationAgent.Voice.VoiceSample')}</label>
-                <Select
-                  options={voiceSampleOptions()}
-                  value={selectedSampleId()}
-                  onChange={(e) => setSelectedSampleId(e.currentTarget.value)}
-                  size="sm"
-                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3'}
-                />
-                <IconBtn
-                  icon={<UploadIcon />}
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSampleUpload}
-                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) !== 'qwen3'}
-                  aria-label={t('mlearn.ConversationAgent.Voice.UploadSample')}
-                />
-              </div>
+              <details class="voice-advanced">
+                <summary>{t('mlearn.ConversationAgent.Voice.Advanced')}</summary>
+                <div class="voice-debug-panel">
+                  <div class="voice-stage-indicator" aria-label={t('mlearn.ConversationAgent.Voice.Pipeline')}>
+                    <span class={`voice-stage-pill ${activeStage() === 'stt' ? 'active' : ''}`}>
+                      {t('mlearn.ConversationAgent.Voice.Stage.STT')}
+                    </span>
+                    <span class="voice-stage-arrow">›</span>
+                    <span class={`voice-stage-pill ${activeStage() === 'llm' ? 'active' : ''}`}>
+                      {t('mlearn.ConversationAgent.Voice.Stage.LLM')}
+                    </span>
+                    <span class="voice-stage-arrow">›</span>
+                    <span class={`voice-stage-pill ${activeStage() === 'tts' ? 'active' : ''}`}>
+                      {t('mlearn.ConversationAgent.Voice.Stage.TTS')}
+                    </span>
+                  </div>
+
+                  <div class="voice-chunk-row">
+                    <span>{t('mlearn.ConversationAgent.Voice.StreamedChunks')}</span>
+                    <strong>{ttsChunkCount()}</strong>
+                  </div>
+                  <canvas
+                    ref={ttsTimelineCanvas}
+                    class="voice-chunk-canvas"
+                    aria-label={t('mlearn.ConversationAgent.Voice.StreamedChunks')}
+                  />
+
+                  <div class="voice-debug-grid">
+                    <span>{t('mlearn.ConversationAgent.Voice.Provider')}</span>
+                    <strong>{activeTtsLabel()}</strong>
+                    <span>{t('mlearn.ConversationAgent.Voice.Mode')}</span>
+                    <strong>{voiceMode() === 'vad' ? t('mlearn.ConversationAgent.Voice.HandsFree') : t('mlearn.ConversationAgent.Voice.PushToTalk')}</strong>
+                    <span>{t('mlearn.ConversationAgent.Voice.Interrupt')}</span>
+                    <strong>{lastInterruption() || t('mlearn.ConversationAgent.Voice.None')}</strong>
+                  </div>
+
+                  <div class="voice-debug-events">
+                    <Index each={debugEvents()}>
+                      {(event) => (
+                        <div class={`voice-debug-event ${event().tone}`}>
+                          <time>{event().time}</time>
+                          <strong>{event().label}</strong>
+                          <span>{event().detail}</span>
+                        </div>
+                      )}
+                    </Index>
+                  </div>
+                </div>
+              </details>
             </Show>
+
           </div>
 
           {/* Messages (shared with chat tab) */}

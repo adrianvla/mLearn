@@ -20,6 +20,8 @@ import os
 import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
@@ -54,13 +56,53 @@ _voice_stt_downloading = False
 _voice_tts_downloading = False
 _voice_stt_progress = 0.0
 _voice_tts_progress = 0.0
+_voice_loading_status_subscribers: set = set()
+_voice_loading_status_lock = threading.Lock()
 
 _qwen3_model_loading = False  # True while model download/load is in progress
 
 # TTS provider config — reloaded from settings.json per-request
-_tts_provider: str = "kokoro"  # 'kokoro' | 'qwen3' | 'cloud'
+_tts_provider: str = "kokoro"  # 'kokoro' | 'qwen3' | 'cloud'; 'system' is Electron-only
 
 _DEFAULT_SENTENCE_TERMINATORS = ".!?。！？؟؛"
+DEFAULT_VOICE_SILENCE_THRESHOLD = 0.8
+VAD_SPEECH_START_THRESHOLD = 0.5
+VAD_SPEECH_CONTINUE_THRESHOLD = 0.35
+
+
+def _subscribe_voice_loading_status(callback):
+    with _voice_loading_status_lock:
+        _voice_loading_status_subscribers.add(callback)
+
+    def _unsubscribe():
+        with _voice_loading_status_lock:
+            _voice_loading_status_subscribers.discard(callback)
+
+    return _unsubscribe
+
+
+def _emit_voice_loading_status(stage: str, message: str, progress: float, model_name: str | None = None):
+    status = {
+        "type": "loading",
+        "stage": stage,
+        "message": message,
+        "progress": max(0.0, min(1.0, float(progress))),
+    }
+    if model_name:
+        status["modelName"] = model_name
+    log.info(
+        "Voice loading status: %s %.0f%% %s",
+        stage,
+        status["progress"] * 100,
+        message,
+    )
+    with _voice_loading_status_lock:
+        subscribers = list(_voice_loading_status_subscribers)
+    for callback in subscribers:
+        try:
+            callback(status)
+        except Exception:
+            pass
 
 
 def _tts_runtime(language: str) -> dict:
@@ -124,6 +166,8 @@ def _resolve_tts_engine(language: str | None, provider: str | None = None) -> st
     requested_provider = provider or _tts_provider
     if requested_provider == "cloud":
         requested_provider = "qwen3"
+    if requested_provider == "system":
+        raise RuntimeError("System TTS is handled by Electron, not the Python TTS backend")
     if requested_provider == "qwen3":
         if _qwen3_language_name(requested_language):
             return "qwen3"
@@ -153,7 +197,10 @@ def _reload_tts_settings():
         with open(settings_path, "r", encoding="utf-8") as f:
             settings = json.load(f)
             provider = settings.get("ttsProvider", "kokoro")
-            _tts_provider = "qwen3" if provider == "cloud" else provider
+            if provider == "system":
+                _tts_provider = "kokoro"
+            else:
+                _tts_provider = "qwen3" if provider == "cloud" else provider
     except Exception:
         pass
 
@@ -273,6 +320,7 @@ def _ensure_vad_loaded():
             return _voice_vad_model
         try:
             log.info("Loading Silero VAD model...")
+            _emit_voice_loading_status("vad", "Loading Silero VAD model…", 0.05, "Silero VAD")
             torch = config.torch
             _torch = importlib.import_module("torch") if torch is None else torch
             model, utils = _torch.hub.load(
@@ -283,6 +331,7 @@ def _ensure_vad_loaded():
             )
             _voice_vad_model = {"model": model, "utils": utils}
             log.info("Silero VAD loaded")
+            _emit_voice_loading_status("vad", "Silero VAD loaded", 1.0, "Silero VAD")
             _voice_touch()
             return _voice_vad_model
         except Exception as e:
@@ -301,6 +350,7 @@ def _ensure_stt_loaded():
             _voice_stt_downloading = True
             _voice_stt_progress = max(_voice_stt_progress, 0.05)
             log.info("Loading faster-whisper STT model (small)...")
+            _emit_voice_loading_status("stt", "Loading faster-whisper STT model…", _voice_stt_progress, "openai/whisper-small")
             from faster_whisper import WhisperModel
 
             device = _get_stt_device()
@@ -314,12 +364,39 @@ def _ensure_stt_loaded():
             _voice_touch()
             _voice_stt_progress = 1.0
             _voice_stt_downloading = False
+            _emit_voice_loading_status("stt", f"faster-whisper loaded on {device}", 1.0, "openai/whisper-small")
             return _voice_stt_model
         except Exception as e:
             _voice_stt_progress = 0.0
             _voice_stt_downloading = False
             log.error(f"Failed to load STT: {e}", exc_info=True)
             raise
+
+
+def _repair_fugashi_dictionary_selection():
+    """Prefer an installed lite dictionary when unidic exists without payload files."""
+    try:
+        import unidic
+    except Exception:
+        return
+
+    current_dicdir = getattr(unidic, "DICDIR", None)
+    if current_dicdir and (Path(current_dicdir) / "mecabrc").exists():
+        return
+
+    try:
+        import unidic_lite
+    except Exception:
+        return
+
+    lite_dicdir = getattr(unidic_lite, "DICDIR", None)
+    if not lite_dicdir or not (Path(lite_dicdir) / "mecabrc").exists():
+        return
+
+    unidic.DICDIR = lite_dicdir
+    log.warning(
+        "unidic dictionary files are missing; using unidic_lite dictionary for Fugashi"
+    )
 
 
 def _ensure_tts_loaded(language: str | None = None):
@@ -340,6 +417,8 @@ def _ensure_tts_loaded(language: str | None = None):
             _voice_tts_downloading = True
             _voice_tts_progress = max(_voice_tts_progress, 0.05)
             log.info(f"Loading Kokoro-82M TTS pipeline (lang={lang_code})...")
+            _emit_voice_loading_status("tts", "Loading Kokoro TTS pipeline…", _voice_tts_progress, "Kokoro-82M")
+            _repair_fugashi_dictionary_selection()
             from kokoro import KPipeline
 
             pipeline = KPipeline(
@@ -351,6 +430,7 @@ def _ensure_tts_loaded(language: str | None = None):
             _voice_touch()
             _voice_tts_progress = 1.0
             _voice_tts_downloading = False
+            _emit_voice_loading_status("tts", "Kokoro TTS loaded", 1.0, "Kokoro-82M")
             return pipeline
         except Exception as e:
             _voice_tts_progress = 0.0
@@ -532,7 +612,8 @@ async def voice_download_models(language: Optional[str] = None):
             _voice_tts_progress = 0.0
             log.info("Pre-downloading TTS model...")
             if tts_engine == "qwen3":
-                _ensure_qwen3_tts_loaded()
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_tts_loaded)
             else:
                 _ensure_tts_loaded(requested_language)
             _voice_tts_progress = 1.0
@@ -681,7 +762,8 @@ async def _generate_tts_kokoro(req: TTSRequest, language: str):
         buf.seek(0)
         return buf.read(), sentence_boundaries, sr
 
-    content, sentence_boundaries, sr = await asyncio.to_thread(_run_sync)
+    loop = asyncio.get_running_loop()
+    content, sentence_boundaries, sr = await loop.run_in_executor(_qwen3_tts_executor, _run_sync)
 
     return Response(
         content=content,
@@ -697,6 +779,7 @@ async def _generate_tts_kokoro(req: TTSRequest, language: str):
 
 _qwen3_tts_model = None
 _qwen3_tts_lock = threading.Lock()
+_qwen3_tts_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="qwen3-tts")
 
 _QWEN3_TTS_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"
 _QWEN3_TTS_SAMPLE_RATE = 24000
@@ -720,6 +803,7 @@ def _ensure_qwen3_tts_loaded():
             return _qwen3_tts_model
         _qwen3_model_loading = True
         _voice_tts_progress = 0.05
+        _emit_voice_loading_status("tts", "Loading Qwen3-TTS model…", _voice_tts_progress, "Qwen3-TTS")
         stop_monitor = threading.Event()
         try:
             total_bytes = 0
@@ -795,6 +879,7 @@ def _set_tts_progress(value: float):
     """Helper to update the TTS progress global."""
     global _voice_tts_progress
     _voice_tts_progress = value
+    _emit_voice_loading_status("tts", "Loading Qwen3-TTS model…", _voice_tts_progress, "Qwen3-TTS")
 
 
 def _qwen3_reference_pair(voice_sample_path: str | None) -> tuple[str | None, str | None]:
@@ -895,6 +980,13 @@ async def voice_tts_stream_ws(websocket: WebSocket):
         req = TTSRequest(**payload)
         requested_language = _requested_tts_language(req)
         provider = req.provider or _tts_provider
+        log.info(
+            "TTS stream request: provider=%s language=%s chars=%d voiceSample=%s",
+            provider,
+            requested_language,
+            len(req.text or ""),
+            bool(req.voiceSamplePath),
+        )
         if provider == "cloud":
             await websocket.send_json({
                 "type": "error",
@@ -942,6 +1034,12 @@ async def voice_tts_stream_ws(websocket: WebSocket):
                         "channels": 1,
                     }
                     sample_offset += int(len(samples))
+                    log.info(
+                        "TTS stream chunk: index=%s samples=%d final=%s",
+                        chunk["chunkIndex"],
+                        int(len(samples)),
+                        chunk["isFinal"],
+                    )
                     loop.call_soon_threadsafe(queue.put_nowait, msg)
                     loop.call_soon_threadsafe(queue.put_nowait, samples.tobytes())
             except Exception as exc:
@@ -949,8 +1047,7 @@ async def voice_tts_stream_ws(websocket: WebSocket):
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
-        thread = threading.Thread(target=_worker, daemon=True)
-        thread.start()
+        worker_future = _qwen3_tts_executor.submit(_worker)
 
         while True:
             item = await queue.get()
@@ -963,6 +1060,8 @@ async def voice_tts_stream_ws(websocket: WebSocket):
                 await websocket.send_bytes(item)
             else:
                 await websocket.send_json(item)
+
+        worker_future.result()
 
         await websocket.send_json({"type": "done"})
     except WebSocketDisconnect:
@@ -1041,42 +1140,86 @@ async def voice_stream_ws(websocket: WebSocket):
     await websocket.accept()
 
     language = websocket.query_params.get("language") or config.LANGUAGE
-    silence_threshold = float(websocket.query_params.get("silence", "1.5"))
+    silence_threshold = float(websocket.query_params.get("silence", str(DEFAULT_VOICE_SILENCE_THRESHOLD)))
     mode = websocket.query_params.get("mode", "vad")
+    tts_provider = websocket.query_params.get("tts_provider")
+    log.info(
+        "Voice stream websocket accepted: language=%s mode=%s silence=%.2f tts_provider=%s",
+        language,
+        mode,
+        silence_threshold,
+        tts_provider,
+    )
 
     try:
         _reload_tts_settings()
         loop = asyncio.get_running_loop()
+        status_queue: asyncio.Queue[dict | None] = asyncio.Queue()
+
+        def _queue_status(status: dict):
+            loop.call_soon_threadsafe(status_queue.put_nowait, status)
+
+        unsubscribe_status = _subscribe_voice_loading_status(_queue_status)
+
+        async def _send_status_updates():
+            while True:
+                status = await status_queue.get()
+                if status is None:
+                    break
+                try:
+                    await websocket.send_json(status)
+                except Exception:
+                    break
+
+        status_task = asyncio.create_task(_send_status_updates())
+        await websocket.send_json({
+            "type": "loading",
+            "stage": "starting",
+            "message": "Preparing voice session…",
+            "progress": 0.04,
+        })
+        log.info("Voice stream warmup starting")
         vad_future = loop.run_in_executor(None, _ensure_vad_loaded)
         stt_future = loop.run_in_executor(None, _ensure_stt_loaded)
 
         futures = [vad_future, stt_future]
         try:
-            tts_engine = _resolve_tts_engine(language)
+            if tts_provider == "system":
+                tts_engine = "unavailable"
+            else:
+                tts_engine = _resolve_tts_engine(language, tts_provider)
         except RuntimeError as exc:
             log.warning("Skipping TTS warmup for %s: %s", language, exc)
             tts_engine = "unavailable"
         if tts_engine == "kokoro":
             futures.append(loop.run_in_executor(None, _ensure_tts_loaded, language))
         elif tts_engine == "qwen3":
-            futures.append(loop.run_in_executor(None, _ensure_qwen3_tts_loaded))
+            futures.append(loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_tts_loaded))
 
-        results = await asyncio.gather(*futures)
+        log.info("Voice stream warmup tasks queued: tts_engine=%s", tts_engine)
+        try:
+            results = await asyncio.gather(*futures)
+        finally:
+            unsubscribe_status()
+            await status_queue.put(None)
+            await status_task
         vad_data = results[0]
         stt_model = results[1]
         vad_model = vad_data["model"]
 
+        log.info("Voice stream warmup complete; sending ready")
         await websocket.send_json({"type": "ready"})
 
         # State
         audio_buffer = bytearray()
         speech_buffer = bytearray()
         is_speaking = False
-        silence_start: float | None = None
+        silence_audio_seconds = 0.0
         last_partial_time: float = 0.0
         PARTIAL_INTERVAL = 1.0
         SAMPLE_RATE = 16000
         CHUNK_SAMPLES = 512
+        CHUNK_SECONDS = CHUNK_SAMPLES / SAMPLE_RATE
         MAX_SPEECH_SECONDS = 30
         MAX_SPEECH_BYTES = MAX_SPEECH_SECONDS * SAMPLE_RATE * 4
         stt_runtime = _stt_runtime(language) if language else {}
@@ -1152,7 +1295,7 @@ async def voice_stream_ws(websocket: WebSocket):
                     if cmd_type == "flush":
                         if is_speaking and len(speech_buffer) > 0:
                             is_speaking = False
-                            silence_start = None
+                            silence_audio_seconds = 0.0
                             await websocket.send_json(
                                 {"type": "vad", "event": "speech-end"}
                             )
@@ -1201,20 +1344,24 @@ async def voice_stream_ws(websocket: WebSocket):
 
                 speech_prob = vad_model(tensor, SAMPLE_RATE).item()
 
-                if speech_prob > 0.5:
+                speech_threshold = (
+                    VAD_SPEECH_CONTINUE_THRESHOLD if is_speaking else VAD_SPEECH_START_THRESHOLD
+                )
+                if speech_prob > speech_threshold:
                     if not is_speaking:
                         is_speaking = True
-                        silence_start = None
+                        silence_audio_seconds = 0.0
                         speech_buffer = bytearray()
                         await websocket.send_json(
                             {"type": "vad", "event": "speech-start"}
                         )
 
                     speech_buffer.extend(chunk_data)
+                    silence_audio_seconds = 0.0
 
                     if len(speech_buffer) >= MAX_SPEECH_BYTES:
                         is_speaking = False
-                        silence_start = None
+                        silence_audio_seconds = 0.0
                         await websocket.send_json(
                             {"type": "vad", "event": "speech-end"}
                         )
@@ -1263,18 +1410,17 @@ async def voice_stream_ws(websocket: WebSocket):
                 else:
                     if is_speaking:
                         speech_buffer.extend(chunk_data)
-                        if silence_start is None:
-                            silence_start = time.monotonic()
-                        elif time.monotonic() - silence_start > silence_threshold:
+                        silence_audio_seconds += CHUNK_SECONDS
+                        if silence_audio_seconds >= silence_threshold:
                             is_speaking = False
-                            silence_start = None
+                            silence_audio_seconds = 0.0
                             await websocket.send_json(
                                 {"type": "vad", "event": "speech-end"}
                             )
                             await _run_final_stt(speech_buffer)
                             speech_buffer = bytearray()
                     else:
-                        silence_start = None
+                        silence_audio_seconds = 0.0
 
     except WebSocketDisconnect:
         log.info("Voice WebSocket disconnected")

@@ -1,5 +1,6 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { useLocalization } from '../../../context';
+import { TrashIcon } from '../Misc/Icons';
 import { FilterTokenView } from './FilterToken';
 import { Pill } from './Pill';
 import { makeToken, type FieldConfig, type PaletteItem } from './fieldConfig';
@@ -208,6 +209,12 @@ export const FilterBuilder: Component<FilterBuilderProps> = (props) => {
     setLiveMessage(t('mlearn.FilterBuilder.TokenRemoved'));
   };
 
+  const handleClear = () => {
+    if (props.tokens.length === 0) return;
+    props.onChange([]);
+    setLiveMessage(t('mlearn.FilterBuilder.TokensCleared'));
+  };
+
   const handleMoveUp = (instanceId: string) => {
     const index = props.tokens.findIndex((token) => token.instanceId === instanceId);
     if (index <= 0) return;
@@ -269,34 +276,46 @@ export const FilterBuilder: Component<FilterBuilderProps> = (props) => {
         </For>
       </div>
 
-      <div
-        class={filterBoxClass()}
-        role="list"
-        aria-label={t('mlearn.FilterBuilder.FilterBox')}
-        onDragOver={handleDragOver}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        ref={filterBoxRef}
-      >
-        <Show when={props.tokens.length > 0} fallback={<span>{t('mlearn.FilterBuilder.FilterBoxEmpty')}</span>}>
-          <For each={props.tokens}>
-            {(token, index) => (
-              <span class="filter-builder-token-wrapper" data-token-index={index()}>
-                <FilterTokenView
-                  token={token}
-                  label={resolveTokenLabel(token)}
-                  index={index()}
-                  total={props.tokens.length}
-                  onRemove={handleRemove}
-                  onDragStart={handleTokenDragStart}
-                  onMoveUp={handleMoveUp}
-                  onMoveDown={handleMoveDown}
-                />
-              </span>
-            )}
-          </For>
-        </Show>
+      <div class="filter-builder-expression-row">
+        <div
+          class={filterBoxClass()}
+          role="list"
+          aria-label={t('mlearn.FilterBuilder.FilterBox')}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          ref={filterBoxRef}
+        >
+          <Show when={props.tokens.length > 0} fallback={<span>{t('mlearn.FilterBuilder.FilterBoxEmpty')}</span>}>
+            <For each={props.tokens}>
+              {(token, index) => (
+                <span class="filter-builder-token-wrapper" data-token-index={index()}>
+                  <FilterTokenView
+                    token={token}
+                    label={resolveTokenLabel(token)}
+                    index={index()}
+                    total={props.tokens.length}
+                    onRemove={handleRemove}
+                    onDragStart={handleTokenDragStart}
+                    onMoveUp={handleMoveUp}
+                    onMoveDown={handleMoveDown}
+                  />
+                </span>
+              )}
+            </For>
+          </Show>
+        </div>
+        <button
+          type="button"
+          class="filter-builder-clear"
+          onClick={handleClear}
+          disabled={props.tokens.length === 0}
+          aria-label={t('mlearn.FilterBuilder.Clear')}
+          title={t('mlearn.FilterBuilder.Clear')}
+        >
+          <TrashIcon size={16} />
+        </button>
       </div>
 
       <Show when={showError()}>

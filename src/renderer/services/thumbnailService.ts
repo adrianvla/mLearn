@@ -79,6 +79,7 @@ export interface RecentItem {
 
 const STORAGE_KEY = 'mlearn_recent_items';
 const MAX_ITEMS = 10;
+let recentItemsWriteChain: Promise<void> = Promise.resolve();
 
 const matchesRecentItem = (item: Pick<RecentItem, 'name' | 'path'>, target: Pick<RecentItem, 'name' | 'path'>): boolean => {
   if (item.path && target.path) {
@@ -86,6 +87,19 @@ const matchesRecentItem = (item: Pick<RecentItem, 'name' | 'path'>, target: Pick
   }
 
   return item.name === target.name;
+};
+
+const updateRecentItems = async (mutate: (items: RecentItem[]) => RecentItem[] | null): Promise<void> => {
+  const run = async () => {
+    const items = await getRecentItems();
+    const updated = mutate(items);
+    if (!updated) return;
+    await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const previous = recentItemsWriteChain;
+  recentItemsWriteChain = previous.then(run, run);
+  await recentItemsWriteChain;
 };
 
 /**
@@ -101,28 +115,25 @@ export async function saveToRecentItems(
     if (!item.path || !item.path.trim()) {
       log.warn(`[Recent] Saving item "${item.name}" without path - it cannot be reopened from welcome screen`);
     }
-    
-    const items = await getRecentItems();
-    
-    // Preserve existing thumbnail when no new one is provided
-    const existing = items.find((recentItem) => matchesRecentItem(recentItem, item));
-    
-    // Create new item
-    const newItem: RecentItem = {
-      ...item,
-      playbackTime: existing?.playbackTime,
-      subtitlePath: item.subtitlePath ?? existing?.subtitlePath,
-      thumbnail: thumbnail || item.thumbnail || existing?.thumbnail,
-      lastWatched: Date.now(),
-    };
-    
-    // Remove existing item with same name if present
-    const filtered = items.filter((recentItem) => !matchesRecentItem(recentItem, item));
-    
-    // Add new item at the beginning
-    const updated = [newItem, ...filtered].slice(0, MAX_ITEMS);
-    
-    await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(updated));
+    await updateRecentItems((items) => {
+      // Preserve existing thumbnail when no new one is provided
+      const existing = items.find((recentItem) => matchesRecentItem(recentItem, item));
+
+      // Create new item
+      const newItem: RecentItem = {
+        ...item,
+        playbackTime: existing?.playbackTime,
+        subtitlePath: item.subtitlePath ?? existing?.subtitlePath,
+        thumbnail: thumbnail || item.thumbnail || existing?.thumbnail,
+        lastWatched: Date.now(),
+      };
+
+      // Remove existing item with same name if present
+      const filtered = items.filter((recentItem) => !matchesRecentItem(recentItem, item));
+
+      // Add new item at the beginning
+      return [newItem, ...filtered].slice(0, MAX_ITEMS);
+    });
   } catch (e) {
     log.error('Failed to save recent item:', e);
   }
@@ -146,12 +157,12 @@ export async function getRecentItems(): Promise<RecentItem[]> {
  */
 export async function updateRecentItemThumbnail(name: string, thumbnail: string): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.name === name);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.name === name);
+      if (index === -1) return null;
       items[index].thumbnail = thumbnail;
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item thumbnail:', e);
   }
@@ -162,13 +173,13 @@ export async function updateRecentItemThumbnail(name: string, thumbnail: string)
  */
 export async function updateRecentItemProgress(name: string, progress: number): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.name === name);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.name === name);
+      if (index === -1) return null;
       items[index].progress = progress;
       items[index].lastWatched = Date.now();
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item progress:', e);
   }
@@ -176,13 +187,13 @@ export async function updateRecentItemProgress(name: string, progress: number): 
 
 export async function updateRecentItemSubtitlePath(name: string, subtitlePath: string): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.name === name);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.name === name);
+      if (index === -1) return null;
       items[index].subtitlePath = subtitlePath;
       items[index].lastWatched = Date.now();
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item subtitle path:', e);
   }
@@ -190,12 +201,12 @@ export async function updateRecentItemSubtitlePath(name: string, subtitlePath: s
 
 export async function updateRecentItemThumbnailByPath(path: string, thumbnail: string): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.path === path);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.path === path);
+      if (index === -1) return null;
       items[index].thumbnail = thumbnail;
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item thumbnail by path:', e);
   }
@@ -203,13 +214,13 @@ export async function updateRecentItemThumbnailByPath(path: string, thumbnail: s
 
 export async function updateRecentItemProgressByPath(path: string, progress: number): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.path === path);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.path === path);
+      if (index === -1) return null;
       items[index].progress = progress;
       items[index].lastWatched = Date.now();
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item progress by path:', e);
   }
@@ -217,13 +228,13 @@ export async function updateRecentItemProgressByPath(path: string, progress: num
 
 export async function updateRecentItemSubtitlePathByPath(path: string, subtitlePath: string): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.path === path);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.path === path);
+      if (index === -1) return null;
       items[index].subtitlePath = subtitlePath;
       items[index].lastWatched = Date.now();
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item subtitle path by path:', e);
   }
@@ -231,13 +242,13 @@ export async function updateRecentItemSubtitlePathByPath(path: string, subtitleP
 
 export async function updateRecentItemPlaybackTime(name: string, playbackTime: number): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.name === name);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.name === name);
+      if (index === -1) return null;
       items[index].playbackTime = playbackTime;
       items[index].lastWatched = Date.now();
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item playback time:', e);
   }
@@ -245,13 +256,13 @@ export async function updateRecentItemPlaybackTime(name: string, playbackTime: n
 
 export async function updateRecentItemPlaybackTimeByPath(path: string, playbackTime: number): Promise<void> {
   try {
-    const items = await getRecentItems();
-    const index = items.findIndex((item) => item.path === path);
-    if (index !== -1) {
+    await updateRecentItems((items) => {
+      const index = items.findIndex((item) => item.path === path);
+      if (index === -1) return null;
       items[index].playbackTime = playbackTime;
       items[index].lastWatched = Date.now();
-      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
-    }
+      return items;
+    });
   } catch (e) {
     log.error('Failed to update recent item playback time by path:', e);
   }

@@ -11,9 +11,9 @@ import { ipcMain, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
-import { spawn } from 'child_process';
+import { execFile, spawn, type ChildProcess } from 'child_process';
 import { IPC_CHANNELS, API_ENDPOINTS } from '../../shared/constants';
-import { limitConsecutiveDots } from '../../shared/utils/textUtils';
+import { limitConsecutiveDots, stripBracketedTtsAnnotations } from '../../shared/utils/textUtils';
 import type {
   VoiceModelStatus,
   VoiceSTTResult,
@@ -27,9 +27,12 @@ import {
   getResourcePath,
   getPipExecutablePath,
   getPythonExecutablePath,
+  isLinux,
+  isMac,
   isWindows,
 } from '../utils/platform';
-import { getQuitToken, readResourceFile } from './pythonBackend';
+import { loadLangData } from './settings';
+import { getQuitToken, onQuitTokenAvailable, readResourceFile } from './pythonBackend';
 import WebSocket from 'ws';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -41,6 +44,7 @@ const log = getLogger('electron.voiceService');
 
 const VOICE_SAMPLES_DIR = 'voice-samples';
 const VOICE_SAMPLES_MANIFEST = 'voice-samples.json';
+const DEFAULT_VOICE_SILENCE_THRESHOLD = 0.8;
 
 function getVoiceSamplesDir(): string {
   return path.join(app.getPath('userData'), VOICE_SAMPLES_DIR);
@@ -323,7 +327,7 @@ let activeSender: Electron.WebContents | null = null;
 
 const MAX_QUEUED_AUDIO_CHUNKS = 256;
 let pendingAudioChunks: Float32Array[] = [];
-let pendingTokenTimer: NodeJS.Timeout | null = null;
+let pendingTokenCleanup: (() => void) | null = null;
 
 // ============================================================================
 // TTS Abort
@@ -331,6 +335,22 @@ let pendingTokenTimer: NodeJS.Timeout | null = null;
 
 let ttsAbortController: AbortController | null = null;
 let activeTtsWs: WebSocket | null = null;
+let activeSystemTtsProcess: ChildProcess | null = null;
+
+function getLanguageTtsRuntime(language: string) {
+  return loadLangData()[language]?.runtime?.tts ?? {};
+}
+
+function stopSystemTTS(): void {
+  if (activeSystemTtsProcess) {
+    try {
+      activeSystemTtsProcess.kill('SIGKILL');
+    } catch (e) {
+      log.error('[VoiceService] Failed to kill system TTS process:', e);
+    }
+    activeSystemTtsProcess = null;
+  }
+}
 
 // ============================================================================
 // Model Status Check
@@ -404,18 +424,39 @@ function startSession(
   mode: VoiceMode,
   silenceThreshold: number,
   sender: Electron.WebContents,
+  ttsProvider?: string,
 ): void {
+  log.info('[VoiceService] Starting voice session', { language, mode, silenceThreshold, ttsProvider });
   if (activeWs) {
     stopSession();
   }
 
   const token = getQuitToken();
   if (!token) {
-    waitForQuitTokenAndStart(language, mode, silenceThreshold, sender);
+    sendSessionStatus(sender, {
+      stage: 'backend',
+      message: 'Waiting for local Python backend…',
+      progress: 0.01,
+    });
+    waitForQuitTokenAndStart(language, mode, silenceThreshold, sender, ttsProvider);
     return;
   }
 
-  doStartSession(language, mode, silenceThreshold, sender, token);
+  doStartSession(language, mode, silenceThreshold, sender, token, ttsProvider);
+}
+
+function sendSessionStatus(
+  sender: Electron.WebContents,
+  status: {
+    stage: 'starting' | 'backend' | 'websocket' | 'vad' | 'stt' | 'tts' | 'ready';
+    message: string;
+    progress: number;
+    modelName?: string;
+  },
+): void {
+  if (sender.isDestroyed()) return;
+  log.info('[VoiceService] Voice session status', status);
+  sender.send(IPC_CHANNELS.VOICE_SESSION_STATUS, status);
 }
 
 function waitForQuitTokenAndStart(
@@ -423,27 +464,14 @@ function waitForQuitTokenAndStart(
   mode: VoiceMode,
   silenceThreshold: number,
   sender: Electron.WebContents,
+  ttsProvider?: string,
 ): void {
-  const startTime = Date.now();
-  const TIMEOUT = 5000;
-  const POLL_INTERVAL = 100;
-
-  const poll = () => {
-    const token = getQuitToken();
-    if (token) {
-      doStartSession(language, mode, silenceThreshold, sender, token);
-      return;
-    }
-    if (Date.now() - startTime >= TIMEOUT) {
-      sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
-        error: 'Voice backend is not ready. Please wait a moment and try again.',
-      });
-      return;
-    }
-    pendingTokenTimer = setTimeout(poll, POLL_INTERVAL);
-  };
-
-  poll();
+  pendingTokenCleanup?.();
+  pendingTokenCleanup = onQuitTokenAvailable((token) => {
+    pendingTokenCleanup = null;
+    if (sender.isDestroyed()) return;
+    doStartSession(language, mode, silenceThreshold, sender, token, ttsProvider);
+  });
 }
 
 function doStartSession(
@@ -452,10 +480,17 @@ function doStartSession(
   silenceThreshold: number,
   sender: Electron.WebContents,
   token: string,
+  ttsProvider?: string,
 ): void {
-  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}&token=${encodeURIComponent(token)}`;
+  const ttsProviderQuery = ttsProvider ? `&tts_provider=${encodeURIComponent(ttsProvider)}` : '';
+  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}&token=${encodeURIComponent(token)}${ttsProviderQuery}`;
 
   try {
+    sendSessionStatus(sender, {
+      stage: 'websocket',
+      message: 'Opening local voice stream…',
+      progress: 0.02,
+    });
     const ws = new WebSocket(wsUrl);
     activeWs = ws;
     activeSession = true;
@@ -463,6 +498,13 @@ function doStartSession(
 
     ws.on('open', () => {
       log.info('[VoiceService] WebSocket connected to Python backend');
+      if (activeSender && !activeSender.isDestroyed()) {
+        sendSessionStatus(activeSender, {
+          stage: 'websocket',
+          message: 'Connected to local voice stream…',
+          progress: 0.03,
+        });
+      }
       for (const chunk of pendingAudioChunks) {
         try {
           ws.send(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength));
@@ -479,7 +521,16 @@ function doStartSession(
         const msg = JSON.parse(rawData.toString());
         switch (msg.type) {
           case 'ready':
+            log.info('[VoiceService] Voice session ready');
             activeSender.send(IPC_CHANNELS.VOICE_SESSION_READY, { ready: true });
+            break;
+          case 'loading':
+            sendSessionStatus(activeSender, {
+              stage: msg.stage,
+              message: msg.message,
+              progress: msg.progress,
+              modelName: msg.modelName,
+            });
             break;
           case 'vad': {
             const vadEvent: VoiceVadEvent = { type: msg.event };
@@ -539,10 +590,8 @@ function stopSession(): void {
   activeSession = false;
   activeSender = null;
   pendingAudioChunks = [];
-  if (pendingTokenTimer) {
-    clearTimeout(pendingTokenTimer);
-    pendingTokenTimer = null;
-  }
+  pendingTokenCleanup?.();
+  pendingTokenCleanup = null;
   if (activeWs) {
     try { activeWs.close(); } catch (e) {
       log.error("error", e);
@@ -596,7 +645,22 @@ async function generateTTS(
   provider?: string,
 ): Promise<void> {
   // Sanitize consecutive dots to prevent TTS backend failures
-  const sanitizedText = limitConsecutiveDots(text);
+  const sanitizedText = limitConsecutiveDots(stripBracketedTtsAnnotations(text));
+  log.info('[VoiceService] TTS generate requested', {
+    provider,
+    language,
+    chars: sanitizedText.length,
+    hasVoiceSample: Boolean(voiceSampleId),
+  });
+  if (!sanitizedText) {
+    sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+    return;
+  }
+
+  if (provider === 'system') {
+    await generateSystemTTS(sanitizedText, language, sender);
+    return;
+  }
 
   if (provider === 'cloud') {
     sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
@@ -672,6 +736,11 @@ async function generateTTS(
   } catch (err) {
     if (!abortController.signal.aborted) {
       log.error('[VoiceService] TTS generation error:', err);
+      sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+        generating: false,
+        playing: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -680,6 +749,54 @@ async function generateTTS(
     ttsAbortController = null;
   }
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+}
+
+function generateSystemTTS(
+  text: string,
+  language: string,
+  sender: Electron.WebContents,
+): Promise<void> {
+  stopSystemTTS();
+
+  const sanitized = text.replace(/\n/g, ' ').trim().substring(0, 500);
+  if (!sanitized) {
+    sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+    return Promise.resolve();
+  }
+
+  const runtime = getLanguageTtsRuntime(language);
+  let command: string;
+  let args: string[];
+  if (isMac) {
+    command = 'say';
+    args = runtime.macosVoice ? ['-v', runtime.macosVoice, sanitized] : [sanitized];
+  } else if (isLinux) {
+    command = 'espeak';
+    args = ['-v', runtime.espeakVoice || language, sanitized];
+  } else {
+    command = isWindows ? 'powershell' : 'powershell';
+    const voice = runtime.windowsVoice;
+    const voiceCommand = typeof voice === 'string' && voice.trim()
+      ? `$s.SelectVoice('${voice.replace(/'/g, "''")}'); `
+      : '';
+    args = [
+      '-Command',
+      `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; ${voiceCommand}$s.Speak('${sanitized.replace(/'/g, "''")}')`,
+    ];
+  }
+
+  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: true });
+
+  return new Promise((resolve) => {
+    const child = execFile(command, args, () => {
+      if (activeSystemTtsProcess === child) {
+        activeSystemTtsProcess = null;
+      }
+      sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+      resolve();
+    });
+    activeSystemTtsProcess = child;
+  });
 }
 
 function streamLocalTTS(
@@ -736,6 +853,12 @@ function streamLocalTTS(
         ws.close();
         return;
       }
+      log.info('[VoiceService] Local TTS stream opened', {
+        provider: body.provider,
+        language: body.language,
+        chars: typeof body.text === 'string' ? body.text.length : undefined,
+        hasVoiceSample: Boolean(body.voiceSamplePath),
+      });
       ws.send(JSON.stringify(body));
     });
 
@@ -753,6 +876,11 @@ function streamLocalTTS(
               binaryFrame.byteOffset,
               Math.floor(binaryFrame.byteLength / Float32Array.BYTES_PER_ELEMENT),
             );
+            log.info('[VoiceService] Local TTS audio chunk received', {
+              sampleRate: pendingAudioMeta.sampleRate,
+              samples: samples.length,
+              sentenceIndex: pendingAudioMeta.sentenceIndex,
+            });
             emitTtsAudio(new Float32Array(samples), pendingAudioMeta);
             pendingAudioMeta = null;
             return;
@@ -779,6 +907,7 @@ function streamLocalTTS(
             break;
           }
           case 'status':
+            log.info('[VoiceService] Local TTS status', msg);
             sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
               generating: msg.generating !== false,
               playing: false,
@@ -787,9 +916,16 @@ function streamLocalTTS(
             });
             break;
           case 'done':
+            log.info('[VoiceService] Local TTS stream done');
             ws.close();
             break;
           case 'error':
+            log.error('[VoiceService] Local TTS stream error:', msg.message);
+            sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+              generating: false,
+              playing: false,
+              error: String(msg.message || 'TTS stream error'),
+            });
             reject(new Error(String(msg.message || 'TTS stream error')));
             ws.close();
             break;
@@ -799,9 +935,13 @@ function streamLocalTTS(
       }
     });
 
-    ws.on('error', reject);
-    ws.on('close', () => {
-      signal.removeEventListener('abort', abortStream);
+	    ws.on('error', (error) => {
+	      log.error('[VoiceService] Local TTS websocket error:', error);
+	      reject(error);
+	    });
+	    ws.on('close', () => {
+	      log.info('[VoiceService] Local TTS websocket closed', { aborted: signal.aborted });
+	      signal.removeEventListener('abort', abortStream);
       if (activeTtsWs === ws) {
         activeTtsWs = null;
       }
@@ -811,6 +951,7 @@ function streamLocalTTS(
 }
 
 function stopTTS(): void {
+  stopSystemTTS();
   if (ttsAbortController) {
     ttsAbortController.abort();
   }
@@ -924,8 +1065,8 @@ export function setupVoiceIPC(): void {
   // Start voice session
   ipcMain.on(
     IPC_CHANNELS.VOICE_START_SESSION,
-    (event, language: string, mode: VoiceMode, silenceThreshold?: number) => {
-      startSession(language, mode, silenceThreshold ?? 1.5, event.sender);
+    (event, language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => {
+      startSession(language, mode, silenceThreshold ?? DEFAULT_VOICE_SILENCE_THRESHOLD, event.sender, ttsProvider);
     },
   );
 

@@ -76,7 +76,7 @@ export const LevelStudyContent: Component = () => {
 
 export const LevelStudyApp: Component = () => {
   return (
-    <WindowWrapper showTitleBar={true}>
+    <WindowWrapper>
       <LevelStudyContent />
     </WindowWrapper>
   );

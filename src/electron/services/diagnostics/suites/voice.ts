@@ -100,6 +100,9 @@ registerDiagnosticSuite({
         if (provider === 'cloud') {
           skipTest('Local TTS provider is not selected');
         }
+        if (provider === 'system') {
+          skipTest('System voice is handled by Electron, not the Python TTS endpoint');
+        }
         const { status: statusStatus, body: statusBody } = await httpGet(
           backendTtsStatusUrl(language),
           10_000,

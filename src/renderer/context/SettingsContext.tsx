@@ -131,6 +131,14 @@ export const SettingsProvider: ParentComponent = (props) => {
         }
       }
 
+      // DEPRECATED (v2.4 migration): move the old voice endpointing default to the faster default.
+      // Remove after all active users have migrated (safe to remove ~2027-01).
+      if (mergedSettings.voiceSilenceThreshold === 1.2) {
+        mergedSettings.voiceSilenceThreshold = DEFAULT_SETTINGS.voiceSilenceThreshold;
+        log.info('[SettingsContext] Migrated voiceSilenceThreshold to new default');
+        bridge.settings.saveSettings(mergedSettings);
+      }
+
       setSettings(reconcile(mergedSettings));
       syncCloudState(mergedSettings);
       setIsLoading(false);

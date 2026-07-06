@@ -11,7 +11,6 @@
   flex-direction: column;
   gap: var(--spacing-3);
   width: 100%;
-  -webkit-app-region: no-drag;
 }
 
 /* ============ Palette (Source) ============ */
@@ -24,6 +23,7 @@
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
+  -webkit-app-region: no-drag;
 }
 
 .filter-builder-palette-group {
@@ -81,6 +81,14 @@
 }
 
 /* ============ Filter Box (Drop Target) ============ */
+.filter-builder-expression-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.25rem;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  -webkit-app-region: no-drag;
+}
+
 .filter-builder-filterbox {
   display: flex;
   flex-wrap: wrap;
@@ -102,6 +110,36 @@
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   font-style: italic;
+}
+
+.filter-builder-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  min-height: 3rem;
+  padding: 0;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.filter-builder-clear:hover:not(:disabled),
+.filter-builder-clear:focus-visible:not(:disabled) {
+  background: var(--bg-danger);
+  border-color: var(--border-danger);
+  color: var(--color-error);
+}
+
+.filter-builder-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* Mirrors DropZone.css .dragging */

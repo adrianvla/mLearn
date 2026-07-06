@@ -950,6 +950,27 @@ describe('language feature bricks', () => {
     expect(getPartOfSpeechColor('VERB', undefined, coloredPosLanguage)).toBeUndefined();
   });
 
+  it('resolves POS colors for tokenizer subtype labels without substring steals', () => {
+    const subtypePosLanguage: LanguageData = {
+      ...latinLanguage,
+      textProcessing: {
+        ...latinLanguage.textProcessing,
+        partOfSpeech: {
+          colors: {
+            'verb': '#verb',
+            'auxiliary': '#auxiliary',
+            'noun': '#noun',
+          },
+        },
+      },
+    };
+
+    expect(getPartOfSpeechColor('noun:proper', undefined, subtypePosLanguage)).toBe('#noun');
+    expect(getPartOfSpeechColor('auxiliary:copula', undefined, subtypePosLanguage)).toBe('#auxiliary');
+    expect(getPartOfSpeechColor('punctuation:period', undefined, subtypePosLanguage)).toBeUndefined();
+    expect(getPartOfSpeechColor('auxiliary:copula', { 'verb': '#override-verb' }, subtypePosLanguage)).toBe('#auxiliary');
+  });
+
   it('resolves package-forced settings from the settings metadata brick', () => {
     const fixedSettingsLanguage: LanguageData = {
       ...latinLanguage,
@@ -2486,7 +2507,7 @@ describe('language feature bricks', () => {
           python: {
             packages: ['ja-required-extra'],
             packagesByComponent: {
-              voice: ['misaki[ja]', 'pyopenjtalk', 'mojimoji', 'unidic'],
+              voice: ['misaki', 'fugashi[unidic-lite]', 'jaconv', 'pyopenjtalk', 'mojimoji'],
               ocr: ['language-specific-ocr-extra'],
               segmentation: ['sudachi-runtime-extra'],
             },
@@ -2500,7 +2521,7 @@ describe('language feature bricks', () => {
         runtime: {
           python: {
             packagesByComponent: {
-              voice: ['de-tts-extra', 'misaki[ja]'],
+              voice: ['de-tts-extra', 'misaki'],
               llm: ['de-llm-extra'],
               morphology: ['spacy-de-extra'],
             },
@@ -2513,7 +2534,7 @@ describe('language feature bricks', () => {
       includeLLM: false,
       includeOCR: false,
       includeVoice: true,
-    })).toEqual(['de-tts-extra', 'ja-required-extra', 'misaki[ja]', 'mojimoji', 'pyopenjtalk', 'spacy-de-extra', 'sudachi-runtime-extra', 'unidic']);
+    })).toEqual(['de-tts-extra', 'fugashi[unidic-lite]', 'ja-required-extra', 'jaconv', 'misaki', 'mojimoji', 'pyopenjtalk', 'spacy-de-extra', 'sudachi-runtime-extra']);
 
     expect(getLanguagePythonRequirementsForInstall(languageData, {
       includeLLM: false,

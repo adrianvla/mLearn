@@ -75,11 +75,15 @@ describe('buildWordSyncPreset', () => {
     },
   };
 
-  it('builds Unknown AND (N5 OR N4 OR N3 OR N2) for target level 2', () => {
+  it('builds (Untracked OR Unknown) AND (N5 OR N4 OR N3 OR N2) for target level 2', () => {
     const tokens = buildWordSyncPreset(allLevelNames, 2);
 
     expect(shapes(tokens)).toEqual([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
       { kind: 'operator', op: 'AND' },
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'level', op: 'eq', value: '5' },
@@ -93,11 +97,15 @@ describe('buildWordSyncPreset', () => {
     ]);
   });
 
-  it('builds Unknown AND (N5) for target level 5', () => {
+  it('builds (Untracked OR Unknown) AND (N5) for target level 5', () => {
     const tokens = buildWordSyncPreset({ '5': 'N5' }, 5);
 
     expect(shapes(tokens)).toEqual([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
       { kind: 'operator', op: 'AND' },
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'level', op: 'eq', value: '5' },
@@ -105,9 +113,13 @@ describe('buildWordSyncPreset', () => {
     ]);
   });
 
-  it('builds only Unknown when no requested levels are available', () => {
+  it('builds only Untracked OR Unknown when no requested levels are available', () => {
     expect(shapes(buildWordSyncPreset({}, 2))).toEqual([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
     ]);
   });
 
@@ -115,7 +127,11 @@ describe('buildWordSyncPreset', () => {
     const tokens = buildWordSyncPreset({ '1': 'A1', '2': 'A2', '3': 'B1' }, 2, ascendingDifficultyLanguage);
 
     expect(shapes(tokens)).toEqual([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
       { kind: 'operator', op: 'AND' },
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'level', op: 'eq', value: '1' },
@@ -139,7 +155,11 @@ describe('buildWordSyncPreset', () => {
     const tokens = buildWordSyncPreset({ '0': 'Starter', '1': 'A1', '2': 'A2' }, 1, zeroBasedLanguage);
 
     expect(shapes(tokens)).toEqual([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
       { kind: 'operator', op: 'AND' },
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'level', op: 'eq', value: '0' },
@@ -153,7 +173,11 @@ describe('buildWordSyncPreset', () => {
     const tokens = buildWordSyncPreset({ '-1': 'Unlisted', '5': 'N5' }, 5);
 
     expect(shapes(tokens)).toEqual([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
       { kind: 'operator', op: 'AND' },
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'level', op: 'eq', value: '5' },
@@ -196,6 +220,16 @@ describe('buildWordSyncFields', () => {
     const levelField = fields.find((field) => field.field === 'level');
     return levelField?.values.map((value) => value.value) ?? [];
   }
+
+  function statusValues(): string[] {
+    const { fields } = buildWordSyncFields({ '5': 'N5' }, t);
+    const statusField = fields.find((field) => field.field === 'status');
+    return statusField?.values.map((value) => value.value) ?? [];
+  }
+
+  it('offers Untracked as a separate word sync status filter', () => {
+    expect(statusValues()).toEqual(['untracked', '0', '1', '2']);
+  });
 
   it('keeps declared zero levels in the level palette', () => {
     const languageData: LanguageData = {

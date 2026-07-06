@@ -12,6 +12,7 @@ const LEVEL_FIELD = 'level';
 const SOURCE_FIELD = 'source';
 const RECENCY_FIELD = 'recency';
 const EQ_OPS = ['eq'] as const;
+export const WORD_SYNC_STATUS_UNTRACKED = 'untracked';
 
 export function buildWordSyncPreset(
   levelNames: Record<string, string>,
@@ -24,15 +25,22 @@ export function buildWordSyncPreset(
 
   const levels = getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
 
+  const tokens: FilterToken[] = [
+    { instanceId: uniqueId(), kind: 'paren', dir: 'open' },
+    statusUntrackedToken(),
+    { instanceId: uniqueId(), kind: 'operator', op: 'OR' },
+    statusUnknownToken(),
+    { instanceId: uniqueId(), kind: 'paren', dir: 'close' },
+  ];
+
   if (levels.length === 0) {
-    return [statusUnknownToken()];
+    return tokens;
   }
 
-  const tokens: FilterToken[] = [
-    statusUnknownToken(),
+  tokens.push(
     { instanceId: uniqueId(), kind: 'operator', op: 'AND' },
     { instanceId: uniqueId(), kind: 'paren', dir: 'open' },
-  ];
+  );
 
   levels.forEach((level, index) => {
     if (index > 0) {
@@ -91,7 +99,7 @@ export function buildWordSyncFields(
   languageData?: LanguageData | null,
 ): { fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] } {
   const fields: FieldConfig<unknown>[] = [
-    buildStatusField(t),
+    buildStatusField(t, { includeUntracked: true }),
     buildLevelField(levelNames, t, languageData),
     buildRecencyField(t),
   ];
@@ -123,12 +131,25 @@ function statusUnknownToken(): FilterToken {
   };
 }
 
-function buildStatusField(t: Translate): FieldConfig<unknown> {
+function statusUntrackedToken(): FilterToken {
+  return {
+    instanceId: uniqueId(),
+    kind: 'operand',
+    field: STATUS_FIELD,
+    op: 'eq',
+    value: WORD_SYNC_STATUS_UNTRACKED,
+  };
+}
+
+function buildStatusField(t: Translate, options: { includeUntracked?: boolean } = {}): FieldConfig<unknown> {
   return {
     field: STATUS_FIELD,
     label: t('mlearn.FilterBuilder.Field.Status'),
     allowedOps: [...EQ_OPS],
     values: [
+      ...(options.includeUntracked
+        ? [{ value: WORD_SYNC_STATUS_UNTRACKED, label: t('mlearn.FilterBuilder.Status.Untracked') }]
+        : []),
       { value: String(WORD_STATUS.UNKNOWN), label: t('mlearn.FilterBuilder.Status.Unknown') },
       { value: String(WORD_STATUS.LEARNING), label: t('mlearn.FilterBuilder.Status.Learning') },
       { value: String(WORD_STATUS.KNOWN), label: t('mlearn.FilterBuilder.Status.Known') },

@@ -1463,6 +1463,7 @@ describe('Voice Bridge', () => {
     expect(typeof bridge.voice.onVoiceTtsAudio(vi.fn())).toBe('function');
     expect(typeof bridge.voice.onVoiceTtsStatus(vi.fn())).toBe('function');
     expect(typeof bridge.voice.onVoiceSessionReady(vi.fn())).toBe('function');
+    expect(typeof bridge.voice.onVoiceSessionStatus(vi.fn())).toBe('function');
     expect(typeof bridge.voice.onVoiceSessionError(vi.fn())).toBe('function');
   });
 });

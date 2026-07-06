@@ -39,6 +39,7 @@ export {
 } from './fieldConfig';
 export {
   buildWordSyncPreset,
+  WORD_SYNC_STATUS_UNTRACKED,
   buildEmptyPreset,
   buildWordSyncFields,
   buildWordDbEditorFields,

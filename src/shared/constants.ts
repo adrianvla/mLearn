@@ -285,6 +285,7 @@ export const IPC_CHANNELS = {
   VOICE_FLUSH: 'voice-flush',
   VOICE_UPDATE_SILENCE_THRESHOLD: 'voice-update-silence-threshold',
   VOICE_SESSION_READY: 'voice-session-ready',
+  VOICE_SESSION_STATUS: 'voice-session-status',
   VOICE_SESSION_ERROR: 'voice-session-error',
 
   // Voice samples

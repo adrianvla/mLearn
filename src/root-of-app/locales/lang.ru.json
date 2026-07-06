@@ -482,25 +482,33 @@
           "Title": "Итоги сеанса"
         },
         "CloudTts": "Cloud",
+        "AddAgentVoice": "Сначала добавьте выбранному агенту голос по умолчанию.",
+        "Advanced": "Дополнительно",
         "DefaultVoice": "Голос по умолчанию",
         "DownloadFailed": "Не удалось скачать голосовые модели. Возможно, не установлены необходимые зависимости. Переустановите приложение или проверьте логи.",
         "DownloadModels": "Скачать голосовые модели",
         "DownloadingModels": "Скачивание голосовых моделей…",
-        "CheckingModels": "Проверка локальных моделей STT, TTS и VAD…",
+        "CheckingModels": "Проверка локальных голосовых моделей…",
         "EmptyHint": "Начните голосовой звонок, чтобы практиковать разговорную речь с AI-репетитором.",
         "EndCall": "Завершить звонок",
         "HandsFree": "Свободные руки",
         "Initializing": "Загрузка голосового движка…",
         "InstallingDependencies": "Установка голосовых зависимостей…",
         "Interrupted": "*Прервано пользователем*",
+        "Interrupt": "Прерывание",
         "Listening": "Слушаю…",
         "LoadingTtsModel": "Загрузка модели синтеза речи…",
-        "LocalTts": "Локальный",
         "MicPermission": "Для голосового звонка требуется доступ к микрофону.",
+        "Microphone": "Микрофон",
+        "DefaultMicrophone": "Микрофон по умолчанию",
+        "MicrophoneNumber": "Микрофон {index}",
+        "Mode": "Режим",
         "ModelsRequired": "Для этой функции требуются голосовые модели. Скачайте их, чтобы начать.",
+        "None": "Нет",
+        "Pipeline": "Конвейер",
         "Processing": "Обработка…",
+        "Provider": "Провайдер",
         "PushToTalk": "Нажми и говори",
-        "Qwen3Tts": "Qwen3",
         "SilenceThreshold": "Порог тишины",
         "Speaking": "Говорю…",
         "Stage": {
@@ -508,12 +516,14 @@
           "STT": "STT",
           "TTS": "TTS"
         },
+        "StreamedChunks": "Потоковые чанки",
         "StartCall": "Начать голосовой звонок",
-        "TtsProvider": "Движок TTS",
+        "TtsProvider": "Голос",
         "TtsSpeed": "Скорость речи",
         "UploadSample": "Загрузить образец голоса",
-        "VoiceSample": "Клон голоса",
-        "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с Qwen3-TTS"
+        "VoiceSample": "Потоковый клон голоса",
+        "LightweightVoice": "Легкий голос",
+        "SystemVoice": "Системный голос"
       },
       "Memory": {
         "ClearAll": "Очистить все воспоминания",
@@ -2471,7 +2481,7 @@
     },
     "WordSync": {
       "FinishedTitle": "Готово!",
-      "FinishedDescription": "Вы оценили {count} слов. Ваши знания слов обновлены.",
+      "FinishedDescription": "Вы проверили {count} слов. Ваши знания слов обновлены.",
       "Progress": "{rated} / {total} слов",
       "Unknown": "Неизвестно",
       "Learning": "Изучаю",
@@ -2641,6 +2651,7 @@
       "Palette": "Available filters",
       "FilterBox": "Filter expression",
       "FilterBoxEmpty": "Drag filters here to build your expression",
+      "Clear": "Очистить фильтры",
       "Remove": "Remove",
       "MoveUp": "Move up",
       "MoveDown": "Move down",
@@ -2671,6 +2682,7 @@
         "Recency": "Recency"
       },
       "Status": {
+        "Untracked": "Не отслеживается",
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
@@ -2681,7 +2693,8 @@
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
-      "TokenMoved": "Filter moved"
+      "TokenMoved": "Filter moved",
+      "TokensCleared": "Фильтры очищены"
     },
     "CharacterGrid": {
       "CharactersByLevel": "Символы по уровню:",

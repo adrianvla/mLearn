@@ -63,7 +63,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
       const result: WordListItem[] = [];
       for (const [word, entry] of Object.entries(freq)) {
         if (entry.raw_level !== props.level) continue;
-        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet);
+        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet, language.getCanonicalFormForLanguage);
         result.push({ word, reading: entry.reading || '', status });
       }
       return result.sort((a, b) => a.word.localeCompare(b.word));

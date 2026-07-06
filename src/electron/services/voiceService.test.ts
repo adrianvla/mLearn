@@ -97,8 +97,21 @@ vi.mock('fs', async (importOriginal) => {
 });
 
 let mockQuitToken: string | null = null;
+let mockQuitTokenAvailableCallback: ((token: string) => void) | null = null;
 vi.mock('./pythonBackend', () => ({
   getQuitToken: () => mockQuitToken,
+  onQuitTokenAvailable: (callback: (token: string) => void) => {
+    if (mockQuitToken) {
+      queueMicrotask(() => callback(mockQuitToken!));
+      return () => undefined;
+    }
+    mockQuitTokenAvailableCallback = callback;
+    return () => {
+      if (mockQuitTokenAvailableCallback === callback) {
+        mockQuitTokenAvailableCallback = null;
+      }
+    };
+  },
   readResourceFile: (...segments: string[]) => {
     const path = segments.join('/');
     if (path.includes('pip_requirements')) {
@@ -128,7 +141,9 @@ class MockChildProcess {
 }
 
 const spawnFn = vi.fn();
+const execFileFn = vi.fn();
 vi.mock('child_process', () => ({
+  execFile: (...args: unknown[]) => execFileFn(...args),
   spawn: (...args: unknown[]) => spawnFn(...args),
 }));
 
@@ -138,11 +153,14 @@ vi.mock('../utils/platform', () => ({
   getPipExecutablePath: vi.fn(() => '/env/bin/pip'),
   getPythonExecutablePath: vi.fn(() => '/env/bin/python'),
   getBundledDistElectronPath: vi.fn((...segments: string[]) => ['/dist-electron', ...segments].join('/')),
+  isLinux: false,
+  isMac: false,
   isWindows: false,
 }));
 
 const loadSettingsFn = vi.fn();
 vi.mock('./settings', () => ({
+  loadLangData: vi.fn(() => ({})),
   loadSettings: (...args: unknown[]) => loadSettingsFn(...args),
 }));
 
@@ -245,6 +263,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   lastCreatedWebSocket = null;
   mockQuitToken = 'test-token';
+  mockQuitTokenAvailableCallback = null;
 
   existsSyncFn.mockReturnValue(false);
   readFileSyncFn.mockReturnValue('[]');
@@ -433,12 +452,13 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     expect(lastCreatedWebSocket).not.toBeNull();
   });
 
-  it('includes language and silence threshold in the WebSocket URL', () => {
+  it('includes language, silence threshold, and TTS provider in the WebSocket URL', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
-    onHandlers.get('voice-start-session')?.(event, 'ja', 'vad', 2.0);
+    onHandlers.get('voice-start-session')?.(event, 'ja', 'vad', 2.0, 'qwen3');
     expect(lastCreatedWebSocket?.url).toContain('language=ja');
     expect(lastCreatedWebSocket?.url).toContain('silence=2');
+    expect(lastCreatedWebSocket?.url).toContain('tts_provider=qwen3');
   });
 
   it('includes quit token in WebSocket URL when available', () => {
@@ -451,35 +471,43 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
   });
 
   it('waits for quit token and connects when it becomes available', () => {
-    vi.useFakeTimers();
     mockQuitToken = null;
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
     expect(lastCreatedWebSocket).toBeNull();
+    expect(event.sender.send).toHaveBeenCalledWith('voice-session-status', {
+      stage: 'backend',
+      message: 'Waiting for local Python backend…',
+      progress: 0.01,
+    });
 
     mockQuitToken = 'delayed-token';
-    vi.advanceTimersByTime(100);
+    mockQuitTokenAvailableCallback?.('delayed-token');
     expect(lastCreatedWebSocket).not.toBeNull();
     expect(lastCreatedWebSocket?.url).toContain('token=delayed-token');
-    vi.useRealTimers();
+    expect(event.sender.send).toHaveBeenCalledWith('voice-session-status', {
+      stage: 'websocket',
+      message: 'Opening local voice stream…',
+      progress: 0.02,
+    });
   });
 
-  it('sends VOICE_SESSION_ERROR when quit token does not arrive within timeout', () => {
-    vi.useFakeTimers();
+  it('keeps waiting without sending a session error while Python has not emitted a quit token', () => {
     mockQuitToken = null;
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
-    vi.advanceTimersByTime(5100);
     expect(lastCreatedWebSocket).toBeNull();
-    expect(event.sender.send).toHaveBeenCalledWith(
+    expect(event.sender.send).toHaveBeenCalledWith('voice-session-status', {
+      stage: 'backend',
+      message: 'Waiting for local Python backend…',
+      progress: 0.01,
+    });
+    expect(event.sender.send).not.toHaveBeenCalledWith(
       'voice-session-error',
-      expect.objectContaining({
-        error: 'Voice backend is not ready. Please wait a moment and try again.',
-      }),
+      expect.anything(),
     );
-    vi.useRealTimers();
   });
 
   it('closes the WebSocket when stopSession is called', () => {
@@ -504,8 +532,34 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
+    lastCreatedWebSocket?._emit('open');
+    expect(event.sender.send).toHaveBeenCalledWith('voice-session-status', {
+      stage: 'websocket',
+      message: 'Connected to local voice stream…',
+      progress: 0.03,
+    });
     lastCreatedWebSocket?._emit('message', JSON.stringify({ type: 'ready' }));
     expect(event.sender.send).toHaveBeenCalledWith('voice-session-ready', { ready: true });
+  });
+
+  it('sends VOICE_SESSION_STATUS to sender when WS receives loading message', () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
+    lastCreatedWebSocket?._emit('message', JSON.stringify({
+      type: 'loading',
+      stage: 'tts',
+      message: 'Loading Qwen3-TTS model…',
+      progress: 0.42,
+      modelName: 'Qwen3-TTS',
+    }));
+
+    expect(event.sender.send).toHaveBeenCalledWith('voice-session-status', {
+      stage: 'tts',
+      message: 'Loading Qwen3-TTS model…',
+      progress: 0.42,
+      modelName: 'Qwen3-TTS',
+    });
   });
 
   it('sends VOICE_STT_RESULT to sender when WS receives stt message', () => {
@@ -547,11 +601,11 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     );
   });
 
-  it('uses default silence threshold of 1.5 when not provided', () => {
+  it('uses default silence threshold of 0.8 when not provided', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad');
-    expect(lastCreatedWebSocket?.url).toContain('silence=1.5');
+    expect(lastCreatedWebSocket?.url).toContain('silence=0.8');
   });
 });
 
@@ -1084,6 +1138,30 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
 });
 
 describe('VOICE_TTS_GENERATE handler — local TTS', () => {
+  it('uses killable system TTS when provider is system', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const kill = vi.fn();
+    let complete: (() => void) | undefined;
+    execFileFn.mockImplementation((_command, _args, callback) => {
+      complete = callback as () => void;
+      return { kill };
+    });
+
+    onHandlers.get('voice-tts-generate')?.(event, 'System voice', 'en', 1.0, undefined, 'system');
+    await flushMicrotasks();
+
+    expect(execFileFn).toHaveBeenCalledWith('powershell', expect.any(Array), expect.any(Function));
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', { generating: true, playing: true });
+
+    onHandlers.get('voice-tts-stop')?.(event);
+
+    expect(kill).toHaveBeenCalledWith('SIGKILL');
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', { generating: false, playing: false });
+
+    complete?.();
+  });
+
   it('opens the local TTS stream websocket and sends the generation payload', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
@@ -1155,6 +1233,30 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
       sampleCount: 4,
     });
     expect(Array.from(audioCalls[0][1].samples)).toEqual([0, 0.5, -0.5, 1]);
+  });
+
+  it('forwards local TTS stream errors to the renderer status channel', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    existsSyncFn.mockReturnValue(false);
+    readFileSyncFn.mockReturnValue('[]');
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Test error', 'en', 1.0, undefined, 'qwen3');
+    await flushMicrotasks();
+    lastCreatedWebSocket?._emit('open');
+    lastCreatedWebSocket?._emit('message', JSON.stringify({
+      type: 'error',
+      message: 'There is no Stream(gpu, 0) in current thread.',
+    }));
+    await flushMicrotasks();
+
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', {
+      generating: false,
+      playing: false,
+      error: 'There is no Stream(gpu, 0) in current thread.',
+    });
   });
 
   it('transcribes a selected Qwen3 voice sample before starting the local TTS stream when transcript is missing', async () => {

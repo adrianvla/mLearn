@@ -394,7 +394,7 @@ export interface Settings {
   /** Voice input mode: hands-free VAD or push-to-talk */
   voiceMode: VoiceMode;
   /** Voice-call TTS backend provider. Cloud is a legacy value and is normalized to Qwen3. */
-  ttsProvider: TTSProvider;
+  ttsProvider: VoiceCallTTSProvider;
   /** TTS speech speed multiplier */
   voiceTtsSpeed: number;
   /** Automatically send message after VAD silence detection */
@@ -588,7 +588,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ttsProvider: 'kokoro',
   voiceTtsSpeed: 1.0,
   voiceAutoSendOnSilence: true,
-  voiceSilenceThreshold: 1.2,
+  voiceSilenceThreshold: 0.8,
   uiLanguage: 'en',
   flashcardAutoTts: true,
   flashcardTtsProvider: 'kokoro',
@@ -1865,8 +1865,11 @@ export type OCRProvider = 'local' | 'cloud';
 /** Conversation agent personality mode */
 export type AgentPersonality = 'polite' | 'casual' | 'roleplay';
 
-/** TTS backend provider */
+/** TTS backend provider for generated audio files. */
 export type TTSProvider = 'kokoro' | 'qwen3' | 'cloud';
+
+/** TTS provider used by the realtime voice-call UI. */
+export type VoiceCallTTSProvider = 'system' | TTSProvider;
 
 /** Provider-agnostic chat message */
 export interface LLMChatMessage {
@@ -2342,10 +2345,18 @@ export interface VoiceTtsStatus {
   playing: boolean;
   modelLoading?: boolean;
   downloadProgress?: number;
+  error?: string;
 }
 
 export interface VoiceSessionReady {
   ready: true;
+}
+
+export interface VoiceSessionStatus {
+  stage: 'starting' | 'backend' | 'websocket' | 'vad' | 'stt' | 'tts' | 'ready';
+  message: string;
+  progress: number;
+  modelName?: string;
 }
 
 export interface VoiceSessionError {

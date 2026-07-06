@@ -18,7 +18,7 @@ import './StatsTab.css';
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
   const { store } = useFlashcards();
-  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage } = useLanguage();
   const { t } = useLocalization();
 
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
@@ -32,6 +32,7 @@ export const StatsTab: Component = () => {
       settings.srsLearningThreshold,
       getFreqLevelNames(),
       currentLangData(),
+      getCanonicalFormForLanguage,
     ),
   );
 

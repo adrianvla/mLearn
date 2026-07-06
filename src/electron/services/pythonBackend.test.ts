@@ -1385,6 +1385,66 @@ describe('pythonBackend', () => {
       expect(secondEvent.sender.send).not.toHaveBeenCalledWith('server-status-update', 'Loaded from cache');
     });
 
+    it('captures quit token from structured Python status logs', async () => {
+      const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+
+      Object.defineProperty(process, 'resourcesPath', {
+        value: tempDir.tmpDir,
+        writable: true,
+        configurable: true,
+      });
+
+      let stdoutHandler: ((data: Buffer) => void) | null = null;
+      let closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | null = null;
+      const verifyProcess = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, handler: (code: number | null, signal: NodeJS.Signals | null) => void) => {
+          if (event === 'close') {
+            handler(0, null);
+          }
+        }),
+        kill: vi.fn(),
+        killed: false,
+      };
+      const serverProcess = {
+        stdout: {
+          on: vi.fn((event: string, handler: (data: Buffer) => void) => {
+            if (event === 'data') {
+              stdoutHandler = handler;
+            }
+          }),
+        },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, handler: (code: number | null, signal: NodeJS.Signals | null) => void) => {
+          if (event === 'close') {
+            closeHandler = handler;
+          }
+        }),
+        kill: vi.fn(),
+        killed: false,
+      };
+      mockSpawn
+        .mockReturnValueOnce(verifyProcess)
+        .mockReturnValueOnce(serverProcess);
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      const findPromise = mod.findPython();
+      for (let attempt = 0; attempt < 10 && !stdoutHandler; attempt++) {
+        await Promise.resolve();
+      }
+      stdoutHandler!(Buffer.from('::STATUS::v2::INFO::server::2026-07-06 19:19:00::::QUIT_TOKEN::abcdef1234\n'));
+
+      expect(mod.getQuitToken()).toBe('abcdef1234');
+
+      closeHandler?.(0, null);
+      await findPromise;
+    });
+
     it('INSTALLER_STATE_REQUEST replies with current installer state', () => {
       mod.setupPythonBackendIPC();
 

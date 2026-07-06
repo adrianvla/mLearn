@@ -1212,3 +1212,28 @@ describe('limitConsecutiveDots', () => {
     expect(limitConsecutiveDots('Hello. World.')).toBe('Hello. World.')
   })
 })
+
+// ============================================================================
+// stripBracketedTtsAnnotations
+// ============================================================================
+
+describe('stripBracketedTtsAnnotations', () => {
+  let stripBracketedTtsAnnotations: typeof import('./textUtils').stripBracketedTtsAnnotations
+
+  beforeAll(async () => {
+    const mod = await import('./textUtils')
+    stripBracketedTtsAnnotations = mod.stripBracketedTtsAnnotations
+  })
+
+  it('removes full-width parenthesis and bracket annotations', () => {
+    expect(stripBracketedTtsAnnotations('漢字（かんじ）を読む［補足］。')).toBe('漢字を読む。')
+  })
+
+  it('removes ASCII parenthesis and bracket annotations', () => {
+    expect(stripBracketedTtsAnnotations('Hello (aside) there [note].')).toBe('Hello there.')
+  })
+
+  it('returns empty text when the phrase only has annotations', () => {
+    expect(stripBracketedTtsAnnotations('（よみ） [note]')).toBe('')
+  })
+})

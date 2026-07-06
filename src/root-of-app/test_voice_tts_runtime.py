@@ -48,6 +48,31 @@ def test_kokoro_tts_pipeline_cache_is_keyed_by_metadata_lang_code(monkeypatch):
     assert created == [ja_pipeline, en_pipeline]
 
 
+def test_kokoro_tts_uses_unidic_lite_when_unidic_payload_is_missing(tmp_path, monkeypatch):
+    empty_unidic_dir = tmp_path / "unidic" / "dicdir"
+    lite_dicdir = tmp_path / "unidic_lite" / "dicdir"
+    empty_unidic_dir.mkdir(parents=True)
+    lite_dicdir.mkdir(parents=True)
+    (lite_dicdir / "mecabrc").write_text("", encoding="utf-8")
+
+    unidic = types.SimpleNamespace(DICDIR=str(empty_unidic_dir))
+    unidic_lite = types.SimpleNamespace(DICDIR=str(lite_dicdir))
+    monkeypatch.setitem(sys.modules, "unidic", unidic)
+    monkeypatch.setitem(sys.modules, "unidic_lite", unidic_lite)
+    created = _install_fake_kokoro(monkeypatch)
+    monkeypatch.setattr(
+        voice,
+        "_tts_runtime",
+        lambda language: {"kokoroLangCode": "x"} if language == "xx" else {},
+    )
+    voice._voice_tts_pipelines.clear()
+
+    pipeline = voice._ensure_tts_loaded("xx")
+
+    assert pipeline is created[0]
+    assert unidic.DICDIR == str(lite_dicdir)
+
+
 def test_kokoro_tts_requires_installed_language_runtime(monkeypatch):
     _install_fake_kokoro(monkeypatch)
     monkeypatch.setattr(voice, "_tts_runtime", lambda _language: {})
@@ -321,12 +346,132 @@ def test_voice_stream_vad_mode_uses_silero_vad_for_speech_start(monkeypatch):
     audio = voice.np.ones(512, dtype=voice.np.float32).tobytes()
 
     with TestClient(app).websocket_connect("/voice/stream?language=en&mode=vad&silence=10") as websocket:
-        assert websocket.receive_json() == {"type": "ready"}
+        first_message = websocket.receive_json()
+        assert first_message["type"] == "loading"
+        assert first_message["stage"] == "starting"
+        assert first_message["progress"] == 0.04
+
+        while True:
+            message = websocket.receive_json()
+            if message["type"] == "ready":
+                break
+            assert message["type"] == "loading"
+            assert 0.0 <= message["progress"] <= 1.0
+
         websocket.send_bytes(audio)
         assert websocket.receive_json() == {"type": "vad", "event": "speech-start"}
 
     assert len(calls) == 1
     assert calls[0][1] == 16000
+
+
+def test_voice_stream_vad_hysteresis_keeps_uncertain_speech_in_one_utterance(monkeypatch):
+    transcribe_durations = []
+    probabilities = iter(
+        [0.9] * 8
+        + [0.4] * 4
+        + [0.9] * 8
+        + [0.0] * 4
+    )
+    clock = {"value": 0.0}
+
+    class FakeProbability:
+        def __init__(self, value):
+            self.value = value
+
+        def item(self):
+            return self.value
+
+    class FakeVadModel:
+        def __call__(self, _tensor, _sample_rate):
+            return FakeProbability(next(probabilities, 0.0))
+
+    class FakeTorch:
+        @staticmethod
+        def from_numpy(samples):
+            return samples
+
+    class FakeSttModel:
+        def transcribe(self, speech_np, **_kwargs):
+            transcribe_durations.append(len(speech_np) / 16000)
+            return [types.SimpleNamespace(text="お前が動いてるようになった")], {}
+
+    def fake_monotonic():
+        clock["value"] += 0.04
+        return clock["value"]
+
+    monkeypatch.setattr(voice.config, "torch", FakeTorch())
+    monkeypatch.setattr(voice.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(voice, "_ensure_vad_loaded", lambda: {"model": FakeVadModel(), "utils": ()})
+    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: FakeSttModel())
+    monkeypatch.setattr(voice, "_resolve_tts_engine", lambda _language, _provider=None: "unavailable")
+    monkeypatch.setattr(
+        voice,
+        "_stt_runtime",
+        lambda _language: {"shortAudioMaxSeconds": 0.1},
+    )
+
+    app = FastAPI()
+    app.include_router(voice.router)
+    audio = voice.np.ones(512, dtype=voice.np.float32).tobytes()
+
+    with TestClient(app).websocket_connect("/voice/stream?language=ja&mode=vad&silence=0.09") as websocket:
+        while True:
+            message = websocket.receive_json()
+            if message["type"] == "ready":
+                break
+
+        for _ in range(24):
+            websocket.send_bytes(audio)
+
+        assert websocket.receive_json() == {"type": "vad", "event": "speech-start"}
+        assert websocket.receive_json() == {"type": "vad", "event": "speech-end"}
+        assert websocket.receive_json() == {
+            "type": "stt",
+            "text": "お前が動いてるようになった",
+            "isFinal": True,
+            "isPartial": False,
+        }
+
+    assert len(transcribe_durations) == 1
+    assert transcribe_durations[0] >= 0.7
+
+
+def test_voice_stream_passes_requested_tts_provider_to_warmup(monkeypatch):
+    calls = []
+
+    class FakeVadModel:
+        def __call__(self, *_args, **_kwargs):
+            return types.SimpleNamespace(item=lambda: 0.0)
+
+    class FakeSttModel:
+        def transcribe(self, *_args, **_kwargs):
+            return [], {}
+
+    monkeypatch.setattr(voice, "_ensure_vad_loaded", lambda: {"model": FakeVadModel(), "utils": ()})
+    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: FakeSttModel())
+    monkeypatch.setattr(voice, "_ensure_qwen3_tts_loaded", lambda: calls.append("qwen3-model"))
+    monkeypatch.setattr(voice, "_ensure_tts_loaded", lambda _language: calls.append("kokoro-model"))
+    monkeypatch.setattr(voice, "_stt_runtime", lambda _language: {})
+
+    def resolve(language, provider=None):
+        calls.append(("resolve", language, provider))
+        return "qwen3"
+
+    monkeypatch.setattr(voice, "_resolve_tts_engine", resolve)
+
+    app = FastAPI()
+    app.include_router(voice.router)
+
+    with TestClient(app).websocket_connect("/voice/stream?language=ja&mode=vad&silence=10&tts_provider=qwen3") as websocket:
+        while True:
+            message = websocket.receive_json()
+            if message["type"] == "ready":
+                break
+
+    assert ("resolve", "ja", "qwen3") in calls
+    assert "qwen3-model" in calls
+    assert "kokoro-model" not in calls
 
 
 def test_voice_download_models_uses_resolved_qwen3_fallback(monkeypatch):
