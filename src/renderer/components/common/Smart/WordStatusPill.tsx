@@ -95,7 +95,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       noneLabel: t('mlearn.WordHover.StatusSource.None'),
       sourceLabels,
       displayedWord: props.word,
-      canonicalWord: primaryWord(),
+      canonicalWord: comprehensiveResult().matchedWord ?? primaryWord(),
     });
   });
 

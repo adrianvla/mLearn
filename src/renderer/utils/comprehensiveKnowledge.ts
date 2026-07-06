@@ -26,12 +26,14 @@ export interface ComprehensiveWordStatusResult {
   status: WordStatus;
   source: WordKnowledgeSource;
   timesSeen: number;
+  matchedWord?: string;
 }
 
 interface SourceResult {
   source: KnowledgeSource;
   status: WordStatus;
   timesSeen: number;
+  matchedWord?: string;
 }
 
 interface WordFormMatch {
@@ -69,7 +71,7 @@ function getStatusFromSource(
     case 'knownWordsList': {
       for (const match of matches) {
         if (deps.knownUntracked[match.lk]) {
-          return { source: src, status: 'known', timesSeen: 0 };
+          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word };
         }
       }
       return null;
@@ -77,7 +79,7 @@ function getStatusFromSource(
     case 'ignoredWords': {
       for (const match of matches) {
         if (deps.ignoredWords[match.lk]) {
-          return { source: src, status: 'known', timesSeen: 0 };
+          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word };
         }
       }
       return null;
@@ -87,10 +89,10 @@ function getStatusFromSource(
         const card = deps.getCardByWordSync(match.word);
         if (card) {
           if (card.state === 'review') {
-            return { source: src, status: 'known', timesSeen: 0 };
+            return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word };
           }
           if (card.state === 'learning' || card.state === 'relearning') {
-            return { source: src, status: 'learning', timesSeen: 0 };
+            return { source: src, status: 'learning', timesSeen: 0, matchedWord: match.word };
           }
         }
       }
@@ -107,10 +109,10 @@ function getStatusFromSource(
         const knowledge = deps.wordKnowledge[match.lk];
         if (knowledge) {
           if (knowledge.ease >= deps.knownEaseThreshold) {
-            return { source: src, status: 'known', timesSeen: knowledge.timesSeen };
+            return { source: src, status: 'known', timesSeen: knowledge.timesSeen, matchedWord: match.word };
           }
           if (knowledge.ease >= deps.learningThreshold) {
-            return { source: src, status: 'learning', timesSeen: knowledge.timesSeen };
+            return { source: src, status: 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word };
           }
         }
       }
@@ -132,17 +134,17 @@ function resolveSources(
   switch (resolutionMode) {
     case 'order': {
       const winner = available[0];
-      return { status: winner.status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winner.source], timesSeen: winner.timesSeen };
+      return { status: winner.status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winner.source], timesSeen: winner.timesSeen, matchedWord: winner.matchedWord };
     }
     case 'highest': {
       const maxRank = Math.max(...available.map(a => STATUS_RANK[a.status]));
       const winners = available.filter(a => STATUS_RANK[a.status] === maxRank);
-      return { status: winners[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winners[0].source], timesSeen: winners[0].timesSeen };
+      return { status: winners[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winners[0].source], timesSeen: winners[0].timesSeen, matchedWord: winners[0].matchedWord };
     }
     case 'lowest': {
       const minRank = Math.min(...available.map(a => STATUS_RANK[a.status]));
       const losers = available.filter(a => STATUS_RANK[a.status] === minRank);
-      return { status: losers[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[losers[0].source], timesSeen: losers[0].timesSeen };
+      return { status: losers[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[losers[0].source], timesSeen: losers[0].timesSeen, matchedWord: losers[0].matchedWord };
     }
   }
 }

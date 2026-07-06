@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { LanguageData } from '../../../../shared/types';
+import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
 import { WordStatusPill } from './WordStatusPill';
 
 const ankiMocks = vi.hoisted(() => ({
@@ -16,6 +17,12 @@ const trackWordStatusChangeMock = vi.fn();
 const setComprehensiveWordStatusMock = vi.fn();
 const updateWordCardsMock = vi.fn(() => Promise.resolve({ updated: 0, repositioned: 0 }));
 let skipAnkiModifyWarning = false;
+let comprehensiveResultMock: ComprehensiveWordStatusResult = {
+  status: 'unknown',
+  source: 'None',
+  timesSeen: 0,
+  matchedWord: undefined,
+};
 
 const germanLanguageData: LanguageData = {
   name: 'German',
@@ -56,11 +63,7 @@ vi.mock('../../../context', () => ({
   }),
   useFlashcards: () => ({
     trackWordStatusChange: trackWordStatusChangeMock,
-    getComprehensiveWordStatusWithSourceSync: () => ({
-      status: 'unknown',
-      source: 'None',
-      timesSeen: 0,
-    }),
+    getComprehensiveWordStatusWithSourceSync: () => comprehensiveResultMock,
     setComprehensiveWordStatus: setComprehensiveWordStatusMock,
   }),
   useLocalization: () => ({
@@ -88,7 +91,9 @@ vi.mock('../Button', () => ({
 }));
 
 vi.mock('../Tooltip', () => ({
-  Tooltip: (props: { children?: JSX.Element }) => <>{props.children}</>,
+  Tooltip: (props: { content?: string; children?: JSX.Element }) => (
+    <span data-testid="tooltip" data-content={props.content}>{props.children}</span>
+  ),
 }));
 
 vi.mock('../../flashcard/AnkiModifyWarningModal', () => ({
@@ -109,6 +114,12 @@ describe('WordStatusPill', () => {
     document.body.appendChild(container);
     vi.clearAllMocks();
     skipAnkiModifyWarning = false;
+    comprehensiveResultMock = {
+      status: 'unknown',
+      source: 'None',
+      timesSeen: 0,
+      matchedWord: undefined,
+    };
     ankiMocks.findAnkiWordMatchInCacheMock.mockReturnValue({
       word: 'de:Haus',
       lookupKey: 'Haus',
@@ -156,6 +167,25 @@ describe('WordStatusPill', () => {
 
     expect(updateWordCardsMock).toHaveBeenCalledWith('你好(ni hao)', 1550);
     expect(updateWordCardsMock).not.toHaveBeenCalledWith('你好', expect.anything());
+
+    dispose();
+  });
+
+  it('shows the matched canonical word in the status tooltip for reading aliases', () => {
+    comprehensiveResultMock = {
+      status: 'known',
+      source: 'KnownWordsList',
+      timesSeen: 0,
+      matchedWord: '連続',
+    };
+
+    const dispose = render(() => (
+      <WordStatusPill word="れんぞく" language="ja" />
+    ), container);
+
+    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-content')).toBe(
+      'mlearn.WordHover.StatusSource.Prefixmlearn.Settings.KnowledgePriority.Source.KnownWordsList (→ 連続)',
+    );
 
     dispose();
   });
