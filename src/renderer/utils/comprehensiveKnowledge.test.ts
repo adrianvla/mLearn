@@ -35,6 +35,7 @@ describe('getComprehensiveWordStatusWithSource', () => {
       status: 'known',
       source: 'KnownWordsList',
       timesSeen: 0,
+      matchedWord: 'идти',
     });
   });
 
@@ -50,6 +51,7 @@ describe('getComprehensiveWordStatusWithSource', () => {
       status: 'learning',
       source: 'PassiveTracking',
       timesSeen: 7,
+      matchedWord: 'كتب',
     });
   });
 
@@ -64,6 +66,7 @@ describe('getComprehensiveWordStatusWithSource', () => {
       status: 'known',
       source: 'Srs',
       timesSeen: 0,
+      matchedWord: '食べる',
     });
   });
 
@@ -79,6 +82,24 @@ describe('getComprehensiveWordStatusWithSource', () => {
       status: 'known',
       source: 'IgnoredWords',
       timesSeen: 0,
+      matchedWord: '押し入れ',
+    });
+  });
+
+  it('reports the matched canonical form for reading aliases', () => {
+    const deps = makeDeps({
+      language: 'ja',
+      getWordForms: () => ['れんぞく', '連続'],
+      knownUntracked: {
+        'ja:hash:連続': true,
+      },
+    });
+
+    expect(getComprehensiveWordStatusWithSource('れんぞく', deps)).toEqual({
+      status: 'known',
+      source: 'KnownWordsList',
+      timesSeen: 0,
+      matchedWord: '連続',
     });
   });
 });
