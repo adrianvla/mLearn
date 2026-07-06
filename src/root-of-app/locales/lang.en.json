@@ -511,7 +511,7 @@
         "TtsSpeed": "Speech speed",
         "UploadSample": "Upload voice sample",
         "VoiceSample": "Voice clone",
-        "VoiceSampleDisabledLocal": "Custom voice upload is only available with Qwen3-TTS or Cloud TTS"
+        "VoiceSampleDisabledLocal": "Custom voice upload is only available with Qwen3-TTS"
       },
       "Memory": {
         "ClearAll": "Clear all memories",

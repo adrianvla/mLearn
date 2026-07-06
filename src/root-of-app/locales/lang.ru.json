@@ -511,7 +511,7 @@
         "TtsSpeed": "Скорость речи",
         "UploadSample": "Загрузить образец голоса",
         "VoiceSample": "Клон голоса",
-        "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с Qwen3-TTS или Cloud TTS"
+        "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с Qwen3-TTS"
       },
       "Memory": {
         "ClearAll": "Очистить все воспоминания",

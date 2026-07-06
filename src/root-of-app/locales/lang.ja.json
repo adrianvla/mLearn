@@ -511,7 +511,7 @@
         "TtsSpeed": "話速",
         "UploadSample": "音声サンプルをアップロード",
         "VoiceSample": "音声クローン",
-        "VoiceSampleDisabledLocal": "カスタム音声アップロードはQwen3-TTSまたはCloud TTSでのみ利用可能です"
+        "VoiceSampleDisabledLocal": "カスタム音声アップロードはQwen3-TTSでのみ利用可能です"
       },
       "Memory": {
         "ClearAll": "すべての記憶を消去",

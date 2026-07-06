@@ -393,7 +393,7 @@ export interface Settings {
   // Voice call mode settings
   /** Voice input mode: hands-free VAD or push-to-talk */
   voiceMode: VoiceMode;
-  /** TTS backend provider: local Kokoro, Qwen3, or Cloud */
+  /** Voice-call TTS backend provider. Cloud is a legacy value and is normalized to Qwen3. */
   ttsProvider: TTSProvider;
   /** TTS speech speed multiplier */
   voiceTtsSpeed: number;

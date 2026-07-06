@@ -1,5 +1,5 @@
 """
-Voice routes — STT (faster-whisper), TTS (Kokoro / Qwen3 / Remote), VAD (Silero).
+Voice routes — STT (faster-whisper), local TTS (Kokoro / Qwen3), VAD (Silero).
 
 Provides:
   POST /voice/tts           — generate TTS audio (WAV)
@@ -7,6 +7,7 @@ Provides:
   GET  /voice/stt/status    — STT model status
   GET  /voice/tts/status    — TTS model status
   WS   /voice/stream        — real-time VAD + STT WebSocket
+  WS   /voice/tts/stream    — local real-time Qwen3-TTS WebSocket
 """
 
 import asyncio
@@ -32,6 +33,8 @@ from logging_utils import get_logger
 log = get_logger("voice")
 
 router = APIRouter()
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 # ── Global state ──
 
@@ -120,7 +123,7 @@ def _resolve_tts_engine(language: str | None, provider: str | None = None) -> st
         raise RuntimeError("No language selected for TTS")
     requested_provider = provider or _tts_provider
     if requested_provider == "cloud":
-        return "cloud"
+        requested_provider = "qwen3"
     if requested_provider == "qwen3":
         if _qwen3_language_name(requested_language):
             return "qwen3"
@@ -149,7 +152,8 @@ def _reload_tts_settings():
     try:
         with open(settings_path, "r", encoding="utf-8") as f:
             settings = json.load(f)
-            _tts_provider = settings.get("ttsProvider", "kokoro")
+            provider = settings.get("ttsProvider", "kokoro")
+            _tts_provider = "qwen3" if provider == "cloud" else provider
     except Exception:
         pass
 
@@ -437,23 +441,11 @@ async def voice_tts_status(language: Optional[str] = None):
             "error": str(exc),
         }
 
-    if engine == "cloud":
-        # Cloud TTS is handled entirely on the client side (CloudTTSAdapter).
-        # Report as "loaded" so the UI doesn't show download/loading spinners.
-        return {
-            "downloaded": True,
-            "loaded": True,
-            "downloading": False,
-            "progress": 1.0,
-            "modelName": "Cloud TTS",
-        }
-
     # Kokoro or Qwen3 local
     package_installed = False
     if engine == "qwen3":
         try:
-            _install_sox_shim()
-            from qwen_tts import Qwen3TTSModel  # noqa: F401
+            from mlx_audio.tts import load_model  # noqa: F401
 
             package_installed = True
         except ImportError:
@@ -464,7 +456,7 @@ async def voice_tts_status(language: Optional[str] = None):
             "downloading": _voice_tts_downloading or _qwen3_model_loading,
             "progress": _voice_tts_progress,
             "modelLoading": _qwen3_model_loading,
-            "modelName": "Qwen3-TTS-1.7B",
+            "modelName": "Qwen3-TTS-12Hz-0.6B-MLX",
         }
 
     if engine != "kokoro":
@@ -568,7 +560,7 @@ async def voice_tts_generate(req: TTSRequest):
         if provider == "cloud":
             raise HTTPException(
                 status_code=400,
-                detail="Cloud TTS is handled on the client side. This endpoint should not be called for cloud provider.",
+                detail="Cloud realtime TTS is disabled. Choose a local provider.",
             )
         engine = _resolve_tts_engine(requested_language, provider)
         if engine == "qwen3":
@@ -705,57 +697,21 @@ async def _generate_tts_kokoro(req: TTSRequest, language: str):
 
 _qwen3_tts_model = None
 _qwen3_tts_lock = threading.Lock()
-_qwen3_voice_prompt_cache: dict[str, object] = {}
 
-_QWEN3_TTS_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+_QWEN3_TTS_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"
+_QWEN3_TTS_SAMPLE_RATE = 24000
+_QWEN3_TTS_STREAMING_INTERVAL = 0.32
 
-def _install_sox_shim():
-    """Install a pure-numpy replacement for the ``sox`` (pysox) module.
 
-    qwen_tts uses ``sox.Transformer().norm(db_level).build_array(…)`` which
-    shells out to the SoX CLI binary.  Requiring users to install SoX is
-    impractical, so we inject a lightweight shim that normalises audio peak
-    amplitude using numpy — the only operation qwen_tts actually needs.
-    """
-    import sys
-    import types
-
-    if "sox" in sys.modules:
-        return
-
-    class _Transformer:
-        def __init__(self):
-            self._target_db: float = 0.0
-
-        def norm(self, db_level: float = 0.0):
-            self._target_db = db_level
-            return self
-
-        def build_array(
-            self,
-            input_array: "np.ndarray",
-            sample_rate_in: int = 16000,
-        ) -> "np.ndarray":
-            audio = np.array(input_array, dtype=np.float64)
-            peak = np.max(np.abs(audio))
-            if peak < 1e-10:
-                return audio.astype(np.float32)
-            target_peak = 10.0 ** (self._target_db / 20.0)
-            audio = audio * (target_peak / peak)
-            return audio.astype(np.float32)
-
-    sox_module = types.ModuleType("sox")
-    sox_module.Transformer = _Transformer  # type: ignore[attr-defined]
-    sys.modules["sox"] = sox_module
+def _qwen3_lang_code(language: str) -> str:
+    lang = _qwen3_language_name(language)
+    if not lang:
+        raise RuntimeError(f"Qwen3 TTS is not configured for language '{language}'")
+    return lang[:1].upper() + lang[1:] if lang.islower() else lang
 
 
 def _ensure_qwen3_tts_loaded():
-    """Load Qwen3-TTS model (lazy, thread-safe).
-
-    On first call the model weights are downloaded from HuggingFace (several GB)
-    and then loaded into memory.  Progress is logged so the Electron front-end
-    can relay it to the user.
-    """
+    """Load the MLX Qwen3-TTS model lazily and keep it hot in-process."""
     global _qwen3_tts_model, _qwen3_model_loading, _voice_tts_progress
     if _qwen3_tts_model is not None:
         return _qwen3_tts_model
@@ -766,9 +722,6 @@ def _ensure_qwen3_tts_loaded():
         _voice_tts_progress = 0.05
         stop_monitor = threading.Event()
         try:
-            _install_sox_shim()
-
-            # ── Determine expected download size & start progress monitor ──
             total_bytes = 0
             cache_blobs_dir = None
             try:
@@ -819,38 +772,15 @@ def _ensure_qwen3_tts_loaded():
                 log.info(f"Downloading Qwen3-TTS model ({total_bytes / (1024**3):.1f} GB)…")
                 monitor_thread.start()
             else:
-                log.info("Loading Qwen3-TTS model…")
+                log.info("Loading MLX Qwen3-TTS model…")
 
-            import torch
-            from qwen_tts import Qwen3TTSModel
+            from mlx_audio.tts import load_model
 
-            device = (
-                "cuda"
-                if torch.cuda.is_available()
-                else "mps"
-                if torch.backends.mps.is_available()
-                else "cpu"
-            )
-            log.info(f"Loading Qwen3-TTS on device: {device}")
-
-            # Qwen3TTSModel is a wrapper (not nn.Module), so .to() is not
-            # available.  Pass device_map for CUDA; for MPS / CPU, load on
-            # CPU first and move the inner PyTorch model manually.
-            load_kwargs: dict = {}
-            if device.startswith("cuda"):
-                load_kwargs["device_map"] = device
-
-            _qwen3_tts_model = Qwen3TTSModel.from_pretrained(
-                _QWEN3_TTS_MODEL_ID, **load_kwargs
-            )
-
-            if not device.startswith("cuda"):
-                _qwen3_tts_model.model = _qwen3_tts_model.model.to(device)
-                _qwen3_tts_model.device = torch.device(device)
+            _qwen3_tts_model = load_model(_QWEN3_TTS_MODEL_ID)
             stop_monitor.set()
             _set_tts_progress(1.0)
             _qwen3_model_loading = False
-            log.info(f"Qwen3-TTS model loaded successfully on {device}")
+            log.info("MLX Qwen3-TTS model loaded successfully")
             _voice_touch()
             return _qwen3_tts_model
         except Exception as e:
@@ -867,138 +797,64 @@ def _set_tts_progress(value: float):
     _voice_tts_progress = value
 
 
-def _get_qwen3_voice_prompt(model, voice_sample_path: str | None):
-    """Get or create a cached voice clone prompt from a reference audio file."""
+def _qwen3_reference_pair(voice_sample_path: str | None) -> tuple[str | None, str | None]:
     if not voice_sample_path or not os.path.exists(voice_sample_path):
-        return None
+        return None, None
 
-    # Cache key: file path + modification time
-    try:
-        mtime = os.path.getmtime(voice_sample_path)
-        cache_key = f"{voice_sample_path}:{mtime}"
-    except OSError:
-        cache_key = voice_sample_path
+    base, _ext = os.path.splitext(voice_sample_path)
+    transcript_path = base + ".txt"
+    if not os.path.exists(transcript_path):
+        raise RuntimeError("Qwen3 voice cloning requires a transcribed voice sample")
+    with open(transcript_path, "r", encoding="utf-8") as f:
+        ref_text = f.read().strip()
+    if not ref_text:
+        raise RuntimeError("Qwen3 voice cloning requires a non-empty voice sample transcript")
+    return voice_sample_path, ref_text
 
-    if cache_key in _qwen3_voice_prompt_cache:
-        return _qwen3_voice_prompt_cache[cache_key]
 
-    try:
-        log.info(f"Creating Qwen3 voice clone prompt from {str(voice_sample_path)[:100]}")
+def _iter_qwen3_tts_chunks(req: TTSRequest, language: str, stream: bool = True):
+    model = _ensure_qwen3_tts_loaded()
+    _voice_touch()
+    safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
+    ref_audio, ref_text = _qwen3_reference_pair(safe_voice_path)
+    lang_code = _qwen3_lang_code(language)
 
-        # Load reference audio transcript from sidecar .txt file
-        # Electron saves the sidecar by replacing the audio extension with .txt
-        base, _ext = os.path.splitext(voice_sample_path)
-        transcript_path = base + ".txt"
-        ref_text = None
-        if os.path.exists(transcript_path):
-            try:
-                with open(transcript_path, "r", encoding="utf-8") as f:
-                    ref_text = f.read().strip()
-                log.info(f"Using transcript from {str(transcript_path)[:100]}")
-            except Exception:
-                pass
+    gen = model.generate(
+        req.text,
+        ref_audio=ref_audio,
+        ref_text=ref_text,
+        stream=stream,
+        streaming_interval=_QWEN3_TTS_STREAMING_INTERVAL,
+        temperature=0.9,
+        top_k=50,
+        top_p=1.0,
+        repetition_penalty=1.5,
+        max_tokens=4096,
+        speed=req.speed,
+        lang_code=lang_code,
+        verbose=False,
+    )
 
-        if ref_text:
-            prompt = model.create_voice_clone_prompt(
-                ref_audio=voice_sample_path,
-                ref_text=ref_text,
-            )
-        else:
-            # No transcript — use x_vector_only mode (lower quality but no text needed)
-            prompt = model.create_voice_clone_prompt(
-                ref_audio=voice_sample_path,
-                x_vector_only_mode=True,
-            )
-
-        _qwen3_voice_prompt_cache[cache_key] = prompt
-        log.info("Qwen3 voice prompt cached")
-        return prompt
-    except Exception as e:
-        log.error(f"Failed to create Qwen3 voice prompt: {e}", exc_info=True)
-        return None
+    for chunk_index, result in enumerate(gen):
+        audio_np = np.asarray(result.audio, dtype=np.float32).flatten()
+        yield {
+            "audio": audio_np,
+            "chunkIndex": chunk_index,
+            "sampleRate": int(getattr(result, "sample_rate", _QWEN3_TTS_SAMPLE_RATE) or _QWEN3_TTS_SAMPLE_RATE),
+            "tokenCount": int(getattr(result, "token_count", 0) or 0),
+            "isFinal": bool(getattr(result, "is_final_chunk", False)),
+        }
 
 
 async def _generate_tts_qwen3(req: TTSRequest, language: str):
-    """Generate TTS audio using local Qwen3-TTS model with optional voice cloning."""
+    """Generate a full WAV with the same MLX Qwen3 path used by streaming."""
 
     def _run_sync():
-        model = _ensure_qwen3_tts_loaded()
-        _voice_touch()
-
-        sentences = _split_into_sentences(req.text, language)
-        if not sentences:
-            sentences = [req.text]
-
-        lang = _qwen3_language_name(language)
-        if not lang:
-            raise RuntimeError(f"Qwen3 TTS is not configured for language '{language}'")
-
-        # Get voice clone prompt if a sample is provided
-        safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
-        voice_prompt = _get_qwen3_voice_prompt(model, safe_voice_path)
-
         all_audio = []
-        sentence_boundaries = []
-        sample_offset = 0
-        sr = 24000  # Qwen3-TTS output at 24kHz
-
-        for i, sentence in enumerate(sentences):
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    gen_kwargs = {
-                        "text": sentence,
-                        "language": lang,
-                    }
-                    if voice_prompt is not None:
-                        audio = model.generate_voice_clone(
-                            **gen_kwargs,
-                            voice_clone_prompt=voice_prompt,
-                        )
-                    else:
-                        audio = model.generate(**gen_kwargs)
-
-                    if audio is not None:
-                        # generate_voice_clone may return (audio, sr) tuple
-                        if isinstance(audio, (tuple, list)):
-                            audio = audio[0]
-                        if hasattr(audio, "numpy"):
-                            audio = audio.numpy()
-                        audio_np = np.asarray(audio, dtype=np.float32).flatten()
-
-                        # Apply speed adjustment if not 1.0
-                        if req.speed != 1.0 and req.speed > 0:
-                            import librosa
-
-                            audio_np = librosa.effects.time_stretch(
-                                audio_np, rate=req.speed
-                            )
-
-                        num_samples = len(audio_np)
-                        sentence_boundaries.append(
-                            {
-                                "index": i,
-                                "text": sentence,
-                                "sampleOffset": sample_offset,
-                                "sampleCount": num_samples,
-                            }
-                        )
-                        sample_offset += num_samples
-                        all_audio.append(audio_np)
-                    break  # Success or None result, stop retrying
-                except Exception as e:
-                    is_retryable = (
-                        "probability tensor" in str(e)
-                        or "inf" in str(e)
-                        or "nan" in str(e)
-                    )
-                    if is_retryable and attempt < max_retries - 1:
-                        log.warning(
-                            f"Qwen3-TTS retryable error on sentence {i} (attempt {attempt + 1}/{max_retries}): {e}"
-                        )
-                        continue
-                    log.error(f"Qwen3-TTS error on sentence {i}: {e}", exc_info=True)
-                    break
+        sr = _QWEN3_TTS_SAMPLE_RATE
+        for chunk in _iter_qwen3_tts_chunks(req, language, stream=False):
+            all_audio.append(chunk["audio"])
+            sr = int(chunk["sampleRate"])
 
         if not all_audio:
             raise HTTPException(status_code=500, detail="No audio generated")
@@ -1009,6 +865,12 @@ async def _generate_tts_qwen3(req: TTSRequest, language: str):
         buf = io.BytesIO()
         sf.write(buf, combined, sr, format="WAV", subtype="PCM_16")
         buf.seek(0)
+        sentence_boundaries = [{
+            "index": 0,
+            "text": req.text,
+            "sampleOffset": 0,
+            "sampleCount": len(combined),
+        }]
         return buf.read(), sentence_boundaries, sr
 
     content, sentence_boundaries, sr = await asyncio.to_thread(_run_sync)
@@ -1021,6 +883,102 @@ async def _generate_tts_qwen3(req: TTSRequest, language: str):
             "X-Sample-Rate": str(sr),
         },
     )
+
+
+@router.websocket("/voice/tts/stream")
+async def voice_tts_stream_ws(websocket: WebSocket):
+    """Stream local Qwen3-TTS float32 PCM chunks to Electron."""
+    await websocket.accept()
+    cancel = threading.Event()
+    try:
+        payload = await websocket.receive_json()
+        req = TTSRequest(**payload)
+        requested_language = _requested_tts_language(req)
+        provider = req.provider or _tts_provider
+        if provider == "cloud":
+            await websocket.send_json({
+                "type": "error",
+                "message": "Cloud realtime TTS is disabled. Choose a local provider.",
+            })
+            return
+        engine = _resolve_tts_engine(requested_language, provider)
+        if engine != "qwen3":
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Streaming TTS requires qwen3; got '{engine}'",
+            })
+            return
+
+        await websocket.send_json({
+            "type": "status",
+            "generating": True,
+            "modelLoading": _qwen3_tts_model is None,
+            "downloadProgress": _voice_tts_progress,
+        })
+
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[dict | bytes | Exception | None] = asyncio.Queue()
+        def _worker():
+            try:
+                sample_offset = 0
+                for chunk in _iter_qwen3_tts_chunks(req, requested_language, stream=True):
+                    if cancel.is_set():
+                        break
+                    audio = chunk["audio"]
+                    samples = np.asarray(audio, dtype="<f4").flatten()
+                    msg = {
+                        "type": "audio",
+                        "sampleRate": chunk["sampleRate"],
+                        "sentenceIndex": 0,
+                        "sentenceText": req.text if chunk["chunkIndex"] == 0 else "",
+                        "totalSentences": 1,
+                        "sampleOffset": sample_offset,
+                        "sampleCount": int(len(samples)),
+                        "chunkIndex": chunk["chunkIndex"],
+                        "tokenCount": chunk["tokenCount"],
+                        "isFinal": chunk["isFinal"],
+                        "encoding": "f32le",
+                        "byteLength": int(samples.nbytes),
+                        "channels": 1,
+                    }
+                    sample_offset += int(len(samples))
+                    loop.call_soon_threadsafe(queue.put_nowait, msg)
+                    loop.call_soon_threadsafe(queue.put_nowait, samples.tobytes())
+            except Exception as exc:
+                loop.call_soon_threadsafe(queue.put_nowait, exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            if isinstance(item, Exception):
+                await websocket.send_json({"type": "error", "message": str(item)})
+                return
+            if isinstance(item, bytes):
+                await websocket.send_bytes(item)
+            else:
+                await websocket.send_json(item)
+
+        await websocket.send_json({"type": "done"})
+    except WebSocketDisconnect:
+        log.info("TTS stream WebSocket disconnected")
+    except Exception as e:
+        log.error(f"TTS stream WebSocket error: {e}", exc_info=True)
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+    finally:
+        cancel.set()
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 # ── Voice sample transcription ──

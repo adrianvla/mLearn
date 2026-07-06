@@ -6,6 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from routes import voice
 
 
@@ -100,6 +103,16 @@ def test_tts_engine_resolver_falls_back_from_kokoro_to_qwen3_for_language(monkey
     assert voice._resolve_tts_engine("fa") == "qwen3"
 
 
+def test_tts_engine_resolver_normalizes_removed_cloud_provider_to_qwen3(monkeypatch):
+    monkeypatch.setattr(
+        voice,
+        "_tts_runtime",
+        lambda language: {"qwen3LanguageName": "english"} if language == "en" else {},
+    )
+
+    assert voice._resolve_tts_engine("en", "cloud") == "qwen3"
+
+
 def test_tts_engine_resolver_rejects_unsupported_local_language(monkeypatch):
     monkeypatch.setattr(voice, "_tts_provider", "kokoro")
     monkeypatch.setattr(voice, "_tts_runtime", lambda _language: {})
@@ -112,19 +125,208 @@ def test_tts_engine_resolver_rejects_unsupported_local_language(monkeypatch):
         raise AssertionError("expected unsupported language to fail")
 
 
+def test_reload_tts_settings_normalizes_removed_cloud_provider(tmp_path, monkeypatch):
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text('{"ttsProvider":"cloud"}', encoding="utf-8")
+    monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
+    monkeypatch.setattr(voice, "_tts_provider", "kokoro")
+
+    voice._reload_tts_settings()
+
+    assert voice._tts_provider == "qwen3"
+
+
 def test_tts_status_reports_qwen3_when_kokoro_provider_falls_back(monkeypatch):
     monkeypatch.setattr(voice, "_tts_provider", "kokoro")
     monkeypatch.setattr(voice, "_qwen3_tts_model", object())
     monkeypatch.setattr(voice, "_tts_runtime", lambda language: {"qwen3LanguageName": "persian"} if language == "fa" else {})
     monkeypatch.setattr(voice, "_reload_tts_settings", lambda: None)
-    monkeypatch.setattr(voice, "_install_sox_shim", lambda: None)
-    monkeypatch.setitem(sys.modules, "qwen_tts", types.SimpleNamespace(Qwen3TTSModel=object))
+    mlx_audio = types.ModuleType("mlx_audio")
+    mlx_audio_tts = types.ModuleType("mlx_audio.tts")
+    mlx_audio_tts.load_model = lambda _repo_id: object()
+    monkeypatch.setitem(sys.modules, "mlx_audio", mlx_audio)
+    monkeypatch.setitem(sys.modules, "mlx_audio.tts", mlx_audio_tts)
 
     result = asyncio.run(voice.voice_tts_status("fa"))
 
     assert result["downloaded"] is True
     assert result["loaded"] is True
-    assert result["modelName"] == "Qwen3-TTS-1.7B"
+    assert result["modelName"] == "Qwen3-TTS-12Hz-0.6B-MLX"
+
+
+def test_qwen3_reference_pair_requires_transcript_for_voice_clone(tmp_path, monkeypatch):
+    audio_path = tmp_path / "sample.wav"
+    audio_path.write_bytes(b"RIFF")
+    monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
+
+    try:
+        voice._qwen3_reference_pair(str(audio_path))
+    except RuntimeError as exc:
+        assert "transcribed voice sample" in str(exc)
+    else:
+        raise AssertionError("expected missing transcript to fail")
+
+
+def test_qwen3_stream_chunks_use_mlx_generate_contract(tmp_path, monkeypatch):
+    audio_path = tmp_path / "sample.wav"
+    transcript_path = tmp_path / "sample.txt"
+    audio_path.write_bytes(b"RIFF")
+    transcript_path.write_text("exact reference transcript", encoding="utf-8")
+    monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
+    monkeypatch.setattr(
+        voice,
+        "_tts_runtime",
+        lambda language: {"qwen3LanguageName": "Japanese"} if language == "ja" else {},
+    )
+
+    class Result:
+        audio = [0.0, 0.5, -0.5]
+        sample_rate = 24000
+        token_count = 3
+        is_final_chunk = True
+
+    class Model:
+        def __init__(self):
+            self.kwargs = None
+
+        def generate(self, text, **kwargs):
+            self.kwargs = {"text": text, **kwargs}
+            yield Result()
+
+    model = Model()
+    monkeypatch.setattr(voice, "_ensure_qwen3_tts_loaded", lambda: model)
+
+    req = voice.TTSRequest(
+        text="こんにちは。",
+        language="ja",
+        provider="qwen3",
+        voiceSamplePath=str(audio_path),
+        speed=1.1,
+    )
+    chunks = list(voice._iter_qwen3_tts_chunks(req, "ja", stream=True))
+
+    assert chunks[0]["audio"].dtype.name == "float32"
+    assert chunks[0]["sampleRate"] == 24000
+    assert model.kwargs["stream"] is True
+    assert model.kwargs["streaming_interval"] == voice._QWEN3_TTS_STREAMING_INTERVAL
+    assert model.kwargs["ref_audio"] == str(audio_path)
+    assert model.kwargs["ref_text"] == "exact reference transcript"
+    assert model.kwargs["lang_code"] == "Japanese"
+    assert model.kwargs["speed"] == 1.1
+
+
+def test_voice_tts_stream_websocket_emits_qwen3_audio_chunks(monkeypatch):
+    monkeypatch.setattr(voice, "_resolve_tts_engine", lambda _language, _provider=None: "qwen3")
+    monkeypatch.setattr(voice, "_qwen3_tts_model", object())
+
+    def fake_chunks(_req, _language, stream=True):
+        assert stream is True
+        yield {
+            "audio": voice.np.asarray([0.0, 0.25, -0.25], dtype=voice.np.float32),
+            "sampleRate": 24000,
+            "chunkIndex": 0,
+            "tokenCount": 3,
+            "isFinal": True,
+        }
+
+    monkeypatch.setattr(voice, "_iter_qwen3_tts_chunks", fake_chunks)
+    app = FastAPI()
+    app.include_router(voice.router)
+
+    with TestClient(app).websocket_connect("/voice/tts/stream") as websocket:
+        websocket.send_json({"text": "Hello.", "language": "en", "provider": "qwen3"})
+        status = websocket.receive_json()
+        audio_meta = websocket.receive_json()
+        audio_bytes = websocket.receive_bytes()
+        done = websocket.receive_json()
+
+    assert status["type"] == "status"
+    assert status["generating"] is True
+    assert audio_meta == {
+        "type": "audio",
+        "sampleRate": 24000,
+        "sentenceIndex": 0,
+        "sentenceText": "Hello.",
+        "totalSentences": 1,
+        "sampleOffset": 0,
+        "sampleCount": 3,
+        "chunkIndex": 0,
+        "tokenCount": 3,
+        "isFinal": True,
+        "encoding": "f32le",
+        "byteLength": 12,
+        "channels": 1,
+    }
+    assert voice.np.frombuffer(audio_bytes, dtype="<f4").tolist() == [0.0, 0.25, -0.25]
+    assert done == {"type": "done"}
+
+
+def test_voice_tts_stream_websocket_rejects_cloud_provider():
+    app = FastAPI()
+    app.include_router(voice.router)
+
+    with TestClient(app).websocket_connect("/voice/tts/stream") as websocket:
+        websocket.send_json({"text": "Hello.", "language": "en", "provider": "cloud"})
+        message = websocket.receive_json()
+
+    assert message["type"] == "error"
+    assert "Cloud realtime TTS is disabled" in message["message"]
+
+
+def test_voice_tts_generate_rejects_cloud_provider():
+    app = FastAPI()
+    app.include_router(voice.router)
+
+    response = TestClient(app).post(
+        "/voice/tts",
+        json={"text": "Hello.", "language": "en", "provider": "cloud"},
+    )
+
+    assert response.status_code == 400
+    assert "Cloud realtime TTS is disabled" in response.json()["detail"]
+
+
+def test_voice_stream_vad_mode_uses_silero_vad_for_speech_start(monkeypatch):
+    calls = []
+
+    class FakeProbability:
+        def __init__(self, value):
+            self.value = value
+
+        def item(self):
+            return self.value
+
+    class FakeVadModel:
+        def __call__(self, tensor, sample_rate):
+            calls.append((tensor, sample_rate))
+            return FakeProbability(0.9)
+
+    class FakeTorch:
+        @staticmethod
+        def from_numpy(samples):
+            return samples
+
+    class FakeSttModel:
+        def transcribe(self, *_args, **_kwargs):
+            return [], {}
+
+    monkeypatch.setattr(voice.config, "torch", FakeTorch())
+    monkeypatch.setattr(voice, "_ensure_vad_loaded", lambda: {"model": FakeVadModel(), "utils": ()})
+    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: FakeSttModel())
+    monkeypatch.setattr(voice, "_resolve_tts_engine", lambda _language, _provider=None: "unavailable")
+    monkeypatch.setattr(voice, "_stt_runtime", lambda _language: {})
+
+    app = FastAPI()
+    app.include_router(voice.router)
+    audio = voice.np.ones(512, dtype=voice.np.float32).tobytes()
+
+    with TestClient(app).websocket_connect("/voice/stream?language=en&mode=vad&silence=10") as websocket:
+        assert websocket.receive_json() == {"type": "ready"}
+        websocket.send_bytes(audio)
+        assert websocket.receive_json() == {"type": "vad", "event": "speech-start"}
+
+    assert len(calls) == 1
+    assert calls[0][1] == 16000
 
 
 def test_voice_download_models_uses_resolved_qwen3_fallback(monkeypatch):
