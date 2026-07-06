@@ -23,6 +23,8 @@ import {
 import { hashWordSync } from '../services/srsAlgorithm';
 import { buildKnownWordSet, buildTrackedWordSet } from './knowledgeUtils';
 
+export type CanonicalizeWordForLanguage = (language: string, word: string) => string;
+
 export interface LevelWordStats {
   level: number;
   name: string;
@@ -67,6 +69,11 @@ export interface LevelStats {
 
 function langKey(language: string, wordHash: string): string {
   return language + ':' + wordHash;
+}
+
+function wordKey(language: string, word: string, canonicalizeWord?: CanonicalizeWordForLanguage): string {
+  const storageWord = canonicalizeWord ? canonicalizeWord(language, word) : word;
+  return langKey(language, hashWordSync(storageWord));
 }
 
 /**
@@ -118,10 +125,11 @@ export function buildLearningWordSet(
 function buildFrequencyHashSet(
   wordFrequency: WordFrequencyMap,
   language: string,
+  canonicalizeWord?: CanonicalizeWordForLanguage,
 ): Set<string> {
   const set = new Set<string>();
   for (const word of Object.keys(wordFrequency)) {
-    set.add(langKey(language, hashWordSync(word)));
+    set.add(wordKey(language, word, canonicalizeWord));
   }
   return set;
 }
@@ -134,8 +142,9 @@ export function getWordLevelStatus(
   knownSet: Set<string>,
   learningSet: Set<string>,
   trackedSet: Set<string>,
+  canonicalizeWord?: CanonicalizeWordForLanguage,
 ): WordLevelStatus {
-  const lk = langKey(language, hashWordSync(word));
+  const lk = wordKey(language, word, canonicalizeWord);
 
   if (knownSet.has(lk)) return 'known';
   if (learningSet.has(lk)) return 'learning';
@@ -265,6 +274,7 @@ export function computeLevelStats(
   learningThreshold: number,
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
+  canonicalizeWord?: CanonicalizeWordForLanguage,
 ): LevelStats[] {
   const levelBuckets = buildLevelBuckets(wordFrequency, levelNames, languageData);
   if (levelBuckets.size === 0) return [];
@@ -288,7 +298,7 @@ export function computeLevelStats(
       let unknown = 0;
 
       for (const [word] of entries) {
-        const lk = langKey(language, hashWordSync(word));
+        const lk = wordKey(language, word, canonicalizeWord);
 
         if (knownSet.has(lk)) {
           known++;
@@ -336,6 +346,7 @@ export function computeWordLevelStats(
   learningThreshold: number,
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
+  canonicalizeWord?: CanonicalizeWordForLanguage,
 ): ComprehensiveWordStats {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -347,7 +358,7 @@ export function computeWordLevelStats(
   );
 
   const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-  const freqHashSet = buildFrequencyHashSet(wordFrequency, language);
+  const freqHashSet = buildFrequencyHashSet(wordFrequency, language, canonicalizeWord);
 
   // Bucket frequency words by level
   const levelBuckets = new Map<number, { total: number; known: number; learning: number; unknown: number }>();
@@ -358,7 +369,7 @@ export function computeWordLevelStats(
   }
 
   for (const [word, entry] of Object.entries(wordFrequency)) {
-    const lk = langKey(language, hashWordSync(word));
+    const lk = wordKey(language, word, canonicalizeWord);
     const bucket = levelBuckets.get(entry.raw_level);
     if (!bucket) continue;
 
@@ -436,6 +447,7 @@ export function computeLevelCoverage(
   knownThreshold: number,
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
+  canonicalizeWord?: CanonicalizeWordForLanguage,
 ): Array<{ level: number; name: string; total: number; known: number; pct: number }> {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -456,7 +468,7 @@ export function computeLevelCoverage(
   }
 
   for (const [word, entry] of Object.entries(wordFrequency)) {
-    const lk = langKey(language, hashWordSync(word));
+    const lk = wordKey(language, word, canonicalizeWord);
     const total = levelTotals.get(entry.raw_level);
     if (total === undefined) continue;
 

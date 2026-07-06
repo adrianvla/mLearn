@@ -459,6 +459,18 @@ export function limitConsecutiveDots(text: string, max = 3): string {
   return result;
 }
 
+/**
+ * Remove short bracketed reading/aside annotations before sending text to TTS.
+ */
+export function stripBracketedTtsAnnotations(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/（[^（）]*）|\([^()]*\)|［[^［］]*］|\[[^\[\]]*\]/g, '')
+    .replace(/\s+([,.!?。！？؟؛])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 // ============================================================================
 // Language Display Names
 // ============================================================================

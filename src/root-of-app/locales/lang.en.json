@@ -482,25 +482,33 @@
           "Title": "Session Summary"
         },
         "CloudTts": "Cloud",
+        "AddAgentVoice": "Add a default voice to the selected agent first.",
+        "Advanced": "Advanced",
         "DefaultVoice": "Default voice",
         "DownloadFailed": "Failed to download voice models. The required dependencies may not be installed. Please reinstall the application or check the logs for details.",
         "DownloadModels": "Download Voice Models",
         "DownloadingModels": "Downloading voice models…",
-        "CheckingModels": "Checking local STT, TTS, and VAD models…",
+        "CheckingModels": "Checking local voice models…",
         "EmptyHint": "Start a voice call to practice speaking with the AI tutor.",
         "EndCall": "End call",
         "HandsFree": "Hands-Free",
         "Initializing": "Loading voice engines…",
         "InstallingDependencies": "Installing voice dependencies…",
         "Interrupted": "*interrupted by user*",
+        "Interrupt": "Interrupt",
         "Listening": "Listening…",
         "LoadingTtsModel": "Loading speech model…",
-        "LocalTts": "Local",
         "MicPermission": "Microphone access is required for voice calls.",
+        "Microphone": "Microphone",
+        "DefaultMicrophone": "Default microphone",
+        "MicrophoneNumber": "Microphone {index}",
+        "Mode": "Mode",
         "ModelsRequired": "Voice models are required for this feature. Download them to get started.",
+        "None": "None",
+        "Pipeline": "Pipeline",
         "Processing": "Processing…",
+        "Provider": "Provider",
         "PushToTalk": "Push to Talk",
-        "Qwen3Tts": "Qwen3",
         "SilenceThreshold": "Silence threshold",
         "Speaking": "Speaking…",
         "Stage": {
@@ -508,12 +516,14 @@
           "STT": "STT",
           "TTS": "TTS"
         },
+        "StreamedChunks": "Streamed chunks",
         "StartCall": "Start voice call",
-        "TtsProvider": "TTS engine",
+        "TtsProvider": "Voice",
         "TtsSpeed": "Speech speed",
         "UploadSample": "Upload voice sample",
-        "VoiceSample": "Voice clone",
-        "VoiceSampleDisabledLocal": "Custom voice upload is only available with Qwen3-TTS"
+        "VoiceSample": "Streaming voice clone",
+        "LightweightVoice": "Lightweight voice",
+        "SystemVoice": "System voice"
       },
       "Memory": {
         "ClearAll": "Clear all memories",
@@ -2471,7 +2481,7 @@
     },
     "WordSync": {
       "FinishedTitle": "All done!",
-      "FinishedDescription": "You rated {count} words. Your word knowledge has been updated.",
+      "FinishedDescription": "You checked {count} words. Your word knowledge has been updated.",
       "Progress": "{rated} / {total} words",
       "Unknown": "Unknown",
       "Learning": "Learning",
@@ -2641,6 +2651,7 @@
       "Palette": "Available filters",
       "FilterBox": "Filter expression",
       "FilterBoxEmpty": "Drag filters here to build your expression",
+      "Clear": "Clear filters",
       "Remove": "Remove",
       "MoveUp": "Move up",
       "MoveDown": "Move down",
@@ -2671,6 +2682,7 @@
         "Recency": "Recency"
       },
       "Status": {
+        "Untracked": "Untracked",
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
@@ -2681,7 +2693,8 @@
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
-      "TokenMoved": "Filter moved"
+      "TokenMoved": "Filter moved",
+      "TokensCleared": "Filters cleared"
     },
     "CharacterGrid": {
       "CharactersByLevel": "Characters by level:",

@@ -482,25 +482,33 @@
           "Title": "会话总结"
         },
         "CloudTts": "云端",
+        "AddAgentVoice": "请先为所选代理添加默认语音。",
+        "Advanced": "高级",
         "DefaultVoice": "默认语音",
         "DownloadFailed": "下载语音模型失败。可能未安装所需依赖。请重新安装应用程序或查看日志了解详情。",
         "DownloadModels": "下载语音模型",
         "DownloadingModels": "正在下载语音模型…",
-        "CheckingModels": "正在检查本地 STT、TTS 和 VAD 模型…",
+        "CheckingModels": "正在检查本地语音模型…",
         "EmptyHint": "开始语音通话，与 AI 导师练习口语。",
         "EndCall": "结束通话",
         "HandsFree": "免提模式",
         "Initializing": "正在加载语音引擎…",
         "InstallingDependencies": "正在安装语音依赖…",
         "Interrupted": "*被用户中断*",
+        "Interrupt": "中断",
         "Listening": "正在聆听…",
         "LoadingTtsModel": "正在加载语音合成模型…",
-        "LocalTts": "本地",
         "MicPermission": "语音通话需要麦克风访问权限。",
+        "Microphone": "麦克风",
+        "DefaultMicrophone": "默认麦克风",
+        "MicrophoneNumber": "麦克风 {index}",
+        "Mode": "模式",
         "ModelsRequired": "此功能需要语音模型。请下载后开始使用。",
+        "None": "无",
+        "Pipeline": "管线",
         "Processing": "处理中…",
+        "Provider": "提供方",
         "PushToTalk": "按需通话",
-        "Qwen3Tts": "Qwen3",
         "SilenceThreshold": "静音阈值",
         "Speaking": "正在说话…",
         "Stage": {
@@ -508,12 +516,14 @@
           "STT": "STT",
           "TTS": "TTS"
         },
+        "StreamedChunks": "流式分块",
         "StartCall": "开始语音通话",
-        "TtsProvider": "TTS 引擎",
+        "TtsProvider": "语音",
         "TtsSpeed": "语速",
         "UploadSample": "上传语音样本",
-        "VoiceSample": "语音克隆",
-        "VoiceSampleDisabledLocal": "自定义语音上传仅适用于 Qwen3-TTS"
+        "VoiceSample": "流式语音克隆",
+        "LightweightVoice": "轻量语音",
+        "SystemVoice": "系统语音"
       },
       "Memory": {
         "ClearAll": "清除所有记忆",
@@ -2471,7 +2481,7 @@
     },
     "WordSync": {
       "FinishedTitle": "全部完成！",
-      "FinishedDescription": "您已评估了 {count} 个单词。您的单词知识已更新。",
+      "FinishedDescription": "您已检查 {count} 个单词。您的单词知识已更新。",
       "Progress": "{rated} / {total} 个单词",
       "Unknown": "未知",
       "Learning": "学习中",
@@ -2641,6 +2651,7 @@
       "Palette": "Available filters",
       "FilterBox": "Filter expression",
       "FilterBoxEmpty": "Drag filters here to build your expression",
+      "Clear": "清空筛选器",
       "Remove": "Remove",
       "MoveUp": "Move up",
       "MoveDown": "Move down",
@@ -2671,6 +2682,7 @@
         "Recency": "Recency"
       },
       "Status": {
+        "Untracked": "未追踪",
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
@@ -2681,7 +2693,8 @@
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
-      "TokenMoved": "Filter moved"
+      "TokenMoved": "Filter moved",
+      "TokensCleared": "筛选器已清空"
     },
     "CharacterGrid": {
       "CharactersByLevel": "按等级划分的字符：",

@@ -85,6 +85,7 @@ export const LevelStudyTab: Component = () => {
       settings.srsLearningThreshold,
       getLevelStudyLevelNames(langData),
       langData,
+      language.getCanonicalFormForLanguage,
     );
   });
 

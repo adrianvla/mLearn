@@ -26,6 +26,7 @@ import type {
   VoiceTtsStatus,
   VoiceMode,
   VoiceSessionReady,
+  VoiceSessionStatus,
   VoiceSessionError,
   VoiceSample,
   PipProgress,
@@ -228,7 +229,7 @@ export interface VoiceBridge {
   voiceCheckModels: (language: string) => Promise<VoiceModelStatus>;
   voiceDownloadModels: (language: string) => void;
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) => () => void;
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number) => void;
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => void;
   voiceStopSession: () => void;
   voiceSendAudioChunk: (samples: Float32Array) => void;
   voiceFlush: () => void;
@@ -240,6 +241,7 @@ export interface VoiceBridge {
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
   onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) => () => void;
+  onVoiceSessionStatus: (callback: (data: VoiceSessionStatus) => void) => () => void;
   onVoiceSessionError: (callback: (data: VoiceSessionError) => void) => () => void;
   voiceSampleList: () => Promise<VoiceSample[]>;
   voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;

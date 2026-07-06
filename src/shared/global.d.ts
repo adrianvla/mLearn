@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
+import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 
@@ -261,7 +261,7 @@ sendLogRecord: (record: unknown) => void;
   voiceCheckModels: (language: string) => Promise<VoiceModelStatus>;
   voiceDownloadModels: (language: string) => void;
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) => () => void;
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number) => void;
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => void;
   voiceStopSession: () => void;
   voiceSendAudioChunk: (samples: Float32Array) => void;
   voiceFlush: () => void;
@@ -273,6 +273,7 @@ sendLogRecord: (record: unknown) => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
   onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) => () => void;
+  onVoiceSessionStatus: (callback: (data: VoiceSessionStatus) => void) => () => void;
   onVoiceSessionError: (callback: (data: VoiceSessionError) => void) => () => void;
 
   // Voice Sample Management

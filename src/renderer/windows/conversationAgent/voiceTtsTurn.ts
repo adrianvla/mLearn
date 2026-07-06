@@ -1,4 +1,5 @@
 import { drainSpeakablePhrases } from './voicePhraseQueue';
+import { stripBracketedTtsAnnotations } from '../../../shared/utils/textUtils';
 
 export interface VoiceTtsPhraseRequest {
   phrase: string;
@@ -51,7 +52,9 @@ export function enqueueVoiceTtsPhrasesForMessage(
   if (drained.phrases.length === 0) return [];
 
   state.drainIndex = drained.nextIndex;
-  const speakable = drained.phrases.map((phrase) => phrase.trim()).filter(Boolean);
+  const speakable = drained.phrases
+    .map((phrase) => stripBracketedTtsAnnotations(phrase))
+    .filter(Boolean);
   state.pendingPhrases.push(...speakable);
   state.sentenceTexts.push(...speakable);
   return speakable;

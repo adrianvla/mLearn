@@ -65,6 +65,15 @@ const toLocalMediaUrl = (filePath: string): string => {
 
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
+const THUMBNAIL_MIN_TIME = 10; // seconds: skip black frames near video start
+
+const getThumbnailCaptureMinTime = (video: HTMLVideoElement): number => {
+  if (video.duration && isFinite(video.duration)) {
+    return Math.min(THUMBNAIL_MIN_TIME, Math.max(0.5, video.duration * 0.1));
+  }
+
+  return THUMBNAIL_MIN_TIME;
+};
 
 const getMediaNameFromPath = (filePath: string, parseOptions?: ParseWorkNameOptions): string => {
   const rawName = filePath.replace(/\\/g, '/').split('/').pop() || 'Video';
@@ -378,6 +387,12 @@ export const VideoRoute: Component = () => {
     });
   };
 
+  const hasRecentThumbnail = async (path: string, name: string): Promise<boolean> => {
+    const items = await getRecentItems();
+    const item = items.find((recentItem) => (path ? recentItem.path === path : recentItem.name === name));
+    return Boolean(item?.thumbnail);
+  };
+
   const persistCurrentSubtitlePath = async (subtitlePath: string) => {
     const videoPath = currentVideoPath();
     if (!subtitlePath || !videoPath) {
@@ -679,6 +694,8 @@ export const VideoRoute: Component = () => {
   
   let thumbnailInterval: number | null = null;
   let progressInterval: number | null = null;
+  let lastThumbnailCaptureKey = '';
+  let lastThumbnailCaptureAt = 0;
   const ipcCleanups: Array<() => void> = [];
 
   onMount(() => {
@@ -844,6 +861,7 @@ export const VideoRoute: Component = () => {
         if (!watchTogether.isSuppressed) {
           watchTogether.sendSync(video.currentTime);
         }
+        captureThumbnailIfReady();
         bridge.overlay.sendOverlayVideoState({
           currentTime: video.currentTime,
           isPlaying: !video.paused,
@@ -856,15 +874,20 @@ export const VideoRoute: Component = () => {
           title: currentVideoName(),
         });
       };
+      const onTimeUpdate = () => {
+        captureThumbnailIfReady();
+      };
 
       video.addEventListener('play', onPlay);
       video.addEventListener('pause', onPause);
       video.addEventListener('seeked', onSeeked);
+      video.addEventListener('timeupdate', onTimeUpdate);
 
       ipcCleanups.push(() => {
         video.removeEventListener('play', onPlay);
         video.removeEventListener('pause', onPause);
         video.removeEventListener('seeked', onSeeked);
+        video.removeEventListener('timeupdate', onTimeUpdate);
       });
     };
 
@@ -872,11 +895,16 @@ export const VideoRoute: Component = () => {
     const attachInitialThumbnailCapture = () => {
       const video = document.querySelector('video');
       if (!video) return;
+      const captureMissingThumbnail = () => {
+        void captureThumbnailIfMissing();
+      };
       const onCanPlay = () => {
+        captureMissingThumbnail();
         captureThumbnailIfReady();
         video.removeEventListener('canplay', onCanPlay);
       };
       if (video.readyState >= 3) {
+        captureMissingThumbnail();
         captureThumbnailIfReady();
       } else {
         video.addEventListener('canplay', onCanPlay);
@@ -977,20 +1005,44 @@ export const VideoRoute: Component = () => {
     );
   });
   
-  const THUMBNAIL_MIN_TIME = 10; // seconds: skip black frames near video start
-
   const captureThumbnailIfReady = () => {
     const videoEl = document.querySelector('video');
     const name = currentVideoName();
     const path = currentVideoPath();
-    if (videoEl && name && videoEl.readyState >= 2 && videoEl.currentTime >= THUMBNAIL_MIN_TIME) {
+    const captureKey = path || name;
+    const now = Date.now();
+    if (captureKey === lastThumbnailCaptureKey && now - lastThumbnailCaptureAt < 10000) {
+      return;
+    }
+    if (videoEl && name && videoEl.readyState >= 2 && videoEl.currentTime >= getThumbnailCaptureMinTime(videoEl)) {
       const thumbnail = captureVideoThumbnail(videoEl);
       if (thumbnail) {
+        lastThumbnailCaptureKey = captureKey;
+        lastThumbnailCaptureAt = now;
         if (path) {
           void updateRecentItemThumbnailByPath(path, thumbnail);
+        } else {
+          void updateRecentItemThumbnail(name, thumbnail);
         }
-        void updateRecentItemThumbnail(name, thumbnail);
       }
+    }
+  };
+
+  const captureThumbnailIfMissing = async () => {
+    const videoEl = document.querySelector('video');
+    const name = currentVideoName();
+    const path = currentVideoPath();
+    if (!videoEl || !name || videoEl.readyState < 2 || await hasRecentThumbnail(path, name)) {
+      return;
+    }
+
+    const thumbnail = captureVideoThumbnail(videoEl);
+    if (!thumbnail) return;
+
+    if (path) {
+      await updateRecentItemThumbnailByPath(path, thumbnail);
+    } else {
+      await updateRecentItemThumbnail(name, thumbnail);
     }
   };
 

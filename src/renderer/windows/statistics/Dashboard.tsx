@@ -48,7 +48,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 export const Dashboard: Component = () => {
   const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage } = useLanguage();
   const { t } = useLocalization();
 
   initTimeWatched(settings);
@@ -206,6 +206,7 @@ export const Dashboard: Component = () => {
       settings.srsLearningThreshold,
       getFreqLevelNames(),
       currentLangData(),
+      getCanonicalFormForLanguage,
     ),
   );
 

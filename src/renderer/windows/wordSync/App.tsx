@@ -13,6 +13,7 @@ import {
   PillLabel,
   buildWordSyncFields,
   buildWordSyncPreset,
+  WORD_SYNC_STATUS_UNTRACKED,
   evaluateAst,
   parseTokens,
   validateTokens,
@@ -72,6 +73,7 @@ export const WordSyncContent: Component = () => {
     store,
     setWordKnowledgeEase,
     markWordSyncSeen,
+    clearAllWordSyncSeen,
     getWordKnowledge,
     getComprehensiveWordStatusWithSourceSync,
   } = useFlashcards();
@@ -196,25 +198,31 @@ export const WordSyncContent: Component = () => {
     return WORD_STATUS.UNKNOWN;
   };
 
-  function resolveWordSyncStatus(word: string, lk: string, knowledge: ReturnType<typeof getWordKnowledge>): 'unknown' | 'learning' | 'known' {
-    if (store.knownUntracked[lk] || store.ignoredWords[lk]) return 'known';
+  function resolveWordSyncFilterStatus(word: string, lk: string, knowledge: ReturnType<typeof getWordKnowledge>): string {
+    if (store.knownUntracked[lk] || store.ignoredWords[lk]) return String(WORD_STATUS.KNOWN);
 
     const cardIds = store.wordToCardMap?.[lk] ?? [];
     for (const cardId of cardIds) {
       const card = store.flashcards?.[cardId];
       if (!card) continue;
-      if (card.state === 'review') return 'known';
-      if (card.state === 'learning' || card.state === 'relearning') return 'learning';
+      if (card.state === 'review') return String(WORD_STATUS.KNOWN);
+      if (card.state === 'learning' || card.state === 'relearning') return String(WORD_STATUS.LEARNING);
     }
 
     if (knowledge) {
-      if (knowledge.ease >= settings.easeThresholdKnown) return 'known';
-      if (knowledge.ease >= settings.easeThresholdLearning) return 'learning';
+      if (knowledge.ease >= settings.easeThresholdKnown) return String(WORD_STATUS.KNOWN);
+      if (knowledge.ease >= settings.easeThresholdLearning) return String(WORD_STATUS.LEARNING);
+      return String(WORD_STATUS.UNKNOWN);
     }
 
-    return settings.use_anki
-      ? getComprehensiveWordStatusWithSourceSync(word, settings.language).status
-      : 'unknown';
+    if (settings.use_anki) {
+      const comprehensive = getComprehensiveWordStatusWithSourceSync(word, settings.language);
+      if (comprehensive.source !== 'None') {
+        return String(wordStatusToNumeric(comprehensive.status));
+      }
+    }
+
+    return WORD_SYNC_STATUS_UNTRACKED;
   }
 
   // ─── Known character set for language-defined study scripts ─────
@@ -269,10 +277,9 @@ export const WordSyncContent: Component = () => {
         if (store.ignoredWords[lk]) continue;
 
         const knowledge = getWordKnowledge(lk);
-        const resolvedStatus = resolveWordSyncStatus(word, lk, knowledge);
         const seenRecently = isSyncSeenRecentlyByKey(lk, now);
         const record = {
-          status: wordStatusToNumeric(resolvedStatus),
+          status: resolveWordSyncFilterStatus(word, lk, knowledge),
           level: entry.raw_level,
           seenRecently,
         };
@@ -307,6 +314,14 @@ export const WordSyncContent: Component = () => {
     const groups = buildWordPoolSnapshot();
     setWordPool(groups);
     return groups;
+  }
+
+  function buildDefaultFilterPreset(): FilterToken[] {
+    return buildWordSyncPreset(
+      levelNames(),
+      getLearningLanguageLevelForLanguage(settings, settings.language),
+      langCtx.currentLangData(),
+    );
   }
 
   let levelCursors = new Map<number, number>();
@@ -391,7 +406,8 @@ export const WordSyncContent: Component = () => {
   }
 
   function recheckAll() {
-    setFilterTokens([]);
+    clearAllWordSyncSeen();
+    setFilterTokens(buildDefaultFilterPreset());
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
@@ -419,11 +435,7 @@ export const WordSyncContent: Component = () => {
 
   createEffect(() => {
     if (!filterPresetInitialized() && Object.keys(levelNames()).length > 0) {
-      setFilterTokens(buildWordSyncPreset(
-        levelNames(),
-        getLearningLanguageLevelForLanguage(settings, settings.language),
-        langCtx.currentLangData(),
-      ));
+      setFilterTokens(buildDefaultFilterPreset());
       setFilterPresetInitialized(true);
       return;
     }
@@ -444,9 +456,10 @@ export const WordSyncContent: Component = () => {
     if (word) {
       const ast = filterAst();
       if (!ast.ok || !ast.ast) return;
+      const lk = getWordSyncStorageKey(word.word, settings.language);
 
       const record = {
-        status: wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word.word, settings.language).status),
+        status: resolveWordSyncFilterStatus(word.word, lk, getWordKnowledge(lk)),
         level: word.level,
         seenRecently: isSyncSeenRecently(word.word, settings.language),
       };

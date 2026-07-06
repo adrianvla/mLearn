@@ -9,19 +9,27 @@
 .level-study-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px 16px 0;
+  gap: 0;
+  padding: 4px 18px 0;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  -webkit-app-region: drag;
 }
 
 .level-study-header-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 18px;
+  height: 30px;
+  margin-left: 118px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+  -webkit-app-region: drag;
+}
+
+.level-study-header .tab-container {
+  -webkit-app-region: no-drag;
 }
 
 .level-study-content {

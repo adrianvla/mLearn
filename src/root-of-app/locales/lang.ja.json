@@ -482,25 +482,33 @@
           "Title": "セッションサマリー"
         },
         "CloudTts": "Cloud",
+        "AddAgentVoice": "先に選択中のエージェントへデフォルト音声を追加してください。",
+        "Advanced": "詳細",
         "DefaultVoice": "デフォルトの声",
         "DownloadFailed": "音声モデルのダウンロードに失敗しました。必要な依存関係がインストールされていない可能性があります。アプリケーションを再インストールするか、ログを確認してください。",
         "DownloadModels": "音声モデルをダウンロード",
         "DownloadingModels": "音声モデルをダウンロード中…",
-        "CheckingModels": "ローカルのSTT、TTS、VADモデルを確認中…",
+        "CheckingModels": "ローカル音声モデルを確認中…",
         "EmptyHint": "音声通話を開始してAIチューターとスピーキングを練習しましょう。",
         "EndCall": "通話を終了",
         "HandsFree": "ハンズフリー",
         "Initializing": "音声エンジンを読み込み中…",
         "InstallingDependencies": "音声依存関係をインストール中…",
         "Interrupted": "*ユーザーによる中断*",
+        "Interrupt": "中断",
         "Listening": "聞いています…",
         "LoadingTtsModel": "音声合成モデルを読み込み中…",
-        "LocalTts": "ローカル",
         "MicPermission": "音声通話にはマイクへのアクセスが必要です。",
+        "Microphone": "マイク",
+        "DefaultMicrophone": "デフォルトのマイク",
+        "MicrophoneNumber": "マイク {index}",
+        "Mode": "モード",
         "ModelsRequired": "この機能には音声モデルが必要です。ダウンロードして開始してください。",
+        "None": "なし",
+        "Pipeline": "パイプライン",
         "Processing": "処理中…",
+        "Provider": "プロバイダー",
         "PushToTalk": "プッシュトゥトーク",
-        "Qwen3Tts": "Qwen3",
         "SilenceThreshold": "無音閾値",
         "Speaking": "話しています…",
         "Stage": {
@@ -508,12 +516,14 @@
           "STT": "STT",
           "TTS": "TTS"
         },
+        "StreamedChunks": "ストリーミングチャンク",
         "StartCall": "音声通話を開始",
-        "TtsProvider": "TTSエンジン",
+        "TtsProvider": "声",
         "TtsSpeed": "話速",
         "UploadSample": "音声サンプルをアップロード",
-        "VoiceSample": "音声クローン",
-        "VoiceSampleDisabledLocal": "カスタム音声アップロードはQwen3-TTSでのみ利用可能です"
+        "VoiceSample": "ストリーミング音声クローン",
+        "LightweightVoice": "軽量ボイス",
+        "SystemVoice": "システムボイス"
       },
       "Memory": {
         "ClearAll": "すべての記憶を消去",
@@ -2471,7 +2481,7 @@
     },
     "WordSync": {
       "FinishedTitle": "完了！",
-      "FinishedDescription": "{count}語を評価しました。単語知識が更新されました。",
+      "FinishedDescription": "{count}語を確認しました。単語知識が更新されました。",
       "Progress": "{rated} / {total} 語",
       "Unknown": "未知",
       "Learning": "学習中",
@@ -2641,6 +2651,7 @@
       "Palette": "Available filters",
       "FilterBox": "Filter expression",
       "FilterBoxEmpty": "Drag filters here to build your expression",
+      "Clear": "フィルターをクリア",
       "Remove": "Remove",
       "MoveUp": "Move up",
       "MoveDown": "Move down",
@@ -2671,6 +2682,7 @@
         "Recency": "Recency"
       },
       "Status": {
+        "Untracked": "未追跡",
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
@@ -2681,7 +2693,8 @@
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
-      "TokenMoved": "Filter moved"
+      "TokenMoved": "Filter moved",
+      "TokensCleared": "フィルターをクリアしました"
     },
     "CharacterGrid": {
       "CharactersByLevel": "レベル別の文字:",

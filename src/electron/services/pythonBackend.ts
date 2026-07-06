@@ -122,6 +122,7 @@ let pendingInstallOptions: InstallOptions = { includeLLM: true, includeOCR: true
 let serverLoadCheckInterval: NodeJS.Timeout | null = null;
 
 let quitToken: string | null = null;
+const quitTokenListeners = new Set<(token: string) => void>();
 
 // Buffered error state so the renderer can retrieve it even if it mounts
 // after the Python process exits.
@@ -264,6 +265,25 @@ export function getPythonProcess(): ChildProcess | null {
 
 export function getQuitToken(): string | null {
   return quitToken;
+}
+
+export function onQuitTokenAvailable(callback: (token: string) => void): () => void {
+  if (quitToken) {
+    queueMicrotask(() => callback(quitToken!));
+    return () => {};
+  }
+
+  quitTokenListeners.add(callback);
+  return () => {
+    quitTokenListeners.delete(callback);
+  };
+}
+
+function notifyQuitTokenAvailable(token: string): void {
+  for (const listener of Array.from(quitTokenListeners)) {
+    quitTokenListeners.delete(listener);
+    listener(token);
+  }
 }
 
 // Send status update to current window
@@ -806,9 +826,10 @@ async function pythonFound(): Promise<boolean> {
     const text = data.toString('utf8');
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
     for (const line of lines) {
-      const quitTokenMatch = line.match(/^::QUIT_TOKEN::([a-f0-9]+)$/);
+      const quitTokenMatch = line.match(/::QUIT_TOKEN::([a-f0-9]+)/);
       if (quitTokenMatch) {
         quitToken = quitTokenMatch[1];
+        notifyQuitTokenAvailable(quitToken);
         continue;
       }
       if (line.startsWith(V2_PREFIX)) {

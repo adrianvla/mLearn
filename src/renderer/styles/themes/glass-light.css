@@ -47,12 +47,6 @@ body.theme-glass-light {
 /* === End index.css === */
 
 
-/* === Prosody renderer === */
-body.theme-glass-light .prosody-overlay-wrapper,
-.theme-glass-light .prosody-overlay-wrapper {
-  color: var(--text-primary);
-}
-
 /* When inside subtitle hover */
 .subtitle_hover {
   --prosody-overlay-height: 2px;
@@ -65,7 +59,6 @@ body.theme-glass-light .prosody-overlay-wrapper,
 body.theme-glass-light .subtitle_hover .prosody-overlay-wrapper,
 .subtitle_hover.theme-glass-light .prosody-overlay-wrapper {
   filter: none;
-  color: var(--text-primary);
 }
 
 /* === End Prosody renderer === */

@@ -1446,6 +1446,7 @@ const voiceBridge: VoiceBridge = {
   onVoiceTtsAudio: noopCleanup,
   onVoiceTtsStatus: noopCleanup,
   onVoiceSessionReady: noopCleanup,
+  onVoiceSessionStatus: noopCleanup,
   onVoiceSessionError: noopCleanup,
   async voiceSampleList(): Promise<VoiceSample[]> { return []; },
   async voiceSampleUpload(): Promise<VoiceSample> { throw new Error('Not supported on mobile'); },

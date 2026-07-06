@@ -53,6 +53,14 @@
 .voice-initializing {
   display: flex;
   align-items: center;
+  flex-direction: column;
+  flex-wrap: wrap;
+  padding: var(--spacing-2) 0;
+}
+
+.voice-initializing-row {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-3);
   padding: var(--spacing-2) 0;
@@ -112,23 +120,25 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .voice-stage-pill {
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   text-transform: uppercase;
-  padding: 2px var(--spacing-2);
-  border-radius: var(--radius-full);
-  color: var(--text-tertiary);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .voice-stage-pill.active {
-  color: var(--bg);
+  color: var(--text-on-strong);
   background: var(--color-primary);
   border-color: var(--color-primary);
 }
@@ -138,12 +148,154 @@
   color: var(--text-tertiary);
 }
 
+/* ------ Advanced diagnostics ------ */
+
+.voice-advanced {
+  width: min(560px, 100%);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.voice-advanced summary {
+  cursor: pointer;
+  width: fit-content;
+  margin: 0 auto;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  list-style-position: inside;
+}
+
+.voice-advanced[open] summary {
+  margin-bottom: var(--spacing-2);
+  color: var(--text);
+}
+
+.voice-debug-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.voice-chunk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.voice-chunk-row strong,
+.voice-debug-grid strong {
+  color: var(--text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.voice-chunk-canvas {
+  --voice-timeline-chunk: var(--color-success);
+  --voice-timeline-separator: var(--color-primary);
+  --voice-timeline-playhead: var(--color-error);
+  --voice-timeline-phrase: var(--color-warning);
+  --voice-timeline-phrase-text: var(--text-on-warning);
+  --voice-timeline-muted: var(--border-color);
+  display: block;
+  width: 100%;
+  height: 116px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.voice-debug-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--spacing-1) var(--spacing-3);
+  align-items: baseline;
+}
+
+.voice-debug-grid span {
+  color: var(--text-tertiary);
+}
+
+.voice-debug-grid strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.voice-debug-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.voice-debug-event {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: var(--spacing-2);
+  align-items: baseline;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border-left: 3px solid var(--border-color);
+}
+
+.voice-debug-event time {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-debug-event strong {
+  color: var(--text);
+}
+
+.voice-debug-event span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.voice-debug-event.active {
+  border-left-color: var(--color-primary);
+}
+
+.voice-debug-event.warn {
+  border-left-color: var(--color-warning);
+}
+
+.voice-debug-event.error {
+  border-left-color: var(--color-error);
+}
+
 /* ------ Controls row ------ */
 
 .voice-controls {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
+}
+
+.voice-start-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.voice-start-selectors {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  width: min(360px, 100%);
+}
+
+.voice-start-selectors select {
+  min-width: 160px;
+  flex: 1 1 160px;
 }
 
 /* ------ Mode toggle ------ */
@@ -166,11 +318,12 @@
   border-radius: var(--radius-full);
   width: 3.5rem;
   height: 3.5rem;
+  padding: 0;
 }
 
 .voice-end-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
 }
 
 /* ------ Push-to-talk button ------ */

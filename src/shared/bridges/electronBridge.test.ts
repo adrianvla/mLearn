@@ -125,6 +125,7 @@ function createMockIPC() {
     onVoiceTtsAudio: vi.fn(),
     onVoiceTtsStatus: vi.fn(),
     onVoiceSessionReady: vi.fn(),
+    onVoiceSessionStatus: vi.fn(),
     onVoiceSessionError: vi.fn(),
     voiceSampleList: vi.fn(),
     voiceSampleUpload: vi.fn(),
@@ -989,10 +990,10 @@ describe('voiceBridge', () => {
     expect(mockIPC.onVoiceModelProgress).toHaveBeenCalledWith(cb);
   });
 
-  it('voiceStartSession passes language, mode, and threshold to ipc.voiceStartSession', () => {
+  it('voiceStartSession passes language, mode, threshold, and provider to ipc.voiceStartSession', () => {
     const bridge = createElectronBridge();
-    bridge.voice.voiceStartSession('en', 'vad', 0.5);
-    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('en', 'vad', 0.5);
+    bridge.voice.voiceStartSession('en', 'vad', 0.5, 'qwen3');
+    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('en', 'vad', 0.5, 'qwen3');
   });
 
   it('voiceStopSession delegates to ipc.voiceStopSession', () => {
@@ -1065,6 +1066,13 @@ describe('voiceBridge', () => {
     const bridge = createElectronBridge();
     bridge.voice.onVoiceSessionReady(cb);
     expect(mockIPC.onVoiceSessionReady).toHaveBeenCalledWith(cb);
+  });
+
+  it('onVoiceSessionStatus passes callback to ipc.onVoiceSessionStatus', () => {
+    const cb = vi.fn();
+    const bridge = createElectronBridge();
+    bridge.voice.onVoiceSessionStatus(cb);
+    expect(mockIPC.onVoiceSessionStatus).toHaveBeenCalledWith(cb);
   });
 
   it('onVoiceSessionError passes callback to ipc.onVoiceSessionError', () => {

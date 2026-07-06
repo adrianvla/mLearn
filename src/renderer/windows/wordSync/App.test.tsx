@@ -9,6 +9,7 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
   source: 'None',
   timesSeen: 0,
 }));
+const mockClearAllWordSyncSeen = vi.fn();
 const mockWordSyncState = vi.hoisted(() => ({
   settings: {
     language: 'ja',
@@ -30,6 +31,49 @@ const mockWordSyncState = vi.hoisted(() => ({
   wordKnowledge: {} as Record<string, unknown>,
   getCanonicalFormForLanguage: vi.fn((_language: string, word: string) => word),
 }));
+
+const mockCommonState = vi.hoisted(() => ({
+  filterBuilderProps: null as {
+    tokens: Array<{ kind: string; field?: string; op?: string; value?: string }>;
+    onChange: (tokens: Array<{ kind: string; field?: string; op?: string; value?: string }>) => void;
+  } | null,
+  defaultPreset: [
+    {
+      instanceId: 'default-open-status',
+      kind: 'paren',
+      dir: 'open',
+    },
+    {
+      instanceId: 'default-status-untracked',
+      kind: 'operand',
+      field: 'status',
+      op: 'eq',
+      value: 'untracked',
+    },
+    {
+      instanceId: 'default-status-or',
+      kind: 'operator',
+      op: 'OR',
+    },
+    {
+      instanceId: 'default-status-unknown',
+      kind: 'operand',
+      field: 'status',
+      op: 'eq',
+      value: '0',
+    },
+    {
+      instanceId: 'default-close-status',
+      kind: 'paren',
+      dir: 'close',
+    },
+  ],
+  buildWordSyncPreset: vi.fn(),
+}));
+
+mockCommonState.buildWordSyncPreset.mockImplementation(() => (
+  mockCommonState.defaultPreset.map((token) => ({ ...token }))
+));
 
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
@@ -58,6 +102,7 @@ vi.mock('../../context', () => ({
     },
     setWordKnowledgeEase: vi.fn(),
     markWordSyncSeen: vi.fn(),
+    clearAllWordSyncSeen: mockClearAllWordSyncSeen,
     getWordKnowledge: vi.fn(() => null),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
   }),
@@ -68,10 +113,23 @@ vi.mock('../../components/common', () => ({
     <button class={props.class} onClick={props.onClick}>{props.children}</button>
   ),
   EmptyState: (props: { title?: string }) => <div>{props.title}</div>,
-  FilterBuilder: () => <div />,
+  FilterBuilder: (props: {
+    tokens: Array<{ kind: string; field?: string; op?: string; value?: string }>;
+    onChange: (tokens: Array<{ kind: string; field?: string; op?: string; value?: string }>) => void;
+  }) => {
+    mockCommonState.filterBuilderProps = props;
+    return (
+      <button
+        class="mock-filter-clear"
+        data-token-count={String(props.tokens.length)}
+        onClick={() => props.onChange([])}
+      />
+    );
+  },
   PillLabel: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+  WORD_SYNC_STATUS_UNTRACKED: 'untracked',
   buildWordSyncFields: () => ({ fields: [], paletteItems: [] }),
-  buildWordSyncPreset: () => [],
+  buildWordSyncPreset: mockCommonState.buildWordSyncPreset,
   evaluateAst: () => true,
   parseTokens: () => null,
   validateTokens: () => ({ ok: true }),
@@ -136,6 +194,9 @@ describe('WordSyncContent', () => {
     mockWordSyncState.wordKnowledge = {};
     mockWordSyncState.getCanonicalFormForLanguage.mockReset();
     mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
+    mockCommonState.filterBuilderProps = null;
+    mockCommonState.buildWordSyncPreset.mockClear();
+    mockClearAllWordSyncSeen.mockClear();
   });
 
   afterEach(() => {
@@ -232,6 +293,49 @@ describe('WordSyncContent', () => {
 
     expect(container.textContent).not.toContain('يكتب');
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    dispose();
+  });
+
+  it('restores the default word sync filter when rechecking all words', async () => {
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockCommonState.filterBuilderProps?.tokens).toMatchObject([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
+      { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
+    ]);
+
+    container.querySelector<HTMLButtonElement>('.mock-filter-clear')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockCommonState.filterBuilderProps?.tokens).toEqual([]);
+
+    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const recheckButton = container.querySelector<HTMLButtonElement>('.word-sync-recheck-btn');
+    expect(recheckButton).not.toBeNull();
+    recheckButton!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockCommonState.filterBuilderProps?.tokens).toMatchObject([
+      { kind: 'paren', dir: 'open' },
+      { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
+      { kind: 'operator', op: 'OR' },
+      { kind: 'operand', field: 'status', op: 'eq', value: '0' },
+      { kind: 'paren', dir: 'close' },
+    ]);
+    expect(mockCommonState.buildWordSyncPreset).toHaveBeenCalledTimes(2);
+    expect(mockClearAllWordSyncSeen).toHaveBeenCalledTimes(1);
+
     dispose();
   });
 });

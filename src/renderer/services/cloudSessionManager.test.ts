@@ -274,6 +274,40 @@ describe('cloudSessionManager', () => {
     cleanup();
   });
 
+  it('clears auth state and opens re-login for streamed Cloud LLM invalid-session strings', async () => {
+    const {
+      registerCloudSessionController,
+      handleCloudSessionError,
+    } = await import('./cloudSessionManager');
+
+    let currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'stale-token',
+      cloudAuthRefreshToken: 'stale-refresh',
+      cloudAuthUserEmail: 'test@kikan.net',
+    });
+    const updateSettings = vi.fn((partial: Partial<Settings>) => {
+      currentSettings = { ...currentSettings, ...partial };
+    });
+    const openCloudReLoginModal = vi.fn();
+
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings,
+      openCloudReLoginModal,
+    });
+
+    expect(handleCloudSessionError('Cloud LLM error: 401 Reason: Invalid session', true)).toBe(true);
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      cloudAuthAccessToken: '',
+      cloudAuthRefreshToken: '',
+      cloudAuthUserEmail: '',
+      cloudAuthStatus: 'signed-out',
+    }));
+    expect(openCloudReLoginModal).toHaveBeenCalledOnce();
+    cleanup();
+  });
+
   it('throws CloudUnreachableError when refresh fails for transport reasons and no fallback token exists', async () => {
     const {
       registerCloudSessionController,

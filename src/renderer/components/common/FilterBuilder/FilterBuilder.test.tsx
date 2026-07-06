@@ -17,9 +17,11 @@ const translations: Record<string, string> = {
   'mlearn.FilterBuilder.MoveUp': 'Move up',
   'mlearn.FilterBuilder.MoveDown': 'Move down',
   'mlearn.FilterBuilder.Remove': 'Remove',
+  'mlearn.FilterBuilder.Clear': 'Clear filters',
   'mlearn.FilterBuilder.TokenAdded': 'Token added',
   'mlearn.FilterBuilder.TokenMoved': 'Token moved',
   'mlearn.FilterBuilder.TokenRemoved': 'Token removed',
+  'mlearn.FilterBuilder.TokensCleared': 'Filters cleared',
   'mlearn.FilterBuilder.Error.ExpectedOperand': 'Expected operand',
   'mlearn.FilterBuilder.Error.ExpectedOperator': 'Expected operator',
   'mlearn.FilterBuilder.Error.UnbalancedParens': 'Unbalanced parentheses',
@@ -141,6 +143,40 @@ describe('FilterBuilder', () => {
     clickElement('[aria-label="Remove"]');
 
     expect(onChange).toHaveBeenCalledWith([levelToken]);
+  });
+
+  it('clears every token with the bin button', async () => {
+    const { FilterBuilder } = await import('./FilterBuilder');
+    const onChange = vi.fn();
+
+    dispose = render(() => (
+      <FilterBuilder
+        fields={fields}
+        paletteItems={paletteItems}
+        tokens={[unknownToken, andToken, levelToken]}
+        onChange={onChange}
+      />
+    ), container);
+
+    clickElement('[aria-label="Clear filters"]');
+
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it('disables the bin button when the filter is already empty', async () => {
+    const { FilterBuilder } = await import('./FilterBuilder');
+
+    dispose = render(() => (
+      <FilterBuilder
+        fields={fields}
+        paletteItems={paletteItems}
+        tokens={[]}
+        onChange={vi.fn()}
+      />
+    ), container);
+
+    const button = container.querySelector<HTMLButtonElement>('[aria-label="Clear filters"]');
+    expect(button?.disabled).toBe(true);
   });
 
   it('moves a token up', async () => {

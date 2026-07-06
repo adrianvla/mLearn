@@ -78,12 +78,6 @@ body.theme-dark,
 /* === End index.css === */
 
 
-/* === Prosody renderer === */
-body.theme-dark .prosody-overlay-wrapper,
-.theme-dark .prosody-overlay-wrapper {
-    color: var(--text-primary);
-}
-
 /* When inside subtitle hover */
 .subtitle_hover {
     --prosody-overlay-height: 2px;
@@ -96,7 +90,6 @@ body.theme-dark .prosody-overlay-wrapper,
 body.theme-dark .subtitle_hover .prosody-overlay-wrapper,
 .subtitle_hover.theme-dark .prosody-overlay-wrapper {
     filter: none;
-    color: var(--text-primary);
 }
 
 /* === End Prosody renderer === */

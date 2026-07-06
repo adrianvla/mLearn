@@ -37,6 +37,18 @@ describe('voice TTS turn phrase orchestration', () => {
     expect(state.pendingPhrases).toEqual(['Hello there.', 'Final tail']);
   });
 
+  it('filters bracketed readings and asides before queueing TTS phrases', () => {
+    const state = createVoiceTtsTurnState();
+
+    expect(enqueueVoiceTtsPhrasesForMessage(
+      state,
+      0,
+      '漢字（かんじ）を読んだ［よみ］。 Hello (aside) there [note].',
+      false,
+    )).toEqual(['漢字を読んだ。', 'Hello there.']);
+    expect(state.sentenceTexts).toEqual(['漢字を読んだ。', 'Hello there.']);
+  });
+
   it('serializes local TTS phrase requests until the active request finishes', () => {
     const state = createVoiceTtsTurnState();
     enqueueVoiceTtsPhrasesForMessage(state, 0, 'One. Two.', false);

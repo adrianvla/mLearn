@@ -1182,6 +1182,12 @@ export const ConversationContent: Component = () => {
           return;
         }
 
+        if (handleCloudSessionError(error, true)) {
+          setIsConnected(false);
+          updateLastMessage(t('mlearn.CloudReLogin.SessionExpired'));
+          return;
+        }
+
         if (isCloudUnreachable(error)) {
           updateLastMessage(t('mlearn.AI.CloudUnreachable'));
           return;
@@ -1804,64 +1810,94 @@ export const ConversationContent: Component = () => {
       {/* Voice panel */}
       <TabPanel tabId="voice" activeTab={activeTab()} class="ca-voice-panel">
         <Show when={voiceAftermath()} fallback={
-          <VoiceTab
-            messages={messages()}
-            isStreaming={isStreaming()}
-            onSendMessage={sendTextMessage}
-            onRequestGreeting={handleRequestGreeting}
-            onAbort={handleAbort}
-            defaultVoiceSampleId={activeAgent()?.voiceSampleId}
-            onCallStateChange={(active, reason) => {
-              setIsVoiceCallActive(active);
-              if (active) {
-                setVoiceMistakes([]);
-                setVoiceSessionStart(Date.now());
-                setVoiceAftermath(null);
-              } else {
-                if (reason !== 'completed') {
-                  setVoiceSessionStart(0);
-                  return;
-                }
+          <>
+            <VoiceTab
+              messages={messages()}
+              isStreaming={isStreaming()}
+              onSendMessage={sendTextMessage}
+              onRequestGreeting={handleRequestGreeting}
+              onAbort={handleAbort}
+              defaultVoiceSampleId={activeAgent()?.voiceSampleId}
+              onCallStateChange={(active, reason) => {
+                setIsVoiceCallActive(active);
+                if (active) {
+                  setVoiceMistakes([]);
+                  setVoiceSessionStart(Date.now());
+                  setVoiceAftermath(null);
+                } else {
+                  if (reason !== 'completed') {
+                    setVoiceSessionStart(0);
+                    return;
+                  }
 
-                // Build aftermath when call ends
-                const mistakes = voiceMistakes();
-                if (mistakes.length > 0 || voiceSessionStart() > 0) {
-                  setVoiceAftermath({
-                    mistakes,
-                    duration: Date.now() - voiceSessionStart(),
-                    messageCount: messages().filter(m => m.role !== 'system').length,
-                  });
-                }
-              }
-            }}
-            onInterrupted={(spokenText, _interruptedAt) => {
-              // Update LLM conversation history to reflect what was actually heard
-              agent.markInterrupted(spokenText);
-
-              // Mark the last assistant message as interrupted with only the spoken text
-              setMessages((prev) => {
-                const updated = [...prev];
-                for (let i = updated.length - 1; i >= 0; i--) {
-                  if (updated[i].role === 'assistant') {
-                    updated[i] = {
-                      ...updated[i],
-                      interrupted: true,
-                      interruptedAt: spokenText,
-                      content: spokenText,
-                    };
-                    break;
+                  // Build aftermath when call ends
+                  const mistakes = voiceMistakes();
+                  if (mistakes.length > 0 || voiceSessionStart() > 0) {
+                    setVoiceAftermath({
+                      mistakes,
+                      duration: Date.now() - voiceSessionStart(),
+                      messageCount: messages().filter(m => m.role !== 'system').length,
+                    });
                   }
                 }
-                return updated;
-              });
-            }}
-            onTokenHover={handleTokenHover}
-            onTokenLeave={handleTokenLeave}
-            triggerMode={currentTriggerMode()}
-            triggerKey={currentKey()}
-            isConnected={isConnected()}
-            language={settings.language}
-          />
+              }}
+              onInterrupted={(spokenText, _interruptedAt) => {
+                // Update LLM conversation history to reflect what was actually heard
+                agent.markInterrupted(spokenText);
+
+                // Mark the last assistant message as interrupted with only the spoken text
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  for (let i = updated.length - 1; i >= 0; i--) {
+                    if (updated[i].role === 'assistant') {
+                      updated[i] = {
+                        ...updated[i],
+                        interrupted: true,
+                        interruptedAt: spokenText,
+                        content: spokenText,
+                      };
+                      break;
+                    }
+                  }
+                  return updated;
+                });
+              }}
+              onTokenHover={handleTokenHover}
+              onTokenLeave={handleTokenLeave}
+              triggerMode={currentTriggerMode()}
+              triggerKey={currentKey()}
+              isConnected={isConnected()}
+              language={settings.language}
+            />
+
+            <Show when={hoverData()} keyed>
+              {(data) => data.token ? (
+                <WordHover
+                  token={data.token}
+                  word={data.word}
+                  position={data.position}
+                  anchorRect={data.anchorRect}
+                  dictionaryEntries={dictionaryEntries()}
+                  translationData={translationData() || undefined}
+                  isLoading={isLoadingDict()}
+                  visible={isVisible()}
+                  contextPhrase={data.word}
+                  onMouseEnter={cancelHide}
+                  onMouseLeave={hideHover}
+                  onClose={hideHover}
+                  onOpenExplainer={handleOpenExplainer}
+                />
+              ) : null}
+            </Show>
+
+            <ExplainerPopup
+              isOpen={explainerOpen()}
+              onClose={handleCloseExplainer}
+              word={explainerWord()}
+              contextPhrase={explainerContext()}
+              initialPosition={explainerPosition()}
+            />
+          </>
         }>
           {(aftermath) => (
             <VoiceAftermath

@@ -172,6 +172,30 @@ describe('computeWordLevelStats', () => {
     expect(beginner?.unknown).toBe(1);
   });
 
+  it('matches canonicalized frequency words to stored knowledge keys', () => {
+    const store = makeStore({
+      wordKnowledge: {
+        [lk('ja', '会う')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '会う', language: 'ja' },
+      },
+    });
+    const freq: WordFrequencyMap = {
+      会います: { reading: 'あいます', level: 'N5', raw_level: 5 },
+    };
+    const result = computeWordLevelStats(
+      store,
+      freq,
+      'ja',
+      1800,
+      1550,
+      { 5: 'N5' },
+      undefined,
+      (_language, word) => word === '会います' ? '会う' : word,
+    );
+
+    expect(result.byLevel[0]).toMatchObject({ known: 1, unknown: 0 });
+    expect(result.outsideLevels.total).toBe(0);
+  });
+
   it('counts known words from knownUntracked', () => {
     const store = makeStore({
       knownUntracked: { [lk('en', 'world')]: true },
@@ -422,6 +446,28 @@ describe('computeLevelStats', () => {
       1800,
       1550,
       levelNames,
+    );
+
+    expect(level.unknown).toBe(1);
+    expect(level.untracked).toBe(0);
+  });
+
+  it('counts canonicalized frequency words using the stored word key', () => {
+    const store = makeStore({
+      wordKnowledge: {
+        [lk('ja', '会う')]: { ease: 1.0, lastSeen: 1, timesSeen: 1, timesHovered: 3, word: '会う', language: 'ja' },
+      },
+    });
+
+    const [level] = computeLevelStats(
+      store,
+      { 会います: { reading: 'あいます', level: 'N5', raw_level: 5 } },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+      undefined,
+      (_language, word) => word === '会います' ? '会う' : word,
     );
 
     expect(level.unknown).toBe(1);

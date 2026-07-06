@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -429,8 +429,8 @@ const mLearnIPC = {
     ipcRenderer.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, language),
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, (_event, status) => callback(status)),
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode, silenceThreshold),
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode, silenceThreshold, ttsProvider),
   voiceStopSession: () =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_STOP_SESSION),
   voiceSendAudioChunk: (samples: Float32Array) =>
@@ -453,6 +453,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.VOICE_TTS_STATUS, (_event, status) => callback(status)),
   onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_SESSION_READY, (_event, data) => callback(data)),
+  onVoiceSessionStatus: (callback: (data: VoiceSessionStatus) => void) =>
+    ipcOn(IPC_CHANNELS.VOICE_SESSION_STATUS, (_event, data) => callback(data)),
   onVoiceSessionError: (callback: (data: VoiceSessionError) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_SESSION_ERROR, (_event, data) => callback(data)),
 

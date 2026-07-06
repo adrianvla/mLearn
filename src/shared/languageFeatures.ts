@@ -380,6 +380,48 @@ function listIncludesPartOfSpeech(labels: readonly string[], pos: string, caseSe
   return labels.some((label) => normalizePartOfSpeechLabel(label, caseSensitive) === normalizedPos);
 }
 
+function partOfSpeechStartsWithSegment(label: string, segment: string): boolean {
+  if (label === segment) return true;
+  if (!label.startsWith(segment)) return false;
+
+  const next = label[segment.length];
+  return next === '-' || next === ':' || next === '/' || next === '_' || next === ' ' || next === '・';
+}
+
+function lookupPartOfSpeechColor(
+  pos: string,
+  codes: Record<string, string> | undefined,
+  data?: LanguageData | null,
+): string | undefined {
+  if (!codes) return undefined;
+
+  const exact = codes[pos];
+  if (exact !== undefined) return exact;
+
+  const canonical = getCanonicalPartOfSpeech(pos, data);
+  const canonicalExact = codes[canonical];
+  if (canonicalExact !== undefined) return canonicalExact;
+
+  const caseSensitive = data?.textProcessing?.partOfSpeech?.caseSensitive === true;
+  if (caseSensitive) return undefined;
+
+  const normalizedPos = normalizePartOfSpeechLabel(pos, false);
+  const normalizedCanonical = normalizePartOfSpeechLabel(canonical, false);
+  for (const [key, color] of Object.entries(codes)) {
+    const normalizedKey = normalizePartOfSpeechLabel(key, false);
+    if (
+      normalizedKey === normalizedPos
+      || normalizedKey === normalizedCanonical
+      || partOfSpeechStartsWithSegment(normalizedPos, normalizedKey)
+      || partOfSpeechStartsWithSegment(normalizedCanonical, normalizedKey)
+    ) {
+      return color;
+    }
+  }
+
+  return undefined;
+}
+
 function getConfiguredTranslatablePartOfSpeechTypes(data?: LanguageData | null): string[] | undefined {
   const configured = data?.textProcessing?.partOfSpeech?.translatable;
   if (Array.isArray(configured)) return configured;
@@ -446,32 +488,8 @@ export function getPartOfSpeechColor(
 ): string | undefined {
   if (!pos.trim()) return undefined;
 
-  const lookupColor = (codes: Record<string, string> | undefined): string | undefined => {
-    if (!codes) return undefined;
-
-    const exact = codes[pos];
-    if (exact !== undefined) return exact;
-
-    const canonical = getCanonicalPartOfSpeech(pos, data);
-    const canonicalExact = codes[canonical];
-    if (canonicalExact !== undefined) return canonicalExact;
-
-    const caseSensitive = data?.textProcessing?.partOfSpeech?.caseSensitive === true;
-    if (caseSensitive) return undefined;
-
-    const normalizedPos = normalizePartOfSpeechLabel(pos, false);
-    const normalizedCanonical = normalizePartOfSpeechLabel(canonical, false);
-    for (const [key, color] of Object.entries(codes)) {
-      const normalizedKey = normalizePartOfSpeechLabel(key, false);
-      if (normalizedKey === normalizedPos || normalizedKey === normalizedCanonical) {
-        return color;
-      }
-    }
-
-    return undefined;
-  };
-
-  return lookupColor(colourCodes) ?? lookupColor(data?.textProcessing?.partOfSpeech?.colors);
+  return lookupPartOfSpeechColor(pos, colourCodes, data)
+    ?? lookupPartOfSpeechColor(pos, data?.textProcessing?.partOfSpeech?.colors, data);
 }
 
 function compareGrammarValue(actual: string, expected: string, caseSensitive: boolean): boolean {

@@ -482,25 +482,33 @@
           "Title": "Résumé de la session"
         },
         "CloudTts": "Cloud",
+        "AddAgentVoice": "Ajoutez d'abord une voix par défaut à l'agent sélectionné.",
+        "Advanced": "Avancé",
         "DefaultVoice": "Voix par défaut",
         "DownloadFailed": "Échec du téléchargement des modèles vocaux. Les dépendances requises ne sont peut-être pas installées. Réinstallez l'application ou consultez les journaux.",
         "DownloadModels": "Télécharger les modèles vocaux",
         "DownloadingModels": "Téléchargement des modèles vocaux…",
-        "CheckingModels": "Vérification des modèles STT, TTS et VAD locaux…",
+        "CheckingModels": "Vérification des modèles vocaux locaux…",
         "EmptyHint": "Démarrez un appel vocal pour pratiquer l'expression orale avec le tuteur IA.",
         "EndCall": "Terminer l'appel",
         "HandsFree": "Mains libres",
         "Initializing": "Chargement du moteur vocal…",
         "InstallingDependencies": "Installation des dépendances vocales…",
         "Interrupted": "*Interrompu par l'utilisateur*",
+        "Interrupt": "Interruption",
         "Listening": "Écoute…",
         "LoadingTtsModel": "Chargement du modèle de synthèse vocale…",
-        "LocalTts": "Local",
         "MicPermission": "L'appel vocal nécessite l'accès au microphone.",
+        "Microphone": "Microphone",
+        "DefaultMicrophone": "Microphone par défaut",
+        "MicrophoneNumber": "Microphone {index}",
+        "Mode": "Mode",
         "ModelsRequired": "Cette fonctionnalité nécessite des modèles vocaux. Téléchargez-les pour commencer.",
+        "None": "Aucune",
+        "Pipeline": "Pipeline",
         "Processing": "Traitement…",
+        "Provider": "Fournisseur",
         "PushToTalk": "Appuyer pour parler",
-        "Qwen3Tts": "Qwen3",
         "SilenceThreshold": "Seuil de silence",
         "Speaking": "Parle…",
         "Stage": {
@@ -508,12 +516,14 @@
           "STT": "STT",
           "TTS": "TTS"
         },
+        "StreamedChunks": "Blocs diffusés",
         "StartCall": "Démarrer l'appel vocal",
-        "TtsProvider": "Moteur TTS",
+        "TtsProvider": "Voix",
         "TtsSpeed": "Vitesse de parole",
         "UploadSample": "Téléverser un échantillon vocal",
-        "VoiceSample": "Clone vocal",
-        "VoiceSampleDisabledLocal": "L'envoi de voix personnalisée n'est disponible qu'avec Qwen3-TTS"
+        "VoiceSample": "Clone vocal en streaming",
+        "LightweightVoice": "Voix légère",
+        "SystemVoice": "Voix système"
       },
       "Memory": {
         "ClearAll": "Effacer toutes les mémoires",
@@ -2471,7 +2481,7 @@
     },
     "WordSync": {
       "FinishedTitle": "Terminé !",
-      "FinishedDescription": "Vous avez évalué {count} mots. Votre connaissance des mots a été mise à jour.",
+      "FinishedDescription": "Vous avez vérifié {count} mots. Votre connaissance des mots a été mise à jour.",
       "Progress": "{rated} / {total} mots",
       "Unknown": "Inconnu",
       "Learning": "En apprentissage",
@@ -2641,6 +2651,7 @@
       "Palette": "Available filters",
       "FilterBox": "Filter expression",
       "FilterBoxEmpty": "Drag filters here to build your expression",
+      "Clear": "Effacer les filtres",
       "Remove": "Remove",
       "MoveUp": "Move up",
       "MoveDown": "Move down",
@@ -2671,6 +2682,7 @@
         "Recency": "Recency"
       },
       "Status": {
+        "Untracked": "Non suivi",
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
@@ -2681,7 +2693,8 @@
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
-      "TokenMoved": "Filter moved"
+      "TokenMoved": "Filter moved",
+      "TokensCleared": "Filtres effacés"
     },
     "CharacterGrid": {
       "CharactersByLevel": "Caractères par niveau :",

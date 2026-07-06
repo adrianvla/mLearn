@@ -542,6 +542,25 @@ describe('thumbnailService', () => {
       const saved = JSON.parse(mockKvSet.mock.calls[0][1] as string) as RecentItem[];
       expect(saved[0].progress).toBe(0.9);
     });
+
+    it('preserves a thumbnail written by a concurrent update', async () => {
+      let stored = JSON.stringify([
+        { type: 'video' as const, name: 'vid.mp4', path: '/path/vid.mp4', progress: 0.1, lastWatched: 1 },
+      ]);
+      mockKvGet.mockImplementation(async () => stored);
+      mockKvSet.mockImplementation(async (_key: string, value: string) => {
+        stored = value;
+      });
+
+      await Promise.all([
+        updateRecentItemThumbnailByPath('/path/vid.mp4', 'data:thumb'),
+        updateRecentItemProgressByPath('/path/vid.mp4', 0.9),
+      ]);
+
+      const saved = JSON.parse(stored) as RecentItem[];
+      expect(saved[0].thumbnail).toBe('data:thumb');
+      expect(saved[0].progress).toBe(0.9);
+    });
   });
 
   describe('updateRecentItemSubtitlePathByPath', () => {
