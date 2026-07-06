@@ -181,6 +181,7 @@ describe('WordSyncContent', () => {
     document.body.appendChild(container);
     mockGetComprehensiveWordStatusWithSourceSync.mockClear();
     mockWordSyncState.settings.language = 'ja';
+    mockWordSyncState.settings.use_anki = false;
     mockWordSyncState.wordFrequency = {
       '赤い': {
         reading: 'あかい',
@@ -203,13 +204,20 @@ describe('WordSyncContent', () => {
     container.remove();
   });
 
-  it('uses keyed local status instead of comprehensive per-row resolution when Anki is off', async () => {
+  it('does not treat Anki-only words as tracked for word sync filter eligibility', async () => {
+    mockWordSyncState.settings.use_anki = true;
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
+      status: 'known',
+      source: 'Anki',
+      timesSeen: 1,
+    });
     const { WordSyncContent } = await import('./App');
 
     const dispose = render(() => <WordSyncContent />, container);
     await Promise.resolve();
 
     expect(mockGetComprehensiveWordStatusWithSourceSync).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('赤い:あかい');
     dispose();
   });
 

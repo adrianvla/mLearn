@@ -120,6 +120,7 @@ describe('thumbnailService', () => {
     });
 
     it('returns empty string when the video canvas is tainted by the media source', () => {
+      const onCaptureBlocked = vi.fn();
       const ctx = { drawImage: vi.fn() };
       const canvas = {
         getContext: vi.fn(() => ctx),
@@ -132,9 +133,31 @@ describe('thumbnailService', () => {
       document.createElement = (tag: string) =>
         tag === 'canvas' ? (canvas as unknown as HTMLElement) : originalCreateElement(tag);
 
-      expect(captureVideoThumbnail(makeVideoElement(640, 360))).toBe('');
+      expect(captureVideoThumbnail(makeVideoElement(640, 360), 300, 0.6, { onCaptureBlocked })).toBe('');
       expect(ctx.drawImage).toHaveBeenCalled();
       expect(canvas.toDataURL).toHaveBeenCalledWith('image/jpeg', 0.6);
+      expect(onCaptureBlocked).toHaveBeenCalledOnce();
+    });
+
+    it('can reject mostly blank video frames', () => {
+      const data = new Uint8ClampedArray(64 * 64 * 4);
+      const ctx = {
+        drawImage: vi.fn(),
+        getImageData: vi.fn(() => ({ data })),
+      };
+      const canvas = {
+        getContext: vi.fn(() => ctx),
+        toDataURL: vi.fn(() => 'data:image/jpeg;base64,BLACK'),
+        width: 0,
+        height: 0,
+      };
+      document.createElement = (tag: string) =>
+        tag === 'canvas' ? (canvas as unknown as HTMLElement) : originalCreateElement(tag);
+
+      expect(captureVideoThumbnail(makeVideoElement(640, 360), 300, 0.6, { rejectBlank: true })).toBe('');
+      expect(ctx.drawImage).toHaveBeenCalled();
+      expect(ctx.getImageData).toHaveBeenCalled();
+      expect(canvas.toDataURL).not.toHaveBeenCalled();
     });
 
     it('returns empty string when document.createElement throws', () => {

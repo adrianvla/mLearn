@@ -18,9 +18,15 @@ const log = getLogger("renderer.services.thumbnail");
 export function captureVideoThumbnail(
   video: HTMLVideoElement,
   maxWidth: number = 300,
-  quality: number = 0.6
+  quality: number = 0.6,
+  options?: { rejectBlank?: boolean; onCaptureBlocked?: () => void },
 ): string {
-  return captureElementToDataUrl(video, { maxWidth, quality }) ?? '';
+  return captureElementToDataUrl(video, {
+    maxWidth,
+    quality,
+    rejectBlank: options?.rejectBlank,
+    onCaptureBlocked: options?.onCaptureBlocked,
+  }) ?? '';
 }
 
 /**
