@@ -15,7 +15,7 @@ jobs:
     outputs:
       upload_url: ${{ steps.gh_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -73,8 +73,8 @@ jobs:
     needs: changelog
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -122,8 +122,8 @@ jobs:
     needs: changelog
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -183,8 +183,8 @@ jobs:
     needs: changelog
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -249,24 +249,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout App Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkout Website
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: adrianvla/mlearn-cloud
           token: ${{ secrets.WEBSITE_PAT }}
           path: website
 
       - name: Checkout Versioning
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: adrianvla/mlearn-versioning
           token: ${{ secrets.WEBSITE_PAT }}
           path: versioning
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -285,9 +285,9 @@ jobs:
       - name: Install Website Dependencies
         run: |
           cd website
-          npm install
-          cd frontend && npm install && cd ..
-          cd worker && npm install && cd ..
+          npm install --legacy-peer-deps
+          cd frontend && npm install --legacy-peer-deps && cd ..
+          cd worker && npm install --legacy-peer-deps && cd ..
 
       - name: Commit and Push Website
         run: |
