@@ -491,6 +491,7 @@
         "CloudTts": "云端",
         "AddAgentVoice": "请先为所选代理添加默认语音。",
         "Advanced": "高级",
+        "CallView": "通话视图",
         "DefaultVoice": "默认语音",
         "DownloadFailed": "下载语音模型失败。可能未安装所需依赖。请重新安装应用程序或查看日志了解详情。",
         "DownloadModels": "下载语音模型",

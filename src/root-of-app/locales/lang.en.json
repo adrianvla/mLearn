@@ -491,6 +491,7 @@
         "CloudTts": "Cloud",
         "AddAgentVoice": "Add a default voice to the selected agent first.",
         "Advanced": "Advanced",
+        "CallView": "Call view",
         "DefaultVoice": "Default voice",
         "DownloadFailed": "Failed to download voice models. The required dependencies may not be installed. Please reinstall the application or check the logs for details.",
         "DownloadModels": "Download Voice Models",

@@ -127,6 +127,10 @@ export interface VoiceTabProps {
   language: string;
   /** Default voice sample from the agent config */
   defaultVoiceSampleId?: string;
+  /** Active agent display name */
+  agentName?: string;
+  /** Active agent profile photo as a data URI */
+  profilePhoto?: string;
 }
 
 // ============================================================================
@@ -159,6 +163,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [debugEvents, setDebugEvents] = createSignal<VoiceDebugEvent[]>([]);
   const [microphones, setMicrophones] = createSignal<MediaDeviceInfo[]>([]);
   const [selectedMicrophoneId, setSelectedMicrophoneId] = createSignal('');
+  const [showAdvancedUi, setShowAdvancedUi] = createSignal(false);
   // Tick counter drives continuous visualizer animation independent of audio level
   const [tick, setTick] = createSignal(0);
 
@@ -1309,6 +1314,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   };
 
+  const agentName = () => props.agentName?.trim() ?? '';
+  const hasProfilePhoto = () => Boolean(props.profilePhoto);
+  const isAgentSpeaking = () => callState() === 'speaking';
+  const callViewState = () => {
+    if (isInitializing() || ttsModelLoading()) return 'loading';
+    if (!isCallActive()) return 'idle';
+    return callState();
+  };
+
   /** Map call state to the active pipeline stage label */
   const activeStage = (): 'stt' | 'llm' | 'tts' | null => {
     if (!isCallActive()) return null;
@@ -1323,6 +1337,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // Generate bar heights for visualizer
   const barCount = 12;
+  const callWaveBarCount = 30;
   const getBarHeight = (index: number) => {
     // Reading tick() ensures this re-evaluates on every animation frame,
     // even when audioLevel stays constant (e.g. during TTS speaking state).
@@ -1419,8 +1434,169 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       {/* Main voice UI (models ready) */}
       <Show when={!isChecking() && modelsReady() && !isDownloading()}>
         <div class="voice-call-area">
+          <Show
+            when={showAdvancedUi()}
+            fallback={
+              <div class={`voice-call-fullscreen voice-call-fullscreen--${callViewState()}`}>
+                <button
+                  type="button"
+                  class="voice-call-advanced-button"
+                  onClick={() => setShowAdvancedUi(true)}
+                >
+                  {t('mlearn.ConversationAgent.Voice.Advanced')}
+                </button>
+
+                <div class="voice-call-stage">
+                  <div
+                    class={`voice-call-avatar-shell ${hasProfilePhoto() ? 'has-photo' : 'no-photo'} ${isAgentSpeaking() ? 'speaking' : ''}`}
+                    aria-hidden={!agentName()}
+                  >
+                    <Show
+                      when={props.profilePhoto}
+                      fallback={<div class="voice-call-avatar-blob" />}
+                    >
+                      {(src) => (
+                        <img
+                          class="voice-call-avatar-image"
+                          src={src()}
+                          alt={agentName()}
+                        />
+                      )}
+                    </Show>
+                  </div>
+
+                  <Show when={agentName()}>
+                    <div class="voice-call-agent-name">{agentName()}</div>
+                  </Show>
+
+                  <Show
+                    when={isInitializing() || ttsModelLoading()}
+                    fallback={
+                      <div class={`voice-call-state ${isCallActive() ? 'active' : ''}`}>
+                        {isCallActive() ? statusText() : ''}
+                      </div>
+                    }
+                  >
+                    <div class="voice-call-loading">
+                      <Spinner size={28} shape="square" strokeWidth={5} cornerRadius={0} />
+                      <span>
+                        {ttsModelLoading()
+                          ? t('mlearn.ConversationAgent.Voice.LoadingTtsModel')
+                          : sessionStatus()?.message || t('mlearn.ConversationAgent.Voice.Initializing')}
+                      </span>
+                    </div>
+                  </Show>
+                </div>
+
+                <div class="voice-call-bottom">
+                  <div class={`voice-call-waveform voice-call-waveform--${callViewState()}`} aria-hidden="true">
+                    {Array.from({ length: callWaveBarCount }).map((_, i) => (
+                      <span class={`voice-call-waveform-bar voice-call-waveform-bar--${i % 10}`} />
+                    ))}
+                  </div>
+
+                  <div class="voice-call-control-strip">
+                    <Show
+                      when={isCallActive()}
+                      fallback={
+                        <div class="voice-start-panel voice-start-panel--call">
+                          <Btn
+                            variant="primary"
+                            icon={<PhoneIcon />}
+                            onClick={startCall}
+                            disabled={!props.isConnected}
+                          >
+                            {t('mlearn.ConversationAgent.Voice.StartCall')}
+                          </Btn>
+                          <div class="voice-start-selectors">
+                            <Select
+                              options={ttsChoiceOptions()}
+                              value={ttsChoice()}
+                              onChange={handleTtsChoiceChange}
+                              aria-label={t('mlearn.ConversationAgent.Voice.TtsProvider')}
+                              size="sm"
+                            />
+                            <Select
+                              options={microphoneOptions()}
+                              value={selectedMicrophoneId()}
+                              onChange={handleMicrophoneChange}
+                              aria-label={t('mlearn.ConversationAgent.Voice.Microphone')}
+                              size="sm"
+                            />
+                          </div>
+                        </div>
+                      }
+                    >
+                      <Show when={!isInitializing()}>
+                        <div class="voice-mode-toggle voice-mode-toggle--call">
+                          <Btn
+                            size="sm"
+                            variant={voiceMode() === 'vad' ? 'primary' : 'ghost'}
+                            onClick={() => setVoiceMode('vad')}
+                            class="voice-mode-btn"
+                          >
+                            {t('mlearn.ConversationAgent.Voice.HandsFree')}
+                          </Btn>
+                          <Btn
+                            size="sm"
+                            variant={voiceMode() === 'push-to-talk' ? 'primary' : 'ghost'}
+                            onClick={() => setVoiceMode('push-to-talk')}
+                            class="voice-mode-btn"
+                          >
+                            {t('mlearn.ConversationAgent.Voice.PushToTalk')}
+                          </Btn>
+                        </div>
+                      </Show>
+
+                      <IconBtn
+                        variant="danger"
+                        size="lg"
+                        icon={<PhoneOffIcon />}
+                        onClick={() => stopCall()}
+                        aria-label={t('mlearn.ConversationAgent.Voice.EndCall')}
+                        class="voice-end-btn voice-end-btn--call"
+                      />
+
+                      <Show when={!isInitializing()}>
+                        <Select
+                          options={microphoneOptions()}
+                          value={selectedMicrophoneId()}
+                          onChange={handleMicrophoneChange}
+                          aria-label={t('mlearn.ConversationAgent.Voice.Microphone')}
+                          size="sm"
+                        />
+                      </Show>
+                    </Show>
+                  </div>
+
+                  <Show when={isCallActive() && !isInitializing() && voiceMode() === 'push-to-talk'}>
+                    <button
+                      type="button"
+                      class={`voice-call-ptt ${pttActive() ? 'active' : ''}`}
+                      onMouseDown={handlePttDown}
+                      onMouseUp={handlePttUp}
+                      onMouseLeave={handlePttUp}
+                      onTouchStart={handlePttDown}
+                      onTouchEnd={handlePttUp}
+                      aria-label={t('mlearn.ConversationAgent.Voice.PushToTalk')}
+                      aria-keyshortcuts="Space"
+                    >
+                      {t('mlearn.ConversationAgent.Voice.PushToTalk')}
+                    </button>
+                  </Show>
+                </div>
+              </div>
+            }
+          >
           {/* Call UI */}
           <div class="voice-call-ui">
+            <button
+              type="button"
+              class="voice-call-view-button"
+              onClick={() => setShowAdvancedUi(false)}
+            >
+              {t('mlearn.ConversationAgent.Voice.CallView')}
+            </button>
             {/* Initializing engines indicator */}
             <Show when={isInitializing()}>
               <div class="voice-initializing">
@@ -1687,6 +1863,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
               </Show>
             </Show>
           </div>
+          </Show>
         </div>
       </Show>
     </div>
