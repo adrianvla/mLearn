@@ -222,6 +222,7 @@ const voiceBridge: VoiceBridge = {
   onVoiceVadEvent: (cb) => getIPC().onVoiceVadEvent(cb),
   voiceTtsGenerate: (text, lang, speed, sampleId, provider, cloudAuthToken) => getIPC().voiceTtsGenerate(text, lang, speed, sampleId, provider, cloudAuthToken),
   voiceTtsStop: () => getIPC().voiceTtsStop(),
+  voiceSendTtsState: (active) => getIPC().voiceTtsState(active),
   onVoiceTtsAudio: (cb) => getIPC().onVoiceTtsAudio(cb),
   onVoiceTtsStatus: (cb) => getIPC().onVoiceTtsStatus(cb),
   onVoiceSessionReady: (cb) => getIPC().onVoiceSessionReady(cb),

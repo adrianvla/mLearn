@@ -389,6 +389,8 @@ export interface Settings {
   autoSpeak: boolean;
   /** STT language override (auto-detected from learning language by default) */
   sttLanguage: string;
+  /** STT model override (empty string = platform auto-pick: MLX turbo on Apple Silicon, FW large-v3-turbo on CUDA, FW small on CPU). */
+  sttModel: string;
 
   // Voice call mode settings
   /** Voice input mode: hands-free VAD or push-to-talk */
@@ -584,6 +586,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speechEnabled: false,
   autoSpeak: false,
   sttLanguage: '',
+  sttModel: '',
   voiceMode: 'vad',
   ttsProvider: 'kokoro',
   voiceTtsSpeed: 1.0,
@@ -1960,6 +1963,7 @@ export interface PipRequirementsConfig {
   llm: string[];
   voice?: string[];
   'qwen3-tts'?: string[];
+  'mlx-stt'?: string[];
 }
 
 // ============================================================================
@@ -2318,6 +2322,7 @@ export interface VoiceModelStatus {
   statusMessage?: string;
   sttModelName?: string;
   ttsModelName?: string;
+  sttEngine?: string;
 }
 
 export interface VoiceSTTResult {

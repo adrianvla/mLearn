@@ -270,6 +270,7 @@ sendLogRecord: (record: unknown) => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
   voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) => void;
   voiceTtsStop: () => void;
+  voiceTtsState: (active: boolean) => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
   onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) => () => void;

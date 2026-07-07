@@ -41,6 +41,27 @@ const NO_TRANSCRIPT_RECOVERY_MS = 1800;
 const IDLE_SILENCE_NUDGE_MS = 9000;
 const IDLE_SILENCE_NUDGE_COOLDOWN_MS = 25000;
 
+/**
+ * Loads the mic-capture AudioWorklet module. Dev (Vite HTTP) serves
+ * /audio-processor.js directly. Electron production (file://) cannot resolve
+ * a worklet module URL, so we fetch the source and addModule() a blob URL.
+ */
+async function loadAudioWorkletModule(ctx: AudioContext): Promise<void> {
+  try {
+    await ctx.audioWorklet.addModule('/audio-processor.js');
+  } catch {
+    const response = await fetch('/audio-processor.js');
+    const source = await response.text();
+    const blob = new Blob([source], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    try {
+      await ctx.audioWorklet.addModule(url);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+}
+
 // ============================================================================
 // Icons
 // ============================================================================
@@ -186,7 +207,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let messagesRef: HTMLDivElement | undefined;
   let mediaStream: MediaStream | null = null;
   let audioContext: AudioContext | null = null;
-  let scriptNode: ScriptProcessorNode | null = null;
+  let workletNode: AudioWorkletNode | null = null;
   let analyserNode: AnalyserNode | null = null;
   let animFrameId: number | null = null;
   let ttsTimelineCanvas: HTMLCanvasElement | undefined;
@@ -250,6 +271,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     });
     const event = { id: debugEventId++, time, label, detail, tone };
     setDebugEvents(events => [event, ...events].slice(0, 30));
+  };
+
+  const setTtsPlaybackActive = (active: boolean) => {
+    if (ttsPlaying === active) return;
+    ttsPlaying = active;
+    getBridge().voice.voiceSendTtsState(active);
   };
 
   const formatVadNumber = (value: number | undefined, digits = 2): string => (
@@ -679,8 +706,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       }
     }));
 
-    // VAD events — during TTS playback, audio is not streamed to backend,
-    // so no VAD events arrive; barge-in is detected locally via mic level.
+    // VAD events — backend receives TTS state and can adapt thresholds;
+    // barge-in is still detected locally via mic level as the fast path.
     cleanups.push(bridge.voice.onVoiceVadEvent((event) => {
       setVadDebug(event);
       if (event.type === 'speech-start') {
@@ -728,7 +755,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         ttsGenerationActive = true;
         addDebugEvent('TTS', status.playing ? 'Playback started' : 'Generating audio', 'active');
         if (status.playing) {
-          ttsPlaying = true;
+          setTtsPlaybackActive(true);
           setCallState('speaking');
         } else {
           setCallState('processing');
@@ -932,7 +959,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       channelCount: 1,
       echoCancellation: true,
       noiseSuppression: true,
-      autoGainControl: true,
+      autoGainControl: false,
     };
   };
 
@@ -963,27 +990,39 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       await refreshMicrophones();
 
       audioContext = new AudioContext({ sampleRate: 16000 });
+
+      // Load the AudioWorklet module (with Electron production fallback)
+      await loadAudioWorkletModule(audioContext);
+
       const source = audioContext.createMediaStreamSource(mediaStream);
 
-      // Analyser for visualizer
+      // Analyser for visualizer + barge-in
       analyserNode = audioContext.createAnalyser();
       analyserNode.fftSize = 256;
-      source.connect(analyserNode);
 
-      // ScriptProcessor to capture raw PCM
-      scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
-      source.connect(scriptNode);
-      scriptNode.connect(audioContext.destination);
+      // AudioWorklet node for raw PCM capture (replaces ScriptProcessor)
+      workletNode = new AudioWorkletNode(audioContext, 'audio-processor', {
+        processorOptions: {
+          bufferSize: 4096,        // matches old ScriptProcessor buffer
+          outputSampleRate: 16000, // target rate for backend
+        },
+      });
 
-      scriptNode.onaudioprocess = (e) => {
+      // Receive PCM chunks from worklet
+      workletNode.port.onmessage = (event) => {
+        const msg = event.data;
+        if (msg.type !== 'audio') return;
         if (!isCallActive()) return;
         if (currentVoiceMode === 'push-to-talk' && !pttActive()) return;
-        if (ttsPlaying) return;
 
-        const inputData = e.inputBuffer.getChannelData(0);
-        const samples = new Float32Array(inputData);
+        const samples = new Float32Array(msg.samples);
         getBridge().voice.voiceSendAudioChunk(samples);
       };
+
+      // Audio graph: source → analyser → worklet (analyser passes through to worklet)
+      source.connect(analyserNode);
+      analyserNode.connect(workletNode);
+      // No need to connect workletNode to destination — we don't want mic monitoring
 
       // Start visualizer loop
       updateVisualizer();
@@ -999,9 +1038,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       cancelAnimationFrame(animFrameId);
       animFrameId = null;
     }
-    if (scriptNode) {
-      scriptNode.disconnect();
-      scriptNode = null;
+    if (workletNode) {
+      workletNode.port.postMessage({ type: 'flush' });
+      workletNode.port.close();
+      workletNode.disconnect();
+      workletNode = null;
     }
     if (analyserNode) {
       analyserNode.disconnect();
@@ -1063,7 +1104,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const finishTtsIfPlaybackDrained = () => {
     if (ttsGenerationActive || voiceTtsTurn.requestActive || voiceTtsTurn.pendingPhrases.length > 0 || ttsSources.length > 0) return;
-    ttsPlaying = false;
+    setTtsPlaybackActive(false);
     bargeInFrames = 0;
     ttsNextStartTime = null;
     if (ttsPlaybackTimer) {
@@ -1084,7 +1125,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
 
     setCallState('speaking');
-    ttsPlaying = true;
+    setTtsPlaybackActive(true);
 
     const buffer = ttsAudioContext.createBuffer(1, audio.samples.length, audio.sampleRate);
     buffer.getChannelData(0).set(audio.samples);
@@ -1198,7 +1239,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       }
     }
     ttsSources = [];
-    ttsPlaying = false;
+    setTtsPlaybackActive(false);
     ttsGenerationActive = false;
     abortVoiceTtsTurn(voiceTtsTurn);
     ttsAborted = true; // reject any in-flight audio from this generation

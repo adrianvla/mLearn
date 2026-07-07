@@ -49,6 +49,18 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 // ============================================================================
+// Platform detection & static STT model fallback
+// ============================================================================
+
+const isAppleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
+
+// Static fallback used before the Python backend is reachable. The backend
+// returns the authoritative `modelName` and `engine` via /voice/stt/status.
+const DEFAULT_STT_MODEL_NAME = isAppleSilicon
+  ? 'mlx-community/whisper-large-v3-turbo-asr-fp16'
+  : 'openai/whisper-small';
+
+// ============================================================================
 // Paths
 // ============================================================================
 
@@ -236,14 +248,27 @@ function loadQwen3Packages(): string[] {
   }
 }
 
+function loadMlxSttPackages(): string[] {
+  try {
+    const data = readResourceFile('pip_requirements.json');
+    const config = JSON.parse(data) as Record<string, string[]>;
+    return config['mlx-stt'] ?? [];
+  } catch {
+    log.error('Failed to load mlx-stt package config from any known path');
+    return [];
+  }
+}
+
 function installVoicePackages(
   onProgress: (status: VoiceModelStatus) => void,
   includeQwen3 = false,
+  includeMlxStt = false,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const packages = [
       ...loadVoicePackages(),
       ...(includeQwen3 ? loadQwen3Packages() : []),
+      ...(includeMlxStt ? loadMlxSttPackages() : []),
     ];
     if (packages.length === 0) {
       resolve(true);
@@ -289,7 +314,7 @@ function installVoicePackages(
         downloading: true,
         progress: pipProgress * 0.5,
         statusMessage: trimmed,
-        sttModelName: 'openai/whisper-small',
+        sttModelName: DEFAULT_STT_MODEL_NAME,
         ttsModelName: 'Kokoro-82M',
       });
     };
@@ -373,7 +398,7 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatus> {
     vadDownloaded: true, // VAD is loaded via torch.hub, always "available" if voice deps installed
     downloading: false,
     progress: 0,
-    sttModelName: 'openai/whisper-small',
+    sttModelName: '',
     ttsModelName: 'Kokoro-82M',
   };
 
@@ -389,9 +414,16 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatus> {
       ((ttsRes.downloading as boolean) ?? false);
     status.progress =
       (((sttRes.progress as number) ?? 0) + ((ttsRes.progress as number) ?? 0)) / 2;
+    const backendSttModel = typeof sttRes.modelName === 'string' ? sttRes.modelName : '';
+    status.sttModelName = backendSttModel || DEFAULT_STT_MODEL_NAME;
+    const backendSttEngine = typeof sttRes.engine === 'string' ? sttRes.engine : '';
+    if (backendSttEngine) {
+      status.sttEngine = backendSttEngine;
+    }
   } catch (err) {
     log.error("error", err);
     status.error = err instanceof Error ? err.message : String(err);
+    status.sttModelName = DEFAULT_STT_MODEL_NAME;
   }
 
   return status;
@@ -648,6 +680,15 @@ function sendSilenceThresholdUpdate(threshold: number): void {
     activeWs.send(JSON.stringify({ type: 'silence_threshold', value: threshold }));
   } catch (e) {
     log.error('[VoiceService] Failed to send silence threshold update:', e);
+  }
+}
+
+function sendTtsState(active: boolean): void {
+  if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+  try {
+    activeWs.send(JSON.stringify({ type: 'tts_state', active }));
+  } catch (e) {
+    log.error('[VoiceService] Failed to send TTS state:', e);
   }
 }
 
@@ -1008,7 +1049,7 @@ export function setupVoiceIPC(): void {
         downloading: true,
         progress: 0,
         statusMessage: 'Installing voice dependencies…',
-        sttModelName: 'openai/whisper-small',
+        sttModelName: DEFAULT_STT_MODEL_NAME,
         ttsModelName: 'Kokoro-82M',
       });
 
@@ -1016,10 +1057,11 @@ export function setupVoiceIPC(): void {
       const initialStatus = await checkModelStatus(language);
       const needsPackageInstall = !initialStatus.sttDownloaded || !initialStatus.ttsDownloaded;
       const includeQwen3 = !initialStatus.ttsDownloaded && await isQwen3TtsEngine(language);
+      const includeMlxStt = isAppleSilicon;
 
       if (needsPackageInstall) {
         // Install voice pip packages first
-        const pipSuccess = await installVoicePackages(emitProgress, includeQwen3);
+        const pipSuccess = await installVoicePackages(emitProgress, includeQwen3, includeMlxStt);
         if (!pipSuccess) {
           emitProgress({
             sttDownloaded: false,
@@ -1041,7 +1083,7 @@ export function setupVoiceIPC(): void {
         downloading: true,
         progress: 0.5,
         statusMessage: 'Downloading voice models…',
-        sttModelName: 'openai/whisper-small',
+        sttModelName: initialStatus.sttModelName || DEFAULT_STT_MODEL_NAME,
         ttsModelName: 'Kokoro-82M',
       });
 
@@ -1112,6 +1154,13 @@ export function setupVoiceIPC(): void {
   ipcMain.on(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, (_event, threshold: number) => {
     if (activeSession) {
       sendSilenceThresholdUpdate(threshold);
+    }
+  });
+
+  // Notify backend when local TTS playback is active so VAD can adapt.
+  ipcMain.on(IPC_CHANNELS.VOICE_TTS_STATE, (_event, active: boolean) => {
+    if (activeSession) {
+      sendTtsState(active);
     }
   });
 

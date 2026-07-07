@@ -131,6 +131,9 @@ let pendingStartupStatusMessage: string | null = null;
 let activePipProcess: ChildProcess | null = null;
 let selectedPythonExecutablePath: string | null = null;
 
+// Apple Silicon detection (local to avoid cross-service coupling)
+const isAppleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
+
 const PACKAGE_SIZE_ESTIMATES_BYTES: Readonly<Record<string, number>> = {
   core: 500 * 1024 * 1024,
   ocr: 3000 * 1024 * 1024,
@@ -450,7 +453,8 @@ function loadPipRequirementsConfig(): PipRequirementsConfig {
       ],
       ocr: [],
       llm: ['torch', 'transformers', 'sentencepiece'],
-      voice: ['torch', 'torchaudio', 'faster_whisper', 'kokoro', 'soundfile', 'silero-vad'],
+      voice: ['torch', 'torchaudio', 'faster_whisper', 'kokoro', 'soundfile', 'silero-vad', 'onnxruntime'],
+      'mlx-stt': ['sentencepiece>=0.2.0'],
     };
   }
 }
@@ -470,6 +474,9 @@ function buildPipRequirementList(options: InstallOptions): string[] {
     packages.push(...config.voice);
     if (config['qwen3-tts']) {
       packages.push(...config['qwen3-tts']);
+    }
+    if (config['mlx-stt'] && isAppleSilicon) {
+      packages.push(...config['mlx-stt']);
     }
   }
   packages.push(...getLanguagePythonRequirementsForInstall(loadLangData(), options));

@@ -41,6 +41,8 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # ── Global state ──
 
 _voice_stt_model = None
+_voice_stt_engine: str | None = None  # "mlx" | "faster-whisper" | None
+_STT_MODEL_OVERRIDE: str | None = None  # settable via API/query param; '' = auto
 _voice_tts_pipelines: dict[str, object] = {}  # Kokoro KPipeline instances by lang_code
 _voice_vad_model = None
 _voice_vad_lock = threading.Lock()
@@ -68,6 +70,13 @@ _DEFAULT_SENTENCE_TERMINATORS = ".!?。！？؟؛"
 DEFAULT_VOICE_SILENCE_THRESHOLD = 0.8
 VAD_SPEECH_START_THRESHOLD = 0.5
 VAD_SPEECH_CONTINUE_THRESHOLD = 0.35
+# Higher VAD thresholds during TTS playback to suppress speaker bleed-through
+VAD_SPEECH_START_THRESHOLD_TTS = 0.65
+VAD_SPEECH_CONTINUE_THRESHOLD_TTS = 0.5
+
+# STT thresholds (centralized — used by _run_stt)
+STT_NO_SPEECH_THRESHOLD = 0.6
+STT_LOGPROB_THRESHOLD = -1.0
 
 
 def _subscribe_voice_loading_status(callback):
@@ -113,6 +122,11 @@ def _stt_runtime(language: str) -> dict:
     return config.language_runtime_config_for_language(language, "stt")
 
 
+def _voice_settings() -> dict:
+    """Read voice-related settings for STT engine selection. Returns dict with sttModel key."""
+    return {"sttModel": _STT_MODEL_OVERRIDE or ""}
+
+
 def _stt_language_hint(language: str | None) -> str | None:
     requested_language = language or config.LANGUAGE
     if not requested_language:
@@ -122,14 +136,29 @@ def _stt_language_hint(language: str | None) -> str | None:
         return None
     if isinstance(value, str) and value:
         return value
-    return None
+    return requested_language
 
 
-def _stt_transcribe_options(language: str | None, **overrides) -> dict:
-    options = dict(overrides)
+def _stt_transcribe_options(language: str | None, *, engine: str = "faster-whisper", **overrides) -> dict:
+    """Build transcribe kwargs for the given engine.
+
+    MLX engine strips unsupported beam_size/vad_filter and renames
+    log_prob_threshold to logprob_threshold. faster-whisper passes params through.
+    """
+    options: dict = {}
     language_hint = _stt_language_hint(language)
     if language_hint:
         options["language"] = language_hint
+    for key, value in overrides.items():
+        if engine == "mlx":
+            if key in ("beam_size", "vad_filter"):
+                continue
+            if key == "log_prob_threshold":
+                options["logprob_threshold"] = value
+            else:
+                options[key] = value
+        else:
+            options[key] = value
     return options
 
 
@@ -252,7 +281,7 @@ def _voice_check_idle():
 
 
 def _voice_unload():
-    global _voice_stt_model, _voice_vad_model
+    global _voice_stt_model, _voice_stt_engine, _voice_vad_model
     any_unloaded = False
     with _voice_vad_lock:
         if _voice_vad_model is not None:
@@ -265,6 +294,7 @@ def _voice_unload():
             log.info("Voice idle — unloading STT model")
             del _voice_stt_model
             _voice_stt_model = None
+            _voice_stt_engine = None
             any_unloaded = True
     with _voice_tts_lock:
         if _voice_tts_pipelines:
@@ -308,6 +338,33 @@ def _get_tts_device():
     return "cpu"
 
 
+def _is_apple_silicon() -> bool:
+    """True only on darwin + arm64. Intel Mac, Linux, Windows return False."""
+    import sys
+    import platform
+
+    return sys.platform == "darwin" and platform.machine() == "arm64"
+
+
+def _get_stt_engine() -> str:
+    """Determine STT engine, honoring explicit sttModel overrides."""
+    override = _voice_settings().get("sttModel", "")
+    if override:
+        if "mlx-community/" in override or override.lower().startswith("mlx"):
+            return "mlx"
+        return "faster-whisper"
+    return "mlx" if _is_apple_silicon() else "faster-whisper"
+
+
+def _stt_default_model_id(engine: str) -> str:
+    """Default model repo/name for the given engine."""
+    if engine == "mlx":
+        return "mlx-community/whisper-large-v3-turbo-asr-fp16"
+    if _get_stt_device() == "cuda":
+        return "large-v3-turbo"
+    return "small"
+
+
 # ── Model loading ──
 
 
@@ -327,7 +384,7 @@ def _ensure_vad_loaded():
                 repo_or_dir="snakers4/silero-vad",
                 model="silero_vad",
                 force_reload=False,
-                onnx=False,
+                onnx=True,
             )
             _voice_vad_model = {"model": model, "utils": utils}
             log.info("Silero VAD loaded")
@@ -340,37 +397,94 @@ def _ensure_vad_loaded():
 
 
 def _ensure_stt_loaded():
-    global _voice_stt_model, _voice_stt_downloading, _voice_stt_progress
+    """Load STT model (engine-aware). Returns {'model': ..., 'engine': str, 'model_id': str}.
+
+    Temporary migration note: existing call sites that expect a raw faster-whisper
+    model are intentionally updated in the follow-up T1.5 task.
+    """
+    global _voice_stt_model, _voice_stt_engine, _voice_stt_downloading, _voice_stt_progress
     if _voice_stt_model is not None:
-        return _voice_stt_model
+        return globals()["_voice_stt_model"]
     with _voice_stt_lock:
         if _voice_stt_model is not None:
-            return _voice_stt_model
+            return globals()["_voice_stt_model"]
         try:
             _voice_stt_downloading = True
             _voice_stt_progress = max(_voice_stt_progress, 0.05)
-            log.info("Loading faster-whisper STT model (small)...")
-            _emit_voice_loading_status("stt", "Loading faster-whisper STT model…", _voice_stt_progress, "openai/whisper-small")
-            from faster_whisper import WhisperModel
 
-            device = _get_stt_device()
-            compute_type = "float16" if device == "cuda" else "int8"
-            _voice_stt_model = WhisperModel(
-                "small",
-                device=device,
-                compute_type=compute_type,
-            )
-            log.info(f"faster-whisper loaded on {device}")
+            engine = _get_stt_engine()
+            model_id = _voice_settings().get("sttModel", "") or _stt_default_model_id(engine)
+
+            log.info(f"Loading STT model ({engine}): {model_id}")
+            _emit_voice_loading_status("stt", f"Loading {engine} STT model…", _voice_stt_progress, model_id)
+
+            model = None
+            if engine == "mlx":
+                try:
+                    from mlx_audio.stt import load as mlx_stt_load
+
+                    model = mlx_stt_load(model_id)
+                except ImportError as e:
+                    log.warning(f"MLX STT unavailable ({e}), falling back to faster-whisper")
+                    engine = "faster-whisper"
+                    model_id = _stt_default_model_id(engine)
+                    _emit_voice_loading_status("stt", f"Falling back to faster-whisper: {model_id}", _voice_stt_progress, model_id)
+            if engine == "faster-whisper":
+                from faster_whisper import WhisperModel
+
+                device = _get_stt_device()
+                compute_type = "float16" if device == "cuda" else "int8"
+                model = WhisperModel(model_id, device=device, compute_type=compute_type)
+                log.info(f"faster-whisper loaded on {device} ({model_id})")
+
+            if model is None:
+                raise RuntimeError(f"Unsupported STT engine: {engine}")
+
+            _voice_stt_model = {"model": model, "engine": engine, "model_id": model_id}
+            _voice_stt_engine = engine
             _voice_touch()
             _voice_stt_progress = 1.0
             _voice_stt_downloading = False
-            _emit_voice_loading_status("stt", f"faster-whisper loaded on {device}", 1.0, "openai/whisper-small")
-            return _voice_stt_model
+            _emit_voice_loading_status("stt", f"STT loaded ({engine})", 1.0, model_id)
+            return globals()["_voice_stt_model"]
         except Exception as e:
             _voice_stt_progress = 0.0
             _voice_stt_downloading = False
             log.error(f"Failed to load STT: {e}", exc_info=True)
             raise
+
+
+async def _run_stt(audio, language: str | None, *, partial: bool = False) -> tuple[str, str | None, list]:
+    """Engine-agnostic STT transcription."""
+    stt_state = _ensure_stt_loaded()
+    model = stt_state["model"]
+    engine = stt_state["engine"]
+    _voice_touch()
+
+    if engine == "mlx":
+        options = _stt_transcribe_options(
+            language,
+            engine="mlx",
+            condition_on_previous_text=False,
+            no_speech_threshold=STT_NO_SPEECH_THRESHOLD,
+            log_prob_threshold=STT_LOGPROB_THRESHOLD,
+        )
+        result = await asyncio.to_thread(lambda: model.generate(audio, **options))
+        return (result.text or "", result.language, list(result.segments or []))
+
+    options = _stt_transcribe_options(
+        language,
+        engine="faster-whisper",
+        beam_size=1 if partial else 5,
+        vad_filter=not partial,
+        condition_on_previous_text=False,
+        no_speech_threshold=STT_NO_SPEECH_THRESHOLD,
+        log_prob_threshold=STT_LOGPROB_THRESHOLD,
+    )
+    segments, info = await asyncio.to_thread(lambda: model.transcribe(audio, **options))
+    segments_list = list(segments)
+    text = " ".join(seg.text for seg in segments_list).strip()
+    return (text, info.language, segments_list)
 
 
 def _repair_fugashi_dictionary_selection():
@@ -486,11 +600,15 @@ def _requested_tts_language(req: TTSRequest) -> str:
 async def voice_stt_status(language: Optional[str] = None):
     requested_language = language or config.LANGUAGE
     whisper_language = _stt_language_hint(requested_language) if requested_language else None
-    downloaded = False
+    engine = _get_stt_engine()
+    model_name = _voice_settings().get("sttModel", "") or _stt_default_model_id(engine)
     loaded = _voice_stt_model is not None
+    downloaded = False
     try:
-        from faster_whisper import WhisperModel  # noqa: F401
-
+        if engine == "mlx":
+            importlib.import_module("mlx_audio.stt")
+        else:
+            importlib.import_module("faster_whisper")
         downloaded = True
     except ImportError:
         pass
@@ -499,7 +617,8 @@ async def voice_stt_status(language: Optional[str] = None):
         "loaded": loaded,
         "downloading": _voice_stt_downloading,
         "progress": _voice_stt_progress,
-        "modelName": "openai/whisper-small",
+        "modelName": model_name,
+        "engine": engine,
         "language": requested_language,
         "whisperLanguage": whisper_language or "auto",
     }
@@ -1095,22 +1214,14 @@ async def voice_transcribe(req: TranscribeRequest):
     if not audio_path:
         raise HTTPException(status_code=400, detail="Audio file not found")
 
-    stt_model = _ensure_stt_loaded()
-    _voice_touch()
     requested_language = req.language or config.LANGUAGE
     try:
-        segments, info = await asyncio.to_thread(
-            lambda: stt_model.transcribe(
-                audio_path,
-                **_stt_transcribe_options(
-                    requested_language,
-                    beam_size=5,
-                    vad_filter=True,
-                ),
-            )
+        text, detected_language, _segments = await _run_stt(
+            audio_path,
+            requested_language,
+            partial=False,
         )
-        text = " ".join(seg.text for seg in segments).strip()
-        return {"text": text, "language": info.language}
+        return {"text": text, "language": detected_language}
     except Exception as e:
         log.error(f"Transcription error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1204,7 +1315,6 @@ async def voice_stream_ws(websocket: WebSocket):
             await status_queue.put(None)
             await status_task
         vad_data = results[0]
-        stt_model = results[1]
         vad_model = vad_data["model"]
 
         log.info("Voice stream warmup complete; sending ready")
@@ -1214,6 +1324,7 @@ async def voice_stream_ws(websocket: WebSocket):
         audio_buffer = bytearray()
         speech_buffer = bytearray()
         is_speaking = False
+        tts_active = False
         silence_audio_seconds = 0.0
         last_partial_time: float = 0.0
         PARTIAL_INTERVAL = 1.0
@@ -1278,21 +1389,11 @@ async def voice_stream_ws(websocket: WebSocket):
             try:
                 speech_np = np.frombuffer(buffer_bytes, dtype=np.float32)
                 audio_duration = len(speech_np) / SAMPLE_RATE
-                _voice_touch()
-                segments, info = await asyncio.to_thread(
-                    lambda: stt_model.transcribe(
-                        speech_np,
-                        **_stt_transcribe_options(
-                            language,
-                            beam_size=5,
-                            vad_filter=False,
-                            condition_on_previous_text=False,
-                            no_speech_threshold=0.6,
-                            log_prob_threshold=-1.0,
-                        ),
-                    )
+                final_text, _detected_lang, _segments = await _run_stt(
+                    speech_np,
+                    language,
+                    partial=False,
                 )
-                final_text = " ".join(seg.text for seg in segments).strip()
                 if final_text and not _is_hallucination(final_text, audio_duration):
                     await websocket.send_json(
                         {
@@ -1337,6 +1438,10 @@ async def voice_stream_ws(websocket: WebSocket):
                         silence_threshold = max(0.3, min(10.0, new_threshold))
                         continue
 
+                    if cmd_type == "tts_state":
+                        tts_active = bool(cmd.get("active", False))
+                        continue
+
                     if cmd_type == "pong":
                         continue
 
@@ -1373,9 +1478,14 @@ async def voice_stream_ws(websocket: WebSocket):
 
                 speech_prob = vad_model(tensor, SAMPLE_RATE).item()
 
-                speech_threshold = (
-                    VAD_SPEECH_CONTINUE_THRESHOLD if is_speaking else VAD_SPEECH_START_THRESHOLD
-                )
+                if tts_active:
+                    start_thresh = VAD_SPEECH_START_THRESHOLD_TTS
+                    continue_thresh = VAD_SPEECH_CONTINUE_THRESHOLD_TTS
+                else:
+                    start_thresh = VAD_SPEECH_START_THRESHOLD
+                    continue_thresh = VAD_SPEECH_CONTINUE_THRESHOLD
+
+                speech_threshold = continue_thresh if is_speaking else start_thresh
                 if speech_prob > speech_threshold:
                     if not is_speaking:
                         is_speaking = True
@@ -1414,21 +1524,11 @@ async def voice_stream_ws(websocket: WebSocket):
                             speech_np = np.frombuffer(
                                 bytes(speech_buffer), dtype=np.float32
                             )
-                            segments, _ = await asyncio.to_thread(
-                                lambda: stt_model.transcribe(
-                                    speech_np,
-                                    **_stt_transcribe_options(
-                                        language,
-                                        beam_size=1,
-                                        vad_filter=False,
-                                        condition_on_previous_text=False,
-                                        no_speech_threshold=0.6,
-                                    ),
-                                )
+                            partial_text, _detected_lang, _segments = await _run_stt(
+                                speech_np,
+                                language,
+                                partial=True,
                             )
-                            partial_text = " ".join(
-                                seg.text for seg in segments
-                            ).strip()
                             if partial_text and not _is_hallucination(
                                 partial_text, len(speech_np) / SAMPLE_RATE
                             ):
