@@ -1,6 +1,6 @@
 # mLearn Cloud Terms of Service
 
-**Version 1.2 — Effective Date: 2026-05-18**
+**Version 1.3 — Effective Date: 2026-07-07**
 
 **Operator:** Adrian Vlasov, Vaud, Switzerland  
 **Contact:** adrian@kikan.net  
@@ -29,9 +29,9 @@ For the purposes of these Terms:
 - **"Service"** means the mLearn Cloud relay and sync infrastructure accessible at mlearn-cloud.kikan.net.
 - **"Cloud Features"** means features that require a connection to the Service, including but not limited to Cloud LLM relay, Cloud OCR, Cloud TTS, Watch Together, and flashcard sync.
 - **"Quota"** means the allocated usage limit for Cloud Features.
-- **"Institutional User"** means a school, university, tutoring center, or other educational institution.
-- **"Operator"**, **"We"**, or **"Us"** means Adrian Vlasov.
-- **"You"** or **"User"** means the individual using the Service.
+- **"Hosted Cloud LLM"** means the Cloud LLM relay operated at mlearn-cloud.kikan.net.
+- **"Operator"**, **"We"**, or **"Us"** means Adrian Vlasov, acting as an individual operator and not as a corporation, Sarl, GmbH, or other limited-liability entity.
+- **"You"** or **"User"** means the individual or organization using the Service.
 
 ### 1.2 Hierarchy
 
@@ -51,19 +51,24 @@ AVAILABILITY, COMPATIBILITY, OR ERROR-FREE OPERATION OF THE SERVICE.
 You must create an account to use cloud features. By creating an account,
 you certify that:
 
-- You are at least 18 years of age, or the age of majority in your
-  jurisdiction, whichever is higher;
 - You will provide accurate account information;
-- You are legally capable of entering into a binding contract.
+- You are legally capable of accepting these Terms yourself, or you are
+  using the Service under the responsibility of a parent, guardian,
+  school, employer, or other authorized organization.
 
 One person per account. We may suspend accounts used for credential
 sharing, abuse, or circumvention of rate limits.
 
-### 2.1 No Institutional or Minor Use
-These cloud terms apply to individual adult users only. Schools,
-universities, tutoring centers, and other institutions may NOT create
-accounts on behalf of students under 18. If you are an educator,
-consult SCHOOL_DEPLOYMENT.md for the self-hosting package.
+### 2.1 Hosted Cloud LLM Age Requirement
+The Hosted Cloud LLM is available only to users who are at least 18 years
+old, or the age of majority in their jurisdiction if higher. We ask for
+that confirmation only when you try to access the Hosted Cloud LLM.
+
+Other Cloud Features may be used in personal or educational deployments,
+including schools, where the responsible adult or organization manages
+the deployment, supervision, and any required consent. mLearn does not
+provide student account administration, classroom management, or guardian
+consent workflows in this version.
 
 ## 3. Cloud AI Features
 

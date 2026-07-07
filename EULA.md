@@ -1,6 +1,6 @@
 # mLearn End User License Agreement (EULA)
 
-**Version 1.2 — Effective Date: 2026-05-18**
+**Version 1.3 — Effective Date: 2026-07-07**
 
 **Licensor:** Adrian Vlasov, Vaud, Switzerland  
 **Contact:** adrian@kikan.net  
@@ -23,7 +23,7 @@ software as a commercial service without a separate written agreement.
 For the purposes of this EULA:
 - **"Software"** means the mLearn language immersion application, browser extension, installer, and associated documentation.
 - **"Plugin"** means a third-party software module loaded via the local plugin manifest system.
-- **"Licensor"**, **"We"**, or **"Us"** means Adrian Vlasov.
+- **"Licensor"**, **"We"**, or **"Us"** means Adrian Vlasov, acting as an individual licensor and not as a corporation, Sarl, GmbH, or other limited-liability entity.
 - **"You"** means the individual or entity using the Software.
 
 ## 2. No Warranty / As-Is
@@ -81,21 +81,18 @@ software is not a crisis response system.
 
 ### 3.5 Age Requirement & Cloud vs. Local Use
 
-**Cloud AI (mlearn-cloud.kikan.net):**  
-By creating a cloud account or using the Cloud LLM relay, you certify
-that you are at least 18 years of age, or the age of majority in your
-jurisdiction, whichever is higher. The public cloud relay is not
-available to minors or institutional users.
+**Hosted Cloud LLM (mlearn-cloud.kikan.net):**
+Before using the hosted Cloud LLM relay, you must certify that you are at
+least 18 years of age, or the age of majority in your jurisdiction if
+higher. This age confirmation applies to the hosted Cloud LLM relay, not
+to local-only AI, self-hosted AI, or non-LLM cloud features.
 
 **Local AI (built-in or local Ollama):**  
-No age restriction applies to local-only use. The AI runs entirely on
-your device; no data is transmitted to our servers. Parents, guardians,
-and educational institutions are responsible for supervising minor use
-of local AI features.
-
-If you are an educational institution using mLearn with students under
-18, you must use local AI mode only. See SCHOOL_DEPLOYMENT.md for
-deployment instructions.
+No age restriction is imposed by this EULA for local-only use. The AI
+runs entirely on your device; no data is transmitted to our servers.
+Parents, guardians, and educational institutions are responsible for
+supervising learner use and choosing the deployment model that fits their
+legal and operational requirements.
 
 ## 4. Voice Cloning & Text-to-Speech
 
