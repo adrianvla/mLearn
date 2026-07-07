@@ -242,6 +242,11 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           <Show when={props.message.interrupted}>
             <span class="chat-bubble-interrupted">
               <ScissorsIcon size={12} /> {t('mlearn.ConversationAgent.Voice.Interrupted')}
+              <Show when={props.message.interruptedAt}>
+                <span class="chat-bubble-interrupted-at">
+                  {t('mlearn.ConversationAgent.Voice.InterruptedBefore', { text: props.message.interruptedAt || '' })}
+                </span>
+              </Show>
             </span>
           </Show>
         </Show>

@@ -390,7 +390,7 @@
         "Title": "Agent de conversation IA — CLUF",
         "AIWarning": "⚠️ Les réponses générées par l'IA peuvent être inexactes ou inappropriées. Cet agent n'est pas un humain et ne peut fournir de conseils professionnels.",
         "SafetyNotice": "🛡️ Le filtrage de sécurité est ON (utilise de la puissance de calcul supplémentaire par message). Si du contenu nuisible est détecté, le chat sera immédiatement terminé. Paramètres → Sécurité IA pour désactiver.",
-        "AgeVerificationText": "Vous avez activé un fournisseur LLM cloud. Les services d'IA cloud acheminent vos conversations via des serveurs distants, ce qui signifie que vos messages ne sont pas entièrement traités sur votre propre machine. En raison des cadres de protection des données et de responsabilité pour les services d'IA cloud, vous devez avoir 18 ans ou plus pour utiliser le tuteur IA cloud. Pour une utilisation en classe par des élèves de moins de 18 ans, votre institution doit auto-héberger l'ensemble de la pile logicielle.",
+        "AgeVerificationText": "Vous avez activé un fournisseur LLM cloud. Les services d'IA cloud acheminent vos conversations via des serveurs distants, ce qui signifie que vos messages ne sont pas entièrement traités sur votre propre machine. En raison des cadres de protection des données et de responsabilité pour les services d'IA cloud hébergés, vous devez avoir 18 ans ou plus pour utiliser le tuteur IA cloud hébergé.",
         "Certification": "En continuant, vous certifiez que vous avez 18 ans ou plus et acceptez le CLUF.",
         "ContinueButton": "Continuer vers le chat"
       },
@@ -502,6 +502,7 @@
         "Initializing": "Chargement du moteur vocal…",
         "InstallingDependencies": "Installation des dépendances vocales…",
         "Interrupted": "*Interrompu par l'utilisateur*",
+        "InterruptedBefore": "coupé avant : {text}",
         "Interrupt": "Interruption",
         "Listening": "Écoute…",
         "LoadingTtsModel": "Chargement du modèle de synthèse vocale…",

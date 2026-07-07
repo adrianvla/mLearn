@@ -390,7 +390,7 @@
         "Title": "AI Conversation Agent — EULA",
         "AIWarning": "AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
         "SafetyNotice": "Safety screening is ON (uses extra quota per message). If harmful content is detected, the chat will be terminated immediately. Settings → AI Safety to disable.",
-        "AgeVerificationText": "You have enabled a cloud LLM provider. Cloud AI services route your conversations through remote servers, which means your messages are not processed entirely on your own machine. Due to data-protection and liability frameworks for cloud AI services, you must be 18 or older to use the Cloud AI tutor. For classroom use by students under 18, your institution must self-host the entire software stack.",
+        "AgeVerificationText": "You have enabled a cloud LLM provider. Cloud AI services route your conversations through remote servers, which means your messages are not processed entirely on your own machine. Due to data-protection and liability frameworks for hosted cloud AI services, you must be 18 or older to use the hosted Cloud AI tutor.",
         "Certification": "By continuing, you certify you are 18 or older and accept the EULA.",
         "ContinueButton": "Continue to Chat"
       },
@@ -502,6 +502,7 @@
         "Initializing": "Loading voice engines…",
         "InstallingDependencies": "Installing voice dependencies…",
         "Interrupted": "*interrupted by user*",
+        "InterruptedBefore": "cut before: {text}",
         "Interrupt": "Interrupt",
         "Listening": "Listening…",
         "LoadingTtsModel": "Loading speech model…",

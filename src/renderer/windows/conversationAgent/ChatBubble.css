@@ -212,6 +212,11 @@
   margin-left: var(--spacing-2);
 }
 
+.chat-bubble-interrupted-at {
+  color: var(--text-secondary);
+  font-style: normal;
+}
+
 /* ============ Error banner ============ */
 
 .chat-bubble.error .chat-bubble-content {

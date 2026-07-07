@@ -794,6 +794,26 @@ describe('createConversationAgent', () => {
       expect(assistantMsgs[assistantMsgs.length - 1].content).toBe('こんにちは [interrupted by user]');
     });
 
+    it('records the unspoken interruption point when provided', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+      sendChunk('こんにちは、今日はどうですか');
+      sendDone();
+
+      await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalled());
+
+      agent.markInterrupted('こんにちは', '今日はどうですか');
+
+      const { callbacks: callbacks2 } = createCallbacks();
+      agent.processMessage('next', [], callbacks2);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[mockBridge.llm.llmStream.mock.calls.length - 1];
+      const assistantMsgs = messages.filter((m: { role: string }) => m.role === 'assistant');
+      expect(assistantMsgs[assistantMsgs.length - 1].content).toBe('こんにちは [interrupted by user before: 今日はどうですか]');
+    });
+
     it('does nothing if there is no assistant message in history', () => {
       const agent = createConversationAgent(createMockDeps());
       // Should not throw
@@ -1963,6 +1983,7 @@ describe('createConversationAgent', () => {
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       expect(messages[0].content).toContain('speech-to-text transcript');
       expect(messages[0].content).toContain('ask one short clarification');
+      expect(messages[0].content).toContain('Do not guess what the learner "probably meant"');
       expect(messages[0].content).toContain('Do not call tools when the transcript itself is unclear');
     });
 

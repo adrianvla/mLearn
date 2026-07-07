@@ -390,7 +390,7 @@
         "Title": "KI-Sprachlehrer — EULA",
         "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
         "SafetyNotice": "🛡️ Sicherheitsprüfung ist ON (verbraucht zusätzliche Rechenleistung pro Nachricht). Bei Erkennung schädlicher Inhalte wird der Chat sofort beendet. Einstellungen → KI-Sicherheit zum Deaktivieren.",
-        "AgeVerificationText": "Sie haben einen Cloud-LLM-Anbieter aktiviert. Cloud-KI-Dienste leiten Ihre Unterhaltungen über entfernte Server, sodass Ihre Nachrichten nicht vollständig auf Ihrem eigenen Gerät verarbeitet werden. Aufgrund von Datenschutz- und Haftungsrahmen für Cloud-KI-Dienste müssen Sie 18 Jahre oder älter sein, um den Cloud-KI-Sprachlehrer zu nutzen. Für den Unterrichtsgebrauch durch Schüler unter 18 Jahren muss Ihre Institution den gesamten Software-Stack selbst hosten.",
+        "AgeVerificationText": "Sie haben einen Cloud-LLM-Anbieter aktiviert. Cloud-KI-Dienste leiten Ihre Unterhaltungen über entfernte Server, sodass Ihre Nachrichten nicht vollständig auf Ihrem eigenen Gerät verarbeitet werden. Aufgrund von Datenschutz- und Haftungsrahmen für gehostete Cloud-KI-Dienste müssen Sie 18 Jahre oder älter sein, um den gehosteten Cloud-KI-Sprachlehrer zu nutzen.",
         "Certification": "Indem Sie fortfahren, bestätigen Sie, dass Sie 18 Jahre oder älter sind und die EULA akzeptieren.",
         "ContinueButton": "Weiter zum Chat"
       },
@@ -502,6 +502,7 @@
         "Initializing": "Sprachengine wird geladen…",
         "InstallingDependencies": "Sprachabhängigkeiten werden installiert…",
         "Interrupted": "*Vom Benutzer unterbrochen*",
+        "InterruptedBefore": "unterbrochen vor: {text}",
         "Interrupt": "Unterbrechung",
         "Listening": "Höre zu…",
         "LoadingTtsModel": "Sprachsynthesemodell wird geladen…",

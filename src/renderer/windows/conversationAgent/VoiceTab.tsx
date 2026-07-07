@@ -200,9 +200,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let ttsHadError = false;
   // Barge-in detection: consecutive mic-loud frames during TTS playback
   let bargeInFrames = 0;
-  const BARGE_IN_THRESHOLD = 0.15;
-  const BARGE_IN_FRAMES_REQUIRED = 3;
-  const BARGE_IN_GRACE_MS = 900;
+  const BARGE_IN_THRESHOLD = 0.28;
+  const BARGE_IN_FRAMES_REQUIRED = 8;
+  const BARGE_IN_GRACE_MS = 1200;
   let debugEventId = 0;
   let ttsTimelinePhrases: VoiceTimelinePhrase[] = [];
   let ttsTimelineChunks: VoiceTimelineChunk[] = [];
@@ -867,7 +867,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       if (avg > BARGE_IN_THRESHOLD) {
         bargeInFrames++;
         if (bargeInFrames >= BARGE_IN_FRAMES_REQUIRED) {
-          log.info('[VoiceTab] Barge-in detected', { avg });
+          log.info('[VoiceTab] Barge-in detected', { avg, threshold: BARGE_IN_THRESHOLD, frames: bargeInFrames });
           addDebugEvent('Interrupt', `Mic level ${avg.toFixed(2)} during TTS`, 'warn');
           bargeInFrames = 0;
           handleTTSInterruption();
