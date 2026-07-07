@@ -5,6 +5,17 @@
         "Unknown": "Unbekannt"
       }
     },
+    "LanguageSetup": {
+      "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
+      "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
+      "OpenSetup": "Open Language Setup",
+      "Title": "Language Data Required"
+    },
+    "RuntimeRestart": {
+      "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
+      "RestartNow": "Restart Now",
+      "Title": "Restart Required"
+    },
     "AI": {
       "CloudUnreachable": "Der Cloud-Dienst ist nicht erreichbar. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "DownloadModel": "Modell herunterladen",
@@ -135,7 +146,7 @@
         },
         "Speech": {
           "Title": "Sprache",
-          "Label": "Sprache (Experimentell)",
+          "Label": "Sprache",
           "Description": "Text-to-Speech für KI-Antworten und Speech-to-Text-Eingabe aktivieren"
         },
         "AutoSpeak": {
@@ -2578,7 +2589,7 @@
         },
         "Voice": {
           "Title": "Sprachkomponenten",
-          "Description": "Spracherkennung, Sprachsynthese und Spracherkennung für Aktivität."
+          "Description": "Spracherkennung (STT), Synthese (TTS) und Sprachaktivitätserkennung (VAD). Modelle werden automatisch basierend auf Ihrer Hardware ausgewählt."
         },
         "Dictionaries": {
           "Title": "Installierte Wörterbücher",
@@ -2611,20 +2622,20 @@
           "Description": "OCR-Laufzeit, die von installierten Sprachdaten deklariert wird."
         },
         "WhisperSmall": {
-          "Title": "Whisper-small-STT-Modell",
-          "Description": "Lokale Sprache-zu-Text-Erkennung für Sprachgespräche."
+          "Title": "Whisper-STT-Engine",
+          "Description": "Lokale Spracherkennung für Sprachgespräche. Nutzt MLX-Beschleunigung auf Apple Silicon, faster-whisper auf anderen Plattformen."
         },
         "KokoroTts": {
           "Title": "Kokoro-TTS-Modell",
-          "Description": "Lokale Text-zu-Sprache-Ausgabe für unterstützte Sprachen."
+          "Description": "Schnelle, kompakte Text-zu-Sprache-Ausgabe (82M) für allgemeine Sprachausgabe."
         },
         "SileroVad": {
           "Title": "Silero-VAD-Modell",
-          "Description": "Sprachaktivitätserkennung für Freisprechgespräche."
+          "Description": "Sprachaktivitätserkennung für Freisprechgespräche. Läuft über ONNX-Runtime für geringe Latenz."
         },
         "QwenTts": {
           "Title": "Qwen3-TTS-Modell",
-          "Description": "Optionale lokale Stimmklonung und mehrsprachige TTS."
+          "Description": "Stimmklonung und ausdrucksstarke Text-zu-Sprache (0,6B). Höhere Qualität, langsamer als Kokoro."
         },
         "GenericTTS": {
           "Title": "{engine}-TTS-Laufzeit",

@@ -5,6 +5,17 @@
         "Unknown": "Неизвестно"
       }
     },
+    "LanguageSetup": {
+      "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
+      "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
+      "OpenSetup": "Open Language Setup",
+      "Title": "Language Data Required"
+    },
+    "RuntimeRestart": {
+      "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
+      "RestartNow": "Restart Now",
+      "Title": "Restart Required"
+    },
     "AI": {
       "CloudUnreachable": "Облачный сервис недоступен. Проверьте подключение и попробуйте снова.",
       "DownloadModel": "Скачать модель",
@@ -135,7 +146,7 @@
         },
         "Speech": {
           "Title": "Речь",
-          "Label": "Речь (экспериментально)",
+          "Label": "Речь",
           "Description": "Включить озвучивание ответов AI и распознавание речи на вводе"
         },
         "AutoSpeak": {
@@ -2578,7 +2589,7 @@
         },
         "Voice": {
           "Title": "Голосовые компоненты",
-          "Description": "Распознавание речи, синтез речи и определение голосовой активности."
+          "Description": "Распознавание речи (STT), синтез (TTS) и определение голосовой активности (VAD). Модели выбираются автоматически в зависимости от вашего оборудования."
         },
         "Dictionaries": {
           "Title": "Установленные словари",
@@ -2611,20 +2622,20 @@
           "Description": "OCR-среда, объявленная установленными языковыми данными."
         },
         "WhisperSmall": {
-          "Title": "STT-модель Whisper small",
-          "Description": "Локальное преобразование речи в текст для голосовых разговоров."
+          "Title": "Движок STT Whisper",
+          "Description": "Локальное распознавание речи для голосовых разговоров. Использует ускорение MLX на Apple Silicon, faster-whisper на других платформах."
         },
         "KokoroTts": {
           "Title": "TTS-модель Kokoro",
-          "Description": "Локальный синтез речи для поддерживаемых языков."
+          "Description": "Быстрый лёгкий синтез речи (82M) для повседневного озвучивания."
         },
         "SileroVad": {
           "Title": "VAD-модель Silero",
-          "Description": "Определение голосовой активности для разговоров без кнопки."
+          "Description": "Определение голосовой активности для разговоров без кнопки. Работает через ONNX-среду для низкой задержки."
         },
         "QwenTts": {
           "Title": "TTS-модель Qwen3",
-          "Description": "Дополнительное локальное клонирование голоса и многоязычный TTS."
+          "Description": "Клонирование голоса и выразительный синтез речи (0,6B). Выше качество, медленнее чем Kokoro."
         },
         "GenericTTS": {
           "Title": "TTS-среда {engine}",

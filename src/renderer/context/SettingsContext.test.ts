@@ -7,6 +7,7 @@ let settingsSavedCb: (() => void) | undefined;
 const settingsCleanup = vi.fn();
 const settingsSavedCleanup = vi.fn();
 const mockRestartBackend = vi.fn();
+const mockForceRestartApp = vi.fn();
 
 const mockBridge = {
   settings: {
@@ -17,6 +18,7 @@ const mockBridge = {
   },
   server: {
     restartBackend: vi.fn(() => mockRestartBackend()),
+    forceRestartApp: vi.fn(() => mockForceRestartApp()),
   },
 };
 
@@ -67,6 +69,9 @@ type SettingsCtx = {
   updateSettings: (partial: Partial<Settings>) => void;
   saveSettings: () => void;
   isLoading: () => boolean;
+  isRuntimeRestartRequired: () => boolean;
+  clearRuntimeRestartRequired: () => void;
+  restartAppForRuntimeSettings: () => void;
   isCloudReLoginModalOpen: () => boolean;
   openCloudReLoginModal: () => void;
   closeCloudReLoginModal: () => void;
@@ -146,6 +151,23 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('runtime restart helpers expose and clear pending restart state', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ language: 'ja' }));
+
+    ctx.updateSetting('language', 'de');
+    settingsSavedCb?.();
+
+    expect(ctx.isRuntimeRestartRequired()).toBe(true);
+
+    ctx.clearRuntimeRestartRequired();
+    expect(ctx.isRuntimeRestartRequired()).toBe(false);
+
+    ctx.restartAppForRuntimeSettings();
+    expect(mockForceRestartApp).toHaveBeenCalledOnce();
+    dispose();
+  });
+
   it('registers IPC listener and calls getSettings on mount', async () => {
     const { dispose } = await mountProvider();
     expect(mockBridge.settings.onSettings).toHaveBeenCalledOnce();
@@ -215,7 +237,7 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
-  it('updateSetting with language key restarts Python backend after settings are saved', async () => {
+  it('updateSetting with language key requires app restart after settings are saved', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings({ language: 'ja' }));
     mockBridge.settings.onSettingsSaved.mockClear();
@@ -227,15 +249,17 @@ describe('SettingsProvider', () => {
     expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ language: 'de' }));
     expect(mockBridge.settings.onSettingsSaved).toHaveBeenCalledOnce();
     expect(mockRestartBackend).not.toHaveBeenCalled();
+    expect(ctx.isRuntimeRestartRequired()).toBe(false);
 
     settingsSavedCb?.();
 
     expect(settingsSavedCleanup).toHaveBeenCalledOnce();
-    expect(mockRestartBackend).toHaveBeenCalledOnce();
+    expect(mockRestartBackend).not.toHaveBeenCalled();
+    expect(ctx.isRuntimeRestartRequired()).toBe(true);
     dispose();
   });
 
-  it('updateSettings with dictionary target map restarts Python backend after settings are saved', async () => {
+  it('updateSettings with dictionary target map requires app restart after settings are saved', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings({ dictionaryTargetLanguages: { ja: 'en' } }));
     mockBridge.settings.onSettingsSaved.mockClear();
@@ -252,7 +276,8 @@ describe('SettingsProvider', () => {
     settingsSavedCb?.();
 
     expect(settingsSavedCleanup).toHaveBeenCalledOnce();
-    expect(mockRestartBackend).toHaveBeenCalledOnce();
+    expect(mockRestartBackend).not.toHaveBeenCalled();
+    expect(ctx.isRuntimeRestartRequired()).toBe(true);
     dispose();
   });
 

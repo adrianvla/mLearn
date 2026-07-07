@@ -30,7 +30,7 @@ For the purposes of these Terms:
 - **"Cloud Features"** means features that require a connection to the Service, including but not limited to Cloud LLM relay, Cloud OCR, Cloud TTS, Watch Together, and flashcard sync.
 - **"Quota"** means the allocated usage limit for Cloud Features.
 - **"Hosted Cloud LLM"** means the Cloud LLM relay operated at mlearn-cloud.kikan.net.
-- **"Operator"**, **"We"**, or **"Us"** means Adrian Vlasov, acting as an individual operator and not as a corporation, Sarl, GmbH, or other limited-liability entity.
+- **"Operator"**, **"We"**, or **"Us"** means Adrian Vlasov, acting in an individual capacity as the operator of the Service.
 - **"You"** or **"User"** means the individual or organization using the Service.
 
 ### 1.2 Hierarchy

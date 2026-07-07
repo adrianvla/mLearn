@@ -93,12 +93,20 @@ class VoiceSttEngineTests(unittest.TestCase):
             self.assertEqual(getattr(voice, "_get_stt_engine")(), "faster-whisper")
 
     def test_get_stt_engine_override_mlx_community_repo(self):
-        with mock.patch.object(voice, "_is_apple_silicon", return_value=False), mock.patch.object(
+        with mock.patch.object(voice, "_is_apple_silicon", return_value=True), mock.patch.object(
             voice,
             "_voice_settings",
             return_value={"sttModel": "mlx-community/whisper-small-mlx"},
         ):
             self.assertEqual(getattr(voice, "_get_stt_engine")(), "mlx")
+
+    def test_get_stt_engine_override_mlx_on_non_apple_silicon_rejected(self):
+        with mock.patch.object(voice, "_is_apple_silicon", return_value=False), mock.patch.object(
+            voice,
+            "_voice_settings",
+            return_value={"sttModel": "mlx-community/whisper-small-mlx"},
+        ):
+            self.assertEqual(getattr(voice, "_get_stt_engine")(), "faster-whisper")
 
     def test_get_stt_engine_override_non_mlx(self):
         with mock.patch.object(voice, "_is_apple_silicon", return_value=True), mock.patch.object(

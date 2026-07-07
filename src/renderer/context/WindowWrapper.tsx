@@ -13,7 +13,7 @@ import { ServerProvider, useServer } from './ServerContext';
 import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
-import { EulaModal } from '../components/common';
+import { Btn, ErrorModal, EulaModal } from '../components/common';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
@@ -193,6 +193,38 @@ const GlobalCloudReLoginModal: Component = () => {
   );
 };
 
+const GlobalRuntimeRestartModal: Component = () => {
+  const {
+    isRuntimeRestartRequired,
+    restartAppForRuntimeSettings,
+  } = useSettings();
+  const { t } = useLocalization();
+  const isSetupWindow = () => (
+    typeof window !== 'undefined' && window.location.pathname.endsWith('/welcome.html')
+  );
+
+  return (
+    <Show when={isRuntimeRestartRequired() && !isSetupWindow()}>
+      <ErrorModal
+        isOpen={true}
+        severity="warning"
+        title={t('mlearn.RuntimeRestart.Title')}
+        message={t('mlearn.RuntimeRestart.Message')}
+        showRetry={false}
+        showQuit={false}
+        actions={(
+          <Btn
+            variant="primary"
+            onClick={restartAppForRuntimeSettings}
+          >
+            {t('mlearn.RuntimeRestart.RestartNow')}
+          </Btn>
+        )}
+      />
+    </Show>
+  );
+};
+
 
 async function computeSha256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -259,6 +291,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
           <SettingsProvider>
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
+            <GlobalRuntimeRestartModal />
             <LowPowerGateProvider>
             <LanguageProviderBridge>
             <MigrationHandler>
