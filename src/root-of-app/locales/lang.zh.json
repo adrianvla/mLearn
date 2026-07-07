@@ -402,7 +402,14 @@
       },
       "Commands": {
         "NewTopic": "新主题",
-        "NewTopicDesc": "切换到新的对话主题"
+        "NewTopicDesc": "切换到新的对话主题",
+        "Compact": "压缩",
+        "CompactDesc": "总结较早上下文，让回复更快",
+        "Compacting": "正在总结较早的对话上下文…",
+        "CompactDone": "已将 {count} 条较早消息总结进记忆。",
+        "CompactSkipped": "目前还没有足够的对话可压缩。",
+        "CompactBusy": "请等当前回复结束后再压缩。",
+        "CompactFailed": "无法压缩这段对话。"
       },
       "Tools": {
         "CorrectMistake": "纠正错误",

@@ -10,6 +10,10 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
   timesSeen: 0,
 }));
 const mockClearAllWordSyncSeen = vi.fn();
+const mockSetWordKnowledgeEase = vi.fn();
+const mockMarkWordSyncSeen = vi.fn();
+const mockRestoreWordSyncRating = vi.fn();
+const mockFetchTranslation = vi.hoisted(() => vi.fn(async (): Promise<{ data: Array<{ definitions: string[] }> }> => ({ data: [] })));
 const mockWordSyncState = vi.hoisted(() => ({
   settings: {
     language: 'ja',
@@ -100,9 +104,10 @@ vi.mock('../../context', () => ({
       wordToCardMap: {},
       flashcards: {},
     },
-    setWordKnowledgeEase: vi.fn(),
-    markWordSyncSeen: vi.fn(),
+    setWordKnowledgeEase: mockSetWordKnowledgeEase,
+    markWordSyncSeen: mockMarkWordSyncSeen,
     clearAllWordSyncSeen: mockClearAllWordSyncSeen,
+    restoreWordSyncRating: mockRestoreWordSyncRating,
     getWordKnowledge: vi.fn(() => null),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
   }),
@@ -152,7 +157,7 @@ vi.mock('../../utils/readingProsody', () => ({
 }));
 
 vi.mock('../../hooks/useTranslation', () => ({
-  fetchTranslation: vi.fn(async () => ({ data: [] })),
+  fetchTranslation: mockFetchTranslation,
 }));
 
 vi.mock('../../services/ankiWordsCache', () => ({
@@ -198,6 +203,11 @@ describe('WordSyncContent', () => {
     mockCommonState.filterBuilderProps = null;
     mockCommonState.buildWordSyncPreset.mockClear();
     mockClearAllWordSyncSeen.mockClear();
+    mockSetWordKnowledgeEase.mockClear();
+    mockMarkWordSyncSeen.mockClear();
+    mockRestoreWordSyncRating.mockClear();
+    mockFetchTranslation.mockReset();
+    mockFetchTranslation.mockResolvedValue({ data: [] });
   });
 
   afterEach(() => {
@@ -249,6 +259,67 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(mockWordSyncState.getCanonicalFormForLanguage.mock.calls.length).toBe(initialCanonicalizations);
+    dispose();
+  });
+
+  it('toggles the current word translation with Space', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).not.toContain('red');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('red');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
+    await Promise.resolve();
+
+    expect(container.textContent).not.toContain('red');
+    dispose();
+  });
+
+  it('undoes the last word sync rating with Cmd+Z', async () => {
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    const previousKnowledge = {
+      ease: 0.2,
+      lastSeen: 100,
+      timesSeen: 2,
+      timesHovered: 0,
+      word: '赤い',
+      reading: 'あかい',
+      language: 'ja',
+      lastStatusChange: 100,
+    };
+    mockWordSyncState.wordKnowledge = {
+      [`ja:${hashWordSync('赤い')}`]: previousKnowledge,
+    };
+    mockWordSyncState.wordSyncSeen = {
+      [`ja:${hashWordSync('赤い')}`]: 1234,
+    };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('赤い:あかい');
+    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await Promise.resolve();
+
+    expect(mockRestoreWordSyncRating).toHaveBeenCalledWith('赤い', previousKnowledge, 1234, 'ja');
+    expect(container.textContent).toContain('赤い:あかい');
     dispose();
   });
 

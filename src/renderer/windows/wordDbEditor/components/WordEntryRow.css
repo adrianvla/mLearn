@@ -43,7 +43,6 @@
 
 .word-db-editor .col.word .word-text {
   position: relative;
-  display: inline-block;
   white-space: nowrap;
 }
 

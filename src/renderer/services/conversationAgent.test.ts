@@ -1953,6 +1953,19 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('Do NOT call "note_mistake" with empty fields');
     });
 
+    it('tells voice mode to clarify unclear speech transcripts before using tools', () => {
+      const deps = createMockDeps({ isVoiceMode: () => true });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('...', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('speech-to-text transcript');
+      expect(messages[0].content).toContain('ask one short clarification');
+      expect(messages[0].content).toContain('Do not call tools when the transcript itself is unclear');
+    });
+
     it('includes package-declared shared correction guidance in voice prompts', () => {
       const deps = createMockDeps({
         isVoiceMode: () => true,
@@ -2394,6 +2407,78 @@ describe('createConversationAgent', () => {
       expect(result.length).toBe(2);
       expect(result[0].role).toBe('user');
       expect(result[1].role).toBe('assistant');
+    });
+
+    it('summarizes older history and preserves recent messages for manual compaction', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const history: LLMChatMessage[] = Array.from({ length: 16 }, (_, index) => ({
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        content: `message ${index + 1}`,
+      }));
+
+      agent.loadHistory(history);
+      const resultPromise = agent.summarizeHistory();
+
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('compact language-tutor conversation history');
+      expect(messages[1].content).toContain('message 1');
+      expect(messages[1].content).toContain('message 6');
+      expect(messages[1].content).not.toContain('message 7');
+
+      sendChunk('- Learner discussed greetings.');
+      sendDone();
+
+      const result = await resultPromise;
+      expect(result.status).toBe('compacted');
+      if (result.status !== 'compacted') return;
+      expect(result.compactedMessages).toBe(6);
+
+      const compactedHistory = agent.getHistory();
+      expect(compactedHistory).toHaveLength(11);
+      expect(compactedHistory[0]).toEqual({
+        role: 'system',
+        content: 'Previous conversation summary:\n- Learner discussed greetings.',
+      });
+      expect(compactedHistory.slice(1)).toEqual(history.slice(6));
+    });
+
+    it('skips manual compaction while a visible stream is active', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+      const result = await agent.summarizeHistory();
+
+      expect(result).toEqual({
+        status: 'skipped',
+        reason: 'busy',
+        remainingMessages: 1,
+      });
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+    });
+
+    it('skips manual compaction while a hidden compaction stream is active', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const history: LLMChatMessage[] = Array.from({ length: 16 }, (_, index) => ({
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        content: `message ${index + 1}`,
+      }));
+
+      agent.loadHistory(history);
+      const firstCompaction = agent.summarizeHistory();
+      const secondResult = await agent.summarizeHistory();
+
+      expect(secondResult).toEqual({
+        status: 'skipped',
+        reason: 'busy',
+        remainingMessages: 16,
+      });
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+
+      sendChunk('- Existing summary.');
+      sendDone();
+      await firstCompaction;
     });
   });
 });

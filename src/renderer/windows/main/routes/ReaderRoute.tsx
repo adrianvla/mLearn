@@ -25,7 +25,7 @@ import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard, ReaderStatusBar, type ReaderUnknownWordEntry } from './components';
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages } from '../../../services/pdfService';
-import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
+import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
 import { captureReaderImageForFlashcard } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
@@ -1619,7 +1619,7 @@ export const ReaderRoute: Component = () => {
     if (title && currentPages.length > 0 && currentPages[0]?.blob) {
       captureBlobThumbnail(currentPages[0].blob!).then((thumbnail) => {
         if (thumbnail) {
-          void saveToRecentItems({ type: 'book', name: title, path, progress: page }, thumbnail);
+          void saveToRecentItems({ type: 'book', name: title, path, progress: getRecentProgressPercent(page + 1, currentPages.length) }, thumbnail);
         }
       });
     }
@@ -1776,11 +1776,12 @@ export const ReaderRoute: Component = () => {
         thumbnail = await captureBlobThumbnail(coverBlob);
       }
 
+      const totalPages = pages().length;
       await saveToRecentItems({
         type,
         name,
         path,
-        progress,
+        progress: type === 'book' ? getRecentProgressPercent(progress + 1, totalPages) : progress,
       }, thumbnail);
     } catch (e) {
       log.error('Failed to save recent:', e);

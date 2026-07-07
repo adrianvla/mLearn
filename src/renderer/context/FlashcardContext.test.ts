@@ -267,6 +267,12 @@ type FlashcardCtx = {
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   trackGrammarEncountered: (pattern: string, level?: number, language?: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
+  restoreWordSyncRating: (
+    word: string,
+    previousKnowledge: { ease: number; lastSeen: number; timesSeen: number; timesHovered: number; word: string; reading?: string; language?: string } | undefined,
+    previousSeenAt: number | undefined,
+    language?: string,
+  ) => void;
   setComprehensiveWordStatus: (word: string, status: 'unknown' | 'learning' | 'known', language?: string) => void;
   setWordBankStatus: (word: string, status: 'unknown' | 'learning' | 'known', bank: string, options?: { reading?: string; language?: string; content?: Partial<Record<string, unknown>> & { front: string; back: string } }) => Promise<void>;
   markWordSyncSeen: (word: string, language?: string) => void;
@@ -2491,6 +2497,76 @@ describe('FlashcardProvider', () => {
     const arKey = `ar:${SRS.hashWordSync('كتب')}`;
     const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
     expect(ctx.store.wordSyncSeen[arKey]).toEqual(expect.any(Number));
+    expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('restoreWordSyncRating restores previous knowledge and seen state for an explicit language', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
+    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
+    const previousKnowledge = {
+      ease: 0.5,
+      lastSeen: 10,
+      timesSeen: 2,
+      timesHovered: 1,
+      word: 'كتب',
+      reading: 'yaktub',
+      language: 'ar',
+    };
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [arKey]: {
+          ease: 4.5,
+          lastSeen: 100,
+          timesSeen: 10,
+          timesHovered: 0,
+          word: 'كتب',
+          language: 'ar',
+        },
+      },
+      wordSyncSeen: {
+        [arKey]: 200,
+      },
+    }));
+
+    ctx.restoreWordSyncRating('يكتب', previousKnowledge, 1234, 'ar');
+
+    expect(ctx.store.wordKnowledge[arKey]).toEqual(previousKnowledge);
+    expect(ctx.store.wordSyncSeen[arKey]).toBe(1234);
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
+    expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('restoreWordSyncRating removes knowledge and seen state when the previous state was untracked', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const jaKey = `ja:${SRS.hashWordSync('赤い')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [jaKey]: {
+          ease: 4.5,
+          lastSeen: 100,
+          timesSeen: 10,
+          timesHovered: 0,
+          word: '赤い',
+          language: 'ja',
+        },
+      },
+      wordSyncSeen: {
+        [jaKey]: 200,
+      },
+    }));
+
+    ctx.restoreWordSyncRating('赤い', undefined, undefined, 'ja');
+
+    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
     expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();
     dispose();
   });

@@ -402,7 +402,14 @@
       },
       "Commands": {
         "NewTopic": "Neues Thema",
-        "NewTopicDesc": "Zu einem neuen Gesprächsthema wechseln"
+        "NewTopicDesc": "Zu einem neuen Gesprächsthema wechseln",
+        "Compact": "Kompakt",
+        "CompactDesc": "Älteren Kontext für schnellere Antworten zusammenfassen",
+        "Compacting": "Älterer Gesprächskontext wird zusammengefasst…",
+        "CompactDone": "{count} ältere Nachrichten wurden zusammengefasst.",
+        "CompactSkipped": "Es gibt noch nicht genug Gespräch zum Zusammenfassen.",
+        "CompactBusy": "Warte, bis die aktuelle Antwort fertig ist.",
+        "CompactFailed": "Das Gespräch konnte nicht zusammengefasst werden."
       },
       "Tools": {
         "CorrectMistake": "Fehler korrigieren",
