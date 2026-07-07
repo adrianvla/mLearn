@@ -1240,6 +1240,37 @@ async def voice_stream_ws(websocket: WebSocket):
                     return True
             return False
 
+        async def _send_vad_event(
+            event: str,
+            *,
+            reason: str,
+            speech_prob: float | None = None,
+            threshold: float | None = None,
+        ) -> None:
+            speech_seconds = len(speech_buffer) / (SAMPLE_RATE * bytes_per_sample)
+            payload = {
+                "type": "vad",
+                "event": event,
+                "reason": reason,
+                "speechProb": speech_prob,
+                "threshold": threshold,
+                "silenceSeconds": silence_audio_seconds,
+                "silenceThreshold": silence_threshold,
+                "speechSeconds": speech_seconds,
+                "chunkSeconds": CHUNK_SECONDS,
+            }
+            log.info(
+                "Voice VAD %s: reason=%s prob=%s threshold=%s silence=%.3fs/%.3fs speech=%.3fs",
+                event,
+                reason,
+                f"{speech_prob:.3f}" if speech_prob is not None else "n/a",
+                f"{threshold:.3f}" if threshold is not None else "n/a",
+                silence_audio_seconds,
+                silence_threshold,
+                speech_seconds,
+            )
+            await websocket.send_json(payload)
+
         async def _run_final_stt(buffer: bytearray) -> None:
             buffer_bytes = bytes(buffer)
             if len(buffer_bytes) < int(SAMPLE_RATE * 4 * 0.3):
@@ -1296,9 +1327,7 @@ async def voice_stream_ws(websocket: WebSocket):
                         if is_speaking and len(speech_buffer) > 0:
                             is_speaking = False
                             silence_audio_seconds = 0.0
-                            await websocket.send_json(
-                                {"type": "vad", "event": "speech-end"}
-                            )
+                            await _send_vad_event("speech-end", reason="flush")
                             await _run_final_stt(speech_buffer)
                             speech_buffer = bytearray()
                         continue
@@ -1352,8 +1381,11 @@ async def voice_stream_ws(websocket: WebSocket):
                         is_speaking = True
                         silence_audio_seconds = 0.0
                         speech_buffer = bytearray()
-                        await websocket.send_json(
-                            {"type": "vad", "event": "speech-start"}
+                        await _send_vad_event(
+                            "speech-start",
+                            reason="probability-above-start-threshold",
+                            speech_prob=speech_prob,
+                            threshold=speech_threshold,
                         )
 
                     speech_buffer.extend(chunk_data)
@@ -1362,8 +1394,11 @@ async def voice_stream_ws(websocket: WebSocket):
                     if len(speech_buffer) >= MAX_SPEECH_BYTES:
                         is_speaking = False
                         silence_audio_seconds = 0.0
-                        await websocket.send_json(
-                            {"type": "vad", "event": "speech-end"}
+                        await _send_vad_event(
+                            "speech-end",
+                            reason="max-speech-duration",
+                            speech_prob=speech_prob,
+                            threshold=speech_threshold,
                         )
                         await _run_final_stt(speech_buffer)
                         speech_buffer = bytearray()
@@ -1413,10 +1448,13 @@ async def voice_stream_ws(websocket: WebSocket):
                         silence_audio_seconds += CHUNK_SECONDS
                         if silence_audio_seconds >= silence_threshold:
                             is_speaking = False
-                            silence_audio_seconds = 0.0
-                            await websocket.send_json(
-                                {"type": "vad", "event": "speech-end"}
+                            await _send_vad_event(
+                                "speech-end",
+                                reason="silence-threshold",
+                                speech_prob=speech_prob,
+                                threshold=speech_threshold,
                             )
+                            silence_audio_seconds = 0.0
                             await _run_final_stt(speech_buffer)
                             speech_buffer = bytearray()
                     else:

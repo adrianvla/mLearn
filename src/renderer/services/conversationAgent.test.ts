@@ -1251,6 +1251,33 @@ describe('createConversationAgent', () => {
       await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
       expect(onVoiceMistake).not.toHaveBeenCalled();
     });
+
+    it('ignores pronunciation note_mistake calls in voice mode', async () => {
+      const onVoiceMistake = vi.fn();
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        onVoiceMistake,
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks, onDone } = createCallbacks();
+
+      agent.processMessage('genki', [], callbacks);
+      sendDone([
+        {
+          id: 'nm-pronunciation',
+          name: 'note_mistake',
+          arguments: {
+            word: 'genki',
+            context: 'genki',
+            correction: '元気',
+            type: 'pronunciation',
+          },
+        },
+      ]);
+
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onVoiceMistake).not.toHaveBeenCalled();
+    });
   });
 
   // ==========================================================================
@@ -1985,6 +2012,20 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('ask one short clarification');
       expect(messages[0].content).toContain('Do not guess what the learner "probably meant"');
       expect(messages[0].content).toContain('Do not call tools when the transcript itself is unclear');
+    });
+
+    it('tells voice mode not to correct pronunciation unless explicitly requested', () => {
+      const deps = createMockDeps({ isVoiceMode: () => true });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('genki', [], callbacks);
+
+      const [messages, tools] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('Do NOT correct pronunciation, reading, accent, or sound-alike issues in voice mode');
+      const noteMistake = tools.find((tool) => tool.name === 'note_mistake');
+      expect(noteMistake?.description).toContain('Do not use this for pronunciation');
+      expect(noteMistake?.parameters.properties.type.enum).not.toContain('pronunciation');
     });
 
     it('includes package-declared shared correction guidance in voice prompts', () => {

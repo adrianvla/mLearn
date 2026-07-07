@@ -21,7 +21,7 @@ import {
 import type { SelectOption } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { ChatBubble } from './ChatBubble';
-import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
+import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceVadEvent, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
@@ -161,6 +161,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [ttsChunkCount, setTtsChunkCount] = createSignal(0);
   const [lastInterruption, setLastInterruption] = createSignal('');
   const [debugEvents, setDebugEvents] = createSignal<VoiceDebugEvent[]>([]);
+  const [vadDebug, setVadDebug] = createSignal<VoiceVadEvent | null>(null);
   const [microphones, setMicrophones] = createSignal<MediaDeviceInfo[]>([]);
   const [selectedMicrophoneId, setSelectedMicrophoneId] = createSignal('');
   const [showAdvancedUi, setShowAdvancedUi] = createSignal(false);
@@ -233,7 +234,32 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       second: '2-digit',
     });
     const event = { id: debugEventId++, time, label, detail, tone };
-    setDebugEvents(events => [event, ...events].slice(0, 10));
+    setDebugEvents(events => [event, ...events].slice(0, 30));
+  };
+
+  const formatVadNumber = (value: number | undefined, digits = 2): string => (
+    value === undefined ? 'n/a' : value.toFixed(digits)
+  );
+
+  const formatVadSeconds = (value: number | undefined): string => (
+    value === undefined ? 'n/a' : `${value.toFixed(2)}s`
+  );
+
+  const formatVadDetail = (event: VoiceVadEvent): string => {
+    const parts = [
+      event.reason ?? event.type,
+      `p ${formatVadNumber(event.speechProb)}`,
+      `thr ${formatVadNumber(event.threshold)}`,
+      `silence ${formatVadSeconds(event.silenceSeconds)}/${formatVadSeconds(event.silenceThreshold)}`,
+      `speech ${formatVadSeconds(event.speechSeconds)}`,
+    ];
+    return parts.join(' · ');
+  };
+
+  const vadDebugSummary = (): string => {
+    const event = vadDebug();
+    if (!event) return t('mlearn.ConversationAgent.Voice.None');
+    return `${event.type} · ${formatVadDetail(event)}`;
   };
 
   const bumpTtsTimeline = () => {
@@ -559,12 +585,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // VAD events — during TTS playback, audio is not streamed to backend,
     // so no VAD events arrive; barge-in is detected locally via mic level.
     cleanups.push(bridge.voice.onVoiceVadEvent((event) => {
+      setVadDebug(event);
       if (event.type === 'speech-start') {
         if (ttsPlaying) return; // safety guard — barge-in handled locally
-        addDebugEvent('VAD', 'Speech started', 'active');
+        addDebugEvent('VAD start', `${formatVadDetail(event)} · UI -> Listening`, 'active');
         setCallState('listening');
       } else if (event.type === 'speech-end') {
-        addDebugEvent('VAD', 'Speech ended', 'info');
+        addDebugEvent('VAD end', `${formatVadDetail(event)} · UI ${callState()} -> Processing`, 'info');
         if (callState() === 'listening') {
           setCallState('processing');
         }
@@ -1071,6 +1098,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     setTtsChunkCount(0);
     setLastInterruption('');
     setDebugEvents([]);
+    setVadDebug(null);
     resetTtsTimeline();
     addDebugEvent('Session', `Starting ${activeTtsProvider()} voice backend`, 'info');
     setSessionStatus({
@@ -1448,7 +1476,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
                 <div class="voice-call-stage">
                   <div
-                    class={`voice-call-avatar-shell ${hasProfilePhoto() ? 'has-photo' : 'no-photo'} ${isAgentSpeaking() ? 'speaking' : ''}`}
+                    class={`voice-call-avatar-shell ${hasProfilePhoto() ? 'has-photo' : 'no-photo'} ${isAgentSpeaking() ? 'speaking' : ''} ${isInitializing() || ttsModelLoading() ? 'loading' : ''}`}
                     aria-hidden={!agentName()}
                   >
                     <Show
@@ -1465,25 +1493,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                     </Show>
                   </div>
 
-                  <Show when={agentName()}>
+                  <Show when={agentName() && !isCallActive()}>
                     <div class="voice-call-agent-name">{agentName()}</div>
                   </Show>
 
-                  <Show
-                    when={isInitializing() || ttsModelLoading()}
-                    fallback={
-                      <div class={`voice-call-state ${isCallActive() ? 'active' : ''}`}>
-                        {isCallActive() ? statusText() : ''}
-                      </div>
-                    }
-                  >
-                    <div class="voice-call-loading">
-                      <Spinner size={28} shape="square" strokeWidth={5} cornerRadius={0} />
-                      <span>
-                        {ttsModelLoading()
-                          ? t('mlearn.ConversationAgent.Voice.LoadingTtsModel')
-                          : sessionStatus()?.message || t('mlearn.ConversationAgent.Voice.Initializing')}
-                      </span>
+                  <Show when={!isInitializing() && !ttsModelLoading()}>
+                    <div class={`voice-call-state ${isCallActive() ? 'active' : ''}`}>
+                      {isCallActive() ? statusText() : ''}
                     </div>
                   </Show>
                 </div>
@@ -1802,6 +1818,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                     <strong>{voiceMode() === 'vad' ? t('mlearn.ConversationAgent.Voice.HandsFree') : t('mlearn.ConversationAgent.Voice.PushToTalk')}</strong>
                     <span>{t('mlearn.ConversationAgent.Voice.Interrupt')}</span>
                     <strong>{lastInterruption() || t('mlearn.ConversationAgent.Voice.None')}</strong>
+                    <span>VAD</span>
+                    <strong>{vadDebugSummary()}</strong>
                   </div>
 
                   <div class="voice-debug-events">

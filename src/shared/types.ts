@@ -2328,6 +2328,13 @@ export interface VoiceSTTResult {
 
 export interface VoiceVadEvent {
   type: 'speech-start' | 'speech-end';
+  reason?: string;
+  speechProb?: number;
+  threshold?: number;
+  silenceSeconds?: number;
+  silenceThreshold?: number;
+  speechSeconds?: number;
+  chunkSeconds?: number;
 }
 
 export interface VoiceTtsAudio {

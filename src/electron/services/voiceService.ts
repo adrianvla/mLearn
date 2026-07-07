@@ -38,6 +38,16 @@ import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.voiceService');
 
+function normalizeVadEventType(event: unknown): VoiceVadEvent['type'] {
+  if (event === 'speech_start') return 'speech-start';
+  if (event === 'speech_end') return 'speech-end';
+  return event === 'speech-end' ? 'speech-end' : 'speech-start';
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 // ============================================================================
 // Paths
 // ============================================================================
@@ -533,7 +543,16 @@ function doStartSession(
             });
             break;
           case 'vad': {
-            const vadEvent: VoiceVadEvent = { type: msg.event };
+            const vadEvent: VoiceVadEvent = {
+              type: normalizeVadEventType(msg.event),
+              reason: typeof msg.reason === 'string' ? msg.reason : undefined,
+              speechProb: optionalNumber(msg.speechProb),
+              threshold: optionalNumber(msg.threshold),
+              silenceSeconds: optionalNumber(msg.silenceSeconds),
+              silenceThreshold: optionalNumber(msg.silenceThreshold),
+              speechSeconds: optionalNumber(msg.speechSeconds),
+              chunkSeconds: optionalNumber(msg.chunkSeconds),
+            };
             activeSender.send(IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
             break;
           }

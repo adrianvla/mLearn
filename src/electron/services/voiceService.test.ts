@@ -578,8 +578,27 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
-    lastCreatedWebSocket?._emit('message', JSON.stringify({ type: 'vad', event: 'speech_start' }));
-    expect(event.sender.send).toHaveBeenCalledWith('voice-vad-event', { type: 'speech_start' });
+    lastCreatedWebSocket?._emit('message', JSON.stringify({
+      type: 'vad',
+      event: 'speech_start',
+      reason: 'probability-above-start-threshold',
+      speechProb: 0.82,
+      threshold: 0.5,
+      silenceSeconds: 0,
+      silenceThreshold: 1.5,
+      speechSeconds: 0,
+      chunkSeconds: 0.032,
+    }));
+    expect(event.sender.send).toHaveBeenCalledWith('voice-vad-event', {
+      type: 'speech-start',
+      reason: 'probability-above-start-threshold',
+      speechProb: 0.82,
+      threshold: 0.5,
+      silenceSeconds: 0,
+      silenceThreshold: 1.5,
+      speechSeconds: 0,
+      chunkSeconds: 0.032,
+    });
   });
 
   it('sends VOICE_SESSION_ERROR to sender when WS receives error message', () => {
