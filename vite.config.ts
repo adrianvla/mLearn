@@ -44,8 +44,11 @@ function capacitorHtmlPlugin(): Plugin {
   };
 }
 
-function appManualChunks(id: string): string | undefined {
+export function appManualChunks(id: string): string | undefined {
   const normalized = id.replace(/\\/g, '/');
+  if (/\/src\/renderer\/windows\/[^/]+\/index\.tsx(?:\?.*)?$/.test(normalized)) {
+    return undefined;
+  }
   if (
     normalized.includes('/src/renderer/') ||
     normalized.includes('/src/shared/')

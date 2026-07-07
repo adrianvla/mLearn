@@ -116,6 +116,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       const mergedSettings = pendingSettingsSnapshot
         ? { ...loadedSettings, ...pendingSettingsSnapshot }
         : loadedSettings;
+      let migratedSettings = false;
 
       if (mergedSettings.knowledgeSourceOrder) {
         const validSources = new Set(KNOWLEDGE_SOURCES);
@@ -127,7 +128,7 @@ export const SettingsProvider: ParentComponent = (props) => {
         if (hasInvalid || hasMissing) {
           mergedSettings.knowledgeSourceOrder = [...KNOWLEDGE_SOURCES];
           log.info('[SettingsContext] Migrated knowledgeSourceOrder to new default');
-          bridge.settings.saveSettings(mergedSettings);
+          migratedSettings = true;
         }
       }
 
@@ -136,7 +137,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       if (mergedSettings.voiceSilenceThreshold === 1.2) {
         mergedSettings.voiceSilenceThreshold = DEFAULT_SETTINGS.voiceSilenceThreshold;
         log.info('[SettingsContext] Migrated voiceSilenceThreshold to new default');
-        bridge.settings.saveSettings(mergedSettings);
+        migratedSettings = true;
       }
 
       setSettings(reconcile(mergedSettings));
@@ -158,7 +159,7 @@ export const SettingsProvider: ParentComponent = (props) => {
 
       applySettingsToDOM(mergedSettings);
 
-      if (pendingSettingsSnapshot) {
+      if (pendingSettingsSnapshot || migratedSettings) {
         bridge.settings.saveSettings(mergedSettings);
         pendingSettingsSnapshot = null;
       }
