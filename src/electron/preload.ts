@@ -447,6 +447,8 @@ const mLearnIPC = {
     ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId, provider, cloudAuthToken),
   voiceTtsStop: () =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STOP),
+  voiceTtsState: (active: boolean) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STATE, active),
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_TTS_AUDIO, (_event, audio) => callback(audio)),
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) =>

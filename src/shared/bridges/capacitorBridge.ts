@@ -1443,6 +1443,7 @@ const voiceBridge: VoiceBridge = {
   onVoiceVadEvent: noopCleanup,
   voiceTtsGenerate: noop,
   voiceTtsStop: noop,
+  voiceSendTtsState: noop,
   onVoiceTtsAudio: noopCleanup,
   onVoiceTtsStatus: noopCleanup,
   onVoiceSessionReady: noopCleanup,

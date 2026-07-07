@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
+import type { VoiceModelStatus } from '../../shared/types';
 
 const handleHandlers = new Map<string, (...args: unknown[]) => unknown>();
 const onHandlers = new Map<string, (...args: unknown[]) => void>();
@@ -98,6 +99,10 @@ vi.mock('fs', async (importOriginal) => {
 
 let mockQuitToken: string | null = null;
 let mockQuitTokenAvailableCallback: ((token: string) => void) | null = null;
+let mockPipRequirements: Record<string, string[]> = {
+  voice: ['faster-whisper'],
+  'qwen3-tts': ['qwen3-tts-package'],
+};
 vi.mock('./pythonBackend', () => ({
   getQuitToken: () => mockQuitToken,
   onQuitTokenAvailable: (callback: (token: string) => void) => {
@@ -115,7 +120,7 @@ vi.mock('./pythonBackend', () => ({
   readResourceFile: (...segments: string[]) => {
     const path = segments.join('/');
     if (path.includes('pip_requirements')) {
-      return JSON.stringify({ voice: ['faster-whisper'], 'qwen3-tts': ['qwen3-tts-package'] });
+      return JSON.stringify(mockPipRequirements);
     }
     return '';
   },
@@ -267,6 +272,8 @@ beforeEach(async () => {
 
   existsSyncFn.mockReturnValue(false);
   readFileSyncFn.mockReturnValue('[]');
+
+  mockPipRequirements = { voice: ['faster-whisper'], 'qwen3-tts': ['qwen3-tts-package'] };
 
   mod = await import('./voiceService');
 });
@@ -1347,5 +1354,215 @@ describe('VOICE_TTS_GENERATE handler — removed cloud TTS stream', () => {
 
     const statusCalls = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-status');
     expect(statusCalls.at(-1)?.[1]).toMatchObject({ generating: false, playing: false });
+  });
+});
+
+// Wave 1: MLX STT conditional install & dynamic STT model name.
+// loadMlxSttPackages/installVoicePackages/isAppleSilicon/DEFAULT_STT_MODEL_NAME
+// are module-internal — tests exercise them via VOICE_MODEL_DOWNLOAD and
+// VOICE_MODEL_STATUS handlers. Platform assertions use the real
+// process.platform/process.arch (never mocked).
+
+const IS_APPLE_SILICON_RUNTIME = process.platform === 'darwin' && process.arch === 'arm64';
+const EXPECTED_DEFAULT_STT_MODEL = IS_APPLE_SILICON_RUNTIME
+  ? 'mlx-community/whisper-large-v3-turbo-asr-fp16'
+  : 'openai/whisper-small';
+
+describe('MLX STT conditional install — loadMlxSttPackages via VOICE_MODEL_DOWNLOAD', () => {
+  it('reads mlx-stt group from pip_requirements.json and includes it in spawn args on Apple Silicon', async () => {
+    mockPipRequirements = {
+      voice: ['faster-whisper'],
+      'mlx-stt': ['sentencepiece>=0.2.0'],
+    };
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation((_url: string, _cb: unknown) => ({
+      on: (_evt: string, cb: (e: Error) => void) => {
+        if (_evt === 'error') Promise.resolve().then(() => cb(new Error('backend not running')));
+        return { on: vi.fn() };
+      },
+    }));
+
+    const mockChildProcess = new MockChildProcess();
+    spawnFn.mockReturnValue(mockChildProcess);
+
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
+    await flushMicrotasks();
+    // Emit non-zero exit to short-circuit the post-install model download loop
+    mockChildProcess._emit('close', 1);
+    await handlerPromise;
+
+    const spawnCall = spawnFn.mock.calls.find((c) => (c[0] as string) === '/env/bin/pip');
+    expect(spawnCall).toBeTruthy();
+    const spawnArgs = spawnCall?.[1] as string[];
+
+    if (IS_APPLE_SILICON_RUNTIME) {
+      expect(spawnArgs).toEqual(expect.arrayContaining(['sentencepiece>=0.2.0']));
+    } else {
+      expect(spawnArgs).not.toContain('sentencepiece>=0.2.0');
+    }
+  });
+
+  it('returns empty array (omits mlx-stt packages) when the mlx-stt key is missing', async () => {
+    mockPipRequirements = {
+      voice: ['faster-whisper'],
+    };
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation((_url: string, _cb: unknown) => ({
+      on: (_evt: string, cb: (e: Error) => void) => {
+        if (_evt === 'error') Promise.resolve().then(() => cb(new Error('backend not running')));
+        return { on: vi.fn() };
+      },
+    }));
+
+    const mockChildProcess = new MockChildProcess();
+    spawnFn.mockReturnValue(mockChildProcess);
+
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
+    await flushMicrotasks();
+    mockChildProcess._emit('close', 1);
+    await handlerPromise;
+
+    const spawnCall = spawnFn.mock.calls.find((c) => (c[0] as string) === '/env/bin/pip');
+    expect(spawnCall).toBeTruthy();
+    const spawnArgs = spawnCall?.[1] as string[];
+    expect(spawnArgs).not.toContain('sentencepiece>=0.2.0');
+  });
+});
+
+describe('installVoicePackages — includeMlxStt flag controls mlx-stt inclusion', () => {
+  it('includes mlx-stt packages when includeMlxStt evaluates true (Apple Silicon), excludes otherwise', async () => {
+    mockPipRequirements = {
+      voice: ['faster-whisper'],
+      'mlx-stt': ['sentencepiece>=0.2.0'],
+    };
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+
+    httpGetFn.mockImplementation((_url: string, _cb: unknown) => ({
+      on: (_evt: string, cb: (e: Error) => void) => {
+        if (_evt === 'error') Promise.resolve().then(() => cb(new Error('backend not running')));
+        return { on: vi.fn() };
+      },
+    }));
+
+    const mockChildProcess = new MockChildProcess();
+    spawnFn.mockReturnValue(mockChildProcess);
+
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
+    await flushMicrotasks();
+    mockChildProcess._emit('close', 1);
+    await handlerPromise;
+
+    const spawnCall = spawnFn.mock.calls.find((c) => (c[0] as string) === '/env/bin/pip');
+    expect(spawnCall).toBeTruthy();
+    const spawnArgs = spawnCall?.[1] as string[];
+
+    if (IS_APPLE_SILICON_RUNTIME) {
+      expect(spawnArgs).toEqual(expect.arrayContaining(['install', 'faster-whisper', 'sentencepiece>=0.2.0']));
+    } else {
+      expect(spawnArgs).toEqual(expect.arrayContaining(['install', 'faster-whisper']));
+      expect(spawnArgs).not.toContain('sentencepiece>=0.2.0');
+    }
+  });
+});
+
+describe('checkModelStatus — dynamic STT model name and engine propagation', () => {
+  it('propagates engine and dynamic modelName from the backend STT status response', async () => {
+    mod.setupVoiceIPC();
+    httpGetFn.mockImplementation((url: string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const isSttStatus = url.includes('/voice/stt/status');
+      const isTtsStatus = url.includes('/voice/tts/status');
+      const payload = isSttStatus
+        ? {
+            downloaded: true,
+            downloading: false,
+            progress: 1,
+            modelName: 'mlx-community/whisper-large-v3-turbo-asr-fp16',
+            engine: 'mlx',
+          }
+        : isTtsStatus
+          ? { downloaded: true, downloading: false, progress: 1, modelName: 'Kokoro-82M' }
+          : { downloaded: true, downloading: false, progress: 1 };
+      const body = JSON.stringify(payload);
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      Promise.resolve().then(() => {
+        fakeRes._emit('data', body);
+        fakeRes._emit('end');
+      });
+      return { on: vi.fn() };
+    });
+
+    const result = (await handleHandlers.get('voice-model-status')?.({}, 'en')) as VoiceModelStatus;
+    expect(result.sttModelName).toBe('mlx-community/whisper-large-v3-turbo-asr-fp16');
+    expect(result.sttEngine).toBe('mlx');
+  });
+
+  it('does not set sttEngine when the backend omits the engine field', async () => {
+    mod.setupVoiceIPC();
+    httpGetFn.mockImplementation((url: string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const payload = url.includes('/voice/stt/status')
+        ? { downloaded: true, downloading: false, progress: 1, modelName: 'openai/whisper-small' }
+        : { downloaded: true, downloading: false, progress: 1 };
+      const body = JSON.stringify(payload);
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      Promise.resolve().then(() => {
+        fakeRes._emit('data', body);
+        fakeRes._emit('end');
+      });
+      return { on: vi.fn() };
+    });
+
+    const result = (await handleHandlers.get('voice-model-status')?.({}, 'en')) as VoiceModelStatus;
+    expect(result.sttModelName).toBe('openai/whisper-small');
+    expect(result.sttEngine).toBeUndefined();
+  });
+
+  it('falls back to platform-aware DEFAULT_STT_MODEL_NAME on fetch error', async () => {
+    mod.setupVoiceIPC();
+    httpGetFn.mockImplementation((_url: string, _cb: unknown) => ({
+      on: (_evt: string, cb: (e: Error) => void) => {
+        if (_evt === 'error') Promise.resolve().then(() => cb(new Error('connection refused')));
+        return { on: vi.fn() };
+      },
+    }));
+
+    const result = (await handleHandlers.get('voice-model-status')?.({}, 'en')) as VoiceModelStatus;
+    expect(result.sttModelName).toBe(EXPECTED_DEFAULT_STT_MODEL);
+    expect(result.sttModelName).not.toBe('');
+    expect(result.error).toBeTruthy();
+  });
+});
+
+describe('VoiceModelStatus type — sttEngine field', () => {
+  it('accepts sttEngine field at the type level (compiles and round-trips)', () => {
+    const status: VoiceModelStatus = {
+      sttDownloaded: true,
+      ttsDownloaded: false,
+      vadDownloaded: true,
+      downloading: false,
+      progress: 1,
+      sttModelName: 'mlx-community/whisper-large-v3-turbo-asr-fp16',
+      ttsModelName: 'Kokoro-82M',
+      sttEngine: 'mlx',
+    };
+    expect(status.sttEngine).toBe('mlx');
+    expect(status.sttModelName).toBe('mlx-community/whisper-large-v3-turbo-asr-fp16');
+  });
+
+  it('allows VoiceModelStatus without sttEngine (optional field)', () => {
+    const status: VoiceModelStatus = {
+      sttDownloaded: false,
+      ttsDownloaded: false,
+      vadDownloaded: true,
+      downloading: false,
+      progress: 0,
+    };
+    expect(status.sttEngine).toBeUndefined();
   });
 });
