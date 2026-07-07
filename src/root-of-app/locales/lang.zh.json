@@ -5,6 +5,17 @@
         "Unknown": "未知"
       }
     },
+    "LanguageSetup": {
+      "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
+      "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
+      "OpenSetup": "Open Language Setup",
+      "Title": "Language Data Required"
+    },
+    "RuntimeRestart": {
+      "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
+      "RestartNow": "Restart Now",
+      "Title": "Restart Required"
+    },
     "AI": {
       "CloudUnreachable": "云服务无法连接。请检查您的网络连接后重试。",
       "DownloadModel": "下载模型",
@@ -135,7 +146,7 @@
         },
         "Speech": {
           "Title": "语音",
-          "Label": "语音（实验性）",
+          "Label": "语音",
           "Description": "启用 AI 回复的文本转语音和语音输入"
         },
         "AutoSpeak": {
@@ -2578,7 +2589,7 @@
         },
         "Voice": {
           "Title": "语音组件",
-          "Description": "语音识别、语音合成和语音活动检测。"
+          "Description": "语音识别（STT）、合成（TTS）和语音活动检测（VAD）。模型会根据您的硬件自动选择。"
         },
         "Dictionaries": {
           "Title": "已安装词典",
@@ -2611,20 +2622,20 @@
           "Description": "由已安装语言数据声明的 OCR 运行时。"
         },
         "WhisperSmall": {
-          "Title": "Whisper small STT 模型",
-          "Description": "用于语音对话的本地语音转文字。"
+          "Title": "Whisper STT 引擎",
+          "Description": "用于语音对话的本地语音识别。在 Apple Silicon 上使用 MLX 加速，在其他平台上使用 faster-whisper。"
         },
         "KokoroTts": {
           "Title": "Kokoro TTS 模型",
-          "Description": "用于支持语言的本地文本转语音。"
+          "Description": "用于日常朗读的快速轻量文本转语音（82M）。"
         },
         "SileroVad": {
           "Title": "Silero VAD 模型",
-          "Description": "用于免按键通话的语音活动检测。"
+          "Description": "用于免按键通话的语音活动检测。通过 ONNX 运行时运行以降低延迟。"
         },
         "QwenTts": {
           "Title": "Qwen3 TTS 模型",
-          "Description": "可选的本地语音克隆和多语言 TTS。"
+          "Description": "语音克隆与表现力丰富的文本转语音（0.6B）。质量更高，但比 Kokoro 慢。"
         },
         "GenericTTS": {
           "Title": "{engine} TTS 运行时",

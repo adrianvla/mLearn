@@ -11,7 +11,8 @@ import { ErrorModal } from '../../../components/common/Modal/ErrorModal';
 import { Btn } from '../../../components/common/Button/Button';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getBridge } from '../../../../shared/bridges';
-import { DEFAULT_SETTINGS, type InstallOptions, type Settings } from '../../../../shared/types';
+import { WINDOW_TYPES } from '../../../../shared/constants';
+import { DEFAULT_SETTINGS, type InstallOptions, type LanguageDataCatalogStatus, type Settings } from '../../../../shared/types';
 import { getLogger } from '../../../../shared/utils/logger';
 
 const log = getLogger("renderer.main.loadingOverlay");
@@ -31,6 +32,34 @@ export function buildInstallOptionsFromSettings(settings: Settings): InstallOpti
 
 export function startRequiredComponentRepair(settings: Settings): void {
   getBridge().installer.startInstall(buildInstallOptionsFromSettings(settings));
+}
+
+export type LanguageSetupRequirement =
+  | { required: false }
+  | { required: true; reason: 'learning-language' | 'dictionary-language' };
+
+export function getLanguageSetupRequirement(
+  settings: Pick<Settings, 'language' | 'dictionaryTargetLanguages'>,
+  hasCurrentLanguageData: boolean,
+  activeLanguageStatus?: LanguageDataCatalogStatus,
+): LanguageSetupRequirement {
+  if (!settings.language || !hasCurrentLanguageData) {
+    return { required: true, reason: 'learning-language' };
+  }
+
+  const dictionaryTarget = settings.dictionaryTargetLanguages?.[settings.language];
+  if (!dictionaryTarget) {
+    return { required: false };
+  }
+
+  const dictionaryPack = activeLanguageStatus?.dictionaryPacks?.find(
+    (pack) => pack.targetLanguage === dictionaryTarget,
+  );
+  if (dictionaryPack && !dictionaryPack.installed) {
+    return { required: true, reason: 'dictionary-language' };
+  }
+
+  return { required: false };
 }
 
 export const LoadingOverlay: Component = () => {
@@ -55,6 +84,27 @@ export const LoadingOverlay: Component = () => {
   const isInstallerRequired = createMemo(() => (
     isInstallerRequiredError(server.error()) || isInstallerRequiredError(server.statusMessage())
   ));
+
+  const languageSetupRequirement = createMemo(() => {
+    if (settings.isLoading() || language.isLoading()) {
+      return { required: false } as LanguageSetupRequirement;
+    }
+
+    return getLanguageSetupRequirement(
+      settings.settings,
+      Boolean(language.currentLangData()),
+      language.getLanguageDataStatus(settings.settings.language),
+    );
+  });
+  const languageSetupMessage = createMemo(() => {
+    const requirement = languageSetupRequirement();
+    if (!requirement.required) {
+      return '';
+    }
+    return requirement.reason === 'dictionary-language'
+      ? t('mlearn.LanguageSetup.DictionaryMessage')
+      : t('mlearn.LanguageSetup.LanguageMessage');
+  });
 
   const isLoading = createMemo(
     () => !server.isConnected() || settings.isLoading() || language.isLoading()
@@ -145,6 +195,10 @@ export const LoadingOverlay: Component = () => {
     startRequiredComponentRepair(settings.settings);
   };
 
+  const handleOpenLanguageSetup = () => {
+    getBridge().window.openWindow({ type: WINDOW_TYPES.WELCOME });
+  };
+
   const handleQuit = () => {
     getBridge().window.closeWindow();
   };
@@ -176,6 +230,25 @@ export const LoadingOverlay: Component = () => {
             )}
           />
         )}
+      </Show>
+
+      <Show when={!displayedError() && languageSetupRequirement().required}>
+        <ErrorModal
+          isOpen={true}
+          severity="warning"
+          title={t('mlearn.LanguageSetup.Title')}
+          message={languageSetupMessage()}
+          showRetry={false}
+          showQuit={false}
+          actions={(
+            <Btn
+              variant="primary"
+              onClick={handleOpenLanguageSetup}
+            >
+              {t('mlearn.LanguageSetup.OpenSetup')}
+            </Btn>
+          )}
+        />
       </Show>
 
       {/* Loading overlay - shown during initialization when no error */}

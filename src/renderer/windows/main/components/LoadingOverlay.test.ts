@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Settings } from '../../../../shared/types';
-import { buildInstallOptionsFromSettings, isInstallerRequiredError, startRequiredComponentRepair } from './LoadingOverlay';
+import type { LanguageDataCatalogStatus, Settings } from '../../../../shared/types';
+import {
+  buildInstallOptionsFromSettings,
+  getLanguageSetupRequirement,
+  isInstallerRequiredError,
+  startRequiredComponentRepair,
+} from './LoadingOverlay';
 
 const startInstallMock = vi.fn();
 
@@ -47,5 +52,72 @@ describe('LoadingOverlay installer helpers', () => {
       includeOCR: true,
       includeVoice: false,
     });
+  });
+
+  it('requires language setup when the active language data is missing', () => {
+    expect(getLanguageSetupRequirement(
+      { language: 'ja', dictionaryTargetLanguages: {} },
+      false,
+    )).toEqual({ required: true, reason: 'learning-language' });
+  });
+
+  it('requires language setup when the selected dictionary pack is missing', () => {
+    const status = {
+      language: 'ja',
+      name: 'Japanese',
+      dataRoot: '/tmp/language-data',
+      installed: true,
+      totalBytes: 1,
+      installedBytes: 1,
+      missingRequiredAssets: [],
+      assets: [],
+      dictionaryPacks: [
+        {
+          targetLanguage: 'fr',
+          name: 'French',
+          installed: false,
+          totalBytes: 1,
+          installedBytes: 0,
+          missingRequiredAssets: ['dictionaries/ja/fr/dictionary.db'],
+          assets: [],
+        },
+      ],
+    } satisfies LanguageDataCatalogStatus;
+
+    expect(getLanguageSetupRequirement(
+      { language: 'ja', dictionaryTargetLanguages: { ja: 'fr' } },
+      true,
+      status,
+    )).toEqual({ required: true, reason: 'dictionary-language' });
+  });
+
+  it('does not require language setup when active language and dictionary are installed', () => {
+    const status = {
+      language: 'ja',
+      name: 'Japanese',
+      dataRoot: '/tmp/language-data',
+      installed: true,
+      totalBytes: 1,
+      installedBytes: 1,
+      missingRequiredAssets: [],
+      assets: [],
+      dictionaryPacks: [
+        {
+          targetLanguage: 'en',
+          name: 'English',
+          installed: true,
+          totalBytes: 1,
+          installedBytes: 1,
+          missingRequiredAssets: [],
+          assets: [],
+        },
+      ],
+    } satisfies LanguageDataCatalogStatus;
+
+    expect(getLanguageSetupRequirement(
+      { language: 'ja', dictionaryTargetLanguages: { ja: 'en' } },
+      true,
+      status,
+    )).toEqual({ required: false });
   });
 });

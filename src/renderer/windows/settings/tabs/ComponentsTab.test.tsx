@@ -45,7 +45,7 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.Groups.Reader.Title': 'Reader and OCR components',
   'mlearn.ComponentsTab.Groups.Reader.Description': 'Image text recognition models used by reader OCR.',
   'mlearn.ComponentsTab.Groups.Voice.Title': 'Voice components',
-  'mlearn.ComponentsTab.Groups.Voice.Description': 'Speech recognition, speech synthesis, and voice activity detection.',
+  'mlearn.ComponentsTab.Groups.Voice.Description': 'Speech recognition (STT), synthesis (TTS), and voice activity detection (VAD). Models are auto-selected based on your hardware.',
   'mlearn.ComponentsTab.Groups.Dictionaries.Title': 'Installed dictionaries',
   'mlearn.ComponentsTab.Groups.Dictionaries.Description': 'Downloaded dictionary packs available on this computer.',
   'mlearn.ComponentsTab.Items.BuiltinChatRuntime.Title': 'Built-in chat model runtime',
@@ -60,14 +60,14 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.Items.MangaOCR.Description': 'Japanese manga and vertical-text recognition.',
   'mlearn.ComponentsTab.Items.GenericOCR.Title': '{engine} OCR runtime',
   'mlearn.ComponentsTab.Items.GenericOCR.Description': 'OCR runtime declared by installed language data.',
-  'mlearn.ComponentsTab.Items.WhisperSmall.Title': 'Whisper small STT model',
-  'mlearn.ComponentsTab.Items.WhisperSmall.Description': 'Local speech-to-text for voice conversations.',
+  'mlearn.ComponentsTab.Items.WhisperSmall.Title': 'Whisper STT engine',
+  'mlearn.ComponentsTab.Items.WhisperSmall.Description': 'Local speech recognition for voice conversations. Uses MLX acceleration on Apple Silicon, faster-whisper on other platforms.',
   'mlearn.ComponentsTab.Items.KokoroTts.Title': 'Kokoro TTS model',
-  'mlearn.ComponentsTab.Items.KokoroTts.Description': 'Local text-to-speech for supported languages.',
+  'mlearn.ComponentsTab.Items.KokoroTts.Description': 'Fast lightweight text-to-speech (82M) for everyday narration.',
   'mlearn.ComponentsTab.Items.SileroVad.Title': 'Silero VAD model',
-  'mlearn.ComponentsTab.Items.SileroVad.Description': 'Voice activity detection for hands-free calls.',
+  'mlearn.ComponentsTab.Items.SileroVad.Description': 'Voice activity detection for hands-free calls. Runs via ONNX runtime for low latency.',
   'mlearn.ComponentsTab.Items.QwenTts.Title': 'Qwen3 TTS model',
-  'mlearn.ComponentsTab.Items.QwenTts.Description': 'Optional local voice cloning and multilingual TTS.',
+  'mlearn.ComponentsTab.Items.QwenTts.Description': 'Voice cloning and expressive text-to-speech (0.6B). Higher quality, slower than Kokoro.',
   'mlearn.ComponentsTab.Items.GenericTTS.Title': '{engine} TTS runtime',
   'mlearn.ComponentsTab.Items.GenericTTS.Description': 'Speech synthesis runtime declared by installed language data.',
   'mlearn.ComponentsTab.Items.DictionaryPack.Description': 'Definitions for {language}.',
@@ -168,7 +168,7 @@ describe('ComponentsTab', () => {
     expect(container.textContent).toContain('MangaOCR model');
     expect(container.textContent).not.toContain('PaddleOCR models');
     expect(container.textContent).not.toContain('RapidOCR models');
-    expect(container.textContent).toContain('Whisper small STT model');
+    expect(container.textContent).toContain('Whisper STT engine');
     expect(container.textContent).toContain('Installed dictionaries');
     expect(container.textContent).toContain('Japanese -> English');
     expect(container.textContent).toContain('Definitions for 日本語.');
@@ -299,6 +299,33 @@ describe('ComponentsTab', () => {
     dispose();
   });
 
+  it('normalizes variant qwen3 TTS engine names to a single Qwen3 entry', async () => {
+    testLangData = {
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          tts: {
+            engine: 'qwen3-tts',
+            qwen3LanguageName: 'ja',
+          },
+          stt: {
+            whisperLanguage: 'ja',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    const text = container.textContent ?? '';
+    const qwenMatches = text.match(/Qwen3 TTS model/gu) ?? [];
+    expect(qwenMatches.length).toBe(1);
+
+    dispose();
+  });
+
   it('only lists TTS runtimes declared by installed language metadata', async () => {
     testLangData = {
       de: {
@@ -312,7 +339,7 @@ describe('ComponentsTab', () => {
 
     expect(container.textContent).not.toContain('Kokoro TTS model');
     expect(container.textContent).not.toContain('Qwen3 TTS model');
-    expect(container.textContent).not.toContain('Whisper small STT model');
+    expect(container.textContent).not.toContain('Whisper STT engine');
     expect(container.textContent).not.toContain('Silero VAD model');
 
     dispose();

@@ -23,7 +23,7 @@ software as a commercial service without a separate written agreement.
 For the purposes of this EULA:
 - **"Software"** means the mLearn language immersion application, browser extension, installer, and associated documentation.
 - **"Plugin"** means a third-party software module loaded via the local plugin manifest system.
-- **"Licensor"**, **"We"**, or **"Us"** means Adrian Vlasov, acting as an individual licensor and not as a corporation, Sarl, GmbH, or other limited-liability entity.
+- **"Licensor"**, **"We"**, or **"Us"** means Adrian Vlasov, acting in an individual capacity as the licensor of the Software.
 - **"You"** means the individual or entity using the Software.
 
 ## 2. No Warranty / As-Is

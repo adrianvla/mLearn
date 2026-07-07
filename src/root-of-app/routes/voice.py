@@ -199,6 +199,15 @@ def _resolve_tts_engine(language: str | None, provider: str | None = None) -> st
         raise RuntimeError("System TTS is handled by Electron, not the Python TTS backend")
     if requested_provider == "qwen3":
         if _qwen3_language_name(requested_language):
+            if not _is_apple_silicon():
+                log.warning(
+                    f"Qwen3-TTS requires Apple Silicon; falling back to Kokoro for '{requested_language}'"
+                )
+                if _kokoro_lang_code(requested_language):
+                    return "kokoro"
+                raise RuntimeError(
+                    f"Qwen3-TTS requires Apple Silicon and no Kokoro fallback is available for '{requested_language}'"
+                )
             return "qwen3"
         raise RuntimeError(f"Qwen3 TTS is not configured for language '{requested_language}'")
     if requested_provider == "kokoro":
@@ -350,9 +359,11 @@ def _get_stt_engine() -> str:
     """Determine STT engine, honoring explicit sttModel overrides."""
     override = _voice_settings().get("sttModel", "")
     if override:
-        if "mlx-community/" in override or override.lower().startswith("mlx"):
-            return "mlx"
-        return "faster-whisper"
+        is_mlx_override = "mlx-community/" in override or override.lower().startswith("mlx")
+        if is_mlx_override and not _is_apple_silicon():
+            log.warning(f"STT model override '{override}' requires Apple Silicon; using faster-whisper instead")
+            return "faster-whisper"
+        return "mlx" if is_mlx_override else "faster-whisper"
     return "mlx" if _is_apple_silicon() else "faster-whisper"
 
 
@@ -380,14 +391,24 @@ def _ensure_vad_loaded():
             _emit_voice_loading_status("vad", "Loading Silero VAD model…", 0.05, "Silero VAD")
             torch = config.torch
             _torch = importlib.import_module("torch") if torch is None else torch
-            model, utils = _torch.hub.load(
-                repo_or_dir="snakers4/silero-vad",
-                model="silero_vad",
-                force_reload=False,
-                onnx=True,
-            )
+            try:
+                model, utils = _torch.hub.load(
+                    repo_or_dir="snakers4/silero-vad",
+                    model="silero_vad",
+                    force_reload=False,
+                    onnx=True,
+                )
+                log.info("Silero VAD loaded (ONNX runtime)")
+            except Exception as onnx_err:
+                log.warning(f"Silero VAD ONNX load failed ({onnx_err}), falling back to PyTorch eager mode")
+                model, utils = _torch.hub.load(
+                    repo_or_dir="snakers4/silero-vad",
+                    model="silero_vad",
+                    force_reload=False,
+                    onnx=False,
+                )
+                log.info("Silero VAD loaded (PyTorch eager fallback)")
             _voice_vad_model = {"model": model, "utils": utils}
-            log.info("Silero VAD loaded")
             _emit_voice_loading_status("vad", "Silero VAD loaded", 1.0, "Silero VAD")
             _voice_touch()
             return _voice_vad_model
@@ -424,7 +445,7 @@ def _ensure_stt_loaded():
                     from mlx_audio.stt import load as mlx_stt_load
 
                     model = mlx_stt_load(model_id)
-                except ImportError as e:
+                except (ImportError, RuntimeError, OSError, ValueError) as e:
                     log.warning(f"MLX STT unavailable ({e}), falling back to faster-whisper")
                     engine = "faster-whisper"
                     model_id = _stt_default_model_id(engine)

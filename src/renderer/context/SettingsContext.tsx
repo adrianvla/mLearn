@@ -32,6 +32,9 @@ interface SettingsContextValue {
   updateSettings: (partial: Partial<Settings>) => void;
   saveSettings: () => void;
   isLoading: () => boolean;
+  isRuntimeRestartRequired: () => boolean;
+  clearRuntimeRestartRequired: () => void;
+  restartAppForRuntimeSettings: () => void;
   isCloudReLoginModalOpen: () => boolean;
   openCloudReLoginModal: () => void;
   closeCloudReLoginModal: () => void;
@@ -60,6 +63,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS });
   const [isLoading, setIsLoading] = createSignal(true);
   const [isCloudReLoginModalOpen, setIsCloudReLoginModalOpen] = createSignal(false);
+  const [isRuntimeRestartRequired, setIsRuntimeRestartRequired] = createSignal(false);
   // Track whether settings have been loaded from disk at least once
   // This prevents saving default values before real settings are loaded
   const [hasLoaded, setHasLoaded] = createSignal(false);
@@ -71,6 +75,10 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
   const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
+  const clearRuntimeRestartRequired = () => setIsRuntimeRestartRequired(false);
+  const restartAppForRuntimeSettings = () => {
+    getBridge().server.forceRestartApp();
+  };
   const syncCloudState = (nextSettings: Settings) => {
     if (nextSettings.cloudAuthStatus === 'signed-in') {
       closeCloudReLoginModal();
@@ -277,7 +285,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     if (restartLanguageRuntime) {
       const cleanup = bridge.settings.onSettingsSaved(() => {
         cleanup();
-        bridge.server.restartBackend();
+        setIsRuntimeRestartRequired(true);
       });
     }
 
@@ -357,9 +365,14 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Handle settings from other windows
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
-      setSettings(reconcile(event.data.settings));
-      syncCloudState(event.data.settings);
-      applySettingsToDOM(event.data.settings);
+      const nextSettings = event.data.settings as Settings;
+      const changedKeys = getChangedKeys(serializeSettings(settings as Settings), nextSettings, LANGUAGE_RUNTIME_KEYS);
+      if (needsLanguageRuntimeRestart(changedKeys)) {
+        setIsRuntimeRestartRequired(true);
+      }
+      setSettings(reconcile(nextSettings));
+      syncCloudState(nextSettings);
+      applySettingsToDOM(nextSettings);
     }
   };
 
@@ -394,6 +407,9 @@ export const SettingsProvider: ParentComponent = (props) => {
     updateSettings,
     saveSettings,
     isLoading,
+    isRuntimeRestartRequired,
+    clearRuntimeRestartRequired,
+    restartAppForRuntimeSettings,
     isCloudReLoginModalOpen,
     openCloudReLoginModal,
     closeCloudReLoginModal,

@@ -5,6 +5,17 @@
         "Unknown": "Inconnu"
       }
     },
+    "LanguageSetup": {
+      "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
+      "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
+      "OpenSetup": "Open Language Setup",
+      "Title": "Language Data Required"
+    },
+    "RuntimeRestart": {
+      "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
+      "RestartNow": "Restart Now",
+      "Title": "Restart Required"
+    },
     "AI": {
       "CloudUnreachable": "Le service cloud est inaccessible. Vérifiez votre connexion et réessayez.",
       "DownloadModel": "Télécharger le modèle",
@@ -135,7 +146,7 @@
         },
         "Speech": {
           "Title": "Voix",
-          "Label": "Voix (expérimental)",
+          "Label": "Voix",
           "Description": "Activer la synthèse vocale pour les réponses IA et la reconnaissance vocale en entrée"
         },
         "AutoSpeak": {
@@ -2578,7 +2589,7 @@
         },
         "Voice": {
           "Title": "Composants vocaux",
-          "Description": "Reconnaissance vocale, synthèse vocale et détection d’activité vocale."
+          "Description": "Reconnaissance vocale (STT), synthèse (TTS) et détection d’activité vocale (VAD). Les modèles sont sélectionnés automatiquement selon votre matériel."
         },
         "Dictionaries": {
           "Title": "Dictionnaires installés",
@@ -2611,20 +2622,20 @@
           "Description": "Environnement OCR déclaré par les données de langue installées."
         },
         "WhisperSmall": {
-          "Title": "Modèle STT Whisper small",
-          "Description": "Reconnaissance vocale locale pour les conversations vocales."
+          "Title": "Moteur STT Whisper",
+          "Description": "Reconnaissance vocale locale pour les conversations vocales. Utilise l’accélération MLX sur Apple Silicon, faster-whisper sur les autres plateformes."
         },
         "KokoroTts": {
           "Title": "Modèle TTS Kokoro",
-          "Description": "Synthèse vocale locale pour les langues prises en charge."
+          "Description": "Synthèse vocale rapide et légère (82M) pour la narration courante."
         },
         "SileroVad": {
           "Title": "Modèle VAD Silero",
-          "Description": "Détection d’activité vocale pour les appels mains libres."
+          "Description": "Détection d’activité vocale pour les appels mains libres. Fonctionne via le runtime ONNX pour une faible latence."
         },
         "QwenTts": {
           "Title": "Modèle TTS Qwen3",
-          "Description": "Clonage vocal local optionnel et TTS multilingue."
+          "Description": "Clonage vocal et synthèse vocale expressive (0,6B). Qualité supérieure, plus lent que Kokoro."
         },
         "GenericTTS": {
           "Title": "Runtime TTS {engine}",

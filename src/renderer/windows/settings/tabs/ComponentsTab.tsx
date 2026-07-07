@@ -37,6 +37,13 @@ function formatOcrEngineName(engine: string): string {
   return formatRuntimeIdentifier(engine).replace(/\s+OCR$/u, '');
 }
 
+function normalizeTtsEngine(engine: string): string {
+  const lower = engine.toLowerCase();
+  if (lower.includes('qwen3')) return 'qwen3';
+  if (lower.includes('kokoro')) return 'kokoro';
+  return engine;
+}
+
 type InstalledComponentGroup = {
   key: string;
   title: string;
@@ -82,7 +89,7 @@ export const ComponentsTab: Component = () => {
       const ttsConfig = data.runtime?.tts;
       const ttsEngine = ttsConfig?.engine;
       if (ttsEngine) {
-        installedTtsEngines.add(ttsEngine);
+        installedTtsEngines.add(normalizeTtsEngine(ttsEngine));
       }
       if (ttsConfig?.kokoroLangCode) installedTtsEngines.add('kokoro');
       if (ttsConfig?.qwen3LanguageName) installedTtsEngines.add('qwen3');

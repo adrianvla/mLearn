@@ -5,6 +5,17 @@
         "Unknown": "未知"
       }
     },
+    "LanguageSetup": {
+      "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
+      "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
+      "OpenSetup": "Open Language Setup",
+      "Title": "Language Data Required"
+    },
+    "RuntimeRestart": {
+      "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
+      "RestartNow": "Restart Now",
+      "Title": "Restart Required"
+    },
     "AI": {
       "CloudUnreachable": "クラウドサービスに接続できません。接続を確認して、もう一度お試しください。",
       "DownloadModel": "モデルをダウンロード",
@@ -135,7 +146,7 @@
         },
         "Speech": {
           "Title": "音声",
-          "Label": "音声（実験的）",
+          "Label": "音声",
           "Description": "AI応答の読み上げと音声入力を有効にします"
         },
         "AutoSpeak": {
@@ -2578,7 +2589,7 @@
         },
         "Voice": {
           "Title": "音声コンポーネント",
-          "Description": "音声認識、音声合成、音声区間検出。"
+          "Description": "音声認識（STT）、合成（TTS）、音声区間検出（VAD）。モデルはハードウェアに基づいて自動選択されます。"
         },
         "Dictionaries": {
           "Title": "インストール済み辞書",
@@ -2611,20 +2622,20 @@
           "Description": "インストール済み言語データで宣言されたOCR実行環境。"
         },
         "WhisperSmall": {
-          "Title": "Whisper small STTモデル",
-          "Description": "音声会話向けのローカル音声認識。"
+          "Title": "Whisper STT エンジン",
+          "Description": "音声会話向けのローカル音声認識。Apple Silicon では MLX アクセラレーション、その他のプラットフォームでは faster-whisper を使用。"
         },
         "KokoroTts": {
           "Title": "Kokoro TTSモデル",
-          "Description": "対応言語向けのローカル音声合成。"
+          "Description": "日常のナレーション向けの高速・軽量な音声合成（82M）。"
         },
         "SileroVad": {
           "Title": "Silero VADモデル",
-          "Description": "ハンズフリー通話向けの音声区間検出。"
+          "Description": "ハンズフリー通話向けの音声区間検出。低レイテンシのため ONNX ランタイムで実行。"
         },
         "QwenTts": {
           "Title": "Qwen3 TTSモデル",
-          "Description": "任意のローカル音声クローンと多言語TTS。"
+          "Description": "音声クローンと表現力のある音声合成（0.6B）。Kokoro より高音質だが低速。"
         },
         "GenericTTS": {
           "Title": "{engine} TTSランタイム",
