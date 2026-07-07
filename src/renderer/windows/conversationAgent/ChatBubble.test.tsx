@@ -25,7 +25,11 @@ vi.mock('../../context', () => ({
     isTokenTranslatable: (token: Token) => (token.partOfSpeech ?? token.type) === 'noun',
   }),
   useLocalization: () => ({
-    t: (key: string, params?: Record<string, string>) => params?.key ? `${key}:${params.key}` : key,
+    t: (key: string, params?: Record<string, string>) => {
+      if (params?.key) return `${key}:${params.key}`;
+      if (params?.text) return `${key}:${params.text}`;
+      return key;
+    },
     locale: () => 'en',
   }),
 }));
@@ -227,6 +231,27 @@ describe('ChatBubble hover triggers', () => {
     ), container);
 
     expect(container.textContent).toContain('hello world');
+
+    dispose();
+  });
+
+  it('renders the unspoken interruption point when an assistant message is interrupted', async () => {
+    const { ChatBubble } = await import('./ChatBubble');
+    const message: ConversationMessage = {
+      role: 'assistant',
+      content: 'Spoken prefix',
+      timestamp: 0,
+      interrupted: true,
+      interruptedAt: 'remaining suffix',
+    };
+
+    const dispose = render(() => (
+      <ChatBubble message={message} triggerMode="hover" triggerKey="shift" />
+    ), container);
+
+    expect(container.textContent).toContain('Spoken prefix');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Voice.Interrupted');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Voice.InterruptedBefore:remaining suffix');
 
     dispose();
   });

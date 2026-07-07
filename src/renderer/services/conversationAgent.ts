@@ -100,7 +100,7 @@ export interface AgentInstance {
   /** Continue the conversation with context (e.g., quiz result) without a visible user message */
   continueWithContext: (context: string, callbacks: StreamCallbacks) => void;
   /** Replace the last assistant message in history with the truncated spoken text and add interruption context */
-  markInterrupted: (spokenText: string) => void;
+  markInterrupted: (spokenText: string, interruptedAt?: string) => void;
   /** Permanently lock the conversation after a safety violation (e.g., self-harm detection) */
   lockSafety: () => void;
   /** Unlock the conversation (e.g., when starting a new session) */
@@ -728,8 +728,9 @@ function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentCon
 - Do NOT use interaction markers like [chuckles], [laughs], *smiles*, etc.
 - Do NOT use asterisks for emphasis or actions.
 ${registerLine}
-- Treat each learner message as a speech-to-text transcript. If the transcript looks malformed, fragmented, random, or clearly not intended as a message to you, ask one short clarification instead of guessing.
+- Treat each learner message as a speech-to-text transcript. If the transcript looks malformed, fragmented, random, clearly not intended as a message to you, or likely damaged by speech recognition, ask one short clarification instead of guessing.
 - If the transcript is understandable but surprising, respond to what was transcribed. Do not silently rewrite it into a more likely sentence.
+- Do not guess what the learner "probably meant" from phonetic similarity or a plausible nearby phrase. If a correction would require assuming different words than the transcript contains, ask the learner to repeat it instead.
 - If the learner makes a mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
 - The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
 - Only call "note_mistake" for words that appear exactly in the learner's latest transcribed message. Copy the word and context from that transcript; never invent or infer a different word.
@@ -737,7 +738,7 @@ ${registerLine}
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
 - If you need a tool in voice mode, speak one short natural line first, then call the tool at the end of the turn. Do not call tools before the spoken response.
 - Do not call tools when the transcript itself is unclear; ask the learner to repeat or clarify.
-- If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
+- If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. If the marker includes where the interruption happened, treat that as unspoken text. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
 ${correctionGuidance}
 
 ## Personality
@@ -1956,13 +1957,17 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     startStream(callbacks, language, langName);
   }
 
-  function markInterrupted(spokenText: string): void {
+  function markInterrupted(spokenText: string, interruptedAt?: string): void {
+    const trimmedInterruptedAt = interruptedAt?.trim();
+    const interruptionMarker = trimmedInterruptedAt
+      ? ` [interrupted by user before: ${trimmedInterruptedAt}]`
+      : ' [interrupted by user]';
     // Find the last assistant message in history and replace with truncated spoken text
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       if (conversationHistory[i].role === 'assistant') {
         conversationHistory[i] = {
           ...conversationHistory[i],
-          content: spokenText + ' [interrupted by user]',
+          content: spokenText + interruptionMarker,
         };
         break;
       }

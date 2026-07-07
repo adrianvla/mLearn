@@ -2009,9 +2009,9 @@ export const ConversationContent: Component = () => {
                   }
                 }
               }}
-              onInterrupted={(spokenText, _interruptedAt) => {
+              onInterrupted={(spokenText, interruptedAt) => {
                 // Update LLM conversation history to reflect what was actually heard
-                agent.markInterrupted(spokenText);
+                agent.markInterrupted(spokenText, interruptedAt);
 
                 // Mark the last assistant message as interrupted with only the spoken text
                 setMessages((prev) => {
@@ -2021,7 +2021,7 @@ export const ConversationContent: Component = () => {
                       updated[i] = {
                         ...updated[i],
                         interrupted: true,
-                        interruptedAt: spokenText,
+                        interruptedAt,
                         content: spokenText,
                       };
                       break;
