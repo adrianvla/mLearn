@@ -491,6 +491,7 @@
         "CloudTts": "Cloud",
         "AddAgentVoice": "Fügen Sie dem ausgewählten Agenten zuerst eine Standardstimme hinzu.",
         "Advanced": "Erweitert",
+        "CallView": "Anrufansicht",
         "DefaultVoice": "Standardstimme",
         "DownloadFailed": "Herunterladen der Sprachmodelle fehlgeschlagen. Möglicherweise sind erforderliche Abhängigkeiten nicht installiert. Installieren Sie die Anwendung neu oder überprüfen Sie die Protokolle.",
         "DownloadModels": "Sprachmodelle herunterladen",

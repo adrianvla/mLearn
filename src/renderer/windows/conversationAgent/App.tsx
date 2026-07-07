@@ -1986,6 +1986,8 @@ export const ConversationContent: Component = () => {
               onRequestGreeting={handleRequestGreeting}
               onAbort={handleAbort}
               defaultVoiceSampleId={activeAgent()?.voiceSampleId}
+              agentName={activeAgent()?.agentName}
+              profilePhoto={activeAgent()?.profilePhoto}
               onCallStateChange={(active, reason) => {
                 setIsVoiceCallActive(active);
                 if (active) {
