@@ -20,7 +20,7 @@ import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
+import { captureVideoThumbnail, getRecentItems, getRecentProgressPercent, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { captureVideoFrameForFlashcard } from '../../../services/flashcardImageCapture';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
@@ -1117,7 +1117,7 @@ export const VideoRoute: Component = () => {
     const name = currentVideoName();
     const path = currentVideoPath();
     if (videoEl && name && videoEl.duration && isFinite(videoEl.duration)) {
-      const progress = videoEl.currentTime / videoEl.duration;
+      const progress = getRecentProgressPercent(videoEl.currentTime, videoEl.duration);
       if (path) {
         await updateRecentItemProgressByPath(path, progress);
         await updateRecentItemPlaybackTimeByPath(path, videoEl.currentTime);

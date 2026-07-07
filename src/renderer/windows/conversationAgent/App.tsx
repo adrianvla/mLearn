@@ -77,7 +77,7 @@ import {
 import type { ConversationSession } from '../../../shared/types';
 import { HistoryIcon } from '../../components/common/Misc/Icons';
 
-import { createConversationAgent } from '../../services/conversationAgent';
+import { createConversationAgent, type ConversationCompactionResult } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, ConversationSafetyFlag, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
@@ -89,6 +89,7 @@ import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.conversationAgent.app");
+const AUTO_COMPACTION_MIN_HISTORY_MESSAGES = 16;
 
 /**
  * Known tool names used by the conversation agent.
@@ -207,7 +208,9 @@ export const ConversationContent: Component = () => {
   const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
   const [inputText, setInputText] = createSignal('');
   const [isStreaming, setIsStreaming] = createSignal(false);
+  const [isCompactingContext, setIsCompactingContext] = createSignal(false);
   const [streamingMessageIndex, setStreamingMessageIndex] = createSignal<number | null>(null);
+  let queuedVoiceMessagesDuringCompaction: Array<{ text: string; userMsgIndex: number }> = [];
 
   // Command palette state
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
@@ -348,8 +351,10 @@ export const ConversationContent: Component = () => {
   // Checker agent for split-checker mode
   const checkerAgent = createCheckerAgent();
   let checkerTaskQueue: Promise<void> = Promise.resolve();
+  let checkerTaskCount = 0;
 
   const enqueueCheckerTask = (task: () => Promise<void>) => {
+    checkerTaskCount += 1;
     checkerTaskQueue = checkerTaskQueue
       .catch((error) => {
         log.error("error", error);
@@ -357,6 +362,12 @@ export const ConversationContent: Component = () => {
       .then(task)
       .catch((error) => {
         log.error("error", error);
+      })
+      .finally(() => {
+        checkerTaskCount = Math.max(0, checkerTaskCount - 1);
+        if (checkerTaskCount === 0) {
+          maybeCompactConversationContext();
+        }
       });
 
     return checkerTaskQueue;
@@ -881,6 +892,7 @@ export const ConversationContent: Component = () => {
   // Slash commands
   const slashCommands = (): SlashCommand[] => [
     { id: 'newtopic', label: t('mlearn.ConversationAgent.Commands.NewTopic'), description: t('mlearn.ConversationAgent.Commands.NewTopicDesc') },
+    { id: 'compact', label: t('mlearn.ConversationAgent.Commands.Compact'), description: t('mlearn.ConversationAgent.Commands.CompactDesc') },
   ];
 
   const filteredCommands = (): SlashCommand[] => {
@@ -890,14 +902,40 @@ export const ConversationContent: Component = () => {
     return slashCommands().filter((cmd) => cmd.id.startsWith(query));
   };
 
-  const executeCommand = (command: SlashCommand) => {
-    setInputText('');
-    setShowCommandPalette(false);
-    setCommandSelectedIndex(0);
-    if (textareaRef) textareaRef.style.height = 'auto';
+  const findExactSlashCommand = (text: string): SlashCommand | undefined => {
+    if (!text.startsWith('/')) return undefined;
+    const id = text.slice(1).trim().toLowerCase();
+    return slashCommands().find((command) => command.id === id);
+  };
 
+  const ensureLlmAllowed = async (): Promise<boolean> => {
+    if (settings.llmProvider === 'cloud') return true;
+    return requestLlmAccess('llm');
+  };
+
+  const getCompactionMessage = (result: ConversationCompactionResult): string => {
+    if (result.status === 'compacted') {
+      return t('mlearn.ConversationAgent.Commands.CompactDone', { count: String(result.compactedMessages) });
+    }
+    if (result.reason === 'busy') {
+      return t('mlearn.ConversationAgent.Commands.CompactBusy');
+    }
+    if (result.reason === 'empty-summary') {
+      return t('mlearn.ConversationAgent.Commands.CompactFailed');
+    }
+    return t('mlearn.ConversationAgent.Commands.CompactSkipped');
+  };
+
+  const executeCommand = async (command: SlashCommand) => {
     if (command.id === 'newtopic') {
-      if (isStreaming() || !isConnected() || isSafetyLockedState()) return;
+      if (isStreaming() || isCompactingContext() || !isConnected() || isSafetyLockedState()) return;
+      const allowed = await ensureLlmAllowed();
+      if (!allowed) return;
+
+      setInputText('');
+      setShowCommandPalette(false);
+      setCommandSelectedIndex(0);
+      if (textareaRef) textareaRef.style.height = 'auto';
 
       const assistantMessageIndex = messages().length;
       setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
@@ -908,6 +946,56 @@ export const ConversationContent: Component = () => {
         ? `[The learner wants to change the topic. Smoothly transition to a new, interesting, and creative topic. Pick something engaging and different from what was discussed before. Start naturally with a question or interesting statement in ${promptLangName()}. Keep it concise — 1 to 3 sentences.]`
         : `[The learner wants you to pick a topic. Start a natural conversation about something interesting and creative in ${promptLangName()}. Keep it concise — 1 to 3 sentences.]`;
       agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
+      return;
+    }
+
+    if (command.id === 'compact') {
+      if (isStreaming() || isCompactingContext() || isSafetyLockedState()) return;
+      const allowed = await ensureLlmAllowed();
+      if (!allowed) return;
+
+      setIsCompactingContext(true);
+      setInputText('');
+      setShowCommandPalette(false);
+      setCommandSelectedIndex(0);
+      if (textareaRef) textareaRef.style.height = 'auto';
+
+      const systemMessageIndex = messages().length;
+      setMessages((prev) => [...prev, {
+        role: 'system',
+        content: t('mlearn.ConversationAgent.Commands.Compacting'),
+        timestamp: Date.now(),
+      }]);
+
+      try {
+        const result = await agent.summarizeHistory();
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated[systemMessageIndex]?.role === 'system') {
+            updated[systemMessageIndex] = {
+              ...updated[systemMessageIndex],
+              content: getCompactionMessage(result),
+            };
+          }
+          return updated;
+        });
+        saveCurrentSession();
+      } catch (error) {
+        log.error("error", error);
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated[systemMessageIndex]?.role === 'system') {
+            updated[systemMessageIndex] = {
+              ...updated[systemMessageIndex],
+              content: t('mlearn.ConversationAgent.Commands.CompactFailed'),
+            };
+          }
+          return updated;
+        });
+      } finally {
+        setIsCompactingContext(false);
+        flushQueuedVoiceMessages();
+      }
     }
   };
 
@@ -1165,6 +1253,10 @@ export const ConversationContent: Component = () => {
         } else if (settings.autoSpeak && settings.speechEnabled && finalContent) {
           speakAssistantText(finalContent);
         }
+
+        if (!settings.agentMistakeChecker && !settings.agentSafetyChecker) {
+          maybeCompactConversationContext();
+        }
       },
       onError: (error) => {
         clearAssistantStreamState();
@@ -1211,10 +1303,7 @@ export const ConversationContent: Component = () => {
     };
   };
 
-  const sendTextMessage = (text: string) => {
-    if (!text || isStreaming() || isSafetyLockedState()) return;
-
-    // Add user message
+  const appendUserMessage = (text: string): number => {
     const userMsg: ConversationMessage = {
       role: 'user',
       content: text,
@@ -1238,6 +1327,10 @@ export const ConversationContent: Component = () => {
       });
     }
 
+    return userMsgIndex;
+  };
+
+  const startResponseForUserText = (text: string, userMsgIndex: number) => {
     // Add placeholder assistant message for streaming
     const assistantMessageIndex = userMsgIndex + 1;
     setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
@@ -1254,6 +1347,54 @@ export const ConversationContent: Component = () => {
         }
       },
     });
+  };
+
+  const flushQueuedVoiceMessages = () => {
+    if (queuedVoiceMessagesDuringCompaction.length === 0 || isStreaming() || isCompactingContext() || isSafetyLockedState()) return;
+
+    const queuedMessages = queuedVoiceMessagesDuringCompaction;
+    queuedVoiceMessagesDuringCompaction = [];
+    const combinedText = queuedMessages.map((msg) => msg.text).join('\n');
+    const lastUserMsgIndex = queuedMessages[queuedMessages.length - 1]?.userMsgIndex;
+    if (lastUserMsgIndex === undefined) return;
+
+    startResponseForUserText(combinedText, lastUserMsgIndex);
+  };
+
+  const maybeCompactConversationContext = () => {
+    if (isStreaming() || isCompactingContext() || isSafetyLockedState()) return;
+    if (checkerTaskCount > 0) return;
+    if (agent.getHistory().length < AUTO_COMPACTION_MIN_HISTORY_MESSAGES) return;
+
+    setIsCompactingContext(true);
+    agent.summarizeHistory()
+      .then((result) => {
+        if (result.status === 'compacted') {
+          saveCurrentSession();
+        }
+      })
+      .catch((error) => {
+        log.error("error", error);
+      })
+      .finally(() => {
+        setIsCompactingContext(false);
+        flushQueuedVoiceMessages();
+      });
+  };
+
+  const sendTextMessage = (text: string) => {
+    if (!text || isStreaming() || isSafetyLockedState()) return;
+
+    if (isCompactingContext()) {
+      if (activeTab() === 'voice' && isVoiceCallActive()) {
+        const userMsgIndex = appendUserMessage(text);
+        queuedVoiceMessagesDuringCompaction.push({ text, userMsgIndex });
+      }
+      return;
+    }
+
+    const userMsgIndex = appendUserMessage(text);
+    startResponseForUserText(text, userMsgIndex);
   };
 
   const handleRequestGreeting = () => {
@@ -1287,13 +1428,17 @@ export const ConversationContent: Component = () => {
 
   const handleSend = async () => {
     const text = inputText().trim();
-    if (!text || isStreaming()) return;
+    if (!text || isStreaming() || isCompactingContext()) return;
+
+    const command = findExactSlashCommand(text);
+    if (command) {
+      await executeCommand(command);
+      return;
+    }
 
     // Low power gate: prompt before local LLM call
-    if (settings.llmProvider !== 'cloud') {
-      const allowed = await requestLlmAccess('llm');
-      if (!allowed) return;
-    }
+    const allowed = await ensureLlmAllowed();
+    if (!allowed) return;
 
     setInputText('');
     if (textareaRef) {
@@ -1760,7 +1905,7 @@ export const ConversationContent: Component = () => {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     resize="none"
-                    disabled={isStreaming() || !isConnected() || isSafetyLockedState()}
+                    disabled={isStreaming() || isCompactingContext() || !isConnected() || isSafetyLockedState()}
                     ghost
                   />
 
@@ -1779,7 +1924,7 @@ export const ConversationContent: Component = () => {
                       icon={<SendIcon />}
                       variant="default"
                       onClick={handleSend}
-                      disabled={!inputText().trim() || !isConnected() || isSafetyLockedState()}
+                      disabled={!inputText().trim() || !isConnected() || isCompactingContext() || isSafetyLockedState()}
                       aria-label={t('mlearn.ConversationAgent.Send')}
                     />
                   </Show>

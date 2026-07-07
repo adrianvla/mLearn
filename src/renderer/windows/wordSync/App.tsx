@@ -46,6 +46,7 @@ import {
 } from './wordSyncPool';
 import { FlashcardWordTitle } from '../../components/flashcard/FlashcardWordTitle';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
+import type { PassiveWordKnowledge } from '../../../shared/types';
 import './WordSync.css';
 
 type Rating = 'unknown' | 'learning' | 'known';
@@ -55,7 +56,20 @@ interface PoolEntry {
   reading: string;
   level: number;
   levelName: string;
+  storageKey: string;
   weight: number;
+}
+
+interface WordSyncUndoEntry {
+  word: PoolEntry;
+  language: string;
+  previousKnowledge: PassiveWordKnowledge | undefined;
+  previousSeenAt: number | undefined;
+  previousRatedCount: number;
+  previousLastRating: Rating | null;
+  previousSamplingLevel: number;
+  previousLevelCursors: Map<number, number>;
+  previousShowTranslation: boolean;
 }
 
 const RATING_EASE: Record<Rating, number> = {
@@ -73,6 +87,7 @@ export const WordSyncContent: Component = () => {
     setWordKnowledgeEase,
     markWordSyncSeen,
     clearAllWordSyncSeen,
+    restoreWordSyncRating,
     getWordKnowledge,
   } = useFlashcards();
 
@@ -88,6 +103,7 @@ export const WordSyncContent: Component = () => {
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
+  const [lastUndoEntry, setLastUndoEntry] = createSignal<WordSyncUndoEntry | null>(null);
 
   // ─── Translation for current word ───────────────────
   const [translation] = createResource(
@@ -247,6 +263,7 @@ export const WordSyncContent: Component = () => {
           reading: entry.reading,
           level: lvl,
           levelName: getFrequencyLevelLabel(lvl, names, languageData),
+          storageKey: lk,
           weight,
         });
       }
@@ -331,6 +348,20 @@ export const WordSyncContent: Component = () => {
     const w = currentWord();
     if (!w) return;
 
+    const lk = w.storageKey;
+    const previousKnowledge = store.wordKnowledge[lk];
+    setLastUndoEntry({
+      word: w,
+      language: settings.language,
+      previousKnowledge: previousKnowledge ? { ...previousKnowledge } : undefined,
+      previousSeenAt: store.wordSyncSeen[lk],
+      previousRatedCount: ratedCount(),
+      previousLastRating: lastRating(),
+      previousSamplingLevel: samplingLevel(),
+      previousLevelCursors: new Map(levelCursors),
+      previousShowTranslation: showTranslation(),
+    });
+
     setWordKnowledgeEase(w.word, RATING_EASE[rating], w.reading, settings.language);
 
     if (rating === 'unknown') {
@@ -360,6 +391,7 @@ export const WordSyncContent: Component = () => {
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
+    setLastUndoEntry(null);
     setSessionRatedSet(new Set<string>());
     levelCursors = new Map();
 
@@ -371,9 +403,56 @@ export const WordSyncContent: Component = () => {
     });
   }
 
+  function undoLastWordSyncRating() {
+    const undoEntry = lastUndoEntry();
+    if (!undoEntry) return;
+
+    restoreWordSyncRating(
+      undoEntry.word.word,
+      undoEntry.previousKnowledge,
+      undoEntry.previousSeenAt,
+      undoEntry.language,
+    );
+    setSessionRatedSet((rated) => {
+      const next = new Set(rated);
+      next.delete(undoEntry.word.word);
+      return next;
+    });
+    setRatedCount(undoEntry.previousRatedCount);
+    setLastRating(undoEntry.previousLastRating);
+    setSamplingLevel(undoEntry.previousSamplingLevel);
+    levelCursors = new Map(undoEntry.previousLevelCursors);
+    setShowTranslation(undoEntry.previousShowTranslation);
+    setFinished(false);
+    setCurrentWord(undoEntry.word);
+    setLastUndoEntry(null);
+  }
+
+  function shouldIgnoreWordSyncShortcut(e: KeyboardEvent): boolean {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    return target.matches('input, textarea, select, button, [role="textbox"]');
+  }
+
   // ─── Keyboard shortcuts ─────────────────────────────
   function handleKeyDown(e: KeyboardEvent) {
+    if (shouldIgnoreWordSyncShortcut(e)) return;
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      undoLastWordSyncRating();
+      return;
+    }
+
     if (finished()) return;
+    if (e.key === ' ' || e.code === 'Space') {
+      if (currentWord()) {
+        e.preventDefault();
+        setShowTranslation((v) => !v);
+      }
+      return;
+    }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '1') rate('unknown');
     else if (e.key === '2') rate('learning');
     else if (e.key === '3') rate('known');
@@ -480,6 +559,7 @@ export const WordSyncContent: Component = () => {
               levelCursors = new Map();
               setFinished(false);
               setLastRating(null);
+              setLastUndoEntry(null);
               queueMicrotask(() => {
                 rebuildWordPool();
                 pickNext();

@@ -402,7 +402,14 @@
       },
       "Commands": {
         "NewTopic": "Nouveau sujet",
-        "NewTopicDesc": "Passer à un nouveau sujet de conversation"
+        "NewTopicDesc": "Passer à un nouveau sujet de conversation",
+        "Compact": "Compacter",
+        "CompactDesc": "Résumer l'ancien contexte pour répondre plus vite",
+        "Compacting": "Résumé de l'ancien contexte…",
+        "CompactDone": "{count} anciens messages ont été résumés.",
+        "CompactSkipped": "Il n'y a pas encore assez de conversation à compacter.",
+        "CompactBusy": "Attendez la fin de la réponse actuelle.",
+        "CompactFailed": "Impossible de compacter la conversation."
       },
       "Tools": {
         "CorrectMistake": "Corriger les erreurs",

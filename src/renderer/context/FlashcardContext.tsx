@@ -276,6 +276,12 @@ interface FlashcardContextValue {
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   trackWordStatusChange: (word: string, language?: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
+  restoreWordSyncRating: (
+    word: string,
+    previousKnowledge: PassiveWordKnowledge | undefined,
+    previousSeenAt: number | undefined,
+    language?: string,
+  ) => void;
   /** Directly set a word's comprehensive status by adjusting its passive ease and clearing conflicting banks */
   setComprehensiveWordStatus: (word: string, status: WordStatus, language?: string) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
@@ -2575,6 +2581,32 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  const restoreWordSyncRating = (
+    word: string,
+    previousKnowledge: PassiveWordKnowledge | undefined,
+    previousSeenAt: number | undefined,
+    language = settings.language,
+  ) => {
+    const storageWord = getPrimaryWordFormForLanguage(word, language);
+    const wordHash = SRS.hashWordSync(storageWord);
+    const lk = langKey(language, wordHash);
+
+    setStore(produce((s) => {
+      if (previousKnowledge) {
+        s.wordKnowledge[lk] = { ...previousKnowledge };
+      } else {
+        delete s.wordKnowledge[lk];
+      }
+
+      if (previousSeenAt !== undefined) {
+        s.wordSyncSeen[lk] = previousSeenAt;
+      } else {
+        delete s.wordSyncSeen[lk];
+      }
+    }));
+    saveFlashcards();
+  };
+
   const clearAllWordSyncSeen = () => {
     setStore(produce((s) => {
       s.wordSyncSeen = {};
@@ -3211,6 +3243,7 @@ Translation: [${targetLang} translation]`;
     isWordKnownComprehensiveSync,
     trackWordStatusChange,
     setWordKnowledgeEase,
+    restoreWordSyncRating,
     setComprehensiveWordStatus,
     setWordBankStatus,
     markWordSyncSeen,

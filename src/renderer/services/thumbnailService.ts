@@ -78,6 +78,7 @@ export interface RecentItem {
   path: string;
   subtitlePath?: string;
   thumbnail?: string;
+  /** Progress percentage in the 0-100 range. */
   progress: number;
   playbackTime?: number;
   lastWatched: number;
@@ -93,6 +94,14 @@ const matchesRecentItem = (item: Pick<RecentItem, 'name' | 'path'>, target: Pick
   }
 
   return item.name === target.name;
+};
+
+export const getRecentProgressPercent = (current: number, total: number): number => {
+  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, (current / total) * 100));
 };
 
 const updateRecentItems = async (mutate: (items: RecentItem[]) => RecentItem[] | null): Promise<void> => {

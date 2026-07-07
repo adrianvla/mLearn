@@ -25,6 +25,7 @@ import {
   updateRecentItemThumbnailByPath,
   updateRecentItemProgressByPath,
   updateRecentItemSubtitlePathByPath,
+  getRecentProgressPercent,
   type RecentItem,
 } from './thumbnailService';
 
@@ -57,6 +58,22 @@ describe('thumbnailService', () => {
 
   afterEach(() => {
     document.createElement = originalCreateElement;
+  });
+
+  describe('getRecentProgressPercent', () => {
+    it('converts a current position and total to the 0-100 progress contract', () => {
+      expect(getRecentProgressPercent(119, 200)).toBe(59.5);
+    });
+
+    it('returns 0 when the total is unavailable', () => {
+      expect(getRecentProgressPercent(12, 0)).toBe(0);
+      expect(getRecentProgressPercent(12, Number.NaN)).toBe(0);
+    });
+
+    it('clamps invalid positions to the progress range', () => {
+      expect(getRecentProgressPercent(-5, 200)).toBe(0);
+      expect(getRecentProgressPercent(230, 200)).toBe(100);
+    });
   });
 
   describe('captureVideoThumbnail', () => {

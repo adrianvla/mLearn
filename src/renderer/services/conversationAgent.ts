@@ -34,6 +34,8 @@ import { estimateMessagesTokens } from '../../shared/utils/tokenEstimation';
 const log = getLogger("renderer.services.conversationAgent");
 
 const COMPACTION_TOKEN_LIMIT = 16000;
+const MANUAL_COMPACTION_KEEP_RECENT_MESSAGES = 10;
+const MANUAL_COMPACTION_MIN_MESSAGES = MANUAL_COMPACTION_KEEP_RECENT_MESSAGES + 4;
 
 // ============================================================================
 // Types
@@ -108,7 +110,12 @@ export interface AgentInstance {
   getHistory: () => LLMChatMessage[];
   loadHistory: (history: LLMChatMessage[]) => void;
   compactHistory: (maxTokens?: number) => void;
+  summarizeHistory: () => Promise<ConversationCompactionResult>;
 }
+
+export type ConversationCompactionResult =
+  | { status: 'compacted'; summary: string; compactedMessages: number; remainingMessages: number }
+  | { status: 'skipped'; reason: 'busy' | 'too-short' | 'empty-summary'; remainingMessages: number };
 
 // ============================================================================
 // Tool Prompt Guidelines
@@ -721,11 +728,15 @@ function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentCon
 - Do NOT use interaction markers like [chuckles], [laughs], *smiles*, etc.
 - Do NOT use asterisks for emphasis or actions.
 ${registerLine}
+- Treat each learner message as a speech-to-text transcript. If the transcript looks malformed, fragmented, random, or clearly not intended as a message to you, ask one short clarification instead of guessing.
+- If the transcript is understandable but surprising, respond to what was transcribed. Do not silently rewrite it into a more likely sentence.
 - If the learner makes a mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
 - The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
 - Only call "note_mistake" for words that appear exactly in the learner's latest transcribed message. Copy the word and context from that transcript; never invent or infer a different word.
 - Do NOT call "note_mistake" with empty fields. If you are unsure whether the transcript is correct or whether there was a mistake, do not call it.
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
+- If you need a tool in voice mode, speak one short natural line first, then call the tool at the end of the turn. Do not call tools before the spoken response.
+- Do not call tools when the transcript itself is unclear; ask the learner to repeat or clarify.
 - If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
 ${correctionGuidance}
 
@@ -1258,6 +1269,57 @@ function streamReformulation(
   });
 }
 
+function formatHistoryForCompaction(history: LLMChatMessage[]): string {
+  return history.map((msg, index) => {
+    const role = msg.role.toUpperCase();
+    const toolSuffix = msg.toolName ? ` ${msg.toolName}` : '';
+    const content = msg.content.length > 4000
+      ? `${msg.content.slice(0, 4000)}\n[message truncated]`
+      : msg.content;
+    return `#${index + 1} ${role}${toolSuffix}\n${content}`;
+  }).join('\n\n');
+}
+
+function streamConversationSummary(
+  history: LLMChatMessage[],
+  langName: string,
+  tier: Settings['cloudLLMTierConversation'],
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const bridge = getBridge();
+    let accumulated = '';
+
+    const systemMsg: LLMChatMessage = {
+      role: 'system',
+      content: `You compact language-tutor conversation history for ${langName}. Summarize only durable context needed for future turns: learner goals, mistakes already discussed, vocabulary or grammar focus, media context, personal facts, promises, open questions, and tool results. Do not invent facts. Do not include meta commentary. Output concise bullet points.`,
+    };
+
+    const userMsg: LLMChatMessage = {
+      role: 'user',
+      content: `Compact these earlier conversation messages into a durable summary for the next model turn:\n\n${formatHistoryForCompaction(history)}`,
+    };
+
+    const cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+      if (chunk.error) {
+        cleanup();
+        reject(new Error(chunk.error));
+        return;
+      }
+      if (chunk.content) {
+        accumulated += chunk.content;
+      }
+      if (chunk.done) {
+        cleanup();
+        resolve(accumulated.trim());
+      }
+    });
+
+    log.info('[ConversationAgent:Compaction] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
+
+    bridge.llm.llmStream([systemMsg, userMsg], [], tier);
+  });
+}
+
 // ============================================================================
 // Agent Factory
 // ============================================================================
@@ -1266,6 +1328,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   let conversationHistory: LLMChatMessage[] = [];
   let aborted = false;
   let streamCleanup: (() => void) | null = null;
+  let hiddenStreamActive = false;
   /** Monotonically increasing counter to correlate stream chunks with the request that produced them */
   let streamRequestId = 0;
 
@@ -1320,6 +1383,62 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
 
     log.info(`[ConversationAgent] Compacted history: removed old turns, new token estimate: ${totalTokens}`);
+  }
+
+  async function summarizeHistory(): Promise<ConversationCompactionResult> {
+    if (streamCleanup || hiddenStreamActive) {
+      return {
+        status: 'skipped',
+        reason: 'busy',
+        remainingMessages: conversationHistory.length,
+      };
+    }
+
+    if (conversationHistory.length < MANUAL_COMPACTION_MIN_MESSAGES) {
+      return {
+        status: 'skipped',
+        reason: 'too-short',
+        remainingMessages: conversationHistory.length,
+      };
+    }
+
+    const compactedMessages = conversationHistory.length - MANUAL_COMPACTION_KEEP_RECENT_MESSAGES;
+    const historyToSummarize = conversationHistory.slice(0, compactedMessages);
+    const recentHistory = conversationHistory.slice(compactedMessages);
+    const settingsObj = deps.getSettings();
+    const tier = settingsObj.cloudLLMTierConversation || 'cheap';
+    hiddenStreamActive = true;
+    let summary = '';
+    try {
+      summary = await streamConversationSummary(historyToSummarize, deps.getLanguageName(), tier);
+    } finally {
+      hiddenStreamActive = false;
+    }
+
+    if (!summary) {
+      return {
+        status: 'skipped',
+        reason: 'empty-summary',
+        remainingMessages: conversationHistory.length,
+      };
+    }
+
+    conversationHistory = [
+      {
+        role: 'system',
+        content: `Previous conversation summary:\n${summary}`,
+      },
+      ...recentHistory,
+    ];
+
+    log.info(`[ConversationAgent] Summarized ${compactedMessages} history messages; ${conversationHistory.length} messages remain.`);
+
+    return {
+      status: 'compacted',
+      summary,
+      compactedMessages,
+      remainingMessages: conversationHistory.length,
+    };
   }
 
   let safetyLocked = false;
@@ -1779,6 +1898,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     _displayHistory: ConversationMessage[],
     callbacks: StreamCallbacks,
   ): void {
+    if (hiddenStreamActive) {
+      callbacks.onError('Context compaction is still running.');
+      return;
+    }
     if (safetyLocked) {
       callbacks.onError('This conversation has been locked due to a safety concern. Please clear the chat to start a new conversation.');
       return;
@@ -1794,6 +1917,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   }
 
   function restartStream(callbacks: StreamCallbacks): void {
+    if (hiddenStreamActive) {
+      callbacks.onError('Context compaction is still running.');
+      return;
+    }
     if (safetyLocked) {
       callbacks.onError('This conversation has been locked due to a safety concern. Please clear the chat to start a new conversation.');
       return;
@@ -1814,6 +1941,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   }
 
   function continueWithContext(context: string, callbacks: StreamCallbacks): void {
+    if (hiddenStreamActive) {
+      callbacks.onError('Context compaction is still running.');
+      return;
+    }
     if (safetyLocked) {
       callbacks.onError('This conversation has been locked due to a safety concern. Please clear the chat to start a new conversation.');
       return;
@@ -1838,5 +1969,5 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
   }
 
-  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, lockSafety, unlockSafety, isSafetyLocked, getHistory, loadHistory, compactHistory };
+  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, lockSafety, unlockSafety, isSafetyLocked, getHistory, loadHistory, compactHistory, summarizeHistory };
 }

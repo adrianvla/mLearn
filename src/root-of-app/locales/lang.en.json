@@ -402,7 +402,14 @@
       },
       "Commands": {
         "NewTopic": "New topic",
-        "NewTopicDesc": "Switch to a new conversation topic"
+        "NewTopicDesc": "Switch to a new conversation topic",
+        "Compact": "Compact",
+        "CompactDesc": "Summarize older context for faster replies",
+        "Compacting": "Compacting older conversation context…",
+        "CompactDone": "Compacted {count} older messages into memory.",
+        "CompactSkipped": "There is not enough conversation to compact yet.",
+        "CompactBusy": "Wait for the current reply to finish before compacting.",
+        "CompactFailed": "Could not compact the conversation."
       },
       "Tools": {
         "CorrectMistake": "Correct mistakes",

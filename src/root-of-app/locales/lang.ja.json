@@ -402,7 +402,14 @@
       },
       "Commands": {
         "NewTopic": "新しいトピック",
-        "NewTopicDesc": "新しい会話トピックに切り替える"
+        "NewTopicDesc": "新しい会話トピックに切り替える",
+        "Compact": "圧縮",
+        "CompactDesc": "古い文脈を要約して応答を速くする",
+        "Compacting": "古い会話の文脈を要約しています…",
+        "CompactDone": "古いメッセージ{count}件を要約しました。",
+        "CompactSkipped": "まだ要約するほど会話がありません。",
+        "CompactBusy": "現在の返答が終わってから圧縮してください。",
+        "CompactFailed": "会話を圧縮できませんでした。"
       },
       "Tools": {
         "CorrectMistake": "間違いを訂正",
