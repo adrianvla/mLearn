@@ -260,6 +260,59 @@ describe('fetchTranslation', () => {
     expect(getCachedTranslation('開く', 'ja', { dictionaryTargetLanguage: 'en', languageData })).toEqual(makeTranslationResponse('開く'));
   });
 
+  it('invalidates translation cache lanes when bundle content hashes change without version changes', async () => {
+    const makeLanguageData = (languageHash: string, dictionaryHash: string): LanguageData => ({
+      name: 'Japanese',
+      languageData: {
+        version: 'ja-package-2026.06.29',
+        bundle: { sha256: languageHash },
+        assets: [],
+        dictionaryPacks: {
+          en: {
+            targetLanguage: 'en',
+            name: 'English',
+            version: 'ja-en-dictionary-2026.06.29',
+            bundle: { sha256: dictionaryHash },
+            assets: [],
+          },
+        },
+      },
+    });
+    const oldData = makeLanguageData('old-language-hash', 'old-dictionary-hash');
+    const newData = makeLanguageData('new-language-hash', 'new-dictionary-hash');
+    const oldResponse = { data: [{ definitions: ['old'], reading: 'ふるい' }] } as TranslationResponse;
+    const newResponse = { data: [{ definitions: ['new'], reading: 'あたらしい' }] } as TranslationResponse;
+    mockTranslate
+      .mockResolvedValueOnce(oldResponse)
+      .mockResolvedValueOnce(newResponse);
+
+    const { fetchTranslation, getCachedTranslation } = await import('./useTranslation');
+    await fetchTranslation('開く', 'ja', {
+      dictionaryTargetLanguage: 'en',
+      languageData: oldData,
+    });
+    await fetchTranslation('開く', 'ja', {
+      dictionaryTargetLanguage: 'en',
+      languageData: newData,
+    });
+
+    expect(mockTranslate).toHaveBeenCalledTimes(2);
+    expect(getCachedTranslation('開く', 'ja', { dictionaryTargetLanguage: 'en', languageData: oldData })).toEqual(oldResponse);
+    expect(getCachedTranslation('開く', 'ja', { dictionaryTargetLanguage: 'en', languageData: newData })).toEqual(newResponse);
+    expect(mockGetCachedTranslationByLanguageDB).toHaveBeenNthCalledWith(
+      1,
+      '開く',
+      'ja@language:old-language-hash@dictionary:en:old-dictionary-hash',
+      'en',
+    );
+    expect(mockGetCachedTranslationByLanguageDB).toHaveBeenNthCalledWith(
+      2,
+      '開く',
+      'ja@language:new-language-hash@dictionary:en:new-dictionary-hash',
+      'en',
+    );
+  });
+
   it('keeps translation cache lanes separate for different dictionary target languages', async () => {
     const english = { data: [{ definitions: ['red'], reading: 'あかい' }] } as TranslationResponse;
     const french = { data: [{ definitions: ['rouge'], reading: 'あかい' }] } as TranslationResponse;
