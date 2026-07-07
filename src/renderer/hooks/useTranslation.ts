@@ -69,10 +69,14 @@ function buildVersionedLanguageCacheId(
   dictionaryTargetLanguage?: string,
 ): string | undefined {
   const base = language || 'default';
-  const packageVersion = languageData?.languageData?.version;
-  const dictionaryVersion = dictionaryTargetLanguage
-    ? languageData?.languageData?.dictionaryPacks?.[dictionaryTargetLanguage]?.version
+  const packageManifest = languageData?.languageData;
+  const dictionaryPack = dictionaryTargetLanguage
+    ? packageManifest?.dictionaryPacks?.[dictionaryTargetLanguage]
     : undefined;
+  const packageAssetHash = packageManifest?.assets?.map((asset) => asset.sha256).filter(Boolean).join(',');
+  const dictionaryAssetHash = dictionaryPack?.assets?.map((asset) => asset.sha256).filter(Boolean).join(',');
+  const packageVersion = packageManifest?.bundle?.sha256 || packageAssetHash || packageManifest?.version;
+  const dictionaryVersion = dictionaryPack?.bundle?.sha256 || dictionaryAssetHash || dictionaryPack?.version;
 
   if (!packageVersion && !dictionaryVersion) {
     return language;
