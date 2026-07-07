@@ -595,7 +595,7 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
 const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
   {
     name: 'note_mistake',
-    description: 'Note a spoken mistake the learner made during the voice conversation. Call this for every pronunciation, grammar, or vocabulary error. It will lower the ease of the affected word and show in the session aftermath. MUST be called at the end of your response if the learner made a mistake.',
+    description: 'Note a clear grammar, vocabulary, or usage mistake from the learner during the voice conversation. Do not use this for pronunciation or reading corrections because live speech transcripts may be unstable. It will lower the ease of the affected word and show in the session aftermath. MUST be called at the end of your response if the learner made a clear non-pronunciation mistake.',
     parameters: {
       type: 'object',
       properties: {
@@ -617,7 +617,7 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
         },
         type: {
           type: 'string',
-          enum: ['pronunciation', 'grammar', 'vocabulary', 'usage'],
+          enum: ['grammar', 'vocabulary', 'usage'],
           description: 'Category of the mistake',
         },
       },
@@ -731,8 +731,9 @@ ${registerLine}
 - Treat each learner message as a speech-to-text transcript. If the transcript looks malformed, fragmented, random, clearly not intended as a message to you, or likely damaged by speech recognition, ask one short clarification instead of guessing.
 - If the transcript is understandable but surprising, respond to what was transcribed. Do not silently rewrite it into a more likely sentence.
 - Do not guess what the learner "probably meant" from phonetic similarity or a plausible nearby phrase. If a correction would require assuming different words than the transcript contains, ask the learner to repeat it instead.
-- If the learner makes a mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
-- The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
+- If the learner makes a clear grammar, vocabulary, or usage mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
+- Do NOT correct pronunciation, reading, accent, or sound-alike issues in voice mode unless the learner explicitly asks for pronunciation feedback. Live speech-to-text can be unstable, so pronunciation corrections are likely to be wrong.
+- The "note_mistake" tool MUST be called at the END of your response whenever the learner makes a clear non-pronunciation error.
 - Only call "note_mistake" for words that appear exactly in the learner's latest transcribed message. Copy the word and context from that transcript; never invent or infer a different word.
 - Do NOT call "note_mistake" with empty fields. If you are unsure whether the transcript is correct or whether there was a mistake, do not call it.
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
@@ -801,6 +802,7 @@ function parseVoiceMistake(args: Record<string, unknown>): VoiceMistake | null {
   if (!context.includes(word)) return null;
 
   const type = ((args.type as string) || 'vocabulary').trim() as VoiceMistake['type'];
+  if (type === 'pronunciation') return null;
   const reading = ((args.reading as string) || '').trim();
   return {
     word,

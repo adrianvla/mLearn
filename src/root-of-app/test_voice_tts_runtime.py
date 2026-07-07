@@ -359,7 +359,13 @@ def test_voice_stream_vad_mode_uses_silero_vad_for_speech_start(monkeypatch):
             assert 0.0 <= message["progress"] <= 1.0
 
         websocket.send_bytes(audio)
-        assert websocket.receive_json() == {"type": "vad", "event": "speech-start"}
+        vad_message = websocket.receive_json()
+        assert vad_message["type"] == "vad"
+        assert vad_message["event"] == "speech-start"
+        assert vad_message["reason"] == "probability-above-start-threshold"
+        assert vad_message["speechProb"] == 0.9
+        assert vad_message["threshold"] == voice.VAD_SPEECH_START_THRESHOLD
+        assert vad_message["silenceThreshold"] == 10
 
     assert len(calls) == 1
     assert calls[0][1] == 16000
@@ -424,8 +430,16 @@ def test_voice_stream_vad_hysteresis_keeps_uncertain_speech_in_one_utterance(mon
         for _ in range(24):
             websocket.send_bytes(audio)
 
-        assert websocket.receive_json() == {"type": "vad", "event": "speech-start"}
-        assert websocket.receive_json() == {"type": "vad", "event": "speech-end"}
+        vad_start = websocket.receive_json()
+        assert vad_start["type"] == "vad"
+        assert vad_start["event"] == "speech-start"
+        assert vad_start["reason"] == "probability-above-start-threshold"
+
+        vad_end = websocket.receive_json()
+        assert vad_end["type"] == "vad"
+        assert vad_end["event"] == "speech-end"
+        assert vad_end["reason"] == "silence-threshold"
+        assert vad_end["silenceSeconds"] >= 0.09
         assert websocket.receive_json() == {
             "type": "stt",
             "text": "お前が動いてるようになった",

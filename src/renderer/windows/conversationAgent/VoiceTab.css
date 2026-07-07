@@ -113,9 +113,22 @@
 }
 
 .voice-call-avatar-shell.has-photo {
-  overflow: hidden;
+  overflow: visible;
   outline: 0 solid transparent;
   outline-offset: 8px;
+}
+
+.voice-call-avatar-shell.loading::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  background:
+    conic-gradient(from 0deg, var(--color-primary), transparent 34%, transparent 62%, var(--color-primary));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  animation: voice-call-avatar-loading 1.05s linear infinite;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .voice-call-avatar-shell.has-photo.speaking {
@@ -137,6 +150,8 @@
 }
 
 .voice-call-avatar-image {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -145,6 +160,8 @@
 }
 
 .voice-call-avatar-blob {
+  position: relative;
+  z-index: 1;
   width: 74%;
   aspect-ratio: 1;
   border-radius: 48% 52% 46% 54%;
@@ -174,16 +191,6 @@
 
 .voice-call-state.active {
   color: var(--color-primary);
-}
-
-.voice-call-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-3);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  text-align: center;
 }
 
 .voice-call-bottom {
@@ -328,6 +335,12 @@
   50% {
     border-radius: 54% 46% 53% 47%;
     transform: scale(1.04) rotate(3deg);
+  }
+}
+
+@keyframes voice-call-avatar-loading {
+  to {
+    transform: rotate(360deg);
   }
 }
 
