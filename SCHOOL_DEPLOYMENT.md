@@ -1,21 +1,27 @@
 # mLearn Institutional Use Guide
 
 **For schools, universities, and tutoring centers**  
-**Version 1.2 — Effective Date: 2026-05-18**
+**Version 1.3 — Effective Date: 2026-07-07**
 
 ---
 
 ## 1. How Schools Use mLearn
 
-mLearn is **local-first software**. For institutional use with students
-under 18, the supported deployment is:
+mLearn is **local-first software**. Schools can deploy it with the
+control level that fits their environment:
 
 1. **Download the official app** from our [Releases](https://github.com/adrianvla/mLearn/releases)
-2. **Use local AI mode only** — no cloud account required
-3. **All data stays on the school's devices** — no server infrastructure needed
+2. **Choose local, self-hosted, or hosted cloud features** according to
+   your own policies and required consents
+3. **Keep local data on school-managed devices** unless you deliberately
+   enable a hosted cloud feature
 
-The public cloud relay at `mlearn-cloud.kikan.net` is **not available**
-to users under 18 or to institutional accounts.
+The hosted Cloud LLM relay at `mlearn-cloud.kikan.net` is available only
+to users who are at least 18 years old, or the age of majority in their
+jurisdiction if higher. That age confirmation is asked only when a user
+tries to access the hosted Cloud LLM relay. Other deployment models,
+including school-managed local or self-hosted use, are the responsibility
+of the deploying organization.
 
 ### 1.1 Acceptance
 
@@ -30,9 +36,9 @@ data-controller responsibility under applicable law.
 | Requirement | Details |
 |-------------|---------|
 | **Devices** | macOS, Windows, or Linux computers for students |
-| **AI Backend** | Built-in Qwen3-4B (runs offline on CPU) **or** a local Ollama server on the school network |
-| **Network** | Optional — local Ollama can run on one classroom machine or per-student |
-| **No server/domain/SSL required** | The app works entirely offline or over local network |
+| **AI Backend** | Built-in Qwen3-4B, local Ollama, self-hosted AI, or hosted Cloud LLM where eligible |
+| **Network** | Optional for local use; required for self-hosted or hosted cloud features |
+| **Server/domain/SSL** | Not required for local use; institution-managed for self-hosted dashboards |
 
 ### 2.1 Local AI Setup
 
@@ -53,26 +59,33 @@ data-controller responsibility under applicable law.
 
 ---
 
-## 3. What You Do NOT Get
+## 3. Current Hosted-Service Limits
 
-Because this is local-only software deployment:
+The current hosted service does not provide school administration
+features. In this version:
 
-- **No cloud accounts** for students on `kikan.net`
-- **No cloud sync** between devices (flashcards stay local)
-- **No Watch Together** through our relay
-- **No cloud OCR/TTS** (use local OCR engines and system TTS)
+- **No built-in classroom roster or student user management**
+- **No guardian-consent workflow**
+- **No managed school dashboard yet**
+- **Hosted Cloud LLM remains age-gated at access time**
 - **No backend source code** (the `mlearn-cloud` infrastructure is not open source)
+
+Schools that need managed student administration should use local or
+self-hosted patterns until a dedicated dashboard exists.
 
 ---
 
 ## 4. Legal & Compliance Responsibilities
 
-By deploying mLearn locally for students, **you** (the institution) assume
-all responsibility for:
+By deploying mLearn for students, **you** (the institution) assume the
+responsibilities that apply to your chosen deployment:
 
 ### 4.1 Student Data Protection
-- All flashcards, settings, and AI conversations remain on student devices
-- You are the data controller; we never process or store student data
+- In local-only mode, flashcards, settings, and AI conversations remain
+  on student devices
+- For self-hosted deployments, you operate the infrastructure you deploy
+- For hosted cloud features, review the Privacy Policy for what the
+  hosted service processes
 - Comply with your jurisdiction's education and data protection laws
 - Obtain necessary parental consent or provide required notifications
 
@@ -90,10 +103,10 @@ all responsibility for:
 
 ### 4.4 Data Backup
 
-The developer provides no backup, recovery, or data-loss prevention
-services for local deployments. You are solely responsible for
-implementing backup procedures for student flashcards, settings, and any
-other data stored on school devices.
+The developer provides no school-managed backup, recovery, or data-loss
+prevention service in this version. You are responsible for implementing
+backup procedures for student flashcards, settings, and any other data
+stored on school devices or institution-managed infrastructure.
 
 ---
 
@@ -117,10 +130,10 @@ warranty. See the `EULA.md` for the full limitation of liability.
 
 | For Schools | Recommendation |
 |-------------|----------------|
-| **Deployment** | Download official app, use local AI |
-| **Infrastructure** | None required |
-| **Student accounts** | Not needed |
-| **Data location** | Student devices only |
+| **Deployment** | Download official app; choose local, self-hosted, or eligible hosted features |
+| **Infrastructure** | None required for local use; institution-managed for self-hosting |
+| **Student accounts** | Not managed by mLearn in this version |
+| **Data location** | Depends on selected deployment and enabled cloud features |
 | **Our role** | Software licensor only |
 | **Your role** | Data controller, IT administrator, safeguarding officer |
 

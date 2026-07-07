@@ -1,6 +1,6 @@
 # mLearn Privacy Policy
 
-**Version 1.2 — Effective Date: 2026-05-18**
+**Version 1.3 — Effective Date: 2026-07-07**
 
 **Contact:** adrian@kikan.net  
 **Operator:** Adrian Vlasov, Vaud, Switzerland
@@ -10,8 +10,8 @@
 ## 1. Overview
 
 mLearn is local-first software. Most of your data never leaves your
-device. This policy explains what happens when you use cloud features
-at mlearn-cloud.kikan.net.
+device. This policy explains what happens when you use hosted cloud
+features at mlearn-cloud.kikan.net.
 
 ---
 
@@ -142,9 +142,18 @@ Contact: adrian@kikan.net
 
 ## 8. Children's Privacy
 
-Our cloud services are not intended for users under 18. If you believe
-a minor has provided us with personal data, contact us and we will delete
-it.
+The hosted Cloud LLM relay is available only to users who are at least
+18 years old, or the age of majority in their jurisdiction if higher.
+We ask for that confirmation only when a user tries to access the hosted
+Cloud LLM relay.
+
+Other mLearn features may be used by younger learners where a parent,
+guardian, school, or other authorized adult is responsible for the
+deployment, supervision, and any required consent. We do not knowingly
+collect personal data from children in a way that requires parental or
+school authorization without that authorization. If you believe a child
+provided personal data through the hosted service without the required
+authorization, contact us and we will delete it.
 
 ---
 
