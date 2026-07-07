@@ -93,6 +93,7 @@ interface MockDeps {
   getLevelName?: (level: number) => string;
   isVoiceMode?: () => boolean;
   onVoiceMistake?: (_mistake: VoiceMistake) => void;
+  onVoiceNudgeScheduled?: (_nudge: { seconds: number; prompt?: string }) => void;
   getTutorConfig?: () => TutorSessionConfig | null;
   getAgentConfig?: () => AgentConfig | null;
   getAgentMemories?: () => AgentMemoryEntry[];
@@ -1280,6 +1281,61 @@ describe('createConversationAgent', () => {
     });
   });
 
+  describe('tool: schedule_nudge (voice mode)', () => {
+    it('calls onVoiceNudgeScheduled with bounded nudge data', async () => {
+      const onVoiceNudgeScheduled = vi.fn();
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        onVoiceNudgeScheduled,
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks, onDone } = createCallbacks();
+
+      agent.processMessage('少し考える', [], callbacks);
+      sendChunk('うん、ゆっくり考えていいよ。');
+      sendDone([
+        {
+          id: 'sn1',
+          name: 'schedule_nudge',
+          arguments: {
+            seconds: 180,
+            prompt: 'Ask whether they want a hint.',
+          },
+        },
+      ]);
+
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onVoiceNudgeScheduled).toHaveBeenCalledWith({
+        seconds: 120,
+        prompt: 'Ask whether they want a hint.',
+      });
+    });
+
+    it('ignores invalid schedule_nudge timings', async () => {
+      const onVoiceNudgeScheduled = vi.fn();
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        onVoiceNudgeScheduled,
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks, onDone } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+      sendDone([
+        {
+          id: 'sn-invalid',
+          name: 'schedule_nudge',
+          arguments: {
+            seconds: 0,
+          },
+        },
+      ]);
+
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onVoiceNudgeScheduled).not.toHaveBeenCalled();
+    });
+  });
+
   // ==========================================================================
   // Tool execution: save_memory
   // ==========================================================================
@@ -2026,6 +2082,20 @@ describe('createConversationAgent', () => {
       const noteMistake = tools.find((tool) => tool.name === 'note_mistake');
       expect(noteMistake?.description).toContain('Do not use this for pronunciation');
       expect(noteMistake?.parameters.properties.type.enum).not.toContain('pronunciation');
+    });
+
+    it('gives voice mode a schedule_nudge tool for delayed follow-ups', () => {
+      const deps = createMockDeps({ isVoiceMode: () => true });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+
+      const [messages, tools] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('schedule_nudge');
+      const scheduleNudge = tools.find((tool) => tool.name === 'schedule_nudge');
+      expect(scheduleNudge?.description).toContain('Schedule a short follow-up');
+      expect(scheduleNudge?.parameters.required).toContain('seconds');
     });
 
     it('includes package-declared shared correction guidance in voice prompts', () => {

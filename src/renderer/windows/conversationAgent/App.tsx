@@ -283,6 +283,18 @@ export const ConversationContent: Component = () => {
   const [currentSessionId, setCurrentSessionId] = createSignal<string | null>(null);
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
   let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let voiceScheduledNudgeId = 0;
+  const [voiceScheduledNudge, setVoiceScheduledNudge] = createSignal<{ id: number; seconds: number; prompt?: string } | null>(null);
+
+  const cancelVoiceScheduledNudge = () => {
+    setVoiceScheduledNudge(null);
+  };
+
+  const scheduleVoiceNudge = (nudge: { seconds: number; prompt?: string }) => {
+    cancelVoiceScheduledNudge();
+    if (!isVoiceCallActive()) return;
+    setVoiceScheduledNudge({ id: ++voiceScheduledNudgeId, seconds: nudge.seconds, prompt: nudge.prompt });
+  };
 
   const [explainerOpen, setExplainerOpen] = createSignal(false);
   const [explainerWord, setExplainerWord] = createSignal('');
@@ -333,6 +345,7 @@ export const ConversationContent: Component = () => {
       // Lower ease of the word in flashcard context
       flashcardCtx.trackGrammarFailed(mistake.word);
     },
+    onVoiceNudgeScheduled: scheduleVoiceNudge,
     getAgentConfig: () => activeAgent(),
     getAgentMemories: () => visibleMemories(),
     onMemorySaved: (content: string) => {
@@ -659,6 +672,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleSelectAgent = async (id: string) => {
+    cancelVoiceScheduledNudge();
     setActiveAgentId(id);
     await saveActiveAgentId(id);
     // Clear conversation when switching agents
@@ -679,6 +693,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleDeleteAgent = async (id: string) => {
+    cancelVoiceScheduledNudge();
     const updatedAgents = await deleteAgent(id, settings.language);
     setAgents(updatedAgents);
     setAllMemories((prev) => prev.filter((m) => m.agentId !== id));
@@ -698,6 +713,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleNewSession = () => {
+    cancelVoiceScheduledNudge();
     agent.abortStream();
     clearAssistantStreamState();
     if (autoSaveTimer) clearTimeout(autoSaveTimer);
@@ -711,6 +727,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleLoadSession = async (id: string) => {
+    cancelVoiceScheduledNudge();
     const session = sessions().find((s) => s.id === id);
     if (!session) return;
 
@@ -887,6 +904,7 @@ export const ConversationContent: Component = () => {
   // Clean up checker agent on unmount
   onCleanup(() => {
     checkerAgent.abort();
+    cancelVoiceScheduledNudge();
   });
 
   // Slash commands
@@ -1384,6 +1402,7 @@ export const ConversationContent: Component = () => {
 
   const sendTextMessage = (text: string) => {
     if (!text || isStreaming() || isSafetyLockedState()) return;
+    cancelVoiceScheduledNudge();
 
     if (isCompactingContext()) {
       if (activeTab() === 'voice' && isVoiceCallActive()) {
@@ -1406,6 +1425,25 @@ export const ConversationContent: Component = () => {
     startAssistantStream(assistantMessageIndex);
 
     const context = `[Voice call started. The learner is waiting for you to speak. Greet them warmly and start a natural conversation in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`;
+    agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
+  };
+
+  const handleVoiceIdleSilence = (reason: 'no-transcript' | 'waiting' | 'scheduled', scheduledPrompt?: string) => {
+    if (reason === 'scheduled') {
+      cancelVoiceScheduledNudge();
+    }
+    if (isStreaming() || isCompactingContext() || isSafetyLockedState() || !isConnected()) return;
+    if (messages().length === 0) return;
+
+    const assistantMessageIndex = messages().length;
+    setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
+    startAssistantStream(assistantMessageIndex);
+
+    const context = reason === 'scheduled'
+      ? `[Voice call scheduled nudge: you asked to be nudged after a short delay. The learner has not spoken since then. Respond naturally in ${promptLangName()} with a brief follow-up.${scheduledPrompt ? ` Private reminder: ${scheduledPrompt}` : ''} Do not mention timers, tools, nudges, transcripts, or system internals.]`
+      : reason === 'no-transcript'
+      ? `[Voice call silence: the learner appeared to speak, but speech recognition produced no reliable transcript, and they are now quiet. Respond naturally in ${promptLangName()} with a short check-in or gentle prompt. Do not mention speech recognition, VAD, transcripts, or system internals.]`
+      : `[Voice call silence: the learner has been quiet for a while. Respond naturally in ${promptLangName()} with a brief check-in, encouragement, or a short follow-up question. Do not mention silence timers, VAD, transcripts, or system internals.]`;
     agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
   };
 
@@ -1984,12 +2022,15 @@ export const ConversationContent: Component = () => {
               isStreaming={isStreaming()}
               onSendMessage={sendTextMessage}
               onRequestGreeting={handleRequestGreeting}
+              onIdleSilence={handleVoiceIdleSilence}
+              scheduledNudge={voiceScheduledNudge()}
               onAbort={handleAbort}
               defaultVoiceSampleId={activeAgent()?.voiceSampleId}
               agentName={activeAgent()?.agentName}
               profilePhoto={activeAgent()?.profilePhoto}
               onCallStateChange={(active, reason) => {
                 setIsVoiceCallActive(active);
+                if (!active) cancelVoiceScheduledNudge();
                 if (active) {
                   setVoiceMistakes([]);
                   setVoiceSessionStart(Date.now());

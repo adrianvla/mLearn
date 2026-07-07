@@ -65,6 +65,8 @@ interface AgentDeps {
   isVoiceMode?: () => boolean;
   /** Callback for voice-mode mistake tracking (lowers ease) */
   onVoiceMistake?: (mistake: VoiceMistake) => void;
+  /** Callback for voice-mode self-scheduled follow-up nudges */
+  onVoiceNudgeScheduled?: (nudge: { seconds: number; prompt?: string }) => void;
   /** Tutor session configuration (grammar, words, media, custom instructions) */
   getTutorConfig?: () => TutorSessionConfig | null;
   /** Agent config (name, personality, roleplay, etc.) */
@@ -625,6 +627,24 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
     },
   },
   {
+    name: 'schedule_nudge',
+    description: 'Schedule a short follow-up for yourself during a live voice call. Use this when the conversation would feel more natural if you waited a few seconds before checking in again, instead of responding immediately. Do not use it if the learner just asked a direct question that needs an immediate answer.',
+    parameters: {
+      type: 'object',
+      properties: {
+        seconds: {
+          type: 'number',
+          description: 'How many seconds to wait before nudging yourself to speak again. Use small conversational delays such as 3-20 seconds.',
+        },
+        prompt: {
+          type: 'string',
+          description: 'Optional private reminder for what kind of short follow-up to say when the timer fires. Do not include user-visible markup.',
+        },
+      },
+      required: ['seconds'],
+    },
+  },
+  {
     name: 'fetch_url',
     description: 'Fetch and retrieve content from a URL. Use this to look up grammar explanations or language resources online if the learner asks about a specific topic.',
     parameters: {
@@ -738,6 +758,7 @@ ${registerLine}
 - Do NOT call "note_mistake" with empty fields. If you are unsure whether the transcript is correct or whether there was a mistake, do not call it.
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
 - If you need a tool in voice mode, speak one short natural line first, then call the tool at the end of the turn. Do not call tools before the spoken response.
+- You may call "schedule_nudge" at the end of a voice response when it would feel lifelike to wait a few seconds and then gently check in again if the learner stays quiet.
 - Do not call tools when the transcript itself is unclear; ask the learner to repeat or clarify.
 - If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. If the marker includes where the interruption happened, treat that as unspoken text. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
 ${correctionGuidance}
@@ -843,6 +864,15 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidg
       return null;
     }
 
+    case 'schedule_nudge': {
+      const rawSeconds = Number(args.seconds);
+      if (!Number.isFinite(rawSeconds) || rawSeconds <= 0) return null;
+      const seconds = Math.max(1, Math.min(120, rawSeconds));
+      const prompt = ((args.prompt as string) || '').trim();
+      deps.onVoiceNudgeScheduled?.({ seconds, prompt: prompt || undefined });
+      return null;
+    }
+
     case 'create_quiz': {
       const rawQuizType = ((args.quiz_type as string) || 'mcq').trim();
       const textWithBlanks = (args.text_with_blanks as string | undefined)?.trim();
@@ -900,6 +930,10 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
 
     case 'note_mistake': {
       return `Mistake noted: "${args.word}" → "${args.correction}"`;
+    }
+
+    case 'schedule_nudge': {
+      return `Nudge scheduled in ${args.seconds} seconds.`;
     }
 
     case 'save_memory': {
@@ -1573,7 +1607,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const terminalToolCalls: ToolCall[] = [];
 
     for (const toolCall of fixedToolCalls) {
-      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'save_memory') {
+      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'schedule_nudge' || toolCall.name === 'save_memory') {
         terminalToolCalls.push(toolCall);
       } else {
         nonTerminalToolCalls.push(toolCall);

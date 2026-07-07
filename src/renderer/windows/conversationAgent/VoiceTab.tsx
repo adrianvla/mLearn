@@ -37,6 +37,9 @@ import {
 } from './voiceTtsTurn';
 
 const log = getLogger("renderer.conversationAgent.voice");
+const NO_TRANSCRIPT_RECOVERY_MS = 1800;
+const IDLE_SILENCE_NUDGE_MS = 9000;
+const IDLE_SILENCE_NUDGE_COOLDOWN_MS = 25000;
 
 // ============================================================================
 // Icons
@@ -90,6 +93,11 @@ type VoiceTimelineChunk = {
   duration: number;
   sampleCount: number;
 };
+type ScheduledVoiceNudge = {
+  id: number;
+  seconds: number;
+  prompt?: string;
+};
 
 function voiceTtsChoiceFromProvider(provider: VoiceCallTTSProvider | undefined): VoiceTtsChoice {
   switch (provider) {
@@ -114,6 +122,8 @@ export interface VoiceTabProps {
   isStreaming: boolean;
   onSendMessage: (text: string) => void;
   onRequestGreeting: () => void;
+  onIdleSilence?: (reason: 'no-transcript' | 'waiting' | 'scheduled', scheduledPrompt?: string) => void;
+  scheduledNudge?: ScheduledVoiceNudge | null;
   onAbort: () => void;
   /** Called when user interrupts TTS — provides the text spoken so far and remaining text */
   onInterrupted?: (spokenText: string, interruptedAt: string) => void;
@@ -193,6 +203,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let ttsAudioContext: AudioContext | null = null; // separate context for TTS playback
   let ttsNextStartTime: number | null = null;
   let ttsPlaybackTimer: ReturnType<typeof setTimeout> | null = null;
+  let noTranscriptRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  let idleSilenceTimer: ReturnType<typeof setTimeout> | null = null;
+  let scheduledNudgeTimer: ReturnType<typeof setTimeout> | null = null;
+  let scheduledNudgeActiveId: number | null = null;
+  let lastIdleSilenceNudgeAt = 0;
 
   // TTS generation guard — prevents stale audio from playing after cancellation
   let ttsAborted = false;
@@ -260,6 +275,85 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     const event = vadDebug();
     if (!event) return t('mlearn.ConversationAgent.Voice.None');
     return `${event.type} · ${formatVadDetail(event)}`;
+  };
+
+  const clearNoTranscriptRecovery = () => {
+    if (noTranscriptRecoveryTimer) {
+      clearTimeout(noTranscriptRecoveryTimer);
+      noTranscriptRecoveryTimer = null;
+    }
+  };
+
+  const clearIdleSilenceTimer = () => {
+    if (idleSilenceTimer) {
+      clearTimeout(idleSilenceTimer);
+      idleSilenceTimer = null;
+    }
+  };
+
+  const clearScheduledNudgeTimer = () => {
+    if (scheduledNudgeTimer) {
+      clearTimeout(scheduledNudgeTimer);
+      scheduledNudgeTimer = null;
+    }
+    scheduledNudgeActiveId = null;
+  };
+
+  const canNotifyIdleSilence = () => (
+    isCallActive()
+    && !isInitializing()
+    && !props.isStreaming
+    && !ttsPlaying
+    && !ttsGenerationActive
+    && callState() === 'listening'
+    && !partialTranscript().trim()
+    && props.messages.length > 0
+  );
+
+  const scheduleIdleSilenceNudge = (reason: 'no-transcript' | 'waiting') => {
+    clearIdleSilenceTimer();
+    if (props.scheduledNudge) return;
+    if (!canNotifyIdleSilence()) return;
+    idleSilenceTimer = setTimeout(() => {
+      idleSilenceTimer = null;
+      if (!canNotifyIdleSilence()) return;
+      if (props.scheduledNudge) return;
+      const now = Date.now();
+      if (now - lastIdleSilenceNudgeAt < IDLE_SILENCE_NUDGE_COOLDOWN_MS) {
+        scheduleIdleSilenceNudge('waiting');
+        return;
+      }
+      lastIdleSilenceNudgeAt = now;
+      addDebugEvent('Silence', `${reason}: notifying agent after quiet listening`, 'info');
+      props.onIdleSilence?.(reason);
+    }, IDLE_SILENCE_NUDGE_MS);
+  };
+
+  const scheduleToolNudge = (nudge: ScheduledVoiceNudge) => {
+    clearScheduledNudgeTimer();
+    if (!canNotifyIdleSilence()) return;
+    scheduledNudgeActiveId = nudge.id;
+    clearIdleSilenceTimer();
+    addDebugEvent('Silence', `scheduled: will nudge in ${nudge.seconds.toFixed(1)}s`, 'info');
+    scheduledNudgeTimer = setTimeout(() => {
+      scheduledNudgeTimer = null;
+      scheduledNudgeActiveId = null;
+      if (!canNotifyIdleSilence()) return;
+      addDebugEvent('Silence', `scheduled: notifying agent after ${nudge.seconds.toFixed(1)}s`, 'info');
+      props.onIdleSilence?.('scheduled', nudge.prompt);
+    }, nudge.seconds * 1000);
+  };
+
+  const scheduleNoTranscriptRecovery = () => {
+    clearNoTranscriptRecovery();
+    noTranscriptRecoveryTimer = setTimeout(() => {
+      noTranscriptRecoveryTimer = null;
+      if (!isCallActive() || props.isStreaming || ttsPlaying || callState() !== 'processing') return;
+      addDebugEvent('STT', 'No final transcript after VAD end · UI -> Listening', 'warn');
+      setCallState('listening');
+      setPartialTranscript('');
+      scheduleIdleSilenceNudge('no-transcript');
+    }, NO_TRANSCRIPT_RECOVERY_MS);
   };
 
   const bumpTtsTimeline = () => {
@@ -573,6 +667,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // STT results
     cleanups.push(bridge.voice.onVoiceSttResult((result: VoiceSTTResult) => {
+      clearNoTranscriptRecovery();
+      clearIdleSilenceTimer();
+      clearScheduledNudgeTimer();
       setPartialTranscript(result.text);
       if (result.isFinal && result.text.trim()) {
         addDebugEvent('STT', `${result.text.trim().length} chars final`, 'active');
@@ -587,6 +684,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     cleanups.push(bridge.voice.onVoiceVadEvent((event) => {
       setVadDebug(event);
       if (event.type === 'speech-start') {
+        clearNoTranscriptRecovery();
+        clearIdleSilenceTimer();
+        clearScheduledNudgeTimer();
         if (ttsPlaying) return; // safety guard — barge-in handled locally
         addDebugEvent('VAD start', `${formatVadDetail(event)} · UI -> Listening`, 'active');
         setCallState('listening');
@@ -594,6 +694,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         addDebugEvent('VAD end', `${formatVadDetail(event)} · UI ${callState()} -> Processing`, 'info');
         if (callState() === 'listening') {
           setCallState('processing');
+          scheduleNoTranscriptRecovery();
         }
       }
     }));
@@ -691,6 +792,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       cancelAnimationFrame(ttsTimelineDrawFrameId);
       ttsTimelineDrawFrameId = null;
     }
+    clearScheduledNudgeTimer();
     stopCall('cleanup');
   });
 
@@ -707,12 +809,53 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   });
 
+  createEffect(
+    on(
+      [() => props.isStreaming, () => props.messages.length, callState, partialTranscript],
+      () => {
+        if (canNotifyIdleSilence()) {
+          scheduleIdleSilenceNudge('waiting');
+        } else {
+          clearIdleSilenceTimer();
+        }
+      },
+    ),
+  );
+
+  createEffect(
+    on(
+      [
+        () => props.scheduledNudge?.id,
+        () => props.isStreaming,
+        () => props.messages.length,
+        callState,
+        partialTranscript,
+        isCallActive,
+        isInitializing,
+      ],
+      () => {
+        const nudge = props.scheduledNudge;
+        if (!nudge) {
+          clearScheduledNudgeTimer();
+          return;
+        }
+        if (scheduledNudgeActiveId === nudge.id && scheduledNudgeTimer) return;
+        if (!canNotifyIdleSilence()) {
+          clearScheduledNudgeTimer();
+          return;
+        }
+        scheduleToolNudge(nudge);
+      },
+    ),
+  );
+
   // ============================================================================
   // Stream TTS for assistant phrases as the LLM response arrives
   // ============================================================================
 
   function resetVoiceTtsTurn(initialText: string, messageIndex: number): void {
     stopTTSPlayback();
+    clearScheduledNudgeTimer();
     resetVoiceTtsTurnState(voiceTtsTurn, messageIndex);
     currentTtsText = initialText;
     ttsAborted = false;
@@ -929,10 +1072,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
     if (isCallActive()) {
       setCallState('listening');
+      scheduleIdleSilenceNudge('waiting');
     }
   };
 
   const scheduleTtsAudio = (audio: VoiceTtsAudio) => {
+    clearIdleSilenceTimer();
+    clearScheduledNudgeTimer();
     if (!ttsAudioContext) {
       ttsAudioContext = new AudioContext();
     }
@@ -1089,6 +1235,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       mode: voiceMode(),
       ttsProvider: activeTtsProvider(),
     });
+    clearNoTranscriptRecovery();
+    clearIdleSilenceTimer();
+    clearScheduledNudgeTimer();
+    lastIdleSilenceNudgeAt = 0;
     setIsInitializing(true);
     setInitError('');
     setIsCallActive(true);
@@ -1158,6 +1308,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     setSessionStatus(null);
     setCallState('idle');
     setPartialTranscript('');
+    clearNoTranscriptRecovery();
+    clearIdleSilenceTimer();
+    clearScheduledNudgeTimer();
 
     stopTTSPlayback();
     stopAudioCapture();

@@ -3,7 +3,7 @@
  * Provides nested context providers for all windows (Russian Doll pattern)
  */
 
-import { ParentComponent, Component, JSX, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { ParentComponent, Component, JSX, Show, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { SettingsProvider, useSettings } from './SettingsContext';
 import './WindowWrapper.css';
 import { LanguageProvider } from './LanguageContext';
@@ -206,7 +206,10 @@ const GlobalEulaModal: Component = () => {
   const { settings, updateSettings, isLoading } = useSettings();
   const [eulaContent, setEulaContent] = createSignal('');
   const [currentHash, setCurrentHash] = createSignal('');
-  const [needsAcceptance, setNeedsAcceptance] = createSignal(false);
+  const needsAcceptance = createMemo(() => {
+    const hash = currentHash();
+    return Boolean(hash && settings.eulaAcceptedHash !== hash);
+  });
 
   onMount(() => {
     const bridge = getBridge();
@@ -214,10 +217,6 @@ const GlobalEulaModal: Component = () => {
       setEulaContent(content);
       const hash = await computeSha256(content);
       setCurrentHash(hash);
-      const storedHash = settings.eulaAcceptedHash;
-      if (!storedHash || storedHash !== hash) {
-        setNeedsAcceptance(true);
-      }
     });
     bridge.server.getLegalDocument('EULA');
     onCleanup(() => cleanup());
@@ -230,7 +229,6 @@ const GlobalEulaModal: Component = () => {
       eulaAcceptedAt: Date.now(),
       eulaAcceptedHash: currentHash(),
     });
-    setNeedsAcceptance(false);
   };
 
   return (
