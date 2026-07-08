@@ -19,6 +19,7 @@ import type {
 import { getLogger } from '../utils/logger';
 
 const log = getLogger("shared.backends.http");
+const DEFAULT_OCR_TIMEOUT_MS = 120_000;
 
 export interface HttpBackendOptions {
   /** Bearer token for auth (optional) */
@@ -154,7 +155,7 @@ export class HttpBackend implements BackendAdapter {
       method: 'POST',
       headers: this.headers(),
       body: form,
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(options?.timeoutMs ?? DEFAULT_OCR_TIMEOUT_MS),
     });
 
     await this.throwOnError(res, 'OCR request');

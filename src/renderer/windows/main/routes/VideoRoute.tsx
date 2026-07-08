@@ -557,6 +557,7 @@ export const VideoRoute: Component = () => {
               reading: freq?.reading,
               pos: entry.token.type,
               level: freq?.raw_level ?? null,
+              dictionaryTargetLanguage: dictionaryTargetLanguage(),
               contextPhrase: cleanContextPhrase(entry.contextPhrase, langCtx.currentLangData()),
               contextHtml,
               imageUrl: image || undefined,

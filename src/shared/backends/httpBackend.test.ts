@@ -270,6 +270,28 @@ describe('HttpBackend', () => {
       expect(form.get('detection_max_width')).toBe('640');
       expect(form.get('detection_max_height')).toBe('480');
     });
+
+    it('uses a longer default timeout for local OCR requests', async () => {
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+      const blob = new Blob(['img'], { type: 'image/png' });
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ boxes: [] }));
+
+      await backend.ocr(blob);
+
+      expect(timeoutSpy).toHaveBeenCalledWith(120_000);
+      timeoutSpy.mockRestore();
+    });
+
+    it('allows OCR callers to override the request timeout', async () => {
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+      const blob = new Blob(['img'], { type: 'image/png' });
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ boxes: [] }));
+
+      await backend.ocr(blob, { timeoutMs: 45_000 });
+
+      expect(timeoutSpy).toHaveBeenCalledWith(45_000);
+      timeoutSpy.mockRestore();
+    });
   });
 
   describe('warmupOcr', () => {

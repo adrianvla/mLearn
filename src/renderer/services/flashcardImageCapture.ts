@@ -14,13 +14,14 @@ export interface FlashcardImageCaptureOptions extends CanvasCaptureOptions {
 }
 
 const DEFAULT_READINESS_TIMEOUT_MS = 500;
+const HAVE_CURRENT_DATA_READY_STATE = 2;
 
 function isVideoElement(source: HTMLVideoElement | HTMLImageElement): source is HTMLVideoElement {
-  return source instanceof HTMLVideoElement;
+  return 'videoWidth' in source || source.tagName?.toLowerCase() === 'video';
 }
 
 function isImageElement(source: HTMLVideoElement | HTMLImageElement): source is HTMLImageElement {
-  return source instanceof HTMLImageElement;
+  return 'naturalWidth' in source || source.tagName?.toLowerCase() === 'img';
 }
 
 function getSourceDimensions(source: HTMLVideoElement | HTMLImageElement): { width: number; height: number } {
@@ -42,7 +43,7 @@ function isSourceReady(source: HTMLVideoElement | HTMLImageElement): boolean {
     return false;
   }
   if (isVideoElement(source)) {
-    return source.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    return source.readyState >= HAVE_CURRENT_DATA_READY_STATE;
   }
   return source.complete;
 }
@@ -122,16 +123,13 @@ export async function captureFlashcardImage(
 ): Promise<string | null> {
   const timeoutMs = options?.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
 
-  const primary = await captureElementAndSave(source, cardId, options);
-  if (primary) return primary;
-
   if (!isSourceReady(source)) {
     const becameReady = await waitForSourceReady(source, timeoutMs);
-    if (becameReady) {
-      const retried = await captureElementAndSave(source, cardId, options);
-      if (retried) return retried;
-    }
+    if (!becameReady) return await captureFallbackImage(source, cardId, options);
   }
+
+  const primary = await captureElementAndSave(source, cardId, options);
+  if (primary) return primary;
 
   return await captureFallbackImage(source, cardId, options);
 }

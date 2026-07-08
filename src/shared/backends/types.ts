@@ -50,6 +50,8 @@ export interface OCRRequestOptions {
   detectionMaxWidth?: number;
   /** Generic OCR detector/recognizer max height override for diagnostics/dev tuning. */
   detectionMaxHeight?: number;
+  /** Request timeout in milliseconds. Defaults to the backend adapter's OCR timeout. */
+  timeoutMs?: number;
 }
 
 export interface OCRWarmupResult {

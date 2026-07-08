@@ -2686,6 +2686,27 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('captureSuggestedFlashcard keeps dictionary-only suggestions using the configured dictionary target', async () => {
+    const { warmTranslationCache } = await import('../hooks/useTranslation');
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.autoSuggestUnknownWords = false;
+    mockSettings.dictionaryTargetLanguages = { ja: 'fr' };
+    mockSettings.learningLanguageLevels = { ja: null };
+    mockBackend.translate.mockImplementation(async (_word: string, _language?: string, options?: { dictionaryTargetLanguage?: string }) => (
+      options?.dictionaryTargetLanguage === 'fr'
+        ? { data: [{ definitions: ['mot'] }] }
+        : { data: [] }
+    ));
+
+    await warmTranslationCache(['単語'], undefined, undefined, 'ja', 'fr', mockLangData.ja);
+    await ctx.captureSuggestedFlashcard({ word: '単語', level: 5 });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
+    expect(ctx.getSuggestedFlashcardsSync()[0].word).toBe('単語');
+    dispose();
+  });
+
   it('captureSuggestedFlashcard skips words above user level', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
