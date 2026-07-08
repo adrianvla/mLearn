@@ -91,6 +91,12 @@ vi.mock('./languageDataService', () => ({
   getLanguageDataRoot: mockGetLanguageDataRoot,
 }));
 
+const mockEnsureLanguagePythonRequirementsInstalled = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+
+vi.mock('./pythonRuntimeRequirements', () => ({
+  ensureLanguagePythonRequirementsInstalled: mockEnsureLanguagePythonRequirementsInstalled,
+}));
+
 type MockReqCallbacks = Record<string, ((...args: unknown[]) => void)[]>;
 
 interface MockHttpReq {
@@ -203,6 +209,7 @@ describe('pythonBackend', () => {
       dictionaryTargetLanguages: {},
       llmEnabled: true,
       ocrEnabled: true,
+      voiceEnabled: true,
     });
     mockPlatformPaths.resourcePath = '/tmp/test-resources';
     mockPlatformPaths.appPath = '/tmp/test-resources';
@@ -841,6 +848,66 @@ describe('pythonBackend', () => {
       expect(result).toBe(true);
       expect(mockWebContents.send).not.toHaveBeenCalledWith('installer-awaiting-choice');
       expect(fs.readFileSync('/tmp/test-userdata/python-version.txt', 'utf-8')).toBe('1.0.0');
+    });
+
+    it('repairs installed language Python requirements before starting a reused backend', async () => {
+      const envBin = path.join('/tmp/test-userdata', 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+      fs.writeFileSync('/tmp/test-userdata/python-version.txt', '0.9.0', 'utf-8');
+      mockHasSettingsFile.mockReturnValue(true);
+      mockInstalledLanguageData = {
+        ja: {
+          name: 'Japanese',
+          runtime: {
+            python: {
+              packagesByComponent: {
+                core: ['ja-tokenizer'],
+                ocr: ['ja-ocr-engine'],
+              },
+            },
+          },
+        },
+      };
+      const backendMockProcess = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        kill: vi.fn(),
+        killed: false,
+      };
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        if (args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return backendMockProcess;
+      });
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      await mod.findPython();
+
+      expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalledWith(
+        'ja',
+        mockInstalledLanguageData,
+        {
+          includeLLM: true,
+          includeOCR: true,
+          includeVoice: true,
+        },
+        {
+          skipIfCurrent: true,
+        },
+      );
     });
 
     it('keeps showing installer on app update when no settings profile exists', async () => {

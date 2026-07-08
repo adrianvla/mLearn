@@ -89,6 +89,42 @@ describe('pythonRuntimeRequirements', () => {
     );
   });
 
+  it('skips selected language Python requirements when the receipt is current', async () => {
+    const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+    fs.mkdirSync(envBin, { recursive: true });
+    fs.writeFileSync(path.join(envBin, 'pip3'), '');
+    mockSpawn.mockReturnValue(makeProcess(0));
+
+    const mod = await import('./pythonRuntimeRequirements');
+    const langData = {
+      aa: {
+        name: 'Alpha',
+        runtime: {
+          python: {
+            packagesByComponent: {
+              core: ['aa-core'],
+              ocr: ['aa-ocr'],
+            },
+          },
+        },
+      },
+    };
+    const options = {
+      includeLLM: false,
+      includeOCR: true,
+      includeVoice: false,
+    };
+
+    await mod.ensureLanguagePythonRequirementsInstalled('aa', langData, options, {
+      skipIfCurrent: true,
+    });
+    await mod.ensureLanguagePythonRequirementsInstalled('aa', langData, options, {
+      skipIfCurrent: true,
+    });
+
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects package installation when required language packages need a missing Python runtime', async () => {
     vi.spyOn(process, 'cwd').mockReturnValue(path.join(tempDir.tmpDir, 'repo-without-runtime'));
     const mod = await import('./pythonRuntimeRequirements');

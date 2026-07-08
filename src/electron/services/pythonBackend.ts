@@ -28,6 +28,7 @@ import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
 import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFeatures';
 import { getPythonExecutableCandidates } from './pythonRuntimePaths';
+import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
 
 const pyLog = getLogger('python');
 const lifecycleLog = getLogger('python.lifecycle');
@@ -761,6 +762,7 @@ async function pythonFound(): Promise<boolean> {
 
   const llmEnabled = settings.llmEnabled !== false;
   const ocrEnabled = settings.ocrEnabled !== false;
+  const voiceEnabled = settings.voiceEnabled !== false;
 
   const installedLanguageData = loadLangData();
   if (!settings.language) {
@@ -769,6 +771,21 @@ async function pythonFound(): Promise<boolean> {
   } else if (!installedLanguageData[settings.language]) {
     log.warn(`Language data is not installed for ${settings.language}; starting backend so the app can install it.`);
     sendStatusUpdate(`Language data is not installed for ${settings.language}. Install language data from Welcome or Settings.`);
+  } else {
+    try {
+      sendStatusUpdate('Checking language runtime requirements...');
+      await ensureLanguagePythonRequirementsInstalled(settings.language, installedLanguageData, {
+        includeLLM: llmEnabled,
+        includeOCR: ocrEnabled,
+        includeVoice: voiceEnabled,
+      }, {
+        skipIfCurrent: true,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to repair language runtime requirements for ${settings.language}:`, error);
+      sendStatusUpdate(`ERROR: Failed to repair language runtime requirements for ${settings.language}: ${message}`);
+    }
   }
 
   activeDictionaryTargetLanguage = settings.dictionaryTargetLanguages?.[settings.language];
