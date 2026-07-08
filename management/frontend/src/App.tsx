@@ -28,13 +28,30 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import appIcon from '../../../build/icons/128x128.png';
+const appIcon = '/mlearn-icon.png';
 import { ApiError, AUTH_ERROR_EVENT, AuthError, TOKEN_KEY, createApiClient } from '@/api/client';
 import type { AnalyticsDto, ConfigDto, DistributionDto, LlmGatewayDto, LogsDto, ServiceDto } from '@/api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn, compactNumber, formatBytes, formatUptime } from '@/lib/utils';
 import { redactLine } from '@/redact';
 import { containerStatusToVariant, deploymentModeToVariant, healthStatusToVariant, type BadgeVariant } from '@/status';
@@ -94,6 +111,9 @@ const pageTitles: Record<PageId, string> = {
 };
 
 const client = createApiClient();
+const LazyLogCodeBlock = React.lazy(() =>
+  import('@/components/LogCodeBlock').then((module) => ({ default: module.LogCodeBlock })),
+);
 
 interface Resource<T> {
   data: T | null;
@@ -129,61 +149,65 @@ export function App(): React.ReactElement {
   }
 
   return (
-    <div className="min-h-dvh bg-background">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-border bg-card/80 lg:block">
-        <div className="flex h-24 items-center gap-3 border-b border-border px-5">
-          <img src={appIcon} alt="mLearn" className="size-12 rounded-lg" />
-          <div>
-            <div className="text-xl font-semibold">mLearn</div>
-            <div className="text-sm text-muted-foreground">Self-host Manager</div>
-          </div>
-        </div>
-        <nav className="flex flex-col gap-6 p-4">
-          {groupedNav.map(({ group, items }) => (
-            <div className="flex flex-col gap-2" key={group}>
-              <div className="px-2 text-xs font-semibold uppercase text-muted-foreground">{group}</div>
-              {items.map((item) => (
-                <button
-                  aria-current={item.id === page ? 'page' : undefined}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent',
-                    item.id === page ? 'bg-accent text-accent-foreground' : 'text-muted-foreground',
-                  )}
-                  key={item.id}
-                  type="button"
-                  onClick={() => navigate(item.id)}
-                >
-                  <item.icon className="size-4" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium text-foreground">{item.label}</span>
-                    <span className="block truncate text-xs">{item.description}</span>
-                  </span>
-                  {item.id === page ? <ChevronRight className="size-4" /> : null}
-                </button>
+    <div className="min-h-dvh bg-background text-foreground">
+      <TooltipProvider>
+        <SidebarProvider>
+          <Sidebar collapsible="icon" variant="sidebar">
+            <SidebarHeader className="h-20">
+              <div className="flex items-center gap-3 px-2 py-2">
+                <img src={appIcon} alt="mLearn" className="size-10 rounded-lg border bg-muted object-cover" />
+                <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                  <div className="truncate text-sm font-semibold">mLearn</div>
+                  <div className="truncate text-xs text-muted-foreground">Self-host Manager</div>
+                </div>
+              </div>
+            </SidebarHeader>
+            <SidebarSeparator />
+            <SidebarContent>
+              {groupedNav.map(({ group, items }) => (
+                <SidebarGroup key={group}>
+                  <SidebarGroupLabel>{group}</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {items.map((item) => (
+                        <SidebarMenuItem key={item.id}>
+                          <SidebarMenuButton isActive={item.id === page} tooltip={item.description} asChild>
+                            <button type="button" onClick={() => navigate(item.id)}>
+                              <item.icon />
+                              <span>{item.label}</span>
+                              {item.id === page ? <ChevronRight className="ml-auto" /> : null}
+                            </button>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
               ))}
-            </div>
-          ))}
-        </nav>
-      </aside>
-      <main className="min-h-dvh lg:pl-72">
-        <header className="sticky top-0 z-10 border-b border-border bg-background/90 px-5 py-4 backdrop-blur">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="text-xs font-semibold uppercase text-muted-foreground">Management console</div>
-              <h1 className="text-2xl font-semibold tracking-normal">{pageTitles[page]}</h1>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="info">React</Badge>
-              <Badge variant="secondary">Vite</Badge>
-              <Badge variant="secondary">Tailwind</Badge>
-              <Badge variant="secondary">shadcn/ui</Badge>
-            </div>
-          </div>
-        </header>
-        <div className="p-5">
-          <Page page={page} />
-        </div>
-      </main>
+            </SidebarContent>
+            <SidebarRail />
+          </Sidebar>
+          <SidebarInset>
+            <header className="sticky top-0 z-10 flex min-h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+              <SidebarTrigger />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium uppercase text-muted-foreground">Management console</div>
+                <h1 className="truncate text-xl font-semibold">{pageTitles[page]}</h1>
+              </div>
+              <div className="hidden flex-wrap gap-2 md:flex">
+                <Badge variant="outline">React</Badge>
+                <Badge variant="secondary">Vite</Badge>
+                <Badge variant="secondary">Tailwind</Badge>
+                <Badge variant="secondary">shadcn/ui</Badge>
+                <Badge variant="secondary">Kibo UI</Badge>
+              </div>
+            </header>
+            <main className="flex-1 p-4 lg:p-6">
+              <Page page={page} />
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </TooltipProvider>
     </div>
   );
 }
@@ -371,6 +395,13 @@ function LogsPage(): React.ReactElement {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const activeId = selectedId ?? services.data?.[0]?.id ?? null;
   const logs = useResource(() => (activeId === null ? Promise.resolve<LogsDto>({ service_id: '', lines: [], truncated: false }) : client.getLogs(activeId, 300)), [activeId]);
+  const logText = React.useMemo(
+    () =>
+      logs.data?.lines
+        .map((line) => `${line.timestamp ?? '--'} ${line.stream.padEnd(6, ' ')} ${redactLine(line.message)}`)
+        .join('\n') ?? '',
+    [logs.data],
+  );
 
   return (
     <ResourceState resource={services}>
@@ -400,16 +431,13 @@ function LogsPage(): React.ReactElement {
             </CardHeader>
             <CardContent>
               {logs.error === null ? null : <AlertCard title="Could not load logs" message={logs.error.message} />}
-              <div className="log-scrollbar max-h-[68vh] overflow-auto rounded-md border border-border bg-black/30 p-4 font-mono text-xs leading-6">
-                {logs.data?.lines.map((line, index) => (
-                  <div className="grid grid-cols-[84px_92px_1fr] gap-3 border-b border-border/40 py-1 last:border-b-0" key={`${line.timestamp ?? 'no-time'}-${index}`}>
-                    <span className="text-muted-foreground">{line.timestamp ?? '--'}</span>
-                    <span className={line.stream === 'stderr' ? 'text-red-200' : 'text-cyan-200'}>{line.stream}</span>
-                    <span className="whitespace-pre-wrap break-words text-foreground">{redactLine(line.message)}</span>
-                  </div>
-                ))}
-                {logs.data?.lines.length === 0 ? <EmptyState icon={FileText} title="No log lines" detail="The selected service did not return log output." /> : null}
-              </div>
+              {logs.data?.lines.length === 0 ? (
+                <EmptyState icon={FileText} title="No log lines" detail="The selected service did not return log output." />
+              ) : (
+                <React.Suspense fallback={<div className="h-96 rounded-lg border bg-card" />}>
+                  <LazyLogCodeBlock code={logText} filename={`${activeId ?? 'service'}.log`} />
+                </React.Suspense>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -691,7 +719,7 @@ function GatewayPage(): React.ReactElement {
                 <div className="rounded-md border border-border bg-muted/30 p-4" key={rule.id}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="font-medium">{rule.label}</div>
-                    <Badge variant="info">{rule.provider}</Badge>
+                    <Badge variant="outline">{rule.provider}</Badge>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">{rule.match}</p>
                   <div className="mt-3 text-xs text-muted-foreground">Fallback: {rule.fallback ?? 'none'}</div>
@@ -866,7 +894,7 @@ function AuthPanel({ onTokenSaved }: { onTokenSaved: () => void }): React.ReactE
         <CardHeader>
           <div className="mb-3 flex items-center gap-3">
             <img src={appIcon} alt="mLearn" className="size-12 rounded-lg" />
-            <Badge variant="warning">Authorization required</Badge>
+            <StatusBadge variant="warning">Authorization required</StatusBadge>
           </div>
           <CardTitle className="text-2xl">Admin token required</CardTitle>
           <CardDescription>The management server rejected the saved token. Paste the current token printed by the backend, or run the reset command and restart.</CardDescription>
@@ -1157,15 +1185,31 @@ function KeyValue({ label, value }: { label: string; value: React.ReactNode }): 
 }
 
 function StatusBadge({ variant, children }: { variant: BadgeVariant; children: React.ReactNode }): React.ReactElement {
-  const badgeVariant = variant === 'error' ? 'destructive' : variant;
+  const badgeVariant = variant === 'error' ? 'destructive' : variant === 'neutral' ? 'outline' : 'secondary';
   const Icon = variant === 'error' ? XCircle : variant === 'success' ? CheckCircle2 : variant === 'warning' ? AlertTriangle : Activity;
 
   return (
-    <Badge variant={badgeVariant}>
+    <Badge className={statusBadgeClass(variant)} variant={badgeVariant}>
       <Icon className="mr-1 size-3" />
       {children}
     </Badge>
   );
+}
+
+function statusBadgeClass(variant: BadgeVariant): string {
+  switch (variant) {
+    case 'success':
+      return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300';
+    case 'warning':
+      return 'border-amber-500/25 bg-amber-500/10 text-amber-300';
+    case 'error':
+      return 'border-red-500/25 bg-red-500/10 text-red-300';
+    case 'info':
+      return 'border-sky-500/25 bg-sky-500/10 text-sky-300';
+    case 'neutral':
+    default:
+      return 'text-muted-foreground';
+  }
 }
 
 function badgeToneClass(variant: BadgeVariant): string {

@@ -9,6 +9,8 @@ if (root === null) {
   throw new Error('Missing #root element');
 }
 
+document.documentElement.classList.add('dark', 'theme');
+
 createRoot(root).render(
   <React.StrictMode>
     <App />
