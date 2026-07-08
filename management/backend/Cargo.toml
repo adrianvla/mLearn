@@ -1,0 +1,51 @@
+[package]
+name = "mlearn-management"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "ISC"
+description = "mLearn Self-Hosted Docker Management Console backend"
+publish = false
+
+[lib]
+name = "mlearn_management"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mlearn-management"
+path = "src/main.rs"
+
+[dependencies]
+# Web framework
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Docker client
+bollard = "0.21"
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Embedded static assets
+include_dir = "0.7"
+mime_guess = "2"
+
+# Auth
+sha2 = "0.10"
+subtle = "2.6"
+hex = "0.4"
+
+# Error handling + logging
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,123 @@
+.school-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.school-page__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-8) var(--spacing-4);
+  color: var(--text-tertiary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+}
+
+.school-page__state--error {
+  color: var(--color-error);
+}
+
+.school-page__spinner {
+  display: inline-block;
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  border: 2px solid var(--border-color);
+  border-top-color: var(--color-info);
+  border-radius: 50%;
+  animation: school-page-spin 0.8s linear infinite;
+}
+
+@keyframes school-page-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.school-page__kv {
+  display: grid;
+  grid-template-columns: minmax(180px, max-content) 1fr;
+  column-gap: var(--spacing-4);
+  row-gap: var(--spacing-2);
+  margin: 0;
+}
+
+.school-page__key {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: var(--spacing-1) 0;
+  align-self: center;
+}
+
+.school-page__value {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) 0;
+}
+
+.school-page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.school-page__list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.school-page__ok {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.school-page__notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.school-page__note {
+  position: relative;
+  padding-left: var(--spacing-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.school-page__note::before {
+  content: '';
+  position: absolute;
+  left: var(--spacing-1);
+  top: 0.65em;
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.school-page__muted {
+  color: var(--text-tertiary);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+}

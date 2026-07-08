@@ -1,0 +1,57 @@
+.mlearn-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.mlearn-panel--no-border {
+  border: none;
+}
+
+.mlearn-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface-alt);
+}
+
+.mlearn-panel__title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.mlearn-panel__spacer {
+  display: inline-block;
+  flex: 1;
+}
+
+.mlearn-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+.mlearn-panel__body {
+  padding: var(--spacing-4);
+}
+
+.mlearn-panel__body--sm {
+  padding: var(--spacing-3);
+}
+
+.mlearn-panel__body--md {
+  padding: var(--spacing-4);
+}
+
+.mlearn-panel__body--lg {
+  padding: var(--spacing-6);
+}
