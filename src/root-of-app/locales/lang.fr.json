@@ -7,7 +7,9 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
+      "DictionaryUpdateMessage": "Les données du dictionnaire sélectionné ne sont plus à jour. Ouvrez la configuration des langues pour les mettre à jour.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
+      "LanguageUpdateMessage": "Les données de votre langue d'apprentissage ne sont plus à jour. Ouvrez la configuration des langues pour les mettre à jour.",
       "OpenSetup": "Open Language Setup",
       "Title": "Language Data Required"
     },
@@ -1063,6 +1065,7 @@
         "CancelRestart": "Cancel Restart",
         "InstallRequiredComponents": "Installer les composants requis",
         "InstallLanguageData": "Installer les données linguistiques sélectionnées",
+        "UpdateLanguageData": "Mettre à jour les données linguistiques sélectionnées",
         "FinishSetup": "Terminer la configuration"
       },
       "Components": {
@@ -1500,6 +1503,8 @@
           "Installing": "Installation des données linguistiques...",
           "Installed": "Données linguistiques installées",
           "InstallFailed": "Échec de l'installation des données linguistiques",
+          "Update": "Mettre à jour les données linguistiques",
+          "UpdateRequired": "Mise à jour des données linguistiques disponible",
           "MissingRequired": "Données linguistiques requises"
         },
         "DictionaryTarget": {

@@ -67,6 +67,7 @@ describe('LoadingOverlay installer helpers', () => {
       name: 'Japanese',
       dataRoot: '/tmp/language-data',
       installed: true,
+      outdated: false,
       totalBytes: 1,
       installedBytes: 1,
       missingRequiredAssets: [],
@@ -76,6 +77,7 @@ describe('LoadingOverlay installer helpers', () => {
           targetLanguage: 'fr',
           name: 'French',
           installed: false,
+          outdated: false,
           totalBytes: 1,
           installedBytes: 0,
           missingRequiredAssets: ['dictionaries/ja/fr/dictionary.db'],
@@ -91,12 +93,65 @@ describe('LoadingOverlay installer helpers', () => {
     )).toEqual({ required: true, reason: 'dictionary-language' });
   });
 
+  it('requires language setup when the active language package is outdated', () => {
+    const status = {
+      language: 'ja',
+      name: 'Japanese',
+      dataRoot: '/tmp/language-data',
+      installed: false,
+      outdated: true,
+      totalBytes: 1,
+      installedBytes: 1,
+      missingRequiredAssets: [],
+      assets: [],
+    } satisfies LanguageDataCatalogStatus;
+
+    expect(getLanguageSetupRequirement(
+      { language: 'ja', dictionaryTargetLanguages: {} },
+      true,
+      status,
+    )).toEqual({ required: true, reason: 'learning-language-update' });
+  });
+
+  it('requires language setup when the selected dictionary pack is outdated', () => {
+    const status = {
+      language: 'ja',
+      name: 'Japanese',
+      dataRoot: '/tmp/language-data',
+      installed: true,
+      outdated: false,
+      totalBytes: 1,
+      installedBytes: 1,
+      missingRequiredAssets: [],
+      assets: [],
+      dictionaryPacks: [
+        {
+          targetLanguage: 'en',
+          name: 'English',
+          installed: false,
+          outdated: true,
+          totalBytes: 1,
+          installedBytes: 1,
+          missingRequiredAssets: [],
+          assets: [],
+        },
+      ],
+    } satisfies LanguageDataCatalogStatus;
+
+    expect(getLanguageSetupRequirement(
+      { language: 'ja', dictionaryTargetLanguages: { ja: 'en' } },
+      true,
+      status,
+    )).toEqual({ required: true, reason: 'dictionary-language-update' });
+  });
+
   it('does not require language setup when active language and dictionary are installed', () => {
     const status = {
       language: 'ja',
       name: 'Japanese',
       dataRoot: '/tmp/language-data',
       installed: true,
+      outdated: false,
       totalBytes: 1,
       installedBytes: 1,
       missingRequiredAssets: [],
@@ -106,6 +161,7 @@ describe('LoadingOverlay installer helpers', () => {
           targetLanguage: 'en',
           name: 'English',
           installed: true,
+          outdated: false,
           totalBytes: 1,
           installedBytes: 1,
           missingRequiredAssets: [],

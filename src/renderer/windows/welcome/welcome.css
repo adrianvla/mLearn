@@ -138,6 +138,10 @@
   color: var(--color-warning);
 }
 
+.welcome-window__dictionary-target-status.outdated {
+  color: var(--color-warning);
+}
+
 .welcome-window__dictionary-target-warning {
   flex-basis: 100%;
   margin: 0;

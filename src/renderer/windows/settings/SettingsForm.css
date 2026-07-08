@@ -54,6 +54,10 @@
   color: var(--color-warning);
 }
 
+.language-data-status.outdated {
+  color: var(--color-warning);
+}
+
 /* Color input */
 .color-input-wrapper {
   display: flex;

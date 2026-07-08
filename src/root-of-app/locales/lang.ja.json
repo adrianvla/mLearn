@@ -7,7 +7,9 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
+      "DictionaryUpdateMessage": "選択した辞書データは古くなっています。言語セットアップを開いて更新してください。",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
+      "LanguageUpdateMessage": "学習言語の言語データは古くなっています。言語セットアップを開いて更新してください。",
       "OpenSetup": "Open Language Setup",
       "Title": "Language Data Required"
     },
@@ -1063,6 +1065,7 @@
         "CancelRestart": "Cancel Restart",
         "InstallRequiredComponents": "必要なコンポーネントをインストール",
         "InstallLanguageData": "選択した言語データをインストール",
+        "UpdateLanguageData": "選択した言語データを更新",
         "FinishSetup": "セットアップを完了"
       },
       "Components": {
@@ -1500,6 +1503,8 @@
           "Installing": "言語データをインストール中...",
           "Installed": "言語データはインストール済み",
           "InstallFailed": "言語データのインストールに失敗しました",
+          "Update": "言語データを更新",
+          "UpdateRequired": "言語データの更新があります",
           "MissingRequired": "言語データが必要です"
         },
         "DictionaryTarget": {

@@ -5,7 +5,7 @@
 import { Component, createMemo, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon, Textarea } from '../../../components/common';
-import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type Settings } from '../../../../shared/types';
 import { type AppTheme } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBundledLocaleCodes } from '../../../../shared/bridges/bundledLanguageAssets';
@@ -24,6 +24,27 @@ function assignImportedSetting<K extends keyof Settings>(
   value: Settings[K],
 ): void {
   target[key] = value;
+}
+
+type DictionaryPackStatus = NonNullable<LanguageDataCatalogStatus['dictionaryPacks']>[number];
+type InstallableDataStatus = LanguageDataCatalogStatus | DictionaryPackStatus;
+
+function languageDataStatusClass(status: InstallableDataStatus): string {
+  if (status.installed) return 'installed';
+  if (status.outdated) return 'outdated';
+  return 'missing';
+}
+
+function languageDataStatusLabel(status: InstallableDataStatus, t: (key: string) => string): string {
+  if (status.installed) return t('mlearn.Settings.Language.LanguageData.Installed');
+  if (status.outdated) return t('mlearn.Settings.Language.LanguageData.UpdateRequired');
+  return t('mlearn.Settings.Language.LanguageData.MissingRequired');
+}
+
+function languageDataActionLabel(status: InstallableDataStatus, installing: boolean, t: (key: string) => string): string {
+  if (installing) return t('mlearn.Settings.Language.LanguageData.Installing');
+  if (status.outdated) return t('mlearn.Settings.Language.LanguageData.Update');
+  return t('mlearn.Settings.Language.LanguageData.Install');
 }
 
 export const GeneralTab: Component = () => {
@@ -244,10 +265,8 @@ export const GeneralTab: Component = () => {
           />
           <Show when={selectedLanguageDataStatus()}>
             {(status) => (
-              <span class={`setting-hint language-data-status ${status().installed ? 'installed' : 'missing'}`}>
-                {status().installed
-                  ? t('mlearn.Settings.Language.LanguageData.Installed')
-                  : t('mlearn.Settings.Language.LanguageData.MissingRequired')}
+              <span class={`setting-hint language-data-status ${languageDataStatusClass(status())}`}>
+                {languageDataStatusLabel(status(), t)}
               </span>
             )}
           </Show>
@@ -259,9 +278,7 @@ export const GeneralTab: Component = () => {
               disabled={selectedLanguageInstalling()}
               onClick={() => installLanguageData(settings.language)}
             >
-              {selectedLanguageInstalling()
-                ? t('mlearn.Settings.Language.LanguageData.Installing')
-                : t('mlearn.Settings.Language.LanguageData.Install')}
+              {languageDataActionLabel(selectedLanguageDataStatus()!, selectedLanguageInstalling(), t)}
             </Btn>
           </Show>
           <Show when={selectedLanguageInstallError()}>
@@ -297,10 +314,8 @@ export const GeneralTab: Component = () => {
             />
             <Show when={selectedDictionaryPackStatus()}>
               {(pack) => (
-                <span class={`setting-hint language-data-status ${pack().installed ? 'installed' : 'missing'}`}>
-                  {pack().installed
-                    ? t('mlearn.Settings.Language.LanguageData.Installed')
-                    : t('mlearn.Settings.Language.LanguageData.MissingRequired')}
+                <span class={`setting-hint language-data-status ${languageDataStatusClass(pack())}`}>
+                  {languageDataStatusLabel(pack(), t)}
                 </span>
               )}
             </Show>
@@ -312,9 +327,7 @@ export const GeneralTab: Component = () => {
                 disabled={selectedDictionaryInstalling()}
                 onClick={() => installLanguageData(settings.language, selectedDictionaryTargetLanguage())}
               >
-                {selectedDictionaryInstalling()
-                  ? t('mlearn.Settings.Language.LanguageData.Installing')
-                  : t('mlearn.Settings.Language.LanguageData.Install')}
+                {languageDataActionLabel(selectedDictionaryPackStatus()!, selectedDictionaryInstalling(), t)}
               </Btn>
             </Show>
           </SettingRow>

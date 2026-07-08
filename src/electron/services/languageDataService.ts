@@ -17,16 +17,27 @@ import { getLogger } from '../../shared/utils/logger';
 const log = getLogger('electron.languageData');
 const inFlightInstalls = new Map<string, Promise<void>>();
 
+type LanguageDataAssetStatus = {
+  id: string;
+  path: string;
+  installed: boolean;
+  outdated?: boolean;
+  sizeBytes?: number;
+  validationIssue?: string;
+};
+
 export interface LanguageDataStatus {
   language: string;
   dictionaryTargetLanguage?: string;
   dataRoot: string;
   installed: boolean;
+  outdated: boolean;
   missingAssets: string[];
   assets: Array<{
     id: string;
     path: string;
     installed: boolean;
+    outdated?: boolean;
     sizeBytes?: number;
     validationIssue?: string;
   }>;
@@ -123,6 +134,41 @@ function getInstallKey(language: string, dictionaryTargetLanguage?: string): str
   return dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
 }
 
+function getInstallReceiptPath(installKey: string): string {
+  const safeKey = installKey.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return path.join(getLanguageDataRoot(), '.install-receipts', `${safeKey}.json`);
+}
+
+function readInstallReceiptVersion(installKey: string): string | undefined {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getInstallReceiptPath(installKey), 'utf-8')) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return undefined;
+    }
+    const version = (parsed as { version?: unknown }).version;
+    return typeof version === 'string' ? version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeInstallReceipt(installKey: string, version?: string): void {
+  if (!version) return;
+  const receiptPath = getInstallReceiptPath(installKey);
+  fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
+  fs.writeFileSync(
+    receiptPath,
+    JSON.stringify({ version, installedAt: new Date().toISOString() }, null, 2),
+    'utf-8',
+  );
+}
+
+function installReceiptVersionMatches(installKey: string, expectedVersion?: string): boolean {
+  if (!expectedVersion) return true;
+  const installedVersion = readInstallReceiptVersion(installKey);
+  return installedVersion === undefined || installedVersion === expectedVersion;
+}
+
 function normalizeInstallComponents(options?: LanguageDataInstallOptions): Set<string> {
   const components = options?.components?.length ? options.components : [CORE_COMPONENT];
   return new Set(components.map((component) => String(component)));
@@ -172,20 +218,21 @@ function isLanguageMetadataAsset(asset: LanguageDataAsset): boolean {
     && !asset.path.endsWith('.freq.json');
 }
 
-function installedLanguageMetadataVersionMatches(asset: LanguageDataAsset, filePath: string, expectedVersion?: string): boolean {
-  if (!expectedVersion || !isLanguageMetadataAsset(asset)) return false;
+function readInstalledLanguageMetadataVersion(asset: LanguageDataAsset, filePath: string): string | undefined {
+  if (!isLanguageMetadataAsset(asset)) return undefined;
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
-    return typeof parsed === 'object'
-      && parsed !== null
-      && !Array.isArray(parsed)
-      && (parsed as { languageData?: { version?: unknown } }).languageData?.version === expectedVersion;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return undefined;
+    }
+    const version = (parsed as { languageData?: { version?: unknown } }).languageData?.version;
+    return typeof version === 'string' ? version : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string) {
+function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): LanguageDataAssetStatus {
   const installedPath = getInstalledLanguageAssetPath(asset);
   if (!fs.existsSync(installedPath)) {
     return {
@@ -208,19 +255,33 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string) {
         validationIssue: 'not-a-file',
       };
     }
-    if (installedLanguageMetadataVersionMatches(asset, installedPath, expectedVersion)) {
-      return {
-        id: asset.id,
-        path: installedPath,
-        installed: true,
-        sizeBytes: asset.sizeBytes,
-      };
+    if (expectedVersion && isLanguageMetadataAsset(asset)) {
+      const installedVersion = readInstalledLanguageMetadataVersion(asset, installedPath);
+      if (installedVersion !== undefined && installedVersion === expectedVersion) {
+        return {
+          id: asset.id,
+          path: installedPath,
+          installed: true,
+          sizeBytes: asset.sizeBytes,
+        };
+      }
+      if (installedVersion !== undefined) {
+        return {
+          id: asset.id,
+          path: installedPath,
+          installed: false,
+          outdated: true,
+          sizeBytes: asset.sizeBytes,
+          validationIssue: `version-mismatch:${installedVersion}`,
+        };
+      }
     }
     if (asset.sizeBytes !== undefined && stat.size !== asset.sizeBytes) {
       return {
         id: asset.id,
         path: installedPath,
         installed: false,
+        outdated: true,
         sizeBytes: asset.sizeBytes,
         validationIssue: `size-mismatch:${stat.size}`,
       };
@@ -232,6 +293,7 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string) {
           id: asset.id,
           path: installedPath,
           installed: false,
+          outdated: true,
           sizeBytes: asset.sizeBytes,
           validationIssue: `checksum-mismatch:${actual}`,
         };
@@ -330,6 +392,10 @@ function getMissingRequiredAssets(assets: LanguageDataAsset[], assetStatuses: Re
     .map((asset) => asset.id);
 }
 
+function hasOutdatedRequiredAssets(assets: LanguageDataAsset[], assetStatuses: ReturnType<typeof getAssetStatuses>): boolean {
+  return assets.some((asset, index) => asset.required !== false && assetStatuses[index]?.outdated);
+}
+
 function getInstalledBytes(assets: LanguageDataAsset[]): number {
   return assets.reduce((sum, asset) => {
     const status = getAssetStatus(asset);
@@ -352,12 +418,16 @@ export function getLanguageDataStatus(
   const missingAssets = assets
     .filter((asset, index) => asset.required !== false && !assetStatuses[index]?.installed)
     .map((asset) => asset.id);
+  const installKey = getInstallKey(language, dictionaryTargetLanguage);
+  const outdated = hasOutdatedRequiredAssets(assets, assetStatuses)
+    || (missingAssets.length === 0 && !installReceiptVersionMatches(installKey, expectedVersion));
 
   return {
     language,
     dictionaryTargetLanguage,
     dataRoot: getLanguageDataRoot(),
-    installed: missingAssets.length === 0,
+    installed: missingAssets.length === 0 && !outdated,
+    outdated,
     missingAssets,
     assets: assetStatuses,
   };
@@ -379,11 +449,14 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
             const packAssets = pack.assets;
             const packAssetStatuses = getAssetStatuses(packAssets, pack.version);
             const missingRequiredAssets = getMissingRequiredAssets(packAssets, packAssetStatuses);
+            const outdated = hasOutdatedRequiredAssets(packAssets, packAssetStatuses)
+              || (missingRequiredAssets.length === 0 && !installReceiptVersionMatches(getInstallKey(language, pack.targetLanguage), pack.version));
             return {
               targetLanguage: pack.targetLanguage,
               name: pack.name,
               version: pack.version,
-              installed: missingRequiredAssets.length === 0,
+              installed: missingRequiredAssets.length === 0 && !outdated,
+              outdated,
               totalBytes: pack.bundle?.sizeBytes ?? packAssets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0),
               installedBytes: getInstalledBytes(packAssets),
               missingRequiredAssets,
@@ -398,6 +471,7 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
         nameTranslated: metadata.name_translated,
         dataRoot: status.dataRoot,
         installed: status.installed,
+        outdated: status.outdated,
         totalBytes,
         installedBytes,
         missingRequiredAssets: status.missingAssets,
@@ -480,9 +554,9 @@ export async function ensureLanguageDataInstalled(
   const assets = getAssets(language, langData, dictionaryTargetLanguage, options).filter((asset) => asset.required !== false);
   const bundle = getBundle(language, langData, dictionaryTargetLanguage);
   const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
-  const missingAssets = assets.filter((asset) => !getAssetStatus(asset, expectedVersion).installed);
-  if (missingAssets.length === 0) {
-    return getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
+  const currentStatus = getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
+  if (currentStatus.installed) {
+    return currentStatus;
   }
   if (!bundle) {
     throw new Error(`No language data bundle is available for ${language}${dictionaryTargetLanguage ? `:${dictionaryTargetLanguage}` : ''}`);
@@ -505,6 +579,7 @@ export async function ensureLanguageDataInstalled(
   inFlightInstalls.set(installKey, installPromise);
   try {
     await installPromise;
+    writeInstallReceipt(installKey, expectedVersion);
   } finally {
     if (inFlightInstalls.get(installKey) === installPromise) {
       inFlightInstalls.delete(installKey);

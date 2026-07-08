@@ -36,7 +36,7 @@ export function startRequiredComponentRepair(settings: Settings): void {
 
 export type LanguageSetupRequirement =
   | { required: false }
-  | { required: true; reason: 'learning-language' | 'dictionary-language' };
+  | { required: true; reason: 'learning-language' | 'dictionary-language' | 'learning-language-update' | 'dictionary-language-update' };
 
 export function getLanguageSetupRequirement(
   settings: Pick<Settings, 'language' | 'dictionaryTargetLanguages'>,
@@ -45,6 +45,9 @@ export function getLanguageSetupRequirement(
 ): LanguageSetupRequirement {
   if (!settings.language || !hasCurrentLanguageData) {
     return { required: true, reason: 'learning-language' };
+  }
+  if (activeLanguageStatus?.outdated) {
+    return { required: true, reason: 'learning-language-update' };
   }
 
   const dictionaryTarget = settings.dictionaryTargetLanguages?.[settings.language];
@@ -56,7 +59,10 @@ export function getLanguageSetupRequirement(
     (pack) => pack.targetLanguage === dictionaryTarget,
   );
   if (dictionaryPack && !dictionaryPack.installed) {
-    return { required: true, reason: 'dictionary-language' };
+    return {
+      required: true,
+      reason: dictionaryPack.outdated ? 'dictionary-language-update' : 'dictionary-language',
+    };
   }
 
   return { required: false };
@@ -100,6 +106,12 @@ export const LoadingOverlay: Component = () => {
     const requirement = languageSetupRequirement();
     if (!requirement.required) {
       return '';
+    }
+    if (requirement.reason === 'dictionary-language-update') {
+      return t('mlearn.LanguageSetup.DictionaryUpdateMessage');
+    }
+    if (requirement.reason === 'learning-language-update') {
+      return t('mlearn.LanguageSetup.LanguageUpdateMessage');
     }
     return requirement.reason === 'dictionary-language'
       ? t('mlearn.LanguageSetup.DictionaryMessage')
