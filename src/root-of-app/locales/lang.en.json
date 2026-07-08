@@ -1243,12 +1243,6 @@
       "CopyPhrase": "Copy phrase",
       "HideReadingAnnotations": "Hide reading annotations",
       "ShowReadingAnnotations": "Show reading annotations",
-      "Requirements": {
-        "OcrTurboLowRam": {
-          "Title": "OCR may run slowly",
-          "Message": "This device has {ram} GB RAM. Turbo Mode may be enabled for better performance on lower-memory devices, but it can reduce recognition quality."
-        }
-      },
       "Sidebar": {
         "Pages": "Pages",
         "UnknownWordsEmpty": "No unknown words found on the current page.",
@@ -1310,8 +1304,9 @@
         "TriggerKeyHover": "{key} + Hover",
         "TriggerLongHover": "Long Hover",
         "TriggerTitle": "How word hover is triggered",
-        "TurboModeOff": "Turbo: Off",
-        "TurboModeOn": "Turbo: On",
+        "CropModeOff": "Crop: Off",
+        "CropModeOn": "Crop: On",
+        "CropModeTitle": "Drag a box over text to recognize only that crop",
         "ZoneDeltaLabel": "Zone Delta: {value}px",
         "ZoneDeltaTitle": "Max pixel distance between box edges for zone clustering"
       },
@@ -1686,15 +1681,7 @@
             "Label": "Reading annotation detection",
             "Description": "Detect and filter reading annotations from OCR results. When disabled, all detected text boxes are shown as-is without reading annotation filtering."
           },
-          "RamSaver": {
-            "Description": "Use lightweight OpenCV-based text detection instead of neural network detection. Reduces memory usage by ~1.5 GB but may lower accuracy on complex layouts. Recognition quality is unaffected.",
-            "Label": "Ram Saver"
-          },
-          "Title": "OCR Settings",
-          "TurboMode": {
-            "Description": "Uses faster detection settings. When off, uses higher-resolution detection which is slower but more accurate, especially for vertical text.",
-            "Label": "Turbo Mode"
-          }
+          "Title": "OCR Settings"
         },
         "Title": "Reader",
         "WordHoverBehavior": {

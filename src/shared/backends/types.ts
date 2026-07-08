@@ -43,8 +43,6 @@ export interface OCRResult {
 
 export interface OCRRequestOptions {
   language?: string;
-  turbo?: boolean;
-  ramSaver?: boolean;
   devMode?: boolean;
   /** Generic OCR detector/recognizer max width override for diagnostics/dev tuning. */
   detectionMaxWidth?: number;

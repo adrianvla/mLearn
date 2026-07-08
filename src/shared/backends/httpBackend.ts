@@ -135,12 +135,6 @@ export class HttpBackend implements BackendAdapter {
     if (options?.language) {
       form.append('language', options.language);
     }
-    if (options?.turbo !== undefined) {
-      form.append('turbo', options.turbo ? '1' : '0');
-    }
-    if (options?.ramSaver !== undefined) {
-      form.append('ram_saver', options.ramSaver ? '1' : '0');
-    }
     if (options?.devMode !== undefined) {
       form.append('dev_mode', options.devMode ? '1' : '0');
     }

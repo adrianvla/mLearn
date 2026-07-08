@@ -10,16 +10,14 @@ import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
 import type { OCRRequestOptions } from '../../shared/backends/types';
 import { withCloudAuth } from '../services/cloudSessionManager';
-import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getOcrRuntimeConfig, resolveCloudOcrEngine } from '../../shared/languageFeatures';
 import { getLogger } from '../../shared/utils/logger';
 import type { LanguageData } from '../../shared/types';
 
 const log = getLogger("renderer.hooks.useOCR");
 
-// Max target area for OCR (preserve aspect ratio) - matches legacy app
-const MAX_OCR_AREA_TURBO = 1000 * 1600; // 1.6M pixels — turbo mode
-const MAX_OCR_AREA_ACCURATE = 1600 * 2400; // 3.84M pixels — accurate mode
+// Max target area for OCR (preserve aspect ratio).
+const MAX_OCR_AREA = 1600 * 2400;
 
 interface OCRBox {
   text: string;
@@ -154,8 +152,8 @@ async function transcodeBlobToPng(
 /**
  * Prepare blob for OCR - read dimensions and resize/transcode if needed
  */
-async function prepareBlobForOCR(blob: Blob, turbo = DEFAULT_SETTINGS.ocrTurboMode!): Promise<PreparedImage> {
-  const maxOcrArea = turbo ? MAX_OCR_AREA_TURBO : MAX_OCR_AREA_ACCURATE;
+async function prepareBlobForOCR(blob: Blob): Promise<PreparedImage> {
+  const maxOcrArea = MAX_OCR_AREA;
   let w = 0;
   let h = 0;
 
@@ -229,12 +227,11 @@ async function prepareBlobForOCR(blob: Blob, turbo = DEFAULT_SETTINGS.ocrTurboMo
  */
 async function inputToBlobForOCR(
   input: Blob | HTMLCanvasElement | HTMLImageElement | string,
-  turbo = DEFAULT_SETTINGS.ocrTurboMode!,
 ): Promise<PreparedImage> {
-  const maxOcrArea = turbo ? MAX_OCR_AREA_TURBO : MAX_OCR_AREA_ACCURATE;
+  const maxOcrArea = MAX_OCR_AREA;
   // If it's a Blob/File already
   if (input instanceof Blob) {
-    return prepareBlobForOCR(input, turbo);
+    return prepareBlobForOCR(input);
   }
 
   // If it's a canvas
@@ -316,7 +313,7 @@ async function inputToBlobForOCR(
       // Cross-origin taint - try fetching the src directly
       const res = await fetch(input.src, { mode: 'cors' });
       const blob = await res.blob();
-      return prepareBlobForOCR(blob, turbo);
+      return prepareBlobForOCR(blob);
     }
 
     const blob = await new Promise<Blob>((resolve, reject) => {
@@ -340,14 +337,14 @@ async function inputToBlobForOCR(
   if (typeof input === 'string' && input.startsWith('data:')) {
     const response = await fetch(input);
     const blob = await response.blob();
-    return prepareBlobForOCR(blob, turbo);
+    return prepareBlobForOCR(blob);
   }
 
   // If it's a URL string
   if (typeof input === 'string') {
     const res = await fetch(input, { mode: 'cors' });
     const blob = await res.blob();
-    return prepareBlobForOCR(blob, turbo);
+    return prepareBlobForOCR(blob);
   }
 
   throw new Error('Unsupported input type for OCR');
@@ -360,17 +357,14 @@ async function sendImageForOCR(
   imageInput: Blob | HTMLCanvasElement | HTMLImageElement | string,
   options: OCRRequestOptions & { detectionScale?: number } = {},
 ): Promise<OCRResult> {
-  const turbo = options.turbo ?? DEFAULT_SETTINGS.ocrTurboMode!;
-  const prepared = await inputToBlobForOCR(imageInput, turbo);
+  const prepared = await inputToBlobForOCR(imageInput);
   const detectionScale = options.detectionScale;
   const requestOptions: OCRRequestOptions = {
     language: options.language,
-    turbo,
-    ramSaver: options.ramSaver,
     devMode: options.devMode,
   };
 
-  if (options.devMode && !turbo && detectionScale !== undefined && detectionScale < 100) {
+  if (options.devMode && detectionScale !== undefined && detectionScale < 100) {
     requestOptions.detectionMaxWidth = Math.max(1, Math.round(prepared.sentW * (detectionScale / 100)));
     requestOptions.detectionMaxHeight = Math.max(1, Math.round(prepared.sentH * (detectionScale / 100)));
   }
@@ -398,12 +392,12 @@ export function useOCR() {
   const isCloudOCR = () => settings.ocrProvider === 'cloud';
 
   /** Run OCR via the cloud HATEOAS job flow (CloudOCRAdapter) */
-  const recognizeViaCloud = async (imageBlob: Blob, turbo: boolean): Promise<OCRResult> => {
+  const recognizeViaCloud = async (imageBlob: Blob): Promise<OCRResult> => {
     const cloudApiUrl = resolveCloudApiUrl(settings);
     const language = settings.language;
     const languageData = currentLangData();
     assertOcrLanguageDataReady(language, languageData);
-    const engine = resolveCloudOcrEngine(languageData, turbo);
+    const engine = resolveCloudOcrEngine(languageData);
     const result = await withCloudAuth(async (cloudToken) => {
       const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
       return adapter.recognize(imageBlob, language, engine);
@@ -437,14 +431,13 @@ export function useOCR() {
     }
 
     try {
-      const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
       const languageData = currentLangData();
       assertOcrLanguageDataReady(settings.language, languageData);
 
       if (isCloudOCR()) {
         // Prepare the blob, then send via CloudOCRAdapter
-        const prepared = await inputToBlobForOCR(input, turbo);
-        const result = await recognizeViaCloud(prepared.blob, turbo);
+        const prepared = await inputToBlobForOCR(input);
+        const result = await recognizeViaCloud(prepared.blob);
         result.client_scale = prepared.clientScale;
         result.downscale_factor = prepared.clientScale > 0 ? 1 / prepared.clientScale : 1;
         result.original_size = { width: prepared.originalW, height: prepared.originalH };
@@ -457,8 +450,6 @@ export function useOCR() {
         input,
         {
           language: settings.language,
-          turbo,
-          ramSaver: settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver,
           devMode: settings.devMode ? true : undefined,
         },
       );
@@ -560,4 +551,4 @@ export function useOCR() {
 }
 
 // Export helper for external use
-export { sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA_TURBO, MAX_OCR_AREA_ACCURATE };
+export { sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA };
