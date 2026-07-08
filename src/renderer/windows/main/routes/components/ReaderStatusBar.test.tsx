@@ -23,6 +23,8 @@ const translations: Record<string, string> = {
   'mlearn.Reader.StatusBar.OpenConversationAgentTitle': 'Open AI tutor',
   'mlearn.Reader.StatusBar.CropModeOff': 'Crop: Off',
   'mlearn.Reader.StatusBar.CropModeOn': 'Crop: On',
+  'mlearn.Reader.StatusBar.CropModeAddTitle': 'Crop add mode',
+  'mlearn.Reader.StatusBar.CropModeCursorTitle': 'Cursor mode',
   'mlearn.Reader.StatusBar.CropModeTitle': 'Drag to recognize a crop',
   'mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description': 'Detect reading annotations',
   'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOn': 'Reading annotations: On',
@@ -59,6 +61,8 @@ vi.mock('../../../../components/common', () => ({
   ),
   RangeInput: () => <input type="range" />,
   BatteryLowIcon: () => <span />,
+  CursorPointerIcon: () => <span data-icon="cursor" />,
+  PlusIcon: () => <span data-icon="plus" />,
   formatKeybindDisplay: (key: string) => key,
 }));
 

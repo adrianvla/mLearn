@@ -115,6 +115,11 @@ interface CropSelection {
   currentY: number;
 }
 
+interface CropRegion {
+  id: string;
+  rect: { left: number; top: number; width: number; height: number };
+}
+
 function normalizeReaderOcrBox(box: ReaderCompatibleOcrBox): OcrBox | null {
   if (Array.isArray(box.box) && box.box.length > 0) {
     return {
@@ -360,13 +365,33 @@ export const ReaderRoute: Component = () => {
   // OCR debug overlay (dev mode only)
   const [ocrDebugOverlay, setOcrDebugOverlay] = createSignal(false);
   const toggleOcrDebugOverlay = () => setOcrDebugOverlay(!ocrDebugOverlay());
-  const [cropMode, setCropMode] = createSignal(false);
+  const cropMode = () => settings.readerCropMode ?? DEFAULT_SETTINGS.readerCropMode ?? false;
+  const [cropAddMode, setCropAddMode] = createSignal(false);
   const [cropSelection, setCropSelection] = createSignal<CropSelection | null>(null);
+  const [croppedRegions, setCroppedRegions] = createSignal<Record<string, CropRegion[]>>({});
   const [cropProcessingPageId, setCropProcessingPageId] = createSignal<string | null>(null);
   const toggleCropMode = () => {
-    setCropMode((enabled) => !enabled);
+    const enabled = cropMode();
+    updateSettings({ readerCropMode: !enabled });
     setCropSelection(null);
+    if (!enabled) {
+      setCropAddMode(true);
+      setOcrQueue([]);
+    }
   };
+
+  const toggleCropAddMode = () => {
+    setCropSelection(null);
+    setCropAddMode((enabled) => !enabled);
+  };
+
+  createEffect(() => {
+    if (cropMode()) {
+      setOcrQueue([]);
+    } else {
+      setCropSelection(null);
+    }
+  });
 
   // OCR detection downscale slider (dev mode only)
   const [ocrDetectionScale, setOcrDetectionScale] = createSignal(80);
@@ -595,6 +620,17 @@ export const ReaderRoute: Component = () => {
     };
   };
 
+  const getCropRegionStyle = (image: HTMLImageElement, region: CropRegion) => {
+    const scaleX = image.clientWidth / Math.max(1, image.naturalWidth);
+    const scaleY = image.clientHeight / Math.max(1, image.naturalHeight);
+    return {
+      left: `${region.rect.left * scaleX}px`,
+      top: `${region.rect.top * scaleY}px`,
+      width: `${region.rect.width * scaleX}px`,
+      height: `${region.rect.height * scaleY}px`,
+    };
+  };
+
   const createCropBlob = async (
     image: HTMLImageElement,
     displayRect: { left: number; top: number; width: number; height: number },
@@ -673,6 +709,16 @@ export const ReaderRoute: Component = () => {
     return left < rect.left + rect.width && right > rect.left && top < rect.top + rect.height && bottom > rect.top;
   };
 
+  const rectIntersectsRect = (
+    first: { left: number; top: number; width: number; height: number },
+    second: { left: number; top: number; width: number; height: number },
+  ) => (
+    first.left < second.left + second.width
+    && first.left + first.width > second.left
+    && first.top < second.top + second.height
+    && first.top + first.height > second.top
+  );
+
   const recognizeCrop = async (
     page: PageImage,
     displayRect: { left: number; top: number; width: number; height: number },
@@ -719,6 +765,17 @@ export const ReaderRoute: Component = () => {
         ...pageResult,
         boxes: [...retainedBoxes, ...pageResult.boxes],
       });
+      setCroppedRegions((prev) => ({
+        ...prev,
+        [page.id]: [
+          ...(prev[page.id] ?? []).filter((region) => !rectIntersectsRect(region.rect, crop.naturalRect)),
+          {
+            id: `${page.id}-${Date.now()}`,
+            rect: crop.naturalRect,
+          },
+        ],
+      }));
+      setCropAddMode(false);
       if (pageResult.processing_times) {
         setLastOcrTiming(pageResult.processing_times);
       }
@@ -741,7 +798,7 @@ export const ReaderRoute: Component = () => {
   };
 
   const handleCropPointerDown = (page: PageImage, e: PointerEvent) => {
-    if (!cropMode() || e.button !== 0) return;
+    if (!cropMode() || !cropAddMode() || e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
@@ -754,7 +811,7 @@ export const ReaderRoute: Component = () => {
 
   const handleCropPointerMove = (page: PageImage, e: PointerEvent) => {
     const selection = cropSelection();
-    if (!cropMode() || !selection || selection.pageId !== page.id) return;
+    if (!cropMode() || !cropAddMode() || !selection || selection.pageId !== page.id) return;
     e.preventDefault();
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
@@ -765,7 +822,7 @@ export const ReaderRoute: Component = () => {
 
   const handleCropPointerUp = (page: PageImage, e: PointerEvent) => {
     const selection = cropSelection();
-    if (!cropMode() || !selection || selection.pageId !== page.id) return;
+    if (!cropMode() || !cropAddMode() || !selection || selection.pageId !== page.id) return;
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
@@ -983,7 +1040,7 @@ export const ReaderRoute: Component = () => {
   const currentOcrReadinessError = () => getOcrLanguageDataReadinessError(settings.language, currentLangData());
 
   const currentOcrAutomationState = () => resolveReaderOcrAutomationState({
-    ocrEnabled: Boolean(ocrEnabled()),
+    ocrEnabled: Boolean(ocrEnabled()) && !cropMode(),
     languageDataLoading: langCtx.isLoading(),
     readinessError: currentOcrReadinessError(),
   });
@@ -1211,6 +1268,12 @@ export const ReaderRoute: Component = () => {
       }
 
       setOcrResults(page.id, result);
+      setCroppedRegions((prev) => {
+        if (!prev[page.id]) return prev;
+        const next = { ...prev };
+        delete next[page.id];
+        return next;
+      });
       if (result.processing_times) {
         setLastOcrTiming(result.processing_times);
       }
@@ -1400,6 +1463,7 @@ export const ReaderRoute: Component = () => {
         }));
 
         setOcrResults({});
+        setCroppedRegions({});
         batch(() => {
           setCurrentPage(startPage);
           setPages(newPages);
@@ -1442,6 +1506,7 @@ export const ReaderRoute: Component = () => {
         });
 
         setOcrResults({});
+        setCroppedRegions({});
         batch(() => {
           setCurrentPage(startPage);
           setPages(newPages);
@@ -1501,6 +1566,7 @@ export const ReaderRoute: Component = () => {
       }));
 
       setOcrResults({});
+      setCroppedRegions({});
       batch(() => {
         setCurrentPage(startPage);
         setPages(newPages);
@@ -1548,6 +1614,7 @@ export const ReaderRoute: Component = () => {
         }));
 
         setOcrResults({});
+        setCroppedRegions({});
         batch(() => {
           setCurrentPage(startPage);
           setPages(newPages);
@@ -1851,6 +1918,7 @@ export const ReaderRoute: Component = () => {
 
         // Clear OCR cache when loading new book
         setOcrResults({});
+        setCroppedRegions({});
 
         batch(() => {
           setCurrentPage(startPage);
@@ -1930,6 +1998,7 @@ export const ReaderRoute: Component = () => {
 
     // Clear OCR cache when loading new book
     setOcrResults({});
+    setCroppedRegions({});
 
     // Use batch to ensure currentPage and pages update atomically
     // This prevents the createEffect from running with stale currentPage
@@ -2376,11 +2445,30 @@ export const ReaderRoute: Component = () => {
                               shape={"circle"}
                           />
                         </div>
-                        <Show when={cropMode() && imageRefs()[page.id]}>
+                        <Show when={imageRefs()[page.id]}>
+                          {(image) => (
+                            <div
+                              class="reader-crop-regions"
+                              style={{
+                                left: `${image().offsetLeft}px`,
+                                top: `${image().offsetTop}px`,
+                                width: `${image().clientWidth}px`,
+                                height: `${image().clientHeight}px`,
+                              }}
+                            >
+                              <For each={croppedRegions()[page.id] ?? []}>
+                                {(region) => (
+                                  <div class="reader-crop-region" style={getCropRegionStyle(image(), region)} />
+                                )}
+                              </For>
+                            </div>
+                          )}
+                        </Show>
+                        <Show when={cropMode() && cropAddMode() && imageRefs()[page.id]}>
                           {(image) => (
                             <div
                               class="reader-crop-layer"
-                              classList={{ active: cropMode(), processing: cropProcessingPageId() === page.id }}
+                              classList={{ processing: cropProcessingPageId() === page.id }}
                               style={{
                                 left: `${image().offsetLeft}px`,
                                 top: `${image().offsetTop}px`,
@@ -2452,6 +2540,8 @@ export const ReaderRoute: Component = () => {
             onOpenConversationAgent={openConversationAgent}
             cropMode={cropMode}
             onToggleCropMode={toggleCropMode}
+            cropAddMode={cropAddMode}
+            onToggleCropAddMode={toggleCropAddMode}
             debugOcr={ocrDebugOverlay}
             onToggleDebugOcr={toggleOcrDebugOverlay}
             lastOcrTiming={lastOcrTiming}

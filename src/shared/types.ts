@@ -334,6 +334,8 @@ export interface Settings {
   ocrReadingAnnotationNeighborLookahead?: number;
   /** OCR backend provider */
   ocrProvider?: OCRProvider;
+  /** Reader low-memory mode: OCR only user-selected crop regions instead of full pages */
+  readerCropMode?: boolean;
 
   // Reader word hover settings
   /** How word hover is triggered: 'hover', 'long-hover', 'key-hover' */
@@ -557,6 +559,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ocrReadingAnnotationNeighborWindowMultiplier: 2.4,
   ocrReadingAnnotationNeighborLookahead: 3,
   ocrProvider: 'local',
+  readerCropMode: false,
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'shift',
   readerReadingAnnotationHider: false,

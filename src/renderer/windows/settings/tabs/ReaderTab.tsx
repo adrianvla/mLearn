@@ -54,6 +54,16 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
 
+        <SettingRow
+          label={t('mlearn.Settings.Reader.OcrSettings.CropMode.Label')}
+          description={t('mlearn.Settings.Reader.OcrSettings.CropMode.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.readerCropMode ?? DEFAULT_SETTINGS.readerCropMode!}
+            onChange={(checked) => updateSettings({ readerCropMode: checked })}
+          />
+        </SettingRow>
+
         <Show when={getLanguageFeatures().supportsReadings}>
           <SettingRow
             label={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Label')}

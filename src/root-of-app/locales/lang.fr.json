@@ -1306,6 +1306,8 @@
         "TriggerTitle": "Comment déclencher l'info-bulle des mots",
         "CropModeOff": "Recadrage : Désactivé",
         "CropModeOn": "Recadrage : Activé",
+        "CropModeAddTitle": "Mode ajout de recadrage : faites glisser un cadre pour reconnaître le texte",
+        "CropModeCursorTitle": "Mode curseur : survoler le texte reconnu",
         "CropModeTitle": "Faites glisser un cadre sur le texte pour reconnaître uniquement ce recadrage",
         "ZoneDeltaLabel": "Delta zone : {value}px",
         "ZoneDeltaTitle": "Distance maximale en pixels entre les bords des boîtes pour le regroupement en zones"
@@ -1657,6 +1659,10 @@
           "CropPadding": {
             "Description": "Pixels de marge lors du recadrage du texte pour les cartes",
             "Label": "Marge de recadrage OCR"
+          },
+          "CropMode": {
+            "Description": "Reconnaître uniquement le texte des zones recadrées manuellement afin de réduire l'utilisation de la mémoire sur les ordinateurs modestes",
+            "Label": "Mode recadrage"
           },
           "Enable": {
             "Description": "Activer la reconnaissance optique de caractères pour les images",

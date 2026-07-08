@@ -1306,6 +1306,8 @@
         "TriggerTitle": "単語ホバーのトリガー方法",
         "CropModeOff": "クロップ: オフ",
         "CropModeOn": "クロップ: オン",
+        "CropModeAddTitle": "クロップ追加モード: 枠をドラッグしてテキストを認識",
+        "CropModeCursorTitle": "カーソルモード: 認識済みテキストにホバー",
         "CropModeTitle": "テキスト上をドラッグして、その範囲だけを認識します",
         "ZoneDeltaLabel": "ゾーンデルタ: {value}px",
         "ZoneDeltaTitle": "ゾーンクラスタリングのボックス端間の最大ピクセル距離"
@@ -1657,6 +1659,10 @@
           "CropPadding": {
             "Description": "フラッシュカード用にテキストをクロップする際の余白ピクセル数",
             "Label": "OCRクロッピングパディング"
+          },
+          "CropMode": {
+            "Description": "低スペックのコンピューターでメモリ使用量を抑えるため、手動で選択したクロップ範囲だけを認識します",
+            "Label": "クロップモード"
           },
           "Enable": {
             "Description": "画像の光学文字認識を有効にする",

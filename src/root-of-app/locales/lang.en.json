@@ -1306,6 +1306,8 @@
         "TriggerTitle": "How word hover is triggered",
         "CropModeOff": "Crop: Off",
         "CropModeOn": "Crop: On",
+        "CropModeAddTitle": "Crop add mode: drag a box to recognize text",
+        "CropModeCursorTitle": "Cursor mode: hover recognized text",
         "CropModeTitle": "Drag a box over text to recognize only that crop",
         "ZoneDeltaLabel": "Zone Delta: {value}px",
         "ZoneDeltaTitle": "Max pixel distance between box edges for zone clustering"
@@ -1672,6 +1674,10 @@
           "CropPadding": {
             "Description": "Extra pixels around text when cropping for flashcards",
             "Label": "OCR Crop Padding"
+          },
+          "CropMode": {
+            "Description": "Only recognize text from manually selected crop regions to reduce memory use on budget computers",
+            "Label": "Crop Mode"
           },
           "Enable": {
             "Description": "Enable optical character recognition for images",

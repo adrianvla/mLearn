@@ -218,9 +218,26 @@
   align-items: flex-start;
 }
 
+.reader-crop-regions {
+  position: absolute;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.reader-crop-region {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 70%, transparent);
+  background: transparent;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--bg-primary) 72%, transparent),
+    0 0 10px 2px color-mix(in srgb, var(--accent-primary) 36%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  pointer-events: none;
+}
+
 .reader-crop-layer {
   position: absolute;
-  z-index: 20;
+  z-index: 8;
   cursor: crosshair;
   touch-action: none;
 }
