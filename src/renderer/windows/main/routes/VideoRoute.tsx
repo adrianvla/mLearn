@@ -144,7 +144,8 @@ export const VideoRoute: Component = () => {
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
   const [, setCurrentSubtitlePath] = createSignal('');
-  const [showWordSidebar, setShowWordSidebar] = createSignal(false);
+  const showWordSidebar = () => settings.rightSidebarOpen ?? DEFAULT_SETTINGS.rightSidebarOpen;
+  const setShowWordSidebar = (open: boolean) => updateSetting('rightSidebarOpen', open);
   const [detectedAudioTracks, setDetectedAudioTracks] = createSignal<Array<{ index: number; label: string; language: string | null }>>([]);
   const [detectedSubtitleTracks, setDetectedSubtitleTracks] = createSignal<Array<{ index: number; label: string; language: string | null; extractedPath?: string }>>([]);
   const [activeDetectedSubtitleTrack, setActiveDetectedSubtitleTrack] = createSignal<number | null>(null);
@@ -1431,7 +1432,7 @@ export const VideoRoute: Component = () => {
             onContextMenuOpen={setContextMenuPosition}
             onTimeUpdate={(time) => setCurrentVideoTime(time)}
             showWordSidebar={showWordSidebar()}
-            onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
+            onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
             detectedAudioTracks={detectedAudioTracks()}
             detectedSubtitleTracks={detectedSubtitleTracks()}
             activeDetectedSubtitleTrack={activeDetectedSubtitleTrack()}

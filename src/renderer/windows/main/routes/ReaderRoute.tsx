@@ -304,7 +304,8 @@ export const ReaderRoute: Component = () => {
     }
   };
   const [showSidebar, setShowSidebar] = createSignal(true);
-  const [showWordSidebar, setShowWordSidebar] = createSignal(true);
+  const showWordSidebar = () => settings.rightSidebarOpen ?? DEFAULT_SETTINGS.rightSidebarOpen;
+  const setShowWordSidebar = (open: boolean) => updateSettings({ rightSidebarOpen: open });
   const [bookTitle, setBookTitle] = createSignal('');
   const [ocrStatus, setOcrStatus] = createSignal('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
