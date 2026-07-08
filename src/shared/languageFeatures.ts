@@ -924,6 +924,33 @@ export function getLanguagePythonRequirementsForInstall(
   return Array.from(packages).sort();
 }
 
+export function getLanguagePythonImportChecksForInstall(
+  langData: LanguageDataMap,
+  options: InstallOptions,
+): string[] {
+  const selectedComponents = selectedPythonRequirementComponents(options);
+  const importChecks = new Set<string>();
+
+  for (const data of Object.values(langData)) {
+    const checksByComponent = data.runtime?.python?.importChecksByComponent;
+    for (const importName of data.runtime?.python?.importChecks ?? []) {
+      if (importName.trim()) importChecks.add(importName);
+    }
+    if (checksByComponent) {
+      for (const [component, componentImportChecks] of Object.entries(checksByComponent)) {
+        if (!isPythonRequirementComponentSelected(component as LanguagePythonRequirementComponent, selectedComponents)) {
+          continue;
+        }
+        for (const importName of componentImportChecks ?? []) {
+          if (importName.trim()) importChecks.add(importName);
+        }
+      }
+    }
+  }
+
+  return Array.from(importChecks).sort();
+}
+
 export function ocrRuntimeSupportsRamSaver(data?: LanguageData | null): boolean {
   const ocrConfig = getOcrRuntimeConfig(data);
   if (typeof ocrConfig.supportsRamSaver === 'boolean') return ocrConfig.supportsRamSaver;

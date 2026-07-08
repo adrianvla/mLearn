@@ -32,6 +32,15 @@ function makeProcess(exitCode: number) {
   };
 }
 
+function makeProcessSequence(...exitCodes: number[]) {
+  let index = 0;
+  mockSpawn.mockImplementation(() => {
+    const exitCode = exitCodes[Math.min(index, exitCodes.length - 1)] ?? 0;
+    index += 1;
+    return makeProcess(exitCode);
+  });
+}
+
 describe('pythonRuntimeRequirements', () => {
   beforeEach(() => {
     tempDir = createTempDir('mlearn-python-runtime-requirements-');
@@ -123,6 +132,53 @@ describe('pythonRuntimeRequirements', () => {
     });
 
     expect(mockSpawn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not trust a current receipt when declared runtime imports are missing', async () => {
+    const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+    fs.mkdirSync(envBin, { recursive: true });
+    fs.writeFileSync(path.join(envBin, 'pip3'), '');
+    fs.writeFileSync(path.join(envBin, 'python3'), '');
+    makeProcessSequence(
+      0, // first pip install
+      0, // first import validation
+      1, // second import validation while checking the receipt
+      0, // repair pip install
+      0, // repaired import validation
+    );
+
+    const mod = await import('./pythonRuntimeRequirements');
+    const langData = {
+      aa: {
+        name: 'Alpha',
+        runtime: {
+          python: {
+            packagesByComponent: {
+              core: ['aa-core'],
+              ocr: ['aa-ocr'],
+            },
+            importChecksByComponent: {
+              ocr: ['aa_ocr'],
+            },
+          },
+        },
+      },
+    };
+    const options = {
+      includeLLM: false,
+      includeOCR: true,
+      includeVoice: false,
+    };
+
+    await mod.ensureLanguagePythonRequirementsInstalled('aa', langData, options, {
+      skipIfCurrent: true,
+    });
+    await mod.ensureLanguagePythonRequirementsInstalled('aa', langData, options, {
+      skipIfCurrent: true,
+    });
+
+    const pipCalls = mockSpawn.mock.calls.filter((call) => (call[1] as string[]).includes('install'));
+    expect(pipCalls).toHaveLength(2);
   });
 
   it('rejects package installation when required language packages need a missing Python runtime', async () => {
