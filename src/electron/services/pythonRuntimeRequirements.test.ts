@@ -160,7 +160,7 @@ describe('pythonRuntimeRequirements', () => {
       includeLLM: false,
       includeOCR: false,
       includeVoice: false,
-    })).resolves.toBeUndefined();
+    })).resolves.toBe(false);
 
     expect(mockSpawn).not.toHaveBeenCalled();
   });

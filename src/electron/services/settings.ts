@@ -653,6 +653,30 @@ function getEnabledLanguageDataComponents(settings: Settings): LanguagePythonReq
   return components;
 }
 
+function didLanguageRuntimeComponentSettingsChange(prevSettings: Settings, nextSettings: Settings): boolean {
+  return (
+    prevSettings.language !== nextSettings.language ||
+    (prevSettings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled) !== (nextSettings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled) ||
+    (prevSettings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled) !== (nextSettings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled) ||
+    (prevSettings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled) !== (nextSettings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled)
+  );
+}
+
+async function repairActiveLanguagePythonRequirements(settings: Settings): Promise<boolean> {
+  if (!settings.language) return false;
+
+  const installedLanguageData = loadLangData();
+  if (!installedLanguageData[settings.language]) return false;
+
+  return ensureLanguagePythonRequirementsInstalled(settings.language, installedLanguageData, {
+    includeLLM: settings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled,
+    includeOCR: settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled,
+    includeVoice: settings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled,
+  }, {
+    skipIfCurrent: true,
+  });
+}
+
 export function setupSettingsIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_SETTINGS, (event) => {
     const settings = loadSettings();
@@ -666,6 +690,18 @@ export function setupSettingsIPC(): void {
 
     if (settings.uiLanguage && settings.uiLanguage !== prevSettings.uiLanguage) {
       setUILanguage(settings.uiLanguage);
+    }
+
+    if (didLanguageRuntimeComponentSettingsChange(prevSettings, settings)) {
+      try {
+        const didInstallRequirements = await repairActiveLanguagePythonRequirements(settings);
+        if (didInstallRequirements) {
+          const { restartPythonBackend } = await import('./pythonBackend');
+          restartPythonBackend();
+        }
+      } catch (error) {
+        log.error('Failed to repair language runtime requirements after settings change:', error);
+      }
     }
 
     if (didAnkiSettingsChange(prevSettings, settings)) {

@@ -76,13 +76,13 @@ export async function ensureLanguagePythonRequirementsInstalled(
   langData: LanguageDataMap,
   options: InstallOptions,
   ensureOptions: EnsureLanguagePythonRequirementsOptions = {},
-): Promise<void> {
+): Promise<boolean> {
   const data = langData[language];
-  if (!data) return;
+  if (!data) return false;
 
   const requirements = getLanguagePythonRequirementsForInstall({ [language]: data }, options);
-  if (requirements.length === 0) return;
-  if (ensureOptions.skipIfCurrent && isReceiptCurrent(language, requirements)) return;
+  if (requirements.length === 0) return false;
+  if (ensureOptions.skipIfCurrent && isReceiptCurrent(language, requirements)) return false;
 
   const [pipCommand] = getPipCommandCandidates();
   if (!pipCommand) {
@@ -91,4 +91,5 @@ export async function ensureLanguagePythonRequirementsInstalled(
 
   await installRequirements(pipCommand, requirements);
   writeReceipt(language, requirements);
+  return true;
 }

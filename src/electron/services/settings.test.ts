@@ -36,6 +36,7 @@ vi.mock('./localization', () => ({
 
 const mockDownloadFileWithProgress = vi.fn();
 const mockEnsureLanguagePythonRequirementsInstalled = vi.hoisted(() => vi.fn());
+const mockRestartPythonBackend = vi.hoisted(() => vi.fn());
 
 vi.mock('../utils/downloadManager', () => ({
   downloadFileWithProgress: mockDownloadFileWithProgress,
@@ -43,6 +44,10 @@ vi.mock('../utils/downloadManager', () => ({
 
 vi.mock('./pythonRuntimeRequirements', () => ({
   ensureLanguagePythonRequirementsInstalled: mockEnsureLanguagePythonRequirementsInstalled,
+}));
+
+vi.mock('./pythonBackend', () => ({
+  restartPythonBackend: mockRestartPythonBackend,
 }));
 
 let tempDir: TempDir;
@@ -60,6 +65,7 @@ beforeEach(async () => {
   tempDir = createTempDir();
   mockDownloadFileWithProgress.mockReset();
   mockEnsureLanguagePythonRequirementsInstalled.mockReset();
+  mockRestartPythonBackend.mockReset();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: false,
     status: 404,
@@ -1048,6 +1054,85 @@ describe('SAVE_SETTINGS IPC handler', () => {
     settings.uiLanguage = 'en';
     for (const h of handlers) await h(event, settings);
     expect(setUILanguageMock).not.toHaveBeenCalled();
+  });
+
+  it('repairs language Python requirements and restarts the backend when OCR is enabled after install', async () => {
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    const runtime = {
+      python: {
+        packagesByComponent: {
+          core: ['alpha-core'],
+          ocr: ['alpha-ocr'],
+        },
+      },
+    };
+    fs.writeFileSync(path.join(languagesDir, 'aa.json'), JSON.stringify({
+      name: 'Alpha',
+      runtime,
+    }), 'utf-8');
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'settings.json'), JSON.stringify({
+      ...DEFAULT_SETTINGS,
+      language: 'aa',
+      ocrEnabled: false,
+    }), 'utf-8');
+    mockEnsureLanguagePythonRequirementsInstalled.mockResolvedValue(true);
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('save-settings') ?? [];
+    const event = makeEvent();
+    const settings = {
+      ...mod.loadSettings(),
+      ocrEnabled: true,
+    };
+    for (const h of handlers) await h(event, settings);
+
+    expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalledWith(
+      'aa',
+      expect.objectContaining({
+        aa: expect.objectContaining({ runtime }),
+      }),
+      {
+        includeLLM: DEFAULT_SETTINGS.llmEnabled,
+        includeOCR: true,
+        includeVoice: DEFAULT_SETTINGS.voiceEnabled,
+      },
+      { skipIfCurrent: true },
+    );
+    expect(mockRestartPythonBackend).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not restart the backend when language runtime requirements are already current', async () => {
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.writeFileSync(path.join(languagesDir, 'aa.json'), JSON.stringify({
+      name: 'Alpha',
+      runtime: {
+        python: {
+          packagesByComponent: {
+            core: ['alpha-core'],
+          },
+        },
+      },
+    }), 'utf-8');
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'settings.json'), JSON.stringify({
+      ...DEFAULT_SETTINGS,
+      language: 'aa',
+      voiceEnabled: false,
+    }), 'utf-8');
+    mockEnsureLanguagePythonRequirementsInstalled.mockResolvedValue(false);
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('save-settings') ?? [];
+    const event = makeEvent();
+    const settings = {
+      ...mod.loadSettings(),
+      voiceEnabled: true,
+    };
+    for (const h of handlers) await h(event, settings);
+
+    expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalled();
+    expect(mockRestartPythonBackend).not.toHaveBeenCalled();
   });
 });
 
