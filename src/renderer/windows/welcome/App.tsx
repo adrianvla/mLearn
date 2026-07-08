@@ -8,7 +8,7 @@ import { Component, Show, createSignal, createEffect, createMemo, onMount, onCle
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallerState, type PipProgress } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallerState, type LanguageDataCatalogStatus, type PipProgress } from '../../../shared/types';
 import { PROXY_SERVER_PORT } from '../../../shared/constants';
 import { Panel, Btn, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
@@ -25,6 +25,23 @@ interface LanguageOption {
   code: string;
   name: string;
   nativeName: string;
+}
+
+type DictionaryPackStatus = NonNullable<LanguageDataCatalogStatus['dictionaryPacks']>[number];
+
+function languageDataStatusClass(status: LanguageDataCatalogStatus | DictionaryPackStatus): string {
+  if (status.installed) return 'installed';
+  if (status.outdated) return 'outdated';
+  return 'missing';
+}
+
+function languageDataStatusLabel(
+  status: LanguageDataCatalogStatus | DictionaryPackStatus,
+  t: (key: string) => string,
+): string {
+  if (status.installed) return t('mlearn.Settings.Language.LanguageData.Installed');
+  if (status.outdated) return t('mlearn.Settings.Language.LanguageData.UpdateRequired');
+  return t('mlearn.Settings.Language.LanguageData.MissingRequired');
 }
 
 const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!', '欢迎！', 'Добро пожаловать!'];
@@ -204,12 +221,21 @@ const WelcomeContent: Component = () => {
     const dictionaryPack = status?.dictionaryPacks?.find((pack) => pack.targetLanguage === dictionaryTarget);
     return Boolean((!status || status.installed) && hasValidDictionaryTargetSelection() && (!dictionaryTarget || dictionaryPack?.installed));
   };
+  const selectedLanguageDataNeedsUpdate = createMemo(() => {
+    const status = getLanguageDataStatus(selectedLanguage());
+    const dictionaryTarget = selectedDictionaryTargetLanguage();
+    const dictionaryPack = status?.dictionaryPacks?.find((pack) => pack.targetLanguage === dictionaryTarget);
+    return Boolean(status?.outdated || dictionaryPack?.outdated);
+  });
   const primaryActionLabel = createMemo(() => {
     if (!installationCompleted()) {
       return t('mlearn.Installer.Buttons.StartInstallation');
     }
     if (isSelectedLanguageDataReady(selectedLanguage())) {
       return t('mlearn.Installer.Buttons.FinishSetup');
+    }
+    if (selectedLanguageDataNeedsUpdate()) {
+      return t('mlearn.Installer.Buttons.UpdateLanguageData');
     }
     return t('mlearn.Installer.Buttons.InstallLanguageData');
   });
@@ -620,10 +646,8 @@ const WelcomeContent: Component = () => {
                 </Show>
                 <Show when={selectedDictionaryPackStatus()}>
                   {(pack) => (
-                    <span class={`welcome-window__dictionary-target-status ${pack().installed ? 'installed' : 'missing'}`}>
-                      {pack().installed
-                        ? t('mlearn.Settings.Language.LanguageData.Installed')
-                        : t('mlearn.Settings.Language.LanguageData.MissingRequired')}
+                    <span class={`welcome-window__dictionary-target-status ${languageDataStatusClass(pack())}`}>
+                      {languageDataStatusLabel(pack(), t)}
                     </span>
                   )}
                 </Show>

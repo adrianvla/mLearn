@@ -1245,6 +1245,7 @@ export interface LanguageDataCatalogStatus {
   nameTranslated?: string;
   dataRoot: string;
   installed: boolean;
+  outdated: boolean;
   totalBytes: number;
   installedBytes: number;
   missingRequiredAssets: string[];
@@ -1252,6 +1253,7 @@ export interface LanguageDataCatalogStatus {
     id: string;
     path: string;
     installed: boolean;
+    outdated?: boolean;
     sizeBytes?: number;
     validationIssue?: string;
   }>;
@@ -1260,6 +1262,7 @@ export interface LanguageDataCatalogStatus {
     name: string;
     version?: string;
     installed: boolean;
+    outdated: boolean;
     totalBytes: number;
     installedBytes: number;
     missingRequiredAssets: string[];
@@ -1267,6 +1270,7 @@ export interface LanguageDataCatalogStatus {
       id: string;
       path: string;
       installed: boolean;
+      outdated?: boolean;
       sizeBytes?: number;
       validationIssue?: string;
     }>;

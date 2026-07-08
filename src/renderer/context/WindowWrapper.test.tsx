@@ -18,6 +18,8 @@ vi.mock('./SettingsContext', () => ({
     isLoading: () => settingsLoading,
     isCloudReLoginModalOpen: () => false,
     closeCloudReLoginModal: vi.fn(),
+    isRuntimeRestartRequired: () => false,
+    restartAppForRuntimeSettings: vi.fn(),
   }),
 }));
 

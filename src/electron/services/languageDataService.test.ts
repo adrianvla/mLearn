@@ -163,6 +163,7 @@ describe('languageDataService', () => {
 
     const beforeStatus = mod.getLanguageDataStatus('zz', langData);
     expect(beforeStatus.installed).toBe(false);
+    expect(beforeStatus.outdated).toBe(true);
     expect(beforeStatus.missingAssets).toEqual(['language-metadata']);
     expect(beforeStatus.assets[0].validationIssue).toMatch(/^size-mismatch:/);
 
@@ -224,7 +225,86 @@ describe('languageDataService', () => {
     const status = mod.getLanguageDataStatus('zz', langData);
 
     expect(status.installed).toBe(true);
+    expect(status.outdated).toBe(false);
     expect(status.missingAssets).toEqual([]);
+  });
+
+  it('reports installed language metadata with an older embedded package version as outdated', () => {
+    const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(
+      installedMetadataPath,
+      JSON.stringify({
+        name: 'Old metadata',
+        languageData: { version: 'bundle-v1' },
+      }),
+      'utf-8',
+    );
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'bundle-v2',
+        bundle: {
+          url: 'https://example.com/language-data/zz.tar.gz',
+        },
+        assets: [
+          {
+            id: 'language-metadata',
+            path: 'languages/zz.json',
+            sizeBytes: fs.statSync(installedMetadataPath).size,
+            required: true,
+          },
+        ],
+      },
+    });
+
+    const status = mod.getLanguageDataStatus('zz', langData);
+
+    expect(status.installed).toBe(false);
+    expect(status.outdated).toBe(true);
+    expect(status.missingAssets).toEqual(['language-metadata']);
+    expect(status.assets[0].validationIssue).toBe('version-mismatch:bundle-v1');
+  });
+
+  it('reports an installed dictionary pack as outdated when its install receipt version is stale', () => {
+    const dictionaryPath = path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'fr', 'dictionary.db');
+    fs.mkdirSync(path.dirname(dictionaryPath), { recursive: true });
+    fs.writeFileSync(dictionaryPath, 'installed dictionary', 'utf-8');
+
+    const receiptPath = path.join(tempDir.tmpDir, 'language-data', '.install-receipts', 'zz_fr.json');
+    fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
+    fs.writeFileSync(receiptPath, JSON.stringify({ version: 'dict-v1' }), 'utf-8');
+
+    const langData = makeLangData({
+      languageData: {
+        assets: [],
+        dictionaryPacks: {
+          fr: {
+            targetLanguage: 'fr',
+            name: 'French',
+            version: 'dict-v2',
+            bundle: { url: 'https://example.com/zz-fr.tar.gz' },
+            assets: [
+              {
+                id: 'dictionary-fr',
+                path: 'dictionaries/zz/fr/dictionary.db',
+                sizeBytes: Buffer.byteLength('installed dictionary'),
+                required: true,
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const status = mod.getLanguageDataCatalogStatus(langData)[0]?.dictionaryPacks?.[0];
+
+    expect(status).toMatchObject({
+      targetLanguage: 'fr',
+      installed: false,
+      outdated: true,
+      missingRequiredAssets: [],
+    });
   });
 
   it('resolves only explicitly available dictionary targets without sorted fallback', () => {
