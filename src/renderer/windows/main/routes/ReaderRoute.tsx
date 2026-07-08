@@ -4,7 +4,7 @@ import { withCloudAuth } from '../../../services/cloudSessionManager';
  * Manga/Image OCR reader integrated into main window via router
  */
 
-import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, createMemo, batch, on } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, createMemo, batch, on, untrack } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, OcrWord, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
@@ -76,6 +76,15 @@ interface PageImage {
   blob?: Blob;
   text?: string;
   title?: string;
+  previewText?: string;
+  textStart?: number;
+  textEnd?: number;
+}
+
+interface TextSourcePage {
+  name: string;
+  title: string;
+  text: string;
   previewText?: string;
 }
 
@@ -311,6 +320,81 @@ const textPagesFromExtractedText = (
   }))
 );
 
+function splitParagraphForPage(paragraph: string, capacity: number): string[] {
+  if (paragraph.length <= capacity) return [paragraph];
+  const chunks: string[] = [];
+  let remaining = paragraph.trim();
+
+  while (remaining.length > capacity) {
+    const slice = remaining.slice(0, capacity);
+    const breakAt = slice.search(/\s+\S*$/u);
+    const end = breakAt > Math.floor(capacity * 0.55) ? breakAt + 1 : capacity;
+    chunks.push(remaining.slice(0, end).trim());
+    remaining = remaining.slice(end).trim();
+  }
+
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+function paginateTextSources(
+  sources: TextSourcePage[],
+  fallbackTitle: string,
+  capacity: number,
+): PageImage[] {
+  const pages: PageImage[] = [];
+  let globalOffset = 0;
+
+  for (const source of sources) {
+    const blocks = source.text.split(/\n{2,}/u).map((part) => part.trim()).filter(Boolean);
+    let currentBlocks: string[] = [];
+    let currentLength = 0;
+    let currentStart = globalOffset;
+    let sourceOffset = 0;
+
+    const flush = () => {
+      if (currentBlocks.length === 0) return;
+      const text = currentBlocks.join('\n\n');
+      const index = pages.length;
+      pages.push({
+        id: `text-page-${index}-${source.name}`,
+        kind: 'text',
+        name: source.name || `${fallbackTitle}-${index + 1}`,
+        title: source.title || fallbackTitle,
+        text,
+        previewText: text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? source.previewText ?? '',
+        index,
+        textStart: currentStart,
+        textEnd: currentStart + text.length,
+      });
+      currentBlocks = [];
+      currentLength = 0;
+    };
+
+    for (const block of blocks) {
+      const blockChunks = splitParagraphForPage(block, capacity);
+      for (const chunk of blockChunks) {
+        const separatorLength = currentBlocks.length > 0 ? 2 : 0;
+        if (currentBlocks.length > 0 && currentLength + separatorLength + chunk.length > capacity) {
+          flush();
+          currentStart = globalOffset + sourceOffset;
+        }
+        if (currentBlocks.length === 0) {
+          currentStart = globalOffset + sourceOffset;
+        }
+        currentBlocks.push(chunk);
+        currentLength += separatorLength + chunk.length;
+        sourceOffset += chunk.length + 2;
+      }
+    }
+
+    flush();
+    globalOffset += source.text.length + 2;
+  }
+
+  return pages.length > 0 ? pages : textPagesFromExtractedText(sources, fallbackTitle);
+}
+
 const loadSavedPageIndex = async (bookId: string | null): Promise<number | null> => {
   if (!bookId) return null;
   try {
@@ -416,6 +500,8 @@ export const ReaderRoute: Component = () => {
   const mediaStats = useMediaStats({ mediaType: 'book', language: settings.language });
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
+  const [textSourcePages, setTextSourcePages] = createSignal<TextSourcePage[] | null>(null);
+  const [textPageCapacity, setTextPageCapacity] = createSignal(460);
   const [currentPage, setCurrentPage] = createSignal(0);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
@@ -694,6 +780,93 @@ export const ReaderRoute: Component = () => {
   });
   const visiblePagesAreText = () => visiblePages().some((page) => page.kind === 'text');
   const readerHasImagePages = () => pages().some((page) => page.kind === 'image');
+
+  const estimateTextPageCapacity = (): number | null => {
+    if (!pageContainerRef || !visiblePagesAreText()) return null;
+    const pageElement = pageContainerRef.querySelector<HTMLElement>('.page');
+    const textElement = pageContainerRef.querySelector<HTMLElement>('.reader-text-page');
+    if (!pageElement) return null;
+
+    const pageRect = pageElement.getBoundingClientRect();
+    if (pageRect.width <= 0 || pageRect.height <= 0) return null;
+
+    const style = window.getComputedStyle(textElement ?? pageElement);
+    const fontSize = Number.parseFloat(style.fontSize) || 16;
+    const parsedLineHeight = Number.parseFloat(style.lineHeight);
+    const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontSize * 1.75;
+    const pageWidth = textElement?.getBoundingClientRect().width || pageRect.width;
+    const pageHeight = pageRect.height;
+    const sampleText = (textSourcePages() ?? [])
+      .map((page) => page.text)
+      .join(' ')
+      .replace(/\s+/gu, '')
+      .slice(0, 200);
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.font = style.font;
+    const sample = sampleText || 'mmmmmmmmmmmmmmmmmmmm';
+    const averageGlyphWidth = Math.max(context.measureText(sample).width / sample.length, fontSize * 0.45);
+    const charsPerLine = Math.max(1, Math.floor(pageWidth / averageGlyphWidth));
+    const linesPerPage = Math.max(1, Math.floor(pageHeight / lineHeight));
+
+    return Math.max(160, Math.floor(charsPerLine * linesPerPage * 0.78));
+  };
+
+  const updateMeasuredTextPageCapacity = () => {
+    const nextCapacity = estimateTextPageCapacity();
+    if (!nextCapacity) return;
+    setTextPageCapacity((previous) => (
+      Math.abs(previous - nextCapacity) > 24 ? nextCapacity : previous
+    ));
+  };
+
+  createEffect(() => {
+    if (!visiblePagesAreText()) return;
+    queueMicrotask(updateMeasuredTextPageCapacity);
+  });
+
+  createEffect(() => {
+    const sources = textSourcePages();
+    if (!sources) return;
+    const capacity = textPageCapacity();
+    const title = bookTitle();
+    const previousPages = untrack(pages);
+    const previousCurrentPage = untrack(currentPage);
+    const activeTextOffset = previousPages[previousCurrentPage]?.textStart ?? 0;
+    const nextPages = paginateTextSources(sources, title, capacity);
+    const nextCurrentPage = nextPages.findIndex((page) => (
+      page.textStart !== undefined
+      && page.textEnd !== undefined
+      && activeTextOffset >= page.textStart
+      && activeTextOffset < page.textEnd
+    ));
+
+    batch(() => {
+      setPages(nextPages);
+      setCurrentPage(nextCurrentPage >= 0 ? nextCurrentPage : Math.min(previousCurrentPage, nextPages.length - 1));
+    });
+  });
+
+  onMount(() => {
+    const resizeObserver = new ResizeObserver(updateMeasuredTextPageCapacity);
+    const attachObserver = () => {
+      if (pageContainerRef) {
+        resizeObserver.observe(pageContainerRef);
+        updateMeasuredTextPageCapacity();
+      } else {
+        requestAnimationFrame(attachObserver);
+      }
+    };
+
+    attachObserver();
+    window.addEventListener('resize', updateMeasuredTextPageCapacity);
+
+    onCleanup(() => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateMeasuredTextPageCapacity);
+    });
+  });
 
   createEffect(on(currentBookId, () => {
     setOcrPageWords(reconcile({}));
@@ -1597,12 +1770,14 @@ export const ReaderRoute: Component = () => {
       startPage: number;
       coverBlob?: Blob;
       file?: File | null;
+      textSourcePages?: TextSourcePage[] | null;
     },
   ) => {
     setOcrResults({});
     setCroppedRegions({});
     const imagePageCount = newPages.filter((page) => page.kind === 'image').length;
     batch(() => {
+      setTextSourcePages(options.textSourcePages ?? null);
       setCurrentPage(options.startPage);
       setPages(newPages);
       setOcrBatchTotal(imagePageCount);
@@ -1623,6 +1798,7 @@ export const ReaderRoute: Component = () => {
     const savedPageIndex = await loadSavedPageIndex(bookId);
     let newPages: PageImage[];
     let coverBlob: Blob | undefined;
+    let textSourcePagesForBook: TextSourcePage[] | null = null;
 
     if (useOcr) {
       const pdfImages = await pdfToImages(file);
@@ -1635,14 +1811,24 @@ export const ReaderRoute: Component = () => {
         newPages = imagePagesFromPdfImages(pdfImages);
         coverBlob = newPages[0]?.blob;
       } else {
-        newPages = textPagesFromExtractedText(textPages, title);
+        textSourcePagesForBook = textPages;
+        newPages = paginateTextSources(textPages, title, textPageCapacity());
       }
     }
 
     const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < newPages.length
       ? savedPageIndex
       : 0;
-    commitLoadedPages(newPages, { bookId, title, path, format: 'pdf', startPage, coverBlob, file });
+    commitLoadedPages(newPages, {
+      bookId,
+      title,
+      path,
+      format: 'pdf',
+      startPage,
+      coverBlob,
+      file,
+      textSourcePages: textSourcePagesForBook,
+    });
     if (path) {
       void persistActiveBookPath(path);
     }
@@ -1658,12 +1844,12 @@ export const ReaderRoute: Component = () => {
     if (textPages.length === 0) {
       throw new Error('EPUB contains no readable text');
     }
-    const newPages = textPagesFromExtractedText(textPages, title);
+    const newPages = paginateTextSources(textPages, title, textPageCapacity());
     const savedPageIndex = await loadSavedPageIndex(bookId);
     const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < newPages.length
       ? savedPageIndex
       : 0;
-    commitLoadedPages(newPages, { bookId, title, path, format: 'epub', startPage, file });
+    commitLoadedPages(newPages, { bookId, title, path, format: 'epub', startPage, file, textSourcePages: textPages });
     if (path) {
       void persistActiveBookPath(path);
     }
@@ -1778,6 +1964,7 @@ export const ReaderRoute: Component = () => {
       setOcrResults({});
       setCroppedRegions({});
       batch(() => {
+        setTextSourcePages(null);
         setCurrentPage(startPage);
         setPages(newPages);
         setOcrBatchTotal(newPages.length);
@@ -2164,6 +2351,7 @@ export const ReaderRoute: Component = () => {
     // Use batch to ensure currentPage and pages update atomically
     // This prevents the createEffect from running with stale currentPage
     batch(() => {
+      setTextSourcePages(null);
       setCurrentPage(startPage);
       setPages(newPages);
       // Initialize OCR batch tracking for the new book

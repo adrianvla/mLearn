@@ -9,8 +9,6 @@ export interface EpubTextPage {
   index: number;
 }
 
-const EPUB_PAGE_CHAR_TARGET = 460;
-
 function stripExtension(name: string): string {
   const idx = name.lastIndexOf('.');
   return idx > 0 ? name.slice(0, idx) : name;
@@ -88,35 +86,6 @@ function htmlContent(html: string): { title: string; text: string; previewText: 
   return { title, text, previewText };
 }
 
-function splitTextIntoPages(text: string): string[] {
-  const paragraphs = text.split(/\n{2,}/u).map((part) => part.trim()).filter(Boolean);
-  const pages: string[] = [];
-  let current = '';
-
-  for (const paragraph of paragraphs) {
-    if (paragraph.length > EPUB_PAGE_CHAR_TARGET) {
-      if (current) {
-        pages.push(current);
-        current = '';
-      }
-      for (let start = 0; start < paragraph.length; start += EPUB_PAGE_CHAR_TARGET) {
-        pages.push(paragraph.slice(start, start + EPUB_PAGE_CHAR_TARGET).trim());
-      }
-      continue;
-    }
-
-    if (current && current.length + paragraph.length + 2 > EPUB_PAGE_CHAR_TARGET) {
-      pages.push(current);
-      current = paragraph;
-    } else {
-      current = current ? `${current}\n\n${paragraph}` : paragraph;
-    }
-  }
-
-  if (current) pages.push(current);
-  return pages.length > 0 ? pages : [text.trim()].filter(Boolean);
-}
-
 export async function epubToTextPages(file: File): Promise<EpubTextPage[]> {
   const sourceName = stripExtension(file.name);
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -150,17 +119,14 @@ export async function epubToTextPages(file: File): Promise<EpubTextPage[]> {
     if (!item || !/x?html/u.test(item.mediaType)) return;
     const content = htmlContent(readZipText(files, item.href));
     const chapterTitle = content.title || item.title || bookTitle || displayTitleFromPath(item.href);
-    for (const pageText of splitTextIntoPages(content.text)) {
-      const previewText = pageText.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? content.previewText;
-      pages.push({
-        name: `${item.href}#${pages.length + 1}`,
-        title: chapterTitle,
-        text: pageText,
-        previewText,
-        source: sourceName,
-        index: pages.length,
-      });
-    }
+    pages.push({
+      name: item.href,
+      title: chapterTitle,
+      text: content.text,
+      previewText: content.previewText || content.text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) || '',
+      source: sourceName,
+      index: pages.length,
+    });
   });
 
   return pages;
