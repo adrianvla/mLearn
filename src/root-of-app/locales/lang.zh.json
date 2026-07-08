@@ -1306,6 +1306,8 @@
         "TriggerTitle": "单词悬停触发方式",
         "CropModeOff": "裁剪：关闭",
         "CropModeOn": "裁剪：开启",
+        "CropModeAddTitle": "添加裁剪模式：拖出文本框进行识别",
+        "CropModeCursorTitle": "光标模式：悬停已识别文本",
         "CropModeTitle": "拖出文本框，只识别该裁剪区域",
         "ZoneDeltaLabel": "区域差值：{value}px",
         "ZoneDeltaTitle": "用于区域聚类的框边距最大像素距离"
@@ -1672,6 +1674,10 @@
           "CropPadding": {
             "Description": "为闪卡裁剪时文本周围的额外像素",
             "Label": "OCR 裁剪边距"
+          },
+          "CropMode": {
+            "Description": "只识别手动选择的裁剪区域，以降低低配置电脑的内存占用",
+            "Label": "裁剪模式"
           },
           "Enable": {
             "Description": "启用图片的光学字符识别",

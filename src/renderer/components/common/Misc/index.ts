@@ -12,6 +12,7 @@ export {
   InfoIcon,
   ErrorIcon,
   PlusIcon,
+  CursorPointerIcon,
   MinusIcon,
   EditIcon,
   TrashIcon,

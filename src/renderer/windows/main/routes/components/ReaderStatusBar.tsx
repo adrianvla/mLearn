@@ -5,7 +5,7 @@
 
 import { Component, Accessor, createMemo, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../../../../context';
-import { StatusBar, formatKeybindDisplay, RangeInput, BatteryLowIcon } from '../../../../components/common';
+import { StatusBar, formatKeybindDisplay, RangeInput, BatteryLowIcon, CursorPointerIcon, PlusIcon } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
 import { DEFAULT_SETTINGS } from '../../../../../shared/types';
 import { ocrReadingAnnotationFilteringEnabled } from '../../../../../shared/readingAnnotationSettings';
@@ -26,6 +26,8 @@ interface ReaderStatusBarProps {
   onOpenConversationAgent: () => void;
   cropMode?: Accessor<boolean>;
   onToggleCropMode?: () => void;
+  cropAddMode?: Accessor<boolean>;
+  onToggleCropAddMode?: () => void;
   debugOcr?: Accessor<boolean>;
   onToggleDebugOcr?: () => void;
   lastOcrTiming?: Accessor<OcrProcessingTimes | null>;
@@ -139,16 +141,36 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
             {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
           </button>
           <Show when={settings.ocrEnabled}>
-            <button
-              class="statusbar-toggle"
-              classList={{ 'active': props.cropMode?.() ?? false }}
-              onClick={() => props.onToggleCropMode?.()}
-              title={t('mlearn.Reader.StatusBar.CropModeTitle')}
-            >
-              {props.cropMode?.()
-                ? t('mlearn.Reader.StatusBar.CropModeOn')
-                : t('mlearn.Reader.StatusBar.CropModeOff')}
-            </button>
+            <div class="crop-mode-controls">
+              <button
+                class="statusbar-toggle"
+                classList={{ 'active': props.cropMode?.() ?? false }}
+                onClick={() => props.onToggleCropMode?.()}
+                title={t('mlearn.Reader.StatusBar.CropModeTitle')}
+              >
+                {props.cropMode?.()
+                  ? t('mlearn.Reader.StatusBar.CropModeOn')
+                  : t('mlearn.Reader.StatusBar.CropModeOff')}
+              </button>
+              <Show when={props.cropMode?.()}>
+                <button
+                  type="button"
+                  class="statusbar-toggle crop-mode-action-toggle"
+                  classList={{ 'active': props.cropAddMode?.() ?? false }}
+                  onClick={() => props.onToggleCropAddMode?.()}
+                  title={props.cropAddMode?.()
+                    ? t('mlearn.Reader.StatusBar.CropModeAddTitle')
+                    : t('mlearn.Reader.StatusBar.CropModeCursorTitle')}
+                  aria-label={props.cropAddMode?.()
+                    ? t('mlearn.Reader.StatusBar.CropModeAddTitle')
+                    : t('mlearn.Reader.StatusBar.CropModeCursorTitle')}
+                >
+                  {props.cropAddMode?.()
+                    ? <PlusIcon size={13} />
+                    : <CursorPointerIcon size={13} />}
+                </button>
+              </Show>
+            </div>
           </Show>
           <Show when={settings.ocrEnabled && supportsReadingDetection()}>
             <button

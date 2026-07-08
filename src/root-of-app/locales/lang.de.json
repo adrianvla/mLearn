@@ -1306,6 +1306,8 @@
         "TriggerTitle": "Wie das Wort-Tooltip ausgelöst wird",
         "CropModeOff": "Crop: Aus",
         "CropModeOn": "Crop: Ein",
+        "CropModeAddTitle": "Crop-Hinzufügen-Modus: Rahmen ziehen, um Text zu erkennen",
+        "CropModeCursorTitle": "Cursor-Modus: erkannten Text hovern",
         "CropModeTitle": "Ziehe einen Rahmen über Text, um nur diesen Ausschnitt zu erkennen",
         "ZoneDeltaLabel": "Zonen-Delta: {value}px",
         "ZoneDeltaTitle": "Maximaler Pixelabstand zwischen Boxkanten für Zonen-Clustering"
@@ -1657,6 +1659,10 @@
           "CropPadding": {
             "Description": "Pixel-Rand beim Zuschneiden von Text für Lernkarten",
             "Label": "OCR-Zuschneiderand"
+          },
+          "CropMode": {
+            "Description": "Text nur aus manuell ausgewählten Ausschnitten erkennen, um den Speicherverbrauch auf günstigen Computern zu senken",
+            "Label": "Zuschneidemodus"
           },
           "Enable": {
             "Description": "Optische Zeichenerkennung für Bilder aktivieren",
