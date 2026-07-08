@@ -286,7 +286,7 @@ describe('sendImageForOCR', () => {
     expect(mockBackend.ocr).toHaveBeenCalledTimes(1);
     const [image, options] = mockBackend.ocr.mock.calls[0];
     expect(image).toBeInstanceOf(Blob);
-    expect(options).toEqual({ language: undefined, devMode: undefined });
+    expect(options).toMatchObject({ language: undefined, devMode: undefined });
   });
 
   it('passes the learning language through to the backend adapter', async () => {

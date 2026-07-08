@@ -138,6 +138,9 @@ export class HttpBackend implements BackendAdapter {
     if (options?.devMode !== undefined) {
       form.append('dev_mode', options.devMode ? '1' : '0');
     }
+    if (options?.singleRegion !== undefined) {
+      form.append('single_region', options.singleRegion ? '1' : '0');
+    }
     if (options?.detectionMaxWidth !== undefined) {
       form.append('detection_max_width', String(options.detectionMaxWidth));
     }
