@@ -1,16 +1,23 @@
 import type {
   AiStatusDto,
+  AnalyticsDto,
   ConfigDto,
+  DistributionDto,
+  LlmGatewayDto,
   LogsDto,
   OverviewDto,
   SchoolDto,
   ServiceActionResponse,
   ServiceDto,
   StorageDto,
+  UsersDto,
 } from './types';
 
 type ServiceAction = 'start' | 'stop' | 'restart';
 type RequestOptions = Omit<RequestInit, 'headers'> & { headers?: Record<string, string> };
+
+export const AUTH_ERROR_EVENT = 'mlearn-management-auth-error';
+export const TOKEN_KEY = 'mlearn_admin_token';
 
 export class AuthError extends Error {
   constructor() {
@@ -30,45 +37,61 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
-  private baseUrl: string;
-  private getToken: () => string | null;
+  private readonly baseUrl: string;
+  private readonly getToken: () => string | null;
 
   constructor(baseUrl = '', getToken = defaultGetToken) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.getToken = getToken;
   }
 
-  async getOverview(): Promise<OverviewDto> {
+  getOverview(): Promise<OverviewDto> {
     return this.request('/api/overview');
   }
 
-  async getServices(): Promise<ServiceDto[]> {
+  getServices(): Promise<ServiceDto[]> {
     return this.request('/api/services');
   }
 
-  async performAction(id: string, action: ServiceAction): Promise<ServiceActionResponse> {
-    return this.request(`/api/services/${encodeURIComponent(id)}/actions/${action}`, { method: 'POST' });
+  performAction(id: string, action: ServiceAction): Promise<ServiceActionResponse> {
+    return this.request(`/api/services/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
   }
 
-  async getLogs(id: string, tail?: number): Promise<LogsDto> {
+  getLogs(id: string, tail?: number): Promise<LogsDto> {
     const query = tail === undefined ? '' : `?tail=${encodeURIComponent(String(tail))}`;
     return this.request(`/api/services/${encodeURIComponent(id)}/logs${query}`);
   }
 
-  async getConfig(): Promise<ConfigDto> {
+  getConfig(): Promise<ConfigDto> {
     return this.request('/api/config');
   }
 
-  async getStorage(): Promise<StorageDto> {
+  getStorage(): Promise<StorageDto> {
     return this.request('/api/storage');
   }
 
-  async getAiStatus(): Promise<AiStatusDto> {
-    return this.request('/api/ai');
+  getAiStatus(): Promise<AiStatusDto> {
+    return this.request('/api/ai-status');
   }
 
-  async getSchool(): Promise<SchoolDto> {
+  getSchool(): Promise<SchoolDto> {
     return this.request('/api/school');
+  }
+
+  getUsers(): Promise<UsersDto> {
+    return this.request('/api/users');
+  }
+
+  getDistribution(): Promise<DistributionDto> {
+    return this.request('/api/distribution');
+  }
+
+  getLlmGateway(): Promise<LlmGatewayDto> {
+    return this.request('/api/llm-gateway');
+  }
+
+  getAnalytics(): Promise<AnalyticsDto> {
+    return this.request('/api/analytics');
   }
 
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -77,6 +100,7 @@ export class ApiClient {
     const response = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
 
     if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT));
       throw new AuthError();
     }
 
@@ -88,18 +112,13 @@ export class ApiClient {
   }
 }
 
-let singletonClient: ApiClient | null = null;
-
 export function createApiClient(): ApiClient {
-  if (singletonClient === null) {
-    singletonClient = new ApiClient();
-  }
-
-  return singletonClient;
+  return new ApiClient();
 }
 
 function defaultGetToken(): string | null {
-  return localStorage.getItem('mlearn_admin_token');
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token === null || token.trim().length === 0 ? null : token;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -144,10 +144,148 @@ export interface SchoolDto {
   notes: string[];
 }
 
-export interface HealthDto {
-  status: string;
+export interface UsersDto {
+  users: ManagedUser[];
+  policy_presets: PolicyPreset[];
+  blocked_settings: BlockedSettingRule[];
 }
 
-export interface ErrorDto {
-  error: string;
+export interface ManagedUser {
+  id: string;
+  display_name: string;
+  role: 'admin' | 'teacher' | 'learner';
+  status: 'active' | 'restricted' | 'disabled';
+  policy: string;
+  devices: number;
+  last_seen: string | null;
+}
+
+export interface PolicyPreset {
+  id: string;
+  name: string;
+  description: string;
+  user_count: number;
+  locked_settings: string[];
+}
+
+export interface BlockedSettingRule {
+  id: string;
+  setting_key: string;
+  label: string;
+  scope: string;
+  reason: string;
+  enforced_value: string | null;
+}
+
+export interface DistributionDto {
+  catalog_mirror: MirrorStatus;
+  cache_items: CacheItem[];
+  lan_endpoints: LanEndpoint[];
+  sync_rules: SyncRule[];
+}
+
+export interface MirrorStatus {
+  enabled: boolean;
+  catalog_url: string;
+  last_sync: string | null;
+  cached_bytes: number;
+  item_count: number;
+}
+
+export interface CacheItem {
+  kind: string;
+  name: string;
+  version: string;
+  size_bytes: number;
+  served_locally: boolean;
+}
+
+export interface LanEndpoint {
+  label: string;
+  url: string;
+  status: 'online' | 'offline' | 'degraded';
+}
+
+export interface SyncRule {
+  id: string;
+  label: string;
+  source: string;
+  destination: string;
+  mode: string;
+}
+
+export interface LlmGatewayDto {
+  gateway_enabled: boolean;
+  server_side_logging: boolean;
+  providers: LlmProvider[];
+  routing_rules: LlmRouteRule[];
+  language_profiles: LlmLanguageProfile[];
+  budget_controls: BudgetControl[];
+}
+
+export interface LlmProvider {
+  id: string;
+  name: string;
+  kind: 'local' | 'cloud' | 'proxy';
+  status: 'ready' | 'limited' | 'offline';
+  models: string[];
+}
+
+export interface LlmRouteRule {
+  id: string;
+  label: string;
+  match: string;
+  provider: string;
+  fallback: string | null;
+}
+
+export interface LlmLanguageProfile {
+  id: string;
+  language: string;
+  locale: string;
+  route: string;
+  notes: string[];
+}
+
+export interface BudgetControl {
+  id: string;
+  label: string;
+  limit: string;
+  scope: string;
+}
+
+export interface AnalyticsDto {
+  opt_in: AnalyticsOptIn;
+  llm_summary: LlmUsageSummary;
+  events: AnalyticsEvent[];
+  log_streams: LogStream[];
+}
+
+export interface AnalyticsOptIn {
+  enabled: boolean;
+  retention_days: number;
+  redact_prompts: boolean;
+  collect_client_events: boolean;
+}
+
+export interface LlmUsageSummary {
+  requests_today: number;
+  estimated_tokens_today: number;
+  blocked_by_policy: number;
+  average_latency_ms: number;
+}
+
+export interface AnalyticsEvent {
+  id: string;
+  time: string;
+  category: string;
+  summary: string;
+  severity: 'info' | 'warning' | 'error';
+}
+
+export interface LogStream {
+  id: string;
+  label: string;
+  enabled: boolean;
+  destination: string;
 }

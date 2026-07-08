@@ -61,12 +61,3 @@ export function redactLine(line: string): string {
 
   return SECRET_VALUE_PATTERNS.reduce((redactedLine, pattern) => redactedLine.replace(pattern, REDACTED), line);
 }
-
-export function redactObject<T extends Record<string, unknown>>(obj: T): T {
-  return Object.fromEntries(
-    Object.entries(obj).map(([key, value]) => [
-      key,
-      typeof value === 'string' ? redactValue(key, value) : value,
-    ]),
-  ) as T;
-}
