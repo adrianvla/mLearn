@@ -1,0 +1,88 @@
+services:
+  mlearn-management:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: mlearn-management
+    ports:
+      - "127.0.0.1:${MLEARN_MANAGEMENT_PORT:-3000}:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - mlearn-management-data:/data
+    environment:
+      MLEARN_COMPOSE_PROJECT: ${MLEARN_COMPOSE_PROJECT:-mlearn}
+      MLEARN_BIND_ADDRESS: 0.0.0.0
+      MLEARN_MANAGEMENT_PORT: "3000"
+      MLEARN_ENV: ${MLEARN_ENV:-production}
+      MLEARN_MANAGEMENT_TOKEN: ${MLEARN_MANAGEMENT_TOKEN:-}
+      MLEARN_MANAGEMENT_TOKEN_HASH: ${MLEARN_MANAGEMENT_TOKEN_HASH:-}
+      MLEARN_DEPLOYMENT_MODE: ${MLEARN_DEPLOYMENT_MODE:-self-hosted}
+      MLEARN_APP_VERSION: ${MLEARN_APP_VERSION:-}
+      MLEARN_LOCAL_AI_ENABLED: ${MLEARN_LOCAL_AI_ENABLED:-true}
+      MLEARN_LOCAL_AI_PROVIDER: ${MLEARN_LOCAL_AI_PROVIDER:-ollama}
+      MLEARN_CLOUD_AI_ENABLED: ${MLEARN_CLOUD_AI_ENABLED:-false}
+      MLEARN_CLOUD_AI_PROVIDERS: ${MLEARN_CLOUD_AI_PROVIDERS:-}
+      MLEARN_LANGUAGE_DATA_PATH: ${MLEARN_LANGUAGE_DATA_PATH:-}
+      MLEARN_OCR_DATA_PATH: ${MLEARN_OCR_DATA_PATH:-}
+      MLEARN_MODEL_CACHE_PATH: ${MLEARN_MODEL_CACHE_PATH:-}
+      MLEARN_APP_DATA_PATH: ${MLEARN_APP_DATA_PATH:-}
+      MLEARN_DB_PATH: ${MLEARN_DB_PATH:-}
+      MLEARN_UPLOADS_PATH: ${MLEARN_UPLOADS_PATH:-}
+      MLEARN_FEATURE_FLAGS: ${MLEARN_FEATURE_FLAGS:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+
+  # ============================================================
+  # Placeholder services for the full mLearn self-hosted stack.
+  # Enable with: docker compose --profile full-stack up -d
+  # These require Docker images that are not yet published.
+  # ============================================================
+
+  mlearn-backend:
+    profiles: ["full-stack"]
+    image: mlearn-backend:${MLEARN_APP_VERSION:-latest}
+    container_name: mlearn-backend
+    ports:
+      - "127.0.0.1:7752:7752"
+    volumes:
+      - mlearn-language-data:/app/language-data
+      - mlearn-app-data:/app/data
+    environment:
+      MLEARN_DICTIONARY_TARGET_LANGUAGE: "en"
+    restart: unless-stopped
+    depends_on:
+      mlearn-management:
+        condition: service_healthy
+
+  mlearn-app:
+    profiles: ["full-stack"]
+    image: mlearn-app:${MLEARN_APP_VERSION:-latest}
+    container_name: mlearn-app
+    ports:
+      - "127.0.0.1:7753:7753"
+    volumes:
+      - mlearn-app-data:/app/data
+    environment:
+      MLEARN_BACKEND_URL: "http://mlearn-backend:7752"
+    restart: unless-stopped
+    depends_on:
+      mlearn-backend:
+        condition: service_started
+
+volumes:
+  mlearn-management-data:
+    driver: local
+  mlearn-language-data:
+    driver: local
+  mlearn-app-data:
+    driver: local

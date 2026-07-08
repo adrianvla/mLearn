@@ -1,0 +1,151 @@
+.log-viewer {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.log-viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg-surface-alt);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.log-viewer__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.log-viewer__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--spacing-6);
+  height: var(--spacing-5);
+  padding: 0 var(--spacing-2);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-viewer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.log-viewer__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-8);
+  height: var(--spacing-8);
+  padding: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition-property: color, background-color, border-color, transform;
+  transition-duration: var(--transition-fast);
+}
+
+.log-viewer__btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.log-viewer__btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.log-viewer__btn:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 1px;
+}
+
+.log-viewer__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.log-viewer__btn--spin svg {
+  animation: log-viewer-spin 0.8s linear infinite;
+}
+
+@keyframes log-viewer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.log-viewer__body {
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  background: var(--bg-surface);
+}
+
+.log-viewer__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  min-height: 4rem;
+  padding: var(--spacing-4);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.log-viewer__spinner {
+  display: inline-block;
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  border: 2px solid var(--border-color);
+  border-top-color: var(--color-info);
+  border-radius: 50%;
+  animation: log-viewer-spin 0.8s linear infinite;
+}
+
+.log-viewer__line {
+  padding: var(--spacing-1) var(--spacing-3);
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-bottom: 1px solid var(--bg-surface-alt);
+}
+
+.log-viewer__line:hover {
+  background: var(--bg-surface-alt);
+}
+
+.log-viewer__timestamp {
+  margin-right: var(--spacing-2);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-viewer__message {
+  color: var(--text-primary);
+}
+
+.log-viewer__line--stderr .log-viewer__message {
+  color: var(--color-error);
+}
+
+.log-viewer__line--stdout .log-viewer__message {
+  color: var(--text-primary);
+}

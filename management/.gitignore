@@ -1,0 +1,25 @@
+# Rust
+backend/target/
+**/*.rs.bk
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+
+# Env (never commit real tokens)
+.env
+.env.local
+.env.*.local
+
+# Generated token file
+admin-token-hash

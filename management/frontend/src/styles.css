@@ -1,0 +1,81 @@
+:root {
+  --color-primary: #4a90d9;
+  --color-primary-hover: #5a9de9;
+  --color-success: #58c333;
+  --color-warning: #f1c40f;
+  --color-error: #e74c3c;
+  --color-info: #3498db;
+
+  --text-on-strong: #ffffff;
+
+  --bg-opaque: #f5f5f5;
+  --bg-surface: #ffffff;
+  --bg-surface-alt: #f0f0f0;
+  --bg-hover: #eaeaea;
+
+  --border-color: rgba(0, 0, 0, 0.12);
+  --border-color-intense: rgba(0, 0, 0, 0.2);
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --text-tertiary: #999;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+
+  --font-mono: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+}
+
+[data-theme='dark'] {
+  --bg-opaque: #0d0d0d;
+  --bg-surface: #1a1a1a;
+  --bg-surface-alt: #242424;
+  --bg-hover: #2a2a2a;
+
+  --border-color: rgba(255, 255, 255, 0.12);
+  --border-color-intense: rgba(255, 255, 255, 0.2);
+
+  --text-primary: #f0f0f0;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #707070;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg-opaque);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+.app-shell {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
