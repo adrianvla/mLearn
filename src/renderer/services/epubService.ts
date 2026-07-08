@@ -4,6 +4,7 @@ export interface EpubTextPage {
   name: string;
   title: string;
   text: string;
+  previewText: string;
   source: string;
   index: number;
 }
@@ -45,15 +46,46 @@ function readZipText(files: Record<string, Uint8Array>, path: string): string {
   return strFromU8(entry);
 }
 
-function textFromHtml(html: string): string {
+function cleanText(text: string): string {
+  return text.replace(/\s+/gu, ' ').trim();
+}
+
+function queryText(doc: Document, selectors: string[]): string {
+  for (const selector of selectors) {
+    if (selector.includes(':')) {
+      const text = doc.getElementsByTagName(selector)[0]?.textContent;
+      if (text) return cleanText(text);
+      continue;
+    }
+    const text = doc.querySelector(selector)?.textContent;
+    if (text) return cleanText(text);
+  }
+  return '';
+}
+
+function displayTitleFromPath(path: string): string {
+  const fileName = path.split('/').pop() ?? path;
+  return stripExtension(fileName)
+    .replace(/[_-]+/gu, ' ')
+    .replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase());
+}
+
+function htmlContent(html: string): { title: string; text: string; previewText: string } {
   const doc = new DOMParser().parseFromString(html, 'application/xhtml+xml');
   const body = doc.querySelector('body') ?? doc.documentElement;
+  const title = queryText(doc, ['h1', 'h2', 'title']);
   body.querySelectorAll('script, style, nav').forEach((node) => node.remove());
-  return Array.from(body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
-    .map((node) => node.textContent?.replace(/\s+/gu, ' ').trim() ?? '')
+  const text = Array.from(body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
+    .map((node) => cleanText(node.textContent ?? ''))
     .filter(Boolean)
     .join('\n\n')
-    || (body.textContent ?? '').replace(/\s+/gu, ' ').trim();
+    || cleanText(body.textContent ?? '');
+  const previewText = Array.from(body.querySelectorAll('p,li,blockquote'))
+    .map((node) => cleanText(node.textContent ?? ''))
+    .find(Boolean)
+    ?? text.split(/\n{2,}/u).find(Boolean)
+    ?? '';
+  return { title, text, previewText };
 }
 
 function splitTextIntoPages(text: string): string[] {
@@ -86,6 +118,7 @@ export async function epubToTextPages(file: File): Promise<EpubTextPage[]> {
   const opfText = readZipText(files, rootfilePath);
   const opfDoc = new DOMParser().parseFromString(opfText, 'application/xml');
   const opfBase = dirname(rootfilePath);
+  const bookTitle = queryText(opfDoc, ['metadata > title', 'dc:title', 'title']) || sourceName;
   const manifest = new Map<string, { href: string; mediaType: string; title: string }>();
 
   opfDoc.querySelectorAll('manifest > item').forEach((item) => {
@@ -95,7 +128,7 @@ export async function epubToTextPages(file: File): Promise<EpubTextPage[]> {
     manifest.set(id, {
       href: resolveZipPath(opfBase, href),
       mediaType: item.getAttribute('media-type') ?? '',
-      title: item.getAttribute('id') ?? href,
+      title: item.getAttribute('title') ?? '',
     });
   });
 
@@ -104,12 +137,15 @@ export async function epubToTextPages(file: File): Promise<EpubTextPage[]> {
     const idref = itemRef.getAttribute('idref');
     const item = idref ? manifest.get(idref) : undefined;
     if (!item || !/x?html/u.test(item.mediaType)) return;
-    const chapterText = textFromHtml(readZipText(files, item.href));
-    for (const pageText of splitTextIntoPages(chapterText)) {
+    const content = htmlContent(readZipText(files, item.href));
+    const chapterTitle = content.title || item.title || bookTitle || displayTitleFromPath(item.href);
+    for (const pageText of splitTextIntoPages(content.text)) {
+      const previewText = pageText.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? content.previewText;
       pages.push({
         name: `${item.href}#${pages.length + 1}`,
-        title: item.title,
+        title: chapterTitle,
         text: pageText,
+        previewText,
         source: sourceName,
         index: pages.length,
       });

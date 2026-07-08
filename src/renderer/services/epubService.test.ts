@@ -28,7 +28,10 @@ describe('epubService', () => {
           </rootfiles>
         </container>`,
       'OEBPS/content.opf': `<?xml version="1.0"?>
-        <package>
+        <package xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <metadata>
+            <dc:title>Test Book</dc:title>
+          </metadata>
           <manifest>
             <item id="chapter-1" href="chapters/one.xhtml" media-type="application/xhtml+xml" />
             <item id="chapter-2" href="chapters/two.xhtml" media-type="application/xhtml+xml" />
@@ -47,10 +50,13 @@ describe('epubService', () => {
     expect(pages).toHaveLength(2);
     expect(pages[0]).toMatchObject({
       name: 'OEBPS/chapters/one.xhtml#1',
-      title: 'chapter-1',
+      title: 'One',
       text: 'One\n\nHello reader.',
+      previewText: 'One',
       index: 0,
     });
+    expect(pages[1].title).toBe('Test Book');
     expect(pages[1].text).toBe('Second chapter.');
+    expect(pages[1].previewText).toBe('Second chapter.');
   });
 });
