@@ -147,6 +147,7 @@ export interface CaptureSuggestionParams {
   pos?: string;
   level?: number | null;
   language?: string;
+  dictionaryTargetLanguage?: string;
   contextPhrase?: string;
   contextHtml?: string;
   imageUrl?: string;
@@ -1541,14 +1542,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const unpopulatedCard = findUnpopulatedFlashcardForWord(word, lang);
 
     const comprehensiveStatus = getComprehensiveWordStatusSync(word, lang);
+    const suggestionLanguageData = languageDataFor(lang);
+    const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? getDictionaryTargetLanguageForSettings(settings, lang);
     const keepSuggestion = shouldKeepSuggestion(
       { word: storageWord, reading: params.reading, pos: params.pos, level: params.level, language: lang },
       settings,
       knownWordSet(),
       getLearningLanguageLevelForLanguage(settings, lang),
       comprehensiveStatus,
-      languageDataFor(lang),
-      { getWordForms: (value: string) => getWordFormsForLanguage(value, lang), languageData: languageDataFor(lang) },
+      suggestionLanguageData,
+      {
+        getWordForms: (value: string) => getWordFormsForLanguage(value, lang),
+        dictionaryTargetLanguage,
+        languageData: suggestionLanguageData,
+      },
     );
     if (!keepSuggestion && !unpopulatedCard) return;
 
@@ -1637,14 +1644,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
         const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(s.word, lang) !== null;
         const comprehensiveStatus = getComprehensiveWordStatusSync(s.word, lang);
         const level = getSuggestedFlashcardLevel(s);
+        const suggestionLanguageData = languageDataFor(lang);
+        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
         const keep = shouldKeepSuggestion(
           { word: s.word, reading: s.reading, pos: s.pos, level, language: s.language },
           settings,
           known,
           userLevel,
           comprehensiveStatus,
-          languageDataFor(lang),
-          { getWordForms: (word) => getWordFormsForLanguage(word, lang), languageData: languageDataFor(lang) },
+          suggestionLanguageData,
+          {
+            getWordForms: (word) => getWordFormsForLanguage(word, lang),
+            dictionaryTargetLanguage,
+            languageData: suggestionLanguageData,
+          },
         );
         return keep || hasUnpopulatedCard;
       })

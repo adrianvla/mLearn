@@ -629,6 +629,7 @@ export const ReaderRoute: Component = () => {
           reading: freq?.reading,
           pos: entry.token.type,
           level: freq?.raw_level ?? null,
+          dictionaryTargetLanguage: dictionaryTargetLanguage(),
           contextPhrase: cleanContextPhrase(entry.contextPhrase, langCtx.currentLangData()),
           imageUrl: image || undefined,
           source: bookId || undefined,

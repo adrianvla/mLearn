@@ -19,6 +19,7 @@ import {
 } from './flashcardImageCapture';
 
 const originalCreateElement = document.createElement.bind(document);
+const HAVE_CURRENT_DATA_READY_STATE = 2;
 
 function makeCanvasMock(dataUrl: string | null = 'data:image/jpeg;base64,FAKE') {
   const ctx = { drawImage: vi.fn() };
@@ -56,7 +57,7 @@ describe('flashcardImageCapture', () => {
       const video = document.createElement('video');
       Object.defineProperty(video, 'videoWidth', { value: 640, writable: true });
       Object.defineProperty(video, 'videoHeight', { value: 360, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HTMLMediaElement.HAVE_CURRENT_DATA, writable: true });
+      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
 
       const result = await captureFlashcardImage(video, 'card-1');
 
@@ -73,9 +74,9 @@ describe('flashcardImageCapture', () => {
       Object.defineProperty(video, 'videoHeight', { value: 0, writable: true });
       Object.defineProperty(video, 'clientWidth', { value: 0, writable: true });
       Object.defineProperty(video, 'clientHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HTMLMediaElement.HAVE_CURRENT_DATA, writable: true });
+      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
 
-      const result = await captureFlashcardImage(video, 'card-2');
+      const result = await captureFlashcardImage(video, 'card-2', { readinessTimeoutMs: 0 });
 
       expect(result).toBeNull();
       expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
@@ -98,7 +99,7 @@ describe('flashcardImageCapture', () => {
       await vi.advanceTimersByTimeAsync(50);
       Object.defineProperty(video, 'videoWidth', { value: 640, writable: true });
       Object.defineProperty(video, 'videoHeight', { value: 360, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HTMLMediaElement.HAVE_CURRENT_DATA, writable: true });
+      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
       video.dispatchEvent(new Event('canplay'));
 
       const result = await capturePromise;
@@ -168,7 +169,7 @@ describe('flashcardImageCapture', () => {
       const video = document.createElement('video');
       Object.defineProperty(video, 'videoWidth', { value: 1280, writable: true });
       Object.defineProperty(video, 'videoHeight', { value: 720, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HTMLMediaElement.HAVE_CURRENT_DATA, writable: true });
+      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
 
       document.querySelector = vi.fn((selector: string) => (selector === 'video' ? video : null));
 
