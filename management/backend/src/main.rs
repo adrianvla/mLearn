@@ -67,12 +67,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn ensure_token(mut config: Config) -> Config {
-    if config.token_hash.is_none() && config.env_mode == EnvMode::Production {
-        let token = auth::generate_random_token();
-        tracing::info!("Generated admin token: {}", token);
-        tracing::info!("Store this securely. It will not be shown again.");
-        config.token_hash = Some(auth::hash_token(&token));
+    if config.token_hash.is_some() {
+        return config;
     }
+
+    if config.env_mode != EnvMode::Production {
+        return config;
+    }
+
+    let token_file = std::env::var("MLEARN_TOKEN_FILE")
+        .unwrap_or_else(|_| "/data/admin-token-hash".to_string());
+
+    if let Ok(hex_hash) = std::fs::read_to_string(&token_file) {
+        let hex_hash = hex_hash.trim();
+        if let Ok(bytes) = hex::decode(hex_hash) {
+            if bytes.len() == 32 {
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&bytes);
+                config.token_hash = Some(arr);
+                tracing::info!("Loaded persisted admin token from {}", token_file);
+                return config;
+            }
+        }
+        tracing::warn!("Existing token file at {} is malformed. Generating a new token.", token_file);
+    }
+
+    let token = auth::generate_random_token();
+    let hash = auth::hash_token(&token);
+    tracing::info!("Generated admin token: {}", token);
+    tracing::info!("Store this securely. It will not be shown again.");
+
+    if let Some(parent) = std::path::Path::new(&token_file).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match std::fs::write(&token_file, hex::encode(hash)) {
+        Ok(_) => {
+            tracing::info!("Token hash persisted to {}", token_file);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&token_file, std::fs::Permissions::from_mode(0o600));
+            }
+        }
+        Err(e) => tracing::warn!("Failed to persist token hash to {}: {}. Token will change on restart.", token_file, e),
+    }
+
+    config.token_hash = Some(hash);
     config
 }
 
