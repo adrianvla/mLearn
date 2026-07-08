@@ -764,6 +764,7 @@ async def ocr_endpoint(
     image_base64: str | None = Form(None),
     language: str | None = Form(None),
     dev_mode: str | None = Form(None),
+    single_region: str | None = Form(None),
     detection_max_width: str | None = Form(None),
     detection_max_height: str | None = Form(None),
 ):
@@ -771,6 +772,7 @@ async def ocr_endpoint(
         raise HTTPException(status_code=403, detail="OCR disabled by user")
 
     is_dev = dev_mode is not None and dev_mode.lower() in ("1", "true", "yes")
+    is_single_region = isinstance(single_region, str) and single_region.lower() in ("1", "true", "yes")
     ocr_language = language or config.LANGUAGE
     ocr_config = _require_ocr_runtime_config(ocr_language)
     recognition_engine = _require_ocr_recognition_engine(ocr_language, ocr_config)
@@ -828,8 +830,8 @@ async def ocr_endpoint(
             timing_recognition_ms = elapsed_ms
             timing_recognition_engine = recognition_engine
 
-        elif recognition_engine == "mangaocr":
-            log_run.info(f"{ocr_language} OCR — MangaOCR image recognition")
+        elif recognition_engine == "mangaocr" and is_single_region:
+            log_run.info(f"{ocr_language} OCR — MangaOCR crop recognition")
             mocr = _get_manga_ocr()
             if mocr is None:
                 raise HTTPException(
@@ -859,6 +861,100 @@ async def ocr_endpoint(
             timing_recognition_ms = elapsed_ms
             timing_recognition_engine = "MangaOCR"
             timing_per_box_ms = [elapsed_ms]
+
+        elif recognition_engine == "mangaocr":
+            log_run.info(f"{ocr_language} OCR — PaddleOCR detection + MangaOCR recognition")
+            t0 = time.perf_counter()
+            paddle = _get_paddle_ocr(ocr_language)
+            t1 = time.perf_counter()
+            if paddle is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="PaddleOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected.",
+                )
+            log_run.info(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
+
+            H, W = int(np_img.shape[0]), int(np_img.shape[1])
+            det_img = np_img
+            scale = 1.0
+            effective_max_dim = 2000
+            if detection_max_w is not None and detection_max_h is not None:
+                effective_max_dim = max(detection_max_w, detection_max_h)
+            elif detection_max_w is not None:
+                effective_max_dim = detection_max_w
+            elif detection_max_h is not None:
+                effective_max_dim = detection_max_h
+            if max(H, W) > effective_max_dim:
+                scale = float(effective_max_dim) / float(max(H, W))
+                new_w = max(1, int(W * scale))
+                new_h = max(1, int(H * scale))
+                log_run.info(
+                    f"Downscaling for MangaOCR detection "
+                    f"{W}x{H}->{new_w}x{new_h} scale={scale:.3f}"
+                )
+                det_img = np.ascontiguousarray(
+                    np.array(image.resize((new_w, new_h)), dtype=np.uint8)
+                )
+
+            t2 = time.perf_counter()
+            det = await asyncio.to_thread(_paddle_run_ocr, paddle, det_img)
+            t3 = time.perf_counter()
+            log_run.info(f"PaddleOCR detection {t3 - t2:.2f}s")
+            timing_detection_ms = (t3 - t2) * 1000
+            timing_detection_engine = "PaddleOCR"
+
+            lines = _extract_lines_from_paddle_result(det)
+            initial_boxes = [
+                item[0] for item in lines if item and item[0] is not None
+            ]
+            if scale != 1.0 and initial_boxes:
+                inv = 1.0 / scale
+                initial_boxes = [
+                    [[float(x) * inv, float(y) * inv] for x, y in pts]
+                    for pts in initial_boxes
+                ]
+            if config.language_supports_vertical_text_for_language(ocr_language) and initial_boxes:
+                initial_boxes = _regroup_boxes_for_vertical_text(initial_boxes)
+            log_run.info(f"Found {len(initial_boxes)} boxes for MangaOCR recognition")
+
+            mocr = _get_manga_ocr()
+            if mocr is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="MangaOCR not available — OCR dependencies may not be installed. Re-run the installer and ensure OCR is selected.",
+                )
+            timing_recognition_engine = "MangaOCR"
+            t_rec_start = time.perf_counter()
+            per_box_times: list[float] = []
+            if not initial_boxes:
+                full_box = [
+                    [0.0, 0.0],
+                    [float(image.size[0]), 0.0],
+                    [float(image.size[0]), float(image.size[1])],
+                    [0.0, float(image.size[1])],
+                ]
+                initial_boxes = [full_box]
+            for i, pts in enumerate(initial_boxes):
+                crop = _crop_by_box(image, pts)
+                t_box_s = time.perf_counter()
+                try:
+                    txt = await asyncio.to_thread(mocr, crop) or ""
+                    log_run.info(f"Recognition progress {i + 1}/{len(initial_boxes)}")
+                except Exception as e:
+                    log_run.error(f"MangaOCR error box {i + 1} {e}")
+                    txt = ""
+                per_box_times.append((time.perf_counter() - t_box_s) * 1000)
+                box_pts = [[float(x), float(y)] for x, y in pts]
+                results.append(
+                    OcrBox(
+                        box=box_pts,
+                        text=txt,
+                        score=None,
+                        is_vertical=_is_box_vertical(box_pts),
+                    )
+                )
+            timing_recognition_ms = (time.perf_counter() - t_rec_start) * 1000
+            timing_per_box_ms = per_box_times
 
         elif recognition_engine == "rapidocr":
             t0 = time.perf_counter()

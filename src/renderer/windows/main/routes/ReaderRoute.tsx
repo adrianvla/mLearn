@@ -706,6 +706,7 @@ export const ReaderRoute: Component = () => {
           {
             language: settings.language,
             devMode: settings.devMode ? true : undefined,
+            singleRegion: true,
             detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
           },
         ));

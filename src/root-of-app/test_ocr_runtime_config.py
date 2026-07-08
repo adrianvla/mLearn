@@ -370,6 +370,7 @@ def test_ocr_endpoint_uses_request_language_runtime_for_mangaocr(monkeypatch):
         image_base64=_tiny_png_base64(),
         language="ja",
         dev_mode="true",
+        single_region="true",
         detection_max_width=None,
         detection_max_height=None,
     ))
@@ -379,7 +380,7 @@ def test_ocr_endpoint_uses_request_language_runtime_for_mangaocr(monkeypatch):
     assert result["processing_times"]["recognition_engine"] == "MangaOCR"
 
 
-def test_ocr_endpoint_ignores_ram_saver_metadata_for_mangaocr(monkeypatch):
+def test_ocr_endpoint_uses_detector_for_mangaocr_when_crop_mode_is_off(monkeypatch):
     def runtime(language: str, section: str | None = None):
         assert section == "ocr"
         if language == "sample-manga":
@@ -392,13 +393,21 @@ def test_ocr_endpoint_ignores_ram_saver_metadata_for_mangaocr(monkeypatch):
 
     engine_calls = {"rapid": False, "paddle": False}
 
+    def fake_paddle(_language):
+        engine_calls["paddle"] = True
+        return object()
+
     monkeypatch.setattr(ocr.config, "OCR_ALLOWED", True)
     monkeypatch.setattr(ocr.config, "LANGUAGE", "en")
     monkeypatch.setattr(ocr.config, "language_runtime_config_for_language", runtime)
     monkeypatch.setattr(ocr, "_process_stats", lambda _name: None)
     monkeypatch.setattr(ocr, "_ocr_touch", lambda: None)
     monkeypatch.setattr(ocr, "_get_rapid_ocr", lambda _language: engine_calls.__setitem__("rapid", True))
-    monkeypatch.setattr(ocr, "_get_paddle_ocr", lambda _language: engine_calls.__setitem__("paddle", True))
+    monkeypatch.setattr(ocr, "_get_paddle_ocr", fake_paddle)
+    monkeypatch.setattr(ocr, "_paddle_run_ocr", lambda _paddle, _img: object())
+    monkeypatch.setattr(ocr, "_extract_lines_from_paddle_result", lambda _result: [
+        ([[0, 0], [2, 0], [2, 2], [0, 2]], "", 0.9),
+    ])
     monkeypatch.setattr(ocr, "_get_manga_ocr", lambda: (lambda _image: "日本語"))
 
     result = asyncio.run(ocr.ocr_endpoint(
@@ -410,13 +419,13 @@ def test_ocr_endpoint_ignores_ram_saver_metadata_for_mangaocr(monkeypatch):
         detection_max_height=None,
     ))
 
-    assert engine_calls == {"rapid": False, "paddle": False}
+    assert engine_calls == {"rapid": False, "paddle": True}
     assert result["boxes"][0]["text"] == "日本語"
-    assert result["processing_times"]["detection_engine"] == "Crop"
+    assert result["processing_times"]["detection_engine"] == "PaddleOCR"
     assert result["processing_times"]["recognition_engine"] == "MangaOCR"
 
 
-def test_ocr_endpoint_keeps_mangaocr_recognition_as_single_image_pass(monkeypatch):
+def test_ocr_endpoint_keeps_mangaocr_crop_recognition_as_single_image_pass(monkeypatch):
     def runtime(language: str, section: str | None = None):
         assert section == "ocr"
         if language == "ja":
@@ -440,6 +449,7 @@ def test_ocr_endpoint_keeps_mangaocr_recognition_as_single_image_pass(monkeypatc
         image_base64=_tiny_png_base64(),
         language="ja",
         dev_mode="true",
+        single_region="true",
         detection_max_width=None,
         detection_max_height=None,
     ))

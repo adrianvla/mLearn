@@ -255,6 +255,7 @@ describe('HttpBackend', () => {
       await backend.ocr(blob, {
         language: 'ja',
         devMode: true,
+        singleRegion: true,
         detectionMaxWidth: 640,
         detectionMaxHeight: 480,
       });
@@ -263,6 +264,7 @@ describe('HttpBackend', () => {
       const form = opts.body as FormData;
       expect(form.get('language')).toBe('ja');
       expect(form.get('dev_mode')).toBe('1');
+      expect(form.get('single_region')).toBe('1');
       expect(form.get('detection_max_width')).toBe('640');
       expect(form.get('detection_max_height')).toBe('480');
     });

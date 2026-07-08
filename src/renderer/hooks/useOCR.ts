@@ -362,6 +362,7 @@ async function sendImageForOCR(
   const requestOptions: OCRRequestOptions = {
     language: options.language,
     devMode: options.devMode,
+    singleRegion: options.singleRegion,
   };
 
   if (options.devMode && detectionScale !== undefined && detectionScale < 100) {
