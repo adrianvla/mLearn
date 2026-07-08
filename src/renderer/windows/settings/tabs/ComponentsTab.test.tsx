@@ -7,6 +7,8 @@ import type { LanguageDataMap } from '../../../../shared/types';
 
 const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
+const installLanguageDataMock = vi.fn();
+let languageDataInstallErrorMock: { language: string; dictionaryTargetLanguage?: string; error: string } | null = null;
 
 const testSettings = {
   llmEnabled: true,
@@ -35,11 +37,27 @@ let testLangData: LanguageDataMap = {
 
 const translations: Record<string, string> = {
   'mlearn.Settings.Tabs.Components': 'Components',
-  'mlearn.ComponentsTab.Description': 'Review installed components individually.',
+  'mlearn.ComponentsTab.Description': 'Review runtime capabilities, installed language packages, and dictionary packs separately.',
   'mlearn.ComponentsTab.Reinstall': 'Reinstall Components',
   'mlearn.ComponentsTab.RestartNote': 'The app will restart after installation completes.',
+  'mlearn.ComponentsTab.InstallErrorTitle': 'Install failed',
   'mlearn.ComponentsTab.Enabled': 'Enabled',
   'mlearn.ComponentsTab.Disabled': 'Disabled',
+  'mlearn.ComponentsTab.Sections.Runtime.Title': 'App runtime',
+  'mlearn.ComponentsTab.Sections.Runtime.Description': 'Python-side optional capabilities.',
+  'mlearn.ComponentsTab.Sections.LanguageData.Title': 'Language data',
+  'mlearn.ComponentsTab.Sections.LanguageData.Description': 'Installed and available language bundles.',
+  'mlearn.ComponentsTab.Actions.Install': 'Install',
+  'mlearn.ComponentsTab.Actions.Update': 'Update',
+  'mlearn.ComponentsTab.Actions.RepairRuntime': 'Repair runtime components',
+  'mlearn.ComponentsTab.Status.installed': 'Installed',
+  'mlearn.ComponentsTab.Status.missing': 'Missing',
+  'mlearn.ComponentsTab.Status.outdated': 'Outdated',
+  'mlearn.ComponentsTab.Status.error': 'Error',
+  'mlearn.ComponentsTab.LanguageData.CoreTitle': '{language} language package',
+  'mlearn.ComponentsTab.LanguageData.CoreDescription': 'Core runtime data for {language}.',
+  'mlearn.ComponentsTab.LanguageData.DictionaryDescription': 'Definitions for {language} in {target}.',
+  'mlearn.ComponentsTab.LanguageData.SizeStatus': '{installed} of {total}',
   'mlearn.ComponentsTab.Groups.AI.Title': 'AI components',
   'mlearn.ComponentsTab.Groups.AI.Description': 'Local model runtime and Python model tooling.',
   'mlearn.ComponentsTab.Groups.Reader.Title': 'Reader and OCR components',
@@ -97,13 +115,59 @@ vi.mock('../../../context', () => ({
         name: 'Japanese',
         nameTranslated: '日本語',
         installed: true,
+        outdated: false,
+        totalBytes: 1024,
+        installedBytes: 1024,
         missingRequiredAssets: [],
+        assets: [
+          {
+            id: 'language-metadata',
+            path: 'languages/ja.json',
+            installed: true,
+            sizeBytes: 1024,
+          },
+        ],
         dictionaryPacks: [
-          { targetLanguage: 'en', name: 'Japanese -> English', installed: true },
-          { targetLanguage: 'fr', name: 'Japanese -> French', installed: false },
+          {
+            targetLanguage: 'en',
+            name: 'Japanese -> English',
+            installed: true,
+            outdated: false,
+            totalBytes: 4096,
+            installedBytes: 4096,
+            missingRequiredAssets: [],
+            assets: [
+              {
+                id: 'dictionary',
+                path: 'dictionaries/ja/en/dictionary.db',
+                installed: true,
+                sizeBytes: 4096,
+              },
+            ],
+          },
+          {
+            targetLanguage: 'fr',
+            name: 'Japanese -> French',
+            installed: false,
+            outdated: false,
+            totalBytes: 2048,
+            installedBytes: 0,
+            missingRequiredAssets: ['dictionary'],
+            assets: [
+              {
+                id: 'dictionary-fr',
+                path: 'dictionaries/ja/fr/dictionary.db',
+                installed: false,
+                sizeBytes: 2048,
+              },
+            ],
+          },
         ],
       },
     ],
+    installLanguageData: installLanguageDataMock,
+    isLanguageDataInstalling: () => false,
+    languageDataInstallError: () => languageDataInstallErrorMock,
   }),
 }));
 
@@ -133,6 +197,8 @@ describe('ComponentsTab', () => {
     document.body.appendChild(container);
     updateSettingsMock.mockReset();
     startInstallMock.mockReset();
+    installLanguageDataMock.mockReset();
+    languageDataInstallErrorMock = null;
     testSettings.llmEnabled = true;
     testSettings.ocrEnabled = true;
     testSettings.voiceEnabled = false;
@@ -160,7 +226,7 @@ describe('ComponentsTab', () => {
     container.remove();
   });
 
-  it('lists individual installed model/runtime components without raw installer localization keys', async () => {
+  it('lists individual runtime and language-data components without raw installer localization keys', async () => {
     const { ComponentsTab } = await import('./ComponentsTab');
     const dispose = render(() => <ComponentsTab />, container);
 
@@ -169,10 +235,12 @@ describe('ComponentsTab', () => {
     expect(container.textContent).not.toContain('PaddleOCR models');
     expect(container.textContent).not.toContain('RapidOCR models');
     expect(container.textContent).toContain('Whisper STT engine');
-    expect(container.textContent).toContain('Installed dictionaries');
+    expect(container.textContent).toContain('Language data');
+    expect(container.textContent).toContain('日本語 language package');
+    expect(container.textContent).toContain('language-metadata');
     expect(container.textContent).toContain('Japanese -> English');
-    expect(container.textContent).toContain('Definitions for 日本語.');
-    expect(container.textContent).not.toContain('Japanese -> French');
+    expect(container.textContent).toContain('Japanese -> French');
+    expect(container.textContent).toContain('Definitions for 日本語 in EN.');
     expect(container.textContent).not.toContain('mlearn.Installer.Components');
     expect(container.textContent).not.toContain('mlearn.ComponentsTab');
 
@@ -345,7 +413,7 @@ describe('ComponentsTab', () => {
     dispose();
   });
 
-  it('keeps group toggles wired to reinstall options', async () => {
+  it('keeps group toggles wired to runtime repair options', async () => {
     const { ComponentsTab } = await import('./ComponentsTab');
     const dispose = render(() => <ComponentsTab />, container);
 
@@ -356,7 +424,7 @@ describe('ComponentsTab', () => {
     expect(updateSettingsMock).toHaveBeenCalledWith({ voiceEnabled: true });
 
     const button = Array.from(container.querySelectorAll('button'))
-      .find((candidate) => candidate.textContent === 'Reinstall Components');
+      .find((candidate) => candidate.textContent === 'Repair runtime components');
     button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(startInstallMock).toHaveBeenCalledWith({
@@ -364,6 +432,40 @@ describe('ComponentsTab', () => {
       includeOCR: true,
       includeVoice: false,
     });
+
+    dispose();
+  });
+
+  it('installs a single missing dictionary pack instead of reinstalling all components', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    const button = Array.from(container.querySelectorAll('button'))
+      .find((candidate) => candidate.textContent === 'Install');
+    button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(installLanguageDataMock).toHaveBeenCalledWith('ja', 'fr');
+    expect(startInstallMock).not.toHaveBeenCalled();
+
+    dispose();
+  });
+
+  it('shows dictionary install failures on the exact failed pack', async () => {
+    languageDataInstallErrorMock = {
+      language: 'ja',
+      dictionaryTargetLanguage: 'fr',
+      error: 'Checksum mismatch',
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    const packRows = Array.from(container.querySelectorAll('.components-tab__language-pack'));
+    const englishPack = packRows.find((row) => row.textContent?.includes('Japanese -> English'));
+    const frenchPack = packRows.find((row) => row.textContent?.includes('Japanese -> French'));
+
+    expect(englishPack?.textContent).not.toContain('Checksum mismatch');
+    expect(frenchPack?.textContent).toContain('Checksum mismatch');
 
     dispose();
   });

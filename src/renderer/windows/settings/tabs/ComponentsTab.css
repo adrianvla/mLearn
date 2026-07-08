@@ -22,11 +22,37 @@
   line-height: var(--line-height-relaxed);
 }
 
-.components-tab__groups {
+.components-tab__section {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
   margin-bottom: var(--spacing-6);
+}
+
+.components-tab__section-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.components-tab__section-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.components-tab__section-desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.components-tab__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
 }
 
 .components-tab__group {
@@ -112,8 +138,18 @@
   font-weight: var(--font-weight-medium);
 }
 
-.components-tab__status--enabled {
+.components-tab__status--installed {
   color: var(--color-success);
+  background: var(--accent-bg);
+}
+
+.components-tab__status--missing {
+  color: var(--color-warning);
+  background: var(--bg-intense);
+}
+
+.components-tab__status--outdated {
+  color: var(--color-primary);
   background: var(--accent-bg);
 }
 
@@ -171,7 +207,6 @@
 
 .components-tab__action {
   width: 100%;
-  margin-bottom: var(--spacing-4);
 }
 
 .components-tab__note {
@@ -182,4 +217,134 @@
 
 .components-tab__alert {
   margin-bottom: var(--spacing-4);
+}
+
+.components-tab__language-packs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr));
+  gap: var(--spacing-4);
+}
+
+.components-tab__language-pack {
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-nt-primary);
+}
+
+.components-tab__language-pack-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+}
+
+.components-tab__language-pack-copy {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.components-tab__language-pack-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.components-tab__pack-meter {
+  margin: var(--spacing-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.components-tab__pack-action {
+  flex: 0 0 auto;
+}
+
+.components-tab__asset-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.components-tab__asset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-nt-secondary);
+}
+
+.components-tab__asset-copy {
+  flex: 1 1 14rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.components-tab__asset-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.components-tab__asset-path {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.components-tab__asset-error {
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.components-tab__asset-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+.components-tab__asset-size {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.components-tab__asset-status {
+  border-radius: var(--radius-full);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.components-tab__asset-status--installed {
+  color: var(--color-success);
+  background: var(--accent-bg);
+}
+
+.components-tab__asset-status--missing {
+  color: var(--color-warning);
+  background: var(--bg-intense);
+}
+
+.components-tab__asset-status--outdated {
+  color: var(--color-primary);
+  background: var(--accent-bg);
+}
+
+.components-tab__asset-status--error {
+  color: var(--color-error);
+  background: var(--bg-intense);
 }

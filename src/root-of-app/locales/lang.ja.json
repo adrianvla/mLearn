@@ -1605,6 +1605,35 @@
       },
       "Reader": {
         "Description": "OCRとリーダーの設定",
+        "TextAppearance": {
+          "Title": "テキスト表示",
+          "Font": {
+            "Label": "フォント",
+            "Description": "EPUBと埋め込みPDFテキストに使うフォントを選択",
+            "Options": {
+              "Language": "言語の既定",
+              "Sans": "Sans",
+              "Serif": "Serif",
+              "Mono": "Mono"
+            }
+          },
+          "Size": {
+            "Label": "文字サイズ",
+            "Description": "リーダーの文字サイズを調整"
+          },
+          "LineHeight": {
+            "Label": "行の高さ",
+            "Description": "行間を調整"
+          },
+          "Width": {
+            "Label": "ページ幅",
+            "Description": "テキスト列の幅を調整"
+          },
+          "Margin": {
+            "Label": "ページ余白",
+            "Description": "テキストページ周りの余白を調整"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "読み注釈",
           "Hide": {
@@ -2580,9 +2609,9 @@
       "Window": "ウィンドウ"
     },
     "ComponentsTab": {
-      "Description": "インストール済みコンポーネントを個別に確認できます。再インストールに含めるグループは有効のままにしてください。",
+      "Description": "ランタイム機能、インストール済みの言語パッケージ、辞書パックを個別に確認します。必要なコンポーネントだけをインストールまたは修復できます。",
       "Reinstall": "コンポーネントを再インストール",
-      "RestartNote": "インストールが完了すると、アプリが再起動します。",
+      "RestartNote": "ランタイム修復ではアプリが再起動することがあります。言語データの更新はインストール完了後に利用できます。",
       "Enabled": "有効",
       "Disabled": "無効",
       "Groups": {
@@ -2651,6 +2680,34 @@
         "DictionaryPack": {
           "Description": "{language} の定義。"
         }
+      },
+      "InstallErrorTitle": "インストールに失敗しました",
+      "Sections": {
+        "Runtime": {
+          "Title": "アプリのランタイム",
+          "Description": "Python 側のオプション機能です。ローカルバックエンド修復時に含めるランタイムパッケージを選びます。"
+        },
+        "LanguageData": {
+          "Title": "言語データ",
+          "Description": "インストール済み・利用可能な言語バンドル、辞書、個別ファイルです。"
+        }
+      },
+      "Actions": {
+        "Install": "インストール",
+        "Update": "更新",
+        "RepairRuntime": "ランタイムコンポーネントを修復"
+      },
+      "Status": {
+        "installed": "インストール済み",
+        "missing": "未インストール",
+        "outdated": "更新あり",
+        "error": "エラー"
+      },
+      "LanguageData": {
+        "CoreTitle": "{language} の言語パッケージ",
+        "CoreDescription": "{language} のコアランタイムデータです。",
+        "DictionaryDescription": "{language} の定義を {target} で表示します。",
+        "SizeStatus": "{installed} / {total}"
       }
     },
     "Diagnostics": {

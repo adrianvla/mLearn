@@ -1605,6 +1605,35 @@
       },
       "Reader": {
         "Description": "Paramètres OCR et lecteur",
+        "TextAppearance": {
+          "Title": "Apparence du texte",
+          "Font": {
+            "Label": "Police",
+            "Description": "Choisir la police utilisée pour le texte EPUB et PDF intégré",
+            "Options": {
+              "Language": "Par défaut de la langue",
+              "Sans": "Sans",
+              "Serif": "Serif",
+              "Mono": "Mono"
+            }
+          },
+          "Size": {
+            "Label": "Taille du texte",
+            "Description": "Ajuster la taille du texte du lecteur"
+          },
+          "LineHeight": {
+            "Label": "Hauteur de ligne",
+            "Description": "Ajuster l'espacement entre les lignes"
+          },
+          "Width": {
+            "Label": "Largeur de page",
+            "Description": "Ajuster la largeur de la colonne de texte"
+          },
+          "Margin": {
+            "Label": "Marge de page",
+            "Description": "Ajuster l'espace autour des pages de texte"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "Annotations de lecture",
           "Hide": {
@@ -2580,9 +2609,9 @@
       "Window": "Fenêtre"
     },
     "ComponentsTab": {
-      "Description": "Consultez les composants installés individuellement. Gardez un groupe activé pour l’inclure lors de la réinstallation.",
+      "Description": "Vérifiez séparément les capacités d’exécution, les paquets de langue installés et les dictionnaires. Installez ou réparez uniquement le composant concerné.",
       "Reinstall": "Réinstaller les composants",
-      "RestartNote": "L'application redémarrera après la fin de l'installation.",
+      "RestartNote": "Les réparations du runtime peuvent redémarrer l’app. Les données de langue sont disponibles dès la fin de l’installation.",
       "Enabled": "Activé",
       "Disabled": "Désactivé",
       "Groups": {
@@ -2651,6 +2680,34 @@
         "DictionaryPack": {
           "Description": "Définitions pour {language}."
         }
+      },
+      "InstallErrorTitle": "Échec de l’installation",
+      "Sections": {
+        "Runtime": {
+          "Title": "Runtime de l’app",
+          "Description": "Capacités Python optionnelles. Ces options déterminent les paquets inclus lors de la réparation du backend local."
+        },
+        "LanguageData": {
+          "Title": "Données de langue",
+          "Description": "Paquets de langue installés et disponibles, dictionnaires et fichiers individuels."
+        }
+      },
+      "Actions": {
+        "Install": "Installer",
+        "Update": "Mettre à jour",
+        "RepairRuntime": "Réparer les composants runtime"
+      },
+      "Status": {
+        "installed": "Installé",
+        "missing": "Manquant",
+        "outdated": "Obsolète",
+        "error": "Erreur"
+      },
+      "LanguageData": {
+        "CoreTitle": "Paquet de langue {language}",
+        "CoreDescription": "Données runtime principales pour {language}.",
+        "DictionaryDescription": "Définitions pour {language} en {target}.",
+        "SizeStatus": "{installed} sur {total}"
       }
     },
     "Diagnostics": {

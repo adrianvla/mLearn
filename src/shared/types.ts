@@ -76,6 +76,7 @@ export interface OverlaySizeDelta {
 // ============================================================================
 
 export type ReaderSpreadDirection = 'left-to-right' | 'right-to-left';
+export type ReaderTextFontStyle = 'language' | 'sans' | 'serif' | 'mono';
 
 export interface ColorCodes {
   [pos: string]: string;
@@ -352,6 +353,16 @@ export interface Settings {
   readerFirstPageSingle?: boolean;
   /** Visual order for double-page spreads. Right-to-left preserves manga/booklet defaults. */
   readerSpreadDirection?: ReaderSpreadDirection;
+  /** Font family style for extracted-text reader pages. */
+  readerTextFontStyle?: ReaderTextFontStyle;
+  /** Extracted-text reader font size in rem. */
+  readerTextSize?: number;
+  /** Extracted-text reader line-height multiplier. */
+  readerTextLineHeight?: number;
+  /** Extracted-text reader page width in ch units. */
+  readerTextWidth?: number;
+  /** Extracted-text reader outer margin scale. */
+  readerTextMargin?: number;
 
   // Reader magnifier settings
   /** Hotkey to activate the magnifying glass (e.g., 'z', 'Control', 'Alt') */
@@ -570,6 +581,11 @@ export const DEFAULT_SETTINGS: Settings = {
   readerPageMode: 'double',
   readerFirstPageSingle: true,
   readerSpreadDirection: 'right-to-left',
+  readerTextFontStyle: 'language',
+  readerTextSize: 1.05,
+  readerTextLineHeight: 1.75,
+  readerTextWidth: 64,
+  readerTextMargin: 1,
   hideReadingForKnownWords: false,
   readerMagnifierHotkey: 'z',
   readerMagnifierZoom: 2,
@@ -1284,6 +1300,12 @@ export interface LanguageDataCatalogStatus {
       validationIssue?: string;
     }>;
   }>;
+}
+
+export interface LanguageDataInstallError {
+  language: string;
+  dictionaryTargetLanguage?: string;
+  error: string;
 }
 
 // ============================================================================

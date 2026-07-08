@@ -1376,6 +1376,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
 
     expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({
       language: 'aa',
+      dictionaryTargetLanguage: 'en',
       error: 'No dictionary pack is available for aa->en. Available: fr',
     }));
     expect(event.reply).not.toHaveBeenCalledWith(

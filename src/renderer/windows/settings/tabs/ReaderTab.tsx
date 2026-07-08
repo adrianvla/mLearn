@@ -6,7 +6,7 @@ import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
-import { DEFAULT_SETTINGS } from '../../../../shared/types';
+import { DEFAULT_SETTINGS, type ReaderTextFontStyle } from '../../../../shared/types';
 import {
   ocrReadingAnnotationFilteringEnabled,
   readerReadingAnnotationHiderEnabled,
@@ -27,6 +27,150 @@ export const ReaderTab: Component = () => {
       }}
       padding="lg"
     >
+
+      <SettingGroup title={t('mlearn.Settings.Reader.TextAppearance.Title')}>
+        <SettingRow
+          label={t('mlearn.Settings.Reader.TextAppearance.Font.Label')}
+          description={t('mlearn.Settings.Reader.TextAppearance.Font.Description')}
+        >
+          <Select
+            value={settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!}
+            onChange={(e) => updateSettings({ readerTextFontStyle: e.currentTarget.value as ReaderTextFontStyle })}
+            options={[
+              { value: 'language', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Language') },
+              { value: 'sans', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Sans') },
+              { value: 'serif', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Serif') },
+              { value: 'mono', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Mono') },
+            ]}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.TextAppearance.Size.Label')}
+          description={t('mlearn.Settings.Reader.TextAppearance.Size.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <RangeInput
+              min={0.85}
+              max={1.35}
+              step={0.05}
+              value={settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}
+              style={{ width: '120px' }}
+              onChange={(value) => updateSettings({ readerTextSize: value })}
+            />
+            <Input
+              type="number"
+              value={settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}
+              min={0.85}
+              max={1.35}
+              step={0.05}
+              ghost={true}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = Number.parseFloat(e.currentTarget.value);
+                if (!Number.isNaN(val) && val >= 0.85 && val <= 1.35) {
+                  updateSettings({ readerTextSize: val });
+                }
+              }}
+            />
+            <span class="setting-hint">rem</span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.TextAppearance.LineHeight.Label')}
+          description={t('mlearn.Settings.Reader.TextAppearance.LineHeight.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <RangeInput
+              min={1.35}
+              max={2.2}
+              step={0.05}
+              value={settings.readerTextLineHeight ?? DEFAULT_SETTINGS.readerTextLineHeight!}
+              style={{ width: '120px' }}
+              onChange={(value) => updateSettings({ readerTextLineHeight: value })}
+            />
+            <Input
+              type="number"
+              value={settings.readerTextLineHeight ?? DEFAULT_SETTINGS.readerTextLineHeight!}
+              min={1.35}
+              max={2.2}
+              step={0.05}
+              ghost={true}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = Number.parseFloat(e.currentTarget.value);
+                if (!Number.isNaN(val) && val >= 1.35 && val <= 2.2) {
+                  updateSettings({ readerTextLineHeight: val });
+                }
+              }}
+            />
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.TextAppearance.Width.Label')}
+          description={t('mlearn.Settings.Reader.TextAppearance.Width.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <RangeInput
+              min={36}
+              max={78}
+              step={2}
+              value={settings.readerTextWidth ?? DEFAULT_SETTINGS.readerTextWidth!}
+              style={{ width: '120px' }}
+              onChange={(value) => updateSettings({ readerTextWidth: value })}
+            />
+            <Input
+              type="number"
+              value={settings.readerTextWidth ?? DEFAULT_SETTINGS.readerTextWidth!}
+              min={36}
+              max={78}
+              step={2}
+              ghost={true}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = Number.parseInt(e.currentTarget.value, 10);
+                if (!Number.isNaN(val) && val >= 36 && val <= 78) {
+                  updateSettings({ readerTextWidth: val });
+                }
+              }}
+            />
+            <span class="setting-hint">ch</span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.TextAppearance.Margin.Label')}
+          description={t('mlearn.Settings.Reader.TextAppearance.Margin.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <RangeInput
+              min={0.7}
+              max={1.5}
+              step={0.05}
+              value={settings.readerTextMargin ?? DEFAULT_SETTINGS.readerTextMargin!}
+              style={{ width: '120px' }}
+              onChange={(value) => updateSettings({ readerTextMargin: value })}
+            />
+            <Input
+              type="number"
+              value={settings.readerTextMargin ?? DEFAULT_SETTINGS.readerTextMargin!}
+              min={0.7}
+              max={1.5}
+              step={0.05}
+              ghost={true}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = Number.parseFloat(e.currentTarget.value);
+                if (!Number.isNaN(val) && val >= 0.7 && val <= 1.5) {
+                  updateSettings({ readerTextMargin: val });
+                }
+              }}
+            />
+          </div>
+        </SettingRow>
+      </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Reader.OcrSettings.Title')}>
         <SettingRow

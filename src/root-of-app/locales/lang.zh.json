@@ -1620,6 +1620,35 @@
       },
       "Reader": {
         "Description": "配置 OCR 和漫画阅读器设置",
+        "TextAppearance": {
+          "Title": "文本外观",
+          "Font": {
+            "Label": "字体",
+            "Description": "选择 EPUB 和嵌入式 PDF 文本使用的字体",
+            "Options": {
+              "Language": "语言默认",
+              "Sans": "Sans",
+              "Serif": "Serif",
+              "Mono": "Mono"
+            }
+          },
+          "Size": {
+            "Label": "文字大小",
+            "Description": "调整阅读器文字大小"
+          },
+          "LineHeight": {
+            "Label": "行高",
+            "Description": "调整行间距"
+          },
+          "Width": {
+            "Label": "页面宽度",
+            "Description": "调整文本列宽"
+          },
+          "Margin": {
+            "Label": "页面边距",
+            "Description": "调整文本页面周围的留白"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "读音注释",
           "Hide": {
@@ -2580,9 +2609,9 @@
       "Window": "窗口"
     },
     "ComponentsTab": {
-      "Description": "逐项查看已安装的组件。保持某个分组启用，即可在重新安装时包含它。",
+      "Description": "分别查看运行时功能、已安装的语言包和词典包。只安装或修复需要处理的组件。",
       "Reinstall": "重新安装组件",
-      "RestartNote": "安装完成后应用将重启。",
+      "RestartNote": "修复运行时可能会重启应用。语言数据更新会在安装完成后可用。",
       "Enabled": "已启用",
       "Disabled": "已停用",
       "Groups": {
@@ -2651,6 +2680,34 @@
         "DictionaryPack": {
           "Description": "{language} 的释义。"
         }
+      },
+      "InstallErrorTitle": "安装失败",
+      "Sections": {
+        "Runtime": {
+          "Title": "应用运行时",
+          "Description": "Python 端的可选功能。这些开关决定修复本地后端时包含哪些运行时包。"
+        },
+        "LanguageData": {
+          "Title": "语言数据",
+          "Description": "已安装和可用的语言包、词典及其单独文件。"
+        }
+      },
+      "Actions": {
+        "Install": "安装",
+        "Update": "更新",
+        "RepairRuntime": "修复运行时组件"
+      },
+      "Status": {
+        "installed": "已安装",
+        "missing": "缺失",
+        "outdated": "已过期",
+        "error": "错误"
+      },
+      "LanguageData": {
+        "CoreTitle": "{language} 语言包",
+        "CoreDescription": "{language} 的核心运行时数据。",
+        "DictionaryDescription": "{language} 的 {target} 释义。",
+        "SizeStatus": "{installed} / {total}"
       }
     },
     "Diagnostics": {
