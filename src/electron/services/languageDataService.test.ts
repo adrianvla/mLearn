@@ -181,7 +181,7 @@ describe('languageDataService', () => {
     );
   });
 
-  it('accepts same-version language metadata even when local normalized bytes differ from the catalog', () => {
+  it('reports same-version language metadata with a catalog checksum mismatch as outdated', () => {
     const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
     fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
     fs.writeFileSync(
@@ -224,9 +224,10 @@ describe('languageDataService', () => {
 
     const status = mod.getLanguageDataStatus('zz', langData);
 
-    expect(status.installed).toBe(true);
-    expect(status.outdated).toBe(false);
-    expect(status.missingAssets).toEqual([]);
+    expect(status.installed).toBe(false);
+    expect(status.outdated).toBe(true);
+    expect(status.missingAssets).toEqual(['language-metadata']);
+    expect(status.assets[0].validationIssue).toMatch(/^size-mismatch:/);
   });
 
   it('reports installed language metadata with an older embedded package version as outdated', () => {

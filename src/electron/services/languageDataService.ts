@@ -257,15 +257,7 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): Lan
     }
     if (expectedVersion && isLanguageMetadataAsset(asset)) {
       const installedVersion = readInstalledLanguageMetadataVersion(asset, installedPath);
-      if (installedVersion !== undefined && installedVersion === expectedVersion) {
-        return {
-          id: asset.id,
-          path: installedPath,
-          installed: true,
-          sizeBytes: asset.sizeBytes,
-        };
-      }
-      if (installedVersion !== undefined) {
+      if (installedVersion !== undefined && installedVersion !== expectedVersion) {
         return {
           id: asset.id,
           path: installedPath,
