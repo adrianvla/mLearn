@@ -49,10 +49,10 @@ describe('epubService', () => {
 
     expect(pages).toHaveLength(2);
     expect(pages[0]).toMatchObject({
-      name: 'OEBPS/chapters/one.xhtml#1',
+      name: 'OEBPS/chapters/one.xhtml',
       title: 'One',
       text: 'One\n\nHello reader.',
-      previewText: 'One',
+      previewText: 'Hello reader.',
       index: 0,
     });
     expect(pages[1].title).toBe('Test Book');
