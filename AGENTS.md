@@ -46,6 +46,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Barrel exports**: Every new common component must be exported from `src/renderer/components/common/index.ts`.
 - **Icons**: Use SVGs from `https://blendicons.com/free-icons/all-styles`. Do not use emojis.
 - **Language data**: Runtime language metadata, dictionaries, frequencies, and optional adapters are downloaded into user `language-data/`. Do not add bundled app-source language modules or dictionaries.
+- **Language-owned runtime dependencies**: Language-specific OCR/tokenizer/TTS/STT Python packages belong in language package metadata under `runtime.python.packagesByComponent` in `~/Desktop/projects/mlearn-website`, not in app-level `pip_requirements.json` defaults. If a clean install is missing OCR or tokenizer libraries for one language, fix the cloud language package/catalog and redeploy language data.
 - **Language-agnostic app code**: Renderer, shared TS, Electron services, and generic Python routes must read capabilities from installed language metadata/features. Language-specific labels, levels, scripts, tokenization behavior, OCR behavior, prosody behavior, colors, and dictionary availability belong in language packages or generic capability adapters, not in conditionals like `if (language === 'ja')`.
 - **Deprecation**: If you encounter legacy code worth removing, flag it for discussion rather than silently deleting.
 
@@ -54,6 +55,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Never call `window.mLearnIPC` or `ipcRenderer` directly in renderer** — use `getBridge()`
 - **Never use raw `setStore` for settings** — use `updateSetting()` from context
 - No hardcoding for any specific language. Do not add checks for language codes, language names, scripts, JLPT/N1-N5, pitch accent, kana/kanji, Japanese OCR, or any other language-specific concept in app/runtime UI code. Model it as metadata, a feature capability, a package asset, or an installed adapter.
+- Do not "fix" missing language-specific OCR/tokenizer/TTS/STT dependencies by adding concrete packages to `src/root-of-app/pip_requirements.json`. Keep app dependency groups generic; add concrete language runtime packages to the cloud language package metadata and regenerate/deploy the language catalog.
 - Do not add `src/root-of-app/languages/{lang}.py`, `{lang}.json`, or bundled dictionary payloads; language packages belong in the cloud packaging repo and install on demand.
 - No timeouts/timers unless required (race conditions)
 - Avoid inline CSS in TSX unless unavoidable
