@@ -13,9 +13,13 @@ const THUMB_MAX_WIDTH = 200;
 
 interface PageImage {
   id: string;
-  src: string;
+  kind?: 'image' | 'text';
+  src?: string;
   name: string;
   index: number;
+  title?: string;
+  text?: string;
+  previewText?: string;
 }
 
 interface ReaderSidebarProps {
@@ -96,6 +100,11 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
     return activePageIndexSet().has(pageIndex);
   };
 
+  const textPreview = (page: PageImage): string => {
+    const preview = page.previewText || page.text || page.title || page.name;
+    return preview.replace(/\s+/gu, ' ').trim();
+  };
+
   const scrollToActivePages = (smooth: boolean = true) => {
     const activePageIndices = props.activePageIndices();
     const [firstActivePageIndex, secondActivePageIndex] = activePageIndices;
@@ -154,16 +163,27 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
                     class={`page-thumb ${isPageActive(page.index) ? 'active' : ''}`}
                     onClick={() => props.onGoToPage(page.index)}
                 >
-                  <Show when={!loadedPages().has(page.index)}>
+                  <Show when={(page.kind ?? 'image') === 'image' && !loadedPages().has(page.index)}>
                     <div class="page-thumb-spinner">
                       <Spinner size={20} />
                     </div>
                   </Show>
-                  <img
-                    class={loadedPages().has(page.index) ? 'page-thumb-loaded' : 'page-thumb-loading'}
-                    ref={(el) => loadThumbnail(page.src, el, page.index)}
-                    alt={page.name}
-                  />
+                  <Show
+                    when={(page.kind ?? 'image') === 'image' && page.src}
+                    fallback={(
+                      <div class="page-thumb-text">
+                        <span>{textPreview(page)}</span>
+                      </div>
+                    )}
+                  >
+                    {(src) => (
+                      <img
+                        class={loadedPages().has(page.index) ? 'page-thumb-loaded' : 'page-thumb-loading'}
+                        ref={(el) => loadThumbnail(src(), el, page.index)}
+                        alt={page.name}
+                      />
+                    )}
+                  </Show>
                   <Tag class="page-number">{page.index + 1}</Tag>
                   <Show when={props.hasOcrForPage(page.id)}>
                     <Indicator class="ocr-indicator" variant="primary" />

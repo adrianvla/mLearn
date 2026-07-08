@@ -18,6 +18,7 @@ interface PdfJsViewport {
 interface PdfJsPage {
   getViewport: (options: { scale: number }) => PdfJsViewport;
   render: (options: { canvasContext: CanvasRenderingContext2D; viewport: PdfJsViewport }) => { promise: Promise<void> };
+  getTextContent: () => Promise<{ items: Array<{ str?: string; hasEOL?: boolean }> }>;
 }
 
 interface PdfJsDocument {
@@ -52,6 +53,14 @@ export interface PageImage {
   name: string;
   url: string;
   blob: Blob;
+  source: string;
+  index: number;
+}
+
+export interface PageText {
+  name: string;
+  title: string;
+  text: string;
   source: string;
   index: number;
 }
@@ -170,6 +179,55 @@ export async function pdfToImages(
   }
   
   return images;
+}
+
+/**
+ * Extract selectable text from a PDF without rendering pages to images.
+ * Keeps page boundaries so reader progress still matches the PDF.
+ */
+export async function pdfToTextPages(
+  file: File,
+  options: { sourceName?: string } = {},
+): Promise<PageText[]> {
+  const sourceName = options.sourceName ?? stripExtension(file.name);
+  const pdfjsLib = await getPdfJs();
+  const data = await file.arrayBuffer();
+
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    disableAutoFetch: true,
+  });
+  const pdf = await loadingTask.promise;
+  const pages: PageText[] = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const text = content.items
+      .map((item) => `${item.str ?? ''}${item.hasEOL ? '\n' : ' '}`)
+      .join('')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+
+    pages.push({
+      name: `page-${String(i).padStart(3, '0')}.txt`,
+      title: `${sourceName} ${i}`,
+      text,
+      source: sourceName,
+      index: i - 1,
+    });
+  }
+
+  try {
+    pdf.cleanup();
+  } catch (e) {
+    log.error("error", e);
+  }
+
+  return pages.filter((page) => page.text.length > 0);
 }
 
 /**

@@ -64,6 +64,16 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
 
+        <SettingRow
+          label={t('mlearn.Settings.Reader.OcrSettings.DocumentOcr.Label')}
+          description={t('mlearn.Settings.Reader.OcrSettings.DocumentOcr.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.readerDocumentOcr ?? DEFAULT_SETTINGS.readerDocumentOcr!}
+            onChange={(checked) => updateSettings({ readerDocumentOcr: checked })}
+          />
+        </SettingRow>
+
         <Show when={getLanguageFeatures().supportsReadings}>
           <SettingRow
             label={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Label')}

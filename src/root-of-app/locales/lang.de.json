@@ -1269,8 +1269,10 @@
         "CleaningUp": "Aufräumen…",
         "FailedToLoad": "Laden fehlgeschlagen",
         "FailedToLoadPdf": "PDF laden fehlgeschlagen",
+        "EpubDocument": "EPUB-Dokument",
         "ImportedBook": "Importiertes Buch",
         "Loading": "Laden...",
+        "LoadingBook": "Buch wird geladen...",
         "LoadingNeuralNetwork": "Neuronales Netz wird geladen...",
         "LoadingPdf": "PDF wird geladen...",
         "NoImagesFound": "Keine Bilder gefunden",
@@ -1309,6 +1311,9 @@
         "CropModeAddTitle": "Crop-Hinzufügen-Modus: Rahmen ziehen, um Text zu erkennen",
         "CropModeCursorTitle": "Cursor-Modus: erkannten Text hovern",
         "CropModeTitle": "Ziehe einen Rahmen über Text, um nur diesen Ausschnitt zu erkennen",
+        "DocumentOcrOff": "PDF-OCR: Aus",
+        "DocumentOcrOn": "PDF-OCR: Ein",
+        "DocumentOcrTitle": "PDF-OCR-Rendering umschalten. Aus verwendet eingebetteten PDF-Text, wenn vorhanden.",
         "ZoneDeltaLabel": "Zonen-Delta: {value}px",
         "ZoneDeltaTitle": "Maximaler Pixelabstand zwischen Boxkanten für Zonen-Clustering"
       },
@@ -1346,9 +1351,9 @@
           "DropZone": "Dateien hier ablegen zum Importieren",
           "Footer": "Legen Sie etwas ab, um zu beginnen — dieser Willkommensbildschirm wird Ihrer Geschichte Platz machen.",
           "OpenFolder": "Bilderordner öffnen",
-          "OpenPdf": "PDF öffnen",
+          "OpenPdf": "PDF/EPUB öffnen",
           "Title": "Willkommen im Reader",
-          "TitleDescription": "Ziehen Sie einen Bilderordner oder eine .pdf-Datei in dieses Fenster."
+          "TitleDescription": "Ziehen Sie einen Bilderordner, eine PDF- oder EPUB-Datei in dieses Fenster."
         }
       }
     },
@@ -1663,6 +1668,10 @@
           "CropMode": {
             "Description": "Text nur aus manuell ausgewählten Ausschnitten erkennen, um den Speicherverbrauch auf günstigen Computern zu senken",
             "Label": "Zuschneidemodus"
+          },
+          "DocumentOcr": {
+            "Description": "PDFs als Bilder rendern und OCR ausführen, statt eingebetteten Text zu verwenden",
+            "Label": "PDF-OCR"
           },
           "Enable": {
             "Description": "Optische Zeichenerkennung für Bilder aktivieren",
