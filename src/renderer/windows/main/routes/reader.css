@@ -53,8 +53,12 @@
 }
 
 .reader-main.text-reader {
+  --reader-text-gutter-y: clamp(2rem, 6vh, 4rem);
+  --reader-text-gutter-x: clamp(3rem, 9vw, 8rem);
   align-items: flex-start;
-  overflow-y: auto;
+  justify-content: center;
+  padding: var(--reader-text-gutter-y) var(--reader-text-gutter-x);
+  overflow-y: hidden;
   overflow-x: hidden;
 }
 
@@ -72,6 +76,24 @@
   gap: 0.5rem;
   align-items: flex-start;
   justify-content: center;
+}
+
+.reader-main.text-reader .page-container {
+  width: min(100%, 88rem);
+  height: 100%;
+  gap: clamp(3rem, 7vw, 7rem);
+  align-items: flex-start;
+}
+
+.reader-main.text-reader .page-container.single {
+  width: min(100%, 46rem);
+}
+
+.reader-main.text-reader .page {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  align-items: flex-start;
 }
 
 .page-container.single {
@@ -122,17 +144,16 @@
 }
 
 .reader-text-page {
-  width: min(72ch, calc(100vw - 4rem));
-  max-height: none;
-  overflow: visible;
-  padding: var(--spacing-8);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
+  width: min(64ch, 100%);
+  max-height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0;
+  background: transparent;
   color: var(--text-primary);
-  box-shadow: var(--shadow-lg);
   font-family: var(--font-family-content);
   line-height: 1.75;
+  overflow-wrap: anywhere;
   user-select: text;
 }
 
@@ -140,23 +161,35 @@
   margin: 0 0 var(--spacing-5);
   color: var(--text-primary);
   font-family: var(--font-family-content);
-  font-size: var(--font-size-3xl);
+  font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   line-height: 1.25;
+  text-wrap: balance;
 }
 
 .reader-text-page-tokens,
 .reader-text-page-plain {
-  white-space: pre-wrap;
   font-size: 1.05rem;
 }
 
+.reader-text-paragraph {
+  margin: 0 0 var(--spacing-5);
+}
+
+.reader-text-paragraph:last-child {
+  margin-bottom: 0;
+}
+
 .reader-text-page .ocr-word {
+  display: inline;
   position: relative;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--radius-sm);
 }
 
 .page-container.double .reader-text-page {
-  width: min(42ch, calc((100vw - 16rem) / 2));
+  width: min(42ch, 100%);
 }
 
 .fit-height .page-image {
@@ -383,6 +416,12 @@
   padding: var(--spacing-4);
   border-radius: 0;
   box-shadow: none;
+}
+
+.mobile-layout .reader-main.text-reader {
+  --reader-text-gutter-y: var(--spacing-4);
+  --reader-text-gutter-x: var(--spacing-4);
+  padding: var(--spacing-4);
 }
 
 /* Force single-page on mobile — double-page is unreadable on small screens */

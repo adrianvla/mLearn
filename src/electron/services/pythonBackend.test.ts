@@ -261,6 +261,65 @@ describe('pythonBackend', () => {
       expect(requirements.ocr).not.toContain('paddlepaddle==3.2.2');
       expect(requirements.ocr).not.toContain('rapidocr');
     });
+
+    it('adds installed language-declared OCR requirements to pip install when OCR is selected', async () => {
+      mockInstalledLanguageData = {
+        ja: {
+          name: 'Japanese',
+          translatable: [],
+          colour_codes: {},
+          settings: { fixed: {} },
+          runtime: {
+            python: {
+              packagesByComponent: {
+                ocr: ['ja-ocr-engine', 'ja-ocr-runtime'],
+              },
+            },
+          },
+        },
+      };
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
+        callback(createMockHttpRes(200));
+        return createMockHttpReq();
+      });
+      mockWriteStream.close.mockImplementation((callback?: () => void) => {
+        callback?.();
+      });
+      mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
+        const binDir = path.join(options.cwd, 'python-runtime', 'bin');
+        fs.mkdirSync(binDir, { recursive: true });
+        fs.writeFileSync(path.join(binDir, 'pip3'), '');
+        fs.writeFileSync(path.join(binDir, 'python3'), '');
+      });
+      mockSpawn.mockReturnValue({
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        kill: vi.fn(),
+        killed: false,
+      });
+
+      await mod.startPythonInstall({ includeLLM: false, includeOCR: true, includeVoice: false });
+      fs.writeFileSync('/tmp/test-userdata/python.tar.gz', 'archive');
+      const finishHandler = mockWriteStream.on.mock.calls.find((call) => call[0] === 'finish')?.[1] as (() => void) | undefined;
+      expect(finishHandler).toBeDefined();
+      finishHandler?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const pipInstallCall = mockSpawn.mock.calls.find((call) => (
+        Array.isArray(call[1]) && call[1][0] === 'install'
+      ));
+      expect(pipInstallCall?.[1]).toEqual(expect.arrayContaining([
+        'ja-ocr-engine',
+        'ja-ocr-runtime',
+      ]));
+    });
   });
 
   describe('getPythonProcess', () => {

@@ -9,7 +9,7 @@ export interface EpubTextPage {
   index: number;
 }
 
-const EPUB_PAGE_CHAR_TARGET = 3500;
+const EPUB_PAGE_CHAR_TARGET = 460;
 
 function stripExtension(name: string): string {
   const idx = name.lastIndexOf('.');
@@ -94,6 +94,17 @@ function splitTextIntoPages(text: string): string[] {
   let current = '';
 
   for (const paragraph of paragraphs) {
+    if (paragraph.length > EPUB_PAGE_CHAR_TARGET) {
+      if (current) {
+        pages.push(current);
+        current = '';
+      }
+      for (let start = 0; start < paragraph.length; start += EPUB_PAGE_CHAR_TARGET) {
+        pages.push(paragraph.slice(start, start + EPUB_PAGE_CHAR_TARGET).trim());
+      }
+      continue;
+    }
+
     if (current && current.length + paragraph.length + 2 > EPUB_PAGE_CHAR_TARGET) {
       pages.push(current);
       current = paragraph;

@@ -176,7 +176,7 @@ function normalizeReaderOcrResult(result: ReaderCompatibleOcrResult): OcrResult 
 }
 
 const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
-  const [tokens, setTokens] = createSignal<Token[]>([]);
+  const [tokenParagraphs, setTokenParagraphs] = createSignal<Token[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const text = () => props.page.text ?? '';
   const textBlocks = () => text().split(/\n{2,}/u).map((block) => block.trim()).filter(Boolean);
@@ -184,29 +184,33 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
     const firstBlock = textBlocks()[0];
     return firstBlock && props.page.title && firstBlock === props.page.title ? firstBlock : '';
   };
-  const bodyText = () => {
+  const bodyBlocks = () => {
     const blocks = textBlocks();
-    return headingText() ? blocks.slice(1).join('\n\n') : text();
+    return headingText() ? blocks.slice(1) : blocks;
   };
+  const bodyText = () => {
+    return bodyBlocks().join('\n\n');
+  };
+  const hasTokenParagraphs = () => tokenParagraphs().some((paragraph) => paragraph.length > 0);
 
   createEffect(() => {
-    const pageText = bodyText();
-    if (!pageText.trim()) {
-      setTokens([]);
+    const paragraphs = bodyBlocks();
+    if (!paragraphs.length) {
+      setTokenParagraphs([]);
       return;
     }
 
     let cancelled = false;
-    props.tokenize(pageText)
-      .then((nextTokens) => {
+    Promise.all(paragraphs.map((paragraph) => props.tokenize(paragraph)))
+      .then((nextParagraphs) => {
         if (!cancelled) {
-          setTokens(nextTokens);
+          setTokenParagraphs(nextParagraphs);
           setTokenizeFailed(false);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setTokens([]);
+          setTokenParagraphs([]);
           setTokenizeFailed(true);
         }
       });
@@ -222,25 +226,39 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
         <h2>{headingText()}</h2>
       </Show>
       <Show
-        when={!tokenizeFailed() && tokens().length > 0}
-        fallback={<div class="reader-text-page-plain">{bodyText()}</div>}
+        when={!tokenizeFailed() && hasTokenParagraphs()}
+        fallback={(
+          <div class="reader-text-page-plain">
+            <For each={bodyBlocks()}>
+              {(paragraph) => (
+                <p class="reader-text-paragraph">{paragraph}</p>
+              )}
+            </For>
+          </div>
+        )}
       >
         <div class="reader-text-page-tokens">
-          <For each={tokens()}>
-            {(token, index) => (
-              <>
-                <OcrWord
-                  token={token}
-                  onWordEnter={(hoverToken, event) => {
-                    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-                    props.onWordHover(hoverToken, rect, bodyText());
-                  }}
-                  onWordLeave={props.onWordLeave}
-                />
-                <Show when={props.tokenJoinSeparator && index() < tokens().length - 1}>
-                  {props.tokenJoinSeparator}
-                </Show>
-              </>
+          <For each={tokenParagraphs()}>
+            {(paragraphTokens) => (
+              <p class="reader-text-paragraph">
+                <For each={paragraphTokens}>
+                  {(token, index) => (
+                    <>
+                      <OcrWord
+                        token={token}
+                        onWordEnter={(hoverToken, event) => {
+                          const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+                          props.onWordHover(hoverToken, rect, bodyText());
+                        }}
+                        onWordLeave={props.onWordLeave}
+                      />
+                      <Show when={props.tokenJoinSeparator && index() < paragraphTokens.length - 1}>
+                        {props.tokenJoinSeparator}
+                      </Show>
+                    </>
+                  )}
+                </For>
+              </p>
             )}
           </For>
         </div>
