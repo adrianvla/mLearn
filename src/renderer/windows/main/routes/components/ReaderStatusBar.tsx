@@ -28,6 +28,10 @@ interface ReaderStatusBarProps {
   onToggleCropMode?: () => void;
   cropAddMode?: Accessor<boolean>;
   onToggleCropAddMode?: () => void;
+  ocrControlsVisible?: Accessor<boolean>;
+  showDocumentOcrToggle?: Accessor<boolean>;
+  documentOcr?: Accessor<boolean>;
+  onToggleDocumentOcr?: () => void;
   debugOcr?: Accessor<boolean>;
   onToggleDebugOcr?: () => void;
   lastOcrTiming?: Accessor<OcrProcessingTimes | null>;
@@ -86,6 +90,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
 
   const isReadingAnnotationDetection = () => ocrReadingAnnotationFilteringEnabled(settings);
   const supportsReadingDetection = () => getLanguageFeatures().supportsReadings;
+  const showOcrControls = () => props.ocrControlsVisible?.() ?? settings.ocrEnabled;
 
   const toggleReadingAnnotationDetection = () => {
     const enabled = !isReadingAnnotationDetection();
@@ -140,7 +145,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
           >
             {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
           </button>
-          <Show when={settings.ocrEnabled}>
+          <Show when={showOcrControls()}>
             <div class="crop-mode-controls">
               <button
                 class="statusbar-toggle"
@@ -172,7 +177,19 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
               </Show>
             </div>
           </Show>
-          <Show when={settings.ocrEnabled && supportsReadingDetection()}>
+          <Show when={props.showDocumentOcrToggle?.()}>
+            <button
+              class="statusbar-toggle"
+              classList={{ 'active': props.documentOcr?.() ?? false }}
+              onClick={() => props.onToggleDocumentOcr?.()}
+              title={t('mlearn.Reader.StatusBar.DocumentOcrTitle')}
+            >
+              {props.documentOcr?.()
+                ? t('mlearn.Reader.StatusBar.DocumentOcrOn')
+                : t('mlearn.Reader.StatusBar.DocumentOcrOff')}
+            </button>
+          </Show>
+          <Show when={showOcrControls() && supportsReadingDetection()}>
             <button
               class="statusbar-toggle"
               classList={{ 'active': isReadingAnnotationDetection() }}
@@ -184,7 +201,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff')}
             </button>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr && props.onToggleDebugOcr}>
+          <Show when={(settings.devMode || import.meta.env.DEV) && showOcrControls() && props.debugOcr && props.onToggleDebugOcr}>
             <button
               class="statusbar-toggle"
               classList={{ 'active': props.debugOcr!() }}
@@ -196,7 +213,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.DebugOverlayOff')}
             </button>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
+          <Show when={(settings.devMode || import.meta.env.DEV) && showOcrControls() && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
             <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.DetectionScaleTitle')}>
               <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.DetectionScaleLabel', { value: String(props.ocrDetectionScale!()) })}
@@ -211,7 +228,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
               />
             </div>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
+          <Show when={(settings.devMode || import.meta.env.DEV) && showOcrControls() && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
             <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.ZoneDeltaTitle')}>
               <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.ZoneDeltaLabel', { value: props.zoneDeltaThreshold!().toFixed(0) })}

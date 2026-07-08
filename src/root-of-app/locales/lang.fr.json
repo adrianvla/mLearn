@@ -1269,8 +1269,10 @@
         "CleaningUp": "Nettoyage…",
         "FailedToLoad": "Échec du chargement",
         "FailedToLoadPdf": "Échec du chargement du PDF",
+        "EpubDocument": "Document EPUB",
         "ImportedBook": "Livre importé",
         "Loading": "Chargement...",
+        "LoadingBook": "Chargement du livre...",
         "LoadingNeuralNetwork": "Chargement du réseau neuronal...",
         "LoadingPdf": "Chargement du PDF...",
         "NoImagesFound": "Aucune image trouvée",
@@ -1309,6 +1311,9 @@
         "CropModeAddTitle": "Mode ajout de recadrage : faites glisser un cadre pour reconnaître le texte",
         "CropModeCursorTitle": "Mode curseur : survoler le texte reconnu",
         "CropModeTitle": "Faites glisser un cadre sur le texte pour reconnaître uniquement ce recadrage",
+        "DocumentOcrOff": "OCR PDF : désactivé",
+        "DocumentOcrOn": "OCR PDF : activé",
+        "DocumentOcrTitle": "Basculer le rendu OCR des PDF. Désactivé utilise le texte intégré du PDF lorsqu'il existe.",
         "ZoneDeltaLabel": "Delta zone : {value}px",
         "ZoneDeltaTitle": "Distance maximale en pixels entre les bords des boîtes pour le regroupement en zones"
       },
@@ -1346,9 +1351,9 @@
           "DropZone": "Déposez les fichiers ici pour importer",
           "Footer": "Déposez quelque chose pour commencer — cet écran d'accueil laissera place à votre histoire.",
           "OpenFolder": "Ouvrir un dossier d'images",
-          "OpenPdf": "Ouvrir un PDF",
+          "OpenPdf": "Ouvrir PDF/EPUB",
           "Title": "Bienvenue dans le Lecteur",
-          "TitleDescription": "Glissez-déposez un dossier d'images ou un fichier .pdf dans cette fenêtre."
+          "TitleDescription": "Glissez-déposez un dossier d'images, un PDF ou un EPUB dans cette fenêtre."
         }
       }
     },
@@ -1663,6 +1668,10 @@
           "CropMode": {
             "Description": "Reconnaître uniquement le texte des zones recadrées manuellement afin de réduire l'utilisation de la mémoire sur les ordinateurs modestes",
             "Label": "Mode recadrage"
+          },
+          "DocumentOcr": {
+            "Description": "Rendre les PDF comme des images et exécuter l'OCR au lieu d'utiliser le texte intégré",
+            "Label": "OCR PDF"
           },
           "Enable": {
             "Description": "Activer la reconnaissance optique de caractères pour les images",

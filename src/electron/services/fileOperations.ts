@@ -106,14 +106,14 @@ export function setupFileOperationsIPC(): void {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
-  // Select a PDF file
+  // Select a reader document file
   ipcMain.handle(IPC_CHANNELS.SELECT_PDF_FILE, async () => {
     const focusedWindow = BrowserWindow.getFocusedWindow();
     const result = await dialog.showOpenDialog({
       ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
       properties: ['openFile'],
       filters: [
-        { name: 'PDF Files', extensions: ['pdf'] },
+        { name: 'Book Files', extensions: ['pdf', 'epub'] },
         { name: 'All Files', extensions: ['*'] },
       ],
     } as Electron.OpenDialogOptions);
