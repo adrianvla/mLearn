@@ -280,7 +280,7 @@ describe('fileOperations', () => {
       setupFileOperationsIPC();
     });
 
-    it('returns selected PDF path', async () => {
+    it('returns selected book path', async () => {
       const { dialog } = await import('electron');
       vi.mocked(dialog.showOpenDialog).mockResolvedValue({ canceled: false, filePaths: ['/home/user/book.pdf'] });
 
@@ -288,6 +288,12 @@ describe('fileOperations', () => {
       const result = await handler!({});
 
       expect(result).toBe('/home/user/book.pdf');
+      expect(vi.mocked(dialog.showOpenDialog).mock.calls[0]?.[0]).toMatchObject({
+        filters: [
+          { name: 'Book Files', extensions: ['pdf', 'epub'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
     });
 
     it('returns null when dialog is canceled', async () => {

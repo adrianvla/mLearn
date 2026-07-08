@@ -28,6 +28,9 @@ interface ReaderStatusBarProps {
   onToggleCropMode?: () => void;
   cropAddMode?: Accessor<boolean>;
   onToggleCropAddMode?: () => void;
+  showDocumentOcrToggle?: Accessor<boolean>;
+  documentOcr?: Accessor<boolean>;
+  onToggleDocumentOcr?: () => void;
   debugOcr?: Accessor<boolean>;
   onToggleDebugOcr?: () => void;
   lastOcrTiming?: Accessor<OcrProcessingTimes | null>;
@@ -171,6 +174,18 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 </button>
               </Show>
             </div>
+          </Show>
+          <Show when={props.showDocumentOcrToggle?.()}>
+            <button
+              class="statusbar-toggle"
+              classList={{ 'active': props.documentOcr?.() ?? false }}
+              onClick={() => props.onToggleDocumentOcr?.()}
+              title={t('mlearn.Reader.StatusBar.DocumentOcrTitle')}
+            >
+              {props.documentOcr?.()
+                ? t('mlearn.Reader.StatusBar.DocumentOcrOn')
+                : t('mlearn.Reader.StatusBar.DocumentOcrOff')}
+            </button>
           </Show>
           <Show when={settings.ocrEnabled && supportsReadingDetection()}>
             <button
