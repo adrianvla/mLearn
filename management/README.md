@@ -37,7 +37,29 @@ Then open `http://127.0.0.1:3000` in a browser.
 If you did not set a token, one is generated on first boot:
 
 ```bash
-docker compose logs mlearn-management 2>&1 | grep "Generated admin token"
+docker compose logs mlearn-management 2>&1 | grep "admin token"
+```
+
+Generated tokens are persisted in the management data volume and printed again
+on restart. If an older install only has a hash-only token file, delete the
+token file or set `MLEARN_MANAGEMENT_TOKEN` to choose a new token.
+
+To reset a generated token from the command line:
+
+```bash
+# Local development
+cd management/backend
+cargo run -- reset-admin-token
+
+# Docker, while the management service is running
+cd management
+docker compose exec mlearn-management ./mlearn-management reset-admin-token
+docker compose restart mlearn-management
+
+# Docker, if the management service is stopped
+cd management
+docker compose run --rm --no-deps mlearn-management ./mlearn-management reset-admin-token
+docker compose up -d mlearn-management
 ```
 
 ## Development
