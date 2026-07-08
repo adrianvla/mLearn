@@ -279,6 +279,8 @@ export interface Settings {
 
   // UI settings
   openAside: boolean;
+  /** Persisted visibility of the right-side unknown-words sidebar in media windows. */
+  rightSidebarOpen: boolean;
   subsOffsetTime: number;
   immediateFetch: boolean;
   subtitleTheme: SubtitleTheme;
@@ -511,6 +513,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudApiUrl: '',
   lastModified: 0,
   openAside: true,
+  rightSidebarOpen: true,
   llmEnabled: true,
   ocrEnabled: true,
   voiceEnabled: true,
