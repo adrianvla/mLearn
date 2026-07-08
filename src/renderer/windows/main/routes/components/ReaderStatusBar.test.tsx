@@ -9,7 +9,6 @@ const updateSettingsMock = vi.fn();
 const testSettings = {
   ocrEnabled: true,
   ocrReadingAnnotationFiltering: true,
-  ocrTurboMode: true,
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'Meta',
 };
@@ -22,8 +21,11 @@ const translations: Record<string, string> = {
   'mlearn.Reader.StatusBar.TriggerKeyHover': 'Hold {key}',
   'mlearn.Reader.StatusBar.OpenConversationAgent': 'AI Tutor',
   'mlearn.Reader.StatusBar.OpenConversationAgentTitle': 'Open AI tutor',
-  'mlearn.Reader.StatusBar.TurboModeOn': 'Turbo: On',
-  'mlearn.Settings.Reader.OcrSettings.TurboMode.Description': 'Fast OCR mode',
+  'mlearn.Reader.StatusBar.CropModeOff': 'Crop: Off',
+  'mlearn.Reader.StatusBar.CropModeOn': 'Crop: On',
+  'mlearn.Reader.StatusBar.CropModeAddTitle': 'Crop add mode',
+  'mlearn.Reader.StatusBar.CropModeCursorTitle': 'Cursor mode',
+  'mlearn.Reader.StatusBar.CropModeTitle': 'Drag to recognize a crop',
   'mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description': 'Detect reading annotations',
   'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOn': 'Reading annotations: On',
   'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff': 'Reading annotations: Off',
@@ -59,6 +61,8 @@ vi.mock('../../../../components/common', () => ({
   ),
   RangeInput: () => <input type="range" />,
   BatteryLowIcon: () => <span />,
+  CursorPointerIcon: () => <span data-icon="cursor" />,
+  PlusIcon: () => <span data-icon="plus" />,
   formatKeybindDisplay: (key: string) => key,
 }));
 

@@ -1243,12 +1243,6 @@
       "CopyPhrase": "フレーズをコピー",
       "HideReadingAnnotations": "読み注釈を隠す",
       "ShowReadingAnnotations": "読み注釈を表示",
-      "Requirements": {
-        "OcrTurboLowRam": {
-          "Title": "OCRが遅くなる可能性があります",
-          "Message": "このデバイスのRAMは{ram} GBです。メモリの少ないデバイスでは、ターボモードを有効にするとパフォーマンスが向上する場合がありますが、認識品質が下がることがあります。"
-        }
-      },
       "Sidebar": {
         "Pages": "ページ",
         "UnknownWordsEmpty": "現在のページには未習得の単語がありません。",
@@ -1310,8 +1304,11 @@
         "TriggerKeyHover": "{key} + ホバー",
         "TriggerLongHover": "長押しホバー",
         "TriggerTitle": "単語ホバーのトリガー方法",
-        "TurboModeOff": "ターボ: オフ",
-        "TurboModeOn": "ターボ: オン",
+        "CropModeOff": "クロップ: オフ",
+        "CropModeOn": "クロップ: オン",
+        "CropModeAddTitle": "クロップ追加モード: 枠をドラッグしてテキストを認識",
+        "CropModeCursorTitle": "カーソルモード: 認識済みテキストにホバー",
+        "CropModeTitle": "テキスト上をドラッグして、その範囲だけを認識します",
         "ZoneDeltaLabel": "ゾーンデルタ: {value}px",
         "ZoneDeltaTitle": "ゾーンクラスタリングのボックス端間の最大ピクセル距離"
       },
@@ -1663,6 +1660,10 @@
             "Description": "フラッシュカード用にテキストをクロップする際の余白ピクセル数",
             "Label": "OCRクロッピングパディング"
           },
+          "CropMode": {
+            "Description": "低スペックのコンピューターでメモリ使用量を抑えるため、手動で選択したクロップ範囲だけを認識します",
+            "Label": "クロップモード"
+          },
           "Enable": {
             "Description": "画像の光学文字認識を有効にする",
             "Label": "OCRを有効にする"
@@ -1671,15 +1672,7 @@
             "Label": "読み注釈検出",
             "Description": "OCR結果から読み注釈を検出してフィルタリングします。無効にすると、検出されたテキストボックスがそのまま表示されます。"
           },
-          "RamSaver": {
-            "Description": "ニューラルネットワークの代わりに軽量なOpenCVベースのテキスト検出を使用します。メモリ使用量を約1.5 GB削減しますが、複雑なレイアウトでは精度が低下する可能性があります。認識品質は影響を受けません。",
-            "Label": "RAMセーバー"
-          },
-          "Title": "OCR設定",
-          "TurboMode": {
-            "Description": "高速な検出設定を使用します。オフの場合、高解像度検出を使用し、速度は遅くなりますが、特に縦書きテキストではより正確です。",
-            "Label": "ターボモード"
-          }
+          "Title": "OCR設定"
         },
         "Title": "リーダー",
         "WordHoverBehavior": {

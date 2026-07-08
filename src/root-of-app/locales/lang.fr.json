@@ -1243,12 +1243,6 @@
       "CopyPhrase": "Copier la phrase",
       "HideReadingAnnotations": "Masquer les annotations de lecture",
       "ShowReadingAnnotations": "Afficher les annotations de lecture",
-      "Requirements": {
-        "OcrTurboLowRam": {
-          "Title": "L’OCR peut être lent",
-          "Message": "Cet appareil dispose de {ram} Go de RAM. Le mode turbo peut être activé pour de meilleures performances sur les appareils avec peu de mémoire, mais il peut réduire la qualité de reconnaissance."
-        }
-      },
       "Sidebar": {
         "Pages": "Pages",
         "UnknownWordsEmpty": "Aucun mot inconnu trouvé sur la page actuelle.",
@@ -1310,8 +1304,11 @@
         "TriggerKeyHover": "{key} + survol",
         "TriggerLongHover": "Survol prolongé",
         "TriggerTitle": "Comment déclencher l'info-bulle des mots",
-        "TurboModeOff": "Turbo : Désactivé",
-        "TurboModeOn": "Turbo : Activé",
+        "CropModeOff": "Recadrage : Désactivé",
+        "CropModeOn": "Recadrage : Activé",
+        "CropModeAddTitle": "Mode ajout de recadrage : faites glisser un cadre pour reconnaître le texte",
+        "CropModeCursorTitle": "Mode curseur : survoler le texte reconnu",
+        "CropModeTitle": "Faites glisser un cadre sur le texte pour reconnaître uniquement ce recadrage",
         "ZoneDeltaLabel": "Delta zone : {value}px",
         "ZoneDeltaTitle": "Distance maximale en pixels entre les bords des boîtes pour le regroupement en zones"
       },
@@ -1663,6 +1660,10 @@
             "Description": "Pixels de marge lors du recadrage du texte pour les cartes",
             "Label": "Marge de recadrage OCR"
           },
+          "CropMode": {
+            "Description": "Reconnaître uniquement le texte des zones recadrées manuellement afin de réduire l'utilisation de la mémoire sur les ordinateurs modestes",
+            "Label": "Mode recadrage"
+          },
           "Enable": {
             "Description": "Activer la reconnaissance optique de caractères pour les images",
             "Label": "Activer l'OCR"
@@ -1671,15 +1672,7 @@
             "Label": "Détection des annotations de lecture",
             "Description": "Détecter et filtrer les annotations de lecture dans les résultats OCR. Désactivé, les blocs de texte détectés sont affichés tels quels."
           },
-          "RamSaver": {
-            "Description": "Utilise une détection de texte légère basée sur OpenCV au lieu du réseau neuronal. Économise ~1,5 Go de RAM mais peut être moins précis pour les mises en page complexes. La qualité de reconnaissance n'est pas affectée.",
-            "Label": "Économie de RAM"
-          },
-          "Title": "Paramètres OCR",
-          "TurboMode": {
-            "Description": "Utilise des paramètres de détection plus rapides. Désactivé, une détection haute résolution est utilisée, plus lente mais plus précise, notamment pour le texte vertical.",
-            "Label": "Mode turbo"
-          }
+          "Title": "Paramètres OCR"
         },
         "Title": "Lecteur",
         "WordHoverBehavior": {

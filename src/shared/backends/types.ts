@@ -43,9 +43,9 @@ export interface OCRResult {
 
 export interface OCRRequestOptions {
   language?: string;
-  turbo?: boolean;
-  ramSaver?: boolean;
   devMode?: boolean;
+  /** The submitted image is already a user-selected text crop; skip page-level detection when possible. */
+  singleRegion?: boolean;
   /** Generic OCR detector/recognizer max width override for diagnostics/dev tuning. */
   detectionMaxWidth?: number;
   /** Generic OCR detector/recognizer max height override for diagnostics/dev tuning. */

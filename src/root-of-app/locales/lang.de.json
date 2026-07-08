@@ -1243,12 +1243,6 @@
       "CopyPhrase": "Satz kopieren",
       "HideReadingAnnotations": "Leseannotationen ausblenden",
       "ShowReadingAnnotations": "Leseannotationen anzeigen",
-      "Requirements": {
-        "OcrTurboLowRam": {
-          "Title": "OCR kann langsam laufen",
-          "Message": "Dieses Gerät hat {ram} GB RAM. Der Turbo-Modus kann für bessere Leistung auf Geräten mit wenig Arbeitsspeicher aktiviert werden, kann aber die Erkennungsqualität verringern."
-        }
-      },
       "Sidebar": {
         "Pages": "Seiten",
         "UnknownWordsEmpty": "Auf der aktuellen Seite wurden keine unbekannten Wörter gefunden.",
@@ -1310,8 +1304,11 @@
         "TriggerKeyHover": "{key} + Hover",
         "TriggerLongHover": "Langes Hover",
         "TriggerTitle": "Wie das Wort-Tooltip ausgelöst wird",
-        "TurboModeOff": "Turbo: Aus",
-        "TurboModeOn": "Turbo: Ein",
+        "CropModeOff": "Crop: Aus",
+        "CropModeOn": "Crop: Ein",
+        "CropModeAddTitle": "Crop-Hinzufügen-Modus: Rahmen ziehen, um Text zu erkennen",
+        "CropModeCursorTitle": "Cursor-Modus: erkannten Text hovern",
+        "CropModeTitle": "Ziehe einen Rahmen über Text, um nur diesen Ausschnitt zu erkennen",
         "ZoneDeltaLabel": "Zonen-Delta: {value}px",
         "ZoneDeltaTitle": "Maximaler Pixelabstand zwischen Boxkanten für Zonen-Clustering"
       },
@@ -1663,6 +1660,10 @@
             "Description": "Pixel-Rand beim Zuschneiden von Text für Lernkarten",
             "Label": "OCR-Zuschneiderand"
           },
+          "CropMode": {
+            "Description": "Text nur aus manuell ausgewählten Ausschnitten erkennen, um den Speicherverbrauch auf günstigen Computern zu senken",
+            "Label": "Zuschneidemodus"
+          },
           "Enable": {
             "Description": "Optische Zeichenerkennung für Bilder aktivieren",
             "Label": "OCR aktivieren"
@@ -1671,15 +1672,7 @@
             "Label": "Erkennung von Leseannotationen",
             "Description": "Lesungsannotationen in OCR-Ergebnissen erkennen und filtern. Deaktiviert werden erkannte Textblöcke unverändert angezeigt."
           },
-          "RamSaver": {
-            "Description": "Verwendet eine leichte OpenCV-basierte Texterkennung anstelle des neuronalen Netzes. Spart ~1,5 GB RAM, kann aber bei komplexen Layouts weniger genau sein. Die Erkennungsqualität wird nicht beeinträchtigt.",
-            "Label": "RAM-Sparer"
-          },
-          "Title": "OCR-Einstellungen",
-          "TurboMode": {
-            "Description": "Verwendet schnellere Erkennungseinstellungen. Deaktiviert wird eine höher aufgelöste Erkennung verwendet, die langsamer, aber genauer ist, besonders bei vertikalem Text.",
-            "Label": "Turbo-Modus"
-          }
+          "Title": "OCR-Einstellungen"
         },
         "Title": "Reader",
         "WordHoverBehavior": {

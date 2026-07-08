@@ -107,6 +107,19 @@ interface ReaderCompatibleOcrResult {
   sent_size?: { width: number; height: number };
 }
 
+interface CropSelection {
+  pageId: string;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
+interface CropRegion {
+  id: string;
+  rect: { left: number; top: number; width: number; height: number };
+}
+
 function normalizeReaderOcrBox(box: ReaderCompatibleOcrBox): OcrBox | null {
   if (Array.isArray(box.box) && box.box.length > 0) {
     return {
@@ -352,15 +365,39 @@ export const ReaderRoute: Component = () => {
   // OCR debug overlay (dev mode only)
   const [ocrDebugOverlay, setOcrDebugOverlay] = createSignal(false);
   const toggleOcrDebugOverlay = () => setOcrDebugOverlay(!ocrDebugOverlay());
+  const cropMode = () => settings.readerCropMode ?? DEFAULT_SETTINGS.readerCropMode ?? false;
+  const [cropAddMode, setCropAddMode] = createSignal(false);
+  const [cropSelection, setCropSelection] = createSignal<CropSelection | null>(null);
+  const [croppedRegions, setCroppedRegions] = createSignal<Record<string, CropRegion[]>>({});
+  const [cropProcessingPageId, setCropProcessingPageId] = createSignal<string | null>(null);
+  const toggleCropMode = () => {
+    const enabled = cropMode();
+    updateSettings({ readerCropMode: !enabled });
+    setCropSelection(null);
+    if (!enabled) {
+      setCropAddMode(true);
+      setOcrQueue([]);
+    }
+  };
 
-  // OCR detection downscale slider (dev mode only, non-turbo)
+  const toggleCropAddMode = () => {
+    setCropSelection(null);
+    setCropAddMode((enabled) => !enabled);
+  };
+
+  createEffect(() => {
+    if (cropMode()) {
+      setOcrQueue([]);
+    } else {
+      setCropSelection(null);
+    }
+  });
+
+  // OCR detection downscale slider (dev mode only)
   const [ocrDetectionScale, setOcrDetectionScale] = createSignal(80);
 
   // Dev-mode live-tuneable OCR zone clustering parameters
   const [zoneDeltaThreshold, setZoneDeltaThreshold] = createSignal(15);
-
-  // OCR generation counter — incremented when turbo mode changes to invalidate stale results
-  const [ocrGeneration, setOcrGeneration] = createSignal(0);
 
   // OCR Progress Tracking
   // Total pages that need OCR in the current book (set once when book loads)
@@ -561,6 +598,241 @@ export const ReaderRoute: Component = () => {
     const height = Math.max(1, (maxY - minY) * scaleY);
 
     return new DOMRect(left, top, width, height);
+  };
+
+  const getSelectionRect = (selection: CropSelection) => {
+    const left = Math.min(selection.startX, selection.currentX);
+    const top = Math.min(selection.startY, selection.currentY);
+    const width = Math.abs(selection.currentX - selection.startX);
+    const height = Math.abs(selection.currentY - selection.startY);
+    return { left, top, width, height };
+  };
+
+  const getCropSelectionStyle = (pageId: string) => {
+    const selection = cropSelection();
+    if (!selection || selection.pageId !== pageId) return {};
+    const rect = getSelectionRect(selection);
+    return {
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+    };
+  };
+
+  const getCropRegionStyle = (image: HTMLImageElement, region: CropRegion) => {
+    const scaleX = image.clientWidth / Math.max(1, image.naturalWidth);
+    const scaleY = image.clientHeight / Math.max(1, image.naturalHeight);
+    return {
+      left: `${region.rect.left * scaleX}px`,
+      top: `${region.rect.top * scaleY}px`,
+      width: `${region.rect.width * scaleX}px`,
+      height: `${region.rect.height * scaleY}px`,
+    };
+  };
+
+  const createCropBlob = async (
+    image: HTMLImageElement,
+    displayRect: { left: number; top: number; width: number; height: number },
+  ): Promise<{ blob: Blob; naturalRect: { left: number; top: number; width: number; height: number } } | null> => {
+    const displayWidth = image.clientWidth;
+    const displayHeight = image.clientHeight;
+    const naturalWidth = image.naturalWidth;
+    const naturalHeight = image.naturalHeight;
+    if (!displayWidth || !displayHeight || !naturalWidth || !naturalHeight) return null;
+
+    const scaleX = naturalWidth / displayWidth;
+    const scaleY = naturalHeight / displayHeight;
+    const left = Math.max(0, Math.round(displayRect.left * scaleX));
+    const top = Math.max(0, Math.round(displayRect.top * scaleY));
+    const naturalRect = {
+      left,
+      top,
+      width: Math.min(naturalWidth - left, Math.round(displayRect.width * scaleX)),
+      height: Math.min(naturalHeight - top, Math.round(displayRect.height * scaleY)),
+    };
+    if (naturalRect.width < 4 || naturalRect.height < 4) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = naturalRect.width;
+    canvas.height = naturalRect.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(
+      image,
+      naturalRect.left,
+      naturalRect.top,
+      naturalRect.width,
+      naturalRect.height,
+      0,
+      0,
+      naturalRect.width,
+      naturalRect.height,
+    );
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return blob ? { blob, naturalRect } : null;
+  };
+
+  const remapCropResultToPage = (
+    cropResult: OcrResult,
+    image: HTMLImageElement,
+    naturalRect: { left: number; top: number; width: number; height: number },
+  ): OcrResult => {
+    const sentWidth = cropResult.sent_size?.width || cropResult.original_size?.width || naturalRect.width;
+    const sentHeight = cropResult.sent_size?.height || cropResult.original_size?.height || naturalRect.height;
+    const scaleX = naturalRect.width / Math.max(1, sentWidth);
+    const scaleY = naturalRect.height / Math.max(1, sentHeight);
+    return {
+      ...cropResult,
+      boxes: cropResult.boxes.map((box) => ({
+        ...box,
+        box: box.box.map(([x, y]) => [
+          naturalRect.left + x * scaleX,
+          naturalRect.top + y * scaleY,
+        ]),
+      })),
+      client_scale: 1,
+      downscale_factor: 1,
+      original_size: { width: image.naturalWidth, height: image.naturalHeight },
+      sent_size: { width: image.naturalWidth, height: image.naturalHeight },
+    };
+  };
+
+  const boxIntersectsRect = (box: OcrBox, rect: { left: number; top: number; width: number; height: number }) => {
+    const xs = box.box.map(([x]) => x);
+    const ys = box.box.map(([, y]) => y);
+    const left = Math.min(...xs);
+    const right = Math.max(...xs);
+    const top = Math.min(...ys);
+    const bottom = Math.max(...ys);
+    return left < rect.left + rect.width && right > rect.left && top < rect.top + rect.height && bottom > rect.top;
+  };
+
+  const rectIntersectsRect = (
+    first: { left: number; top: number; width: number; height: number },
+    second: { left: number; top: number; width: number; height: number },
+  ) => (
+    first.left < second.left + second.width
+    && first.left + first.width > second.left
+    && first.top < second.top + second.height
+    && first.top + first.height > second.top
+  );
+
+  const recognizeCrop = async (
+    page: PageImage,
+    displayRect: { left: number; top: number; width: number; height: number },
+  ) => {
+    const image = imageRefs()[page.id];
+    if (!image || cropProcessingPageId()) return;
+
+    const crop = await createCropBlob(image, displayRect);
+    if (!crop) return;
+
+    setCropProcessingPageId(page.id);
+    setOcrStatus(t('mlearn.Reader.Status.Recognizing'));
+    try {
+      await showSettingRequirementWarningsOnce();
+      const languageData = currentLangData();
+      assertOcrLanguageDataReady(settings.language, languageData);
+
+      let result: OcrResult;
+      if (settings.ocrProvider === 'cloud') {
+        const language = settings.language;
+        const engine = resolveCloudOcrEngine(languageData);
+        const cloudApiUrl = resolveCloudApiUrl(settings);
+        const cloudResult = await withCloudAuth(async (cloudToken) => {
+          const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
+          return adapter.recognize(crop.blob, language, engine);
+        });
+        result = normalizeReaderOcrResult({ boxes: cloudResult.boxes });
+      } else {
+        result = normalizeReaderOcrResult(await sendImageForOCR(
+          crop.blob,
+          {
+            language: settings.language,
+            devMode: settings.devMode ? true : undefined,
+            singleRegion: true,
+            detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
+          },
+        ));
+      }
+
+      const pageResult = remapCropResultToPage(result, image, crop.naturalRect);
+      const existing = ocrResults[page.id];
+      const retainedBoxes = existing?.boxes.filter((box) => !boxIntersectsRect(box, crop.naturalRect)) ?? [];
+      setOcrResults(page.id, {
+        ...pageResult,
+        boxes: [...retainedBoxes, ...pageResult.boxes],
+      });
+      setCroppedRegions((prev) => ({
+        ...prev,
+        [page.id]: [
+          ...(prev[page.id] ?? []).filter((region) => !rectIntersectsRect(region.rect, crop.naturalRect)),
+          {
+            id: `${page.id}-${Date.now()}`,
+            rect: crop.naturalRect,
+          },
+        ],
+      }));
+      setCropAddMode(false);
+      if (pageResult.processing_times) {
+        setLastOcrTiming(pageResult.processing_times);
+      }
+      setOcrCompletedIds((prev) => {
+        const next = new Set(prev);
+        next.add(page.id);
+        return next;
+      });
+      updateOverallStatus();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (isReaderOcrReadinessErrorMessage(message)) {
+        stopOcrForReadinessError(message);
+      } else {
+        log.error('Crop OCR error:', error);
+      }
+    } finally {
+      setCropProcessingPageId(null);
+    }
+  };
+
+  const handleCropPointerDown = (page: PageImage, e: PointerEvent) => {
+    if (!cropMode() || !cropAddMode() || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    target.setPointerCapture(e.pointerId);
+    setCropSelection({ pageId: page.id, startX: x, startY: y, currentX: x, currentY: y });
+  };
+
+  const handleCropPointerMove = (page: PageImage, e: PointerEvent) => {
+    const selection = cropSelection();
+    if (!cropMode() || !cropAddMode() || !selection || selection.pageId !== page.id) return;
+    e.preventDefault();
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    setCropSelection({ ...selection, currentX: x, currentY: y });
+  };
+
+  const handleCropPointerUp = (page: PageImage, e: PointerEvent) => {
+    const selection = cropSelection();
+    if (!cropMode() || !cropAddMode() || !selection || selection.pageId !== page.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    if (target.hasPointerCapture(e.pointerId)) {
+      target.releasePointerCapture(e.pointerId);
+    }
+    const displayRect = getSelectionRect(selection);
+    setCropSelection(null);
+    if (displayRect.width < 8 || displayRect.height < 8) return;
+    void recognizeCrop(page, displayRect);
   };
 
   const visibleUnknownWords = createMemo<ReaderUnknownWordEntry[]>(() => {
@@ -768,7 +1040,7 @@ export const ReaderRoute: Component = () => {
   const currentOcrReadinessError = () => getOcrLanguageDataReadinessError(settings.language, currentLangData());
 
   const currentOcrAutomationState = () => resolveReaderOcrAutomationState({
-    ocrEnabled: Boolean(ocrEnabled()),
+    ocrEnabled: Boolean(ocrEnabled()) && !cropMode(),
     languageDataLoading: langCtx.isLoading(),
     readinessError: currentOcrReadinessError(),
   });
@@ -851,35 +1123,6 @@ export const ReaderRoute: Component = () => {
     // Trigger processing
     processQueue();
   });
-
-  // Invalidate OCR cache when turbo mode changes so pages get re-OCR'd
-  createEffect(on(
-      () => settings.ocrTurboMode,
-      (_turbo, prevTurbo) => {
-        // Skip the initial run (prevTurbo is undefined on first effect execution)
-        if (prevTurbo === undefined) return;
-        // Only invalidate if there are pages loaded
-        if (pages().length === 0) return;
-
-        batch(() => {
-          // Bump generation so any in-flight requests are discarded
-          setOcrGeneration(g => g + 1);
-          // Clear all cached OCR results — reconcile actually deletes store keys
-          // (plain setOcrResults({}) only merges, which does nothing)
-          setOcrResults(reconcile({}));
-          // Reset progress tracking
-          setOcrCompletedIds(new Set<string>());
-          setOcrBatchTotal(pages().length);
-          // Clear queue so the auto-OCR effect can rebuild it cleanly
-          setOcrQueue([]);
-          // Don't reset processingTask here — if there's an in-flight request,
-          // let it finish. The generation guard will discard the stale result,
-          // and the finally block in processQueue will restart processing.
-        });
-        // The auto-OCR createEffect above will re-trigger because ocrResults
-        // was cleared via reconcile, causing !ocrResults[page.id] to become true.
-      },
-  ));
 
   // Serial Queue Processor
   const processQueue = async () => {
@@ -965,8 +1208,6 @@ export const ReaderRoute: Component = () => {
   };
 
   const performOcr = async (page: PageImage) => {
-    // Capture generation at start — if it changes mid-flight, discard the result
-    const gen = ocrGeneration();
     // Reset server progress at start of each page
     setServerOcrProgress(null);
     setServerOcrMessage('');
@@ -977,7 +1218,6 @@ export const ReaderRoute: Component = () => {
     try {
       await showSettingRequirementWarningsOnce();
 
-      const turbo = settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
       const languageData = currentLangData();
       const automationState = currentOcrAutomationState();
       if (readerOcrShouldClearStatus(automationState)) {
@@ -999,10 +1239,10 @@ export const ReaderRoute: Component = () => {
       let result: OcrResult;
 
       if (settings.ocrProvider === 'cloud') {
-        const prepared = await prepareBlobForOCR(imageBlob, turbo);
+        const prepared = await prepareBlobForOCR(imageBlob);
         // Cloud OCR via HATEOAS job flow
         const language = settings.language;
-        const engine = resolveCloudOcrEngine(languageData, turbo);
+        const engine = resolveCloudOcrEngine(languageData);
         const cloudApiUrl = resolveCloudApiUrl(settings);
         const cloudResult = await withCloudAuth(async (cloudToken) => {
           const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
@@ -1021,20 +1261,21 @@ export const ReaderRoute: Component = () => {
           imageBlob,
           {
             language: settings.language,
-            turbo,
-            ramSaver: settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver,
             devMode: settings.devMode ? true : undefined,
             detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
           },
         ));
       }
 
-      // Only store if generation hasn't changed (turbo mode wasn't toggled mid-flight)
-      if (ocrGeneration() === gen) {
-        setOcrResults(page.id, result);
-        if (result.processing_times) {
-          setLastOcrTiming(result.processing_times);
-        }
+      setOcrResults(page.id, result);
+      setCroppedRegions((prev) => {
+        if (!prev[page.id]) return prev;
+        const next = { ...prev };
+        delete next[page.id];
+        return next;
+      });
+      if (result.processing_times) {
+        setLastOcrTiming(result.processing_times);
       }
       return result;
     } catch (error) {
@@ -1222,6 +1463,7 @@ export const ReaderRoute: Component = () => {
         }));
 
         setOcrResults({});
+        setCroppedRegions({});
         batch(() => {
           setCurrentPage(startPage);
           setPages(newPages);
@@ -1264,6 +1506,7 @@ export const ReaderRoute: Component = () => {
         });
 
         setOcrResults({});
+        setCroppedRegions({});
         batch(() => {
           setCurrentPage(startPage);
           setPages(newPages);
@@ -1323,6 +1566,7 @@ export const ReaderRoute: Component = () => {
       }));
 
       setOcrResults({});
+      setCroppedRegions({});
       batch(() => {
         setCurrentPage(startPage);
         setPages(newPages);
@@ -1370,6 +1614,7 @@ export const ReaderRoute: Component = () => {
         }));
 
         setOcrResults({});
+        setCroppedRegions({});
         batch(() => {
           setCurrentPage(startPage);
           setPages(newPages);
@@ -1673,6 +1918,7 @@ export const ReaderRoute: Component = () => {
 
         // Clear OCR cache when loading new book
         setOcrResults({});
+        setCroppedRegions({});
 
         batch(() => {
           setCurrentPage(startPage);
@@ -1752,6 +1998,7 @@ export const ReaderRoute: Component = () => {
 
     // Clear OCR cache when loading new book
     setOcrResults({});
+    setCroppedRegions({});
 
     // Use batch to ensure currentPage and pages update atomically
     // This prevents the createEffect from running with stale currentPage
@@ -2198,6 +2445,47 @@ export const ReaderRoute: Component = () => {
                               shape={"circle"}
                           />
                         </div>
+                        <Show when={imageRefs()[page.id]}>
+                          {(image) => (
+                            <div
+                              class="reader-crop-regions"
+                              style={{
+                                left: `${image().offsetLeft}px`,
+                                top: `${image().offsetTop}px`,
+                                width: `${image().clientWidth}px`,
+                                height: `${image().clientHeight}px`,
+                              }}
+                            >
+                              <For each={croppedRegions()[page.id] ?? []}>
+                                {(region) => (
+                                  <div class="reader-crop-region" style={getCropRegionStyle(image(), region)} />
+                                )}
+                              </For>
+                            </div>
+                          )}
+                        </Show>
+                        <Show when={cropMode() && cropAddMode() && imageRefs()[page.id]}>
+                          {(image) => (
+                            <div
+                              class="reader-crop-layer"
+                              classList={{ processing: cropProcessingPageId() === page.id }}
+                              style={{
+                                left: `${image().offsetLeft}px`,
+                                top: `${image().offsetTop}px`,
+                                width: `${image().clientWidth}px`,
+                                height: `${image().clientHeight}px`,
+                              }}
+                              onPointerDown={(event) => handleCropPointerDown(page, event)}
+                              onPointerMove={(event) => handleCropPointerMove(page, event)}
+                              onPointerUp={(event) => handleCropPointerUp(page, event)}
+                              onPointerCancel={() => setCropSelection(null)}
+                            >
+                              <Show when={cropSelection()?.pageId === page.id}>
+                                <div class="reader-crop-selection" style={getCropSelectionStyle(page.id)} />
+                              </Show>
+                            </div>
+                          )}
+                        </Show>
                         {/* OCR Overlay for each visible page */}
                         <Show when={imageRefs()[page.id] && ocrResults[page.id]}>
                           <OcrOverlay
@@ -2250,6 +2538,10 @@ export const ReaderRoute: Component = () => {
             hasPages={hasPages}
             onRunOcr={runOcr}
             onOpenConversationAgent={openConversationAgent}
+            cropMode={cropMode}
+            onToggleCropMode={toggleCropMode}
+            cropAddMode={cropAddMode}
+            onToggleCropAddMode={toggleCropAddMode}
             debugOcr={ocrDebugOverlay}
             onToggleDebugOcr={toggleOcrDebugOverlay}
             lastOcrTiming={lastOcrTiming}

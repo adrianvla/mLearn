@@ -60,3 +60,26 @@
 .reader-status .ocr-detection-scale-slider {
   width: 80px;
 }
+
+.reader-status .crop-mode-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.reader-status .crop-mode-action-toggle {
+  width: 24px;
+  min-width: 24px;
+  height: 20px;
+  min-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 0;
+}
+
+.reader-status .crop-mode-action-toggle svg {
+  display: block;
+  flex: 0 0 auto;
+}

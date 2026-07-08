@@ -4,8 +4,7 @@ import {
   prepareBlobForOCR,
   assertOcrLanguageDataReady,
   getOcrLanguageDataReadinessError,
-  MAX_OCR_AREA_TURBO,
-  MAX_OCR_AREA_ACCURATE,
+  MAX_OCR_AREA,
 } from './useOCR';
 
 const mockFetch = vi.fn();
@@ -62,7 +61,6 @@ vi.mock('../context', () => ({
 
 let mockSettings: Record<string, unknown> = {
   ocrProvider: 'local',
-  ocrTurboMode: true,
   language: 'ja',
   cloudAuthAccessToken: '',
   cloudAuthToken: '',
@@ -142,16 +140,8 @@ function setupBackendOCRError(status: number, errorText: string) {
 }
 
 describe('OCR constants', () => {
-  it('MAX_OCR_AREA_TURBO is 1.6M pixels', () => {
-    expect(MAX_OCR_AREA_TURBO).toBe(1000 * 1600);
-  });
-
-  it('MAX_OCR_AREA_ACCURATE is 3.84M pixels', () => {
-    expect(MAX_OCR_AREA_ACCURATE).toBe(1600 * 2400);
-  });
-
-  it('turbo area is smaller than accurate area', () => {
-    expect(MAX_OCR_AREA_TURBO).toBeLessThan(MAX_OCR_AREA_ACCURATE);
+  it('MAX_OCR_AREA is 3.84M pixels', () => {
+    expect(MAX_OCR_AREA).toBe(1600 * 2400);
   });
 });
 
@@ -204,7 +194,7 @@ describe('prepareBlobForOCR', () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
 
-    const result = await prepareBlobForOCR(blob, true);
+    const result = await prepareBlobForOCR(blob);
 
     expect(result.blob).toBe(blob);
     expect(result.clientScale).toBe(1);
@@ -219,7 +209,7 @@ describe('prepareBlobForOCR', () => {
     setupImageBitmapMock(200, 200);
     const outBlob = setupTranscodeOutput();
 
-    const result = await prepareBlobForOCR(jpegBlob, true);
+    const result = await prepareBlobForOCR(jpegBlob);
 
     expect(result.blob).toBe(outBlob);
     expect(result.blob).not.toBe(jpegBlob);
@@ -228,40 +218,24 @@ describe('prepareBlobForOCR', () => {
     expect(result.originalH).toBe(200);
   });
 
-  it('downscales large PNG in turbo mode', async () => {
-    const blob = makePngBlob();
-    setupImageBitmapMock(2000, 2000);
-    const outBlob = setupTranscodeOutput();
-
-    const result = await prepareBlobForOCR(blob, true);
-
-    expect(result.blob).toBe(outBlob);
-    expect(result.sentW).toBeLessThan(2000);
-    expect(result.sentH).toBeLessThan(2000);
-    expect(result.sentW * result.sentH).toBeLessThanOrEqual(MAX_OCR_AREA_TURBO + 1);
-    expect(result.originalW).toBe(2000);
-    expect(result.originalH).toBe(2000);
-    expect(result.clientScale).toBeLessThan(1);
-  });
-
-  it('downscales large PNG in accurate mode with higher threshold', async () => {
+  it('downscales large PNG above the OCR area threshold', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(2500, 2500);
     const outBlob = setupTranscodeOutput();
 
-    const result = await prepareBlobForOCR(blob, false);
+    const result = await prepareBlobForOCR(blob);
 
     expect(result.blob).toBe(outBlob);
     expect(result.sentW).toBeLessThan(2500);
     expect(result.sentH).toBeLessThan(2500);
-    expect(result.sentW * result.sentH).toBeLessThanOrEqual(MAX_OCR_AREA_ACCURATE + 1);
+    expect(result.sentW * result.sentH).toBeLessThanOrEqual(MAX_OCR_AREA + 1);
   });
 
-  it('does not downscale image under accurate threshold when turbo=false', async () => {
+  it('does not downscale image under the OCR area threshold', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(1800, 1800);
 
-    const result = await prepareBlobForOCR(blob, false);
+    const result = await prepareBlobForOCR(blob);
 
     expect(result.blob).toBe(blob);
     expect(result.sentW).toBe(1800);
@@ -274,9 +248,9 @@ describe('prepareBlobForOCR', () => {
     setupImageBitmapMock(4000, 1000);
     setupTranscodeOutput();
 
-    const result = await prepareBlobForOCR(blob, true);
+    const result = await prepareBlobForOCR(blob);
 
-    const expectedScale = Math.sqrt(MAX_OCR_AREA_TURBO / (4000 * 1000));
+    const expectedScale = Math.sqrt(MAX_OCR_AREA / (4000 * 1000));
     const expectedTargetW = Math.floor(4000 * expectedScale);
     expect(result.clientScale).toBeCloseTo(expectedTargetW / 4000, 5);
   });
@@ -286,7 +260,7 @@ describe('prepareBlobForOCR', () => {
     setupImageBitmapMock(3000, 1000);
     setupTranscodeOutput();
 
-    const result = await prepareBlobForOCR(blob, true);
+    const result = await prepareBlobForOCR(blob);
 
     const originalRatio = 3000 / 1000;
     const sentRatio = result.sentW / result.sentH;
@@ -307,32 +281,12 @@ describe('sendImageForOCR', () => {
     setupImageBitmapMock(100, 100);
     setupBackendOCRResponse({ text: 'hello' });
 
-    await sendImageForOCR(blob, { turbo: true });
+    await sendImageForOCR(blob);
 
     expect(mockBackend.ocr).toHaveBeenCalledTimes(1);
     const [image, options] = mockBackend.ocr.mock.calls[0];
     expect(image).toBeInstanceOf(Blob);
-    expect(options).toMatchObject({ turbo: true });
-  });
-
-  it('passes turbo=true to the backend adapter', async () => {
-    const blob = makePngBlob();
-    setupImageBitmapMock(100, 100);
-    setupBackendOCRResponse({ text: 'hello' });
-
-    await sendImageForOCR(blob, { turbo: true });
-
-    expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({ turbo: true });
-  });
-
-  it('passes turbo=false to the backend adapter', async () => {
-    const blob = makePngBlob();
-    setupImageBitmapMock(100, 100);
-    setupBackendOCRResponse({ text: 'hello' });
-
-    await sendImageForOCR(blob, { turbo: false });
-
-    expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({ turbo: false });
+    expect(options).toMatchObject({ language: undefined, devMode: undefined });
   });
 
   it('passes the learning language through to the backend adapter', async () => {
@@ -342,50 +296,41 @@ describe('sendImageForOCR', () => {
 
     await sendImageForOCR(blob, {
       language: 'ja',
-      turbo: true,
     });
 
     expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({
       language: 'ja',
-      turbo: true,
     });
   });
 
-  it('passes ram saver and dev options to the backend adapter', async () => {
+  it('passes dev detection scale options to the backend adapter', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
     setupBackendOCRResponse({ text: 'hello' });
 
     await sendImageForOCR(blob, {
-      turbo: false,
-      ramSaver: true,
       devMode: true,
       detectionScale: 50,
     });
 
     expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({
-      turbo: false,
-      ramSaver: true,
       devMode: true,
       detectionMaxWidth: 50,
       detectionMaxHeight: 50,
     });
   });
 
-  it('does not apply dev Paddle downscale dimensions in turbo mode', async () => {
+  it('does not apply dev detection scale when dev mode is off', async () => {
     const blob = makePngBlob();
     setupImageBitmapMock(100, 100);
     setupBackendOCRResponse({ text: 'hello' });
 
     await sendImageForOCR(blob, {
-      turbo: true,
-      devMode: true,
       detectionScale: 50,
     });
 
     expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({
-      turbo: true,
-      devMode: true,
+      devMode: undefined,
     });
     expect(mockBackend.ocr.mock.calls[0][1]).not.toHaveProperty('detectionMaxWidth');
     expect(mockBackend.ocr.mock.calls[0][1]).not.toHaveProperty('detectionMaxHeight');
@@ -421,7 +366,7 @@ describe('sendImageForOCR', () => {
     setupTranscodeOutput();
     setupBackendOCRResponse({ text: 'scaled' });
 
-    const result = await sendImageForOCR(blob, { turbo: true });
+    const result = await sendImageForOCR(blob);
 
     expect(result.client_scale).toBeLessThan(1);
     expect(result.downscale_factor).toBeGreaterThan(1);
@@ -471,7 +416,6 @@ describe('useOCR', () => {
     mockBackend.ocr.mockReset();
     mockSettings = {
       ocrProvider: 'local',
-      ocrTurboMode: true,
       language: 'ja',
       cloudAuthAccessToken: '',
       cloudAuthToken: '',
@@ -504,7 +448,7 @@ describe('useOCR', () => {
       expect(ocr.error()).toBeNull();
       expect(mockBackend.ocr).toHaveBeenCalledWith(
         expect.any(Blob),
-        expect.objectContaining({ language: 'ja', turbo: true }),
+        expect.objectContaining({ language: 'ja' }),
       );
       dispose();
     });
@@ -768,7 +712,6 @@ describe('useOCR', () => {
   it('cloud OCR uses CloudOCRAdapter when ocrProvider is cloud', async () => {
     mockSettings = {
       ocrProvider: 'cloud',
-      ocrTurboMode: true,
       language: 'ja',
       cloudAuthAccessToken: 'my-token',
       cloudAuthToken: '',
@@ -793,7 +736,6 @@ describe('useOCR', () => {
   it('cloud OCR requests MangaOCR when language runtime uses MangaOCR recognition', async () => {
     mockSettings = {
       ocrProvider: 'cloud',
-      ocrTurboMode: true,
       language: 'ja',
       cloudAuthAccessToken: 'my-token',
       cloudAuthToken: '',
@@ -826,7 +768,6 @@ describe('useOCR', () => {
   it('cloud OCR refuses stale language data without OCR runtime metadata', async () => {
     mockSettings = {
       ocrProvider: 'cloud',
-      ocrTurboMode: true,
       language: 'ja',
       cloudAuthAccessToken: 'my-token',
       cloudAuthToken: '',
@@ -856,7 +797,6 @@ describe('useOCR', () => {
     mockIsConnected = vi.fn(() => false);
     mockSettings = {
       ocrProvider: 'cloud',
-      ocrTurboMode: true,
       language: 'ja',
       cloudAuthAccessToken: 'token',
       cloudAuthToken: '',
@@ -879,7 +819,6 @@ describe('useOCR', () => {
   it('cloud OCR does not go through low power gate', async () => {
     mockSettings = {
       ocrProvider: 'cloud',
-      ocrTurboMode: true,
       language: 'ja',
       cloudAuthAccessToken: 'token',
       cloudAuthToken: '',
@@ -901,7 +840,6 @@ describe('useOCR', () => {
   it('cloud OCR sets error when no auth token', async () => {
     mockSettings = {
       ocrProvider: 'cloud',
-      ocrTurboMode: true,
       language: 'ja',
       cloudAuthAccessToken: '',
       cloudAuthToken: '',
@@ -954,25 +892,4 @@ describe('useOCR', () => {
     });
   });
 
-  it('uses ocrTurboMode setting for turbo parameter', async () => {
-    mockSettings = {
-      ocrProvider: 'local',
-      ocrTurboMode: false,
-      language: 'ja',
-      cloudAuthAccessToken: '',
-      cloudAuthToken: '',
-    };
-
-    const blob = makePngBlob();
-    setupImageBitmapMock(1800, 1800);
-    setupBackendOCRResponse({ text: 'accurate mode' });
-
-    await createRoot(async (dispose) => {
-      const ocr = useOCR();
-      await ocr.recognize(blob);
-
-      expect(mockBackend.ocr.mock.calls[0][1]).toMatchObject({ turbo: false });
-      dispose();
-    });
-  });
 });
