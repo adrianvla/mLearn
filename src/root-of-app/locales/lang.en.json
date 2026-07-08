@@ -1269,8 +1269,10 @@
         "CleaningUp": "Cleaning Up…",
         "FailedToLoad": "Failed to load",
         "FailedToLoadPdf": "Failed to load PDF",
+        "EpubDocument": "EPUB Document",
         "ImportedBook": "Imported Book",
         "Loading": "Loading...",
+        "LoadingBook": "Loading book...",
         "LoadingNeuralNetwork": "Loading Neural Network...",
         "LoadingPdf": "Loading PDF...",
         "NoImagesFound": "No images found",
@@ -1309,6 +1311,9 @@
         "CropModeAddTitle": "Crop add mode: drag a box to recognize text",
         "CropModeCursorTitle": "Cursor mode: hover recognized text",
         "CropModeTitle": "Drag a box over text to recognize only that crop",
+        "DocumentOcrOff": "PDF OCR: Off",
+        "DocumentOcrOn": "PDF OCR: On",
+        "DocumentOcrTitle": "Toggle PDF OCR rendering. Off uses embedded PDF text when available.",
         "ZoneDeltaLabel": "Zone Delta: {value}px",
         "ZoneDeltaTitle": "Max pixel distance between box edges for zone clustering"
       },
@@ -1346,9 +1351,9 @@
           "DropZone": "Drop files here to import them instantly",
           "Footer": "Drop something in to begin — this welcome screen will make room for your story.",
           "OpenFolder": "Open Image Folder",
-          "OpenPdf": "Open PDF",
+          "OpenPdf": "Open PDF/EPUB",
           "Title": "Settle in, Reader",
-          "TitleDescription": "Drag and drop a folder of images or a .pdf file anywhere in this window."
+          "TitleDescription": "Drag and drop an image folder, PDF, or EPUB anywhere in this window."
         }
       }
     },
@@ -1678,6 +1683,10 @@
           "CropMode": {
             "Description": "Only recognize text from manually selected crop regions to reduce memory use on budget computers",
             "Label": "Crop Mode"
+          },
+          "DocumentOcr": {
+            "Description": "Render PDFs as images and run OCR instead of using embedded text",
+            "Label": "PDF OCR"
           },
           "Enable": {
             "Description": "Enable optical character recognition for images",

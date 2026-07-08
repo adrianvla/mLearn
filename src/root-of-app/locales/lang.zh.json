@@ -1269,8 +1269,10 @@
         "CleaningUp": "正在清理…",
         "FailedToLoad": "加载失败",
         "FailedToLoadPdf": "PDF 加载失败",
+        "EpubDocument": "EPUB 文档",
         "ImportedBook": "已导入书籍",
         "Loading": "加载中…",
+        "LoadingBook": "正在加载书籍…",
         "LoadingNeuralNetwork": "正在加载神经网络…",
         "LoadingPdf": "正在加载 PDF…",
         "NoImagesFound": "未找到图片",
@@ -1309,6 +1311,9 @@
         "CropModeAddTitle": "添加裁剪模式：拖出文本框进行识别",
         "CropModeCursorTitle": "光标模式：悬停已识别文本",
         "CropModeTitle": "拖出文本框，只识别该裁剪区域",
+        "DocumentOcrOff": "PDF OCR：关闭",
+        "DocumentOcrOn": "PDF OCR：开启",
+        "DocumentOcrTitle": "切换 PDF OCR 渲染。关闭时会优先使用可用的 PDF 内嵌文本。",
         "ZoneDeltaLabel": "区域差值：{value}px",
         "ZoneDeltaTitle": "用于区域聚类的框边距最大像素距离"
       },
@@ -1346,9 +1351,9 @@
           "DropZone": "将文件拖放到此处以快速导入",
           "Footer": "放入文件开始 — 此欢迎页面将为您的故事让路。",
           "OpenFolder": "打开图片文件夹",
-          "OpenPdf": "打开 PDF",
+          "OpenPdf": "打开 PDF/EPUB",
           "Title": "欢迎来到阅读器",
-          "TitleDescription": "拖放图片文件夹或 .pdf 文件到窗口中的任意位置。"
+          "TitleDescription": "拖放图片文件夹、PDF 或 EPUB 到窗口中的任意位置。"
         }
       }
     },
@@ -1678,6 +1683,10 @@
           "CropMode": {
             "Description": "只识别手动选择的裁剪区域，以降低低配置电脑的内存占用",
             "Label": "裁剪模式"
+          },
+          "DocumentOcr": {
+            "Description": "将 PDF 渲染为图片并运行 OCR，而不是使用内嵌文本",
+            "Label": "PDF OCR"
           },
           "Enable": {
             "Description": "启用图片的光学字符识别",

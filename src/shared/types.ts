@@ -336,6 +336,8 @@ export interface Settings {
   ocrProvider?: OCRProvider;
   /** Reader low-memory mode: OCR only user-selected crop regions instead of full pages */
   readerCropMode?: boolean;
+  /** For PDFs, render pages to images and OCR instead of using embedded text */
+  readerDocumentOcr?: boolean;
 
   // Reader word hover settings
   /** How word hover is triggered: 'hover', 'long-hover', 'key-hover' */
@@ -560,6 +562,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ocrReadingAnnotationNeighborLookahead: 3,
   ocrProvider: 'local',
   readerCropMode: false,
+  readerDocumentOcr: false,
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'shift',
   readerReadingAnnotationHider: false,

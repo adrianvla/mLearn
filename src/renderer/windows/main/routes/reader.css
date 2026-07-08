@@ -115,6 +115,36 @@
   box-shadow: var(--shadow-lg);
 }
 
+.reader-text-page {
+  width: min(72ch, calc(100vw - 4rem));
+  max-height: calc(100vh - 48px - 30px - 2rem);
+  overflow: auto;
+  padding: var(--spacing-8);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-lg);
+  line-height: 1.75;
+  user-select: text;
+}
+
+.reader-text-page h2 {
+  margin: 0 0 var(--spacing-5);
+  color: var(--color-text-primary);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.reader-text-page-tokens,
+.reader-text-page-plain {
+  white-space: pre-wrap;
+  font-size: 1.05rem;
+}
+
+.reader-text-page .ocr-word {
+  position: relative;
+}
+
 .fit-height .page-image {
   max-height: calc(100vh - 48px - 30px - 2rem);
   width: auto;
@@ -125,6 +155,10 @@
   max-width: none !important;
   height: auto;
   max-height: none !important;
+}
+
+.fit-width .reader-text-page {
+  width: min(92ch, calc(100vw - 4rem));
 }
 
 /* OCR Loading Overlay */
@@ -325,6 +359,16 @@
   max-width: none !important;
   height: auto;
   max-height: none !important;
+}
+
+.mobile-layout .reader-text-page {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  min-height: 100%;
+  padding: var(--spacing-4);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Force single-page on mobile — double-page is unreadable on small screens */

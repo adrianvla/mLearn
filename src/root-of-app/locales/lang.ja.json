@@ -1269,8 +1269,10 @@
         "CleaningUp": "クリーンアップ中…",
         "FailedToLoad": "読み込みに失敗",
         "FailedToLoadPdf": "PDFの読み込みに失敗",
+        "EpubDocument": "EPUBドキュメント",
         "ImportedBook": "インポートされた本",
         "Loading": "読み込み中...",
+        "LoadingBook": "本を読み込み中...",
         "LoadingNeuralNetwork": "ニューラルネットワークを読み込み中...",
         "LoadingPdf": "PDFを読み込み中...",
         "NoImagesFound": "画像が見つかりません",
@@ -1309,6 +1311,9 @@
         "CropModeAddTitle": "クロップ追加モード: 枠をドラッグしてテキストを認識",
         "CropModeCursorTitle": "カーソルモード: 認識済みテキストにホバー",
         "CropModeTitle": "テキスト上をドラッグして、その範囲だけを認識します",
+        "DocumentOcrOff": "PDF OCR: オフ",
+        "DocumentOcrOn": "PDF OCR: オン",
+        "DocumentOcrTitle": "PDFのOCRレンダリングを切り替えます。オフでは利用可能な埋め込みPDFテキストを使います。",
         "ZoneDeltaLabel": "ゾーンデルタ: {value}px",
         "ZoneDeltaTitle": "ゾーンクラスタリングのボックス端間の最大ピクセル距離"
       },
@@ -1346,9 +1351,9 @@
           "DropZone": "ファイルをここにドロップしてインポート",
           "Footer": "何かをドロップして始めましょう — このウェルカム画面はあなたの物語のために場所を空けます。",
           "OpenFolder": "画像フォルダを開く",
-          "OpenPdf": "PDFを開く",
+          "OpenPdf": "PDF/EPUBを開く",
           "Title": "リーダーへようこそ",
-          "TitleDescription": "画像フォルダまたは.pdfファイルをこのウィンドウにドラッグ＆ドロップしてください。"
+          "TitleDescription": "画像フォルダ、PDF、EPUBをこのウィンドウにドラッグ＆ドロップしてください。"
         }
       }
     },
@@ -1663,6 +1668,10 @@
           "CropMode": {
             "Description": "低スペックのコンピューターでメモリ使用量を抑えるため、手動で選択したクロップ範囲だけを認識します",
             "Label": "クロップモード"
+          },
+          "DocumentOcr": {
+            "Description": "埋め込みテキストの代わりにPDFを画像としてレンダリングし、OCRを実行します",
+            "Label": "PDF OCR"
           },
           "Enable": {
             "Description": "画像の光学文字認識を有効にする",

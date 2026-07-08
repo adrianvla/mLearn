@@ -7,7 +7,7 @@ import { withCloudAuth } from '../../../services/cloudSessionManager';
 import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, createMemo, batch, on } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
-import { OcrOverlay, MagnifyingGlass, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
+import { OcrOverlay, MagnifyingGlass, OcrWord, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
@@ -24,7 +24,8 @@ import { readerReadingAnnotationHiderEnabled } from '../../../../shared/readingA
 import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard, ReaderStatusBar, type ReaderUnknownWordEntry } from './components';
 import { ProgressRing } from '../../../components/common';
-import { isPdfFile, pdfToImages } from '../../../services/pdfService';
+import { isPdfFile, pdfToImages, pdfToTextPages } from '../../../services/pdfService';
+import { epubToTextPages, isEpubFile } from '../../../services/epubService';
 import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
 import { captureReaderImageForFlashcard } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
@@ -37,6 +38,7 @@ import {
   getReaderPageModeForLanguage,
   getReaderSpreadDirectionForLanguage,
   resolveCloudOcrEngine,
+  getTokenJoinSeparator,
 } from '../../../../shared/languageFeatures';
 import { getWordStatus } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -67,10 +69,13 @@ const log = getLogger("renderer.reader");
 
 interface PageImage {
   id: string;
-  src: string;
+  kind: 'image' | 'text';
+  src?: string;
   name: string;
   index: number;
   blob?: Blob;
+  text?: string;
+  title?: string;
 }
 
 type FitMode = 'fit-height' | 'fit-width';
@@ -105,6 +110,14 @@ interface ReaderCompatibleOcrResult {
   downscale_factor?: number;
   original_size?: { width: number; height: number };
   sent_size?: { width: number; height: number };
+}
+
+interface ReaderTextPageProps {
+  page: PageImage;
+  tokenize: (text: string) => Promise<Token[]>;
+  tokenJoinSeparator: string;
+  onWordHover: (token: Token, rect: DOMRect, contextPhrase: string) => void;
+  onWordLeave: () => void;
 }
 
 interface CropSelection {
@@ -161,6 +174,71 @@ function normalizeReaderOcrResult(result: ReaderCompatibleOcrResult): OcrResult 
   };
 }
 
+const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
+  const [tokens, setTokens] = createSignal<Token[]>([]);
+  const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
+  const text = () => props.page.text ?? '';
+
+  createEffect(() => {
+    const pageText = text();
+    if (!pageText.trim()) {
+      setTokens([]);
+      return;
+    }
+
+    let cancelled = false;
+    props.tokenize(pageText)
+      .then((nextTokens) => {
+        if (!cancelled) {
+          setTokens(nextTokens);
+          setTokenizeFailed(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTokens([]);
+          setTokenizeFailed(true);
+        }
+      });
+
+    onCleanup(() => {
+      cancelled = true;
+    });
+  });
+
+  return (
+    <article class="reader-text-page">
+      <Show when={props.page.title}>
+        <h2>{props.page.title}</h2>
+      </Show>
+      <Show
+        when={!tokenizeFailed() && tokens().length > 0}
+        fallback={<div class="reader-text-page-plain">{text()}</div>}
+      >
+        <div class="reader-text-page-tokens">
+          <For each={tokens()}>
+            {(token, index) => (
+              <>
+                <OcrWord
+                  token={token}
+                  onWordEnter={(hoverToken, event) => {
+                    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+                    props.onWordHover(hoverToken, rect, text());
+                  }}
+                  onWordLeave={props.onWordLeave}
+                />
+                <Show when={props.tokenJoinSeparator && index() < tokens().length - 1}>
+                  {props.tokenJoinSeparator}
+                </Show>
+              </>
+            )}
+          </For>
+        </div>
+      </Show>
+    </article>
+  );
+};
+
 // OCR results cache by page id
 const [ocrResults, setOcrResults] = createStore<Record<string, OcrResult>>({});
 
@@ -178,6 +256,31 @@ let lastOcrReadinessWarning = '';
 const STORAGE_KEY_PREFIX = 'reader:last-page:';
 const ACTIVE_BOOK_STORAGE_KEY = 'reader:active-book-path';
 const makeStorageKey = (bookId: string) => `${STORAGE_KEY_PREFIX}${bookId}`;
+
+const imagePagesFromPdfImages = (images: Array<{ name: string; url: string; blob: Blob }>): PageImage[] => (
+  images.map((img, index) => ({
+    id: `page-${index}-${img.name}`,
+    kind: 'image',
+    src: img.url,
+    name: img.name,
+    index,
+    blob: img.blob,
+  }))
+);
+
+const textPagesFromExtractedText = (
+  pages: Array<{ name: string; title: string; text: string }>,
+  fallbackTitle: string,
+): PageImage[] => (
+  pages.map((page, index) => ({
+    id: `text-page-${index}-${page.name}`,
+    kind: 'text',
+    name: page.name || `${fallbackTitle}-${index + 1}`,
+    title: page.title || fallbackTitle,
+    text: page.text,
+    index,
+  }))
+);
 
 const loadSavedPageIndex = async (bookId: string | null): Promise<number | null> => {
   if (!bookId) return null;
@@ -290,6 +393,8 @@ export const ReaderRoute: Component = () => {
   // Track the filesystem path of the current book (PDF file or directory)
   // Used for persisting to recent items so users can click to re-open
   const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
+  const [currentBookFormat, setCurrentBookFormat] = createSignal<'images' | 'pdf' | 'epub' | null>(null);
+  const [currentBookFile, setCurrentBookFile] = createSignal<File | null>(null);
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
   const pageMode = () => getReaderPageModeForLanguage(settings, currentLangData());
   const readerSpreadDirection = () => getReaderSpreadDirectionForLanguage(settings, currentLangData());
@@ -366,6 +471,8 @@ export const ReaderRoute: Component = () => {
   const [ocrDebugOverlay, setOcrDebugOverlay] = createSignal(false);
   const toggleOcrDebugOverlay = () => setOcrDebugOverlay(!ocrDebugOverlay());
   const cropMode = () => settings.readerCropMode ?? DEFAULT_SETTINGS.readerCropMode ?? false;
+  const documentOcr = () => settings.readerDocumentOcr ?? DEFAULT_SETTINGS.readerDocumentOcr ?? false;
+  const showDocumentOcrToggle = () => currentBookFormat() === 'pdf';
   const [cropAddMode, setCropAddMode] = createSignal(false);
   const [cropSelection, setCropSelection] = createSignal<CropSelection | null>(null);
   const [croppedRegions, setCroppedRegions] = createSignal<Record<string, CropRegion[]>>({});
@@ -383,6 +490,20 @@ export const ReaderRoute: Component = () => {
   const toggleCropAddMode = () => {
     setCropSelection(null);
     setCropAddMode((enabled) => !enabled);
+  };
+
+  const toggleDocumentOcr = () => {
+    const next = !documentOcr();
+    updateSettings({ readerDocumentOcr: next });
+    const bookPath = currentBookPath();
+    if (currentBookFormat() === 'pdf' && bookPath) {
+      void loadBookFromPath(bookPath, next);
+      return;
+    }
+    const file = currentBookFile();
+    if (currentBookFormat() === 'pdf' && file) {
+      void loadPdfFileIntoReader(file, '', next);
+    }
   };
 
   createEffect(() => {
@@ -1095,7 +1216,7 @@ export const ReaderRoute: Component = () => {
     for (const idx of visibleIndices) {
       const page = allPages[idx];
       // Skip if already cached, or currently being processed
-      if (page && !ocrResults[page.id] && page.id !== currentlyProcessingId) {
+      if (page && page.kind === 'image' && !ocrResults[page.id] && page.id !== currentlyProcessingId) {
         tasks.push({ page, isCaching: false });
       }
     }
@@ -1104,7 +1225,7 @@ export const ReaderRoute: Component = () => {
     for (const idx of cacheIndices) {
       const page = allPages[idx];
       // Skip if already cached, or currently being processed
-      if (page && !ocrResults[page.id] && page.id !== currentlyProcessingId) {
+      if (page && page.kind === 'image' && !ocrResults[page.id] && page.id !== currentlyProcessingId) {
         tasks.push({ page, isCaching: true });
       }
     }
@@ -1208,6 +1329,7 @@ export const ReaderRoute: Component = () => {
   };
 
   const performOcr = async (page: PageImage) => {
+    if (page.kind !== 'image') return null;
     // Reset server progress at start of each page
     setServerOcrProgress(null);
     setServerOcrMessage('');
@@ -1233,7 +1355,13 @@ export const ReaderRoute: Component = () => {
         return null;
       }
 
-      const imageBlob = page.blob ?? await (await fetch(page.src)).blob();
+      let imageBlob = page.blob;
+      if (!imageBlob) {
+        if (!page.src) {
+          throw new Error(`Image page "${page.name}" has no OCR source`);
+        }
+        imageBlob = await (await fetch(page.src)).blob();
+      }
       assertOcrLanguageDataReady(settings.language, languageData);
 
       let result: OcrResult;
@@ -1378,7 +1506,7 @@ export const ReaderRoute: Component = () => {
     }
 
     // No tasks - check if all visible pages are done
-    const allVisibleDone = visible.every(p => ocrResults[p.id]);
+    const allVisibleDone = visible.every(p => p.kind === 'text' || ocrResults[p.id]);
     if (allVisibleDone) {
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
     } else {
@@ -1422,58 +1550,117 @@ export const ReaderRoute: Component = () => {
     setOcrQueue(prev => {
       const visibleIds = visible.map(v => v.id);
       const others = prev.filter(p => !visibleIds.includes(p.page.id));
-      const visibleTasks: OcrTask[] = visible.map(p => ({ page: p, isCaching: false }));
+      const visibleTasks: OcrTask[] = visible.filter(p => p.kind === 'image').map(p => ({ page: p, isCaching: false }));
       return [...visibleTasks, ...others];
     });
     processQueue();
   };
 
+  const commitLoadedPages = (
+    newPages: PageImage[],
+    options: {
+      bookId: string;
+      title: string;
+      path: string;
+      format: 'images' | 'pdf' | 'epub';
+      startPage: number;
+      coverBlob?: Blob;
+      file?: File | null;
+    },
+  ) => {
+    setOcrResults({});
+    setCroppedRegions({});
+    const imagePageCount = newPages.filter((page) => page.kind === 'image').length;
+    batch(() => {
+      setCurrentPage(options.startPage);
+      setPages(newPages);
+      setOcrBatchTotal(imagePageCount);
+      setOcrCompletedIds(new Set<string>());
+      setBookTitle(options.title);
+      setCurrentBookId(options.bookId);
+      setCurrentBookPath(options.path);
+      setCurrentBookFormat(options.format);
+      setCurrentBookFile(options.file ?? null);
+    });
+  };
+
+  const loadPdfFileIntoReader = async (file: File, path: string = '', documentOcrOverride?: boolean) => {
+    setOcrStatus(t('mlearn.Reader.Status.LoadingPdf'));
+    const bookId = parseCurrentWorkName(file.name);
+    const useOcr = documentOcrOverride ?? settings.readerDocumentOcr ?? DEFAULT_SETTINGS.readerDocumentOcr ?? false;
+    const title = bookId || t('mlearn.Reader.Status.PdfDocument');
+    const savedPageIndex = await loadSavedPageIndex(bookId);
+    let newPages: PageImage[];
+    let coverBlob: Blob | undefined;
+
+    if (useOcr) {
+      const pdfImages = await pdfToImages(file);
+      newPages = imagePagesFromPdfImages(pdfImages);
+      coverBlob = newPages[0]?.blob;
+    } else {
+      const textPages = await pdfToTextPages(file);
+      if (textPages.length === 0) {
+        const pdfImages = await pdfToImages(file);
+        newPages = imagePagesFromPdfImages(pdfImages);
+        coverBlob = newPages[0]?.blob;
+      } else {
+        newPages = textPagesFromExtractedText(textPages, title);
+      }
+    }
+
+    const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < newPages.length
+      ? savedPageIndex
+      : 0;
+    commitLoadedPages(newPages, { bookId, title, path, format: 'pdf', startPage, coverBlob, file });
+    if (path) {
+      void persistActiveBookPath(path);
+    }
+    saveToRecent(title, 'book', startPage, path, coverBlob);
+    setOcrStatus(t('mlearn.Reader.Status.Ready'));
+  };
+
+  const loadEpubFileIntoReader = async (file: File, path: string = '') => {
+    setOcrStatus(t('mlearn.Reader.Status.LoadingBook'));
+    const bookId = parseCurrentWorkName(file.name);
+    const title = bookId || t('mlearn.Reader.Status.EpubDocument');
+    const textPages = await epubToTextPages(file);
+    if (textPages.length === 0) {
+      throw new Error('EPUB contains no readable text');
+    }
+    const newPages = textPagesFromExtractedText(textPages, title);
+    const savedPageIndex = await loadSavedPageIndex(bookId);
+    const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < newPages.length
+      ? savedPageIndex
+      : 0;
+    commitLoadedPages(newPages, { bookId, title, path, format: 'epub', startPage, file });
+    if (path) {
+      void persistActiveBookPath(path);
+    }
+    saveToRecent(title, 'book', startPage, path);
+    setOcrStatus(t('mlearn.Reader.Status.Ready'));
+  };
+
   // Load book from filesystem path (for recent items)
-  const loadBookFromPath = async (bookPath: string) => {
+  const loadBookFromPath = async (bookPath: string, documentOcrOverride?: boolean) => {
     setOcrStatus(t('mlearn.Reader.Status.Loading'));
 
     try {
-      // Check if it's a PDF file or a directory
+      // Check if it's a document file or a directory
       const isPdf = /\.pdf$/i.test(bookPath);
+      const isEpub = /\.epub$/i.test(bookPath);
 
       if (isPdf) {
-        // Load PDF file
         const result = await getBridge().files.readPdfFile(bookPath);
         const blob = new Blob([result.data], { type: 'application/pdf' });
         const fileName = bookPath.split('/').pop() || 'document.pdf';
         const file = new File([blob], fileName, { type: 'application/pdf' });
-
-        const pdfImages = await pdfToImages(file);
-        // For PDF: use filename only (stripped)
-        const bookId = parseCurrentWorkName(fileName);
-        setCurrentBookId(bookId);
-        // Store the path for recent items persistence
-        setCurrentBookPath(bookPath);
-
-        const savedPageIndex = await loadSavedPageIndex(bookId);
-        const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length
-            ? savedPageIndex : 0;
-
-        const newPages: PageImage[] = pdfImages.map((img, index) => ({
-          id: `page-${index}-${img.name}`,
-          src: img.url,
-          name: img.name,
-          index,
-          blob: img.blob,
-        }));
-
-        setOcrResults({});
-        setCroppedRegions({});
-        batch(() => {
-          setCurrentPage(startPage);
-          setPages(newPages);
-          setOcrBatchTotal(newPages.length);
-          setOcrCompletedIds(new Set<string>());
-          setBookTitle(bookId || t('mlearn.Reader.Status.PdfDocument'));
-        });
-
-        // Save to recent with the correct path
-        saveToRecent(bookId || t('mlearn.Reader.Status.PdfDocument'), 'book', startPage, bookPath, newPages[0]?.blob);
+        await loadPdfFileIntoReader(file, bookPath, documentOcrOverride);
+      } else if (isEpub) {
+        const data = await getBridge().files.readMediaFile(bookPath);
+        if (!data) throw new Error('Failed to read EPUB file');
+        const fileName = bookPath.split('/').pop() || 'book.epub';
+        const file = new File([new Blob([data])], fileName, { type: 'application/epub+zip' });
+        await loadEpubFileIntoReader(file, bookPath);
       } else {
         // Load directory of images
         const result = await getBridge().files.readDirectoryImages(bookPath);
@@ -1486,9 +1673,6 @@ export const ReaderRoute: Component = () => {
         // For folders: use folder name only (stripped)
         const folderName = bookPath.split('/').filter(Boolean).pop() || '';
         const bookId = parseCurrentWorkName(folderName);
-        setCurrentBookId(bookId);
-        // Store the path for recent items persistence
-        setCurrentBookPath(bookPath);
 
         const savedPageIndex = await loadSavedPageIndex(bookId);
         const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < result.files.length
@@ -1498,6 +1682,7 @@ export const ReaderRoute: Component = () => {
           const blob = new Blob([file.data]);
           return {
             id: `page-${index}-${file.name}`,
+            kind: 'image',
             src: URL.createObjectURL(blob),
             name: file.name,
             index,
@@ -1505,18 +1690,11 @@ export const ReaderRoute: Component = () => {
           };
         });
 
-        setOcrResults({});
-        setCroppedRegions({});
-        batch(() => {
-          setCurrentPage(startPage);
-          setPages(newPages);
-          setOcrBatchTotal(newPages.length);
-          setOcrCompletedIds(new Set<string>());
-          setBookTitle(bookId || t('mlearn.Reader.Status.ImportedBook'));
-        });
+        const title = bookId || t('mlearn.Reader.Status.ImportedBook');
+        commitLoadedPages(newPages, { bookId, title, path: bookPath, format: 'images', startPage, coverBlob: newPages[0]?.blob });
 
         // Save to recent with the correct path
-        saveToRecent(bookId || t('mlearn.Reader.Status.ImportedBook'), 'book', startPage, bookPath, newPages[0]?.blob);
+        saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
       }
 
       void persistActiveBookPath(bookPath);
@@ -1559,6 +1737,7 @@ export const ReaderRoute: Component = () => {
 
       const newPages: PageImage[] = files.map((file, index) => ({
         id: `page-${index}-${file.name}`,
+        kind: 'image',
         src: URL.createObjectURL(file),
         name: file.name,
         index,
@@ -1573,13 +1752,15 @@ export const ReaderRoute: Component = () => {
         setOcrBatchTotal(newPages.length);
         setOcrCompletedIds(new Set<string>());
         setBookTitle(bookId || t('mlearn.Reader.Status.ImportedBook'));
+        setCurrentBookFormat('images');
+        setCurrentBookFile(null);
       });
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
     };
     input.click();
   };
 
-  const handleOpenPdf = async () => {
+  const handleOpenBookFile = async () => {
     if (isElectron()) {
       const bridge = getBridge();
       const path = await bridge.files.selectPdfFile();
@@ -1587,44 +1768,22 @@ export const ReaderRoute: Component = () => {
       return;
     }
 
-    // Mobile: use file input to get the PDF File directly, then process via pdfToImages
+    // Mobile: use file input to get the document File directly.
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.pdf,application/pdf';
+    input.accept = '.pdf,.epub,application/pdf,application/epub+zip';
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
 
-      setOcrStatus(t('mlearn.Reader.Status.LoadingPdf'));
       try {
-        const pdfImages = await pdfToImages(file);
-        const bookId = parseCurrentWorkName(file.name);
-        setCurrentBookId(bookId);
-        setCurrentBookPath('');
-
-        const savedPageIndex = await loadSavedPageIndex(bookId);
-        const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length ? savedPageIndex : 0;
-
-        const newPages: PageImage[] = pdfImages.map((img, index) => ({
-          id: `page-${index}-${img.name}`,
-          src: img.url,
-          name: img.name,
-          index,
-          blob: img.blob,
-        }));
-
-        setOcrResults({});
-        setCroppedRegions({});
-        batch(() => {
-          setCurrentPage(startPage);
-          setPages(newPages);
-          setOcrBatchTotal(newPages.length);
-          setOcrCompletedIds(new Set<string>());
-          setBookTitle(bookId || t('mlearn.Reader.Status.PdfDocument'));
-        });
-        setOcrStatus(t('mlearn.Reader.Status.Ready'));
+        if (isEpubFile(file)) {
+          await loadEpubFileIntoReader(file);
+        } else {
+          await loadPdfFileIntoReader(file);
+        }
       } catch (error) {
-        log.error('[Reader] Failed to load PDF:', error);
+        log.error('[Reader] Failed to load book file:', error);
         setOcrStatus(t('mlearn.Reader.Status.FailedToLoadPdf'));
       }
     };
@@ -1878,62 +2037,32 @@ export const ReaderRoute: Component = () => {
 
     const { files: droppedFiles, droppedFolderName, droppedFolderPath, rawFilePaths } = await getDroppedFiles(e.dataTransfer || null);
 
-    // Check for PDF file first
+    // Check for document files first
+    const epubFile = droppedFiles.find(f => isEpubFile(f));
     const pdfFile = droppedFiles.find(f => isPdfFile(f));
 
-    if (pdfFile) {
-      // Handle PDF file
-      setOcrStatus(t('mlearn.Reader.Status.LoadingPdf'));
+    if (epubFile) {
       try {
-        const pdfImages = await pdfToImages(pdfFile);
+        const epubPath = rawFilePaths.get(epubFile.name)
+            || getFilePath(epubFile)
+            || droppedFolderPath
+            || '';
+        await loadEpubFileIntoReader(epubFile, epubPath);
+        return;
+      } catch (error) {
+        log.error('Failed to load EPUB:', error);
+        setOcrStatus(t('mlearn.Reader.Status.FailedToLoad'));
+        return;
+      }
+    }
 
-        // For PDF: use filename only (stripped)
-        const bookId = parseCurrentWorkName(pdfFile.name);
-        setCurrentBookId(bookId);
-
-        // Get PDF path from rawFilePaths map (populated using webUtils.getPathForFile)
-        // Fallback to getFilePath for the file, or droppedFolderPath
+    if (pdfFile) {
+      try {
         const pdfPath = rawFilePaths.get(pdfFile.name)
             || getFilePath(pdfFile)
             || droppedFolderPath
             || '';
-        setCurrentBookPath(pdfPath);
-
-        // Check for saved page position
-        const savedPageIndex = await loadSavedPageIndex(bookId);
-        let startPage = 0;
-
-        if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length) {
-          startPage = savedPageIndex;
-          log.info(`[Reader] Restored page position ${startPage} for PDF "${bookId}"`);
-        }
-
-        const newPages: PageImage[] = pdfImages.map((img, index) => ({
-          id: `page-${index}-${img.name}`,
-          src: img.url,
-          name: img.name,
-          index,
-          blob: img.blob,
-        }));
-
-        // Clear OCR cache when loading new book
-        setOcrResults({});
-        setCroppedRegions({});
-
-        batch(() => {
-          setCurrentPage(startPage);
-          setPages(newPages);
-          // Initialize OCR batch tracking for the new book
-          setOcrBatchTotal(newPages.length);
-          setOcrCompletedIds(new Set<string>());
-
-          // Save to recent with the first page as thumbnail
-          const title = bookId || t('mlearn.Reader.Status.PdfDocument');
-          setBookTitle(title);
-          saveToRecent(title, 'book', startPage, pdfPath, newPages[0]?.blob);
-        });
-        void persistActiveBookPath(pdfPath);
-        setOcrStatus(t('mlearn.Reader.Status.Ready'));
+        await loadPdfFileIntoReader(pdfFile, pdfPath);
         return;
       } catch (error) {
         log.error('Failed to load PDF:', error);
@@ -1990,6 +2119,7 @@ export const ReaderRoute: Component = () => {
 
     const newPages: PageImage[] = files.map((file, index) => ({
       id: `page-${index}-${file.name}`,
+      kind: 'image',
       src: URL.createObjectURL(file),
       name: file.name,
       index,
@@ -2008,6 +2138,8 @@ export const ReaderRoute: Component = () => {
       // Initialize OCR batch tracking for the new book
       setOcrBatchTotal(newPages.length);
       setOcrCompletedIds(new Set<string>());
+      setCurrentBookFormat('images');
+      setCurrentBookFile(null);
     });
 
     // Determine title: use the folder name (stripped)
@@ -2330,7 +2462,7 @@ export const ReaderRoute: Component = () => {
         <main class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}`}>
           <Show
               when={pages().length > 0}
-              fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenPdf} />}
+              fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenBookFile} />}
           >
             <div
               class={`page-container ${pageMode()} spread-${readerSpreadDirection() === 'right-to-left' ? 'rtl' : 'ltr'}${(collatePages() && pageMode() === 'double') ? ' collate' : ''}`}
@@ -2426,83 +2558,98 @@ export const ReaderRoute: Component = () => {
 
                   return (
                       <div class={`page ${pageSideClass()}`}>
-                        <img
-                            class="page-image"
-                            src={page.src}
-                            alt={page.name}
-                            ref={(el) => setImageRefs(prev => ({ ...prev, [page.id]: el }))}
-                            onContextMenu={handleImageContextMenu}
-                        />
-                        {/* Page Processing Loader - uses CSS fade animation instead of Show */}
-                        <div class={`page-loader-overlay ${isWaitingForOcr() ? 'visible' : 'hidden'}`}>
-                          <ProgressRing
-                              progress={getOcrProgress() ?? 0}
-                              indeterminate={isPending() || getOcrProgress() === null}
-                              size={40}
-                              strokeWidth={5}
-                              statusText={getStatusText()}
-                              showPercent={false}
-                              shape={"circle"}
-                          />
-                        </div>
-                        <Show when={imageRefs()[page.id]}>
-                          {(image) => (
-                            <div
-                              class="reader-crop-regions"
-                              style={{
-                                left: `${image().offsetLeft}px`,
-                                top: `${image().offsetTop}px`,
-                                width: `${image().clientWidth}px`,
-                                height: `${image().clientHeight}px`,
-                              }}
-                            >
-                              <For each={croppedRegions()[page.id] ?? []}>
-                                {(region) => (
-                                  <div class="reader-crop-region" style={getCropRegionStyle(image(), region)} />
+                        <Show
+                          when={page.kind === 'text'}
+                          fallback={(
+                            <>
+                              <img
+                                  class="page-image"
+                                  src={page.src ?? ''}
+                                  alt={page.name}
+                                  ref={(el) => setImageRefs(prev => ({ ...prev, [page.id]: el }))}
+                                  onContextMenu={handleImageContextMenu}
+                              />
+                              {/* Page Processing Loader - uses CSS fade animation instead of Show */}
+                              <div class={`page-loader-overlay ${isWaitingForOcr() ? 'visible' : 'hidden'}`}>
+                                <ProgressRing
+                                    progress={getOcrProgress() ?? 0}
+                                    indeterminate={isPending() || getOcrProgress() === null}
+                                    size={40}
+                                    strokeWidth={5}
+                                    statusText={getStatusText()}
+                                    showPercent={false}
+                                    shape={"circle"}
+                                />
+                              </div>
+                              <Show when={imageRefs()[page.id]}>
+                                {(image) => (
+                                  <div
+                                    class="reader-crop-regions"
+                                    style={{
+                                      left: `${image().offsetLeft}px`,
+                                      top: `${image().offsetTop}px`,
+                                      width: `${image().clientWidth}px`,
+                                      height: `${image().clientHeight}px`,
+                                    }}
+                                  >
+                                    <For each={croppedRegions()[page.id] ?? []}>
+                                      {(region) => (
+                                        <div class="reader-crop-region" style={getCropRegionStyle(image(), region)} />
+                                      )}
+                                    </For>
+                                  </div>
                                 )}
-                              </For>
-                            </div>
-                          )}
-                        </Show>
-                        <Show when={cropMode() && cropAddMode() && imageRefs()[page.id]}>
-                          {(image) => (
-                            <div
-                              class="reader-crop-layer"
-                              classList={{ processing: cropProcessingPageId() === page.id }}
-                              style={{
-                                left: `${image().offsetLeft}px`,
-                                top: `${image().offsetTop}px`,
-                                width: `${image().clientWidth}px`,
-                                height: `${image().clientHeight}px`,
-                              }}
-                              onPointerDown={(event) => handleCropPointerDown(page, event)}
-                              onPointerMove={(event) => handleCropPointerMove(page, event)}
-                              onPointerUp={(event) => handleCropPointerUp(page, event)}
-                              onPointerCancel={() => setCropSelection(null)}
-                            >
-                              <Show when={cropSelection()?.pageId === page.id}>
-                                <div class="reader-crop-selection" style={getCropSelectionStyle(page.id)} />
                               </Show>
-                            </div>
+                              <Show when={cropMode() && cropAddMode() && imageRefs()[page.id]}>
+                                {(image) => (
+                                  <div
+                                    class="reader-crop-layer"
+                                    classList={{ processing: cropProcessingPageId() === page.id }}
+                                    style={{
+                                      left: `${image().offsetLeft}px`,
+                                      top: `${image().offsetTop}px`,
+                                      width: `${image().clientWidth}px`,
+                                      height: `${image().clientHeight}px`,
+                                    }}
+                                    onPointerDown={(event) => handleCropPointerDown(page, event)}
+                                    onPointerMove={(event) => handleCropPointerMove(page, event)}
+                                    onPointerUp={(event) => handleCropPointerUp(page, event)}
+                                    onPointerCancel={() => setCropSelection(null)}
+                                  >
+                                    <Show when={cropSelection()?.pageId === page.id}>
+                                      <div class="reader-crop-selection" style={getCropSelectionStyle(page.id)} />
+                                    </Show>
+                                  </div>
+                                )}
+                              </Show>
+                              {/* OCR Overlay for each visible page */}
+                              <Show when={imageRefs()[page.id] && ocrResults[page.id]}>
+                                <OcrOverlay
+                                    result={ocrResults[page.id]}
+                                    imageElement={imageRefs()[page.id]}
+                                    visible={showOcrOverlay()}
+                                    debugOcr={ocrDebugOverlay()}
+                                    zoneDeltaThreshold={zoneDeltaThreshold()}
+                                    onWordHover={handleOcrWordHover}
+                                    onWordLeave={handleOcrWordLeave}
+                                    onContextMenu={handleOcrContextMenu}
+                                    onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
+                                    highlightedOriginalIndices={(() => {
+                                      const entry = sidebarHoveredEntry();
+                                      if (!entry || entry.pageId !== page.id || entry.box.__originalIdx == null) return undefined;
+                                      return new Set([entry.box.__originalIdx]);
+                                    })()}
+                                />
+                              </Show>
+                            </>
                           )}
-                        </Show>
-                        {/* OCR Overlay for each visible page */}
-                        <Show when={imageRefs()[page.id] && ocrResults[page.id]}>
-                          <OcrOverlay
-                              result={ocrResults[page.id]}
-                              imageElement={imageRefs()[page.id]}
-                              visible={showOcrOverlay()}
-                              debugOcr={ocrDebugOverlay()}
-                              zoneDeltaThreshold={zoneDeltaThreshold()}
-                              onWordHover={handleOcrWordHover}
-                              onWordLeave={handleOcrWordLeave}
-                              onContextMenu={handleOcrContextMenu}
-                              onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
-                              highlightedOriginalIndices={(() => {
-                                const entry = sidebarHoveredEntry();
-                                if (!entry || entry.pageId !== page.id || entry.box.__originalIdx == null) return undefined;
-                                return new Set([entry.box.__originalIdx]);
-                              })()}
+                        >
+                          <ReaderTextPage
+                            page={page}
+                            tokenize={tokenize}
+                            tokenJoinSeparator={getTokenJoinSeparator(currentLangData())}
+                            onWordHover={handleOcrWordHover}
+                            onWordLeave={handleOcrWordLeave}
                           />
                         </Show>
                       </div>
@@ -2542,6 +2689,9 @@ export const ReaderRoute: Component = () => {
             onToggleCropMode={toggleCropMode}
             cropAddMode={cropAddMode}
             onToggleCropAddMode={toggleCropAddMode}
+            showDocumentOcrToggle={showDocumentOcrToggle}
+            documentOcr={documentOcr}
+            onToggleDocumentOcr={toggleDocumentOcr}
             debugOcr={ocrDebugOverlay}
             onToggleDebugOcr={toggleOcrDebugOverlay}
             lastOcrTiming={lastOcrTiming}
