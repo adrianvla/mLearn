@@ -76,6 +76,7 @@ interface PageImage {
   blob?: Blob;
   text?: string;
   title?: string;
+  previewText?: string;
 }
 
 type FitMode = 'fit-height' | 'fit-width';
@@ -178,9 +179,18 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const [tokens, setTokens] = createSignal<Token[]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const text = () => props.page.text ?? '';
+  const textBlocks = () => text().split(/\n{2,}/u).map((block) => block.trim()).filter(Boolean);
+  const headingText = () => {
+    const firstBlock = textBlocks()[0];
+    return firstBlock && props.page.title && firstBlock === props.page.title ? firstBlock : '';
+  };
+  const bodyText = () => {
+    const blocks = textBlocks();
+    return headingText() ? blocks.slice(1).join('\n\n') : text();
+  };
 
   createEffect(() => {
-    const pageText = text();
+    const pageText = bodyText();
     if (!pageText.trim()) {
       setTokens([]);
       return;
@@ -208,12 +218,12 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
 
   return (
     <article class="reader-text-page">
-      <Show when={props.page.title}>
-        <h2>{props.page.title}</h2>
+      <Show when={headingText()}>
+        <h2>{headingText()}</h2>
       </Show>
       <Show
         when={!tokenizeFailed() && tokens().length > 0}
-        fallback={<div class="reader-text-page-plain">{text()}</div>}
+        fallback={<div class="reader-text-page-plain">{bodyText()}</div>}
       >
         <div class="reader-text-page-tokens">
           <For each={tokens()}>
@@ -223,7 +233,7 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
                   token={token}
                   onWordEnter={(hoverToken, event) => {
                     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-                    props.onWordHover(hoverToken, rect, text());
+                    props.onWordHover(hoverToken, rect, bodyText());
                   }}
                   onWordLeave={props.onWordLeave}
                 />
@@ -269,7 +279,7 @@ const imagePagesFromPdfImages = (images: Array<{ name: string; url: string; blob
 );
 
 const textPagesFromExtractedText = (
-  pages: Array<{ name: string; title: string; text: string }>,
+  pages: Array<{ name: string; title: string; text: string; previewText?: string }>,
   fallbackTitle: string,
 ): PageImage[] => (
   pages.map((page, index) => ({
@@ -278,6 +288,7 @@ const textPagesFromExtractedText = (
     name: page.name || `${fallbackTitle}-${index + 1}`,
     title: page.title || fallbackTitle,
     text: page.text,
+    previewText: page.previewText ?? page.text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? '',
     index,
   }))
 );
@@ -663,6 +674,8 @@ export const ReaderRoute: Component = () => {
       .map((pageIndex) => allPages[pageIndex])
       .filter((page): page is PageImage => page !== undefined);
   });
+  const visiblePagesAreText = () => visiblePages().some((page) => page.kind === 'text');
+  const readerHasImagePages = () => pages().some((page) => page.kind === 'image');
 
   createEffect(on(currentBookId, () => {
     setOcrPageWords(reconcile({}));
@@ -2459,7 +2472,7 @@ export const ReaderRoute: Component = () => {
         </Show>
 
         {/* Main Content */}
-        <main class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}`}>
+        <main class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}`}>
           <Show
               when={pages().length > 0}
               fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenBookFile} />}
@@ -2689,6 +2702,7 @@ export const ReaderRoute: Component = () => {
             onToggleCropMode={toggleCropMode}
             cropAddMode={cropAddMode}
             onToggleCropAddMode={toggleCropAddMode}
+            ocrControlsVisible={() => Boolean(ocrEnabled()) && readerHasImagePages()}
             showDocumentOcrToggle={showDocumentOcrToggle}
             documentOcr={documentOcr}
             onToggleDocumentOcr={toggleDocumentOcr}

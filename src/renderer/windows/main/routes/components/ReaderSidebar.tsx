@@ -18,6 +18,8 @@ interface PageImage {
   name: string;
   index: number;
   title?: string;
+  text?: string;
+  previewText?: string;
 }
 
 interface ReaderSidebarProps {
@@ -98,6 +100,11 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
     return activePageIndexSet().has(pageIndex);
   };
 
+  const textPreview = (page: PageImage): string => {
+    const preview = page.previewText || page.text || page.title || page.name;
+    return preview.replace(/\s+/gu, ' ').trim();
+  };
+
   const scrollToActivePages = (smooth: boolean = true) => {
     const activePageIndices = props.activePageIndices();
     const [firstActivePageIndex, secondActivePageIndex] = activePageIndices;
@@ -163,7 +170,11 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
                   </Show>
                   <Show
                     when={(page.kind ?? 'image') === 'image' && page.src}
-                    fallback={<div class="page-thumb-text">{page.title || page.name}</div>}
+                    fallback={(
+                      <div class="page-thumb-text">
+                        <span>{textPreview(page)}</span>
+                      </div>
+                    )}
                   >
                     {(src) => (
                       <img
