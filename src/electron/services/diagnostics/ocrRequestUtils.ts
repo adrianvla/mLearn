@@ -16,14 +16,10 @@ export function buildOcrMultipartBody(options: {
   boundary: string;
   imageBuffer: Buffer;
   language: string;
-  turbo?: boolean;
 }): Buffer {
   const parts: Buffer[] = [
     textFormPart(options.boundary, 'language', options.language),
   ];
-  if (options.turbo !== undefined) {
-    parts.push(textFormPart(options.boundary, 'turbo', options.turbo ? '1' : '0'));
-  }
   parts.push(
     Buffer.from(`--${options.boundary}\r\nContent-Disposition: form-data; name="image"; filename="test.png"\r\nContent-Type: image/png\r\n\r\n`),
     options.imageBuffer,

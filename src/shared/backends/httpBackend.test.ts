@@ -254,9 +254,8 @@ describe('HttpBackend', () => {
 
       await backend.ocr(blob, {
         language: 'ja',
-        turbo: false,
-        ramSaver: true,
         devMode: true,
+        singleRegion: true,
         detectionMaxWidth: 640,
         detectionMaxHeight: 480,
       });
@@ -264,9 +263,8 @@ describe('HttpBackend', () => {
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const form = opts.body as FormData;
       expect(form.get('language')).toBe('ja');
-      expect(form.get('turbo')).toBe('0');
-      expect(form.get('ram_saver')).toBe('1');
       expect(form.get('dev_mode')).toBe('1');
+      expect(form.get('single_region')).toBe('1');
       expect(form.get('detection_max_width')).toBe('640');
       expect(form.get('detection_max_height')).toBe('480');
     });

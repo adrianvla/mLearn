@@ -85,6 +85,12 @@ export const ErrorIcon = createIcon([
 /** Plus icon - add, new */
 export const PlusIcon = createIcon(['M12 5v14', 'M5 12h14']);
 
+/** Cursor pointer icon - pointer/hover mode */
+export const CursorPointerIcon = createIcon([
+  'M5 3l14 9-7 2-2 7L5 3z',
+  'M12 14l4 6',
+]);
+
 /** Minus icon - remove, subtract */
 export const MinusIcon = createIcon('M5 12h14');
 
@@ -566,6 +572,7 @@ export default {
   InfoIcon,
   ErrorIcon,
   PlusIcon,
+  CursorPointerIcon,
   MinusIcon,
   EditIcon,
   TrashIcon,

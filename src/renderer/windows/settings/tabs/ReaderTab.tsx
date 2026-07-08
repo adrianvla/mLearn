@@ -54,25 +54,13 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={getLanguageFeatures().supportsOcrRamSaver}>
-          <SettingRow
-            label={t('mlearn.Settings.Reader.OcrSettings.RamSaver.Label')}
-            description={t('mlearn.Settings.Reader.OcrSettings.RamSaver.Description')}
-          >
-            <ToggleSwitch
-              checked={settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver!}
-              onChange={(checked) => updateSettings({ ocrRamSaver: checked })}
-            />
-          </SettingRow>
-        </Show>
-
         <SettingRow
-          label={t('mlearn.Settings.Reader.OcrSettings.TurboMode.Label')}
-          description={t('mlearn.Settings.Reader.OcrSettings.TurboMode.Description')}
+          label={t('mlearn.Settings.Reader.OcrSettings.CropMode.Label')}
+          description={t('mlearn.Settings.Reader.OcrSettings.CropMode.Description')}
         >
           <ToggleSwitch
-            checked={settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!}
-            onChange={(checked) => updateSettings({ ocrTurboMode: checked })}
+            checked={settings.readerCropMode ?? DEFAULT_SETTINGS.readerCropMode!}
+            onChange={(checked) => updateSettings({ readerCropMode: checked })}
           />
         </SettingRow>
 

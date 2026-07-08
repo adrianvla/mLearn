@@ -181,8 +181,6 @@ def test_ocr_endpoint_rejects_missing_language_runtime_metadata(monkeypatch):
             file=None,
             image_base64=_tiny_png_base64(),
             language="sample",
-            turbo="true",
-            ram_saver="false",
             dev_mode="true",
             detection_max_width=None,
             detection_max_height=None,
@@ -202,8 +200,6 @@ def test_ocr_endpoint_rejects_language_without_runtime_metadata(monkeypatch):
             file=None,
             image_base64=_tiny_png_base64(),
             language="sample",
-            turbo="true",
-            ram_saver="false",
             dev_mode="true",
             detection_max_width=None,
             detection_max_height=None,
@@ -250,8 +246,6 @@ def test_ocr_endpoint_delegates_custom_ocr_engine_to_language_adapter(monkeypatc
         file=None,
         image_base64=_tiny_png_base64(),
         language="sample",
-        turbo="true",
-        ram_saver="false",
         dev_mode="true",
         detection_max_width=None,
         detection_max_height=None,
@@ -261,8 +255,6 @@ def test_ocr_endpoint_delegates_custom_ocr_engine_to_language_adapter(monkeypatc
         ((2, 2), {
             "language": "sample",
             "recognitionEngine": "arabic-transformer-ocr",
-            "turbo": True,
-            "ramSaver": False,
             "devMode": True,
         })
     ]
@@ -287,8 +279,6 @@ def test_ocr_endpoint_rejects_missing_selected_language(monkeypatch):
             file=None,
             image_base64=_tiny_png_base64(),
             language=None,
-            turbo="true",
-            ram_saver="false",
             dev_mode="true",
             detection_max_width=None,
             detection_max_height=None,
@@ -368,38 +358,29 @@ def test_ocr_endpoint_uses_request_language_runtime_for_mangaocr(monkeypatch):
             }
         return {"recognitionEngine": "rapidocr", "rapidLangType": "EN"}
 
-    fake_cv2 = SimpleNamespace(
-        COLOR_RGB2BGR=1,
-        cvtColor=lambda img, _code: np.asarray(img),
-    )
-
-    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
     monkeypatch.setattr(ocr.config, "OCR_ALLOWED", True)
     monkeypatch.setattr(ocr.config, "LANGUAGE", "en")
-    monkeypatch.setattr(ocr.config, "OCR_RAM_SAVER", True)
     monkeypatch.setattr(ocr.config, "language_runtime_config_for_language", runtime)
     monkeypatch.setattr(ocr, "_process_stats", lambda _name: None)
     monkeypatch.setattr(ocr, "_ocr_touch", lambda: None)
-    monkeypatch.setattr(ocr, "_opencv_detect_text_regions", lambda _img, prefer_vertical=False: [])
     monkeypatch.setattr(ocr, "_get_manga_ocr", lambda: (lambda _image: "日本語"))
 
     result = asyncio.run(ocr.ocr_endpoint(
         file=None,
         image_base64=_tiny_png_base64(),
         language="ja",
-        turbo="true",
-        ram_saver="true",
         dev_mode="true",
+        single_region="true",
         detection_max_width=None,
         detection_max_height=None,
     ))
 
     assert result["boxes"][0]["text"] == "日本語"
-    assert result["processing_times"]["detection_engine"] == "OpenCV"
+    assert result["processing_times"]["detection_engine"] == "Crop"
     assert result["processing_times"]["recognition_engine"] == "MangaOCR"
 
 
-def test_ocr_endpoint_ignores_requested_ram_saver_when_language_disables_it(monkeypatch):
+def test_ocr_endpoint_uses_detector_for_mangaocr_when_crop_mode_is_off(monkeypatch):
     def runtime(language: str, section: str | None = None):
         assert section == "ocr"
         if language == "sample-manga":
@@ -410,62 +391,41 @@ def test_ocr_endpoint_ignores_requested_ram_saver_when_language_disables_it(monk
             }
         return {"recognitionEngine": "rapidocr", "rapidLangType": "EN"}
 
-    fake_cv2 = SimpleNamespace(
-        COLOR_RGB2BGR=1,
-        COLOR_BGR2RGB=2,
-        cvtColor=lambda img, _code: np.asarray(img),
-    )
-    fake_rapid_result = SimpleNamespace(
-        boxes=np.array([[[0, 0], [2, 0], [2, 2], [0, 2]]], dtype=float),
-        txts=None,
-        scores=None,
-    )
+    engine_calls = {"rapid": False, "paddle": False}
 
-    opencv_called = False
+    def fake_paddle(_language):
+        engine_calls["paddle"] = True
+        return object()
 
-    def opencv_detect(_img, prefer_vertical=False):
-        nonlocal opencv_called
-        opencv_called = True
-        return []
-
-    async_called = {"rapid": False}
-
-    def rapid(_img, use_det=True, use_cls=False, use_rec=False):
-        async_called["rapid"] = True
-        assert use_det is True
-        assert use_rec is False
-        return fake_rapid_result
-
-    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
     monkeypatch.setattr(ocr.config, "OCR_ALLOWED", True)
     monkeypatch.setattr(ocr.config, "LANGUAGE", "en")
-    monkeypatch.setattr(ocr.config, "OCR_RAM_SAVER", True)
     monkeypatch.setattr(ocr.config, "language_runtime_config_for_language", runtime)
     monkeypatch.setattr(ocr, "_process_stats", lambda _name: None)
     monkeypatch.setattr(ocr, "_ocr_touch", lambda: None)
-    monkeypatch.setattr(ocr, "_opencv_detect_text_regions", opencv_detect)
-    monkeypatch.setattr(ocr, "_get_rapid_ocr", lambda _language: rapid)
+    monkeypatch.setattr(ocr, "_get_rapid_ocr", lambda _language: engine_calls.__setitem__("rapid", True))
+    monkeypatch.setattr(ocr, "_get_paddle_ocr", fake_paddle)
+    monkeypatch.setattr(ocr, "_paddle_run_ocr", lambda _paddle, _img: object())
+    monkeypatch.setattr(ocr, "_extract_lines_from_paddle_result", lambda _result: [
+        ([[0, 0], [2, 0], [2, 2], [0, 2]], "", 0.9),
+    ])
     monkeypatch.setattr(ocr, "_get_manga_ocr", lambda: (lambda _image: "日本語"))
 
     result = asyncio.run(ocr.ocr_endpoint(
         file=None,
         image_base64=_tiny_png_base64(),
         language="sample-manga",
-        turbo="true",
-        ram_saver="true",
         dev_mode="true",
         detection_max_width=None,
         detection_max_height=None,
     ))
 
-    assert opencv_called is False
-    assert async_called["rapid"] is True
+    assert engine_calls == {"rapid": False, "paddle": True}
     assert result["boxes"][0]["text"] == "日本語"
-    assert result["processing_times"]["detection_engine"] == "RapidOCR"
+    assert result["processing_times"]["detection_engine"] == "PaddleOCR"
     assert result["processing_times"]["recognition_engine"] == "MangaOCR"
 
 
-def test_ocr_endpoint_keeps_mangaocr_recognition_in_accurate_mode(monkeypatch):
+def test_ocr_endpoint_keeps_mangaocr_crop_recognition_as_single_image_pass(monkeypatch):
     def runtime(language: str, section: str | None = None):
         assert section == "ocr"
         if language == "ja":
@@ -479,25 +439,21 @@ def test_ocr_endpoint_keeps_mangaocr_recognition_in_accurate_mode(monkeypatch):
 
     monkeypatch.setattr(ocr.config, "OCR_ALLOWED", True)
     monkeypatch.setattr(ocr.config, "LANGUAGE", "en")
-    monkeypatch.setattr(ocr.config, "OCR_RAM_SAVER", False)
     monkeypatch.setattr(ocr.config, "language_runtime_config_for_language", runtime)
     monkeypatch.setattr(ocr, "_process_stats", lambda _name: None)
     monkeypatch.setattr(ocr, "_ocr_touch", lambda: None)
-    monkeypatch.setattr(ocr, "_get_paddle_ocr", lambda _language: object())
-    monkeypatch.setattr(ocr, "_paddle_run_ocr", lambda _paddle, _img: [])
     monkeypatch.setattr(ocr, "_get_manga_ocr", lambda: (lambda _image: "日本語"))
 
     result = asyncio.run(ocr.ocr_endpoint(
         file=None,
         image_base64=_tiny_png_base64(),
         language="ja",
-        turbo="false",
-        ram_saver="false",
         dev_mode="true",
+        single_region="true",
         detection_max_width=None,
         detection_max_height=None,
     ))
 
     assert result["boxes"][0]["text"] == "日本語"
-    assert result["processing_times"]["detection_engine"] == "PaddleOCR"
+    assert result["processing_times"]["detection_engine"] == "Crop"
     assert result["processing_times"]["recognition_engine"] == "MangaOCR"

@@ -218,6 +218,42 @@
   align-items: flex-start;
 }
 
+.reader-crop-regions {
+  position: absolute;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.reader-crop-region {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 70%, transparent);
+  background: transparent;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--bg-primary) 72%, transparent),
+    0 0 10px 2px color-mix(in srgb, var(--accent-primary) 36%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  pointer-events: none;
+}
+
+.reader-crop-layer {
+  position: absolute;
+  z-index: 8;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.reader-crop-layer.processing {
+  cursor: progress;
+}
+
+.reader-crop-selection {
+  position: absolute;
+  border: 2px solid var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  box-shadow: 0 0 0 1px var(--bg-primary), 0 0 0 9999px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
 /* Mobile adaptations — reader inside MobileLayout */
 
 /* On mobile, reader nav is compact — horizontal row with minimal controls */

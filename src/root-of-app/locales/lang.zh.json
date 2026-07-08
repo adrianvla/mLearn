@@ -1243,12 +1243,6 @@
       "CopyPhrase": "复制短语",
       "HideReadingAnnotations": "隐藏读音注释",
       "ShowReadingAnnotations": "显示读音注释",
-      "Requirements": {
-        "OcrTurboLowRam": {
-          "Title": "OCR 可能会运行较慢",
-          "Message": "此设备有 {ram} GB 内存。Turbo 模式可在低内存设备上提升性能，但可能降低识别质量。"
-        }
-      },
       "Sidebar": {
         "Pages": "页面",
         "UnknownWordsEmpty": "当前页面未找到未知单词。",
@@ -1310,8 +1304,11 @@
         "TriggerKeyHover": "{key} + 悬停",
         "TriggerLongHover": "长按悬停",
         "TriggerTitle": "单词悬停触发方式",
-        "TurboModeOff": "加速模式：关闭",
-        "TurboModeOn": "加速模式：开启",
+        "CropModeOff": "裁剪：关闭",
+        "CropModeOn": "裁剪：开启",
+        "CropModeAddTitle": "添加裁剪模式：拖出文本框进行识别",
+        "CropModeCursorTitle": "光标模式：悬停已识别文本",
+        "CropModeTitle": "拖出文本框，只识别该裁剪区域",
         "ZoneDeltaLabel": "区域差值：{value}px",
         "ZoneDeltaTitle": "用于区域聚类的框边距最大像素距离"
       },
@@ -1678,6 +1675,10 @@
             "Description": "为闪卡裁剪时文本周围的额外像素",
             "Label": "OCR 裁剪边距"
           },
+          "CropMode": {
+            "Description": "只识别手动选择的裁剪区域，以降低低配置电脑的内存占用",
+            "Label": "裁剪模式"
+          },
           "Enable": {
             "Description": "启用图片的光学字符识别",
             "Label": "启用 OCR"
@@ -1686,15 +1687,7 @@
             "Label": "读音注释检测",
             "Description": "检测并从 OCR 结果中过滤读音注释。禁用后，所有检测到的文本框将原样显示，不进行读音注释过滤。"
           },
-          "RamSaver": {
-            "Description": "使用轻量级基于 OpenCV 的文本检测代替神经网络检测。内存使用减少约 1.5 GB，但复杂布局的准确度可能降低。识别质量不受影响。",
-            "Label": "内存节省模式"
-          },
-          "Title": "OCR 设置",
-          "TurboMode": {
-            "Description": "使用更快的检测设置。关闭时使用更高分辨率的检测，速度较慢但更准确，尤其适用于竖排文本。",
-            "Label": "加速模式"
-          }
+          "Title": "OCR 设置"
         },
         "Title": "阅读器",
         "WordHoverBehavior": {

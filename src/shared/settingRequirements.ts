@@ -30,17 +30,6 @@ export interface EvaluatedSettingRequirementWarning {
 }
 
 export const SETTING_REQUIREMENT_WARNINGS: readonly SettingRequirementWarningConfig[] = [
-  {
-    id: 'reader-ocr-turbo-low-ram',
-    route: 'reader',
-    conditions: [
-      { kind: 'settingEquals', settingKey: 'ocrProvider', value: 'local' },
-      { kind: 'settingEquals', settingKey: 'ocrTurboMode', value: false },
-    ],
-    softRequirement: { kind: 'maxTotalRamGb', value: 8 },
-    titleKey: 'mlearn.Reader.Requirements.OcrTurboLowRam.Title',
-    messageKey: 'mlearn.Reader.Requirements.OcrTurboLowRam.Message',
-  },
 ] as const;
 
 export function getTotalRamGb(memoryInfo: SystemMemoryInfo): number {
