@@ -1605,6 +1605,35 @@
       },
       "Reader": {
         "Description": "OCR- und Reader-Einstellungen",
+        "TextAppearance": {
+          "Title": "Textdarstellung",
+          "Font": {
+            "Label": "Schriftart",
+            "Description": "Schriftart für EPUB- und eingebetteten PDF-Text wählen",
+            "Options": {
+              "Language": "Sprachstandard",
+              "Sans": "Sans",
+              "Serif": "Serif",
+              "Mono": "Mono"
+            }
+          },
+          "Size": {
+            "Label": "Textgröße",
+            "Description": "Textgröße im Reader anpassen"
+          },
+          "LineHeight": {
+            "Label": "Zeilenhöhe",
+            "Description": "Abstand zwischen Zeilen anpassen"
+          },
+          "Width": {
+            "Label": "Seitenbreite",
+            "Description": "Breite der Textspalte anpassen"
+          },
+          "Margin": {
+            "Label": "Seitenrand",
+            "Description": "Leerraum um Textseiten anpassen"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "Leseannotationen",
           "Hide": {
@@ -2580,9 +2609,9 @@
       "Window": "Fenster"
     },
     "ComponentsTab": {
-      "Description": "Prüfen Sie installierte Komponenten einzeln. Lassen Sie eine Gruppe aktiviert, um sie bei der Neuinstallation einzuschließen.",
+      "Description": "Laufzeitfunktionen, installierte Sprachpakete und Wörterbücher getrennt prüfen. Installiere oder repariere nur die Komponente, die Aufmerksamkeit braucht.",
       "Reinstall": "Komponenten neu installieren",
-      "RestartNote": "Die App wird nach Abschluss der Installation neu gestartet.",
+      "RestartNote": "Laufzeitreparaturen können die App neu starten. Sprachdaten-Updates sind nach Abschluss der Installation verfügbar.",
       "Enabled": "Aktiviert",
       "Disabled": "Deaktiviert",
       "Groups": {
@@ -2651,6 +2680,34 @@
         "DictionaryPack": {
           "Description": "Definitionen für {language}."
         }
+      },
+      "InstallErrorTitle": "Installation fehlgeschlagen",
+      "Sections": {
+        "Runtime": {
+          "Title": "App-Laufzeit",
+          "Description": "Optionale Python-Funktionen. Diese Schalter legen fest, welche Laufzeitpakete beim Reparieren des lokalen Backends enthalten sind."
+        },
+        "LanguageData": {
+          "Title": "Sprachdaten",
+          "Description": "Installierte und verfügbare Sprachpakete, Wörterbücher und einzelne Dateien."
+        }
+      },
+      "Actions": {
+        "Install": "Installieren",
+        "Update": "Aktualisieren",
+        "RepairRuntime": "Laufzeitkomponenten reparieren"
+      },
+      "Status": {
+        "installed": "Installiert",
+        "missing": "Fehlt",
+        "outdated": "Veraltet",
+        "error": "Fehler"
+      },
+      "LanguageData": {
+        "CoreTitle": "Sprachpaket {language}",
+        "CoreDescription": "Kern-Laufzeitdaten für {language}.",
+        "DictionaryDescription": "Definitionen für {language} auf {target}.",
+        "SizeStatus": "{installed} von {total}"
       }
     },
     "Diagnostics": {

@@ -53,8 +53,13 @@
 }
 
 .reader-main.text-reader {
-  --reader-text-gutter-y: clamp(2rem, 6vh, 4rem);
-  --reader-text-gutter-x: clamp(3rem, 9vw, 8rem);
+  --reader-text-font-family: var(--font-family-content);
+  --reader-text-font-size: 1.05rem;
+  --reader-text-line-height: 1.75;
+  --reader-text-width: 64ch;
+  --reader-text-gutter-scale: 1;
+  --reader-text-gutter-y: calc(clamp(2rem, 6vh, 4rem) * var(--reader-text-gutter-scale));
+  --reader-text-gutter-x: calc(clamp(3rem, 9vw, 8rem) * var(--reader-text-gutter-scale));
   align-items: flex-start;
   justify-content: center;
   padding: var(--reader-text-gutter-y) var(--reader-text-gutter-x);
@@ -144,15 +149,15 @@
 }
 
 .reader-text-page {
-  width: min(64ch, 100%);
+  width: min(var(--reader-text-width), 100%);
   max-height: 100%;
   overflow: hidden;
   box-sizing: border-box;
   padding: 0;
   background: transparent;
   color: var(--text-primary);
-  font-family: var(--font-family-content);
-  line-height: 1.75;
+  font-family: var(--reader-text-font-family);
+  line-height: var(--reader-text-line-height);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -160,7 +165,7 @@
 .reader-text-page h2 {
   margin: 0 0 var(--spacing-5);
   color: var(--text-primary);
-  font-family: var(--font-family-content);
+  font-family: var(--reader-text-font-family);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   line-height: 1.25;
@@ -169,11 +174,11 @@
 
 .reader-text-page-tokens,
 .reader-text-page-plain {
-  font-size: 1.05rem;
+  font-size: var(--reader-text-font-size);
 }
 
 .reader-text-paragraph {
-  margin: 0 0 var(--spacing-5);
+  margin: 0 0 calc(var(--spacing-5) * var(--reader-text-line-height) / 1.75);
 }
 
 .reader-text-paragraph:last-child {
@@ -419,9 +424,9 @@
 }
 
 .mobile-layout .reader-main.text-reader {
-  --reader-text-gutter-y: var(--spacing-4);
-  --reader-text-gutter-x: var(--spacing-4);
-  padding: var(--spacing-4);
+  --reader-text-gutter-y: calc(var(--spacing-4) * var(--reader-text-gutter-scale));
+  --reader-text-gutter-x: calc(var(--spacing-4) * var(--reader-text-gutter-scale));
+  padding: var(--reader-text-gutter-y) var(--reader-text-gutter-x);
 }
 
 /* Force single-page on mobile — double-page is unreadable on small screens */

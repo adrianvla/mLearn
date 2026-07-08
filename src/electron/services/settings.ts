@@ -716,6 +716,7 @@ export function setupSettingsIPC(): void {
     } catch (error) {
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_ERROR, {
         language,
+        dictionaryTargetLanguage,
         error: error instanceof Error ? error.message : String(error),
       });
     }

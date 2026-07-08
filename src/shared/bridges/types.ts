@@ -10,6 +10,7 @@ import type {
   Settings,
   FlashcardStore,
   LanguageDataCatalogStatus,
+  LanguageDataInstallError,
   LanguageDataMap,
   InstallOptions,
   InstallerState,
@@ -106,7 +107,7 @@ export interface LocalizationBridge {
   onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
   installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
-  onLanguageDataInstallError: (callback: (payload: { language: string; error: string }) => void) => () => void;
+  onLanguageDataInstallError: (callback: (payload: LanguageDataInstallError) => void) => () => void;
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;

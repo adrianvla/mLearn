@@ -1620,6 +1620,35 @@
       },
       "Reader": {
         "Description": "Configure OCR and manga reader settings",
+        "TextAppearance": {
+          "Title": "Text appearance",
+          "Font": {
+            "Label": "Font",
+            "Description": "Choose the font used for EPUB and embedded-PDF text",
+            "Options": {
+              "Language": "Language default",
+              "Sans": "Sans",
+              "Serif": "Serif",
+              "Mono": "Mono"
+            }
+          },
+          "Size": {
+            "Label": "Text size",
+            "Description": "Adjust the reader text size"
+          },
+          "LineHeight": {
+            "Label": "Line height",
+            "Description": "Adjust spacing between lines"
+          },
+          "Width": {
+            "Label": "Page width",
+            "Description": "Adjust the text column width"
+          },
+          "Margin": {
+            "Label": "Page margin",
+            "Description": "Adjust the empty space around text pages"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "Reading annotations",
           "Hide": {
@@ -2580,9 +2609,9 @@
       "Window": "Window"
     },
     "ComponentsTab": {
-      "Description": "Review installed components individually. Keep a group enabled to include it during reinstall.",
+      "Description": "Review runtime capabilities, installed language packages, and dictionary packs separately. Install or repair only the component that needs attention.",
       "Reinstall": "Reinstall Components",
-      "RestartNote": "The app will restart after installation completes.",
+      "RestartNote": "Runtime repairs may restart the app. Language data updates are available after installation finishes.",
       "Enabled": "Enabled",
       "Disabled": "Disabled",
       "Groups": {
@@ -2651,6 +2680,34 @@
         "DictionaryPack": {
           "Description": "Definitions for {language}."
         }
+      },
+      "InstallErrorTitle": "Install failed",
+      "Sections": {
+        "Runtime": {
+          "Title": "App runtime",
+          "Description": "Python-side optional capabilities. These toggles decide what runtime packages are included when repairing the local backend."
+        },
+        "LanguageData": {
+          "Title": "Language data",
+          "Description": "Installed and available language bundles, dictionaries, and their individual files."
+        }
+      },
+      "Actions": {
+        "Install": "Install",
+        "Update": "Update",
+        "RepairRuntime": "Repair runtime components"
+      },
+      "Status": {
+        "installed": "Installed",
+        "missing": "Missing",
+        "outdated": "Outdated",
+        "error": "Error"
+      },
+      "LanguageData": {
+        "CoreTitle": "{language} language package",
+        "CoreDescription": "Core runtime data for {language}.",
+        "DictionaryDescription": "Definitions for {language} in {target}.",
+        "SizeStatus": "{installed} of {total}"
       }
     },
     "Diagnostics": {

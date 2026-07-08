@@ -5,7 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { FlashcardProsody, LanguageDataCatalogStatus, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
+import type { FlashcardProsody, LanguageDataCatalogStatus, LanguageDataInstallError, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import {
   buildLexemeIndex,
@@ -114,7 +114,7 @@ interface LanguageContextValue {
   installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
   isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
   refreshLanguageData: () => void;
-  languageDataInstallError: () => { language: string; error: string } | null;
+  languageDataInstallError: () => LanguageDataInstallError | null;
   isTranslatable: (pos: string) => boolean;
   isTokenTranslatable: (token: Pick<Token, 'word'> & Partial<Pick<Token, 'surface' | 'actual_word' | 'type' | 'partOfSpeech'>>) => boolean;
   translatableTypes: () => string[];
@@ -237,7 +237,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [wordFrequency, setWordFrequency] = createSignal<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
   const [languageDataCatalog, setLanguageDataCatalog] = createSignal<LanguageDataCatalogStatus[]>([]);
-  const [languageDataInstallError, setLanguageDataInstallError] = createSignal<{ language: string; error: string } | null>(null);
+  const [languageDataInstallError, setLanguageDataInstallError] = createSignal<LanguageDataInstallError | null>(null);
   const [languageDataInstalls, setLanguageDataInstalls] = createSignal<Record<string, boolean>>({});
   let lexemeIndex: LanguageLexemeIndex = createEmptyLexemeIndex();
   const perLanguageFrequencyState = new Map<string, { data: LanguageData | null; state: LanguageFrequencyState }>();
@@ -289,11 +289,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     ipcCleanups.push(bridge.localization.onLanguageDataInstallError((payload) => {
       setLanguageDataInstalls((previous) => {
         const next = { ...previous };
-        for (const key of Object.keys(next)) {
-          if (key === payload.language || key.startsWith(`${payload.language}:`)) {
-            delete next[key];
-          }
-        }
+        delete next[getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage)];
         return next;
       });
       setLanguageDataInstallError(payload);

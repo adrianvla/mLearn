@@ -4,7 +4,7 @@ import { withCloudAuth } from '../../../services/cloudSessionManager';
  * Manga/Image OCR reader integrated into main window via router
  */
 
-import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, createMemo, batch, on, untrack } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, createMemo, batch, on, untrack, type JSX } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, OcrWord, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
@@ -14,7 +14,7 @@ import { initWordLookupBridge } from '../../../services/wordLookupService';
 import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
-import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection } from '../../../../shared/types';
+import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, ReaderTextFontStyle } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
@@ -513,6 +513,25 @@ export const ReaderRoute: Component = () => {
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
   const pageMode = () => getReaderPageModeForLanguage(settings, currentLangData());
   const readerSpreadDirection = () => getReaderSpreadDirectionForLanguage(settings, currentLangData());
+  const readerTextFontStyle = () => settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!;
+  const readerTextFontFamily = () => {
+    const fontStyle = readerTextFontStyle();
+    const languageFont = currentLangData()?.typography?.contentFontFamily;
+    const fontStacks: Record<ReaderTextFontStyle, string> = {
+      language: languageFont || 'var(--font-family-content)',
+      sans: 'var(--font-family-sans)',
+      serif: 'Georgia, "Times New Roman", serif',
+      mono: 'var(--font-family-mono)',
+    };
+    return fontStacks[fontStyle];
+  };
+  const readerTextStyle = (): JSX.CSSProperties => ({
+    '--reader-text-font-family': readerTextFontFamily(),
+    '--reader-text-font-size': `${settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}rem`,
+    '--reader-text-line-height': `${settings.readerTextLineHeight ?? DEFAULT_SETTINGS.readerTextLineHeight!}`,
+    '--reader-text-width': `${settings.readerTextWidth ?? DEFAULT_SETTINGS.readerTextWidth!}ch`,
+    '--reader-text-gutter-scale': `${settings.readerTextMargin ?? DEFAULT_SETTINGS.readerTextMargin!}`,
+  } as JSX.CSSProperties);
   // When true and in double-page mode, first page displays alone (cover page)
   // This offsets the pairing: [0], [1,2], [3,4]... instead of [0,1], [2,3]...
   const firstPageSingle = () => getReaderFirstPageSingleForLanguage(settings, currentLangData());
@@ -823,6 +842,17 @@ export const ReaderRoute: Component = () => {
 
   createEffect(() => {
     if (!visiblePagesAreText()) return;
+    queueMicrotask(updateMeasuredTextPageCapacity);
+  });
+
+  createEffect(() => {
+    if (!visiblePagesAreText()) return;
+    settings.readerTextFontStyle;
+    settings.readerTextSize;
+    settings.readerTextLineHeight;
+    settings.readerTextWidth;
+    settings.readerTextMargin;
+    currentLangData()?.typography?.contentFontFamily;
     queueMicrotask(updateMeasuredTextPageCapacity);
   });
 
@@ -2678,7 +2708,10 @@ export const ReaderRoute: Component = () => {
         </Show>
 
         {/* Main Content */}
-        <main class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}`}>
+        <main
+          class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}`}
+          style={visiblePagesAreText() ? readerTextStyle() : undefined}
+        >
           <Show
               when={pages().length > 0}
               fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenBookFile} />}

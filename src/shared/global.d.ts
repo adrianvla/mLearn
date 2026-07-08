@@ -66,7 +66,7 @@ export interface MLearnIPC {
   onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
   installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
-  onLanguageDataInstallError: (callback: (payload: { language: string; error: string }) => void) => () => void;
+  onLanguageDataInstallError: (callback: (payload: import('./types').LanguageDataInstallError) => void) => () => void;
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
