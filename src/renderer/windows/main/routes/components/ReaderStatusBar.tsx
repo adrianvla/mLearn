@@ -24,6 +24,8 @@ interface ReaderStatusBarProps {
   isTranslating?: Accessor<boolean>;
   onRunOcr: () => void;
   onOpenConversationAgent: () => void;
+  cropMode?: Accessor<boolean>;
+  onToggleCropMode?: () => void;
   debugOcr?: Accessor<boolean>;
   onToggleDebugOcr?: () => void;
   lastOcrTiming?: Accessor<OcrProcessingTimes | null>;
@@ -80,13 +82,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
     updateSettings({ readerWordHoverTrigger: value });
   };
 
-  const isTurbo = () => settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!;
   const isReadingAnnotationDetection = () => ocrReadingAnnotationFilteringEnabled(settings);
   const supportsReadingDetection = () => getLanguageFeatures().supportsReadings;
-
-  const toggleTurbo = () => {
-    updateSettings({ ocrTurboMode: !isTurbo() });
-  };
 
   const toggleReadingAnnotationDetection = () => {
     const enabled = !isReadingAnnotationDetection();
@@ -144,13 +141,13 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
           <Show when={settings.ocrEnabled}>
             <button
               class="statusbar-toggle"
-              classList={{ 'active': isTurbo() }}
-              onClick={toggleTurbo}
-              title={t('mlearn.Settings.Reader.OcrSettings.TurboMode.Description')}
+              classList={{ 'active': props.cropMode?.() ?? false }}
+              onClick={() => props.onToggleCropMode?.()}
+              title={t('mlearn.Reader.StatusBar.CropModeTitle')}
             >
-              {isTurbo()
-                ? t('mlearn.Reader.StatusBar.TurboModeOn')
-                : t('mlearn.Reader.StatusBar.TurboModeOff')}
+              {props.cropMode?.()
+                ? t('mlearn.Reader.StatusBar.CropModeOn')
+                : t('mlearn.Reader.StatusBar.CropModeOff')}
             </button>
           </Show>
           <Show when={settings.ocrEnabled && supportsReadingDetection()}>
@@ -177,7 +174,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.DebugOverlayOff')}
             </button>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && !isTurbo() && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
+          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
             <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.DetectionScaleTitle')}>
               <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.DetectionScaleLabel', { value: String(props.ocrDetectionScale!()) })}

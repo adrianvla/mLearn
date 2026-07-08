@@ -59,39 +59,7 @@ registerDiagnosticSuite({
       },
     },
     {
-      name: 'ocr-turbo-image',
-      timeoutMs: 60_000,
-      async fn() {
-        const testImage = findTestImage();
-        if (!testImage) {
-          skipTest('Test OCR image not found');
-        }
-        const imageBuffer = fs.readFileSync(testImage);
-        const boundary = `----mlearn-diag-${Date.now()}`;
-        const body = buildOcrMultipartBody({
-          boundary,
-          imageBuffer,
-          language: getOcrDiagnosticLanguage(),
-          turbo: true,
-        });
-        const result = await httpPostMultipart(
-          `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
-          body,
-          boundary,
-          60_000,
-        );
-
-        if (result.status !== 200) {
-          throw new Error(`OCR turbo returned status ${result.status}`);
-        }
-        const data = JSON.parse(result.body);
-        if (!data.results || !Array.isArray(data.results)) {
-          throw new Error('OCR turbo returned unexpected format');
-        }
-      },
-    },
-    {
-      name: 'ocr-accurate-image',
+      name: 'ocr-image',
       timeoutMs: 120_000,
       async fn() {
         const testImage = findTestImage();
@@ -104,7 +72,6 @@ registerDiagnosticSuite({
           boundary,
           imageBuffer,
           language: getOcrDiagnosticLanguage(),
-          turbo: false,
         });
         const result = await httpPostMultipart(
           `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
@@ -114,11 +81,11 @@ registerDiagnosticSuite({
         );
 
         if (result.status !== 200) {
-          throw new Error(`OCR accurate returned status ${result.status}`);
+          throw new Error(`OCR image returned status ${result.status}`);
         }
         const data = JSON.parse(result.body);
-        if (!data.results || !Array.isArray(data.results)) {
-          throw new Error('OCR accurate returned unexpected format');
+        if (!data.boxes || !Array.isArray(data.boxes)) {
+          throw new Error('OCR image returned unexpected format');
         }
       },
     },
