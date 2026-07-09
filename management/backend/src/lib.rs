@@ -4,6 +4,7 @@ pub mod validation;
 pub mod auth;
 pub mod error;
 pub mod config;
+pub mod db;
 pub mod state;
 pub mod docker;
 pub mod sanitize;
