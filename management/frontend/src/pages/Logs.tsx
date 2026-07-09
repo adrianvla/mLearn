@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Card, CardContent, CardHeader, Chip, Button } from '@heroui/react';
+import { Card, Chip, Button, Select, ListBox } from '@heroui/react';
 import { RefreshCw, Copy, Check, AlertTriangle } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState } from '../components/shared';
@@ -60,81 +60,93 @@ export default function Logs() {
       )}
 
       <Card className="mb-4">
-        <CardContent>
+        <Card.Content>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted">Service</label>
-              <select
-                className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-accent disabled:opacity-50 sm:max-w-xs"
-                value={selectedService ?? ''}
-                disabled={services.length === 0}
-                onChange={(e) => setSelectedService(e.target.value || null)}
+              <span className="text-xs font-medium text-muted">Service</span>
+              <Select
+                selectedKey={selectedService ?? ''}
+                onSelectionChange={(key) => setSelectedService(key === null ? null : String(key))}
+                isDisabled={services.length === 0}
               >
-                <option value="" disabled>Select a service</option>
-                {services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.service_name ?? service.container_name}
-                  </option>
-                ))}
-              </select>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item id="">Select a service</ListBox.Item>
+                    {services.map((service) => (
+                      <ListBox.Item key={service.id} id={service.id}>
+                        {service.service_name ?? service.container_name}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted">Lines</label>
-              <select
-                className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-accent sm:max-w-40"
-                value={String(tail)}
-                onChange={(e) => setTail(Number(e.target.value))}
+              <span className="text-xs font-medium text-muted">Lines</span>
+              <Select
+                selectedKey={String(tail)}
+                onSelectionChange={(key) => setTail(Number(key))}
               >
-                {TAIL_OPTIONS.map((value) => (
-                  <option key={value} value={value}>{value} lines</option>
-                ))}
-              </select>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {TAIL_OPTIONS.map((value) => (
+                      <ListBox.Item key={value} id={String(value)}>
+                        {value} lines
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             </div>
 
             <Button
-              color="accent"
-              variant="flat"
+              variant="secondary"
               isDisabled={selectedService === null}
-              isLoading={logsApi.loading && selectedService !== null}
               onPress={logsApi.refetch}
-              startContent={<RefreshCw className="h-4 w-4" />}
             >
+              <RefreshCw className={logsApi.loading && selectedService !== null ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
               Refresh
             </Button>
           </div>
-        </CardContent>
+        </Card.Content>
       </Card>
 
       {logsApi.error !== null ? (
         <ErrorState message={logsApi.error} />
       ) : (
         <Card>
-          <CardHeader className="flex items-center justify-between gap-3">
+          <Card.Header className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-foreground">Output</h2>
+              <Card.Title>Output</Card.Title>
               {logs !== null && logs.truncated && (
-                <Chip
-                  size="sm"
-                  color="warning"
-                  variant="flat"
-                  startContent={<AlertTriangle className="h-3 w-3" />}
-                >
-                  Truncated
+                <Chip size="sm" color="warning" variant="soft">
+                  <span className="inline-flex items-center gap-1.5">
+                    <AlertTriangle className="h-3 w-3" />
+                    Truncated
+                  </span>
                 </Chip>
               )}
             </div>
             <Button
               size="sm"
-              variant="flat"
+              variant="secondary"
               isDisabled={!hasOutput}
               onPress={handleCopy}
-              startContent={copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied ? 'Copied' : 'Copy'}
             </Button>
-          </CardHeader>
-          <CardContent>
+          </Card.Header>
+          <Card.Content>
             {selectedService === null ? (
               <div className="flex h-64 items-center justify-center text-muted">
                 Select a service to view logs
@@ -147,7 +159,7 @@ export default function Logs() {
                 className="h-[30rem] overflow-auto rounded-lg bg-surface-secondary p-3 font-mono text-xs leading-relaxed"
               >
                 {logs.lines.map((line, index) => (
-                  <div key={index} className="whitespace-pre-wrap break-words">
+                  <div key={`${line.timestamp ?? index}-${index}`} className="whitespace-pre-wrap break-words">
                     {line.timestamp !== null && (
                       <span className="text-muted">{line.timestamp} </span>
                     )}
@@ -162,7 +174,7 @@ export default function Logs() {
                 No log output for this service
               </div>
             )}
-          </CardContent>
+          </Card.Content>
         </Card>
       )}
     </PageContainer>

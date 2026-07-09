@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, Chip, TableCell } from '@heroui/react';
+import { Card, Chip, Table } from '@heroui/react';
 import { Network, Database, Activity, Server } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, statusToColor } from '../components/shared';
@@ -32,13 +32,13 @@ function DistributionContent({ data }: { data: DistributionDto }) {
   return (
     <div className="grid gap-4">
       <Card>
-        <CardHeader className="flex items-center gap-2 pb-0">
+        <Card.Header className="flex items-center gap-2">
           <Network className="h-5 w-5 text-muted" />
-          <h2 className="text-lg font-semibold text-foreground">Mirror Status</h2>
-        </CardHeader>
-        <CardContent>
+          <Card.Title>Mirror Status</Card.Title>
+        </Card.Header>
+        <Card.Content>
           <InfoRow label="Enabled">
-            <Chip color={mirror.enabled ? 'success' : 'default'} variant="flat" size="sm">
+            <Chip color={mirror.enabled ? 'success' : 'default'} variant="soft" size="sm">
               {mirror.enabled ? 'Enabled' : 'Disabled'}
             </Chip>
           </InfoRow>
@@ -48,102 +48,114 @@ function DistributionContent({ data }: { data: DistributionDto }) {
           <InfoRow label="Last Sync">{mirror.last_sync ?? 'never'}</InfoRow>
           <InfoRow label="Cached Size">{formatBytes(mirror.cached_bytes)}</InfoRow>
           <InfoRow label="Item Count">{mirror.item_count}</InfoRow>
-        </CardContent>
+        </Card.Content>
       </Card>
 
       <Card>
-        <CardHeader className="flex items-center gap-2 pb-0">
+        <Card.Header className="flex items-center gap-2">
           <Database className="h-5 w-5 text-muted" />
-          <h2 className="text-lg font-semibold text-foreground">Cache Items</h2>
-        </CardHeader>
-        <CardContent>
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-border">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Kind</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Name</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Version</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Size</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Served Locally</th>
-            </thead>
-            <tbody>
-              {data.cache_items.map((item) => (
-                <tr key={`${item.name}-${item.version}`}>
-                  <td>{item.kind}</td>
-                  <td>{item.name}</td>
-                  <td>{item.version}</td>
-                  <td className="tabular-nums">{formatBytes(item.size_bytes)}</td>
-                  <td>
-                    <Chip color={item.served_locally ? 'success' : 'default'} variant="flat" size="sm">
-                      {item.served_locally ? 'Yes' : 'No'}
-                    </Chip>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
+          <Card.Title>Cache Items</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content aria-label="Cache items" className="min-w-[600px]">
+                <Table.Header>
+                  <Table.Column isRowHeader>Kind</Table.Column>
+                  <Table.Column>Name</Table.Column>
+                  <Table.Column>Version</Table.Column>
+                  <Table.Column>Size</Table.Column>
+                  <Table.Column>Served Locally</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {data.cache_items.map((item) => (
+                    <Table.Row key={`${item.name}-${item.version}`}>
+                      <Table.Cell>{item.kind}</Table.Cell>
+                      <Table.Cell>{item.name}</Table.Cell>
+                      <Table.Cell>{item.version}</Table.Cell>
+                      <Table.Cell className="tabular-nums">{formatBytes(item.size_bytes)}</Table.Cell>
+                      <Table.Cell>
+                        <Chip color={item.served_locally ? 'success' : 'default'} variant="soft" size="sm">
+                          {item.served_locally ? 'Yes' : 'No'}
+                        </Chip>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+        </Card.Content>
       </Card>
 
       <Card>
-        <CardHeader className="flex items-center gap-2 pb-0">
+        <Card.Header className="flex items-center gap-2">
           <Server className="h-5 w-5 text-muted" />
-          <h2 className="text-lg font-semibold text-foreground">LAN Endpoints</h2>
-        </CardHeader>
-        <CardContent>
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-border">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">URL</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Status</th>
-            </thead>
-            <tbody>
-              {data.lan_endpoints.map((endpoint) => (
-                <tr key={`${endpoint.label}-${endpoint.url}`}>
-                  <td>{endpoint.label}</td>
-                  <td>
-                    <span className="font-mono text-xs">{endpoint.url}</span>
-                  </td>
-                  <td>
-                    <Chip color={statusToColor(endpoint.status)} variant="flat" size="sm">
-                      {endpoint.status}
-                    </Chip>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
+          <Card.Title>LAN Endpoints</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content aria-label="LAN endpoints" className="min-w-[600px]">
+                <Table.Header>
+                  <Table.Column isRowHeader>Label</Table.Column>
+                  <Table.Column>URL</Table.Column>
+                  <Table.Column>Status</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {data.lan_endpoints.map((endpoint) => (
+                    <Table.Row key={`${endpoint.label}-${endpoint.url}`}>
+                      <Table.Cell>{endpoint.label}</Table.Cell>
+                      <Table.Cell>
+                        <span className="font-mono text-xs">{endpoint.url}</span>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Chip color={statusToColor(endpoint.status)} variant="soft" size="sm">
+                          {endpoint.status}
+                        </Chip>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+        </Card.Content>
       </Card>
 
       <Card>
-        <CardHeader className="flex items-center gap-2 pb-0">
+        <Card.Header className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-muted" />
-          <h2 className="text-lg font-semibold text-foreground">Sync Rules</h2>
-        </CardHeader>
-        <CardContent>
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-border">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Source</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Destination</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Mode</th>
-            </thead>
-            <tbody>
-              {data.sync_rules.map((rule) => (
-                <tr key={rule.id}>
-                  <td>{rule.label}</td>
-                  <td>
-                    <span className="font-mono text-xs">{rule.source}</span>
-                  </td>
-                  <td>
-                    <span className="font-mono text-xs">{rule.destination}</span>
-                  </td>
-                  <td>{rule.mode}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
+          <Card.Title>Sync Rules</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content aria-label="Sync rules" className="min-w-[600px]">
+                <Table.Header>
+                  <Table.Column isRowHeader>Label</Table.Column>
+                  <Table.Column>Source</Table.Column>
+                  <Table.Column>Destination</Table.Column>
+                  <Table.Column>Mode</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {data.sync_rules.map((rule) => (
+                    <Table.Row key={rule.id}>
+                      <Table.Cell>{rule.label}</Table.Cell>
+                      <Table.Cell>
+                        <span className="font-mono text-xs">{rule.source}</span>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <span className="font-mono text-xs">{rule.destination}</span>
+                      </Table.Cell>
+                      <Table.Cell>{rule.mode}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+        </Card.Content>
       </Card>
     </div>
   );

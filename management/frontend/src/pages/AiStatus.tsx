@@ -1,7 +1,14 @@
-import { Card, CardContent, CardHeader, Chip } from '@heroui/react';
+import { Avatar, Card, Chip } from '@heroui/react';
 import { Cloud, Cpu, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
-import { PageContainer, PageHeader, LoadingState, ErrorState, statusToColor } from '../components/shared';
+import {
+  PageContainer,
+  PageHeader,
+  LoadingState,
+  ErrorState,
+  InfoRow,
+  statusToColor,
+} from '../components/shared';
 import type { AiStatusDto } from '../api/types';
 
 export default function AiStatus() {
@@ -22,62 +29,56 @@ export default function AiStatus() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>
-              <CardHeader className="flex items-center gap-3 pb-0">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent">
-                  <Cpu className="h-5 w-5" />
-                </span>
+              <Card.Header className="flex items-center gap-3 pb-0">
+                <Avatar size="sm" color="accent">
+                  <Avatar.Fallback><Cpu className="h-5 w-5" /></Avatar.Fallback>
+                </Avatar>
                 <div className="flex-1">
-                  <h2 className="text-base font-semibold text-foreground">Local AI</h2>
-                  <p className="text-xs text-muted">On-device inference</p>
+                  <Card.Title>Local AI</Card.Title>
+                  <Card.Description>On-device inference</Card.Description>
                 </div>
                 <Chip
                   size="sm"
-                  variant="flat"
+                  variant="soft"
                   color={data.local_ai.enabled ? 'success' : 'default'}
                 >
                   {data.local_ai.enabled ? 'Enabled' : 'Disabled'}
                 </Chip>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between border-b border-separator py-2 last:border-0">
-                  <span className="text-sm text-muted">Provider</span>
-                  <span className="text-sm font-medium text-foreground">
-                    {data.local_ai.provider_name ?? '—'}
-                  </span>
-                </div>
+              </Card.Header>
+              <Card.Content className="pt-4">
+                <InfoRow label="Provider">{data.local_ai.provider_name ?? '—'}</InfoRow>
                 {data.local_ai.service_status && (
-                  <div className="flex items-center justify-between border-b border-separator py-2 last:border-0">
-                    <span className="text-sm text-muted">Service status</span>
+                  <InfoRow label="Service status">
                     <Chip
                       size="sm"
-                      variant="flat"
+                      variant="soft"
                       color={statusToColor(data.local_ai.service_status)}
                     >
                       {data.local_ai.service_status}
                     </Chip>
-                  </div>
+                  </InfoRow>
                 )}
-              </CardContent>
+              </Card.Content>
             </Card>
 
             <Card>
-              <CardHeader className="flex items-center gap-3 pb-0">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent">
-                  <Cloud className="h-5 w-5" />
-                </span>
+              <Card.Header className="flex items-center gap-3 pb-0">
+                <Avatar size="sm" color="accent">
+                  <Avatar.Fallback><Cloud className="h-5 w-5" /></Avatar.Fallback>
+                </Avatar>
                 <div className="flex-1">
-                  <h2 className="text-base font-semibold text-foreground">Cloud AI</h2>
-                  <p className="text-xs text-muted">Remote LLM providers</p>
+                  <Card.Title>Cloud AI</Card.Title>
+                  <Card.Description>Remote LLM providers</Card.Description>
                 </div>
                 <Chip
                   size="sm"
-                  variant="flat"
+                  variant="soft"
                   color={data.cloud_ai.enabled ? 'success' : 'default'}
                 >
                   {data.cloud_ai.enabled ? 'Enabled' : 'Disabled'}
                 </Chip>
-              </CardHeader>
-              <CardContent className="pt-4">
+              </Card.Header>
+              <Card.Content className="pt-4">
                 <div>
                   <p className="mb-2 text-sm text-muted">Providers</p>
                   {data.cloud_ai.provider_names.length === 0 ? (
@@ -85,47 +86,47 @@ export default function AiStatus() {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {data.cloud_ai.provider_names.map((name) => (
-                        <Chip key={name} size="sm" variant="flat" color="accent">
+                        <Chip key={name} size="sm" variant="soft" color="accent">
                           {name}
                         </Chip>
                       ))}
                     </div>
                   )}
                 </div>
-              </CardContent>
+              </Card.Content>
             </Card>
           </div>
 
           {data.cloud_ai.enabled && (
-            <Card className="border border-warning-200 bg-warning-50">
-              <CardContent>
+            <Card>
+              <Card.Content>
                 <div className="flex items-start gap-3">
                   <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
                   <div>
                     <p className="text-sm font-semibold text-warning">Age-gating required</p>
-                    <p className="mt-1 text-sm text-default-700">{ageGateMessage}</p>
+                    <p className="mt-1 text-sm text-foreground">{ageGateMessage}</p>
                   </div>
                 </div>
-              </CardContent>
+              </Card.Content>
             </Card>
           )}
 
           <Card>
-            <CardHeader className="flex items-center gap-3 pb-0">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning-100 text-warning">
-                <AlertTriangle className="h-5 w-5" />
-              </span>
+            <Card.Header className="flex items-center gap-3 pb-0">
+              <Avatar size="sm" color="warning">
+                <Avatar.Fallback><AlertTriangle className="h-5 w-5" /></Avatar.Fallback>
+              </Avatar>
               <div className="flex-1">
-                <h2 className="text-base font-semibold text-foreground">Warnings</h2>
-                <p className="text-xs text-muted">Issues detected by the AI subsystem</p>
+                <Card.Title>Warnings</Card.Title>
+                <Card.Description>Issues detected by the AI subsystem</Card.Description>
               </div>
-              <Chip size="sm" variant="flat" color={data.warnings.length === 0 ? 'success' : 'warning'}>
+              <Chip size="sm" variant="soft" color={data.warnings.length === 0 ? 'success' : 'warning'}>
                 {data.warnings.length}
               </Chip>
-            </CardHeader>
-            <CardContent className="pt-4">
+            </Card.Header>
+            <Card.Content className="pt-4">
               {data.warnings.length === 0 ? (
-                <div className="flex items-center gap-3 rounded-lg bg-success-50 px-4 py-3 text-success">
+                <div className="flex items-center gap-3 rounded-lg bg-surface-secondary px-4 py-3 text-success">
                   <CheckCircle2 className="h-5 w-5 shrink-0" />
                   <span className="text-sm font-medium">No warnings — everything looks healthy.</span>
                 </div>
@@ -134,15 +135,15 @@ export default function AiStatus() {
                   {data.warnings.map((w) => (
                     <li
                       key={w}
-                      className="flex items-start gap-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3"
+                      className="flex items-start gap-3 rounded-lg border border-border bg-surface-secondary px-4 py-3"
                     >
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                      <span className="text-sm text-default-700">{w}</span>
+                      <span className="text-sm text-foreground">{w}</span>
                     </li>
                   ))}
                 </ul>
               )}
-            </CardContent>
+            </Card.Content>
           </Card>
         </div>
       )}

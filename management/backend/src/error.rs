@@ -22,6 +22,9 @@ pub enum AppError {
     ActionNotAllowed,
 
     #[error("{0}")]
+    NotImplemented(String),
+
+    #[error("{0}")]
     BadRequest(String),
 
     #[error("Docker API error: {0}")]
@@ -39,6 +42,7 @@ impl AppError {
             Self::ContainerNotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::ActionNotAllowed => StatusCode::FORBIDDEN,
+            Self::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Docker(err) => docker_status_code(err),
@@ -111,6 +115,10 @@ mod tests {
         assert_eq!(
             AppError::ActionNotAllowed.status_code(),
             StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            AppError::NotImplemented("missing source".into()).status_code(),
+            StatusCode::NOT_IMPLEMENTED
         );
         assert_eq!(
             AppError::BadRequest("nope".into()).status_code(),

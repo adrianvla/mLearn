@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Button, Input, Chip } from '@heroui/react';
+import { Button, Chip, Input, ScrollShadow, Separator, Tooltip } from '@heroui/react';
+import appLogoUrl from '../../../src/html/assets/icons/logo.png';
 import {
   Activity,
   BarChart3,
@@ -10,6 +11,7 @@ import {
   Gauge,
   HardDrive,
   Lock,
+  LogOut,
   Network,
   Settings,
   Shield,
@@ -54,9 +56,38 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 
 const TOKEN_KEY = 'mlearn_admin_token';
 
+function NavButton({ item, isActive, onPress }: { item: NavItem; isActive: boolean; onPress: () => void }) {
+  return (
+    <Button
+      fullWidth
+      size="md"
+      variant={isActive ? 'secondary' : 'ghost'}
+      className="justify-start"
+      onPress={onPress}
+    >
+      <item.icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{item.label}</span>
+    </Button>
+  );
+}
+
 export default function Layout() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [token, setToken] = useState('');
   const [tokenSaved, setTokenSaved] = useState(false);
+  const [navSearch, setNavSearch] = useState('');
+
+  const selectedKey = NAV_GROUPS.flatMap((group) => group.items)
+    .find((item) => item.to === location.pathname)?.to ?? '/';
+  const currentItem = NAV_GROUPS.flatMap((group) => group.items)
+    .find((item) => item.to === selectedKey);
+  const filteredGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) =>
+      item.label.toLowerCase().includes(navSearch.trim().toLowerCase()),
+    ),
+  })).filter((group) => group.items.length > 0);
 
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
@@ -73,76 +104,114 @@ export default function Layout() {
       window.location.reload();
     }
   };
+  const handleClearToken = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken('');
+    setTokenSaved(false);
+    window.location.reload();
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <aside className="flex w-64 flex-col border-r border-border bg-surface">
-        <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-          <Lock className="h-5 w-5 text-accent" />
-          <span className="text-lg font-bold text-foreground">mLearn</span>
-          <Chip size="sm" color="accent" variant="flat">Admin</Chip>
+      <aside className="flex w-72 flex-col border-r border-border bg-background">
+        <div className="space-y-4 p-5">
+          <div className="flex items-center gap-3">
+            <img
+              src={appLogoUrl}
+              alt="mLearn"
+              className="h-12 w-12 shrink-0 object-contain"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-base font-semibold text-foreground">mLearn</span>
+                <Chip size="sm" color="accent" variant="soft">Admin</Chip>
+              </div>
+              <p className="truncate text-sm text-muted">Management console</p>
+            </div>
+          </div>
+
+          <Input
+            variant="secondary"
+            fullWidth
+            placeholder="Search console"
+            aria-label="Search console"
+            value={navSearch}
+            onChange={(event) => setNavSearch(event.currentTarget.value)}
+          />
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="mb-4">
-              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
-                {group.label}
-              </p>
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === '/'}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-accent text-accent'
-                        : 'text-foreground hover:bg-default hover:text-foreground'
-                    }`
-                  }
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </div>
-          ))}
-        </nav>
+        <Separator />
 
-        <div className="border-t border-border p-4">
+        <ScrollShadow className="flex-1 px-4 py-5" hideScrollBar>
+          <nav className="space-y-7">
+            {filteredGroups.map((group) => (
+              <div key={group.label}>
+                <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-muted">
+                  {group.label}
+                </p>
+                <div className="space-y-1.5">
+                  {group.items.map((item) => (
+                    <NavButton
+                      key={item.to}
+                      item={item}
+                      isActive={item.to === selectedKey}
+                      onPress={() => navigate(item.to)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </ScrollShadow>
+
+        <Separator />
+
+        <div className="p-4">
+          <div className="mb-4 space-y-1.5">
+            <Button fullWidth size="md" variant="ghost" className="justify-start" onPress={handleClearToken}>
+              <LogOut className="h-4 w-4 shrink-0" />
+              Log out
+            </Button>
+          </div>
           {tokenSaved ? (
-            <div className="flex items-center justify-between">
-              <Chip size="sm" color="success" variant="flat" startContent={<Shield className="h-3 w-3" />}>
-                Token set
+            <div className="flex items-center justify-between gap-2">
+              <Chip size="sm" color="success" variant="soft">
+                <span className="inline-flex items-center gap-1.5">
+                  <Shield className="h-3 w-3" />
+                  Authenticated
+                </span>
               </Chip>
-              <Button
-                size="sm"
-                variant="light"
-                color="danger"
-                onPress={() => {
-                  localStorage.removeItem(TOKEN_KEY);
-                  setToken('');
-                  setTokenSaved(false);
-                  window.location.reload();
-                }}
-              >
-                Clear
-              </Button>
+              <Tooltip>
+                <Tooltip.Trigger>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onPress={handleClearToken}
+                  >
+                    Clear
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Remove the saved admin token</Tooltip.Content>
+              </Tooltip>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Lock className="h-4 w-4 text-accent" />
+                  Admin token
+                </div>
               <Input
-                size="sm"
+                variant="secondary"
+                fullWidth
                 type="password"
                 placeholder="Admin token"
                 value={token}
-                onValueChange={setToken}
+                onChange={(event) => setToken(event.currentTarget.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveToken();
                 }}
               />
-              <Button size="sm" color="accent" className="w-full" onPress={handleSaveToken}>
+              <Button size="sm" variant="primary" fullWidth onPress={handleSaveToken} isDisabled={token.trim().length === 0}>
                 Authenticate
               </Button>
             </div>
@@ -150,9 +219,18 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+      <section className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
+          <div className="flex items-center gap-2 text-sm text-muted">
+            {currentItem && <currentItem.icon className="h-4 w-4" />}
+            <span>{currentItem?.label ?? 'Management'}</span>
+          </div>
+          <div />
+        </header>
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+      </section>
     </div>
   );
 }
