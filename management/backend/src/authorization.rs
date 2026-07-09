@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::{error::AppError, identity::Principal};
 
@@ -105,6 +105,46 @@ impl AuthorizationService {
         .bind(&principal.user_id)
         .bind(capability.as_str())
         .fetch_one(&self.pool)
+        .await
+        .map_err(database_error)?;
+
+        if authorized == 1 {
+            Ok(())
+        } else {
+            Err(AppError::Forbidden(format!(
+                "{} is required for group {group_id}",
+                capability.as_str()
+            )))
+        }
+    }
+
+    pub(crate) async fn require_in_transaction(
+        &self,
+        transaction: &mut Transaction<'_, Sqlite>,
+        principal: &Principal,
+        group_id: &str,
+        capability: Capability,
+    ) -> Result<(), AppError> {
+        let authorized: i64 = sqlx::query_scalar(
+            "WITH RECURSIVE ancestors(id, parent_id) AS (
+                SELECT id, parent_id FROM groups WHERE id = ? AND status != 'archived'
+                UNION ALL
+                SELECT parent.id, parent.parent_id
+                FROM groups parent JOIN ancestors child ON child.parent_id = parent.id
+                WHERE parent.status != 'archived'
+            )
+            SELECT EXISTS(
+                SELECT 1 FROM ancestors
+                JOIN group_memberships membership ON membership.group_id = ancestors.id
+                JOIN membership_capabilities capability ON capability.membership_id = membership.id
+                WHERE membership.user_id = ? AND membership.status = 'active'
+                  AND capability.capability = ?
+            )",
+        )
+        .bind(group_id)
+        .bind(&principal.user_id)
+        .bind(capability.as_str())
+        .fetch_one(&mut **transaction)
         .await
         .map_err(database_error)?;
 

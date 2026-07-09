@@ -1,5 +1,6 @@
 use serde::Serialize;
 use sqlx::{Row, SqlitePool};
+use std::collections::HashSet;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -108,6 +109,14 @@ impl GroupService {
             .require(principal, group_id, Capability::GroupManage)
             .await?;
         validate_group_fields(name, slug)?;
+        let current_parent: Option<String> = sqlx::query_scalar("SELECT parent_id FROM groups WHERE id = ?")
+            .bind(group_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(database_error)?;
+        if current_parent.is_some() && parent_id.is_none() {
+            return Err(AppError::BadRequest("non-root group requires a parent".into()));
+        }
         if let Some(parent_id) = parent_id {
             self.authorization
                 .require(principal, parent_id, Capability::GroupManage)
@@ -179,14 +188,28 @@ impl GroupService {
         member: &Principal,
         capabilities: &[Capability],
     ) -> Result<Membership, AppError> {
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
         self.authorization
-            .require(principal, group_id, Capability::MembersManage)
+            .require_in_transaction(
+                &mut transaction,
+                principal,
+                group_id,
+                Capability::MembersManage,
+            )
             .await?;
         if !capabilities.is_empty() {
-            self.require_delegable(principal, group_id, capabilities)
-                .await?;
+            self.require_delegable_in_transaction(
+                &mut transaction,
+                principal,
+                group_id,
+                capabilities,
+            )
+            .await?;
         }
-        let mut transaction = self.pool.begin().await.map_err(database_error)?;
         let membership_id = Uuid::now_v7().to_string();
         sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, invited_email, status, created_at, archived_at) VALUES (?, ?, ?, NULL, 'active', ?, NULL)")
             .bind(&membership_id)
@@ -217,15 +240,29 @@ impl GroupService {
         member: &Principal,
         capabilities: &[Capability],
     ) -> Result<Membership, AppError> {
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
+        self.require_delegable_in_transaction(
+            &mut transaction,
+            principal,
+            group_id,
+            capabilities,
+        )
+        .await?;
         let membership_id: String = sqlx::query_scalar("SELECT id FROM group_memberships WHERE group_id = ? AND user_id = ? AND status = 'active'")
             .bind(group_id)
             .bind(&member.user_id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&mut *transaction)
             .await
             .map_err(database_error)?
             .ok_or_else(|| AppError::Conflict("active membership not found".into()))?;
-        self.update_membership_capabilities(principal, group_id, &membership_id, capabilities)
-            .await
+        replace_capabilities(&mut transaction, &membership_id, capabilities).await?;
+        audit(&mut transaction, principal, "membership.capabilities_delegated", "group_membership", &membership_id, None).await?;
+        transaction.commit().await.map_err(database_error)?;
+        self.membership_by_id(&membership_id).await
     }
 
     pub async fn update_membership_capabilities(
@@ -235,26 +272,30 @@ impl GroupService {
         membership_id: &str,
         capabilities: &[Capability],
     ) -> Result<Membership, AppError> {
-        self.require_delegable(principal, group_id, capabilities)
-            .await?;
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
+        self.require_delegable_in_transaction(
+            &mut transaction,
+            principal,
+            group_id,
+            capabilities,
+        )
+        .await?;
         let belongs_to_group: i64 = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM group_memberships WHERE id = ? AND group_id = ? AND status = 'active')",
         )
         .bind(membership_id)
         .bind(group_id)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *transaction)
         .await
         .map_err(database_error)?;
         if belongs_to_group != 1 {
             return Err(AppError::Conflict("active membership not found".into()));
         }
-        let mut transaction = self.pool.begin().await.map_err(database_error)?;
-        sqlx::query("DELETE FROM membership_capabilities WHERE membership_id = ?")
-            .bind(&membership_id)
-            .execute(&mut *transaction)
-            .await
-            .map_err(database_error)?;
-        insert_capabilities(&mut transaction, &membership_id, capabilities).await?;
+        replace_capabilities(&mut transaction, membership_id, capabilities).await?;
         audit(
             &mut transaction,
             principal,
@@ -394,18 +435,24 @@ impl GroupService {
         Ok(())
     }
 
-    async fn require_delegable(
+    async fn require_delegable_in_transaction(
         &self,
+        transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
         principal: &Principal,
         group_id: &str,
         capabilities: &[Capability],
     ) -> Result<(), AppError> {
         self.authorization
-            .require(principal, group_id, Capability::PermissionsDelegate)
+            .require_in_transaction(
+                transaction,
+                principal,
+                group_id,
+                Capability::PermissionsDelegate,
+            )
             .await?;
         for capability in capabilities {
             self.authorization
-                .require(principal, group_id, *capability)
+                .require_in_transaction(transaction, principal, group_id, *capability)
                 .await?;
         }
         Ok(())
@@ -475,7 +522,11 @@ async fn insert_capabilities(
     membership_id: &str,
     capabilities: &[Capability],
 ) -> Result<(), AppError> {
+    let mut inserted = HashSet::new();
     for capability in capabilities {
+        if !inserted.insert(*capability) {
+            continue;
+        }
         sqlx::query(
             "INSERT INTO membership_capabilities (membership_id, capability) VALUES (?, ?)",
         )
@@ -486,6 +537,19 @@ async fn insert_capabilities(
         .map_err(database_error)?;
     }
     Ok(())
+}
+
+async fn replace_capabilities(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    membership_id: &str,
+    capabilities: &[Capability],
+) -> Result<(), AppError> {
+    sqlx::query("DELETE FROM membership_capabilities WHERE membership_id = ?")
+        .bind(membership_id)
+        .execute(&mut **transaction)
+        .await
+        .map_err(database_error)?;
+    insert_capabilities(transaction, membership_id, capabilities).await
 }
 
 async fn audit(
@@ -540,7 +604,9 @@ pub(crate) mod tests {
         error::AppError,
         identity::{IdentityType, Principal},
     };
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    use std::{str::FromStr, sync::Arc, time::Duration};
+    use tokio::sync::Barrier;
 
     pub(crate) struct GroupFixture {
         pub(crate) groups: super::GroupService,
@@ -704,5 +770,128 @@ pub(crate) mod tests {
                 .await
                 .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn concurrent_opposing_moves_allow_only_one_and_keep_recursive_queries_safe() {
+        let path = std::env::temp_dir().join(format!("mlearn-groups-{}.db", uuid::Uuid::now_v7()));
+        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))
+            .unwrap()
+            .create_if_missing(true)
+            .foreign_keys(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(5));
+        let pool = SqlitePoolOptions::new().max_connections(4).connect_with(options).await.unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        for (id, parent) in [("root", None), ("a", Some("root")), ("b", Some("root"))] {
+            sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES (?, ?, ?, ?, 'active', 1)")
+                .bind(id).bind(parent).bind(id).bind(id).execute(&pool).await.unwrap();
+        }
+        let barrier = Arc::new(Barrier::new(2));
+        let first_pool = pool.clone();
+        let first_barrier = barrier.clone();
+        let first = tokio::spawn(async move {
+            let cycle: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE parent_id = 'a' UNION ALL SELECT child.id FROM groups child JOIN descendants parent ON child.parent_id = parent.id) SELECT EXISTS(SELECT 1 FROM descendants WHERE id = 'b')")
+                .fetch_one(&first_pool).await.unwrap();
+            assert_eq!(cycle, 0);
+            first_barrier.wait().await;
+            sqlx::query("UPDATE groups SET parent_id = 'b' WHERE id = 'a'").execute(&first_pool).await
+        });
+        let second_pool = pool.clone();
+        let second = tokio::spawn(async move {
+            let cycle: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE parent_id = 'b' UNION ALL SELECT child.id FROM groups child JOIN descendants parent ON child.parent_id = parent.id) SELECT EXISTS(SELECT 1 FROM descendants WHERE id = 'a')")
+                .fetch_one(&second_pool).await.unwrap();
+            assert_eq!(cycle, 0);
+            barrier.wait().await;
+            sqlx::query("UPDATE groups SET parent_id = 'a' WHERE id = 'b'").execute(&second_pool).await
+        });
+        let (first, second) = tokio::join!(first, second);
+        let results = [first.unwrap(), second.unwrap()];
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(results.iter().filter(|result| result.is_err()).count(), 1);
+        let count: i64 = sqlx::query_scalar("WITH RECURSIVE tree(id) AS (SELECT id FROM groups WHERE parent_id IS NULL UNION ALL SELECT child.id FROM groups child JOIN tree parent ON child.parent_id = parent.id) SELECT COUNT(*) FROM tree")
+            .fetch_one(&pool).await.unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[tokio::test]
+    async fn database_rejects_a_second_root_group() {
+        let fixture = GroupFixture::german_tree().await;
+        let result = sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('second-root', NULL, 'Second Root', 'second-root', 'active', 1)")
+            .execute(&fixture.groups.pool).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn service_rejects_detaching_a_non_root_group() {
+        let fixture = GroupFixture::german_tree().await;
+        let result = fixture.groups.update_group(&fixture.german_a_teacher, &fixture.german_a, None, "German A", "german-a").await;
+        assert!(matches!(result, Err(AppError::BadRequest(message)) if message.contains("parent")));
+    }
+
+    #[tokio::test]
+    async fn duplicate_capabilities_are_deduplicated() {
+        let fixture = GroupFixture::german_tree().await;
+        let membership = fixture.groups.add_membership(
+            &fixture.german_a_teacher,
+            &fixture.german_a,
+            &fixture.other_teacher,
+            &[Capability::GroupView, Capability::GroupView],
+        ).await.unwrap();
+        assert_eq!(membership.capabilities, vec![Capability::GroupView]);
+    }
+
+    #[tokio::test]
+    async fn revocation_that_wins_prevents_concurrent_delegation() {
+        let path = std::env::temp_dir().join(format!("mlearn-delegation-{}.db", uuid::Uuid::now_v7()));
+        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))
+            .unwrap()
+            .create_if_missing(true)
+            .foreign_keys(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(5));
+        let pool = SqlitePoolOptions::new().min_connections(2).max_connections(2).connect_with(options).await.unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        for user in ["delegator", "recipient"] {
+            sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 'teacher', 0, 1, 1)")
+                .bind(user).bind(format!("{user}@test.invalid")).bind(format!("{user}@test.invalid")).bind(user).execute(&pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('root', NULL, 'Root', 'root', 'active', 1)").execute(&pool).await.unwrap();
+        for (membership, user) in [("delegator-membership", "delegator"), ("recipient-membership", "recipient")] {
+            sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES (?, 'root', ?, 'active', 1)").bind(membership).bind(user).execute(&pool).await.unwrap();
+        }
+        for capability in [Capability::PermissionsDelegate, Capability::LlmConfigure] {
+            sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('delegator-membership', ?)").bind(capability.as_str()).execute(&pool).await.unwrap();
+        }
+        let service = super::GroupService::new(pool.clone());
+        let delegator = principal("delegator");
+        let recipient = principal("recipient");
+
+        let mut revocation = pool.begin_with("BEGIN IMMEDIATE").await.unwrap();
+        sqlx::query("DELETE FROM membership_capabilities WHERE membership_id = 'delegator-membership' AND capability = 'llm.configure'")
+            .execute(&mut *revocation).await.unwrap();
+        let delegation = tokio::spawn(async move {
+            service.delegate_capabilities(&delegator, "root", &recipient, &[Capability::LlmConfigure]).await
+        });
+        let mut consecutive_busy_observations = 0;
+        for _ in 0..10_000 {
+            if pool.num_idle() == 0 {
+                consecutive_busy_observations += 1;
+                if consecutive_busy_observations == 100 {
+                    break;
+                }
+            } else {
+                consecutive_busy_observations = 0;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(consecutive_busy_observations, 100, "delegation never reached the write boundary");
+        revocation.commit().await.unwrap();
+        let result = delegation.await.unwrap();
+
+        assert!(matches!(result, Err(AppError::Forbidden(_))));
+        let granted: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM membership_capabilities WHERE membership_id = 'recipient-membership' AND capability = 'llm.configure'")
+            .fetch_one(&pool).await.unwrap();
+        assert_eq!(granted, 0);
     }
 }

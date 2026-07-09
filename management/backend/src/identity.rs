@@ -295,12 +295,13 @@ impl IdentityService {
             .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
-        sqlx::query("INSERT INTO sessions (id, user_id, expires_at, revoked_at, created_at, last_seen_at) VALUES (?, ?, ?, NULL, ?, ?)")
+        sqlx::query("INSERT INTO sessions (id, user_id, expires_at, revoked_at, created_at, last_seen_at, active_group_id) VALUES (?, ?, ?, NULL, ?, ?, ?)")
             .bind(&session_id)
             .bind(user_id)
             .bind(refresh_expires_at)
             .bind(now)
             .bind(now)
+            .bind(active_group_id)
             .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
@@ -365,7 +366,7 @@ impl IdentityService {
         let now = now_timestamp();
         let mut transaction = self.pool.begin().await.map_err(database_error)?;
         let row = sqlx::query(
-            "SELECT refresh_tokens.id AS refresh_id, sessions.id AS session_id, sessions.user_id, users.identity_type FROM refresh_tokens JOIN sessions ON sessions.id = refresh_tokens.session_id JOIN users ON users.id = sessions.user_id WHERE refresh_tokens.token_hash = ? AND refresh_tokens.revoked_at IS NULL AND refresh_tokens.expires_at > ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ? AND users.status = 'active'",
+            "SELECT refresh_tokens.id AS refresh_id, sessions.id AS session_id, sessions.user_id, sessions.active_group_id, users.identity_type FROM refresh_tokens JOIN sessions ON sessions.id = refresh_tokens.session_id JOIN users ON users.id = sessions.user_id WHERE refresh_tokens.token_hash = ? AND refresh_tokens.revoked_at IS NULL AND refresh_tokens.expires_at > ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ? AND users.status = 'active'",
         )
         .bind(&token_hash)
         .bind(now)
@@ -377,12 +378,18 @@ impl IdentityService {
         let refresh_id: String = row.get("refresh_id");
         let session_id: String = row.get("session_id");
         let user_id: String = row.get("user_id");
+        let active_group_id: Option<String> = row.get("active_group_id");
         let identity_type = IdentityType::parse(row.get("identity_type"))?;
         let (new_refresh_token, new_refresh_hash) = generate_refresh_token(device_id);
         let refresh_expires_at =
             (OffsetDateTime::now_utc() + REFRESH_TOKEN_LIFETIME).unix_timestamp();
-        let access =
-            self.encode_access_token(&user_id, &session_id, device_id, None, identity_type)?;
+        let access = self.encode_access_token(
+            &user_id,
+            &session_id,
+            device_id,
+            active_group_id.as_deref(),
+            identity_type,
+        )?;
 
         let updated = sqlx::query(
             "UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
@@ -703,6 +710,38 @@ mod tests {
             .rotate_refresh_token(&issued.refresh_token)
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn root_bootstrap_refresh_preserves_active_group() {
+        let fixture = IdentityFixture::new().await;
+        let (_, issued) = fixture
+            .service
+            .bootstrap_root_with_session(
+                &fixture.bootstrap,
+                "admin@school.test",
+                "Correct Horse Battery Staple",
+            )
+            .await
+            .unwrap();
+        let initial = fixture
+            .service
+            .principal_from_access_token(&issued.access_token)
+            .await
+            .unwrap();
+        let rotated = fixture
+            .service
+            .rotate_refresh_token(&issued.refresh_token)
+            .await
+            .unwrap();
+        let refreshed = fixture
+            .service
+            .principal_from_access_token(&rotated.access_token)
+            .await
+            .unwrap();
+
+        assert!(initial.active_group_id.is_some());
+        assert_eq!(refreshed.active_group_id, initial.active_group_id);
     }
 
     #[tokio::test]
