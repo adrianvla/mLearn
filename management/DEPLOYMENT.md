@@ -55,7 +55,9 @@ The management service is the **only** service that mounts the Docker socket. It
 
 2. **Verify localhost binding**
    - Default `MLEARN_BIND_ADDRESS=127.0.0.1` is correct for local access
+   - Keep `MLEARN_MANAGEMENT_PUBLIC_URL=http://127.0.0.1:3000` for local access
    - For network access, use a reverse proxy with TLS — never expose port 3000 directly
+   - Behind a reverse proxy, set `MLEARN_MANAGEMENT_PUBLIC_URL` to the external HTTPS origin
 
 3. **Check AI configuration**
    - `MLEARN_LOCAL_AI_ENABLED=true` — local AI is available
@@ -102,6 +104,14 @@ See [SCHOOL_DEPLOYMENT.md §4.4 Data Backup](../SCHOOL_DEPLOYMENT.md) for detail
 | 11434 | _(host)_ | Ollama local AI (if used) |
 
 All ports bind to `127.0.0.1` by default. For network access, configure a reverse proxy:
+
+```dotenv
+MLEARN_MANAGEMENT_PUBLIC_URL=https://mlearn.school.edu
+```
+
+The public URL is used for browser-facing desktop login links. It must be an
+absolute, navigable `http://` or `https://` origin. Never use `0.0.0.0` or `::`;
+those wildcard bind addresses cannot be opened by a browser.
 
 ```nginx
 server {
