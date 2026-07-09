@@ -1,0 +1,227 @@
+use serde_json::Value;
+
+use super::model::PolicyDocument;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JsonKind {
+    Boolean,
+    Number,
+    NumberOrNull,
+    String,
+    StringOrNull,
+}
+
+const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
+    ("srsLearningThreshold", JsonKind::Number),
+    ("known_ease_threshold", JsonKind::Number),
+    ("ankiLearningThreshold", JsonKind::Number),
+    ("ankiKnownThreshold", JsonKind::Number),
+    ("blur_words", JsonKind::Boolean),
+    ("blur_known_subtitles", JsonKind::Boolean),
+    ("blur_amount", JsonKind::Number),
+    ("colour_known", JsonKind::String),
+    ("do_colour_known", JsonKind::Boolean),
+    ("do_colour_codes", JsonKind::Boolean),
+    ("theme", JsonKind::String),
+    ("language", JsonKind::String),
+    ("hover_known_get_from_dictionary", JsonKind::Boolean),
+    ("show_pos", JsonKind::Boolean),
+    ("showReadingAnnotations", JsonKind::Boolean),
+    ("hideReadingForKnownWords", JsonKind::Boolean),
+    ("showProsody", JsonKind::Boolean),
+    ("showDictionary", JsonKind::Boolean),
+    ("use_anki", JsonKind::Boolean),
+    ("flashcardSkipAnkiChoice", JsonKind::Boolean),
+    ("skipAnkiDuplicateWarning", JsonKind::Boolean),
+    ("skipStatusSourceWarning", JsonKind::Boolean),
+    ("skipAnkiModifyWarning", JsonKind::Boolean),
+    ("easeThresholdUnknown", JsonKind::Number),
+    ("easeThresholdLearning", JsonKind::Number),
+    ("easeThresholdKnown", JsonKind::Number),
+    ("easeThresholdMastered", JsonKind::Number),
+    ("manualStatusEaseBuffer", JsonKind::Number),
+    ("ankiDeckName", JsonKind::String),
+    ("enable_flashcard_creation", JsonKind::Boolean),
+    ("automaticFlashcardCreation", JsonKind::Boolean),
+    ("flashcard_deck", JsonKind::StringOrNull),
+    ("flashcards_add_picture", JsonKind::Boolean),
+    ("maxNewCardsPerDay", JsonKind::Number),
+    ("proportionOfLevelCards", JsonKind::Number),
+    ("wordSyncStaleLearningDays", JsonKind::Number),
+    ("createUnseenCards", JsonKind::Boolean),
+    ("flashcardLLMExamples", JsonKind::Boolean),
+    ("newDayHour", JsonKind::Number),
+    ("flashcardFlipAnimation", JsonKind::Boolean),
+    ("leechThreshold", JsonKind::Number),
+    ("flashcardMediaType", JsonKind::String),
+    ("flashcardVideoMargin", JsonKind::Number),
+    ("autoSuggestFlashcards", JsonKind::Boolean),
+    ("autoSuggestUnknownWords", JsonKind::Boolean),
+    ("learningLanguageLevel", JsonKind::NumberOrNull),
+    ("openAside", JsonKind::Boolean),
+    ("rightSidebarOpen", JsonKind::Boolean),
+    ("subsOffsetTime", JsonKind::Number),
+    ("immediateFetch", JsonKind::Boolean),
+    ("subtitleTheme", JsonKind::String),
+    ("subtitle_font_size", JsonKind::Number),
+    ("subtitle_font_weight", JsonKind::Number),
+    ("showSubtitles", JsonKind::Boolean),
+    ("showTranslation", JsonKind::Boolean),
+    ("overlayAutoPosition", JsonKind::Boolean),
+    ("overlayTextMode", JsonKind::Boolean),
+    ("removeParentheses", JsonKind::Boolean),
+    ("removeSpeakerNames", JsonKind::Boolean),
+    ("showLiveTranslator", JsonKind::Boolean),
+    ("liveTranslatorIncludeKnown", JsonKind::Boolean),
+    ("blurKnownWords", JsonKind::Boolean),
+    ("llmEnabled", JsonKind::Boolean),
+    ("ocrEnabled", JsonKind::Boolean),
+    ("voiceEnabled", JsonKind::Boolean),
+    ("lowBatteryMode", JsonKind::Boolean),
+    ("ocr_crop_padding", JsonKind::Number),
+    ("ocrRamSaver", JsonKind::Boolean),
+    ("ocrTurboMode", JsonKind::Boolean),
+    ("ocrReadingAnnotationFiltering", JsonKind::Boolean),
+    ("ocrReadingAnnotationWidthRatio", JsonKind::Number),
+    (
+        "ocrReadingAnnotationNeighborWindowMultiplier",
+        JsonKind::Number,
+    ),
+    ("ocrReadingAnnotationNeighborLookahead", JsonKind::Number),
+    ("ocrProvider", JsonKind::String),
+    ("readerCropMode", JsonKind::Boolean),
+    ("readerDocumentOcr", JsonKind::Boolean),
+    ("readerWordHoverTrigger", JsonKind::String),
+    ("readerWordHoverKey", JsonKind::String),
+    ("readerReadingAnnotationHider", JsonKind::Boolean),
+    ("readerCollatePages", JsonKind::Boolean),
+    ("readerPageMode", JsonKind::String),
+    ("readerFirstPageSingle", JsonKind::Boolean),
+    ("readerSpreadDirection", JsonKind::String),
+    ("readerTextFontStyle", JsonKind::String),
+    ("readerTextSize", JsonKind::Number),
+    ("readerTextLineHeight", JsonKind::Number),
+    ("readerTextWidth", JsonKind::Number),
+    ("readerTextMargin", JsonKind::Number),
+    ("readerMagnifierHotkey", JsonKind::String),
+    ("readerMagnifierZoom", JsonKind::Number),
+    ("readerMagnifierSize", JsonKind::Number),
+    ("passiveEaseEnabled", JsonKind::Boolean),
+];
+
+pub fn validate_setting_rule(key: &str, value: &Value) -> Result<(), String> {
+    let kind = SETTING_REGISTRY
+        .iter()
+        .find_map(|(registered_key, kind)| (*registered_key == key).then_some(*kind))
+        .ok_or_else(|| format!("setting `{key}` is not policy-addressable"))?;
+
+    let valid = match kind {
+        JsonKind::Boolean => value.is_boolean(),
+        JsonKind::Number => value.is_number(),
+        JsonKind::NumberOrNull => value.is_number() || value.is_null(),
+        JsonKind::String => value.is_string(),
+        JsonKind::StringOrNull => value.is_string() || value.is_null(),
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(format!("setting `{key}` has the wrong JSON value type"))
+    }
+}
+
+pub fn validate_policy_document(document: &PolicyDocument) -> Result<(), String> {
+    if document.schema_version != 1 {
+        return Err("unsupported management policy schema version".to_string());
+    }
+    require_non_empty("policyVersionId", &document.policy_version_id)?;
+    require_non_empty("activeGroupId", &document.active_group_id)?;
+    require_non_empty("issuedAt", &document.issued_at)?;
+    require_non_empty("expiresAt", &document.expires_at)?;
+    require_non_empty("keyId", &document.key_id)?;
+    require_non_empty("signature", &document.signature)?;
+
+    for ancestor in &document.ancestry {
+        require_non_empty("ancestry.id", &ancestor.id)?;
+        require_non_empty("ancestry.name", &ancestor.name)?;
+    }
+    for (key, rule) in &document.settings {
+        validate_setting_rule(key, &rule.value)?;
+        if !rule.locked {
+            return Err(format!("managed setting `{key}` must be locked"));
+        }
+        require_non_empty("settings.sourceGroupId", &rule.source_group_id)?;
+        require_non_empty("settings.sourceGroupName", &rule.source_group_name)?;
+    }
+    for (feature_id, rule) in &document.features {
+        require_safe_identifier("feature", feature_id)?;
+        require_non_empty("features.sourceGroupId", &rule.source_group_id)?;
+    }
+    for provider in &document.llm.allowed_providers {
+        require_safe_identifier("LLM provider", provider)?;
+    }
+    for model in &document.llm.allowed_models {
+        require_non_empty("llm.allowedModels", model)?;
+    }
+    if let Some(prompt_profile_id) = &document.llm.prompt_profile_id {
+        require_safe_identifier("prompt profile", prompt_profile_id)?;
+    }
+    for quota in &document.llm.quotas {
+        require_non_empty("llm.quotas.sourceGroupId", &quota.source_group_id)?;
+    }
+    Ok(())
+}
+
+fn require_non_empty(field: &str, value: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        Err(format!("`{field}` must not be empty"))
+    } else {
+        Ok(())
+    }
+}
+
+fn require_safe_identifier(kind: &str, value: &str) -> Result<(), String> {
+    require_non_empty(kind, value)?;
+    if value == "__proto__" || value == "constructor" || value == "prototype" {
+        Err(format!("unsafe {kind} identifier"))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_policy_document, validate_setting_rule};
+    use crate::policy::model::PolicyDocument;
+    use serde_json::json;
+
+    #[test]
+    fn registry_rejects_unknown_setting_and_wrong_value_type() {
+        assert!(validate_setting_rule("notASetting", &json!(true)).is_err());
+        assert!(validate_setting_rule("llmEnabled", &json!("yes")).is_err());
+        assert!(validate_setting_rule("llmEnabled", &json!(false)).is_ok());
+    }
+
+    #[test]
+    fn registry_rejects_secrets_and_executable_content() {
+        assert!(validate_setting_rule("cloudAuthAccessToken", &json!("secret")).is_err());
+        assert!(validate_setting_rule("cloudAuthRefreshToken", &json!("secret")).is_err());
+        assert!(
+            validate_setting_rule("customThemeCSS", &json!("body { display: none; }")).is_err()
+        );
+    }
+
+    #[test]
+    fn shared_fixture_round_trips_and_validates() {
+        let fixture = include_str!("../../../../test/fixtures/management-policy-v1.json");
+        let document: PolicyDocument =
+            serde_json::from_str(fixture).expect("fixture should deserialize");
+
+        validate_policy_document(&document).expect("fixture should be valid");
+        let serialized = serde_json::to_value(&document).expect("document should serialize");
+        let expected: serde_json::Value =
+            serde_json::from_str(fixture).expect("fixture should be JSON");
+        assert_eq!(serialized, expected);
+        assert_eq!(serialized["schemaVersion"], json!(1));
+        assert!(serialized["settings"].get("llmEnabled").is_some());
+    }
+}

@@ -8,6 +8,7 @@ pub mod dto;
 pub mod error;
 pub mod groups;
 pub mod identity;
+pub mod policy;
 pub mod provisioning;
 pub mod redaction;
 pub mod routes;
