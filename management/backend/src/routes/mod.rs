@@ -1,5 +1,7 @@
 pub mod ai_status;
 pub mod analytics;
+pub mod api_keys;
+pub mod audit;
 pub mod auth;
 pub mod config;
 pub mod distribution;

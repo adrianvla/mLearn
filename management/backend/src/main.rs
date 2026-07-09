@@ -329,7 +329,6 @@ fn build_router(state: AppState) -> Router {
         .route("/api/storage", get(routes::storage::get_storage))
         .route("/api/ai-status", get(routes::ai_status::get_ai_status))
         .route("/api/school", get(routes::school::get_school_status))
-        .route("/api/users", get(routes::users::get_users))
         .route(
             "/api/distribution",
             get(routes::distribution::get_distribution),
@@ -351,6 +350,9 @@ fn build_router(state: AppState) -> Router {
         )
         .merge(routes::auth::router(state.clone()))
         .merge(routes::groups::router(state.clone()))
+        .merge(routes::users::router(state.clone()))
+        .merge(routes::api_keys::router(state.clone()))
+        .merge(routes::audit::router(state.clone()))
         .merge(protected)
         .fallback(static_handler::serve_spa)
         .layer(TraceLayer::new_for_http())

@@ -220,20 +220,22 @@ impl IdentityService {
             .await
             .map_err(database_error)?;
         }
-        sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at) VALUES (?, ?, 'group.root_created', 'group', ?, NULL, ?)")
+        sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at, authorized_group_id, request_id) VALUES (?, ?, 'group.root_created', 'group', ?, NULL, ?, ?, NULL)")
             .bind(Uuid::now_v7().to_string())
             .bind(&user_id)
             .bind(&root_group_id)
             .bind(now)
+            .bind(&root_group_id)
             .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
-        sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at) VALUES (?, ?, 'identity.bootstrap_root', 'user', ?, ?, ?)")
+        sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at, authorized_group_id, request_id) VALUES (?, ?, 'identity.bootstrap_root', 'user', ?, ?, ?, ?, NULL)")
             .bind(audit_id)
             .bind(&user_id)
             .bind(&user_id)
             .bind(serde_json::json!({ "recoveryCredentialUsed": true }).to_string())
             .bind(now)
+            .bind(&root_group_id)
             .execute(&mut **transaction)
             .await
             .map_err(database_error)?;

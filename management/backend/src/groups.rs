@@ -560,8 +560,17 @@ async fn audit(
     target_id: &str,
     metadata: Option<String>,
 ) -> Result<(), AppError> {
-    sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .bind(Uuid::now_v7().to_string()).bind(&principal.user_id).bind(action).bind(target_type).bind(target_id).bind(metadata).bind(now())
+    let authorized_group_id = match target_type {
+        "group" => Some(target_id.to_string()),
+        "group_membership" => sqlx::query_scalar("SELECT group_id FROM group_memberships WHERE id = ?")
+            .bind(target_id)
+            .fetch_optional(&mut **transaction)
+            .await
+            .map_err(database_error)?,
+        _ => None,
+    };
+    sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at, authorized_group_id, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)")
+        .bind(Uuid::now_v7().to_string()).bind(&principal.user_id).bind(action).bind(target_type).bind(target_id).bind(metadata).bind(now()).bind(authorized_group_id)
         .execute(&mut **transaction).await.map_err(database_error)?;
     Ok(())
 }
@@ -609,6 +618,7 @@ pub(crate) mod tests {
     use tokio::sync::Barrier;
 
     pub(crate) struct GroupFixture {
+        pub(crate) pool: sqlx::SqlitePool,
         pub(crate) groups: super::GroupService,
         pub(crate) authz: AuthorizationService,
         pub(crate) german: String,
@@ -649,13 +659,16 @@ pub(crate) mod tests {
             for capability in [
                 Capability::GroupView,
                 Capability::GroupManage,
+                Capability::MembersView,
                 Capability::MembersManage,
                 Capability::PermissionsDelegate,
+                Capability::ApiKeysManage,
             ] {
                 sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('membership-a', ?)").bind(capability.as_str()).execute(&pool).await.unwrap();
             }
             sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('membership-other', ?, ?, 'active', 1)").bind(&project_1).bind(&other_teacher.user_id).execute(&pool).await.unwrap();
             Self {
+                pool: pool.clone(),
                 groups: super::GroupService::new(pool.clone()),
                 authz: AuthorizationService::new(pool),
                 german,

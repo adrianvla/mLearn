@@ -14,7 +14,7 @@ use axum::{
     http::{header, request::Parts},
 };
 
-use crate::{error::AppError, identity::Principal, state::AppState};
+use crate::{api_keys::ApiKeyService, error::AppError, identity::Principal, state::AppState};
 
 static TOKEN_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -167,6 +167,11 @@ impl FromRequestParts<AppState> for Principal {
             .and_then(|value| value.to_str().ok())
             .unwrap_or("");
         let access_token = extract_bearer(auth_header).ok_or(AppError::Unauthorized)?;
+        if access_token.starts_with("mlsk_") {
+            return ApiKeyService::new(state.db.clone())
+                .authenticate(access_token)
+                .await;
+        }
         state
             .identity
             .principal_from_access_token(access_token)
