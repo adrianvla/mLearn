@@ -57,6 +57,7 @@ pub struct Principal {
     pub device_id: String,
     pub active_group_id: Option<String>,
     pub identity_type: IdentityType,
+    pub is_root: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -107,6 +108,38 @@ impl IdentityService {
         email: &str,
         password: &str,
     ) -> Result<AuthenticatedUser, AppError> {
+        let mut transaction = self.pool.begin().await.map_err(database_error)?;
+        let user = self
+            .bootstrap_root_in_transaction(&mut transaction, bootstrap_token, email, password)
+            .await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(user)
+    }
+
+    pub async fn bootstrap_root_with_session(
+        &self,
+        bootstrap_token: &str,
+        email: &str,
+        password: &str,
+    ) -> Result<(AuthenticatedUser, IssuedSession), AppError> {
+        let mut transaction = self.pool.begin().await.map_err(database_error)?;
+        let user = self
+            .bootstrap_root_in_transaction(&mut transaction, bootstrap_token, email, password)
+            .await?;
+        let session = self
+            .issue_session_in_transaction(&mut transaction, &user.id, None, None)
+            .await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok((user, session))
+    }
+
+    async fn bootstrap_root_in_transaction(
+        &self,
+        transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        bootstrap_token: &str,
+        email: &str,
+        password: &str,
+    ) -> Result<AuthenticatedUser, AppError> {
         let expected_hash = self.bootstrap_hash.ok_or(AppError::Unauthorized)?;
         if !verify_token(bootstrap_token, &expected_hash) {
             return Err(AppError::Unauthorized);
@@ -124,27 +157,24 @@ impl IdentityService {
         let credential_id = Uuid::now_v7().to_string();
         let audit_id = Uuid::now_v7().to_string();
         let now = now_timestamp();
-        let mut transaction = self.pool.begin().await.map_err(database_error)?;
-
-        let admin_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE status = 'admin'")
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(database_error)?;
+        let admin_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE is_root = 1")
+            .fetch_one(&mut **transaction)
+            .await
+            .map_err(database_error)?;
         if admin_count != 0 {
             return Err(AppError::Conflict(
                 "root administrator already exists".into(),
             ));
         }
 
-        sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'admin', ?, ?)")
+        sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 'admin', 1, ?, ?)")
             .bind(&user_id)
             .bind(email.trim())
             .bind(&normalized_email)
             .bind(display_name)
             .bind(now)
             .bind(now)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
         sqlx::query("INSERT INTO password_credentials (id, user_id, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
@@ -153,7 +183,7 @@ impl IdentityService {
             .bind(password_hash)
             .bind(now)
             .bind(now)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
         sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at) VALUES (?, ?, 'identity.bootstrap_root', 'user', ?, ?, ?)")
@@ -162,11 +192,9 @@ impl IdentityService {
             .bind(&user_id)
             .bind(serde_json::json!({ "recoveryCredentialUsed": true }).to_string())
             .bind(now)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
-        transaction.commit().await.map_err(database_error)?;
-
         Ok(AuthenticatedUser {
             id: user_id,
             email: email.trim().to_string(),
@@ -180,13 +208,28 @@ impl IdentityService {
         device_id: Option<&str>,
         active_group_id: Option<&str>,
     ) -> Result<IssuedSession, AppError> {
-        let row = sqlx::query("SELECT status FROM users WHERE id = ?")
+        let mut transaction = self.pool.begin().await.map_err(database_error)?;
+        let session = self
+            .issue_session_in_transaction(&mut transaction, user_id, device_id, active_group_id)
+            .await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(session)
+    }
+
+    pub(crate) async fn issue_session_in_transaction(
+        &self,
+        transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        user_id: &str,
+        device_id: Option<&str>,
+        active_group_id: Option<&str>,
+    ) -> Result<IssuedSession, AppError> {
+        let row = sqlx::query("SELECT identity_type FROM users WHERE id = ? AND status = 'active'")
             .bind(user_id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&mut **transaction)
             .await
             .map_err(database_error)?
             .ok_or(AppError::Unauthorized)?;
-        let identity_type = IdentityType::parse(row.get("status"))?;
+        let identity_type = IdentityType::parse(row.get("identity_type"))?;
         let device_id = device_id
             .map(ToOwned::to_owned)
             .unwrap_or_else(|| Uuid::now_v7().to_string());
@@ -202,14 +245,12 @@ impl IdentityService {
             active_group_id,
             identity_type,
         )?;
-        let mut transaction = self.pool.begin().await.map_err(database_error)?;
-
         sqlx::query("INSERT OR IGNORE INTO devices (id, user_id, name, platform, created_at, last_seen_at) VALUES (?, ?, 'Unknown device', 'unknown', ?, ?)")
             .bind(&device_id)
             .bind(user_id)
             .bind(now)
             .bind(now)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at, revoked_at, created_at, last_seen_at) VALUES (?, ?, ?, NULL, ?, ?)")
@@ -218,7 +259,7 @@ impl IdentityService {
             .bind(refresh_expires_at)
             .bind(now)
             .bind(now)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
         sqlx::query("INSERT INTO refresh_tokens (id, session_id, token_hash, expires_at, revoked_at, created_at) VALUES (?, ?, ?, ?, NULL, ?)")
@@ -227,11 +268,11 @@ impl IdentityService {
             .bind(refresh_hash)
             .bind(refresh_expires_at)
             .bind(now)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await
             .map_err(database_error)?;
         insert_audit(
-            &mut transaction,
+            transaction,
             Some(user_id),
             "identity.session_issued",
             "session",
@@ -239,8 +280,6 @@ impl IdentityService {
             now,
         )
         .await?;
-        transaction.commit().await.map_err(database_error)?;
-
         Ok(IssuedSession {
             access_token: access.0,
             refresh_token,
@@ -254,7 +293,7 @@ impl IdentityService {
         password: &str,
     ) -> Result<AuthenticatedUser, AppError> {
         let row = sqlx::query(
-            "SELECT users.id, users.email, users.status, password_credentials.password_hash FROM users JOIN password_credentials ON password_credentials.user_id = users.id WHERE users.normalized_email = ?",
+            "SELECT users.id, users.email, users.identity_type, password_credentials.password_hash FROM users JOIN password_credentials ON password_credentials.user_id = users.id WHERE users.normalized_email = ? AND users.status = 'active'",
         )
         .bind(normalize_email(email))
         .fetch_optional(&self.pool)
@@ -267,7 +306,7 @@ impl IdentityService {
         Ok(AuthenticatedUser {
             id: row.get("id"),
             email: row.get("email"),
-            identity_type: IdentityType::parse(row.get("status"))?,
+            identity_type: IdentityType::parse(row.get("identity_type"))?,
         })
     }
 
@@ -284,7 +323,7 @@ impl IdentityService {
         let now = now_timestamp();
         let mut transaction = self.pool.begin().await.map_err(database_error)?;
         let row = sqlx::query(
-            "SELECT refresh_tokens.id AS refresh_id, sessions.id AS session_id, sessions.user_id, users.status FROM refresh_tokens JOIN sessions ON sessions.id = refresh_tokens.session_id JOIN users ON users.id = sessions.user_id WHERE refresh_tokens.token_hash = ? AND refresh_tokens.revoked_at IS NULL AND refresh_tokens.expires_at > ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ?",
+            "SELECT refresh_tokens.id AS refresh_id, sessions.id AS session_id, sessions.user_id, users.identity_type FROM refresh_tokens JOIN sessions ON sessions.id = refresh_tokens.session_id JOIN users ON users.id = sessions.user_id WHERE refresh_tokens.token_hash = ? AND refresh_tokens.revoked_at IS NULL AND refresh_tokens.expires_at > ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ? AND users.status = 'active'",
         )
         .bind(&token_hash)
         .bind(now)
@@ -296,7 +335,7 @@ impl IdentityService {
         let refresh_id: String = row.get("refresh_id");
         let session_id: String = row.get("session_id");
         let user_id: String = row.get("user_id");
-        let identity_type = IdentityType::parse(row.get("status"))?;
+        let identity_type = IdentityType::parse(row.get("identity_type"))?;
         let (new_refresh_token, new_refresh_hash) = generate_refresh_token(device_id);
         let refresh_expires_at =
             (OffsetDateTime::now_utc() + REFRESH_TOKEN_LIFETIME).unix_timestamp();
@@ -334,6 +373,15 @@ impl IdentityService {
             &mut transaction,
             Some(&user_id),
             "identity.refresh_rotated",
+            "session",
+            &session_id,
+            now,
+        )
+        .await?;
+        insert_audit(
+            &mut transaction,
+            Some(&user_id),
+            "identity.refresh_success",
             "session",
             &session_id,
             now,
@@ -397,19 +445,17 @@ impl IdentityService {
         .map_err(|_| AppError::Unauthorized)?
         .claims;
         let now = now_timestamp();
-        let valid: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id = ? AND sessions.user_id = ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ? AND users.status = ?",
+        let is_root: Option<i64> = sqlx::query_scalar(
+            "SELECT users.is_root FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id = ? AND sessions.user_id = ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ? AND users.status = 'active' AND users.identity_type = ?",
         )
         .bind(&claims.sid)
         .bind(&claims.sub)
         .bind(now)
         .bind(claims.identity_type.as_str())
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await
         .map_err(database_error)?;
-        if valid != 1 {
-            return Err(AppError::Unauthorized);
-        }
+        let is_root = is_root.ok_or(AppError::Unauthorized)? != 0;
 
         Ok(Principal {
             user_id: claims.sub,
@@ -417,20 +463,23 @@ impl IdentityService {
             device_id: claims.did,
             active_group_id: claims.active_group_id,
             identity_type: claims.identity_type,
+            is_root,
         })
     }
 
     pub async fn user(&self, user_id: &str) -> Result<AuthenticatedUser, AppError> {
-        let row = sqlx::query("SELECT id, email, status FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(database_error)?
-            .ok_or(AppError::Unauthorized)?;
+        let row = sqlx::query(
+            "SELECT id, email, identity_type FROM users WHERE id = ? AND status = 'active'",
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(database_error)?
+        .ok_or(AppError::Unauthorized)?;
         Ok(AuthenticatedUser {
             id: row.get("id"),
             email: row.get("email"),
-            identity_type: IdentityType::parse(row.get("status"))?,
+            identity_type: IdentityType::parse(row.get("identity_type"))?,
         })
     }
 
@@ -544,7 +593,7 @@ mod tests {
 
     use crate::auth::hash_token;
 
-    use super::{IdentityService, IssuedSession};
+    use super::{IdentityService, IdentityType, IssuedSession};
 
     struct IdentityFixture {
         service: IdentityService,
@@ -570,7 +619,7 @@ mod tests {
             let learner_id = uuid::Uuid::now_v7().to_string();
             let now = time::OffsetDateTime::now_utc().unix_timestamp();
             sqlx::query(
-                "INSERT INTO users (id, email, normalized_email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'learner', ?, ?)",
+                "INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 'learner', ?, ?)",
             )
             .bind(&learner_id)
             .bind("learner@school.test")
@@ -659,6 +708,55 @@ mod tests {
         assert!(fixture
             .service
             .authenticate_password("admin@school.test", "Definitely The Wrong Password")
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn suspension_preserves_identity_and_blocks_login_refresh_and_access() {
+        let fixture = IdentityFixture::new().await;
+        let user = fixture
+            .service
+            .bootstrap_root(
+                &fixture.bootstrap,
+                "admin@school.test",
+                "Correct Horse Battery Staple",
+            )
+            .await
+            .unwrap();
+        let issued = fixture
+            .service
+            .issue_session(&user.id, None, None)
+            .await
+            .unwrap();
+
+        sqlx::query("UPDATE users SET status = 'suspended' WHERE id = ?")
+            .bind(&user.id)
+            .execute(&fixture.service.pool)
+            .await
+            .unwrap();
+
+        let identity_type: String =
+            sqlx::query_scalar("SELECT identity_type FROM users WHERE id = ?")
+                .bind(&user.id)
+                .fetch_one(&fixture.service.pool)
+                .await
+                .unwrap();
+        assert_eq!(identity_type, "admin");
+        assert_eq!(user.identity_type, IdentityType::Admin);
+        assert!(fixture
+            .service
+            .authenticate_password("admin@school.test", "Correct Horse Battery Staple",)
+            .await
+            .is_err());
+        assert!(fixture
+            .service
+            .rotate_refresh_token(&issued.refresh_token)
+            .await
+            .is_err());
+        assert!(fixture
+            .service
+            .principal_from_access_token(&issued.access_token)
             .await
             .is_err());
     }

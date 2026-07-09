@@ -24,6 +24,9 @@ pub enum AppError {
     #[error("{0}")]
     Conflict(String),
 
+    #[error("Too many authentication attempts")]
+    TooManyRequests,
+
     #[error("Action not allowed on this container")]
     ActionNotAllowed,
 
@@ -49,6 +52,7 @@ impl AppError {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::Conflict(_) => StatusCode::CONFLICT,
+            Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::ActionNotAllowed => StatusCode::FORBIDDEN,
             Self::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,

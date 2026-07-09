@@ -1,10 +1,11 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use bollard::Docker;
 use sqlx::SqlitePool;
 
 use crate::{
-    auth::{generate_random_token, hash_token},
+    auth::{generate_random_token, hash_token, AuthRateLimiter},
     config::Config,
     identity::IdentityService,
 };
@@ -15,6 +16,7 @@ pub struct AppState {
     pub db: SqlitePool,
     pub config: Arc<Config>,
     pub identity: IdentityService,
+    pub auth_rate_limiter: AuthRateLimiter,
 }
 
 impl AppState {
@@ -24,11 +26,13 @@ impl AppState {
             .unwrap_or_else(|| hash_token(&generate_random_token()))
             .to_vec();
         let identity = IdentityService::new(db.clone(), config.token_hash, jwt_secret);
+        let auth_rate_limiter = AuthRateLimiter::new(5, Duration::from_secs(60), 1_024);
         Self {
             docker: Arc::new(docker),
             db,
             config: Arc::new(config),
             identity,
+            auth_rate_limiter,
         }
     }
 }
