@@ -9,6 +9,7 @@ CREATE TABLE provisioning_imports (
     idempotency_key TEXT NOT NULL UNIQUE,
     actor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     target_group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE RESTRICT,
+    payload_hash TEXT NOT NULL,
     result_json TEXT NOT NULL,
     created_at INTEGER NOT NULL
 );
@@ -53,6 +54,8 @@ CREATE TABLE api_key_capabilities (
     capability TEXT NOT NULL,
     PRIMARY KEY (api_key_id, capability)
 );
+
+ALTER TABLE audit_events ADD COLUMN actor_api_key_id TEXT REFERENCES api_keys(id) ON DELETE RESTRICT;
 
 CREATE INDEX api_keys_group_id_idx ON api_keys(group_id);
 CREATE INDEX invitations_group_id_idx ON invitations(group_id);

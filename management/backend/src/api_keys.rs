@@ -50,6 +50,14 @@ impl ApiKeyService {
             .into_iter()
             .filter(|capability| seen.insert(*capability))
             .collect();
+        if capabilities
+            .iter()
+            .any(|capability| !capability.is_service_key_allowed())
+        {
+            return Err(AppError::BadRequest(
+                "API keys cannot grant human-only mutation capabilities".into(),
+            ));
+        }
         let mut transaction = self
             .pool
             .begin_with("BEGIN IMMEDIATE")
@@ -122,15 +130,25 @@ impl ApiKeyService {
         if !secret.starts_with("mlsk_") {
             return Err(AppError::Unauthorized);
         }
-        let row = sqlx::query("SELECT id, group_id FROM api_keys WHERE secret_hash = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?)")
+        let rows = sqlx::query("SELECT key.id, key.group_id, capability.capability FROM api_keys key LEFT JOIN api_key_capabilities capability ON capability.api_key_id = key.id WHERE key.secret_hash = ? AND key.status = 'active' AND (key.expires_at IS NULL OR key.expires_at > ?)")
             .bind(hash_secret(secret))
             .bind(now())
-            .fetch_optional(&self.pool)
+            .fetch_all(&self.pool)
             .await
-            .map_err(database_error)?
-            .ok_or(AppError::Unauthorized)?;
+            .map_err(database_error)?;
+        let row = rows.first().ok_or(AppError::Unauthorized)?;
+        for row in &rows {
+            if let Some(capability) = row.get::<Option<String>, _>("capability") {
+                let capability = Capability::from_str(&capability).ok_or(AppError::Unauthorized)?;
+                if !capability.is_service_key_allowed() {
+                    return Err(AppError::Unauthorized);
+                }
+            }
+        }
+        let key_id: String = row.get("id");
         Ok(Principal {
-            user_id: row.get("id"),
+            user_id: String::new(),
+            service_key_id: Some(key_id),
             session_id: "api-key".into(),
             device_id: "api-key".into(),
             active_group_id: Some(row.get("group_id")),
@@ -231,6 +249,7 @@ mod tests {
             .unwrap();
 
         let principal = service.authenticate(&created.secret).await.unwrap();
+        assert_eq!(principal.service_key_id.as_deref(), Some(created.id.as_str()));
         let authz = AuthorizationService::new(fixture.pool.clone());
         assert!(authz
             .require(&principal, &fixture.project_1, Capability::GroupView)
@@ -301,5 +320,47 @@ mod tests {
             .unwrap(),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn api_key_creation_rejects_human_only_mutation_capabilities() {
+        let fixture = GroupFixture::german_tree().await;
+        let service = super::ApiKeyService::new(fixture.pool);
+
+        let result = service
+            .create(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                vec![Capability::GroupManage],
+                None,
+            )
+            .await;
+
+        assert!(matches!(result, Err(AppError::BadRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn api_key_authentication_rejects_persisted_mutation_capability() {
+        let fixture = GroupFixture::german_tree().await;
+        let service = super::ApiKeyService::new(fixture.pool.clone());
+        let created = service
+            .create(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                vec![Capability::GroupView],
+                None,
+            )
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO api_key_capabilities (api_key_id, capability) VALUES (?, 'group.manage')")
+            .bind(&created.id)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            service.authenticate(&created.secret).await,
+            Err(AppError::Unauthorized)
+        ));
     }
 }

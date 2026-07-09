@@ -54,6 +54,8 @@ impl IdentityType {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Principal {
     pub user_id: String,
+    #[serde(default)]
+    pub service_key_id: Option<String>,
     pub session_id: String,
     pub device_id: String,
     pub active_group_id: Option<String>,
@@ -510,6 +512,7 @@ impl IdentityService {
 
         Ok(Principal {
             user_id: claims.sub,
+            service_key_id: None,
             session_id: claims.sid,
             device_id: claims.did,
             active_group_id: active_group_id.or(claims.active_group_id),

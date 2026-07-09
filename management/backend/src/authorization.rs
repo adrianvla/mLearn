@@ -67,6 +67,23 @@ impl Capability {
             Self::ApiKeysManage => "api_keys.manage",
         }
     }
+
+    pub(crate) fn from_str(value: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|capability| capability.as_str() == value)
+    }
+
+    pub fn is_service_key_allowed(self) -> bool {
+        matches!(
+            self,
+            Self::GroupView
+                | Self::MembersView
+                | Self::PoliciesView
+                | Self::AnalyticsView
+                | Self::ConversationsView
+        )
+    }
 }
 
 #[derive(Clone)]
@@ -97,22 +114,22 @@ impl AuthorizationService {
                 SELECT 1 FROM ancestors
                 JOIN group_memberships membership ON membership.group_id = ancestors.id
                 JOIN membership_capabilities capability ON capability.membership_id = membership.id
-                WHERE membership.user_id = ? AND membership.status = 'active'
+                WHERE ? IS NULL AND membership.user_id = ? AND membership.status = 'active'
                   AND capability.capability = ?
                 UNION ALL
                 SELECT 1 FROM ancestors
                 JOIN api_keys key ON key.group_id = ancestors.id
                 JOIN api_key_capabilities capability ON capability.api_key_id = key.id
-                WHERE ? = 'api-key' AND key.id = ? AND key.status = 'active'
+                WHERE key.id = ? AND key.status = 'active'
                   AND (key.expires_at IS NULL OR key.expires_at > unixepoch())
                   AND capability.capability = ?
             )",
         )
         .bind(group_id)
+        .bind(&principal.service_key_id)
         .bind(&principal.user_id)
         .bind(capability.as_str())
-        .bind(&principal.session_id)
-        .bind(&principal.user_id)
+        .bind(&principal.service_key_id)
         .bind(capability.as_str())
         .fetch_one(&self.pool)
         .await
@@ -147,22 +164,22 @@ impl AuthorizationService {
                 SELECT 1 FROM ancestors
                 JOIN group_memberships membership ON membership.group_id = ancestors.id
                 JOIN membership_capabilities capability ON capability.membership_id = membership.id
-                WHERE membership.user_id = ? AND membership.status = 'active'
+                WHERE ? IS NULL AND membership.user_id = ? AND membership.status = 'active'
                   AND capability.capability = ?
                 UNION ALL
                 SELECT 1 FROM ancestors
                 JOIN api_keys key ON key.group_id = ancestors.id
                 JOIN api_key_capabilities capability ON capability.api_key_id = key.id
-                WHERE ? = 'api-key' AND key.id = ? AND key.status = 'active'
+                WHERE key.id = ? AND key.status = 'active'
                   AND (key.expires_at IS NULL OR key.expires_at > unixepoch())
                   AND capability.capability = ?
             )",
         )
         .bind(group_id)
+        .bind(&principal.service_key_id)
         .bind(&principal.user_id)
         .bind(capability.as_str())
-        .bind(&principal.session_id)
-        .bind(&principal.user_id)
+        .bind(&principal.service_key_id)
         .bind(capability.as_str())
         .fetch_one(&mut **transaction)
         .await
