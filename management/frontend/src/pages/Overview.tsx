@@ -1,6 +1,6 @@
 import {
   Card,
-  CardBody,
+  CardContent,
   CardHeader,
   Chip,
   Table,
@@ -53,8 +53,8 @@ export default function Overview() {
         <StatCard label="Running" value={o.service_count.running} color="success" />
         <StatCard label="Stopped" value={o.service_count.stopped} />
         <Card>
-          <CardBody className="p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-default-400">Docker Status</p>
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted">Docker Status</p>
             <div className="mt-2">
               <Chip size="sm" variant="flat" color={o.docker_available ? 'success' : 'danger'}>
                 {o.docker_available ? 'Available' : 'Unavailable'}
@@ -63,7 +63,7 @@ export default function Overview() {
             {o.docker_error !== null && (
               <p className="mt-2 text-xs text-danger">{o.docker_error}</p>
             )}
-          </CardBody>
+          </CardContent>
         </Card>
       </div>
 
@@ -72,7 +72,7 @@ export default function Overview() {
           <CardHeader className="pb-2 pt-4">
             <h2 className="text-sm font-semibold text-foreground">Health Summary</h2>
           </CardHeader>
-          <CardBody className="px-4 pb-4">
+          <CardContent className="px-4 pb-4">
             <div className="flex flex-wrap gap-2">
               <Chip size="sm" variant="flat" color="success">
                 Healthy: {o.health.healthy}
@@ -87,14 +87,14 @@ export default function Overview() {
                 No check: {o.health.none}
               </Chip>
             </div>
-          </CardBody>
+          </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2 pt-4">
             <h2 className="text-sm font-semibold text-foreground">Exposed Ports</h2>
           </CardHeader>
-          <CardBody className="px-4 pb-4">
+          <CardContent className="px-4 pb-4">
             <Table aria-label="Exposed ports" removeWrapper>
               <TableHeader>
                 <TableColumn>Service</TableColumn>
@@ -115,7 +115,7 @@ export default function Overview() {
                 ))}
               </TableBody>
             </Table>
-          </CardBody>
+          </CardContent>
         </Card>
       </div>
 
@@ -123,11 +123,11 @@ export default function Overview() {
         <CardHeader className="pb-2 pt-4">
           <h2 className="text-sm font-semibold text-foreground">System Info</h2>
         </CardHeader>
-        <CardBody className="px-4 pb-4">
+        <CardContent className="px-4 pb-4">
           <InfoRow label="Version">{o.version}</InfoRow>
           <InfoRow label="mLearn Version">{o.mlearn_version ?? '—'}</InfoRow>
           <InfoRow label="Deployment Mode">
-            <Chip size="sm" variant="flat" color="primary">
+            <Chip size="sm" variant="flat" color="accent">
               {o.deployment_mode}
             </Chip>
           </InfoRow>
@@ -142,7 +142,7 @@ export default function Overview() {
               {o.cloud_features_enabled ? 'Enabled' : 'Disabled'}
             </Chip>
           </InfoRow>
-        </CardBody>
+        </CardContent>
       </Card>
     </PageContainer>
   );

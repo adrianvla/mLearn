@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
 import { Network, Database, Activity, Server } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, statusToColor } from '../components/shared';
@@ -33,10 +33,10 @@ function DistributionContent({ data }: { data: DistributionDto }) {
     <div className="grid gap-4">
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Network className="h-5 w-5 text-default-500" />
+          <Network className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Mirror Status</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <InfoRow label="Enabled">
             <Chip color={mirror.enabled ? 'success' : 'default'} variant="flat" size="sm">
               {mirror.enabled ? 'Enabled' : 'Disabled'}
@@ -48,15 +48,15 @@ function DistributionContent({ data }: { data: DistributionDto }) {
           <InfoRow label="Last Sync">{mirror.last_sync ?? 'never'}</InfoRow>
           <InfoRow label="Cached Size">{formatBytes(mirror.cached_bytes)}</InfoRow>
           <InfoRow label="Item Count">{mirror.item_count}</InfoRow>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Database className="h-5 w-5 text-default-500" />
+          <Database className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Cache Items</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="Cache items" removeWrapper>
             <TableHeader>
               <TableColumn>Kind</TableColumn>
@@ -81,15 +81,15 @@ function DistributionContent({ data }: { data: DistributionDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Server className="h-5 w-5 text-default-500" />
+          <Server className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">LAN Endpoints</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="LAN endpoints" removeWrapper>
             <TableHeader>
               <TableColumn>Label</TableColumn>
@@ -112,15 +112,15 @@ function DistributionContent({ data }: { data: DistributionDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Activity className="h-5 w-5 text-default-500" />
+          <Activity className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Sync Rules</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="Sync rules" removeWrapper>
             <TableHeader>
               <TableColumn>Label</TableColumn>
@@ -143,7 +143,7 @@ function DistributionContent({ data }: { data: DistributionDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

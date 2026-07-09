@@ -1,6 +1,6 @@
 import {
   Card,
-  CardBody,
+  CardContent,
   CardHeader,
   Chip,
   Table,
@@ -48,18 +48,18 @@ export default function Users() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="flex items-center gap-3 pb-0">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100 text-primary">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent">
                 <UsersIcon className="h-5 w-5" />
               </span>
               <div className="flex-1">
                 <h2 className="text-base font-semibold text-foreground">Users</h2>
-                <p className="text-xs text-default-500">Accounts managed by this deployment</p>
+                <p className="text-xs text-muted">Accounts managed by this deployment</p>
               </div>
               <Chip size="sm" variant="flat">
                 {data.users.length}
               </Chip>
             </CardHeader>
-            <CardBody className="pt-4">
+            <CardContent className="pt-4">
               <Table aria-label="Managed users" removeWrapper>
                 <TableHeader>
                   <TableColumn>NAME</TableColumn>
@@ -89,35 +89,35 @@ export default function Users() {
                         </Chip>
                       </TableCell>
                       <TableCell>
-                        <span className="text-default-600">{user.policy}</span>
+                        <span className="text-foreground">{user.policy}</span>
                       </TableCell>
                       <TableCell>
                         <span className="tabular-nums text-foreground">{user.devices}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-default-500">{formatLastSeen(user.last_seen)}</span>
+                        <span className="text-muted">{formatLastSeen(user.last_seen)}</span>
                       </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
-            </CardBody>
+            </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex items-center gap-3 pb-0">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100 text-primary">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent">
                 <Lock className="h-5 w-5" />
               </span>
               <div className="flex-1">
                 <h2 className="text-base font-semibold text-foreground">Policy Presets</h2>
-                <p className="text-xs text-default-500">Reusable configuration templates</p>
+                <p className="text-xs text-muted">Reusable configuration templates</p>
               </div>
               <Chip size="sm" variant="flat">
                 {data.policy_presets.length}
               </Chip>
             </CardHeader>
-            <CardBody className="pt-4">
+            <CardContent className="pt-4">
               <Table aria-label="Policy presets" removeWrapper>
                 <TableHeader>
                   <TableColumn>NAME</TableColumn>
@@ -135,14 +135,14 @@ export default function Users() {
                         <span className="font-medium text-foreground">{preset.name}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-default-600">{preset.description}</span>
+                        <span className="text-foreground">{preset.description}</span>
                       </TableCell>
                       <TableCell>
                         <span className="tabular-nums text-foreground">{preset.user_count}</span>
                       </TableCell>
                       <TableCell>
                         {preset.locked_settings.length === 0 ? (
-                          <span className="text-default-400">—</span>
+                          <span className="text-muted">—</span>
                         ) : (
                           <div className="flex flex-wrap gap-1.5">
                             {preset.locked_settings.map((setting) => (
@@ -157,7 +157,7 @@ export default function Users() {
                   )}
                 </TableBody>
               </Table>
-            </CardBody>
+            </CardContent>
           </Card>
 
           <Card>
@@ -167,13 +167,13 @@ export default function Users() {
               </span>
               <div className="flex-1">
                 <h2 className="text-base font-semibold text-foreground">Blocked Settings</h2>
-                <p className="text-xs text-default-500">Hard-enforced configuration overrides</p>
+                <p className="text-xs text-muted">Hard-enforced configuration overrides</p>
               </div>
               <Chip size="sm" variant="flat">
                 {data.blocked_settings.length}
               </Chip>
             </CardHeader>
-            <CardBody className="pt-4">
+            <CardContent className="pt-4">
               <Table aria-label="Blocked settings" removeWrapper>
                 <TableHeader>
                   <TableColumn>SETTING</TableColumn>
@@ -189,7 +189,7 @@ export default function Users() {
                   {(rule) => (
                     <TableRow key={rule.id}>
                       <TableCell>
-                        <code className="rounded bg-default-100 px-1.5 py-0.5 font-mono text-xs text-foreground">
+                        <code className="rounded bg-default px-1.5 py-0.5 font-mono text-xs text-foreground">
                           {rule.setting_key}
                         </code>
                       </TableCell>
@@ -202,11 +202,11 @@ export default function Users() {
                         </Chip>
                       </TableCell>
                       <TableCell>
-                        <span className="text-default-500">{rule.reason}</span>
+                        <span className="text-muted">{rule.reason}</span>
                       </TableCell>
                       <TableCell>
                         {rule.enforced_value === null ? (
-                          <span className="text-default-400">—</span>
+                          <span className="text-muted">—</span>
                         ) : (
                           <span className="font-medium text-foreground">{rule.enforced_value}</span>
                         )}
@@ -215,7 +215,7 @@ export default function Users() {
                   )}
                 </TableBody>
               </Table>
-            </CardBody>
+            </CardContent>
           </Card>
         </div>
       )}

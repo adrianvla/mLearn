@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
 import { Server, Activity, Network, Database } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, statusToColor } from '../components/shared';
@@ -28,10 +28,10 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
     <div className="grid gap-4">
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Server className="h-5 w-5 text-default-500" />
+          <Server className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Gateway Status</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <InfoRow label="Gateway Enabled">
             <Chip color={data.gateway_enabled ? 'success' : 'default'} variant="flat" size="sm">
               {data.gateway_enabled ? 'Enabled' : 'Disabled'}
@@ -42,15 +42,15 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
               {data.server_side_logging ? 'On' : 'Off'}
             </Chip>
           </InfoRow>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Server className="h-5 w-5 text-default-500" />
+          <Server className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Providers</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="LLM providers" removeWrapper>
             <TableHeader>
               <TableColumn>Name</TableColumn>
@@ -77,15 +77,15 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Activity className="h-5 w-5 text-default-500" />
+          <Activity className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Routing Rules</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="Routing rules" removeWrapper>
             <TableHeader>
               <TableColumn>Label</TableColumn>
@@ -106,15 +106,15 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Network className="h-5 w-5 text-default-500" />
+          <Network className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Language Profiles</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="Language profiles" removeWrapper>
             <TableHeader>
               <TableColumn>Language</TableColumn>
@@ -133,15 +133,15 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Database className="h-5 w-5 text-default-500" />
+          <Database className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Budget Controls</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="Budget controls" removeWrapper>
             <TableHeader>
               <TableColumn>Label</TableColumn>
@@ -158,7 +158,7 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );
