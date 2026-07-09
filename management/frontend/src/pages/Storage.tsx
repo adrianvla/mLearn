@@ -60,24 +60,24 @@ function VolumesCard({ data }: { data: StorageDto }): ReactNode {
         {data.volumes.length === 0 ? (
           <p className="py-10 text-center text-muted">No volumes found</p>
         ) : (
-          <Table aria-label="Volumes" removeWrapper>
-            <TableHeader>
-              <TableColumn>Name</TableColumn>
-              <TableColumn>Driver</TableColumn>
-              <TableColumn>Mountpoint</TableColumn>
-              <TableColumn>Labels</TableColumn>
-            </TableHeader>
-            <TableBody items={data.volumes}>
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Name</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Driver</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Mountpoint</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Labels</th>
+            </thead>
+            <tbody>
               {(volume: VolumeInfo) => (
-                <TableRow key={volume.name}>
-                  <TableCell className="font-medium">{volume.name}</TableCell>
-                  <TableCell>{volume.driver}</TableCell>
-                  <TableCell className="font-mono text-xs">{volume.mountpoint}</TableCell>
-                  <TableCell>{renderLabels(volume.labels)}</TableCell>
-                </TableRow>
+                <tr key={volume.name}>
+                  <td className="font-medium">{volume.name}</td>
+                  <td>{volume.driver}</td>
+                  <td className="font-mono text-xs">{volume.mountpoint}</td>
+                  <td>{renderLabels(volume.labels)}</td>
+                </tr>
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         )}
       </CardContent>
     </Card>
@@ -94,31 +94,31 @@ function BindMountsCard({ data }: { data: StorageDto }): ReactNode {
         {data.bind_mounts.length === 0 ? (
           <p className="py-10 text-center text-muted">No bind mounts found</p>
         ) : (
-          <Table aria-label="Bind mounts" removeWrapper>
-            <TableHeader>
-              <TableColumn>Service</TableColumn>
-              <TableColumn>Source</TableColumn>
-              <TableColumn>Destination</TableColumn>
-              <TableColumn>Mode</TableColumn>
-            </TableHeader>
-            <TableBody items={data.bind_mounts}>
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Service</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Source</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Destination</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Mode</th>
+            </thead>
+            <tbody>
               {(mount: BindMountInfo) => {
                 const isReadWrite = mount.mode === 'rw';
                 return (
-                  <TableRow key={`${mount.service}:${mount.source}:${mount.destination}`}>
-                    <TableCell className="font-medium">{mount.service}</TableCell>
-                    <TableCell className="font-mono text-xs">{mount.source}</TableCell>
-                    <TableCell className="font-mono text-xs">{mount.destination}</TableCell>
-                    <TableCell>
+                  <tr key={`${mount.service}:${mount.source}:${mount.destination}`}>
+                    <td className="font-medium">{mount.service}</td>
+                    <td className="font-mono text-xs">{mount.source}</td>
+                    <td className="font-mono text-xs">{mount.destination}</td>
+                    <td>
                       <Chip size="sm" color={isReadWrite ? 'success' : 'default'} variant="flat">
                         {mount.mode}
                       </Chip>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 );
               }}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         )}
       </CardContent>
     </Card>

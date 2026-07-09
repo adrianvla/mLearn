@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip, TableCell } from '@heroui/react';
 import { CheckCircle2, Activity, BarChart3 } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, StatCard } from '../components/shared';
@@ -66,28 +66,28 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
           <h2 className="text-lg font-semibold text-foreground">Recent Events</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="Recent analytics events" removeWrapper>
-            <TableHeader>
-              <TableColumn>Time</TableColumn>
-              <TableColumn>Category</TableColumn>
-              <TableColumn>Summary</TableColumn>
-              <TableColumn>Severity</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No recent events">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Time</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Category</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Summary</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Severity</th>
+            </thead>
+            <tbody>
               {data.events.map((event) => (
-                <TableRow key={event.id}>
-                  <TableCell className="tabular-nums">{event.time}</TableCell>
-                  <TableCell>{event.category}</TableCell>
-                  <TableCell>{event.summary}</TableCell>
-                  <TableCell>
+                <tr key={event.id}>
+                  <td className="tabular-nums">{event.time}</td>
+                  <td>{event.category}</td>
+                  <td>{event.summary}</td>
+                  <td>
                     <Chip color={severityToColor(event.severity)} variant="flat" size="sm">
                       {event.severity}
                     </Chip>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
@@ -97,28 +97,28 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
           <h2 className="text-lg font-semibold text-foreground">Log Streams</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="Log streams" removeWrapper>
-            <TableHeader>
-              <TableColumn>Label</TableColumn>
-              <TableColumn>Enabled</TableColumn>
-              <TableColumn>Destination</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No log streams">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Enabled</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Destination</th>
+            </thead>
+            <tbody>
               {data.log_streams.map((stream) => (
-                <TableRow key={stream.id}>
-                  <TableCell>{stream.label}</TableCell>
-                  <TableCell>
+                <tr key={stream.id}>
+                  <td>{stream.label}</td>
+                  <td>
                     <Chip color={stream.enabled ? 'success' : 'default'} variant="flat" size="sm">
                       {stream.enabled ? 'Yes' : 'No'}
                     </Chip>
-                  </TableCell>
-                  <TableCell>
+                  </td>
+                  <td>
                     <span className="font-mono text-xs">{stream.destination}</span>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
     </div>

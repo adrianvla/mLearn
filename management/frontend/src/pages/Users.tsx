@@ -60,47 +60,44 @@ export default function Users() {
               </Chip>
             </CardHeader>
             <CardContent className="pt-4">
-              <Table aria-label="Managed users" removeWrapper>
-                <TableHeader>
-                  <TableColumn>NAME</TableColumn>
-                  <TableColumn>ROLE</TableColumn>
-                  <TableColumn>STATUS</TableColumn>
-                  <TableColumn>POLICY</TableColumn>
-                  <TableColumn align="end">DEVICES</TableColumn>
-                  <TableColumn>LAST SEEN</TableColumn>
-                </TableHeader>
-                <TableBody
-                  items={data.users}
-                  emptyContent="No managed users."
-                >
+              <table className="w-full border-collapse text-sm">
+                <thead className="border-b border-border">
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">NAME</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">ROLE</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">STATUS</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">POLICY</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">DEVICES</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">LAST SEEN</th>
+                </thead>
+                <tbody>
                   {(user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
+                    <tr key={user.id}>
+                      <td>
                         <span className="font-medium text-foreground">{user.display_name}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <Chip size="sm" variant="flat" color={ROLE_COLOR[user.role]}>
                           {user.role}
                         </Chip>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <Chip size="sm" variant="flat" color={STATUS_COLOR[user.status]}>
                           {user.status}
                         </Chip>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="text-foreground">{user.policy}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="tabular-nums text-foreground">{user.devices}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="text-muted">{formatLastSeen(user.last_seen)}</span>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   )}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </CardContent>
           </Card>
 
@@ -118,29 +115,26 @@ export default function Users() {
               </Chip>
             </CardHeader>
             <CardContent className="pt-4">
-              <Table aria-label="Policy presets" removeWrapper>
-                <TableHeader>
-                  <TableColumn>NAME</TableColumn>
-                  <TableColumn>DESCRIPTION</TableColumn>
-                  <TableColumn align="end">USERS</TableColumn>
-                  <TableColumn>LOCKED SETTINGS</TableColumn>
-                </TableHeader>
-                <TableBody
-                  items={data.policy_presets}
-                  emptyContent="No policy presets configured."
-                >
+              <table className="w-full border-collapse text-sm">
+                <thead className="border-b border-border">
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">NAME</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">DESCRIPTION</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">USERS</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">LOCKED SETTINGS</th>
+                </thead>
+                <tbody>
                   {(preset) => (
-                    <TableRow key={preset.id}>
-                      <TableCell>
+                    <tr key={preset.id}>
+                      <td>
                         <span className="font-medium text-foreground">{preset.name}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="text-foreground">{preset.description}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="tabular-nums text-foreground">{preset.user_count}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         {preset.locked_settings.length === 0 ? (
                           <span className="text-muted">—</span>
                         ) : (
@@ -152,11 +146,11 @@ export default function Users() {
                             ))}
                           </div>
                         )}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   )}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </CardContent>
           </Card>
 
@@ -174,47 +168,44 @@ export default function Users() {
               </Chip>
             </CardHeader>
             <CardContent className="pt-4">
-              <Table aria-label="Blocked settings" removeWrapper>
-                <TableHeader>
-                  <TableColumn>SETTING</TableColumn>
-                  <TableColumn>LABEL</TableColumn>
-                  <TableColumn>SCOPE</TableColumn>
-                  <TableColumn>REASON</TableColumn>
-                  <TableColumn>ENFORCED VALUE</TableColumn>
-                </TableHeader>
-                <TableBody
-                  items={data.blocked_settings}
-                  emptyContent="No blocked settings enforced."
-                >
+              <table className="w-full border-collapse text-sm">
+                <thead className="border-b border-border">
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">SETTING</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">LABEL</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">SCOPE</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">REASON</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">ENFORCED VALUE</th>
+                </thead>
+                <tbody>
                   {(rule) => (
-                    <TableRow key={rule.id}>
-                      <TableCell>
+                    <tr key={rule.id}>
+                      <td>
                         <code className="rounded bg-default px-1.5 py-0.5 font-mono text-xs text-foreground">
                           {rule.setting_key}
                         </code>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="font-medium text-foreground">{rule.label}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <Chip size="sm" variant="flat">
                           {rule.scope}
                         </Chip>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="text-muted">{rule.reason}</span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         {rule.enforced_value === null ? (
                           <span className="text-muted">—</span>
                         ) : (
                           <span className="font-medium text-foreground">{rule.enforced_value}</span>
                         )}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   )}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </CardContent>
           </Card>
         </div>
