@@ -66,9 +66,12 @@ impl AuditQueryService {
             "WITH RECURSIVE subtree(id) AS (
                 SELECT id FROM groups WHERE id = ? AND status != 'archived'
                 UNION ALL SELECT child.id FROM groups child JOIN subtree parent ON child.parent_id = parent.id
-                WHERE child.status != 'archived'
             )
-            SELECT event.id, event.actor_user_id, event.action, event.target_type, event.target_id,
+            SELECT event.id,
+                   CASE WHEN event.actor_api_key_id IS NOT NULL
+                        THEN 'api_key:' || event.actor_api_key_id
+                        ELSE event.actor_user_id END AS actor,
+                   event.action, event.target_type, event.target_id,
                    event.authorized_group_id, event.created_at, event.request_id, event.metadata_json
             FROM audit_events event JOIN subtree ON subtree.id = event.authorized_group_id
             WHERE (? IS NULL OR event.created_at < ? OR (event.created_at = ? AND event.id < ?))
@@ -149,7 +152,7 @@ fn event_from_row(row: sqlx::sqlite::SqliteRow) -> Result<AuditEvent, AppError> 
         .transpose()?;
     Ok(AuditEvent {
         id: row.get("id"),
-        actor: row.get("actor_user_id"),
+        actor: row.get("actor"),
         action: row.get("action"),
         target_type: row.get("target_type"),
         target_id: row.get("target_id"),
@@ -201,6 +204,7 @@ fn database_error(error: sqlx::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use crate::{
+        api_keys::ApiKeyService,
         auth::hash_token,
         authorization::Capability,
         groups::tests::GroupFixture,
@@ -328,5 +332,57 @@ mod tests {
             .events
             .iter()
             .any(|event| event.action == "identity.bootstrap_root"));
+    }
+
+    #[tokio::test]
+    async fn active_ancestor_query_includes_archived_descendant_history() {
+        let fixture = GroupFixture::german_tree().await;
+        sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('root-auditor', ?, ?, 'active', 1)")
+            .bind(&fixture.german).bind(&fixture.other_teacher.user_id).execute(&fixture.pool).await.unwrap();
+        sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('root-auditor', ?)")
+            .bind(Capability::GroupView.as_str()).execute(&fixture.pool).await.unwrap();
+        fixture
+            .groups
+            .archive_group(&fixture.german_a_teacher, &fixture.german_a)
+            .await
+            .unwrap();
+
+        let page = super::AuditQueryService::new(fixture.pool)
+            .list(&fixture.other_teacher, &fixture.german, None, 50)
+            .await
+            .unwrap();
+
+        assert!(page.events.iter().any(|event| {
+            event.action == "group.archived"
+                && event.authorized_group_id == fixture.german_a
+        }));
+    }
+
+    #[tokio::test]
+    async fn audit_query_exposes_explicit_service_key_actor() {
+        let fixture = GroupFixture::german_tree().await;
+        let created = ApiKeyService::new(fixture.pool.clone())
+            .create(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                vec![Capability::GroupView],
+                None,
+            )
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO audit_events (id, actor_user_id, actor_api_key_id, action, target_type, target_id, metadata_json, created_at, authorized_group_id, request_id) VALUES ('service-event', NULL, ?, 'analytics.read', 'group', ?, NULL, 10, ?, NULL)")
+            .bind(&created.id).bind(&fixture.german_a).bind(&fixture.german_a)
+            .execute(&fixture.pool).await.unwrap();
+
+        let page = super::AuditQueryService::new(fixture.pool)
+            .list(&fixture.german_a_teacher, &fixture.german_a, None, 50)
+            .await
+            .unwrap();
+        let event = page
+            .events
+            .iter()
+            .find(|event| event.id == "service-event")
+            .unwrap();
+        assert_eq!(event.actor.as_deref(), Some(format!("api_key:{}", created.id).as_str()));
     }
 }

@@ -257,6 +257,7 @@ async fn activate_group(
 fn member_principal(user_id: String) -> Principal {
     Principal {
         user_id,
+        service_key_id: None,
         session_id: String::new(),
         device_id: String::new(),
         active_group_id: None,

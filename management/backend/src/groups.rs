@@ -684,6 +684,7 @@ pub(crate) mod tests {
     fn principal(user_id: &str) -> Principal {
         Principal {
             user_id: user_id.into(),
+            service_key_id: None,
             session_id: format!("session-{user_id}"),
             device_id: format!("device-{user_id}"),
             active_group_id: None,
@@ -712,6 +713,7 @@ pub(crate) mod tests {
         let fixture = GroupFixture::german_tree().await;
         let unassigned_root = Principal {
             user_id: "unassigned-root".into(),
+            service_key_id: None,
             session_id: "session".into(),
             device_id: "device".into(),
             active_group_id: None,
