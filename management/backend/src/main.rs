@@ -12,7 +12,10 @@ use mlearn_management::{
     auth,
     config::{Config, EnvMode},
     db::connect_database,
-    docker, routes,
+    docker,
+    error::AppError,
+    identity::IdentityType,
+    routes,
     state::AppState,
     static_handler,
 };
@@ -290,31 +293,25 @@ fn token_file_path() -> String {
 
 async fn auth_middleware(
     State(state): State<AppState>,
-    request: Request,
+    mut request: Request,
     next: Next,
-) -> Result<Response, StatusCode> {
-    if state.config.fail_closed() {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let stored_hash = match &state.config.token_hash {
-        Some(hash) => hash,
-        None => return Ok(next.run(request).await),
-    };
-
+) -> Result<Response, AppError> {
     let auth_header = request
         .headers()
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
-    let provided = auth::extract_bearer(auth_header).ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if auth::verify_token(provided, stored_hash) {
-        Ok(next.run(request).await)
-    } else {
-        Err(StatusCode::UNAUTHORIZED)
+    let access_token = auth::extract_bearer(auth_header).ok_or(AppError::Unauthorized)?;
+    let principal = state
+        .identity
+        .principal_from_access_token(access_token)
+        .await?;
+    if principal.identity_type != IdentityType::Admin {
+        return Err(AppError::Forbidden);
     }
+    request.extensions_mut().insert(principal);
+    Ok(next.run(request).await)
 }
 
 fn build_router(state: AppState) -> Router {
@@ -353,6 +350,7 @@ fn build_router(state: AppState) -> Router {
             "/api/health",
             get(|| async { Json(json!({"status": "ok"})) }),
         )
+        .merge(routes::auth::router(state.clone()))
         .merge(protected)
         .fallback(static_handler::serve_spa)
         .layer(TraceLayer::new_for_http())
@@ -367,6 +365,13 @@ fn build_router(state: AppState) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{
+        body::{to_bytes, Body},
+        http::{header, Request},
+    };
+    use serde_json::Value;
+    use sqlx::sqlite::SqlitePoolOptions;
+    use tower::ServiceExt;
 
     fn args(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
@@ -401,5 +406,72 @@ mod tests {
     fn cli_rejects_unknown_commands() {
         assert!(parse_cli_command(&args(&["wat"])).is_err());
         assert!(parse_cli_command(&args(&["reset-admin-token", "extra"])).is_err());
+    }
+
+    #[tokio::test]
+    async fn application_router_uses_named_sessions_and_preserves_health() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let recovery_token = "application-router-recovery";
+        let mut config = Config::from_env();
+        config.token_hash = Some(auth::hash_token(recovery_token));
+        let docker = bollard::Docker::connect_with_http_defaults().unwrap();
+        let app = build_router(AppState::new(docker, config, pool));
+
+        let health = app
+            .clone()
+            .oneshot(Request::get("/api/health").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
+
+        let legacy = app
+            .clone()
+            .oneshot(
+                Request::get("/api/school")
+                    .header(header::AUTHORIZATION, format!("Bearer {recovery_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(legacy.status(), StatusCode::UNAUTHORIZED);
+
+        let bootstrap = app
+            .clone()
+            .oneshot(
+                Request::post("/api/auth/bootstrap")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {recovery_token}"))
+                    .body(Body::from(
+                        serde_json::json!({
+                            "email": "admin@school.test",
+                            "password": "Correct Horse Battery Staple"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(bootstrap.status(), StatusCode::OK);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(bootstrap.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let access_token = body["session"]["accessToken"].as_str().unwrap();
+        let named = app
+            .oneshot(
+                Request::get("/api/school")
+                    .header(header::AUTHORIZATION, format!("Bearer {access_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(named.status(), StatusCode::OK);
     }
 }

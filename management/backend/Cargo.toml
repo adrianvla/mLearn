@@ -38,6 +38,10 @@ include_dir = "0.7"
 mime_guess = "2"
 
 # Auth
+argon2 = "0.5"
+base64 = "0.22"
+jsonwebtoken = "9"
+rand = "0.8"
 sha2 = "0.10"
 subtle = "2.6"
 hex = "0.4"
