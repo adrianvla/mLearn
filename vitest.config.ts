@@ -32,6 +32,7 @@ export default defineConfig({
            include: [
              'src/electron/**/*.test.ts',
              'src/shared/settingRequirements.test.ts',
+             'src/shared/managementPolicy.test.ts',
              'src/shared/plugins/**/*.test.ts',
              'src/shared/utils/**/*.test.ts',
              'extension/src/**/*.test.ts',
