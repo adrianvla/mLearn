@@ -18,6 +18,12 @@ pub enum AppError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Forbidden")]
+    Forbidden,
+
+    #[error("{0}")]
+    Conflict(String),
+
     #[error("Action not allowed on this container")]
     ActionNotAllowed,
 
@@ -41,6 +47,8 @@ impl AppError {
             Self::DockerPermissionDenied => StatusCode::FORBIDDEN,
             Self::ContainerNotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::Conflict(_) => StatusCode::CONFLICT,
             Self::ActionNotAllowed => StatusCode::FORBIDDEN,
             Self::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
@@ -64,9 +72,7 @@ fn docker_status_code(err: &bollard::errors::Error) -> StatusCode {
         },
         Error::IOError { err } => match err.kind() {
             ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
-            ErrorKind::ConnectionRefused | ErrorKind::NotFound => {
-                StatusCode::SERVICE_UNAVAILABLE
-            }
+            ErrorKind::ConnectionRefused | ErrorKind::NotFound => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         },
         Error::SocketNotFoundError(_) | Error::UnsupportedURISchemeError { .. } => {
@@ -111,7 +117,15 @@ mod tests {
             AppError::ContainerNotFound("abc".into()).status_code(),
             StatusCode::NOT_FOUND
         );
-        assert_eq!(AppError::Unauthorized.status_code(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            AppError::Unauthorized.status_code(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(AppError::Forbidden.status_code(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            AppError::Conflict("exists".into()).status_code(),
+            StatusCode::CONFLICT
+        );
         assert_eq!(
             AppError::ActionNotAllowed.status_code(),
             StatusCode::FORBIDDEN
@@ -161,10 +175,7 @@ mod tests {
         let err = Error::IOError {
             err: IoError::from(ErrorKind::ConnectionRefused),
         };
-        assert_eq!(
-            docker_status_code(&err),
-            StatusCode::SERVICE_UNAVAILABLE
-        );
+        assert_eq!(docker_status_code(&err), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[test]
@@ -172,18 +183,12 @@ mod tests {
         let err = Error::IOError {
             err: IoError::from(ErrorKind::NotFound),
         };
-        assert_eq!(
-            docker_status_code(&err),
-            StatusCode::SERVICE_UNAVAILABLE
-        );
+        assert_eq!(docker_status_code(&err), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[test]
     fn maps_socket_not_found_to_503() {
         let err = Error::SocketNotFoundError("/var/run/docker.sock".into());
-        assert_eq!(
-            docker_status_code(&err),
-            StatusCode::SERVICE_UNAVAILABLE
-        );
+        assert_eq!(docker_status_code(&err), StatusCode::SERVICE_UNAVAILABLE);
     }
 }

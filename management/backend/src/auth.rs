@@ -5,6 +5,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 
+use axum::{
+    extract::FromRequestParts,
+    http::{header, request::Parts},
+};
+
+use crate::{error::AppError, identity::Principal, state::AppState};
+
 static TOKEN_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub fn hash_token(token: &str) -> [u8; 32] {
@@ -75,6 +82,26 @@ pub fn generate_random_token() -> String {
     hex::encode(hasher.finalize())
 }
 
+impl FromRequestParts<AppState> for Principal {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth_header = parts
+            .headers
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("");
+        let access_token = extract_bearer(auth_header).ok_or(AppError::Unauthorized)?;
+        state
+            .identity
+            .principal_from_access_token(access_token)
+            .await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,7 +116,10 @@ mod tests {
 
     #[test]
     fn hash_token_hex_matches_raw_hash() {
-        assert_eq!(hash_token_hex("admin-token"), hex::encode(hash_token("admin-token")));
+        assert_eq!(
+            hash_token_hex("admin-token"),
+            hex::encode(hash_token("admin-token"))
+        );
     }
 
     #[test]
@@ -132,7 +162,9 @@ mod tests {
         assert_eq!(first.len(), 64);
         assert_eq!(second.len(), 64);
         assert!(first.chars().all(|character| character.is_ascii_hexdigit()));
-        assert!(second.chars().all(|character| character.is_ascii_hexdigit()));
+        assert!(second
+            .chars()
+            .all(|character| character.is_ascii_hexdigit()));
         assert_ne!(first, second);
     }
 }
