@@ -1,7 +1,7 @@
 FROM node:20-slim AS frontend-builder
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci --frozen-lockfile 2>/dev/null || npm install
+RUN npm install --legacy-peer-deps
 COPY frontend/ ./
 RUN npm run build
 
