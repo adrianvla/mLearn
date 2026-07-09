@@ -99,9 +99,19 @@ impl AuthorizationService {
                 JOIN membership_capabilities capability ON capability.membership_id = membership.id
                 WHERE membership.user_id = ? AND membership.status = 'active'
                   AND capability.capability = ?
+                UNION ALL
+                SELECT 1 FROM ancestors
+                JOIN api_keys key ON key.group_id = ancestors.id
+                JOIN api_key_capabilities capability ON capability.api_key_id = key.id
+                WHERE ? = 'api-key' AND key.id = ? AND key.status = 'active'
+                  AND (key.expires_at IS NULL OR key.expires_at > unixepoch())
+                  AND capability.capability = ?
             )",
         )
         .bind(group_id)
+        .bind(&principal.user_id)
+        .bind(capability.as_str())
+        .bind(&principal.session_id)
         .bind(&principal.user_id)
         .bind(capability.as_str())
         .fetch_one(&self.pool)
@@ -139,9 +149,19 @@ impl AuthorizationService {
                 JOIN membership_capabilities capability ON capability.membership_id = membership.id
                 WHERE membership.user_id = ? AND membership.status = 'active'
                   AND capability.capability = ?
+                UNION ALL
+                SELECT 1 FROM ancestors
+                JOIN api_keys key ON key.group_id = ancestors.id
+                JOIN api_key_capabilities capability ON capability.api_key_id = key.id
+                WHERE ? = 'api-key' AND key.id = ? AND key.status = 'active'
+                  AND (key.expires_at IS NULL OR key.expires_at > unixepoch())
+                  AND capability.capability = ?
             )",
         )
         .bind(group_id)
+        .bind(&principal.user_id)
+        .bind(capability.as_str())
+        .bind(&principal.session_id)
         .bind(&principal.user_id)
         .bind(capability.as_str())
         .fetch_one(&mut **transaction)

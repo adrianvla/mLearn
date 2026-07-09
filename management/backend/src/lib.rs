@@ -1,3 +1,4 @@
+pub mod api_keys;
 pub mod auth;
 pub mod authorization;
 pub mod config;
@@ -7,6 +8,7 @@ pub mod dto;
 pub mod error;
 pub mod groups;
 pub mod identity;
+pub mod provisioning;
 pub mod redaction;
 pub mod routes;
 pub mod sanitize;
