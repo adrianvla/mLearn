@@ -316,7 +316,15 @@ impl GroupService {
                 FROM group_memberships membership
                 JOIN membership_capabilities capability ON capability.membership_id = membership.id
                 JOIN groups source ON source.id = membership.group_id
-                WHERE membership.user_id = ? AND membership.status = 'active'
+                WHERE ? IS NULL AND membership.user_id = ? AND membership.status = 'active'
+                  AND capability.capability = 'group.view' AND source.status != 'archived'
+                UNION
+                SELECT key.group_id
+                FROM api_keys key
+                JOIN api_key_capabilities capability ON capability.api_key_id = key.id
+                JOIN groups source ON source.id = key.group_id
+                WHERE key.id = ? AND key.status = 'active'
+                  AND (key.expires_at IS NULL OR key.expires_at > unixepoch())
                   AND capability.capability = 'group.view' AND source.status != 'archived'
                 UNION
                 SELECT child.id FROM groups child JOIN visible parent ON child.parent_id = parent.id
@@ -326,7 +334,9 @@ impl GroupService {
             FROM groups JOIN visible ON visible.id = groups.id
             ORDER BY groups.name, groups.id",
         )
+        .bind(&principal.service_key_id)
         .bind(&principal.user_id)
+        .bind(&principal.service_key_id)
         .fetch_all(&self.pool)
         .await
         .map_err(database_error)?;
@@ -416,6 +426,11 @@ impl GroupService {
     }
 
     pub async fn activate(&self, principal: &Principal, group_id: &str) -> Result<(), AppError> {
+        if principal.service_key_id.is_some() {
+            return Err(AppError::Forbidden(
+                "active group changes require a human session".into(),
+            ));
+        }
         self.authorization
             .require(principal, group_id, Capability::GroupView)
             .await?;
@@ -609,6 +624,7 @@ fn map_group_write_error(error: sqlx::Error) -> AppError {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::{
+        api_keys::ApiKeyService,
         authorization::{AuthorizationService, Capability},
         error::AppError,
         identity::{IdentityType, Principal},
@@ -759,6 +775,32 @@ pub(crate) mod tests {
         assert!(ids.contains(&fixture.project_1));
         assert!(!ids.contains(&fixture.german));
         assert!(!ids.contains(&fixture.german_b));
+    }
+
+    #[tokio::test]
+    async fn service_key_visible_tree_is_exactly_its_active_subtree() {
+        let fixture = GroupFixture::german_tree().await;
+        let created = ApiKeyService::new(fixture.pool.clone())
+            .create(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                vec![Capability::GroupView],
+                None,
+            )
+            .await
+            .unwrap();
+        let principal = ApiKeyService::new(fixture.pool.clone())
+            .authenticate(&created.secret)
+            .await
+            .unwrap();
+
+        let groups = fixture.groups.visible_tree(&principal).await.unwrap();
+        let ids: Vec<_> = groups.iter().map(|group| group.id.as_str()).collect();
+
+        assert!(ids.contains(&fixture.german_a.as_str()));
+        assert!(ids.contains(&fixture.project_1.as_str()));
+        assert!(!ids.contains(&fixture.german.as_str()));
+        assert!(!ids.contains(&fixture.german_b.as_str()));
     }
 
     #[tokio::test]

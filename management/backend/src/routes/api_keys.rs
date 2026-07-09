@@ -196,6 +196,30 @@ mod tests {
             .unwrap();
         assert_eq!(key_request.status(), StatusCode::OK);
 
+        let tree = app
+            .clone()
+            .oneshot(
+                Request::get("/api/groups")
+                    .header(header::AUTHORIZATION, format!("Bearer {secret}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(tree.status(), StatusCode::OK);
+        let tree: Value =
+            serde_json::from_slice(&to_bytes(tree.into_body(), usize::MAX).await.unwrap()).unwrap();
+        let ids: Vec<_> = tree["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|group| group["id"].as_str().unwrap())
+            .collect();
+        assert!(ids.contains(&fixture.german_a.as_str()));
+        assert!(ids.contains(&fixture.project_1.as_str()));
+        assert!(!ids.contains(&fixture.german.as_str()));
+        assert!(!ids.contains(&fixture.german_b.as_str()));
+
         let revoked = app
             .oneshot(
                 Request::delete(format!(
@@ -217,5 +241,55 @@ mod tests {
             .authenticate(secret)
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn service_key_cannot_activate_human_session_group() {
+        let fixture = GroupFixture::german_tree().await;
+        let mut config = Config::from_env();
+        config.token_hash = Some(hash_token("activation-route-secret"));
+        let docker = bollard::Docker::connect_with_http_defaults().unwrap();
+        let state = AppState::new(docker, config, fixture.pool.clone());
+        let created = ApiKeyService::new(fixture.pool.clone())
+            .create(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                vec![crate::authorization::Capability::GroupView],
+                None,
+            )
+            .await
+            .unwrap();
+        let app: Router = routes::groups::router(state.clone()).with_state(state);
+        let audit_before: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'group.activated'",
+        )
+        .fetch_one(&fixture.pool)
+        .await
+        .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::post(format!(
+                    "/api/groups/{}/activate",
+                    fixture.german_a
+                ))
+                .header(
+                    header::AUTHORIZATION,
+                    format!("Bearer {}", created.secret),
+                )
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let audit_after: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'group.activated'",
+        )
+        .fetch_one(&fixture.pool)
+        .await
+        .unwrap();
+        assert_eq!(audit_before, audit_after);
     }
 }
