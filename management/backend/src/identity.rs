@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{hash_token_hex, verify_token},
+    authorization::Capability,
     error::AppError,
 };
 
@@ -126,8 +127,15 @@ impl IdentityService {
         let user = self
             .bootstrap_root_in_transaction(&mut transaction, bootstrap_token, email, password)
             .await?;
+        let root_group_id: String = sqlx::query_scalar(
+            "SELECT group_id FROM group_memberships WHERE user_id = ? AND status = 'active'",
+        )
+        .bind(&user.id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error)?;
         let session = self
-            .issue_session_in_transaction(&mut transaction, &user.id, None, None)
+            .issue_session_in_transaction(&mut transaction, &user.id, None, Some(&root_group_id))
             .await?;
         transaction.commit().await.map_err(database_error)?;
         Ok((user, session))
@@ -182,6 +190,40 @@ impl IdentityService {
             .bind(&user_id)
             .bind(password_hash)
             .bind(now)
+            .bind(now)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error)?;
+        let root_group_id = Uuid::now_v7().to_string();
+        let root_membership_id = Uuid::now_v7().to_string();
+        sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at, archived_at) VALUES (?, NULL, 'School', 'school', 'active', ?, NULL)")
+            .bind(&root_group_id)
+            .bind(now)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error)?;
+        sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, invited_email, status, created_at, archived_at) VALUES (?, ?, ?, NULL, 'active', ?, NULL)")
+            .bind(&root_membership_id)
+            .bind(&root_group_id)
+            .bind(&user_id)
+            .bind(now)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error)?;
+        for capability in Capability::ALL {
+            sqlx::query(
+                "INSERT INTO membership_capabilities (membership_id, capability) VALUES (?, ?)",
+            )
+            .bind(&root_membership_id)
+            .bind(capability.as_str())
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error)?;
+        }
+        sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at) VALUES (?, ?, 'group.root_created', 'group', ?, NULL, ?)")
+            .bind(Uuid::now_v7().to_string())
+            .bind(&user_id)
+            .bind(&root_group_id)
             .bind(now)
             .execute(&mut **transaction)
             .await
@@ -445,8 +487,8 @@ impl IdentityService {
         .map_err(|_| AppError::Unauthorized)?
         .claims;
         let now = now_timestamp();
-        let is_root: Option<i64> = sqlx::query_scalar(
-            "SELECT users.is_root FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id = ? AND sessions.user_id = ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ? AND users.status = 'active' AND users.identity_type = ?",
+        let live: Option<(i64, Option<String>)> = sqlx::query_as(
+            "SELECT users.is_root, sessions.active_group_id FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id = ? AND sessions.user_id = ? AND sessions.revoked_at IS NULL AND sessions.expires_at > ? AND users.status = 'active' AND users.identity_type = ?",
         )
         .bind(&claims.sid)
         .bind(&claims.sub)
@@ -455,15 +497,15 @@ impl IdentityService {
         .fetch_optional(&self.pool)
         .await
         .map_err(database_error)?;
-        let is_root = is_root.ok_or(AppError::Unauthorized)? != 0;
+        let (is_root, active_group_id) = live.ok_or(AppError::Unauthorized)?;
 
         Ok(Principal {
             user_id: claims.sub,
             session_id: claims.sid,
             device_id: claims.did,
-            active_group_id: claims.active_group_id,
+            active_group_id: active_group_id.or(claims.active_group_id),
             identity_type: claims.identity_type,
-            is_root,
+            is_root: is_root != 0,
         })
     }
 

@@ -1,9 +1,11 @@
 pub mod auth;
+pub mod authorization;
 pub mod config;
 pub mod db;
 pub mod docker;
 pub mod dto;
 pub mod error;
+pub mod groups;
 pub mod identity;
 pub mod redaction;
 pub mod routes;

@@ -307,7 +307,7 @@ async fn auth_middleware(
         .principal_from_access_token(access_token)
         .await?;
     if !principal.is_root {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("root access required".into()));
     }
     request.extensions_mut().insert(principal);
     Ok(next.run(request).await)
@@ -350,6 +350,7 @@ fn build_router(state: AppState) -> Router {
             get(|| async { Json(json!({"status": "ok"})) }),
         )
         .merge(routes::auth::router(state.clone()))
+        .merge(routes::groups::router(state.clone()))
         .merge(protected)
         .fallback(static_handler::serve_spa)
         .layer(TraceLayer::new_for_http())
