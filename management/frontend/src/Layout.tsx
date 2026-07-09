@@ -76,17 +76,17 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <aside className="flex w-64 flex-col border-r border-default-200 bg-content1">
-        <div className="flex h-16 items-center gap-2 border-b border-default-200 px-6">
-          <Lock className="h-5 w-5 text-primary" />
+      <aside className="flex w-64 flex-col border-r border-border bg-surface">
+        <div className="flex h-16 items-center gap-2 border-b border-border px-6">
+          <Lock className="h-5 w-5 text-accent" />
           <span className="text-lg font-bold text-foreground">mLearn</span>
-          <Chip size="sm" color="primary" variant="flat">Admin</Chip>
+          <Chip size="sm" color="accent" variant="flat">Admin</Chip>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="mb-4">
-              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-default-400">
+              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
                 {group.label}
               </p>
               {group.items.map((item) => (
@@ -97,8 +97,8 @@ export default function Layout() {
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'text-default-600 hover:bg-default-100 hover:text-default-900'
+                        ? 'bg-accent text-accent'
+                        : 'text-foreground hover:bg-default hover:text-foreground'
                     }`
                   }
                 >
@@ -110,7 +110,7 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="border-t border-default-200 p-4">
+        <div className="border-t border-border p-4">
           {tokenSaved ? (
             <div className="flex items-center justify-between">
               <Chip size="sm" color="success" variant="flat" startContent={<Shield className="h-3 w-3" />}>
@@ -142,7 +142,7 @@ export default function Layout() {
                   if (e.key === 'Enter') handleSaveToken();
                 }}
               />
-              <Button size="sm" color="primary" className="w-full" onPress={handleSaveToken}>
+              <Button size="sm" color="accent" className="w-full" onPress={handleSaveToken}>
                 Authenticate
               </Button>
             </div>

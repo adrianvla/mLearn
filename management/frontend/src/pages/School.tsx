@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, Chip } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip } from '@heroui/react';
 import { Shield, ShieldAlert, ShieldCheck, CheckCircle2, Info } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow } from '../components/shared';
@@ -18,17 +18,17 @@ export default function School() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="flex items-center gap-3 pb-0">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100 text-primary">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent">
                 <Shield className="h-5 w-5" />
               </span>
               <div className="flex-1">
                 <h2 className="text-base font-semibold text-foreground">Deployment Status</h2>
-                <p className="text-xs text-default-500">Active deployment configuration</p>
+                <p className="text-xs text-muted">Active deployment configuration</p>
               </div>
             </CardHeader>
-            <CardBody className="pt-4">
+            <CardContent className="pt-4">
               <InfoRow label="Deployment mode">
-                <Chip size="sm" variant="flat" color="primary">
+                <Chip size="sm" variant="flat" color="accent">
                   {data.deployment_mode}
                 </Chip>
               </InfoRow>
@@ -59,7 +59,7 @@ export default function School() {
                   {data.console_bound_locally ? 'Local only' : 'Remote accessible'}
                 </Chip>
               </InfoRow>
-            </CardBody>
+            </CardContent>
           </Card>
 
           <Card>
@@ -79,7 +79,7 @@ export default function School() {
               </span>
               <div className="flex-1">
                 <h2 className="text-base font-semibold text-foreground">Safety Warnings</h2>
-                <p className="text-xs text-default-500">Automated deployment safety checks</p>
+                <p className="text-xs text-muted">Automated deployment safety checks</p>
               </div>
               <Chip
                 size="sm"
@@ -91,12 +91,12 @@ export default function School() {
                   : `${data.warnings.length} issue${data.warnings.length === 1 ? '' : 's'}`}
               </Chip>
             </CardHeader>
-            <CardBody className="pt-4">
+            <CardContent className="pt-4">
               {data.warnings.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 rounded-lg bg-success-50 px-6 py-10 text-success">
                   <CheckCircle2 className="h-12 w-12" />
                   <span className="text-lg font-semibold">All checks passed</span>
-                  <span className="text-sm text-default-500">
+                  <span className="text-sm text-muted">
                     No deployment safety issues detected.
                   </span>
                 </div>
@@ -105,7 +105,7 @@ export default function School() {
                   {data.warnings.map((w) => (
                     <li
                       key={w}
-                      className="flex items-start gap-3 rounded-lg border border-danger-200 bg-danger-50 px-4 py-3"
+                      className="flex items-start gap-3 rounded-lg border border-danger bg-danger/10 px-4 py-3"
                     >
                       <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-danger" />
                       <span className="text-sm font-medium text-danger">{w}</span>
@@ -113,27 +113,27 @@ export default function School() {
                   ))}
                 </ul>
               )}
-            </CardBody>
+            </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex items-center gap-3 pb-0">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-default-100 text-default-500">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-default text-muted">
                 <Info className="h-5 w-5" />
               </span>
               <div className="flex-1">
                 <h2 className="text-base font-semibold text-foreground">Deployment Notes</h2>
-                <p className="text-xs text-default-500">Operator-provided guidance</p>
+                <p className="text-xs text-muted">Operator-provided guidance</p>
               </div>
               <Chip size="sm" variant="flat">
                 {data.notes.length}
               </Chip>
             </CardHeader>
-            <CardBody className="pt-4">
+            <CardContent className="pt-4">
               {data.notes.length === 0 ? (
-                <p className="text-sm text-default-400">No notes recorded.</p>
+                <p className="text-sm text-muted">No notes recorded.</p>
               ) : (
-                <ul className="list-disc space-y-1.5 pl-5 text-sm text-foreground marker:text-default-400">
+                <ul className="list-disc space-y-1.5 pl-5 text-sm text-foreground marker:text-muted">
                   {data.notes.map((note) => (
                     <li key={note} className="leading-relaxed">
                       {note}
@@ -141,7 +141,7 @@ export default function School() {
                   ))}
                 </ul>
               )}
-            </CardBody>
+            </CardContent>
           </Card>
         </div>
       )}

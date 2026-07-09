@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
 import { CheckCircle2, Activity, BarChart3 } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, StatCard } from '../components/shared';
@@ -29,7 +29,7 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
   return (
     <div className="grid gap-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Requests Today" value={summary.requests_today} color="primary" />
+        <StatCard label="Requests Today" value={summary.requests_today} color="accent" />
         <StatCard label="Est. Tokens Today" value={summary.estimated_tokens_today} />
         <StatCard label="Blocked by Policy" value={summary.blocked_by_policy} color="danger" />
         <StatCard label="Avg Latency (ms)" value={summary.average_latency_ms} />
@@ -37,10 +37,10 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <CheckCircle2 className="h-5 w-5 text-default-500" />
+          <CheckCircle2 className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Opt-In Settings</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <InfoRow label="Enabled">
             <Chip color={data.opt_in.enabled ? 'success' : 'default'} variant="flat" size="sm">
               {data.opt_in.enabled ? 'Enabled' : 'Disabled'}
@@ -57,15 +57,15 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
               {data.opt_in.collect_client_events ? 'Yes' : 'No'}
             </Chip>
           </InfoRow>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <Activity className="h-5 w-5 text-default-500" />
+          <Activity className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Recent Events</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="Recent analytics events" removeWrapper>
             <TableHeader>
               <TableColumn>Time</TableColumn>
@@ -88,15 +88,15 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex items-center gap-2 pb-0">
-          <BarChart3 className="h-5 w-5 text-default-500" />
+          <BarChart3 className="h-5 w-5 text-muted" />
           <h2 className="text-lg font-semibold text-foreground">Log Streams</h2>
         </CardHeader>
-        <CardBody>
+        <CardContent>
           <Table aria-label="Log streams" removeWrapper>
             <TableHeader>
               <TableColumn>Label</TableColumn>
@@ -119,7 +119,7 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
               ))}
             </TableBody>
           </Table>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

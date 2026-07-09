@@ -9,7 +9,7 @@ FROM rust:1-bookworm AS backend-builder
 WORKDIR /build
 COPY backend/ ./backend/
 COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
-RUN cargo build --release --manifest-path backend/Cargo.toml
+RUN touch backend/src/main.rs && cargo build --release --manifest-path backend/Cargo.toml
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \

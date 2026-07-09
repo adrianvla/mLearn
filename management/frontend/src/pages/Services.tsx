@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Card,
-  CardBody,
+  CardContent,
   Chip,
   Button,
   Table,
@@ -71,7 +71,7 @@ export default function Services() {
           <Button
             size="sm"
             variant="flat"
-            color="primary"
+            color="accent"
             isIconOnly
             isDisabled={busy || pendingId !== null}
             onPress={() => refetch()}
@@ -83,8 +83,8 @@ export default function Services() {
       />
 
       {actionError !== null && (
-        <Card className="mb-4 border border-danger-200 bg-danger-50">
-          <CardBody>
+        <Card className="mb-4 border border-danger bg-danger/10">
+          <CardContent>
             <div className="flex items-center justify-between gap-3 text-danger">
               <span className="text-sm font-medium">{actionError}</span>
               <Button
@@ -98,7 +98,7 @@ export default function Services() {
                 <XCircle className="h-4 w-4" />
               </Button>
             </div>
-          </CardBody>
+          </CardContent>
         </Card>
       )}
 
@@ -108,15 +108,15 @@ export default function Services() {
 
       {!busy && error === null && services.length === 0 && (
         <Card>
-          <CardBody>
-            <p className="py-8 text-center text-sm text-default-400">No services discovered.</p>
-          </CardBody>
+          <CardContent>
+            <p className="py-8 text-center text-sm text-muted">No services discovered.</p>
+          </CardContent>
         </Card>
       )}
 
       {services.length > 0 && (
         <Card>
-          <CardBody>
+          <CardContent>
             <Table aria-label="Services" removeWrapper>
               <TableHeader>
                 <TableColumn>Service</TableColumn>
@@ -138,7 +138,7 @@ export default function Services() {
                         <span className="font-medium text-foreground">{name}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs text-default-500">{s.container_name}</span>
+                        <span className="font-mono text-xs text-muted">{s.container_name}</span>
                       </TableCell>
                       <TableCell>
                         <Chip size="sm" variant="flat" color={statusToColor(s.status)}>
@@ -157,17 +157,17 @@ export default function Services() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs text-default-500">{formatImage(s)}</span>
+                        <span className="font-mono text-xs text-muted">{formatImage(s)}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs text-default-500">{formatPorts(s.ports)}</span>
+                        <span className="font-mono text-xs text-muted">{formatPorts(s.ports)}</span>
                       </TableCell>
                       <TableCell>
                         {isPending ? (
                           <Spinner size="sm" />
                         ) : (
                           <div className="flex gap-1">
-                            <Tooltip content="Start" color="primary">
+                            <Tooltip content="Start" color="accent">
                               <Button
                                 size="sm"
                                 variant="flat"
@@ -193,11 +193,11 @@ export default function Services() {
                                 <Square className="h-4 w-4" />
                               </Button>
                             </Tooltip>
-                            <Tooltip content="Restart" color="primary">
+                            <Tooltip content="Restart" color="accent">
                               <Button
                                 size="sm"
                                 variant="flat"
-                                color="primary"
+                                color="accent"
                                 isIconOnly
                                 isDisabled={disabled}
                                 onPress={() => handleAction(s.id, 'restart')}
@@ -214,7 +214,7 @@ export default function Services() {
                 })}
               </TableBody>
             </Table>
-          </CardBody>
+          </CardContent>
         </Card>
       )}
     </PageContainer>

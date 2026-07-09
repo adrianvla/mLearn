@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Card, CardBody, CardHeader, Chip, Button, Select, SelectItem } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip, Button } from '@heroui/react';
 import { RefreshCw, Copy, Check, AlertTriangle } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState } from '../components/shared';
@@ -60,51 +60,40 @@ export default function Logs() {
       )}
 
       <Card className="mb-4">
-        <CardBody>
+        <CardContent>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <Select
-              label="Service"
-              className="sm:max-w-xs"
-              placeholder="Select a service"
-              isDisabled={services.length === 0}
-              isLoading={servicesApi.loading && services.length === 0}
-              selectedKeys={selectedService === null ? [] : [selectedService]}
-              onSelectionChange={(keys) => {
-                if (keys === 'all') return;
-                const next = Array.from(keys)[0];
-                if (next === undefined) {
-                  setSelectedService(null);
-                } else {
-                  setSelectedService(String(next));
-                }
-              }}
-            >
-              {services.map((service) => (
-                <SelectItem key={service.id}>
-                  {service.service_name ?? service.container_name}
-                </SelectItem>
-              ))}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted">Service</label>
+              <select
+                className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-accent disabled:opacity-50 sm:max-w-xs"
+                value={selectedService ?? ''}
+                disabled={services.length === 0}
+                onChange={(e) => setSelectedService(e.target.value || null)}
+              >
+                <option value="" disabled>Select a service</option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.service_name ?? service.container_name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <Select
-              label="Tail"
-              className="sm:max-w-40"
-              selectedKeys={[String(tail)]}
-              onSelectionChange={(keys) => {
-                if (keys === 'all') return;
-                const next = Array.from(keys)[0];
-                if (next !== undefined) {
-                  setTail(Number(next));
-                }
-              }}
-            >
-              {TAIL_OPTIONS.map((value) => (
-                <SelectItem key={String(value)}>{value} lines</SelectItem>
-              ))}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted">Lines</label>
+              <select
+                className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-accent sm:max-w-40"
+                value={String(tail)}
+                onChange={(e) => setTail(Number(e.target.value))}
+              >
+                {TAIL_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value} lines</option>
+                ))}
+              </select>
+            </div>
 
             <Button
-              color="primary"
+              color="accent"
               variant="flat"
               isDisabled={selectedService === null}
               isLoading={logsApi.loading && selectedService !== null}
@@ -114,7 +103,7 @@ export default function Logs() {
               Refresh
             </Button>
           </div>
-        </CardBody>
+        </CardContent>
       </Card>
 
       {logsApi.error !== null ? (
@@ -145,9 +134,9 @@ export default function Logs() {
               {copied ? 'Copied' : 'Copy'}
             </Button>
           </CardHeader>
-          <CardBody>
+          <CardContent>
             {selectedService === null ? (
-              <div className="flex h-64 items-center justify-center text-default-400">
+              <div className="flex h-64 items-center justify-center text-muted">
                 Select a service to view logs
               </div>
             ) : logsApi.loading && logs === null ? (
@@ -155,12 +144,12 @@ export default function Logs() {
             ) : hasOutput ? (
               <div
                 ref={scrollRef}
-                className="h-[30rem] overflow-auto rounded-lg bg-content2 p-3 font-mono text-xs leading-relaxed"
+                className="h-[30rem] overflow-auto rounded-lg bg-surface-secondary p-3 font-mono text-xs leading-relaxed"
               >
                 {logs.lines.map((line, index) => (
                   <div key={index} className="whitespace-pre-wrap break-words">
                     {line.timestamp !== null && (
-                      <span className="text-default-400">{line.timestamp} </span>
+                      <span className="text-muted">{line.timestamp} </span>
                     )}
                     <span className={line.stream === 'stderr' ? 'text-danger' : 'text-foreground'}>
                       {redactLine(line.message)}
@@ -169,11 +158,11 @@ export default function Logs() {
                 ))}
               </div>
             ) : (
-              <div className="flex h-64 items-center justify-center text-default-400">
+              <div className="flex h-64 items-center justify-center text-muted">
                 No log output for this service
               </div>
             )}
-          </CardBody>
+          </CardContent>
         </Card>
       )}
     </PageContainer>

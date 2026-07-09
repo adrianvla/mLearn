@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   Card,
-  CardBody,
+  CardContent,
   CardHeader,
   Chip,
   Table,
@@ -18,7 +18,7 @@ import type { BindMountInfo, StorageDto, VolumeInfo } from '../api/types';
 function renderLabels(labels: Record<string, string>): ReactNode {
   const entries = Object.entries(labels);
   if (entries.length === 0) {
-    return <span className="text-default-400">—</span>;
+    return <span className="text-muted">—</span>;
   }
   return (
     <div className="flex flex-wrap gap-1">
@@ -56,9 +56,9 @@ function VolumesCard({ data }: { data: StorageDto }): ReactNode {
       <CardHeader>
         <h2 className="text-lg font-semibold text-foreground">Volumes</h2>
       </CardHeader>
-      <CardBody>
+      <CardContent>
         {data.volumes.length === 0 ? (
-          <p className="py-10 text-center text-default-400">No volumes found</p>
+          <p className="py-10 text-center text-muted">No volumes found</p>
         ) : (
           <Table aria-label="Volumes" removeWrapper>
             <TableHeader>
@@ -79,7 +79,7 @@ function VolumesCard({ data }: { data: StorageDto }): ReactNode {
             </TableBody>
           </Table>
         )}
-      </CardBody>
+      </CardContent>
     </Card>
   );
 }
@@ -90,9 +90,9 @@ function BindMountsCard({ data }: { data: StorageDto }): ReactNode {
       <CardHeader>
         <h2 className="text-lg font-semibold text-foreground">Bind Mounts</h2>
       </CardHeader>
-      <CardBody>
+      <CardContent>
         {data.bind_mounts.length === 0 ? (
-          <p className="py-10 text-center text-default-400">No bind mounts found</p>
+          <p className="py-10 text-center text-muted">No bind mounts found</p>
         ) : (
           <Table aria-label="Bind mounts" removeWrapper>
             <TableHeader>
@@ -120,7 +120,7 @@ function BindMountsCard({ data }: { data: StorageDto }): ReactNode {
             </TableBody>
           </Table>
         )}
-      </CardBody>
+      </CardContent>
     </Card>
   );
 }
