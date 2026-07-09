@@ -688,6 +688,7 @@ mod tests {
             bind_address: "0.0.0.0".to_string(),
             port: 4000,
             compose_project: "mlearn".to_string(),
+            management_db_path: "/data/management.db".to_string(),
             token_hash: None,
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::CloudConnected,

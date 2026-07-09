@@ -11,6 +11,7 @@ use axum::{
 use mlearn_management::{
     auth,
     config::{Config, EnvMode},
+    db::connect_database,
     docker, routes,
     state::AppState,
     static_handler,
@@ -63,7 +64,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => tracing::warn!("Docker daemon unavailable: {}", e),
     }
 
-    let state = AppState::new(docker, config);
+    let db = connect_database(&config).await?;
+    let state = AppState::new(docker, config, db);
 
     let bind_addr: SocketAddr = format!("{}:{}", state.config.bind_address, state.config.port)
         .parse()

@@ -42,6 +42,7 @@ pub struct Config {
     pub bind_address: String,
     pub port: u16,
     pub compose_project: String,
+    pub management_db_path: String,
     pub token_hash: Option<[u8; 32]>,
     pub env_mode: EnvMode,
     pub deployment_mode: DeploymentMode,
@@ -65,6 +66,14 @@ impl Config {
             env_or_default("MLEARN_BIND_ADDRESS", "127.0.0.1");
         let port = env_u16_or_default("MLEARN_MANAGEMENT_PORT", 3000);
         let compose_project = env_or_default("MLEARN_COMPOSE_PROJECT", "mlearn");
+        let management_db_path = env_or_default(
+            "MLEARN_MANAGEMENT_DB",
+            if cfg!(debug_assertions) {
+                "management.db"
+            } else {
+                "/data/management.db"
+            },
+        );
 
         let env_mode = EnvMode::parse(&env_or_default("MLEARN_ENV", "production"));
         let deployment_mode = env_or_default("MLEARN_DEPLOYMENT_MODE", "self-hosted");
@@ -93,6 +102,7 @@ impl Config {
             bind_address,
             port,
             compose_project,
+            management_db_path,
             token_hash,
             env_mode,
             deployment_mode,
@@ -352,6 +362,7 @@ mod tests {
             bind_address: "127.0.0.1".to_string(),
             port: 3000,
             compose_project: "mlearn".to_string(),
+            management_db_path: "management.db".to_string(),
             token_hash: Some([0u8; 32]),
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::SelfHosted,
