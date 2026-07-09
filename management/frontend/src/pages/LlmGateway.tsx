@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip, TableCell } from '@heroui/react';
 import { Server, Activity, Network, Database } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, statusToColor } from '../components/shared';
@@ -51,32 +51,32 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
           <h2 className="text-lg font-semibold text-foreground">Providers</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="LLM providers" removeWrapper>
-            <TableHeader>
-              <TableColumn>Name</TableColumn>
-              <TableColumn>Kind</TableColumn>
-              <TableColumn>Status</TableColumn>
-              <TableColumn>Models</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No providers configured">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Name</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Kind</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Status</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Models</th>
+            </thead>
+            <tbody>
               {data.providers.map((provider) => (
-                <TableRow key={provider.id}>
-                  <TableCell>{provider.name}</TableCell>
-                  <TableCell>
+                <tr key={provider.id}>
+                  <td>{provider.name}</td>
+                  <td>
                     <Chip color={kindToColor(provider.kind)} variant="flat" size="sm">
                       {provider.kind}
                     </Chip>
-                  </TableCell>
-                  <TableCell>
+                  </td>
+                  <td>
                     <Chip color={statusToColor(provider.status)} variant="flat" size="sm">
                       {provider.status}
                     </Chip>
-                  </TableCell>
-                  <TableCell>{provider.models.join(', ')}</TableCell>
-                </TableRow>
+                  </td>
+                  <td>{provider.models.join(', ')}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
@@ -86,26 +86,26 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
           <h2 className="text-lg font-semibold text-foreground">Routing Rules</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="Routing rules" removeWrapper>
-            <TableHeader>
-              <TableColumn>Label</TableColumn>
-              <TableColumn>Match</TableColumn>
-              <TableColumn>Provider</TableColumn>
-              <TableColumn>Fallback</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No routing rules">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Match</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Provider</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Fallback</th>
+            </thead>
+            <tbody>
               {data.routing_rules.map((rule) => (
-                <TableRow key={rule.id}>
-                  <TableCell>{rule.label}</TableCell>
-                  <TableCell>
+                <tr key={rule.id}>
+                  <td>{rule.label}</td>
+                  <td>
                     <span className="font-mono text-xs">{rule.match}</span>
-                  </TableCell>
-                  <TableCell>{rule.provider}</TableCell>
-                  <TableCell>{rule.fallback ?? '—'}</TableCell>
-                </TableRow>
+                  </td>
+                  <td>{rule.provider}</td>
+                  <td>{rule.fallback ?? '—'}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
@@ -115,24 +115,24 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
           <h2 className="text-lg font-semibold text-foreground">Language Profiles</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="Language profiles" removeWrapper>
-            <TableHeader>
-              <TableColumn>Language</TableColumn>
-              <TableColumn>Locale</TableColumn>
-              <TableColumn>Route</TableColumn>
-              <TableColumn>Notes</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No language profiles">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Language</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Locale</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Route</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Notes</th>
+            </thead>
+            <tbody>
               {data.language_profiles.map((profile) => (
-                <TableRow key={profile.id}>
-                  <TableCell>{profile.language}</TableCell>
-                  <TableCell>{profile.locale}</TableCell>
-                  <TableCell>{profile.route}</TableCell>
-                  <TableCell>{profile.notes.join('; ')}</TableCell>
-                </TableRow>
+                <tr key={profile.id}>
+                  <td>{profile.language}</td>
+                  <td>{profile.locale}</td>
+                  <td>{profile.route}</td>
+                  <td>{profile.notes.join('; ')}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
@@ -142,22 +142,22 @@ function GatewayContent({ data }: { data: LlmGatewayDto }) {
           <h2 className="text-lg font-semibold text-foreground">Budget Controls</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="Budget controls" removeWrapper>
-            <TableHeader>
-              <TableColumn>Label</TableColumn>
-              <TableColumn>Limit</TableColumn>
-              <TableColumn>Scope</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No budget controls">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Limit</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Scope</th>
+            </thead>
+            <tbody>
               {data.budget_controls.map((control) => (
-                <TableRow key={control.id}>
-                  <TableCell>{control.label}</TableCell>
-                  <TableCell className="tabular-nums">{control.limit}</TableCell>
-                  <TableCell>{control.scope}</TableCell>
-                </TableRow>
+                <tr key={control.id}>
+                  <td>{control.label}</td>
+                  <td className="tabular-nums">{control.limit}</td>
+                  <td>{control.scope}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
     </div>

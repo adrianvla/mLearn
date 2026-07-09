@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, Chip, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@heroui/react';
+import { Card, CardContent, CardHeader, Chip, TableCell } from '@heroui/react';
 import { Network, Database, Activity, Server } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
 import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, statusToColor } from '../components/shared';
@@ -57,30 +57,30 @@ function DistributionContent({ data }: { data: DistributionDto }) {
           <h2 className="text-lg font-semibold text-foreground">Cache Items</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="Cache items" removeWrapper>
-            <TableHeader>
-              <TableColumn>Kind</TableColumn>
-              <TableColumn>Name</TableColumn>
-              <TableColumn>Version</TableColumn>
-              <TableColumn>Size</TableColumn>
-              <TableColumn>Served Locally</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No cached items">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Kind</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Name</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Version</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Size</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Served Locally</th>
+            </thead>
+            <tbody>
               {data.cache_items.map((item) => (
-                <TableRow key={`${item.name}-${item.version}`}>
-                  <TableCell>{item.kind}</TableCell>
-                  <TableCell>{item.name}</TableCell>
-                  <TableCell>{item.version}</TableCell>
-                  <TableCell className="tabular-nums">{formatBytes(item.size_bytes)}</TableCell>
-                  <TableCell>
+                <tr key={`${item.name}-${item.version}`}>
+                  <td>{item.kind}</td>
+                  <td>{item.name}</td>
+                  <td>{item.version}</td>
+                  <td className="tabular-nums">{formatBytes(item.size_bytes)}</td>
+                  <td>
                     <Chip color={item.served_locally ? 'success' : 'default'} variant="flat" size="sm">
                       {item.served_locally ? 'Yes' : 'No'}
                     </Chip>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
@@ -90,28 +90,28 @@ function DistributionContent({ data }: { data: DistributionDto }) {
           <h2 className="text-lg font-semibold text-foreground">LAN Endpoints</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="LAN endpoints" removeWrapper>
-            <TableHeader>
-              <TableColumn>Label</TableColumn>
-              <TableColumn>URL</TableColumn>
-              <TableColumn>Status</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No LAN endpoints">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">URL</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Status</th>
+            </thead>
+            <tbody>
               {data.lan_endpoints.map((endpoint) => (
-                <TableRow key={`${endpoint.label}-${endpoint.url}`}>
-                  <TableCell>{endpoint.label}</TableCell>
-                  <TableCell>
+                <tr key={`${endpoint.label}-${endpoint.url}`}>
+                  <td>{endpoint.label}</td>
+                  <td>
                     <span className="font-mono text-xs">{endpoint.url}</span>
-                  </TableCell>
-                  <TableCell>
+                  </td>
+                  <td>
                     <Chip color={statusToColor(endpoint.status)} variant="flat" size="sm">
                       {endpoint.status}
                     </Chip>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
@@ -121,28 +121,28 @@ function DistributionContent({ data }: { data: DistributionDto }) {
           <h2 className="text-lg font-semibold text-foreground">Sync Rules</h2>
         </CardHeader>
         <CardContent>
-          <Table aria-label="Sync rules" removeWrapper>
-            <TableHeader>
-              <TableColumn>Label</TableColumn>
-              <TableColumn>Source</TableColumn>
-              <TableColumn>Destination</TableColumn>
-              <TableColumn>Mode</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No sync rules">
+          <table className="w-full border-collapse text-sm">
+            <thead className="border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Source</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Destination</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Mode</th>
+            </thead>
+            <tbody>
               {data.sync_rules.map((rule) => (
-                <TableRow key={rule.id}>
-                  <TableCell>{rule.label}</TableCell>
-                  <TableCell>
+                <tr key={rule.id}>
+                  <td>{rule.label}</td>
+                  <td>
                     <span className="font-mono text-xs">{rule.source}</span>
-                  </TableCell>
-                  <TableCell>
+                  </td>
+                  <td>
                     <span className="font-mono text-xs">{rule.destination}</span>
-                  </TableCell>
-                  <TableCell>{rule.mode}</TableCell>
-                </TableRow>
+                  </td>
+                  <td>{rule.mode}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
     </div>

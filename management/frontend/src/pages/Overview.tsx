@@ -95,26 +95,26 @@ export default function Overview() {
             <h2 className="text-sm font-semibold text-foreground">Exposed Ports</h2>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <Table aria-label="Exposed ports" removeWrapper>
-              <TableHeader>
-                <TableColumn>Service</TableColumn>
-                <TableColumn>Host</TableColumn>
-                <TableColumn>Container</TableColumn>
-                <TableColumn>Protocol</TableColumn>
-              </TableHeader>
-              <TableBody emptyContent="No exposed ports">
+            <table className="w-full border-collapse text-sm">
+              <thead className="border-b border-border">
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Service</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Host</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Container</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Protocol</th>
+              </thead>
+              <tbody>
                 {o.exposed_ports.map((p) => (
-                  <TableRow key={`${p.service}-${p.host_port ?? 'null'}-${p.container_port}-${p.protocol}`}>
-                    <TableCell>{p.service}</TableCell>
-                    <TableCell className="tabular-nums">
+                  <tr key={`${p.service}-${p.host_port ?? 'null'}-${p.container_port}-${p.protocol}`}>
+                    <td>{p.service}</td>
+                    <td className="tabular-nums">
                       {p.host_port === null ? '—' : p.host_port}
-                    </TableCell>
-                    <TableCell className="tabular-nums">{p.container_port}</TableCell>
-                    <TableCell className="uppercase">{p.protocol}</TableCell>
-                  </TableRow>
+                    </td>
+                    <td className="tabular-nums">{p.container_port}</td>
+                    <td className="uppercase">{p.protocol}</td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       </div>
