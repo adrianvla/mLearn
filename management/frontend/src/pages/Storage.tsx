@@ -1,18 +1,8 @@
 import type { ReactNode } from 'react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  Chip,
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-} from '@heroui/react';
+import { Card, Chip, Table } from '@heroui/react';
+import { HardDrive, FolderTree } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
-import { PageContainer, PageHeader, LoadingState, ErrorState } from '../components/shared';
+import { PageContainer, PageHeader, LoadingState, ErrorState, EmptyState } from '../components/shared';
 import type { BindMountInfo, StorageDto, VolumeInfo } from '../api/types';
 
 function renderLabels(labels: Record<string, string>): ReactNode {
@@ -23,7 +13,7 @@ function renderLabels(labels: Record<string, string>): ReactNode {
   return (
     <div className="flex flex-wrap gap-1">
       {entries.map(([key, value]) => (
-        <Chip key={key} size="sm" variant="flat">{`${key}=${value}`}</Chip>
+        <Chip key={key} size="sm" variant="soft">{`${key}=${value}`}</Chip>
       ))}
     </div>
   );
@@ -53,33 +43,37 @@ export default function Storage() {
 function VolumesCard({ data }: { data: StorageDto }): ReactNode {
   return (
     <Card>
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-foreground">Volumes</h2>
-      </CardHeader>
-      <CardContent>
+      <Card.Header>
+        <Card.Title>Volumes</Card.Title>
+      </Card.Header>
+      <Card.Content>
         {data.volumes.length === 0 ? (
-          <p className="py-10 text-center text-muted">No volumes found</p>
+          <EmptyState icon={HardDrive} title="No volumes found" />
         ) : (
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-border">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Name</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Driver</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Mountpoint</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Labels</th>
-            </thead>
-            <tbody>
-              {(volume: VolumeInfo) => (
-                <tr key={volume.name}>
-                  <td className="font-medium">{volume.name}</td>
-                  <td>{volume.driver}</td>
-                  <td className="font-mono text-xs">{volume.mountpoint}</td>
-                  <td>{renderLabels(volume.labels)}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content aria-label="Volumes" className="min-w-[600px]">
+                <Table.Header>
+                  <Table.Column isRowHeader>Name</Table.Column>
+                  <Table.Column>Driver</Table.Column>
+                  <Table.Column>Mountpoint</Table.Column>
+                  <Table.Column>Labels</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {data.volumes.map((volume: VolumeInfo) => (
+                    <Table.Row key={volume.name}>
+                      <Table.Cell className="font-medium">{volume.name}</Table.Cell>
+                      <Table.Cell>{volume.driver}</Table.Cell>
+                      <Table.Cell className="font-mono text-xs">{volume.mountpoint}</Table.Cell>
+                      <Table.Cell>{renderLabels(volume.labels)}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
         )}
-      </CardContent>
+      </Card.Content>
     </Card>
   );
 }
@@ -87,40 +81,44 @@ function VolumesCard({ data }: { data: StorageDto }): ReactNode {
 function BindMountsCard({ data }: { data: StorageDto }): ReactNode {
   return (
     <Card>
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-foreground">Bind Mounts</h2>
-      </CardHeader>
-      <CardContent>
+      <Card.Header>
+        <Card.Title>Bind Mounts</Card.Title>
+      </Card.Header>
+      <Card.Content>
         {data.bind_mounts.length === 0 ? (
-          <p className="py-10 text-center text-muted">No bind mounts found</p>
+          <EmptyState icon={FolderTree} title="No bind mounts found" />
         ) : (
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-border">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Service</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Source</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Destination</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Mode</th>
-            </thead>
-            <tbody>
-              {(mount: BindMountInfo) => {
-                const isReadWrite = mount.mode === 'rw';
-                return (
-                  <tr key={`${mount.service}:${mount.source}:${mount.destination}`}>
-                    <td className="font-medium">{mount.service}</td>
-                    <td className="font-mono text-xs">{mount.source}</td>
-                    <td className="font-mono text-xs">{mount.destination}</td>
-                    <td>
-                      <Chip size="sm" color={isReadWrite ? 'success' : 'default'} variant="flat">
-                        {mount.mode}
-                      </Chip>
-                    </td>
-                  </tr>
-                );
-              }}
-            </tbody>
-          </table>
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content aria-label="Bind mounts" className="min-w-[600px]">
+                <Table.Header>
+                  <Table.Column isRowHeader>Service</Table.Column>
+                  <Table.Column>Source</Table.Column>
+                  <Table.Column>Destination</Table.Column>
+                  <Table.Column>Mode</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {data.bind_mounts.map((mount: BindMountInfo) => {
+                    const isReadWrite = mount.mode === 'rw';
+                    return (
+                      <Table.Row key={`${mount.service}:${mount.source}:${mount.destination}`}>
+                        <Table.Cell className="font-medium">{mount.service}</Table.Cell>
+                        <Table.Cell className="font-mono text-xs">{mount.source}</Table.Cell>
+                        <Table.Cell className="font-mono text-xs">{mount.destination}</Table.Cell>
+                        <Table.Cell>
+                          <Chip size="sm" color={isReadWrite ? 'success' : 'default'} variant="soft">
+                            {mount.mode}
+                          </Chip>
+                        </Table.Cell>
+                      </Table.Row>
+                    );
+                  })}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
         )}
-      </CardContent>
+      </Card.Content>
     </Card>
   );
 }

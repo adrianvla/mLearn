@@ -1,15 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  Chip,
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-} from '@heroui/react';
+import { Card, Chip, Table } from '@heroui/react';
 import { useApi, api } from '../hooks/useApi';
 import {
   PageContainer,
@@ -18,6 +7,7 @@ import {
   ErrorState,
   StatCard,
   InfoRow,
+  deploymentModeColor,
 } from '../components/shared';
 import type { OverviewDto } from '../api/types';
 
@@ -48,101 +38,108 @@ export default function Overview() {
     <PageContainer>
       <PageHeader title="Overview" subtitle="Deployment health at a glance" />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Services" value={o.service_count.total} />
-        <StatCard label="Running" value={o.service_count.running} color="success" />
-        <StatCard label="Stopped" value={o.service_count.stopped} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total Services" value={o.service_count.total} helper="Compose project containers" />
+        <StatCard label="Running" value={o.service_count.running} color="success" helper="Currently active" />
+        <StatCard label="Stopped" value={o.service_count.stopped} helper="Awaiting action" />
         <Card>
-          <CardContent className="p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted">Docker Status</p>
-            <div className="mt-2">
-              <Chip size="sm" variant="flat" color={o.docker_available ? 'success' : 'danger'}>
+          <Card.Content className="min-h-32">
+            <p className="text-sm font-medium text-muted">Docker Status</p>
+            <div className="mt-4">
+              <Chip size="md" variant="soft" color={o.docker_available ? 'success' : 'danger'}>
                 {o.docker_available ? 'Available' : 'Unavailable'}
               </Chip>
             </div>
             {o.docker_error !== null && (
               <p className="mt-2 text-xs text-danger">{o.docker_error}</p>
             )}
-          </CardContent>
+          </Card.Content>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader className="pb-2 pt-4">
-            <h2 className="text-sm font-semibold text-foreground">Health Summary</h2>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="flex flex-wrap gap-2">
-              <Chip size="sm" variant="flat" color="success">
+          <Card.Header>
+            <Card.Title>Health Summary</Card.Title>
+            <Card.Description>Container health checks reported by Docker.</Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <div className="grid grid-cols-2 gap-3">
+              <Chip size="md" variant="soft" color="success">
                 Healthy: {o.health.healthy}
               </Chip>
-              <Chip size="sm" variant="flat" color="danger">
+              <Chip size="md" variant="soft" color="danger">
                 Unhealthy: {o.health.unhealthy}
               </Chip>
-              <Chip size="sm" variant="flat" color="warning">
+              <Chip size="md" variant="soft" color="warning">
                 Starting: {o.health.starting}
               </Chip>
-              <Chip size="sm" variant="flat">
+              <Chip size="md" variant="soft">
                 No check: {o.health.none}
               </Chip>
             </div>
-          </CardContent>
+          </Card.Content>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2 pt-4">
-            <h2 className="text-sm font-semibold text-foreground">Exposed Ports</h2>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <table className="w-full border-collapse text-sm">
-              <thead className="border-b border-border">
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Service</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Host</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Container</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Protocol</th>
-              </thead>
-              <tbody>
-                {o.exposed_ports.map((p) => (
-                  <tr key={`${p.service}-${p.host_port ?? 'null'}-${p.container_port}-${p.protocol}`}>
-                    <td>{p.service}</td>
-                    <td className="tabular-nums">
-                      {p.host_port === null ? '—' : p.host_port}
-                    </td>
-                    <td className="tabular-nums">{p.container_port}</td>
-                    <td className="uppercase">{p.protocol}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
+          <Card.Header>
+            <Card.Title>Exposed Ports</Card.Title>
+            <Card.Description>Host mappings available from this deployment.</Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <Table>
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Exposed ports" className="min-w-[600px]">
+                  <Table.Header>
+                    <Table.Column isRowHeader>Service</Table.Column>
+                    <Table.Column>Host</Table.Column>
+                    <Table.Column>Container</Table.Column>
+                    <Table.Column>Protocol</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {o.exposed_ports.map((p) => (
+                      <Table.Row key={`${p.service}-${p.host_port ?? 'null'}-${p.container_port}-${p.protocol}`}>
+                        <Table.Cell>{p.service}</Table.Cell>
+                        <Table.Cell>
+                          {p.host_port === null ? '—' : p.host_port}
+                        </Table.Cell>
+                        <Table.Cell>{p.container_port}</Table.Cell>
+                        <Table.Cell>{p.protocol.toUpperCase()}</Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
+          </Card.Content>
         </Card>
       </div>
 
-      <Card className="mt-4">
-        <CardHeader className="pb-2 pt-4">
-          <h2 className="text-sm font-semibold text-foreground">System Info</h2>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
+      <Card>
+        <Card.Header>
+          <Card.Title>System Info</Card.Title>
+          <Card.Description>Runtime configuration detected by the management backend.</Card.Description>
+        </Card.Header>
+        <Card.Content>
           <InfoRow label="Version">{o.version}</InfoRow>
           <InfoRow label="mLearn Version">{o.mlearn_version ?? '—'}</InfoRow>
           <InfoRow label="Deployment Mode">
-            <Chip size="sm" variant="flat" color="accent">
+            <Chip size="sm" variant="soft" color={deploymentModeColor(o.deployment_mode)}>
               {o.deployment_mode}
             </Chip>
           </InfoRow>
           <InfoRow label="Compose Project">{o.compose_project}</InfoRow>
           <InfoRow label="Auth Enabled">
-            <Chip size="sm" variant="flat" color={o.management_auth_enabled ? 'success' : 'danger'}>
+            <Chip size="sm" variant="soft" color={o.management_auth_enabled ? 'success' : 'danger'}>
               {o.management_auth_enabled ? 'Enabled' : 'Disabled'}
             </Chip>
           </InfoRow>
           <InfoRow label="Cloud Features">
-            <Chip size="sm" variant="flat" color={o.cloud_features_enabled ? 'success' : 'default'}>
+            <Chip size="sm" variant="soft" color={o.cloud_features_enabled ? 'success' : 'default'}>
               {o.cloud_features_enabled ? 'Enabled' : 'Disabled'}
             </Chip>
           </InfoRow>
-        </CardContent>
+        </Card.Content>
       </Card>
     </PageContainer>
   );

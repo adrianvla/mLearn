@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   Card,
-  CardContent,
   Chip,
   Button,
   Spinner,
+  Table,
+  Tooltip,
 } from '@heroui/react';
 import { Play, Square, RotateCw, RefreshCw, XCircle } from 'lucide-react';
 import { useApi, api } from '../hooks/useApi';
@@ -63,8 +64,7 @@ export default function Services() {
         actions={
           <Button
             size="sm"
-            variant="flat"
-            color="accent"
+            variant="secondary"
             isIconOnly
             isDisabled={busy || pendingId !== null}
             onPress={() => refetch()}
@@ -76,14 +76,13 @@ export default function Services() {
       />
 
       {actionError !== null && (
-        <Card className="mb-4 border border-danger bg-danger/10">
-          <CardContent>
+        <Card>
+          <Card.Content>
             <div className="flex items-center justify-between gap-3 text-danger">
               <span className="text-sm font-medium">{actionError}</span>
               <Button
                 size="sm"
-                variant="light"
-                color="danger"
+                variant="danger-soft"
                 isIconOnly
                 aria-label="Dismiss"
                 onPress={() => setActionError(null)}
@@ -91,7 +90,7 @@ export default function Services() {
                 <XCircle className="h-4 w-4" />
               </Button>
             </div>
-          </CardContent>
+          </Card.Content>
         </Card>
       )}
 
@@ -101,110 +100,127 @@ export default function Services() {
 
       {!busy && error === null && services.length === 0 && (
         <Card>
-          <CardContent>
+          <Card.Content>
             <p className="py-8 text-center text-sm text-muted">No services discovered.</p>
-          </CardContent>
+          </Card.Content>
         </Card>
       )}
 
       {services.length > 0 && (
         <Card>
-          <CardContent>
-            <table className="w-full border-collapse text-sm">
-              <thead className="border-b border-border">
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Service</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Container</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Status</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Health</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Image</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Ports</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Actions</th>
-              </thead>
-              <tbody>
-                {services.map((s) => {
-                  const name = resolveName(s);
-                  const isPending = pendingId === s.id;
-                  const disabled = pendingId !== null;
-                  return (
-                    <tr key={s.id}>
-                      <td>
-                        <span className="font-medium text-foreground">{name}</span>
-                      </td>
-                      <td>
-                        <span className="font-mono text-xs text-muted">{s.container_name}</span>
-                      </td>
-                      <td>
-                        <Chip size="sm" variant="flat" color={statusToColor(s.status)}>
-                          {s.status}
-                        </Chip>
-                      </td>
-                      <td>
-                        {s.health.length === 0 ? (
-                          <Chip size="sm" variant="flat">
-                            none
-                          </Chip>
-                        ) : (
-                          <Chip size="sm" variant="flat" color={statusToColor(s.health)}>
-                            {s.health}
-                          </Chip>
-                        )}
-                      </td>
-                      <td>
-                        <span className="font-mono text-xs text-muted">{formatImage(s)}</span>
-                      </td>
-                      <td>
-                        <span className="font-mono text-xs text-muted">{formatPorts(s.ports)}</span>
-                      </td>
-                      <td>
-                        {isPending ? (
-                          <Spinner size="sm" />
-                        ) : (
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="flat"
-                              color="success"
-                              isIconOnly
-                              isDisabled={disabled}
-                              onPress={() => handleAction(s.id, 'start')}
-                              title="Start"
-                              aria-label={`Start ${name}`}
-                            >
-                              <Play className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="flat"
-                              color="danger"
-                              isIconOnly
-                              isDisabled={disabled}
-                              onPress={() => handleAction(s.id, 'stop')}
-                              title="Stop"
-                              aria-label={`Stop ${name}`}
-                            >
-                              <Square className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="flat"
-                              color="accent"
-                              isIconOnly
-                              isDisabled={disabled}
-                              onPress={() => handleAction(s.id, 'restart')}
-                              title="Restart"
-                              aria-label={`Restart ${name}`}
-                            >
-                              <RotateCw className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </CardContent>
+          <Card.Header>
+            <Card.Title>Service Inventory</Card.Title>
+            <Card.Description>Container status, health, image tags, ports, and lifecycle controls.</Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <Table>
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Services" className="min-w-[800px]">
+                  <Table.Header>
+                    <Table.Column isRowHeader>Service</Table.Column>
+                    <Table.Column>Container</Table.Column>
+                    <Table.Column>Status</Table.Column>
+                    <Table.Column>Health</Table.Column>
+                    <Table.Column>Image</Table.Column>
+                    <Table.Column>Ports</Table.Column>
+                    <Table.Column>Actions</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {services.map((s) => {
+                      const name = resolveName(s);
+                      const isPending = pendingId === s.id;
+                      const disabled = pendingId !== null;
+                      return (
+                        <Table.Row key={s.id}>
+                          <Table.Cell>
+                            <span className="font-medium text-foreground">{name}</span>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <span className="font-mono text-xs text-muted">{s.container_name}</span>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Chip size="sm" variant="soft" color={statusToColor(s.status)}>
+                              {s.status}
+                            </Chip>
+                          </Table.Cell>
+                          <Table.Cell>
+                            {s.health.length === 0 ? (
+                              <Chip size="sm" variant="soft">
+                                none
+                              </Chip>
+                            ) : (
+                              <Chip size="sm" variant="soft" color={statusToColor(s.health)}>
+                                {s.health}
+                              </Chip>
+                            )}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <span className="font-mono text-xs text-muted">{formatImage(s)}</span>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <span className="font-mono text-xs text-muted">{formatPorts(s.ports)}</span>
+                          </Table.Cell>
+                          <Table.Cell>
+                            {isPending ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <div className="flex gap-1">
+                                <Tooltip>
+                                  <Tooltip.Trigger>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      isIconOnly
+                                      isDisabled={disabled}
+                                      onPress={() => handleAction(s.id, 'start')}
+                                      aria-label={`Start ${name}`}
+                                    >
+                                      <Play className="h-4 w-4" />
+                                    </Button>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content>Start</Tooltip.Content>
+                                </Tooltip>
+                                <Tooltip>
+                                  <Tooltip.Trigger>
+                                    <Button
+                                      size="sm"
+                                      variant="danger-soft"
+                                      isIconOnly
+                                      isDisabled={disabled}
+                                      onPress={() => handleAction(s.id, 'stop')}
+                                      aria-label={`Stop ${name}`}
+                                    >
+                                      <Square className="h-4 w-4" />
+                                    </Button>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content>Stop</Tooltip.Content>
+                                </Tooltip>
+                                <Tooltip>
+                                  <Tooltip.Trigger>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      isIconOnly
+                                      isDisabled={disabled}
+                                      onPress={() => handleAction(s.id, 'restart')}
+                                      aria-label={`Restart ${name}`}
+                                    >
+                                      <RotateCw className="h-4 w-4" />
+                                    </Button>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content>Restart</Tooltip.Content>
+                                </Tooltip>
+                              </div>
+                            )}
+                          </Table.Cell>
+                        </Table.Row>
+                      );
+                    })}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
+          </Card.Content>
         </Card>
       )}
     </PageContainer>

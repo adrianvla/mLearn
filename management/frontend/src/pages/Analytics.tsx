@@ -1,14 +1,7 @@
-import { Card, CardContent, CardHeader, Chip, TableCell } from '@heroui/react';
-import { CheckCircle2, Activity, BarChart3 } from 'lucide-react';
+import { Card, Chip, Table } from '@heroui/react';
 import { useApi, api } from '../hooks/useApi';
-import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, StatCard } from '../components/shared';
-import type { AnalyticsDto, AnalyticsEvent } from '../api/types';
-
-const severityToColor = (severity: AnalyticsEvent['severity']): 'default' | 'warning' | 'danger' => {
-  if (severity === 'warning') return 'warning';
-  if (severity === 'error') return 'danger';
-  return 'default';
-};
+import { PageContainer, PageHeader, LoadingState, ErrorState, InfoRow, StatCard, severityColor } from '../components/shared';
+import type { AnalyticsDto } from '../api/types';
 
 export default function Analytics() {
   const { data, loading, error } = useApi(() => api.getAnalytics());
@@ -36,90 +29,95 @@ function AnalyticsContent({ data }: { data: AnalyticsDto }) {
       </div>
 
       <Card>
-        <CardHeader className="flex items-center gap-2 pb-0">
-          <CheckCircle2 className="h-5 w-5 text-muted" />
-          <h2 className="text-lg font-semibold text-foreground">Opt-In Settings</h2>
-        </CardHeader>
-        <CardContent>
+        <Card.Header>
+          <Card.Title>Opt-In Settings</Card.Title>
+        </Card.Header>
+        <Card.Content>
           <InfoRow label="Enabled">
-            <Chip color={data.opt_in.enabled ? 'success' : 'default'} variant="flat" size="sm">
+            <Chip color={data.opt_in.enabled ? 'success' : 'default'} variant="soft" size="sm">
               {data.opt_in.enabled ? 'Enabled' : 'Disabled'}
             </Chip>
           </InfoRow>
           <InfoRow label="Retention Days">{data.opt_in.retention_days}</InfoRow>
           <InfoRow label="Redact Prompts">
-            <Chip color={data.opt_in.redact_prompts ? 'success' : 'default'} variant="flat" size="sm">
+            <Chip color={data.opt_in.redact_prompts ? 'success' : 'default'} variant="soft" size="sm">
               {data.opt_in.redact_prompts ? 'Yes' : 'No'}
             </Chip>
           </InfoRow>
           <InfoRow label="Collect Client Events">
-            <Chip color={data.opt_in.collect_client_events ? 'success' : 'default'} variant="flat" size="sm">
+            <Chip color={data.opt_in.collect_client_events ? 'success' : 'default'} variant="soft" size="sm">
               {data.opt_in.collect_client_events ? 'Yes' : 'No'}
             </Chip>
           </InfoRow>
-        </CardContent>
+        </Card.Content>
       </Card>
 
       <Card>
-        <CardHeader className="flex items-center gap-2 pb-0">
-          <Activity className="h-5 w-5 text-muted" />
-          <h2 className="text-lg font-semibold text-foreground">Recent Events</h2>
-        </CardHeader>
-        <CardContent>
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-border">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Time</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Category</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Summary</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Severity</th>
-            </thead>
-            <tbody>
-              {data.events.map((event) => (
-                <tr key={event.id}>
-                  <td className="tabular-nums">{event.time}</td>
-                  <td>{event.category}</td>
-                  <td>{event.summary}</td>
-                  <td>
-                    <Chip color={severityToColor(event.severity)} variant="flat" size="sm">
-                      {event.severity}
-                    </Chip>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
+        <Card.Header>
+          <Card.Title>Recent Events</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content aria-label="Recent analytics events" className="min-w-[600px]">
+                <Table.Header>
+                  <Table.Column isRowHeader>Time</Table.Column>
+                  <Table.Column>Category</Table.Column>
+                  <Table.Column>Summary</Table.Column>
+                  <Table.Column>Severity</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {data.events.map((event) => (
+                    <Table.Row key={event.id}>
+                      <Table.Cell className="tabular-nums">{event.time}</Table.Cell>
+                      <Table.Cell>{event.category}</Table.Cell>
+                      <Table.Cell>{event.summary}</Table.Cell>
+                      <Table.Cell>
+                        <Chip color={severityColor(event.severity)} variant="soft" size="sm">
+                          {event.severity}
+                        </Chip>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+        </Card.Content>
       </Card>
 
       <Card>
-        <CardHeader className="flex items-center gap-2 pb-0">
-          <BarChart3 className="h-5 w-5 text-muted" />
-          <h2 className="text-lg font-semibold text-foreground">Log Streams</h2>
-        </CardHeader>
-        <CardContent>
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-border">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Label</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Enabled</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">Destination</th>
-            </thead>
-            <tbody>
-              {data.log_streams.map((stream) => (
-                <tr key={stream.id}>
-                  <td>{stream.label}</td>
-                  <td>
-                    <Chip color={stream.enabled ? 'success' : 'default'} variant="flat" size="sm">
-                      {stream.enabled ? 'Yes' : 'No'}
-                    </Chip>
-                  </td>
-                  <td>
-                    <span className="font-mono text-xs">{stream.destination}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
+        <Card.Header>
+          <Card.Title>Log Streams</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <Table>
+            <Table.ScrollContainer>
+              <Table.Content aria-label="Log streams" className="min-w-[600px]">
+                <Table.Header>
+                  <Table.Column isRowHeader>Label</Table.Column>
+                  <Table.Column>Enabled</Table.Column>
+                  <Table.Column>Destination</Table.Column>
+                </Table.Header>
+                <Table.Body>
+                  {data.log_streams.map((stream) => (
+                    <Table.Row key={stream.id}>
+                      <Table.Cell>{stream.label}</Table.Cell>
+                      <Table.Cell>
+                        <Chip color={stream.enabled ? 'success' : 'default'} variant="soft" size="sm">
+                          {stream.enabled ? 'Yes' : 'No'}
+                        </Chip>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <span className="font-mono text-xs">{stream.destination}</span>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+        </Card.Content>
       </Card>
     </div>
   );
