@@ -61,4 +61,17 @@ mod tests {
             1
         );
     }
+
+    #[tokio::test]
+    async fn identity_schema_separates_lifecycle_type_and_root_marker() {
+        let pool = connect_test_database().await.unwrap();
+        let columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_info('users')")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+        assert!(columns.contains(&"identity_type".to_string()));
+        assert!(columns.contains(&"is_root".to_string()));
+        assert!(columns.contains(&"status".to_string()));
+    }
 }

@@ -12,7 +12,7 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use crate::{
-    auth::extract_bearer,
+    auth::{extract_bearer, hash_token_hex},
     error::AppError,
     identity::{AuthenticatedUser, IssuedSession, Principal},
     state::AppState,
@@ -107,11 +107,10 @@ async fn bootstrap(
     Json(request): Json<BootstrapRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     let recovery_token = bearer_from_headers(&headers)?;
-    let user = state
+    let (user, session) = state
         .identity
-        .bootstrap_root(recovery_token, &request.email, &request.password)
+        .bootstrap_root_with_session(recovery_token, &request.email, &request.password)
         .await?;
-    let session = state.identity.issue_session(&user.id, None, None).await?;
     Ok(Json(auth_response(user, session)))
 }
 
@@ -119,14 +118,56 @@ async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
-    let user = state
+    let identifier_hash = hash_token_hex(&request.email.trim().to_ascii_lowercase());
+    if let Err(error) = state
+        .auth_rate_limiter
+        .check(&format!("login:{identifier_hash}"))
+    {
+        audit_auth_failure(
+            &state,
+            "identity.login_failure",
+            &identifier_hash,
+            "rate_limited",
+        )
+        .await?;
+        return Err(error);
+    }
+    let user = match state
         .identity
         .authenticate_password(&request.email, &request.password)
-        .await?;
+        .await
+    {
+        Ok(user) => user,
+        Err(error) => {
+            audit_auth_failure(
+                &state,
+                "identity.login_failure",
+                &identifier_hash,
+                "invalid_credentials",
+            )
+            .await?;
+            return Err(error);
+        }
+    };
+    let mut transaction = state.db.begin().await.map_err(database_error)?;
     let session = state
         .identity
-        .issue_session(&user.id, request.device_id.as_deref(), None)
+        .issue_session_in_transaction(
+            &mut transaction,
+            &user.id,
+            request.device_id.as_deref(),
+            None,
+        )
         .await?;
+    insert_auth_audit(
+        &mut transaction,
+        Some(&user.id),
+        "identity.login_success",
+        &identifier_hash,
+        "success",
+    )
+    .await?;
+    transaction.commit().await.map_err(database_error)?;
     Ok(Json(auth_response(user, session)))
 }
 
@@ -179,7 +220,7 @@ async fn desktop_init(
     .await?;
     transaction.commit().await.map_err(database_error)?;
     Ok(Json(serde_json::json!({
-        "loginUrl": format!("/login?request={request_id}")
+        "loginUrl": format!("{}/login?request={request_id}", state.config.public_url)
     })))
 }
 
@@ -250,6 +291,7 @@ async fn desktop_exchange(
     }
     let device_id: String = row.get("device_id");
     let user_id: String = row.get("user_id");
+    let user = state.identity.user(&user_id).await?;
     let mut transaction = state.db.begin().await.map_err(database_error)?;
     let completed = sqlx::query("UPDATE desktop_login_requests SET status = 'completed', completed_at = ? WHERE id = ? AND status = 'approved'")
         .bind(now)
@@ -270,12 +312,11 @@ async fn desktop_exchange(
         now,
     )
     .await?;
-    transaction.commit().await.map_err(database_error)?;
-    let user = state.identity.user(&user_id).await?;
     let session = state
         .identity
-        .issue_session(&user_id, Some(&device_id), None)
+        .issue_session_in_transaction(&mut transaction, &user_id, Some(&device_id), None)
         .await?;
+    transaction.commit().await.map_err(database_error)?;
     Ok(Json(auth_response(user, session)))
 }
 
@@ -283,10 +324,37 @@ async fn refresh(
     State(state): State<AppState>,
     Json(request): Json<RefreshRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let session = state
+    let identifier_hash = hash_token_hex(&request.refresh_token);
+    if let Err(error) = state
+        .auth_rate_limiter
+        .check(&format!("refresh:{identifier_hash}"))
+    {
+        audit_auth_failure(
+            &state,
+            "identity.refresh_failure",
+            &identifier_hash,
+            "rate_limited",
+        )
+        .await?;
+        return Err(error);
+    }
+    let session = match state
         .identity
         .rotate_refresh_token(&request.refresh_token)
-        .await?;
+        .await
+    {
+        Ok(session) => session,
+        Err(error) => {
+            audit_auth_failure(
+                &state,
+                "identity.refresh_failure",
+                &identifier_hash,
+                "invalid_token",
+            )
+            .await?;
+            return Err(error);
+        }
+    };
     Ok(Json(serde_json::json!({
         "session": AuthSessionDto::from(session)
     })))
@@ -358,6 +426,42 @@ async fn insert_route_audit(
     Ok(())
 }
 
+async fn audit_auth_failure(
+    state: &AppState,
+    action: &str,
+    identifier_hash: &str,
+    outcome: &str,
+) -> Result<(), AppError> {
+    let mut transaction = state.db.begin().await.map_err(database_error)?;
+    insert_auth_audit(&mut transaction, None, action, identifier_hash, outcome).await?;
+    transaction.commit().await.map_err(database_error)?;
+    Ok(())
+}
+
+async fn insert_auth_audit(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    actor_user_id: Option<&str>,
+    action: &str,
+    identifier_hash: &str,
+    outcome: &str,
+) -> Result<(), AppError> {
+    let metadata = serde_json::json!({
+        "identifierHash": identifier_hash,
+        "outcome": outcome,
+    })
+    .to_string();
+    sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at) VALUES (?, ?, ?, 'authentication', NULL, ?, ?)")
+        .bind(Uuid::now_v7().to_string())
+        .bind(actor_user_id)
+        .bind(action)
+        .bind(metadata)
+        .bind(OffsetDateTime::now_utc().unix_timestamp())
+        .execute(&mut **transaction)
+        .await
+        .map_err(database_error)?;
+    Ok(())
+}
+
 fn database_error(error: sqlx::Error) -> AppError {
     AppError::Internal(format!("database error: {error}"))
 }
@@ -387,6 +491,7 @@ mod tests {
         let bootstrap = "route-bootstrap-token".to_string();
         let mut config = Config::from_env();
         config.token_hash = Some(hash_token(&bootstrap));
+        config.public_url = "https://school.example".to_string();
         let docker = bollard::Docker::connect_with_http_defaults().unwrap();
         let state = AppState::new(docker, config, pool.clone());
         (
@@ -458,12 +563,9 @@ mod tests {
         )
         .await;
         assert_eq!(init_status, StatusCode::OK, "{initialized}");
-        let request_id = initialized["loginUrl"]
-            .as_str()
-            .unwrap()
-            .split("request=")
-            .nth(1)
-            .unwrap();
+        let login_url = initialized["loginUrl"].as_str().unwrap();
+        assert!(login_url.starts_with("https://school.example/login?request="));
+        let request_id = login_url.split("request=").nth(1).unwrap();
 
         let (approve_status, approved) = json_request(
             &app,
@@ -551,5 +653,241 @@ mod tests {
         .await;
         assert_eq!(me_status, StatusCode::UNAUTHORIZED);
         assert_ne!(access_token, current_access);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_failure_rolls_back_account_and_remains_retryable() {
+        let (app, bootstrap_token, pool) = fixture().await;
+        sqlx::query(
+            "CREATE TRIGGER fail_bootstrap_session_audit BEFORE INSERT ON audit_events WHEN NEW.action = 'identity.session_issued' BEGIN SELECT RAISE(ABORT, 'injected session failure'); END",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let (failed_status, _) = json_request(
+            &app,
+            "POST",
+            "/api/auth/bootstrap",
+            json!({
+                "email": "admin@school.test",
+                "password": "Correct Horse Battery Staple"
+            }),
+            Some(&bootstrap_token),
+        )
+        .await;
+        assert_eq!(failed_status, StatusCode::INTERNAL_SERVER_ERROR);
+        let users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(users, 0);
+
+        sqlx::query("DROP TRIGGER fail_bootstrap_session_audit")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let retried = bootstrap(&app, &bootstrap_token).await;
+        assert!(retried["session"]["accessToken"].is_string());
+    }
+
+    #[tokio::test]
+    async fn desktop_exchange_failure_leaves_code_unconsumed_and_retryable() {
+        let (app, bootstrap_token, pool) = fixture().await;
+        let bootstrapped = bootstrap(&app, &bootstrap_token).await;
+        let access_token = bootstrapped["session"]["accessToken"].as_str().unwrap();
+        let verifier = "transaction-pkce-verifier";
+        let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+        let (_, initialized) = json_request(
+            &app,
+            "POST",
+            "/api/auth/desktop/init",
+            json!({
+                "state": "transaction-state",
+                "codeChallenge": challenge,
+                "codeChallengeMethod": "S256"
+            }),
+            None,
+        )
+        .await;
+        let request_id = initialized["loginUrl"]
+            .as_str()
+            .unwrap()
+            .split("request=")
+            .nth(1)
+            .unwrap();
+        let (_, approved) = json_request(
+            &app,
+            "POST",
+            "/api/auth/desktop/approve",
+            json!({ "requestId": request_id }),
+            Some(access_token),
+        )
+        .await;
+
+        sqlx::query(
+            "CREATE TRIGGER fail_exchange_session_audit BEFORE INSERT ON audit_events WHEN NEW.action = 'identity.session_issued' BEGIN SELECT RAISE(ABORT, 'injected session failure'); END",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let (failed_status, _) = json_request(
+            &app,
+            "POST",
+            "/api/auth/desktop/exchange",
+            json!({ "code": approved["code"], "codeVerifier": verifier }),
+            None,
+        )
+        .await;
+        assert_eq!(failed_status, StatusCode::INTERNAL_SERVER_ERROR);
+        let request_status: String =
+            sqlx::query_scalar("SELECT status FROM desktop_login_requests WHERE id = ?")
+                .bind(request_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(request_status, "approved");
+
+        sqlx::query("DROP TRIGGER fail_exchange_session_audit")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let (retry_status, retried) = json_request(
+            &app,
+            "POST",
+            "/api/auth/desktop/exchange",
+            json!({ "code": approved["code"], "codeVerifier": verifier }),
+            None,
+        )
+        .await;
+        assert_eq!(retry_status, StatusCode::OK, "{retried}");
+    }
+
+    #[tokio::test]
+    async fn login_rate_limit_audits_sanitized_failures_and_success() {
+        let (app, bootstrap_token, pool) = fixture().await;
+        bootstrap(&app, &bootstrap_token).await;
+        let unknown_email = "missing-person@school.test";
+        let rejected_password = "Never Persist This Password";
+
+        for attempt in 0..6 {
+            let (status, _) = json_request(
+                &app,
+                "POST",
+                "/api/auth/login",
+                json!({ "email": unknown_email, "password": rejected_password }),
+                None,
+            )
+            .await;
+            assert_eq!(
+                status,
+                if attempt < 5 {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::TOO_MANY_REQUESTS
+                }
+            );
+        }
+
+        let (bad_password_status, _) = json_request(
+            &app,
+            "POST",
+            "/api/auth/login",
+            json!({ "email": "admin@school.test", "password": rejected_password }),
+            None,
+        )
+        .await;
+        assert_eq!(bad_password_status, StatusCode::UNAUTHORIZED);
+
+        let (success_status, _) = json_request(
+            &app,
+            "POST",
+            "/api/auth/login",
+            json!({
+                "email": "admin@school.test",
+                "password": "Correct Horse Battery Staple"
+            }),
+            None,
+        )
+        .await;
+        assert_eq!(success_status, StatusCode::OK);
+        let failure_metadata: Vec<String> = sqlx::query_scalar(
+            "SELECT metadata_json FROM audit_events WHERE action = 'identity.login_failure'",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(failure_metadata.len(), 7);
+        assert!(failure_metadata.iter().all(|metadata| {
+            !metadata.contains(unknown_email) && !metadata.contains(rejected_password)
+        }));
+        let successes: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'identity.login_success'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(successes, 1);
+    }
+
+    #[tokio::test]
+    async fn refresh_rate_limit_audits_sanitized_failures_and_preserves_success_rotation() {
+        let (app, bootstrap_token, pool) = fixture().await;
+        let bootstrapped = bootstrap(&app, &bootstrap_token).await;
+        let refresh_token = bootstrapped["session"]["refreshToken"].as_str().unwrap();
+        let rejected_token = "invalid-refresh-secret.device-id";
+
+        for attempt in 0..6 {
+            let (status, _) = json_request(
+                &app,
+                "POST",
+                "/api/auth/refresh",
+                json!({ "refreshToken": rejected_token }),
+                None,
+            )
+            .await;
+            assert_eq!(
+                status,
+                if attempt < 5 {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::TOO_MANY_REQUESTS
+                }
+            );
+        }
+
+        let (success_status, _) = json_request(
+            &app,
+            "POST",
+            "/api/auth/refresh",
+            json!({ "refreshToken": refresh_token }),
+            None,
+        )
+        .await;
+        assert_eq!(success_status, StatusCode::OK);
+        let failure_metadata: Vec<String> = sqlx::query_scalar(
+            "SELECT metadata_json FROM audit_events WHERE action = 'identity.refresh_failure'",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(failure_metadata.len(), 6);
+        assert!(failure_metadata
+            .iter()
+            .all(|metadata| !metadata.contains(rejected_token)));
+        let rotations: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'identity.refresh_rotated'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(rotations, 1);
+        let successes: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'identity.refresh_success'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(successes, 1);
     }
 }

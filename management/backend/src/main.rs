@@ -14,7 +14,6 @@ use mlearn_management::{
     db::connect_database,
     docker,
     error::AppError,
-    identity::IdentityType,
     routes,
     state::AppState,
     static_handler,
@@ -307,7 +306,7 @@ async fn auth_middleware(
         .identity
         .principal_from_access_token(access_token)
         .await?;
-    if principal.identity_type != IdentityType::Admin {
+    if !principal.is_root {
         return Err(AppError::Forbidden);
     }
     request.extensions_mut().insert(principal);
@@ -473,5 +472,48 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(named.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn non_root_admin_cannot_access_root_only_legacy_routes() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let mut config = Config::from_env();
+        config.token_hash = Some(auth::hash_token("root-recovery"));
+        let docker = bollard::Docker::connect_with_http_defaults().unwrap();
+        let state = AppState::new(docker, config, pool.clone());
+        let user_id = uuid::Uuid::now_v7().to_string();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, 'admin@branch.test', 'admin@branch.test', 'Branch Admin', 'active', 'admin', 0, ?, ?)")
+            .bind(&user_id)
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let issued = state
+            .identity
+            .issue_session(&user_id, None, None)
+            .await
+            .unwrap();
+        let app = build_router(state);
+
+        let response = app
+            .oneshot(
+                Request::get("/api/school")
+                    .header(
+                        header::AUTHORIZATION,
+                        format!("Bearer {}", issued.access_token),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 }

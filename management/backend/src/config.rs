@@ -41,6 +41,7 @@ impl FromStr for DeploymentMode {
 pub struct Config {
     pub bind_address: String,
     pub port: u16,
+    pub public_url: String,
     pub compose_project: String,
     pub management_db_path: String,
     pub token_hash: Option<[u8; 32]>,
@@ -65,6 +66,12 @@ impl Config {
         let bind_address =
             env_or_default("MLEARN_BIND_ADDRESS", "127.0.0.1");
         let port = env_u16_or_default("MLEARN_MANAGEMENT_PORT", 3000);
+        let default_public_url = format!("http://{bind_address}:{port}");
+        let public_url = env_nonempty("MLEARN_MANAGEMENT_PUBLIC_URL")
+            .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
+            .unwrap_or(default_public_url)
+            .trim_end_matches('/')
+            .to_string();
         let compose_project = env_or_default("MLEARN_COMPOSE_PROJECT", "mlearn");
         let management_db_path = env_or_default(
             "MLEARN_MANAGEMENT_DB",
@@ -101,6 +108,7 @@ impl Config {
         Self {
             bind_address,
             port,
+            public_url,
             compose_project,
             management_db_path,
             token_hash,
@@ -342,6 +350,7 @@ mod tests {
     fn config_from_env_uses_defaults_when_unset() {
         std::env::remove_var("MLEARN_BIND_ADDRESS");
         std::env::remove_var("MLEARN_MANAGEMENT_PORT");
+        std::env::remove_var("MLEARN_MANAGEMENT_PUBLIC_URL");
         std::env::remove_var("MLEARN_COMPOSE_PROJECT");
         std::env::remove_var("MLEARN_MANAGEMENT_TOKEN_HASH");
         std::env::remove_var("MLEARN_MANAGEMENT_TOKEN");
@@ -352,6 +361,7 @@ mod tests {
 
         assert_eq!(config.bind_address, "127.0.0.1");
         assert_eq!(config.port, 3000);
+        assert_eq!(config.public_url, "http://127.0.0.1:3000");
         assert_eq!(config.compose_project, "mlearn");
         assert!(config.feature_flags.is_empty());
     }
@@ -361,6 +371,7 @@ mod tests {
         let mut config = Config {
             bind_address: "127.0.0.1".to_string(),
             port: 3000,
+            public_url: "http://127.0.0.1:3000".to_string(),
             compose_project: "mlearn".to_string(),
             management_db_path: "management.db".to_string(),
             token_hash: Some([0u8; 32]),

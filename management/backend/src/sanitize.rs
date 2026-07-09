@@ -687,6 +687,7 @@ mod tests {
         let config = Config {
             bind_address: "0.0.0.0".to_string(),
             port: 4000,
+            public_url: "https://school.example".to_string(),
             compose_project: "mlearn".to_string(),
             management_db_path: "/data/management.db".to_string(),
             token_hash: None,
