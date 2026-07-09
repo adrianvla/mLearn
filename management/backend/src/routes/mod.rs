@@ -3,6 +3,7 @@ pub mod analytics;
 pub mod auth;
 pub mod config;
 pub mod distribution;
+pub mod groups;
 pub mod llm_gateway;
 pub mod logs;
 pub mod overview;

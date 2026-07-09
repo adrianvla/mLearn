@@ -18,8 +18,8 @@ pub enum AppError {
     #[error("Unauthorized")]
     Unauthorized,
 
-    #[error("Forbidden")]
-    Forbidden,
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
 
     #[error("{0}")]
     Conflict(String),
@@ -50,7 +50,7 @@ impl AppError {
             Self::DockerPermissionDenied => StatusCode::FORBIDDEN,
             Self::ContainerNotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
-            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::ActionNotAllowed => StatusCode::FORBIDDEN,
@@ -125,7 +125,10 @@ mod tests {
             AppError::Unauthorized.status_code(),
             StatusCode::UNAUTHORIZED
         );
-        assert_eq!(AppError::Forbidden.status_code(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            AppError::Forbidden("denied".into()).status_code(),
+            StatusCode::FORBIDDEN
+        );
         assert_eq!(
             AppError::Conflict("exists".into()).status_code(),
             StatusCode::CONFLICT
