@@ -34,7 +34,6 @@ struct RateLimitState {
 struct RateLimitEntry {
     attempts: usize,
     window_started_at: Instant,
-    last_seen_at: Instant,
 }
 
 impl AuthRateLimiter {
@@ -61,14 +60,7 @@ impl AuthRateLimiter {
         });
 
         if !state.entries.contains_key(key) && state.entries.len() >= self.capacity {
-            if let Some(oldest_key) = state
-                .entries
-                .iter()
-                .min_by_key(|(_, entry)| entry.last_seen_at)
-                .map(|(key, _)| key.clone())
-            {
-                state.entries.remove(&oldest_key);
-            }
+            return Err(AppError::TooManyRequests);
         }
 
         let entry = state
@@ -77,9 +69,7 @@ impl AuthRateLimiter {
             .or_insert(RateLimitEntry {
                 attempts: 0,
                 window_started_at: now,
-                last_seen_at: now,
             });
-        entry.last_seen_at = now;
         if entry.attempts >= self.max_attempts {
             return Err(AppError::TooManyRequests);
         }
@@ -260,8 +250,9 @@ mod tests {
         assert!(limiter.check_at("first", now).is_ok());
         assert!(limiter.check_at("first", now).is_err());
         assert!(limiter.check_at("second", now).is_ok());
-        assert!(limiter.check_at("third", now).is_ok());
-        assert!(limiter.entry_count() <= 2);
+        assert!(limiter.check_at("third", now).is_err());
+        assert!(limiter.check_at("first", now).is_err());
+        assert_eq!(limiter.entry_count(), 2);
 
         assert!(limiter
             .check_at("after-window", now + Duration::from_secs(61))

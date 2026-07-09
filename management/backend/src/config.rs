@@ -66,12 +66,11 @@ impl Config {
         let bind_address =
             env_or_default("MLEARN_BIND_ADDRESS", "127.0.0.1");
         let port = env_u16_or_default("MLEARN_MANAGEMENT_PORT", 3000);
-        let default_public_url = format!("http://{bind_address}:{port}");
-        let public_url = env_nonempty("MLEARN_MANAGEMENT_PUBLIC_URL")
-            .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
-            .unwrap_or(default_public_url)
-            .trim_end_matches('/')
-            .to_string();
+        let public_url = derive_public_url(
+            &bind_address,
+            port,
+            env_nonempty("MLEARN_MANAGEMENT_PUBLIC_URL"),
+        );
         let compose_project = env_or_default("MLEARN_COMPOSE_PROJECT", "mlearn");
         let management_db_path = env_or_default(
             "MLEARN_MANAGEMENT_DB",
@@ -140,6 +139,21 @@ impl Config {
 
 fn env_or_default(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+fn derive_public_url(bind_address: &str, port: u16, explicit: Option<String>) -> String {
+    if let Some(explicit) = explicit
+        .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
+    {
+        return explicit.trim_end_matches('/').to_string();
+    }
+
+    let host = match bind_address.trim() {
+        "0.0.0.0" | "::" | "[::]" => "127.0.0.1".to_string(),
+        value if value.contains(':') && !value.starts_with('[') => format!("[{value}]"),
+        value => value.to_string(),
+    };
+    format!("http://{host}:{port}")
 }
 
 fn env_nonempty(key: &str) -> Option<String> {
@@ -401,5 +415,25 @@ mod tests {
         config.env_mode = EnvMode::Development;
         assert!(!config.auth_enabled());
         assert!(!config.fail_closed());
+    }
+
+    #[test]
+    fn public_url_derivation_uses_navigable_loopback_for_wildcard_binds() {
+        assert_eq!(
+            derive_public_url("0.0.0.0", 3000, None),
+            "http://127.0.0.1:3000"
+        );
+        assert_eq!(
+            derive_public_url("::", 3000, None),
+            "http://127.0.0.1:3000"
+        );
+        assert_eq!(
+            derive_public_url(
+                "0.0.0.0",
+                3000,
+                Some("https://school.example/console/".to_string())
+            ),
+            "https://school.example/console"
+        );
     }
 }

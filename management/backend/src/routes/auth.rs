@@ -119,10 +119,7 @@ async fn login(
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     let identifier_hash = hash_token_hex(&request.email.trim().to_ascii_lowercase());
-    if let Err(error) = state
-        .auth_rate_limiter
-        .check(&format!("login:{identifier_hash}"))
-    {
+    if let Err(error) = check_auth_rate_limits(&state, "login", &identifier_hash) {
         audit_auth_failure(
             &state,
             "identity.login_failure",
@@ -325,10 +322,7 @@ async fn refresh(
     Json(request): Json<RefreshRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let identifier_hash = hash_token_hex(&request.refresh_token);
-    if let Err(error) = state
-        .auth_rate_limiter
-        .check(&format!("refresh:{identifier_hash}"))
-    {
+    if let Err(error) = check_auth_rate_limits(&state, "refresh", &identifier_hash) {
         audit_auth_failure(
             &state,
             "identity.refresh_failure",
@@ -407,6 +401,17 @@ fn bearer_from_headers(headers: &HeaderMap) -> Result<&str, AppError> {
     extract_bearer(value).ok_or(AppError::Unauthorized)
 }
 
+fn check_auth_rate_limits(
+    state: &AppState,
+    endpoint: &str,
+    identifier_hash: &str,
+) -> Result<(), AppError> {
+    state.auth_endpoint_rate_limiter.check(endpoint)?;
+    state
+        .auth_rate_limiter
+        .check(&format!("{endpoint}:{identifier_hash}"))
+}
+
 async fn insert_route_audit(
     transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     actor_user_id: Option<&str>,
@@ -482,6 +487,10 @@ mod tests {
     use crate::{auth::hash_token, config::Config, state::AppState};
 
     async fn fixture() -> (Router, String, sqlx::SqlitePool) {
+        fixture_with_public_url("https://school.example").await
+    }
+
+    async fn fixture_with_public_url(public_url: &str) -> (Router, String, sqlx::SqlitePool) {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -491,7 +500,7 @@ mod tests {
         let bootstrap = "route-bootstrap-token".to_string();
         let mut config = Config::from_env();
         config.token_hash = Some(hash_token(&bootstrap));
-        config.public_url = "https://school.example".to_string();
+        config.public_url = public_url.to_string();
         let docker = bollard::Docker::connect_with_http_defaults().unwrap();
         let state = AppState::new(docker, config, pool.clone());
         (
@@ -889,5 +898,56 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(successes, 1);
+    }
+
+    #[tokio::test]
+    async fn distinct_invalid_refresh_tokens_hit_stable_endpoint_limit() {
+        let (app, _bootstrap_token, _pool) = fixture().await;
+
+        for attempt in 0..101 {
+            let (status, _) = json_request(
+                &app,
+                "POST",
+                "/api/auth/refresh",
+                json!({ "refreshToken": format!("invalid-refresh-{attempt}.device") }),
+                None,
+            )
+            .await;
+            assert_eq!(
+                status,
+                if attempt < 100 {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::TOO_MANY_REQUESTS
+                },
+                "attempt {attempt}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn desktop_init_uses_navigable_loopback_url_for_wildcard_bind_default() {
+        let (app, _bootstrap_token, _pool) = fixture_with_public_url("http://127.0.0.1:3000").await;
+        let verifier = "wildcard-bind-verifier";
+        let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+
+        let (status, initialized) = json_request(
+            &app,
+            "POST",
+            "/api/auth/desktop/init",
+            json!({
+                "state": "wildcard-bind-state",
+                "codeChallenge": challenge,
+                "codeChallengeMethod": "S256"
+            }),
+            None,
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        let login_url = initialized["loginUrl"].as_str().unwrap();
+        assert!(login_url.starts_with("http://127.0.0.1:3000/login?request="));
+        assert!(!login_url.contains("0.0.0.0"));
+        assert!(!login_url.contains("[::]"));
     }
 }

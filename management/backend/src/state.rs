@@ -17,6 +17,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub identity: IdentityService,
     pub auth_rate_limiter: AuthRateLimiter,
+    pub auth_endpoint_rate_limiter: AuthRateLimiter,
 }
 
 impl AppState {
@@ -27,12 +28,14 @@ impl AppState {
             .to_vec();
         let identity = IdentityService::new(db.clone(), config.token_hash, jwt_secret);
         let auth_rate_limiter = AuthRateLimiter::new(5, Duration::from_secs(60), 1_024);
+        let auth_endpoint_rate_limiter = AuthRateLimiter::new(100, Duration::from_secs(60), 2);
         Self {
             docker: Arc::new(docker),
             db,
             config: Arc::new(config),
             identity,
             auth_rate_limiter,
+            auth_endpoint_rate_limiter,
         }
     }
 }

@@ -97,6 +97,7 @@ See [`.env.example`](.env.example) for the full list with documentation.
 | `MLEARN_COMPOSE_PROJECT` | `mlearn` | Docker Compose project name to scope container management |
 | `MLEARN_MANAGEMENT_PORT` | `3000` | Port the console listens on |
 | `MLEARN_BIND_ADDRESS` | `127.0.0.1` | Bind address. Use `0.0.0.0` only behind a reverse proxy |
+| `MLEARN_MANAGEMENT_PUBLIC_URL` | `http://127.0.0.1:3000` | Navigable browser origin used in desktop login links. Set this to the external HTTPS origin behind a reverse proxy |
 | `MLEARN_MANAGEMENT_TOKEN` | _(empty)_ | Admin token for API auth. Generated on first boot if empty |
 | `MLEARN_MANAGEMENT_TOKEN_HASH` | _(empty)_ | Pre-hashed token (SHA-256 hex). Takes precedence over plaintext |
 | `MLEARN_ENV` | `production` | `production` (fail-closed auth) or `development` |
@@ -120,6 +121,11 @@ The socket mount grants significant host access. In production:
 2. Keep it bound to `127.0.0.1`
 3. Use a reverse proxy (nginx/caddy) with TLS if remote access is needed
 4. Never expose the management port directly to the internet
+
+When using a reverse proxy, set `MLEARN_MANAGEMENT_PUBLIC_URL` to its external
+origin (for example, `https://mlearn.school.edu`). Do not set it to the
+container bind address `0.0.0.0` or `::`; those are listening addresses, not
+navigable browser destinations.
 
 ## Architecture
 
