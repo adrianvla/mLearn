@@ -84,6 +84,18 @@
   transition: width var(--transition-slow);
 }
 
+/* Indeterminate mode — animated stripe that bounces across the track */
+.progress-bar-fill--indeterminate {
+  width: 35%;
+  animation: progress-bar-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-bar-indeterminate {
+  0% { left: -35%; }
+  50% { left: 100%; }
+  100% { left: 100%; }
+}
+
 /* Color variants */
 .progress-bar-fill--default {
   background: var(--text-secondary);

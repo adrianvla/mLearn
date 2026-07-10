@@ -19,6 +19,12 @@ vi.mock('electron', () => ({
   app: {
     getVersion: vi.fn(() => '1.0.0'),
   },
+  BrowserWindow: {
+    getAllWindows: () => {
+      const win = mockGetCurrentWindow();
+      return win ? [win] : [];
+    },
+  },
 }));
 
 const mockSpawn = vi.fn();

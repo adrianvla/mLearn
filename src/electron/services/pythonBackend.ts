@@ -9,7 +9,7 @@ import https from 'https';
 import http from 'http';
 import crypto from 'crypto';
 import { spawn, exec, execSync, ChildProcess } from 'child_process';
-import { ipcMain, app } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, DEFAULT_RUNTIME_CATALOG_URL, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
 import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress, RuntimeCatalog, RuntimeCatalogEntry } from '../../shared/types';
@@ -370,19 +370,35 @@ function notifyQuitTokenAvailable(token: string): void {
   }
 }
 
-// Send status update to current window
+/** Broadcast an IPC event to all open windows (install events need to reach
+ *  every window, not just the main window, so the install progress modal
+ *  is visible everywhere). */
+function broadcastInstallEvent(channel: string, ...args: unknown[]): void {
+  try {
+    for (const win of BrowserWindow.getAllWindows()) {
+      const w = win as { isDestroyed?: () => boolean; webContents: { send: (channel: string, ...args: unknown[]) => void } };
+      if (w.isDestroyed && w.isDestroyed()) continue;
+      w.webContents.send(channel, ...args);
+    }
+  } catch (e) {
+    log.error('Failed to broadcast install event:', e);
+  }
+}
+
+// Send status update — broadcasts to all windows during installs, targets the
+// current window for regular runtime status after the backend is loaded.
 function sendStatusUpdate(message: string): void {
   try {
-    getCurrentWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, message);
+    broadcastInstallEvent(IPC_CHANNELS.SERVER_STATUS_UPDATE, message);
   } catch (e) {
     log.error('Failed to send status update:', e);
   }
 }
 
-// Send pip progress update to current window
+// Send pip progress update to all windows
 function sendPipProgress(progress: PipProgress): void {
   try {
-    getCurrentWindow()?.webContents.send(IPC_CHANNELS.PIP_PROGRESS, progress);
+    broadcastInstallEvent(IPC_CHANNELS.PIP_PROGRESS, progress);
   } catch (e) {
     log.error('Failed to send pip progress:', e);
   }
@@ -495,7 +511,7 @@ function handleInstallerFailure(message: string, options?: { detail?: string; em
 
   if (options?.emitNetworkError) {
     try {
-      getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_NETWORK_ERROR, {
+      broadcastInstallEvent(IPC_CHANNELS.INSTALLER_NETWORK_ERROR, {
         message,
         detail: options.detail || null,
       });
@@ -505,7 +521,7 @@ function handleInstallerFailure(message: string, options?: { detail?: string; em
   }
 
   try {
-    getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+    broadcastInstallEvent(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
   } catch (e) {
     log.error("error", e);
   }
@@ -1016,6 +1032,8 @@ async function reconcileComponentPackages(): Promise<void> {
   if (packages.length === 0) return;
 
   log.info(`Reconciling ${packages.length} component packages...`);
+  // Emit INSTALL_STARTED so the install progress modal appears
+  broadcastInstallEvent(IPC_CHANNELS.INSTALL_STARTED, options);
   sendStatusUpdate(`Installing ${packages.length} component packages...`);
 
   const pipArgs = isWindows
@@ -1046,6 +1064,8 @@ async function reconcileComponentPackages(): Promise<void> {
       if (code === 0 || code === null) {
         log.info('Component package reconciliation complete');
         sendStatusUpdate('Starting Python backend...');
+        // Signal completion so the install progress modal dismisses
+        broadcastInstallEvent(IPC_CHANNELS.SUCCESSFUL_INSTALL, true);
         resolve();
       } else {
         reject(new Error(`Component reconciliation pip install exited ${code}`));
@@ -1165,7 +1185,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
   log.info('Installing:', selectedComponents.join(', '));
 
   try {
-    getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALL_STARTED, options);
+    broadcastInstallEvent(IPC_CHANNELS.INSTALL_STARTED, options);
   } catch (e) {
     log.error("error", e);
   }

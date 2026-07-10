@@ -10,10 +10,11 @@ import { LanguageProvider } from './LanguageContext';
 import { FlashcardProvider } from './FlashcardContext';
 import { FlashcardCreationChoiceModal } from '../components/flashcard';
 import { ServerProvider, useServer } from './ServerContext';
+import { InstallProgressProvider, useInstallProgress } from './InstallProgressContext';
 import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
-import { Btn, ErrorModal, EulaModal } from '../components/common';
+import { Btn, ErrorModal, EulaModal, Modal, ProgressBar } from '../components/common';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
@@ -272,6 +273,49 @@ const GlobalEulaModal: Component = () => {
 };
 
 /**
+ * GlobalInstallProgressModal - Non-dismissable modal shown during any
+ * background installation (Python runtime, component reconciliation, pip).
+ * Suppressed on the welcome window which has its own install UI.
+ */
+const GlobalInstallProgressModal: Component = () => {
+  const { isInstalling, installMessage, installProgress, installError } = useInstallProgress();
+  const isSetupWindow = () => (
+    typeof window !== 'undefined' && window.location.pathname.endsWith('/welcome.html')
+  );
+
+  return (
+    <Show when={isInstalling() && !isSetupWindow()}>
+      <Modal
+        isOpen={true}
+        onClose={() => {}}
+        title="Installing components…"
+        size="sm"
+        closeOnEscape={false}
+        closeOnOverlay={false}
+        showCloseButton={false}
+        headerDraggable
+      >
+        <div class="install-progress-modal-body">
+          <p class="install-progress-message">{installMessage()}</p>
+          <ProgressBar
+            value={installProgress()}
+            indeterminate={installProgress() < 0}
+            variant="primary"
+            size="md"
+            rounded
+            animated
+            showPercent={installProgress() >= 0}
+          />
+          <Show when={installError()}>
+            <p class="install-progress-error">{installError()}</p>
+          </Show>
+        </div>
+      </Modal>
+    </Show>
+  );
+};
+
+/**
  * BuiltinModelStatusListener - Keeps the shared builtinModelReady signal in sync
  * with whether the built-in LLM model is downloaded. Reads the selected model
  * reactively and refreshes on provider/model change and on download events.
@@ -335,6 +379,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
 
   return (
     <ServerProvider>
+      <InstallProgressProvider>
       <LocalizationProvider>
         <ServerStatusObserver />
         <ResponsiveProvider>
@@ -342,6 +387,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
             <GlobalRuntimeRestartModal />
+            <GlobalInstallProgressModal />
             <BuiltinModelStatusListener />
             <LowPowerGateProvider>
             <LanguageProviderBridge>
@@ -374,6 +420,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
           </SettingsProvider>
         </ResponsiveProvider>
       </LocalizationProvider>
+      </InstallProgressProvider>
     </ServerProvider>
   );
 };

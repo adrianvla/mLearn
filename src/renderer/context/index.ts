@@ -9,5 +9,6 @@ export { useServer } from './ServerContext';
 export { useLocalization } from './LocalizationContext';
 export { WindowWrapper } from './WindowWrapper';
 export { useLowPowerGate } from './LowPowerGateContext';
+export { InstallProgressProvider, useInstallProgress } from './InstallProgressContext';
 export { SettingsSearchContext, useSettingsSearch } from './SettingsSearchContext';
 export { SettingsTabContext, useSettingsTab } from './SettingsTabContext';
