@@ -693,6 +693,7 @@ mod tests {
             policy_signing_key_path: "/data/policy-signing-key".to_string(),
             encryption_key_path: "/data/encryption-key".to_string(),
             encryption_key: None,
+            conversation_retention_days: 90,
             token_hash: None,
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::CloudConnected,

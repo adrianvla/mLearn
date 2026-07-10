@@ -4,6 +4,7 @@ pub mod api_keys;
 pub mod audit;
 pub mod auth;
 pub mod config;
+pub mod conversations;
 pub mod distribution;
 pub mod groups;
 pub mod llm_gateway;

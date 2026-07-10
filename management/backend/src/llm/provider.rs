@@ -43,7 +43,7 @@ impl ProviderError {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct GatewayRequest {
     pub messages: Vec<GatewayMessage>,
@@ -55,7 +55,7 @@ pub(crate) struct GatewayRequest {
     pub think: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct GatewayMessage {
     pub role: String,
@@ -66,7 +66,7 @@ pub(crate) struct GatewayMessage {
     pub tool_call_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct GatewayTool {
     #[serde(rename = "type")]
@@ -74,7 +74,7 @@ pub(crate) struct GatewayTool {
     pub function: GatewayFunction,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct GatewayFunction {
     pub name: String,
