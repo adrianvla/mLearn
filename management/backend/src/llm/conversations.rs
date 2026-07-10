@@ -1,20 +1,24 @@
 use std::collections::BTreeMap;
 
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
 use crate::{
-    authorization::{AuthorizationService, Capability},
+    authorization::AuthorizationService,
     crypto::{EncryptedSecret, SecretCipher},
     error::AppError,
     identity::{IdentityType, Principal},
     llm::provider::{GatewayMessage, NormalizedProviderRequest, MAX_MESSAGE_BYTES},
+    policy::compiler::compile_in_transaction,
 };
 
 const MAX_CAPTURE_BYTES: usize = MAX_MESSAGE_BYTES;
 const DEFAULT_RETENTION_SECONDS: i64 = 90 * 24 * 60 * 60;
+const RETENTION_BATCH: usize = 100;
 
 #[derive(Clone)]
 pub struct ConversationService {
@@ -43,6 +47,7 @@ pub(crate) struct BeginConversation<'a> {
     pub model_id: &'a str,
     pub price_version_id: &'a str,
     pub policy_version_id: Option<&'a str>,
+    pub policy_compiled_hash: Option<&'a str>,
     pub(crate) request: &'a NormalizedProviderRequest,
 }
 
@@ -56,7 +61,7 @@ pub struct FinalConversation {
     pub error_code: Option<&'static str>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversationSummary {
     pub id: String,
@@ -69,6 +74,9 @@ pub struct ConversationSummary {
     pub input_tokens: Option<i64>,
     pub output_tokens: Option<i64>,
     pub cost_micros: Option<i64>,
+    pub policy_version_id: Option<String>,
+    pub policy_compiled_hash: Option<String>,
+    pub error_code: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -78,6 +86,8 @@ pub struct ConversationMessage {
     pub content: String,
     pub sequence: i64,
     pub truncated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -85,6 +95,19 @@ pub struct ConversationMessage {
 pub struct ConversationDetail {
     pub summary: ConversationSummary,
     pub messages: Vec<ConversationMessage>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationPage {
+    pub items: Vec<ConversationSummary>,
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetentionPage {
+    pub redacted_messages: u64,
+    pub next_cursor: Option<String>,
 }
 
 pub struct ConversationFilter<'a> {
@@ -98,6 +121,34 @@ pub struct ConversationFilter<'a> {
 }
 
 impl ConversationService {
+    pub async fn record_policy_block_if_denied(
+        &self,
+        principal: &Principal,
+        group_id: &str,
+    ) -> Result<bool, AppError> {
+        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+        authorize_read(
+            &AuthorizationService::new(self.pool.clone()),
+            &mut tx,
+            principal,
+            group_id,
+        )
+        .await?;
+        let compiled = compile_in_transaction(&mut tx, group_id).await?;
+        if compiled.document.llm.enabled {
+            tx.commit().await.map_err(db)?;
+            return Ok(false);
+        }
+        let version = compiled.document.policy_version_id.clone();
+        let hash = hex::encode(Sha256::digest(
+            serde_json::to_vec(&compiled.document)
+                .map_err(|_| AppError::Internal("effective policy serialization failed".into()))?,
+        ));
+        sqlx::query("INSERT INTO llm_policy_block_events(id,owner_group_id,learner_user_id,policy_version_id,policy_compiled_hash,error_code,created_at) VALUES(?,?,?,?,?,'policy_denied',?)")
+            .bind(Uuid::now_v7().to_string()).bind(group_id).bind(&principal.user_id).bind(version).bind(hash).bind(now()).execute(&mut *tx).await.map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        Ok(true)
+    }
     pub fn new(pool: SqlitePool, cipher: SecretCipher) -> Self {
         Self {
             pool,
@@ -125,11 +176,14 @@ impl ConversationService {
             .checked_add(self.retention_seconds)
             .ok_or_else(|| AppError::Internal("conversation retention overflow".into()))?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
-        self.redact_expired_in_transaction(&mut tx, now).await?;
+        self.redact_expired_in_transaction(&mut tx, now, None)
+            .await?;
         sqlx::query("INSERT INTO conversations (id, owner_group_id, learner_user_id, created_at, updated_at, retained_until, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')")
             .bind(&conversation_id).bind(input.group_id).bind(input.learner_user_id).bind(now).bind(now).bind(retained_until).execute(&mut *tx).await.map_err(db)?;
-        sqlx::query("INSERT INTO llm_requests (id, conversation_id, reservation_id, provider_id, model_id, price_version_id, policy_version_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
-            .bind(&request_id).bind(&conversation_id).bind(input.reservation_id).bind(input.provider_id).bind(input.model_id).bind(input.price_version_id).bind(input.policy_version_id).bind(now).execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("INSERT INTO llm_requests (id, conversation_id, reservation_id, provider_id, model_id, price_version_id, policy_version_id, policy_compiled_hash, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
+            .bind(&request_id).bind(&conversation_id).bind(input.reservation_id).bind(input.provider_id).bind(input.model_id).bind(input.price_version_id).bind(input.policy_version_id).bind(input.policy_compiled_hash).bind(now).execute(&mut *tx).await.map_err(db)?;
+        // Store executed messages and tool calls/results. Reusable client tool definitions are
+        // intentionally excluded from each conversation log.
         for (sequence, message) in input.request.messages.iter().enumerate() {
             insert_message(
                 &self.cipher,
@@ -161,19 +215,38 @@ impl ConversationService {
         &self,
         tx: &mut Transaction<'_, Sqlite>,
         timestamp: i64,
-    ) -> Result<u64, AppError> {
-        let changed = sqlx::query("UPDATE conversation_messages SET encrypted_content = NULL, encrypted_tool_data = NULL, retained = 0 WHERE retained = 1 AND conversation_id IN (SELECT id FROM conversations WHERE retained_until <= ?)")
-            .bind(timestamp).execute(&mut **tx).await.map_err(db)?.rows_affected();
-        Ok(changed)
+        cursor: Option<&str>,
+    ) -> Result<RetentionPage, AppError> {
+        let ids:Vec<String>=sqlx::query_scalar("SELECT id FROM conversations WHERE retained_until<=? AND id>? AND EXISTS(SELECT 1 FROM conversation_messages m WHERE m.conversation_id=conversations.id AND m.retained=1) ORDER BY id LIMIT ?")
+            .bind(timestamp).bind(cursor.unwrap_or("")).bind((RETENTION_BATCH+1) as i64).fetch_all(&mut **tx).await.map_err(db)?;
+        let has_more = ids.len() > RETENTION_BATCH;
+        let batch = &ids[..ids.len().min(RETENTION_BATCH)];
+        let mut changed = 0;
+        for id in batch {
+            changed += sqlx::query("UPDATE conversation_messages SET encrypted_content=NULL,encrypted_tool_data=NULL,retained=0,redacted_at=? WHERE retained=1 AND conversation_id=?").bind(timestamp).bind(id).execute(&mut **tx).await.map_err(db)?.rows_affected();
+        }
+        Ok(RetentionPage {
+            redacted_messages: changed,
+            next_cursor: has_more.then(|| batch.last().cloned()).flatten(),
+        })
     }
 
-    pub async fn maintain_retention(&self, principal: &Principal) -> Result<u64, AppError> {
+    pub async fn maintain_retention(
+        &self,
+        principal: &Principal,
+        cursor: Option<&str>,
+    ) -> Result<RetentionPage, AppError> {
         if !principal.is_root {
             return Err(AppError::Forbidden("root access required".into()));
         }
+        if cursor.is_some_and(|v| v.is_empty() || v.len() > 64 || v.chars().any(char::is_control)) {
+            return Err(AppError::BadRequest("invalid retention cursor".into()));
+        }
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
-        let changed = self.redact_expired_in_transaction(&mut tx, now()).await?;
-        if changed > 0 {
+        let result = self
+            .redact_expired_in_transaction(&mut tx, now(), cursor)
+            .await?;
+        if result.redacted_messages > 0 {
             let root_group: Option<String> =
                 sqlx::query_scalar("SELECT id FROM groups WHERE parent_id IS NULL")
                     .fetch_optional(&mut *tx)
@@ -181,24 +254,26 @@ impl ConversationService {
                     .map_err(db)?;
             sqlx::query("INSERT INTO audit_events (id,actor_user_id,action,target_type,target_id,metadata_json,created_at,authorized_group_id,request_id) VALUES (?,?,'conversations.retention_redacted','conversation_retention',NULL,?,?,?,NULL)")
                 .bind(Uuid::now_v7().to_string()).bind(&principal.user_id)
-                .bind(format!("{{\"redactedMessages\":{changed}}}")).bind(now()).bind(root_group)
+                .bind(format!("{{\"redactedMessages\":{}}}",result.redacted_messages)).bind(now()).bind(root_group)
                 .execute(&mut *tx).await.map_err(db)?;
         }
         tx.commit().await.map_err(db)?;
-        Ok(changed)
+        Ok(result)
     }
 
     pub async fn list(
         &self,
         principal: &Principal,
         group_id: &str,
-        cursor: Option<i64>,
+        cursor: Option<&str>,
         limit: usize,
         filter: ConversationFilter<'_>,
-    ) -> Result<Vec<ConversationSummary>, AppError> {
+    ) -> Result<ConversationPage, AppError> {
         if limit == 0 || limit > 100 {
             return Err(AppError::BadRequest("limit must be 1..100".into()));
         }
+        validate_filter(&filter)?;
+        let (cursor_at, cursor_id) = decode_cursor(cursor)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
         authorize_read(
             &AuthorizationService::new(self.pool.clone()),
@@ -209,14 +284,46 @@ impl ConversationService {
         .await?;
         let learner_only = i64::from(principal.identity_type == IdentityType::Learner);
         let policy_blocked = filter.policy_blocked.map(i64::from);
-        let rows = sqlx::query("WITH RECURSIVE subtree(id) AS (SELECT id FROM groups WHERE id = ? UNION ALL SELECT g.id FROM groups g JOIN subtree s ON g.parent_id=s.id) SELECT c.id,c.owner_group_id,c.learner_user_id,c.status,c.created_at,r.provider_id,r.model_id,r.input_tokens,r.output_tokens,r.cost_micros FROM conversations c JOIN subtree s ON s.id=c.owner_group_id JOIN llm_requests r ON r.conversation_id=c.id WHERE c.created_at < ? AND (? = 0 OR c.learner_user_id = ?) AND (? IS NULL OR c.learner_user_id = ?) AND (? IS NULL OR r.provider_id = ?) AND (? IS NULL OR r.model_id = ?) AND (? IS NULL OR r.status = ?) AND (? IS NULL OR c.created_at >= ?) AND (? IS NULL OR c.created_at < ?) AND (? IS NULL OR (r.error_code = 'policy_denied') = ?) ORDER BY c.created_at DESC,c.id DESC LIMIT ?")
-            .bind(group_id).bind(cursor.unwrap_or(i64::MAX)).bind(learner_only).bind(&principal.user_id)
+        if filter.policy_blocked == Some(true) {
+            if filter.provider_id.is_some()
+                || filter.model_id.is_some()
+                || filter.status.is_some_and(|s| s != "failed")
+            {
+                tx.commit().await.map_err(db)?;
+                return Ok(ConversationPage {
+                    items: Vec::new(),
+                    next_cursor: None,
+                });
+            }
+            let rows=sqlx::query("WITH RECURSIVE subtree(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN subtree s ON g.parent_id=s.id) SELECT e.id,e.owner_group_id,e.learner_user_id,'failed' status,e.created_at,'' provider_id,'' model_id,NULL input_tokens,NULL output_tokens,NULL cost_micros,e.policy_version_id,e.policy_compiled_hash,e.error_code FROM llm_policy_block_events e JOIN subtree s ON s.id=e.owner_group_id WHERE (e.created_at<? OR (e.created_at=? AND e.id<?)) AND (?=0 OR e.learner_user_id=?) AND (? IS NULL OR e.learner_user_id=?) AND (? IS NULL OR e.created_at>=?) AND (? IS NULL OR e.created_at<?) ORDER BY e.created_at DESC,e.id DESC LIMIT ?")
+                .bind(group_id).bind(cursor_at).bind(cursor_at).bind(&cursor_id).bind(learner_only).bind(&principal.user_id).bind(filter.learner_user_id).bind(filter.learner_user_id).bind(filter.from).bind(filter.from).bind(filter.to).bind(filter.to).bind((limit+1) as i64).fetch_all(&mut *tx).await.map_err(db)?;
+            tx.commit().await.map_err(db)?;
+            let mut items: Vec<_> = rows.into_iter().map(summary).collect();
+            let more = items.len() > limit;
+            items.truncate(limit);
+            let next_cursor = more
+                .then(|| items.last().map(|i| encode_cursor(i.created_at, &i.id)))
+                .flatten();
+            return Ok(ConversationPage { items, next_cursor });
+        }
+        let rows = sqlx::query("WITH RECURSIVE subtree(id) AS (SELECT id FROM groups WHERE id = ? UNION ALL SELECT g.id FROM groups g JOIN subtree s ON g.parent_id=s.id) SELECT c.id,c.owner_group_id,c.learner_user_id,c.status,c.created_at,r.provider_id,r.model_id,r.input_tokens,r.output_tokens,r.cost_micros,r.policy_version_id,r.policy_compiled_hash,r.error_code FROM conversations c JOIN subtree s ON s.id=c.owner_group_id JOIN llm_requests r ON r.conversation_id=c.id WHERE (c.created_at < ? OR (c.created_at = ? AND c.id < ?)) AND (? = 0 OR c.learner_user_id = ?) AND (? IS NULL OR c.learner_user_id = ?) AND (? IS NULL OR r.provider_id = ?) AND (? IS NULL OR r.model_id = ?) AND (? IS NULL OR r.status = ?) AND (? IS NULL OR c.created_at >= ?) AND (? IS NULL OR c.created_at < ?) AND (? IS NULL OR COALESCE(r.error_code = 'policy_denied',0) = ?) ORDER BY c.created_at DESC,c.id DESC LIMIT ?")
+            .bind(group_id).bind(cursor_at).bind(cursor_at).bind(&cursor_id).bind(learner_only).bind(&principal.user_id)
             .bind(filter.learner_user_id).bind(filter.learner_user_id).bind(filter.provider_id).bind(filter.provider_id)
             .bind(filter.model_id).bind(filter.model_id).bind(filter.status).bind(filter.status)
             .bind(filter.from).bind(filter.from).bind(filter.to).bind(filter.to).bind(policy_blocked).bind(policy_blocked)
-            .bind(limit as i64).fetch_all(&mut *tx).await.map_err(db)?;
+            .bind((limit + 1) as i64).fetch_all(&mut *tx).await.map_err(db)?;
         tx.commit().await.map_err(db)?;
-        Ok(rows.into_iter().map(summary).collect())
+        let mut items: Vec<_> = rows.into_iter().map(summary).collect();
+        let has_more = items.len() > limit;
+        items.truncate(limit);
+        let next_cursor = has_more
+            .then(|| {
+                items
+                    .last()
+                    .map(|item| encode_cursor(item.created_at, &item.id))
+            })
+            .flatten();
+        Ok(ConversationPage { items, next_cursor })
     }
 
     pub async fn get(
@@ -225,24 +332,26 @@ impl ConversationService {
         id: &str,
     ) -> Result<ConversationDetail, AppError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
-        let row = sqlx::query("SELECT c.id,c.owner_group_id,c.learner_user_id,c.status,c.created_at,r.provider_id,r.model_id,r.input_tokens,r.output_tokens,r.cost_micros,r.id request_id FROM conversations c JOIN llm_requests r ON r.conversation_id=c.id WHERE c.id=?").bind(id).fetch_optional(&mut *tx).await.map_err(db)?.ok_or_else(|| AppError::BadRequest("conversation not found".into()))?;
+        let row = sqlx::query("SELECT c.id,c.owner_group_id,c.learner_user_id,c.status,c.created_at,r.provider_id,r.model_id,r.input_tokens,r.output_tokens,r.cost_micros,r.policy_version_id,r.policy_compiled_hash,r.error_code,r.id request_id FROM conversations c JOIN llm_requests r ON r.conversation_id=c.id WHERE c.id=?").bind(id).fetch_optional(&mut *tx).await.map_err(db)?.ok_or_else(unavailable)?;
         let group_id: String = row.get("owner_group_id");
-        authorize_read(
+        if authorize_read(
             &AuthorizationService::new(self.pool.clone()),
             &mut tx,
             principal,
             &group_id,
         )
-        .await?;
+        .await
+        .is_err()
+        {
+            return Err(unavailable());
+        }
         if principal.identity_type == IdentityType::Learner
             && row.get::<String, _>("learner_user_id") != principal.user_id
         {
-            return Err(AppError::Forbidden(
-                "learner conversation access denied".into(),
-            ));
+            return Err(unavailable());
         }
         let request_id: String = row.get("request_id");
-        let message_rows = sqlx::query("SELECT id,sequence,role,encrypted_content,truncated,retained FROM conversation_messages WHERE request_id=? ORDER BY sequence").bind(&request_id).fetch_all(&mut *tx).await.map_err(db)?;
+        let message_rows = sqlx::query("SELECT id,sequence,role,encrypted_content,encrypted_tool_data,truncated,retained FROM conversation_messages WHERE request_id=? ORDER BY sequence").bind(&request_id).fetch_all(&mut *tx).await.map_err(db)?;
         let mut messages = Vec::with_capacity(message_rows.len());
         for message in message_rows {
             if message.get::<i64, _>("retained") == 0 {
@@ -257,11 +366,23 @@ impl ConversationService {
             let plaintext = self.cipher.decrypt(&encrypted, aad.as_bytes())?;
             let content = String::from_utf8(plaintext.to_vec())
                 .map_err(|_| AppError::Internal("stored conversation content is invalid".into()))?;
+            let tool_data =
+                if let Some(envelope) = message.get::<Option<String>, _>("encrypted_tool_data") {
+                    let encrypted = EncryptedSecret::parse(envelope)?;
+                    let tool_aad = aad.replace("content", "tools");
+                    let plaintext = self.cipher.decrypt(&encrypted, tool_aad.as_bytes())?;
+                    Some(serde_json::from_slice(&plaintext).unwrap_or_else(
+                    |_| serde_json::json!({"argumentsDelta":String::from_utf8_lossy(&plaintext)}),
+                ))
+                } else {
+                    None
+                };
             messages.push(ConversationMessage {
                 role,
                 content,
                 sequence,
                 truncated: message.get::<i64, _>("truncated") == 1,
+                tool_data,
             });
         }
         let summary = summary(row);
@@ -410,14 +531,17 @@ fn message_aad(c: &str, r: &str, m: &str, role: &str, seq: i64) -> String {
     format!("mlearn:conversation:v1:conversation={c}:request={r}:message={m}:role={role}:sequence={seq}:content")
 }
 async fn authorize_read(
-    authz: &AuthorizationService,
+    _authz: &AuthorizationService,
     tx: &mut Transaction<'_, Sqlite>,
     principal: &Principal,
     group_id: &str,
 ) -> Result<(), AppError> {
     if principal.identity_type == IdentityType::Learner {
+        let live: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sessions s JOIN users u ON u.id=s.user_id JOIN groups g ON g.id=s.active_group_id AND g.status='active' JOIN group_memberships m ON m.group_id=g.id AND m.user_id=s.user_id AND m.status='active' WHERE s.id=? AND s.user_id=? AND s.revoked_at IS NULL AND s.expires_at>? AND s.active_group_id=? AND u.status='active' AND u.identity_type='learner')")
+            .bind(&principal.session_id).bind(&principal.user_id).bind(now()).bind(group_id).fetch_one(&mut **tx).await.map_err(db)?;
         if principal.service_key_id.is_none()
             && principal.active_group_id.as_deref() == Some(group_id)
+            && live == 1
         {
             return Ok(());
         }
@@ -425,9 +549,80 @@ async fn authorize_read(
             "learner conversation access denied".into(),
         ));
     }
-    authz
-        .require_in_transaction(tx, principal, group_id, Capability::ConversationsView)
-        .await
+    let authorized: i64 = sqlx::query_scalar("WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM groups WHERE id=? UNION ALL SELECT p.id,p.parent_id FROM groups p JOIN ancestors c ON c.parent_id=p.id WHERE p.status='active') SELECT EXISTS(SELECT 1 FROM ancestors a JOIN groups ag ON ag.id=a.id AND ag.status='active' JOIN group_memberships m ON m.group_id=a.id AND m.user_id=? AND m.status='active' JOIN membership_capabilities c ON c.membership_id=m.id AND c.capability='conversations.view' WHERE ? IS NULL UNION ALL SELECT 1 FROM ancestors a JOIN groups ag ON ag.id=a.id AND ag.status='active' JOIN api_keys k ON k.group_id=a.id AND k.id=? AND k.status='active' AND (k.expires_at IS NULL OR k.expires_at>unixepoch()) JOIN api_key_capabilities c ON c.api_key_id=k.id AND c.capability='conversations.view')")
+        .bind(group_id).bind(&principal.user_id).bind(&principal.service_key_id).bind(&principal.service_key_id).fetch_one(&mut **tx).await.map_err(db)?;
+    if authorized == 1 {
+        Ok(())
+    } else {
+        Err(unavailable())
+    }
+}
+
+fn unavailable() -> AppError {
+    AppError::Forbidden("conversation unavailable".into())
+}
+
+fn encode_cursor(created_at: i64, id: &str) -> String {
+    URL_SAFE_NO_PAD.encode(format!("{created_at}\0{id}"))
+}
+
+fn decode_cursor(cursor: Option<&str>) -> Result<(i64, String), AppError> {
+    let Some(cursor) = cursor else {
+        return Ok((i64::MAX, "~".repeat(40)));
+    };
+    if cursor.len() > 256 {
+        return Err(AppError::BadRequest("invalid conversation cursor".into()));
+    }
+    let bytes = URL_SAFE_NO_PAD
+        .decode(cursor)
+        .map_err(|_| AppError::BadRequest("invalid conversation cursor".into()))?;
+    let text = std::str::from_utf8(&bytes)
+        .map_err(|_| AppError::BadRequest("invalid conversation cursor".into()))?;
+    let (created_at, id) = text
+        .split_once('\0')
+        .ok_or_else(|| AppError::BadRequest("invalid conversation cursor".into()))?;
+    let created_at = created_at
+        .parse::<i64>()
+        .map_err(|_| AppError::BadRequest("invalid conversation cursor".into()))?;
+    if created_at < 0 || id.is_empty() || id.len() > 64 || id.chars().any(char::is_control) {
+        return Err(AppError::BadRequest("invalid conversation cursor".into()));
+    }
+    Ok((created_at, id.into()))
+}
+
+fn validate_filter(filter: &ConversationFilter<'_>) -> Result<(), AppError> {
+    if filter.from.is_some_and(|value| value < 0) || filter.to.is_some_and(|value| value < 0) {
+        return Err(AppError::BadRequest(
+            "conversation date range is invalid".into(),
+        ));
+    }
+    if let (Some(from), Some(to)) = (filter.from, filter.to) {
+        if from < 0 || to <= from || to - from > 366 * 24 * 60 * 60 {
+            return Err(AppError::BadRequest(
+                "conversation date range is invalid".into(),
+            ));
+        }
+    }
+    if !filter
+        .status
+        .map(|s| matches!(s, "pending" | "completed" | "failed" | "truncated"))
+        .unwrap_or(true)
+    {
+        return Err(AppError::BadRequest(
+            "conversation status is invalid".into(),
+        ));
+    }
+    for value in [filter.learner_user_id, filter.provider_id, filter.model_id]
+        .into_iter()
+        .flatten()
+    {
+        if value.is_empty() || value.len() > 200 || value.chars().any(char::is_control) {
+            return Err(AppError::BadRequest(
+                "conversation filter is invalid".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 fn summary(row: sqlx::sqlite::SqliteRow) -> ConversationSummary {
     ConversationSummary {
@@ -441,6 +636,9 @@ fn summary(row: sqlx::sqlite::SqliteRow) -> ConversationSummary {
         input_tokens: row.get("input_tokens"),
         output_tokens: row.get("output_tokens"),
         cost_micros: row.get("cost_micros"),
+        policy_version_id: row.get("policy_version_id"),
+        policy_compiled_hash: row.get("policy_compiled_hash"),
+        error_code: row.get("error_code"),
     }
 }
 fn now() -> i64 {
@@ -547,5 +745,16 @@ mod tests {
         let _ = fs::remove_file(&path);
         let _ = fs::remove_file(format!("{}-wal", path.display()));
         let _ = fs::remove_file(format!("{}-shm", path.display()));
+    }
+
+    #[test]
+    fn composite_cursor_round_trips_and_rejects_malformed_values() {
+        let encoded = encode_cursor(42, "same-time-id");
+        assert_eq!(
+            decode_cursor(Some(&encoded)).unwrap(),
+            (42, "same-time-id".into())
+        );
+        assert!(decode_cursor(Some("not base64!")).is_err());
+        assert!(decode_cursor(Some(&URL_SAFE_NO_PAD.encode("42\0bad\n"))).is_err());
     }
 }
