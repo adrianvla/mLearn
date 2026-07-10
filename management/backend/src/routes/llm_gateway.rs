@@ -78,6 +78,7 @@ async fn prepare_stream(
     principal: Principal,
     request: GatewayRequest,
 ) -> Result<Response, GatewayFailure> {
+    debug_assert!(state.llm_preflight_deadline.as_secs() < GATEWAY_LEASE_SECONDS as u64);
     if principal.service_key_id.is_some() || principal.identity_type != IdentityType::Learner {
         return Err(GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"));
     }
@@ -86,8 +87,11 @@ async fn prepare_stream(
         .clone()
         .ok_or_else(|| GatewayFailure::new(StatusCode::CONFLICT, "invalid_active_group"))?;
 
-    let configuration =
-        LlmConfigurationService::new(state.db.clone(), state.secret_cipher.as_ref().clone());
+    let configuration = LlmConfigurationService::with_resolver(
+        state.db.clone(),
+        state.secret_cipher.as_ref().clone(),
+        state.llm_endpoint_resolver.clone(),
+    );
     // This performs policy/database resolution only. DNS and provider connection happen after
     // the quota transaction has accepted this exact stable provider/model/price tuple.
     let route_config = configuration
@@ -127,10 +131,33 @@ async fn prepare_stream(
         .await
         .map_err(map_preflight_error)?;
 
-    // Pin DNS only after quota succeeds; PinnedEndpoint disables proxies and redirects.
+    // Pin DNS only after quota succeeds; PinnedEndpoint disables proxies and redirects. The
+    // whole DNS/connect/header phase is bounded well inside the durable capacity lease.
     let reservation_id = reservation.id;
-    let route = match configuration.pin_route(route_config).await {
-        Ok(route) => route,
+    let preflight = async {
+        let route = configuration.pin_route(route_config).await.map_err(|_| {
+            GatewayFailure::new(StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable")
+        })?;
+        quota
+            .mark_gateway_contacting(&reservation_id)
+            .await
+            .map_err(map_preflight_error)?;
+        let opened = adapter_for(route.provider_kind)
+            .stream(&route, normalized)
+            .await
+            .map_err(map_provider_error)?;
+        Ok::<_, GatewayFailure>((route, opened))
+    };
+    let (route, opened) = match tokio::time::timeout(state.llm_preflight_deadline, preflight).await
+    {
+        Ok(Ok(opened)) => opened,
+        Ok(Err(error)) => {
+            quota
+                .cancel_gateway(&reservation_id)
+                .await
+                .map_err(map_preflight_error)?;
+            return Err(error);
+        }
         Err(_) => {
             quota
                 .cancel_gateway(&reservation_id)
@@ -140,23 +167,6 @@ async fn prepare_stream(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "provider_unavailable",
             ));
-        }
-    };
-    quota
-        .mark_gateway_contacting(&reservation_id)
-        .await
-        .map_err(map_preflight_error)?;
-    let opened = match adapter_for(route.provider_kind)
-        .stream(&route, normalized)
-        .await
-    {
-        Ok(opened) => opened,
-        Err(error) => {
-            quota
-                .cancel_gateway(&reservation_id)
-                .await
-                .map_err(map_preflight_error)?;
-            return Err(map_provider_error(error));
         }
     };
     quota
@@ -451,8 +461,69 @@ fn json_failure(status: StatusCode, code: &'static str) -> Response {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        future::Future,
+        net::SocketAddr,
+        pin::Pin,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+        time::Duration,
+    };
+
+    use axum::{http::Request, Router};
+    use sqlx::sqlite::SqlitePoolOptions;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+    use tower::ServiceExt;
+
     use super::*;
-    use crate::llm::provider::{GatewayMessage, NormalizedProviderRequest};
+    use crate::{
+        authorization::Capability,
+        config::Config,
+        identity::{IdentityType, Principal},
+        llm::{
+            endpoint::EndpointResolver,
+            provider::{GatewayMessage, NormalizedProviderRequest},
+            quota::QuotaService,
+        },
+        state::AppState,
+    };
+
+    struct FixedResolver(SocketAddr, Arc<AtomicUsize>);
+
+    impl EndpointResolver for FixedResolver {
+        fn resolve<'a>(
+            &'a self,
+            _host: &'a str,
+            _port: u16,
+        ) -> Pin<Box<dyn Future<Output = Result<Vec<SocketAddr>, AppError>> + Send + 'a>> {
+            self.1.fetch_add(1, Ordering::SeqCst);
+            let address = self.0;
+            Box::pin(async move { Ok(vec![address]) })
+        }
+    }
+
+    struct DelayedResolver(Duration, SocketAddr, Arc<AtomicUsize>);
+
+    impl EndpointResolver for DelayedResolver {
+        fn resolve<'a>(
+            &'a self,
+            _host: &'a str,
+            _port: u16,
+        ) -> Pin<Box<dyn Future<Output = Result<Vec<SocketAddr>, AppError>> + Send + 'a>> {
+            self.2.fetch_add(1, Ordering::SeqCst);
+            let delay = self.0;
+            let address = self.1;
+            Box::pin(async move {
+                tokio::time::sleep(delay).await;
+                Ok(vec![address])
+            })
+        }
+    }
 
     #[test]
     fn conservative_quota_estimate_includes_managed_prompt_and_all_metrics() {
@@ -526,5 +597,395 @@ mod tests {
                 b"data: {\"choices\":[{\"delta\":{}}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}\n\n"
             ))
             .is_err());
+    }
+
+    async fn configured_router_fixture(
+        address: SocketAddr,
+        resolver: Arc<dyn EndpointResolver>,
+        preflight_deadline: Duration,
+    ) -> (Router, sqlx::SqlitePool, String, Arc<AtomicUsize>) {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(4)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        for (id, kind, root) in [("admin", "admin", 1_i64), ("learner", "learner", 0)] {
+            sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?, 1, 1)")
+                .bind(id).bind(format!("{id}@test.invalid")).bind(format!("{id}@test.invalid"))
+                .bind(id).bind(kind).bind(root).execute(&pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('school', NULL, 'School', 'school', 'active', 1), ('class', 'school', 'Class', 'class', 'active', 1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('admin-membership', 'school', 'admin', 'active', 1), ('learner-membership', 'class', 'learner', 'active', 1)")
+            .execute(&pool).await.unwrap();
+        for capability in [
+            Capability::LlmConfigure,
+            Capability::PoliciesView,
+            Capability::PoliciesEdit,
+            Capability::PoliciesPublish,
+        ] {
+            sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('admin-membership', ?)")
+                .bind(capability.as_str()).execute(&pool).await.unwrap();
+        }
+        let admin = Principal {
+            user_id: "admin".into(),
+            service_key_id: None,
+            session_id: "admin-session".into(),
+            device_id: "admin-device".into(),
+            active_group_id: Some("school".into()),
+            identity_type: IdentityType::Admin,
+            is_root: true,
+        };
+        QuotaService::new(pool.clone())
+            .configure_calendar(
+                &admin,
+                "school",
+                "Europe/Zurich",
+                1_735_689_600,
+                1_830_297_600,
+            )
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO quota_definitions (id, owner_group_id, subject_kind, subject_id, metric, period, limit_value, created_by_user_id, created_at, updated_at) VALUES ('root-cost', 'school', 'group', 'school', 'costMicros', 'monthly', 1000000000, 'admin', 1, 1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO llm_providers (id, group_id, name, provider_kind, base_url, status, created_by_user_id, created_at, updated_at) VALUES ('provider', 'class', 'Provider', 'ollama', ?, 'active', 'admin', 1, 1)")
+            .bind(format!("http://ollama:{}", address.port())).execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO llm_models (id, group_id, provider_id, model_key, upstream_model, status, created_by_user_id, created_at, updated_at) VALUES ('model', 'class', 'provider', 'balanced', 'model-v1', 'active', 'admin', 1, 1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO provider_price_versions (id, group_id, provider_id, model_id, currency, unit, input_cost_micros, output_cost_micros, idempotency_key, created_by_user_id, created_at) VALUES ('price', 'class', 'provider', 'model', 'CHF', 'perMillionTokens', 1, 1, 'price', 'admin', 1)")
+            .execute(&pool).await.unwrap();
+        let document = serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[{"metric":"costMicros","limit":1000000000_i64,"period":"monthly","hard":true}]}}).to_string();
+        sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES ('policy', 'school', ?, 'hash', 'compiled', 'admin', 'governed', '[]', 1)")
+            .bind(document).execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES ('school', 'policy', 1)")
+            .execute(&pool).await.unwrap();
+
+        let signing = std::env::temp_dir().join(format!("gateway-policy-{}", Uuid::now_v7()));
+        let encryption =
+            std::env::temp_dir().join(format!("gateway-encryption-{}", Uuid::now_v7()));
+        let mut config = Config::from_env();
+        config.policy_signing_key_path = signing.to_string_lossy().into_owned();
+        config.encryption_key_path = encryption.to_string_lossy().into_owned();
+        let mut state = AppState::new(
+            bollard::Docker::connect_with_http_defaults().unwrap(),
+            config,
+            pool.clone(),
+        );
+        state.llm_endpoint_resolver = resolver;
+        state.llm_preflight_deadline = preflight_deadline;
+        let session = state
+            .identity
+            .issue_session("learner", None, Some("class"))
+            .await
+            .unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let app = router(state.clone()).with_state(state);
+        (app, pool, session.access_token, calls)
+    }
+
+    async fn mock_upstream(status: u16, body: &'static str) -> SocketAddr {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((mut socket, _)) = listener.accept().await {
+                let mut request = vec![0_u8; 16 * 1024];
+                let _ = socket.read(&mut request).await;
+                let reason = if status == 200 { "OK" } else { "Error" };
+                let response = format!("HTTP/1.1 {status} {reason}\r\nContent-Type: application/x-ndjson\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        address
+    }
+
+    async fn post_gateway(app: Router, token: &str) -> Response {
+        app.oneshot(
+            Request::post("/api/llm/stream")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"messages":[{"role":"user","content":"hi"}],"think":false}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn configured_router_reserves_before_contact_and_completes_exact_sse() {
+        let address = mock_upstream(200, "{\"message\":{\"content\":\"Hallo\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":2,\"eval_count\":1}\n").await;
+        let resolutions = Arc::new(AtomicUsize::new(0));
+        let resolver = Arc::new(FixedResolver(address, resolutions.clone()));
+        let (app, pool, token, _) =
+            configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+        assert_eq!(resolutions.load(Ordering::SeqCst), 0);
+        let response = post_gateway(app, &token).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(bytes, Bytes::from_static(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hallo\"}}]}\n\ndata: {\"choices\":[{\"delta\":{}}],\"eval_count\":1}\n\ndata: [DONE]\n\n"));
+        assert_eq!(resolutions.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_reservations")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT phase FROM llm_gateway_reservations")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            "completed"
+        );
+    }
+
+    #[tokio::test]
+    async fn configured_router_non_success_headers_cancel_without_charge() {
+        for (status, expected_status, expected_code) in [
+            (401, StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable"),
+            (403, StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable"),
+            (404, StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable"),
+            (429, StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
+            (500, StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable"),
+        ] {
+            let address = mock_upstream(status, "secret provider body").await;
+            let resolver = Arc::new(FixedResolver(address, Arc::new(AtomicUsize::new(0))));
+            let (app, pool, token, _) =
+                configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+            let response = post_gateway(app, &token).await;
+            assert_eq!(response.status(), expected_status, "upstream {status}");
+            let value: serde_json::Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                    .unwrap();
+            assert_eq!(value["error"], expected_code);
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM usage_ledger")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, String>("SELECT phase FROM llm_gateway_reservations")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                "cancelled"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn configured_router_rejects_revoked_archived_and_sibling_context_before_contact() {
+        for scenario in ["revoked", "archived", "sibling"] {
+            let address: SocketAddr = "93.184.216.34:11434".parse().unwrap();
+            let resolutions = Arc::new(AtomicUsize::new(0));
+            let resolver = Arc::new(FixedResolver(address, resolutions.clone()));
+            let (app, pool, token, _) =
+                configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+            match scenario {
+                "revoked" => {
+                    sqlx::query("UPDATE group_memberships SET status = 'archived' WHERE id = 'learner-membership'")
+                        .execute(&pool).await.unwrap();
+                }
+                "archived" => {
+                    sqlx::query("UPDATE groups SET status = 'archived' WHERE id = 'class'")
+                        .execute(&pool)
+                        .await
+                        .unwrap();
+                }
+                "sibling" => {
+                    sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('sibling', 'school', 'Sibling', 'sibling', 'active', 1)")
+                        .execute(&pool).await.unwrap();
+                    sqlx::query(
+                        "UPDATE sessions SET active_group_id = 'sibling' WHERE user_id = 'learner'",
+                    )
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+                }
+                _ => unreachable!(),
+            }
+            let response = post_gateway(app, &token).await;
+            assert_ne!(response.status(), StatusCode::OK, "{scenario}");
+            assert_eq!(resolutions.load(Ordering::SeqCst), 0, "{scenario}");
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_reservations")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                0,
+                "{scenario}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn configured_router_post_header_failure_and_output_overrun_use_stable_frames() {
+        for body in [
+            "not-json\n",
+            Box::leak(
+                format!(
+                    "{{\"message\":{{\"content\":\"{}\"}},\"done\":false}}\n",
+                    "x".repeat(4097)
+                )
+                .into_boxed_str(),
+            ),
+        ] {
+            let address = mock_upstream(200, body).await;
+            let resolver = Arc::new(FixedResolver(address, Arc::new(AtomicUsize::new(0))));
+            let (app, pool, token, _) =
+                configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+            let response = post_gateway(app, &token).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            assert_eq!(
+                bytes,
+                Bytes::from_static(b"data: {\"error\":\"provider_unavailable\",\"done\":true}\n\n")
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, String>("SELECT phase FROM llm_gateway_reservations")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                "pending"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn configured_router_disconnect_leaves_pending_fallback_recovered_exactly_once() {
+        let address = mock_upstream(
+            200,
+            "{\"message\":{\"content\":\"partial\"},\"done\":false}\n",
+        )
+        .await;
+        let resolver = Arc::new(FixedResolver(address, Arc::new(AtomicUsize::new(0))));
+        let (app, pool, token, _) =
+            configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+        let response = post_gateway(app, &token).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        drop(response);
+        let reservation_id: String =
+            sqlx::query_scalar("SELECT reservation_id FROM llm_gateway_reservations")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?"
+            )
+            .bind(&reservation_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "pending"
+        );
+        sqlx::query("UPDATE llm_gateway_leases SET acquired_at = 0, expires_at = 1 WHERE reservation_id = ?")
+            .bind(&reservation_id).execute(&pool).await.unwrap();
+        let quota = QuotaService::new(pool.clone());
+        quota.release_expired().await.unwrap();
+        let ledger_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?")
+                .bind(&reservation_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(ledger_count > 0);
+        quota.release_expired().await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?"
+            )
+            .bind(&reservation_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            ledger_count
+        );
+    }
+
+    #[tokio::test]
+    async fn preflight_deadline_releases_capacity_before_delayed_resolution_can_contact() {
+        let address: SocketAddr = "93.184.216.34:11434".parse().unwrap();
+        let resolutions = Arc::new(AtomicUsize::new(0));
+        let resolver = Arc::new(DelayedResolver(
+            Duration::from_millis(200),
+            address,
+            resolutions.clone(),
+        ));
+        let (app, pool, token, _) =
+            configured_router_fixture(address, resolver, Duration::from_millis(20)).await;
+        let first = post_gateway(app.clone(), &token).await;
+        assert_eq!(first.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT phase FROM llm_gateway_reservations ORDER BY updated_at DESC LIMIT 1"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "cancelled"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM llm_gateway_leases WHERE released_at IS NULL"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            0
+        );
+        let second = post_gateway(app, &token).await;
+        assert_eq!(second.status(), StatusCode::SERVICE_UNAVAILABLE);
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert_eq!(resolutions.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM usage_ledger")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn configured_router_concurrency_is_atomic_and_released_after_completion() {
+        let address = mock_upstream(200, "{\"done\":true,\"eval_count\":0}\n").await;
+        let resolutions = Arc::new(AtomicUsize::new(0));
+        let resolver = Arc::new(DelayedResolver(
+            Duration::from_millis(100),
+            address,
+            resolutions.clone(),
+        ));
+        let (app, pool, token, _) =
+            configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+        let first_app = app.clone();
+        let first_token = token.clone();
+        let first = tokio::spawn(async move { post_gateway(first_app, &first_token).await });
+        while resolutions.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+        let rejected = post_gateway(app.clone(), &token).await;
+        assert_eq!(rejected.status(), StatusCode::TOO_MANY_REQUESTS);
+        let rejected_body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(rejected.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(rejected_body["error"], "rate_limited");
+        let completed = first.await.unwrap();
+        assert_eq!(completed.status(), StatusCode::OK);
+        let _ = to_bytes(completed.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM llm_gateway_leases WHERE released_at IS NULL"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            0
+        );
     }
 }
