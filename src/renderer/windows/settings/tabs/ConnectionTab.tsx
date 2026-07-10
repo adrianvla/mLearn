@@ -168,6 +168,7 @@ export const ConnectionTab: Component = () => {
         cloudAuthUserEmail: result.userEmail,
         cloudAuthExpiresAt: result.expiresAt ?? 0,
         cloudAuthStatus: 'signed-in',
+        llmProvider: 'cloud',
       });
       setBackendStatus('success');
       setBackendError('');
@@ -203,6 +204,7 @@ export const ConnectionTab: Component = () => {
         cloudAuthUserEmail: result.userEmail,
         cloudAuthExpiresAt: result.expiresAt ?? 0,
         cloudAuthStatus: 'signed-in',
+        llmProvider: 'cloud',
       });
       setBackendStatus('success');
       setBackendError('');
