@@ -9,6 +9,7 @@ pub mod groups;
 pub mod llm_gateway;
 pub mod logs;
 pub mod overview;
+pub mod policies;
 pub mod school;
 pub mod services;
 pub mod storage;
