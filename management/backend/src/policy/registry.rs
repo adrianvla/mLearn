@@ -148,8 +148,8 @@ pub fn validate_setting_rule(key: &str, value: &Value) -> Result<(), String> {
 
     let valid = match kind {
         JsonKind::Boolean => value.is_boolean(),
-        JsonKind::Number => value.is_number(),
-        JsonKind::NumberOrNull => value.is_number() || value.is_null(),
+        JsonKind::Number => is_i_json_policy_number(value),
+        JsonKind::NumberOrNull => value.is_null() || is_i_json_policy_number(value),
         JsonKind::String => value.is_string(),
         JsonKind::StringOrNull => value.is_string() || value.is_null(),
         JsonKind::StringLiterals(allowed_values) => value
@@ -161,6 +161,23 @@ pub fn validate_setting_rule(key: &str, value: &Value) -> Result<(), String> {
     } else {
         Err(format!("setting `{key}` has the wrong JSON value type"))
     }
+}
+
+fn is_i_json_policy_number(value: &Value) -> bool {
+    const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
+
+    let Some(number) = value.as_number() else {
+        return false;
+    };
+    if let Some(integer) = number.as_i64() {
+        return (-MAX_SAFE_INTEGER..=MAX_SAFE_INTEGER).contains(&integer);
+    }
+    if let Some(integer) = number.as_u64() {
+        return integer <= MAX_SAFE_INTEGER as u64;
+    }
+    number.as_f64().is_some_and(|number| {
+        number.is_finite() && (!number.fract().eq(&0.0) || number.abs() <= MAX_SAFE_INTEGER as f64)
+    })
 }
 
 pub fn validate_policy_document(document: &PolicyDocument) -> Result<(), String> {
@@ -260,6 +277,29 @@ mod tests {
         assert!(validate_setting_rule("theme", &json!("neon")).is_err());
         assert!(validate_setting_rule("readerTextFontStyle", &json!("serif")).is_ok());
         assert!(validate_setting_rule("readerTextFontStyle", &json!("comic")).is_err());
+    }
+
+    #[test]
+    fn registry_rejects_integer_settings_outside_javascript_safe_range() {
+        for raw in [
+            "9007199254740992",
+            "9007199254740993",
+            "-9007199254740992",
+            "-9007199254740993",
+        ] {
+            let value: serde_json::Value = serde_json::from_str(raw).unwrap();
+            assert!(
+                validate_setting_rule("subtitle_font_size", &value).is_err(),
+                "{raw} must be rejected"
+            );
+        }
+        for raw in ["9007199254740991", "-9007199254740991", "20.5", "1e-7"] {
+            let value: serde_json::Value = serde_json::from_str(raw).unwrap();
+            assert!(
+                validate_setting_rule("subtitle_font_size", &value).is_ok(),
+                "{raw} must remain supported"
+            );
+        }
     }
 
     #[test]

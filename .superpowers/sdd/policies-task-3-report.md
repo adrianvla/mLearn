@@ -185,3 +185,73 @@ git diff --check
 The earlier custom-canonicalization concern is superseded: the cross-runtime contract is now RFC 8785/JCS, pinned by shared fixtures and dedicated libraries. Full app verification, caching, and enforcement remain intentionally deferred.
 
 Verification note: one post-hardening full TypeScript run transiently failed the unrelated zero-delay assertion `FlashcardContext.test.ts > answerCard recalculates explicit non-active language stats with that language primary form` (`0` observed instead of `6`). It failed once in isolation, passed on the immediate isolated rerun without source changes, and the subsequent full `npm run test` passed all 4,826 tests. No flashcard code or test was changed in this policy task.
+
+---
+
+## Re-review: I-JSON numeric policy boundary
+
+The remaining high-severity cross-runtime boundary was fixed without changing the RFC 8785/JCS contract, key lifecycle, authorization behavior, or the app caching/enforcement exclusion.
+
+### RED
+
+Registry boundary:
+
+```bash
+cargo test --manifest-path management/backend/Cargo.toml policy::registry::tests::registry_rejects_integer_settings_outside_javascript_safe_range
+```
+
+Observed failure: `9007199254740992 must be rejected`; the registry accepted all JSON numbers based only on JSON type.
+
+Publication recheck:
+
+```bash
+cargo test --manifest-path management/backend/Cargo.toml policy::compiler::tests::publish_rejects_unsafe_integer_even_when_stored_hash_matches
+```
+
+Observed failure: publication succeeded for a legacy-style stored draft containing `9007199254740992` even when its stored canonical hash matched, proving the publish recheck did not enforce the cross-runtime numeric boundary.
+
+TypeScript wire boundary:
+
+```bash
+npx vitest run --project node src/shared/managementPolicy.test.ts -t "rejects unsafe integer settings while preserving finite fractions"
+```
+
+Observed failure: the effective-policy validator accepted the rounded JavaScript value because it required only a finite number.
+
+### GREEN
+
+- Rust `validate_setting_rule` now accepts numeric settings only when finite and either fractional or within `-9007199254740991..=9007199254740991` when integer-valued.
+- Exact Rust JSON integers `9007199254740992`, `9007199254740993`, `-9007199254740992`, and `-9007199254740993` are rejected before draft persistence/publication/signing.
+- The same registry validation is re-run during publication, so a hash-consistent legacy stored draft cannot bypass the boundary.
+- TypeScript mirrors the rule with `Number.isFinite` plus `Number.isSafeInteger` for integer-valued settings, rejecting values after JavaScript parsing/rounding as well.
+- Safe boundary integers and supported finite fractions such as `20.5` and `1e-7` remain accepted.
+- Quota validation remains independently constrained to non-negative JavaScript-safe integers.
+- `/api/policy/me` now exercises an accepted `1e-7` numeric setting and still verifies using only the public-key endpoint, the returned signature, and RFC 8785 canonical bytes.
+
+### Verification
+
+```bash
+cargo test --manifest-path management/backend/Cargo.toml policy::registry::tests
+# 6 passed; 0 failed
+
+cargo test --manifest-path management/backend/Cargo.toml policy::compiler::tests
+# 10 passed; 0 failed
+
+cargo test --manifest-path management/backend/Cargo.toml routes::policies::tests
+# 8 passed; 0 failed
+
+npx vitest run --project node src/shared/managementPolicy.test.ts
+# 1 file and 8 tests passed
+
+cargo test --manifest-path management/backend/Cargo.toml
+# 159 library tests and 5 binary tests passed; 0 failed
+
+npm run test
+# 231 files and 4,827 tests passed; 0 failed
+
+npm run typecheck
+# passed
+
+git diff --check
+# passed
+```

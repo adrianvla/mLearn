@@ -574,6 +574,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn publish_rejects_unsafe_integer_even_when_stored_hash_matches() {
+        let fixture = GroupFixture::german_tree().await;
+        grant_policy_capabilities(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"settings":{"subtitle_font_size":{"value":20.5,"locked":true}}}),
+            )
+            .await
+            .unwrap();
+        let unsafe_document =
+            r#"{"settings":{"subtitle_font_size":{"value":9007199254740992,"locked":true}}}"#;
+        let unsafe_hash = hex::encode(sha2::Sha256::digest(unsafe_document.as_bytes()));
+        sqlx::query(
+            "UPDATE policy_drafts SET document_json = ?, document_hash = ? WHERE group_id = ?",
+        )
+        .bind(unsafe_document)
+        .bind(unsafe_hash)
+        .bind(&fixture.german_a)
+        .execute(&fixture.pool)
+        .await
+        .unwrap();
+
+        assert!(service
+            .publish(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                "must reject unsafe integer",
+            )
+            .await
+            .is_err());
+        let versions: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM policy_versions WHERE group_id = ?")
+                .bind(&fixture.german_a)
+                .fetch_one(&fixture.pool)
+                .await
+                .unwrap();
+        assert_eq!(versions, 0);
+    }
+
+    #[tokio::test]
     async fn publish_rejects_stored_draft_hash_mismatch() {
         let fixture = GroupFixture::german_tree().await;
         grant_policy_capabilities(&fixture).await;

@@ -341,7 +341,7 @@ mod tests {
             .save_draft(
                 &fixture.german_a_teacher,
                 &fixture.german_a,
-                json!({"settings":{"subtitle_font_size":{"value":1e20,"locked":true}}}),
+                json!({"settings":{"subtitle_font_size":{"value":1e-7,"locked":true}}}),
             )
             .await
             .unwrap();
@@ -388,6 +388,7 @@ mod tests {
         assert!(!body["keyId"].as_str().unwrap().is_empty());
         assert_eq!(body["keyId"], public_key_body["keyId"]);
         assert!(!body["signature"].as_str().unwrap().is_empty());
+        assert_eq!(body["settings"]["subtitle_font_size"]["value"], json!(1e-7));
         let issued_at = time::OffsetDateTime::parse(
             body["issuedAt"].as_str().unwrap(),
             &time::format_description::well_known::Rfc3339,

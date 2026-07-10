@@ -155,6 +155,35 @@ describe('management policy contract', () => {
     ).toBe(false);
   });
 
+  it('rejects unsafe integer settings while preserving finite fractions', () => {
+    for (const value of [
+      Number.MAX_SAFE_INTEGER + 1,
+      9_007_199_254_740_993,
+      Number.MIN_SAFE_INTEGER - 1,
+      -9_007_199_254_740_993,
+    ]) {
+      expect(
+        validateEffectiveManagementPolicy({
+          ...fixture,
+          settings: { subtitle_font_size: settingRule(value) },
+        }).ok,
+      ).toBe(false);
+    }
+    for (const value of [
+      Number.MAX_SAFE_INTEGER,
+      Number.MIN_SAFE_INTEGER,
+      20.5,
+      1e-7,
+    ]) {
+      expect(
+        validateEffectiveManagementPolicy({
+          ...fixture,
+          settings: { subtitle_font_size: settingRule(value) },
+        }).ok,
+      ).toBe(true);
+    }
+  });
+
   it('parses the shared version 1 fixture with exact public field names', () => {
     const result = validateEffectiveManagementPolicy(fixture);
 

@@ -376,12 +376,18 @@ function matchesSettingDescriptor(
   if (kind === 'stringOrNull')
     return value === null || typeof value === 'string';
   if (kind === 'numberOrNull')
-    return (
-      value === null || (typeof value === 'number' && Number.isFinite(value))
-    );
+    return value === null || isIJsonPolicyNumber(value);
   if (kind === 'number')
-    return typeof value === 'number' && Number.isFinite(value);
+    return isIJsonPolicyNumber(value);
   return typeof value === kind;
+}
+
+function isIJsonPolicyNumber(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    (!Number.isInteger(value) || Number.isSafeInteger(value))
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
