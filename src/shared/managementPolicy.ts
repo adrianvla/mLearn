@@ -189,6 +189,8 @@ export interface QuotaRule {
 
 export interface EffectiveLlmPolicy {
   enabled: boolean;
+  requestsPerMinute: number;
+  maxConcurrentStreams: number;
   allowedProviders: string[];
   allowedModels: string[];
   promptProfileId: string | null;
@@ -313,6 +315,8 @@ function validateLlmPolicy(input: unknown): string | null {
   if (
     !isExactRecord(input, [
       'enabled',
+      'requestsPerMinute',
+      'maxConcurrentStreams',
       'allowedProviders',
       'allowedModels',
       'promptProfileId',
@@ -321,6 +325,10 @@ function validateLlmPolicy(input: unknown): string | null {
   )
     return 'llm policy is invalid';
   if (typeof input.enabled !== 'boolean') return 'llm.enabled must be boolean';
+  if (typeof input.requestsPerMinute !== 'number' || !Number.isSafeInteger(input.requestsPerMinute) || input.requestsPerMinute < 1 || input.requestsPerMinute > 10_000)
+    return 'llm.requestsPerMinute is invalid';
+  if (typeof input.maxConcurrentStreams !== 'number' || !Number.isSafeInteger(input.maxConcurrentStreams) || input.maxConcurrentStreams < 1 || input.maxConcurrentStreams > 1_000)
+    return 'llm.maxConcurrentStreams is invalid';
   if (
     !isStringArray(input.allowedProviders) ||
     !input.allowedProviders.every(isSafeIdentifier)

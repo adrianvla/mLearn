@@ -88,6 +88,7 @@ pub(crate) struct NormalizedProviderRequest {
     pub messages: Vec<GatewayMessage>,
     pub tools: Vec<GatewayTool>,
     pub think: bool,
+    pub max_output_tokens: u32,
 }
 
 pub(crate) struct OpenedProviderStream {
@@ -191,6 +192,7 @@ impl GatewayRequest {
             messages,
             tools: self.tools,
             think: self.think.unwrap_or(false),
+            max_output_tokens: 4096,
         })
     }
 }

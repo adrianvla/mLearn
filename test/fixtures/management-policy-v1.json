@@ -42,6 +42,8 @@
   },
   "llm": {
     "enabled": true,
+    "requestsPerMinute": 60,
+    "maxConcurrentStreams": 4,
     "allowedProviders": ["school-openai"],
     "allowedModels": ["instruction-medium"],
     "promptProfileId": "language-tutor",

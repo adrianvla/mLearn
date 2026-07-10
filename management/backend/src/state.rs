@@ -24,6 +24,7 @@ pub struct AppState {
     pub secret_cipher: Arc<SecretCipher>,
     pub auth_rate_limiter: AuthRateLimiter,
     pub auth_endpoint_rate_limiter: AuthRateLimiter,
+    pub llm_endpoint_rate_limiter: AuthRateLimiter,
 }
 
 impl AppState {
@@ -39,6 +40,7 @@ impl AppState {
         let identity = IdentityService::new(db.clone(), config.token_hash, jwt_secret);
         let auth_rate_limiter = AuthRateLimiter::new(5, Duration::from_secs(60), 1_024);
         let auth_endpoint_rate_limiter = AuthRateLimiter::new(100, Duration::from_secs(60), 2);
+        let llm_endpoint_rate_limiter = AuthRateLimiter::new(120, Duration::from_secs(60), 10_000);
         let policy_signer = PolicySigner::load_or_generate(&config.policy_signing_key_path)?;
         let secret_cipher = match config.encryption_key.as_ref() {
             Some(encoded) => SecretCipher::from_encoded_key(encoded.expose_secret())?,
@@ -53,6 +55,7 @@ impl AppState {
             secret_cipher: Arc::new(secret_cipher),
             auth_rate_limiter,
             auth_endpoint_rate_limiter,
+            llm_endpoint_rate_limiter,
         })
     }
 }

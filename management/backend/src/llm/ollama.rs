@@ -25,16 +25,7 @@ impl LlmProviderAdapter for OllamaAdapter {
     ) -> Pin<Box<dyn Future<Output = Result<OpenedProviderStream, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
-            let mut body = json!({
-                "model": route.model,
-                "messages": request.messages,
-                "stream": true,
-                "think": request.think,
-            });
-            if !request.tools.is_empty() {
-                body["tools"] =
-                    serde_json::to_value(request.tools).map_err(|_| ProviderError::Unavailable)?;
-            }
+            let body = build_body(&route.model, request)?;
             let mut builder = route
                 .endpoint
                 .request(reqwest::Method::POST, "api/chat")
@@ -80,6 +71,21 @@ impl LlmProviderAdapter for OllamaAdapter {
     }
 }
 
+fn build_body(model: &str, request: NormalizedProviderRequest) -> Result<Value, ProviderError> {
+    let mut body = json!({
+        "model": model,
+        "messages": request.messages,
+        "stream": true,
+        "think": request.think,
+        "options": {"num_predict": request.max_output_tokens},
+    });
+    if !request.tools.is_empty() {
+        body["tools"] =
+            serde_json::to_value(request.tools).map_err(|_| ProviderError::Unavailable)?;
+    }
+    Ok(body)
+}
+
 #[derive(Default)]
 struct NdjsonDecoder {
     bytes: Vec<u8>,
@@ -89,9 +95,6 @@ struct NdjsonDecoder {
 impl NdjsonDecoder {
     fn push(&mut self, chunk: &[u8]) -> Result<Vec<Bytes>, ProviderError> {
         self.bytes.extend_from_slice(chunk);
-        if self.bytes.len() > MAX_FRAME_BYTES {
-            return Err(ProviderError::ResponseTooLarge);
-        }
         let mut frames = Vec::new();
         while let Some(newline) = self.bytes.iter().position(|byte| *byte == b'\n') {
             let mut line = self.bytes.drain(..=newline).collect::<Vec<_>>();
@@ -106,6 +109,9 @@ impl NdjsonDecoder {
                 self.bytes.clear();
                 break;
             }
+        }
+        if self.bytes.len() > MAX_FRAME_BYTES {
+            return Err(ProviderError::ResponseTooLarge);
         }
         Ok(frames)
     }
@@ -204,7 +210,9 @@ fn normalize_tool_calls(calls: &[Value]) -> Result<Vec<Value>, ProviderError> {
 
 #[cfg(test)]
 mod tests {
-    use super::NdjsonDecoder;
+    use crate::llm::provider::{GatewayMessage, NormalizedProviderRequest};
+
+    use super::{build_body, NdjsonDecoder};
 
     #[test]
     fn normalizes_fragmented_ollama_content_tools_metrics_and_done() {
@@ -233,5 +241,37 @@ mod tests {
         assert!(decoder.push(b"{\"error\":\"secret body\"}\n").is_err());
         let mut decoder = NdjsonDecoder::default();
         assert!(decoder.push(b"not json\n").is_err());
+    }
+
+    #[test]
+    fn coalesced_transport_chunk_with_many_small_lines_is_not_a_large_frame() {
+        let line = "{\"message\":{\"content\":\"x\"},\"done\":false}\n";
+        let input = line.repeat((super::MAX_FRAME_BYTES / line.len()) + 100);
+        let mut decoder = NdjsonDecoder::default();
+        assert!(decoder.push(input.as_bytes()).unwrap().len() > 100);
+    }
+
+    #[test]
+    fn request_body_enforces_reserved_output_limit() {
+        let body = build_body(
+            "model",
+            NormalizedProviderRequest {
+                messages: vec![GatewayMessage {
+                    role: "user".into(),
+                    content: "hi".into(),
+                    tool_calls: None,
+                    tool_call_id: None,
+                }],
+                tools: Vec::new(),
+                think: false,
+                max_output_tokens: 4096,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            body.pointer("/options/num_predict")
+                .and_then(serde_json::Value::as_u64),
+            Some(4096)
+        );
     }
 }

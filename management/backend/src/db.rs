@@ -69,10 +69,11 @@ mod tests {
     #[tokio::test]
     async fn identity_schema_separates_lifecycle_type_and_root_marker() {
         let pool = connect_test_database().await.unwrap();
-        let columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_info('users')")
-            .fetch_all(&pool)
-            .await
-            .unwrap();
+        let columns: Vec<String> =
+            sqlx::query_scalar("SELECT name FROM pragma_table_info('users')")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
 
         assert!(columns.contains(&"identity_type".to_string()));
         assert!(columns.contains(&"is_root".to_string()));
@@ -106,8 +107,20 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id = 'prior-user'").fetch_one(&pool).await.unwrap(), 1);
-        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id = 'prior-group'").fetch_one(&pool).await.unwrap(), 1);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id = 'prior-user'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id = 'prior-group'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
         for object in [
             "llm_providers",
             "llm_models",
@@ -117,7 +130,15 @@ mod tests {
             "llm_providers_identity_immutable",
             "provider_price_versions_current_idx",
         ] {
-            assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name = ?").bind(object).fetch_one(&pool).await.unwrap(), 1, "{object}");
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name = ?")
+                    .bind(object)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                1,
+                "{object}"
+            );
         }
     }
 
@@ -141,11 +162,67 @@ mod tests {
         }
         sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES ('prior-user', 'prior@test.invalid', 'prior@test.invalid', 'Prior', 'active', 'admin', 1, 1, 1)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('prior-group', NULL, 'Prior School', 'prior-school', 'active', 1)").execute(&pool).await.unwrap();
-        sqlx::raw_sql(include_str!("../migrations/0008_llm_quotas.sql")).execute(&pool).await.unwrap();
-        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id = 'prior-user'").fetch_one(&pool).await.unwrap(), 1);
-        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id = 'prior-group'").fetch_one(&pool).await.unwrap(), 1);
-        for object in ["school_quota_calendar_versions", "school_quota_period_instances", "school_quota_period_instances_building_only", "school_quota_calendar_versions_finalize", "quota_definitions", "quota_reservations", "quota_reservation_scopes", "quota_definition_periods", "quota_definition_periods_authoritative_insert", "quota_reservation_periods", "usage_ledger", "usage_ledger_immutable_update", "quota_reservation_scope_group_ancestry", "quota_reservations_lifecycle", "usage_ledger_snapshot_match", "school_quota_calendars_active_accounting_guard"] {
-            assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name = ?").bind(object).fetch_one(&pool).await.unwrap(), 1, "{object}");
+        sqlx::raw_sql(include_str!("../migrations/0008_llm_quotas.sql"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id = 'prior-user'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id = 'prior-group'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        for object in [
+            "school_quota_calendar_versions",
+            "school_quota_period_instances",
+            "school_quota_period_instances_building_only",
+            "school_quota_calendar_versions_finalize",
+            "quota_definitions",
+            "quota_reservations",
+            "quota_reservation_scopes",
+            "quota_definition_periods",
+            "quota_definition_periods_authoritative_insert",
+            "quota_reservation_periods",
+            "usage_ledger",
+            "usage_ledger_immutable_update",
+            "quota_reservation_scope_group_ancestry",
+            "quota_reservations_lifecycle",
+            "usage_ledger_snapshot_match",
+            "school_quota_calendars_active_accounting_guard",
+        ] {
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name = ?")
+                    .bind(object)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                1,
+                "{object}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn llm_gateway_lifecycle_schema_is_durable() {
+        let pool = connect_test_database().await.unwrap();
+        for object in ["llm_gateway_reservations", "llm_gateway_leases"] {
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name = ?")
+                    .bind(object)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                1,
+                "{object}"
+            );
         }
     }
 }

@@ -7,7 +7,8 @@ use sqlx::{Row, Sqlite, Transaction};
 use crate::{
     error::AppError,
     policy::model::{
-        FeatureRule, LlmPolicy, PolicyAncestryEntry, PolicyDocument, QuotaRule, SettingRule,
+        default_max_concurrent_streams, default_requests_per_minute, FeatureRule, LlmPolicy,
+        PolicyAncestryEntry, PolicyDocument, QuotaRule, SettingRule,
     },
 };
 
@@ -129,6 +130,8 @@ async fn compile_with_candidate_in_transaction(
     let mut features = BTreeMap::new();
     let mut llm = LlmPolicy {
         enabled: false,
+        requests_per_minute: default_requests_per_minute(),
+        max_concurrent_streams: default_max_concurrent_streams(),
         allowed_providers: Vec::new(),
         allowed_models: Vec::new(),
         prompt_profile_id: None,
@@ -173,6 +176,14 @@ async fn compile_with_candidate_in_transaction(
             if let Some(enabled) = draft_llm.enabled {
                 llm.enabled = enabled;
                 provenance.insert("llm.enabled".into(), definition.provenance());
+            }
+            if let Some(limit) = draft_llm.requests_per_minute {
+                llm.requests_per_minute = llm.requests_per_minute.min(limit);
+                provenance.insert("llm.requestsPerMinute".into(), definition.provenance());
+            }
+            if let Some(limit) = draft_llm.max_concurrent_streams {
+                llm.max_concurrent_streams = llm.max_concurrent_streams.min(limit);
+                provenance.insert("llm.maxConcurrentStreams".into(), definition.provenance());
             }
             merge_allowlist(
                 &mut provider_limit,

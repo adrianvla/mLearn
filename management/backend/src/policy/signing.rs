@@ -166,6 +166,8 @@ mod tests {
             features: BTreeMap::new(),
             llm: LlmPolicy {
                 enabled: false,
+                requests_per_minute: 60,
+                max_concurrent_streams: 4,
                 allowed_providers: Vec::new(),
                 allowed_models: Vec::new(),
                 prompt_profile_id: None,

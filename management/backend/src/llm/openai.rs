@@ -29,6 +29,7 @@ impl LlmProviderAdapter for OpenAiAdapter {
                 "model": route.model,
                 "messages": request.messages,
                 "stream": true,
+                "max_tokens": request.max_output_tokens,
             });
             if !request.tools.is_empty() {
                 body["tools"] =
@@ -104,9 +105,6 @@ struct SseDecoder {
 impl SseDecoder {
     fn push(&mut self, chunk: &[u8]) -> Result<Vec<Bytes>, ProviderError> {
         self.bytes.extend_from_slice(chunk);
-        if self.bytes.len() > MAX_FRAME_BYTES {
-            return Err(ProviderError::ResponseTooLarge);
-        }
         let mut frames = Vec::new();
         while let Some(newline) = self.bytes.iter().position(|byte| *byte == b'\n') {
             let mut line = self.bytes.drain(..=newline).collect::<Vec<_>>();
@@ -119,6 +117,9 @@ impl SseDecoder {
                 self.bytes.clear();
                 break;
             }
+        }
+        if self.bytes.len() > MAX_FRAME_BYTES {
+            return Err(ProviderError::ResponseTooLarge);
         }
         Ok(frames)
     }
@@ -298,6 +299,7 @@ mod tests {
             }],
             tools: Vec::new(),
             think: false,
+            max_output_tokens: 4096,
         }
     }
 
@@ -351,6 +353,14 @@ mod tests {
         assert_eq!(output, "data: {\"choices\":[{\"delta\":{}}]}\n\n");
     }
 
+    #[test]
+    fn coalesced_transport_chunk_with_many_small_frames_is_not_a_large_frame() {
+        let frame = "data: {\"choices\":[{\"delta\":{}}]}\n\n";
+        let input = frame.repeat((super::MAX_FRAME_BYTES / frame.len()) + 100);
+        let mut decoder = SseDecoder::default();
+        assert!(decoder.push(input.as_bytes()).unwrap().len() > 100);
+    }
+
     #[tokio::test]
     async fn pinned_adapter_posts_expected_path_and_preserves_exact_frames() {
         let body = "data: {\"choices\":[{\"delta\":{\"content\":\"Hallo\"}}]}\n\ndata: [DONE]\n\n";
@@ -367,6 +377,7 @@ mod tests {
         let received = server.await.unwrap();
         assert!(received.starts_with("POST /chat/completions HTTP/1.1\r\n"));
         assert!(received.contains("\"model\":\"upstream-model\""));
+        assert!(received.contains("\"max_tokens\":4096"));
     }
 
     #[tokio::test]
