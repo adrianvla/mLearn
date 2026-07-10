@@ -63,6 +63,7 @@ pub struct SchoolQuotaCalendar {
     pub timezone: String,
     pub term_starts_at: i64,
     pub term_ends_at: i64,
+    pub version: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -155,6 +156,7 @@ pub struct QuotaService {
 struct ApplicableDefinition {
     definition: QuotaDefinition,
     interval: (i64, i64),
+    calendar_version: i64,
 }
 
 struct GovernedRequirement {
@@ -198,8 +200,88 @@ impl QuotaService {
         self.authorization
             .require_in_transaction(&mut tx, principal, root_group_id, Capability::LlmConfigure)
             .await?;
-        sqlx::query("INSERT INTO school_quota_calendars (root_group_id, timezone, term_starts_at, term_ends_at, updated_by_user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(root_group_id) DO UPDATE SET timezone = excluded.timezone, term_starts_at = excluded.term_starts_at, term_ends_at = excluded.term_ends_at, updated_by_user_id = excluded.updated_by_user_id, updated_at = excluded.updated_at")
-            .bind(root_group_id).bind(timezone).bind(term_starts_at).bind(term_ends_at).bind(&principal.user_id).bind(now()).execute(&mut *tx).await.map_err(database_error)?;
+        let timestamp = now();
+        let existing = sqlx::query("SELECT timezone, term_starts_at, term_ends_at, version, pending_timezone, pending_term_starts_at, pending_term_ends_at, pending_effective_at, pending_version FROM school_quota_calendars WHERE root_group_id = ?")
+            .bind(root_group_id).fetch_optional(&mut *tx).await.map_err(database_error)?;
+        let calendar = if let Some(row) = existing {
+            let pending_is_active = row
+                .get::<Option<i64>, _>("pending_effective_at")
+                .is_some_and(|effective_at| effective_at <= timestamp);
+            let current = SchoolQuotaCalendar {
+                root_group_id: root_group_id.to_string(),
+                timezone: if pending_is_active {
+                    row.get::<Option<String>, _>("pending_timezone")
+                        .expect("complete pending calendar")
+                } else {
+                    row.get("timezone")
+                },
+                term_starts_at: if pending_is_active {
+                    row.get::<Option<i64>, _>("pending_term_starts_at")
+                        .expect("complete pending calendar")
+                } else {
+                    row.get("term_starts_at")
+                },
+                term_ends_at: if pending_is_active {
+                    row.get::<Option<i64>, _>("pending_term_ends_at")
+                        .expect("complete pending calendar")
+                } else {
+                    row.get("term_ends_at")
+                },
+                version: if pending_is_active {
+                    row.get::<Option<i64>, _>("pending_version")
+                        .expect("complete pending calendar")
+                } else {
+                    row.get("version")
+                },
+            };
+            if pending_is_active {
+                sqlx::query("UPDATE school_quota_calendars SET timezone = ?, term_starts_at = ?, term_ends_at = ?, version = ?, pending_timezone = NULL, pending_term_starts_at = NULL, pending_term_ends_at = NULL, pending_effective_at = NULL, pending_version = NULL WHERE root_group_id = ?")
+                    .bind(&current.timezone).bind(current.term_starts_at).bind(current.term_ends_at).bind(current.version).bind(root_group_id).execute(&mut *tx).await.map_err(database_error)?;
+            }
+            if current.timezone == timezone
+                && current.term_starts_at == term_starts_at
+                && current.term_ends_at == term_ends_at
+            {
+                current
+            } else if term_starts_at > timestamp {
+                let next_version = current
+                    .version
+                    .checked_add(1)
+                    .ok_or_else(|| AppError::Conflict("quota calendar version overflow".into()))?;
+                sqlx::query("UPDATE school_quota_calendars SET pending_timezone = ?, pending_term_starts_at = ?, pending_term_ends_at = ?, pending_effective_at = ?, pending_version = ?, updated_by_user_id = ?, updated_at = ? WHERE root_group_id = ?")
+                    .bind(timezone).bind(term_starts_at).bind(term_ends_at).bind(term_starts_at).bind(next_version).bind(&principal.user_id).bind(timestamp).bind(root_group_id).execute(&mut *tx).await.map_err(database_error)?;
+                current
+            } else {
+                let accounted: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id = ? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id) SELECT EXISTS(SELECT 1 FROM quota_reservations reservation JOIN descendants d ON d.id = reservation.direct_group_id WHERE reservation.accounting_at >= ? AND reservation.accounting_at < ?)")
+                    .bind(root_group_id).bind(current.term_starts_at).bind(current.term_ends_at).fetch_one(&mut *tx).await.map_err(database_error)?;
+                if accounted == 1 {
+                    return Err(AppError::Conflict("active quota calendar cannot change after accounting has begun; schedule a future term instead".into()));
+                }
+                let next_version = current
+                    .version
+                    .checked_add(1)
+                    .ok_or_else(|| AppError::Conflict("quota calendar version overflow".into()))?;
+                sqlx::query("UPDATE school_quota_calendars SET timezone = ?, term_starts_at = ?, term_ends_at = ?, version = ?, pending_timezone = NULL, pending_term_starts_at = NULL, pending_term_ends_at = NULL, pending_effective_at = NULL, pending_version = NULL, updated_by_user_id = ?, updated_at = ? WHERE root_group_id = ?")
+                    .bind(timezone).bind(term_starts_at).bind(term_ends_at).bind(next_version).bind(&principal.user_id).bind(timestamp).bind(root_group_id).execute(&mut *tx).await.map_err(database_error)?;
+                SchoolQuotaCalendar {
+                    root_group_id: root_group_id.to_string(),
+                    timezone: timezone.to_string(),
+                    term_starts_at,
+                    term_ends_at,
+                    version: next_version,
+                }
+            }
+        } else {
+            sqlx::query("INSERT INTO school_quota_calendars (root_group_id, timezone, term_starts_at, term_ends_at, version, updated_by_user_id, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)")
+                .bind(root_group_id).bind(timezone).bind(term_starts_at).bind(term_ends_at).bind(&principal.user_id).bind(timestamp).execute(&mut *tx).await.map_err(database_error)?;
+            SchoolQuotaCalendar {
+                root_group_id: root_group_id.to_string(),
+                timezone: timezone.to_string(),
+                term_starts_at,
+                term_ends_at,
+                version: 1,
+            }
+        };
         audit(
             &mut tx,
             principal,
@@ -209,12 +291,7 @@ impl QuotaService {
         )
         .await?;
         tx.commit().await.map_err(database_error)?;
-        Ok(SchoolQuotaCalendar {
-            root_group_id: root_group_id.into(),
-            timezone: timezone.into(),
-            term_starts_at,
-            term_ends_at,
-        })
+        Ok(calendar)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -350,11 +427,7 @@ impl QuotaService {
                 )
                 .await?;
             if !source_visible {
-                definition.id = format!(
-                    "inherited:{}:{}",
-                    definition.metric.as_str(),
-                    definition.period.as_str()
-                );
+                definition.id = hidden_inherited_id(group_id, &definition.id);
                 definition.owner_group_id = group_id.to_string();
                 definition.subject_id = group_id.to_string();
                 definition.source_visible = false;
@@ -479,7 +552,7 @@ impl QuotaService {
                 "LLM access requires a published governed quota policy".into(),
             ));
         }
-        let calendar = load_calendar(&mut tx, &request.active_group_id).await?;
+        let calendar = load_calendar(&mut tx, &request.active_group_id, timestamp).await?;
         let definitions = load_applicable_definitions(
             &mut tx,
             &request.active_group_id,
@@ -840,14 +913,48 @@ async fn require_price_route(
 async fn load_calendar(
     tx: &mut Transaction<'_, Sqlite>,
     group: &str,
+    timestamp: i64,
 ) -> Result<SchoolQuotaCalendar, AppError> {
     let row = sqlx::query("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT p.id, p.parent_id FROM groups p JOIN ancestors c ON c.parent_id = p.id WHERE p.status = 'active') SELECT c.* FROM school_quota_calendars c JOIN ancestors a ON a.id = c.root_group_id WHERE a.parent_id IS NULL")
         .bind(group).fetch_optional(&mut **tx).await.map_err(database_error)?.ok_or_else(|| AppError::Forbidden("school quota calendar is not configured".into()))?;
     let result = SchoolQuotaCalendar {
         root_group_id: row.get("root_group_id"),
-        timezone: row.get("timezone"),
-        term_starts_at: row.get("term_starts_at"),
-        term_ends_at: row.get("term_ends_at"),
+        timezone: if row
+            .get::<Option<i64>, _>("pending_effective_at")
+            .is_some_and(|value| value <= timestamp)
+        {
+            row.get::<Option<String>, _>("pending_timezone")
+                .ok_or_else(|| AppError::Internal("incomplete pending school calendar".into()))?
+        } else {
+            row.get("timezone")
+        },
+        term_starts_at: if row
+            .get::<Option<i64>, _>("pending_effective_at")
+            .is_some_and(|value| value <= timestamp)
+        {
+            row.get::<Option<i64>, _>("pending_term_starts_at")
+                .ok_or_else(|| AppError::Internal("incomplete pending school calendar".into()))?
+        } else {
+            row.get("term_starts_at")
+        },
+        term_ends_at: if row
+            .get::<Option<i64>, _>("pending_effective_at")
+            .is_some_and(|value| value <= timestamp)
+        {
+            row.get::<Option<i64>, _>("pending_term_ends_at")
+                .ok_or_else(|| AppError::Internal("incomplete pending school calendar".into()))?
+        } else {
+            row.get("term_ends_at")
+        },
+        version: if row
+            .get::<Option<i64>, _>("pending_effective_at")
+            .is_some_and(|value| value <= timestamp)
+        {
+            row.get::<Option<i64>, _>("pending_version")
+                .ok_or_else(|| AppError::Internal("incomplete pending school calendar".into()))?
+        } else {
+            row.get("version")
+        },
     };
     Tz::from_str(&result.timezone)
         .map_err(|_| AppError::Internal("stored school timezone is invalid".into()))?;
@@ -869,6 +976,7 @@ async fn load_applicable_definitions(
         definitions.push(ApplicableDefinition {
             interval: interval_for(definition.period, timestamp, calendar)?,
             definition,
+            calendar_version: calendar.version,
         });
     }
     Ok(definitions)
@@ -1007,8 +1115,10 @@ async fn snapshot_accounting_periods(
                     .bind(reservation_id).bind(scope.scope_kind.as_str()).bind(&scope.scope_id).bind(metric.as_str()).bind(accounting_at).bind(event_end).execute(&mut **tx).await.map_err(database_error)?;
             } else {
                 for (index, item) in matching.into_iter().enumerate() {
-                    sqlx::query("INSERT INTO quota_reservation_periods (reservation_id, scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at, limit_value, definition_id, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                        .bind(reservation_id).bind(scope.scope_kind.as_str()).bind(&scope.scope_id).bind(metric.as_str()).bind(item.definition.period.as_str()).bind(item.interval.0).bind(item.interval.1).bind(item.definition.limit).bind(&item.definition.id).bind(i64::from(index == 0)).execute(&mut **tx).await.map_err(database_error)?;
+                    sqlx::query("INSERT OR IGNORE INTO quota_definition_periods (definition_id, calendar_version, quota_period, period_starts_at, period_ends_at, limit_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                        .bind(&item.definition.id).bind(item.calendar_version).bind(item.definition.period.as_str()).bind(item.interval.0).bind(item.interval.1).bind(item.definition.limit).bind(accounting_at).execute(&mut **tx).await.map_err(database_error)?;
+                    sqlx::query("INSERT INTO quota_reservation_periods (reservation_id, scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at, limit_value, definition_id, calendar_version, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                        .bind(reservation_id).bind(scope.scope_kind.as_str()).bind(&scope.scope_id).bind(metric.as_str()).bind(item.definition.period.as_str()).bind(item.interval.0).bind(item.interval.1).bind(item.definition.limit).bind(&item.definition.id).bind(item.calendar_version).bind(i64::from(index == 0)).execute(&mut **tx).await.map_err(database_error)?;
                 }
             }
         }
@@ -1057,6 +1167,31 @@ async fn sum_open_reservations(
 ) -> Result<i64, AppError> {
     let values: Vec<i64> = sqlx::query_scalar("SELECT metric.reserved_value FROM quota_reservations reservation JOIN quota_reservation_periods period ON period.reservation_id = reservation.id JOIN quota_reservation_metrics metric ON metric.reservation_id = reservation.id AND metric.metric = period.metric WHERE reservation.status = 'open' AND reservation.expires_at > ? AND period.scope_kind = ? AND period.scope_id = ? AND period.metric = ? AND period.quota_period = ? AND period.period_starts_at = ? AND period.period_ends_at = ?")
         .bind(timestamp).bind(item.definition.subject_kind.as_str()).bind(&item.definition.subject_id).bind(item.definition.metric.as_str()).bind(item.definition.period.as_str()).bind(start).bind(end).fetch_all(&mut **tx).await.map_err(database_error)?;
+    checked_sum(values)
+}
+
+async fn sum_visible_subtree_usage(
+    tx: &mut Transaction<'_, Sqlite>,
+    item: &ApplicableDefinition,
+    visible_group: &str,
+    start: i64,
+    end: i64,
+) -> Result<i64, AppError> {
+    let values: Vec<i64> = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id = ? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id) SELECT ledger.value FROM usage_ledger ledger JOIN descendants d ON d.id = ledger.direct_group_id WHERE ledger.scope_kind = ? AND ledger.scope_id = ? AND ledger.metric = ? AND ledger.quota_period = ? AND ledger.period_starts_at = ? AND ledger.period_ends_at = ?")
+        .bind(visible_group).bind(item.definition.subject_kind.as_str()).bind(&item.definition.subject_id).bind(item.definition.metric.as_str()).bind(item.definition.period.as_str()).bind(start).bind(end).fetch_all(&mut **tx).await.map_err(database_error)?;
+    checked_sum(values)
+}
+
+async fn sum_visible_subtree_reservations(
+    tx: &mut Transaction<'_, Sqlite>,
+    item: &ApplicableDefinition,
+    visible_group: &str,
+    start: i64,
+    end: i64,
+    timestamp: i64,
+) -> Result<i64, AppError> {
+    let values: Vec<i64> = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id = ? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id) SELECT metric.reserved_value FROM quota_reservations reservation JOIN descendants d ON d.id = reservation.direct_group_id JOIN quota_reservation_periods period ON period.reservation_id = reservation.id JOIN quota_reservation_metrics metric ON metric.reservation_id = reservation.id AND metric.metric = period.metric WHERE reservation.status = 'open' AND reservation.expires_at > ? AND period.scope_kind = ? AND period.scope_id = ? AND period.metric = ? AND period.quota_period = ? AND period.period_starts_at = ? AND period.period_ends_at = ?")
+        .bind(visible_group).bind(timestamp).bind(item.definition.subject_kind.as_str()).bind(&item.definition.subject_id).bind(item.definition.metric.as_str()).bind(item.definition.period.as_str()).bind(start).bind(end).fetch_all(&mut **tx).await.map_err(database_error)?;
     checked_sum(values)
 }
 
@@ -1131,10 +1266,10 @@ async fn summary_in_transaction(
     if let Some(cursor) = cursor {
         Uuid::parse_str(cursor).map_err(|_| AppError::BadRequest("invalid usage cursor".into()))?;
     }
-    let calendar = load_calendar(tx, group).await?;
+    let timestamp = now();
+    let calendar = load_calendar(tx, group, timestamp).await?;
     let definition_rows = sqlx::query("WITH RECURSIVE ancestors(id, parent_id, depth) AS (SELECT id, parent_id, 0 FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT p.id, p.parent_id, c.depth + 1 FROM groups p JOIN ancestors c ON c.parent_id = p.id WHERE p.status = 'active') SELECT q.* FROM quota_definitions q JOIN ancestors a ON a.id = q.owner_group_id WHERE q.status = 'active' AND ((q.subject_kind = 'group' AND q.subject_id = q.owner_group_id) OR (q.subject_kind = 'user' AND q.owner_group_id = ? AND (? IS NULL OR q.subject_id = ?))) ORDER BY a.depth DESC, q.metric, q.period, q.id")
         .bind(group).bind(group).bind(learner).bind(learner).fetch_all(&mut **tx).await.map_err(database_error)?;
-    let timestamp = now();
     let mut buckets = Vec::new();
     for row in definition_rows {
         let definition = definition_from_row(row)?;
@@ -1142,10 +1277,8 @@ async fn summary_in_transaction(
         let item = ApplicableDefinition {
             definition,
             interval,
+            calendar_version: calendar.version,
         };
-        let used = sum_usage(tx, &item, interval.0, interval.1).await?;
-        let reserved = sum_open_reservations(tx, &item, interval.0, interval.1, timestamp).await?;
-        let consumed = checked_add(used, reserved)?;
         let inherited = item.definition.owner_group_id != group;
         let source_visible = !inherited
             || has_capability_in_transaction(
@@ -1155,6 +1288,21 @@ async fn summary_in_transaction(
                 Capability::AnalyticsView,
             )
             .await?;
+        let (used, reserved) = if inherited && !source_visible {
+            (
+                sum_visible_subtree_usage(tx, &item, group, interval.0, interval.1).await?,
+                sum_visible_subtree_reservations(
+                    tx, &item, group, interval.0, interval.1, timestamp,
+                )
+                .await?,
+            )
+        } else {
+            (
+                sum_usage(tx, &item, interval.0, interval.1).await?,
+                sum_open_reservations(tx, &item, interval.0, interval.1, timestamp).await?,
+            )
+        };
+        let consumed = checked_add(used, reserved)?;
         buckets.push(UsageBucket {
             scope_kind: item.definition.subject_kind,
             scope_id: if source_visible {
@@ -1353,6 +1501,11 @@ fn fingerprint(parts: &[&str]) -> Vec<u8> {
     }
     h.finalize().to_vec()
 }
+
+fn hidden_inherited_id(target_group_id: &str, definition_id: &str) -> String {
+    let digest = fingerprint(&["hidden-inherited-quota-v1", target_group_id, definition_id]);
+    format!("inherited-{}", &hex::encode(digest)[..24])
+}
 fn fingerprint_request(
     request: &ReserveQuotaRequest,
     amounts: &BTreeMap<QuotaMetric, i64>,
@@ -1465,6 +1618,7 @@ mod tests {
             timezone: "Europe/Zurich".into(),
             term_starts_at: 1,
             term_ends_at: MAX_SAFE_INTEGER,
+            version: 1,
         };
         let march = chrono::DateTime::parse_from_rfc3339("2026-03-29T12:00:00Z")
             .unwrap()
@@ -1664,6 +1818,33 @@ mod tests {
         .execute(&pool)
         .await
         .is_err());
+        sqlx::query("INSERT INTO quota_reservations (id, request_id, learner_user_id, direct_group_id, provider_id, model_id, price_version_id, payload_hash, status, expires_at, accounting_at, created_at) VALUES ('omits-cost', 'omits-cost', 'learner', 'class', 'provider', 'model', 'price', X'01', 'building', 9999999999, 2, 2)").execute(&pool).await.unwrap();
+        for (kind, id, depth) in [
+            ("user", "learner", 0),
+            ("group", "class", 0),
+            ("group", "school", 1),
+        ] {
+            sqlx::query("INSERT INTO quota_reservation_scopes (reservation_id, scope_kind, scope_id, depth) VALUES ('omits-cost', ?, ?, ?)").bind(kind).bind(id).bind(depth).execute(&pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO quota_reservation_metrics (reservation_id, metric, reserved_value, required) VALUES ('omits-cost', 'requests', 1, 1)").execute(&pool).await.unwrap();
+        for (kind, id) in [("user", "learner"), ("group", "class"), ("group", "school")] {
+            sqlx::query("INSERT INTO quota_reservation_periods (reservation_id, scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at, limit_value, definition_id, calendar_version, is_primary) VALUES ('omits-cost', ?, ?, 'requests', 'event', 2, 3, NULL, NULL, NULL, 1)").bind(kind).bind(id).execute(&pool).await.unwrap();
+        }
+        assert!(sqlx::query(
+            "UPDATE quota_reservations SET status = 'open', finalized = 1 WHERE id = 'omits-cost'"
+        )
+        .execute(&pool)
+        .await
+        .is_err());
+        let contract = sqlx::query("SELECT calendar_version, quota_period, period_starts_at, period_ends_at, limit_value FROM quota_definition_periods WHERE definition_id = 'root-cost' LIMIT 1").fetch_one(&pool).await.unwrap();
+        sqlx::query("INSERT INTO quota_reservations (id, request_id, learner_user_id, direct_group_id, provider_id, model_id, price_version_id, payload_hash, status, expires_at, accounting_at, created_at) VALUES ('forged-period', 'forged-period', 'learner', 'class', 'provider', 'model', 'price', X'02', 'building', 9999999999, 2, 2)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO quota_reservation_metrics (reservation_id, metric, reserved_value, required) VALUES ('forged-period', 'costMicros', 1, 1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO quota_reservation_scopes (reservation_id, scope_kind, scope_id, depth) VALUES ('forged-period', 'group', 'school', 1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO quota_reservation_scopes (reservation_id, scope_kind, scope_id, depth) VALUES ('forged-period', 'group', 'class', 0)").execute(&pool).await.unwrap();
+        assert!(sqlx::query("INSERT INTO quota_reservation_periods (reservation_id, scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at, limit_value, definition_id, calendar_version, is_primary) VALUES ('forged-period', 'group', 'school', 'costMicros', ?, ?, ?, ?, 'root-cost', ?, 1)")
+            .bind(contract.get::<String,_>("quota_period")).bind(contract.get::<i64,_>("period_starts_at") + 1).bind(contract.get::<i64,_>("period_ends_at")).bind(contract.get::<i64,_>("limit_value")).bind(contract.get::<i64,_>("calendar_version")).execute(&pool).await.is_err());
+        assert!(sqlx::query("INSERT INTO quota_reservation_periods (reservation_id, scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at, limit_value, definition_id, calendar_version, is_primary) VALUES ('forged-period', 'group', 'class', 'costMicros', ?, ?, ?, ?, 'root-cost', ?, 1)")
+            .bind(contract.get::<String,_>("quota_period")).bind(contract.get::<i64,_>("period_starts_at")).bind(contract.get::<i64,_>("period_ends_at")).bind(contract.get::<i64,_>("limit_value")).bind(contract.get::<i64,_>("calendar_version")).execute(&pool).await.is_err());
         let period = sqlx::query("SELECT scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at FROM quota_reservation_periods WHERE reservation_id = ? LIMIT 1")
             .bind(&reservation.id).fetch_one(&pool).await.unwrap();
         assert!(sqlx::query("INSERT INTO usage_ledger (id, reservation_id, scope_kind, scope_id, metric, value, period_starts_at, period_ends_at, quota_period, provider_id, model_id, price_version_id, learner_user_id, direct_group_id, created_at) VALUES ('forged-ledger', ?, ?, ?, ?, 1, ?, ?, ?, 'wrong-provider', 'model', 'price', 'learner', 'class', 2)")
@@ -1681,7 +1862,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("UPDATE school_quota_calendars SET timezone = 'America/New_York', term_starts_at = 2, term_ends_at = 9007199254740990 WHERE root_group_id = 'school'")
+        sqlx::query("UPDATE school_quota_calendars SET pending_timezone = 'America/New_York', pending_term_starts_at = 9007199254740000, pending_term_ends_at = 9007199254740990, pending_effective_at = 9007199254740000, pending_version = version + 1 WHERE root_group_id = 'school'")
             .execute(&pool).await.unwrap();
         sqlx::query("DELETE FROM school_quota_calendars WHERE root_group_id = 'school'")
             .execute(&pool)
@@ -1732,6 +1913,19 @@ mod tests {
             )
             .await
             .unwrap();
+        service
+            .upsert_definition(
+                &admin,
+                "school",
+                QuotaScopeKind::Group,
+                "school",
+                QuotaMetric::Requests,
+                QuotaPeriod::Daily,
+                100,
+                "root-requests",
+            )
+            .await
+            .unwrap();
         let child_document = serde_json::json!({"llm":{"enabled":true,"quotas":[{"metric":"costMicros","limit":500000,"period":"monthly","hard":true}]}}).to_string();
         sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES ('child-policy', 'class', ?, 'child-hash', 'child-compiled', 'admin', 'child governed', '[\"policy\"]', 2)").bind(child_document).execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES ('class', 'child-policy', 2)").execute(&pool).await.unwrap();
@@ -1753,6 +1947,20 @@ mod tests {
         next.request_id = "missing-root".into();
         next.amounts.insert("costMicros".into(), 100_000);
         service.reserve(&learner, request).await.unwrap();
+        let before_sibling = service
+            .usage_summary(&teacher, "class", None, 50)
+            .await
+            .unwrap();
+        let before_inherited = before_sibling
+            .buckets
+            .iter()
+            .find(|bucket| bucket.inherited && bucket.metric == QuotaMetric::CostMicros)
+            .unwrap();
+        let before_numbers = (
+            before_inherited.used,
+            before_inherited.reserved,
+            before_inherited.remaining,
+        );
         sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES ('learner-b', 'learner-b@test.invalid', 'learner-b@test.invalid', 'Learner B', 'active', 'learner', 0, 1, 1)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('class-b', 'school', 'Class B', 'class-b', 'active', 1)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('learner-b-membership', 'class-b', 'learner-b', 'active', 1)").execute(&pool).await.unwrap();
@@ -1793,6 +2001,15 @@ mod tests {
             matches!(service.reserve(&learner_b, aggregate_denied).await, Err(AppError::Conflict(message)) if message.contains("quota exceeded"))
         );
         let definitions = service.list_definitions(&teacher, "class").await.unwrap();
+        let hidden_ids = definitions
+            .iter()
+            .filter(|definition| definition.inherited && !definition.source_visible)
+            .map(|definition| definition.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(hidden_ids.len(), 2);
+        assert!(hidden_ids
+            .iter()
+            .all(|id| id.starts_with("inherited-") && !id.contains("root")));
         assert!(definitions.iter().any(|definition| definition.inherited
             && !definition.source_visible
             && definition.limit == 1_000_000
@@ -1801,6 +2018,20 @@ mod tests {
             .usage_summary(&teacher, "class", None, 50)
             .await
             .unwrap();
+        let after_inherited = summary
+            .buckets
+            .iter()
+            .find(|bucket| bucket.inherited && bucket.metric == QuotaMetric::CostMicros)
+            .unwrap();
+        assert_eq!(
+            before_numbers,
+            (
+                after_inherited.used,
+                after_inherited.reserved,
+                after_inherited.remaining,
+            ),
+            "sibling reservations must not change redacted inherited numerics"
+        );
         assert!(summary.buckets.iter().any(|bucket| bucket.inherited
             && !bucket.source_visible
             && bucket.limit == Some(1_000_000)
@@ -2035,6 +2266,45 @@ mod tests {
             summary.await.unwrap(),
             Err(AppError::Forbidden(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn active_calendar_change_cannot_reopen_filled_cap_and_future_term_is_pending() {
+        let (pool, service, learner, mut request) = quota_fixture(200_000).await;
+        service.reserve(&learner, request.clone()).await.unwrap();
+        let admin = admin_principal();
+        assert!(matches!(
+            service
+                .configure_calendar(&admin, "school", "America/New_York", 1, MAX_SAFE_INTEGER,)
+                .await,
+            Err(AppError::Conflict(_))
+        ));
+        assert!(sqlx::query("UPDATE school_quota_calendars SET timezone = 'Asia/Tokyo' WHERE root_group_id = 'school'")
+            .execute(&pool).await.is_err());
+        assert!(matches!(
+            service
+                .configure_calendar(&admin, "school", "Europe/Zurich", 2, MAX_SAFE_INTEGER - 1,)
+                .await,
+            Err(AppError::Conflict(_))
+        ));
+        let future_start = now() + 86_400;
+        let active = service
+            .configure_calendar(
+                &admin,
+                "school",
+                "America/New_York",
+                future_start,
+                future_start + 31 * 86_400,
+            )
+            .await
+            .unwrap();
+        assert_eq!(active.timezone, "Europe/Zurich");
+        assert_eq!(sqlx::query_scalar::<_, String>("SELECT pending_timezone FROM school_quota_calendars WHERE root_group_id = 'school'").fetch_one(&pool).await.unwrap(), "America/New_York");
+        request.request_id = "still-filled-after-calendar-attempt".into();
+        request.amounts.insert("costMicros".into(), 1);
+        assert!(
+            matches!(service.reserve(&learner, request).await, Err(AppError::Conflict(message)) if message.contains("quota exceeded"))
+        );
     }
 
     async fn quota_fixture(cap: i64) -> (SqlitePool, QuotaService, Principal, ReserveQuotaRequest) {

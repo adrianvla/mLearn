@@ -144,7 +144,7 @@ mod tests {
         sqlx::raw_sql(include_str!("../migrations/0008_llm_quotas.sql")).execute(&pool).await.unwrap();
         assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id = 'prior-user'").fetch_one(&pool).await.unwrap(), 1);
         assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id = 'prior-group'").fetch_one(&pool).await.unwrap(), 1);
-        for object in ["quota_definitions", "quota_reservations", "quota_reservation_scopes", "quota_reservation_periods", "usage_ledger", "usage_ledger_immutable_update", "quota_reservation_scope_group_ancestry", "quota_reservations_lifecycle", "usage_ledger_snapshot_match"] {
+        for object in ["quota_definitions", "quota_reservations", "quota_reservation_scopes", "quota_definition_periods", "quota_reservation_periods", "usage_ledger", "usage_ledger_immutable_update", "quota_reservation_scope_group_ancestry", "quota_reservations_lifecycle", "usage_ledger_snapshot_match", "school_quota_calendars_active_accounting_guard"] {
             assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name = ?").bind(object).fetch_one(&pool).await.unwrap(), 1, "{object}");
         }
     }

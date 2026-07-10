@@ -3,9 +3,17 @@ CREATE TABLE school_quota_calendars (
     timezone TEXT NOT NULL,
     term_starts_at INTEGER NOT NULL,
     term_ends_at INTEGER NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
+    pending_timezone TEXT,
+    pending_term_starts_at INTEGER,
+    pending_term_ends_at INTEGER,
+    pending_effective_at INTEGER,
+    pending_version INTEGER,
     updated_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     updated_at INTEGER NOT NULL,
-    CHECK (term_starts_at >= 0 AND term_ends_at > term_starts_at)
+    CHECK (term_starts_at >= 0 AND term_ends_at > term_starts_at),
+    CHECK ((pending_timezone IS NULL AND pending_term_starts_at IS NULL AND pending_term_ends_at IS NULL AND pending_effective_at IS NULL AND pending_version IS NULL)
+        OR (pending_timezone IS NOT NULL AND pending_term_starts_at IS NOT NULL AND pending_term_ends_at > pending_term_starts_at AND pending_effective_at = pending_term_starts_at AND pending_version > version))
 );
 
 CREATE TABLE quota_definitions (
@@ -62,6 +70,21 @@ CREATE TABLE quota_reservations (
 CREATE INDEX quota_reservations_open_expiry_idx
     ON quota_reservations(status, expires_at);
 
+CREATE TRIGGER school_quota_calendars_active_accounting_guard
+BEFORE UPDATE OF timezone, term_starts_at, term_ends_at ON school_quota_calendars
+WHEN (NEW.timezone != OLD.timezone OR NEW.term_starts_at != OLD.term_starts_at OR NEW.term_ends_at != OLD.term_ends_at)
+  AND NOT (OLD.pending_effective_at IS NOT NULL AND OLD.pending_effective_at <= unixepoch()
+    AND NEW.timezone = OLD.pending_timezone AND NEW.term_starts_at = OLD.pending_term_starts_at AND NEW.term_ends_at = OLD.pending_term_ends_at AND NEW.version = OLD.pending_version)
+BEGIN
+    SELECT CASE WHEN EXISTS (
+        WITH RECURSIVE descendants(id) AS (
+            SELECT id FROM groups WHERE id = OLD.root_group_id
+            UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id
+        ) SELECT 1 FROM quota_reservations reservation JOIN descendants d ON d.id = reservation.direct_group_id
+        WHERE reservation.accounting_at >= OLD.term_starts_at AND reservation.accounting_at < OLD.term_ends_at
+    ) THEN RAISE(ABORT, 'active quota calendar cannot change after accounting has begun') END;
+END;
+
 CREATE TABLE quota_reservation_metrics (
     reservation_id TEXT NOT NULL REFERENCES quota_reservations(id) ON DELETE RESTRICT,
     metric TEXT NOT NULL CHECK (metric IN ('requests', 'inputTokens', 'outputTokens', 'totalTokens', 'costMicros')),
@@ -78,6 +101,18 @@ CREATE TABLE quota_reservation_scopes (
     PRIMARY KEY (reservation_id, scope_kind, scope_id)
 );
 
+CREATE TABLE quota_definition_periods (
+    definition_id TEXT NOT NULL REFERENCES quota_definitions(id) ON DELETE RESTRICT,
+    calendar_version INTEGER NOT NULL CHECK (calendar_version > 0),
+    quota_period TEXT NOT NULL CHECK (quota_period IN ('daily', 'weekly', 'monthly', 'term')),
+    period_starts_at INTEGER NOT NULL,
+    period_ends_at INTEGER NOT NULL,
+    limit_value INTEGER NOT NULL CHECK (limit_value >= 0 AND limit_value <= 9007199254740991),
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (definition_id, calendar_version),
+    CHECK (period_ends_at > period_starts_at)
+);
+
 CREATE TABLE quota_reservation_periods (
     reservation_id TEXT NOT NULL REFERENCES quota_reservations(id) ON DELETE RESTRICT,
     scope_kind TEXT NOT NULL CHECK (scope_kind IN ('user', 'group')),
@@ -88,6 +123,7 @@ CREATE TABLE quota_reservation_periods (
     period_ends_at INTEGER NOT NULL,
     limit_value INTEGER CHECK (limit_value IS NULL OR (limit_value >= 0 AND limit_value <= 9007199254740991)),
     definition_id TEXT REFERENCES quota_definitions(id) ON DELETE RESTRICT,
+    calendar_version INTEGER,
     is_primary INTEGER NOT NULL CHECK (is_primary IN (0, 1)),
     PRIMARY KEY (reservation_id, scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at),
     FOREIGN KEY (reservation_id, scope_kind, scope_id)
@@ -266,6 +302,41 @@ BEGIN
         SELECT 1 FROM quota_reservation_periods p JOIN quota_reservation_metrics m ON m.reservation_id = p.reservation_id AND m.metric = p.metric
         WHERE p.reservation_id = NEW.id AND p.limit_value IS NOT NULL AND m.required != 1
     ) THEN RAISE(ABORT, 'governed reservation metric must be required') END;
+    SELECT CASE WHEN NEW.status = 'open' AND EXISTS (
+        SELECT 1 FROM quota_reservation_periods p WHERE p.reservation_id = NEW.id AND p.definition_id IS NOT NULL
+          AND p.calendar_version != (
+              WITH RECURSIVE ancestors(id, parent_id) AS (
+                  SELECT id, parent_id FROM groups WHERE id = NEW.direct_group_id
+                  UNION ALL SELECT g.id, g.parent_id FROM groups g JOIN ancestors a ON a.parent_id = g.id
+              ) SELECT CASE WHEN calendar.pending_effective_at IS NOT NULL AND calendar.pending_effective_at <= NEW.accounting_at THEN calendar.pending_version ELSE calendar.version END
+                FROM school_quota_calendars calendar JOIN ancestors a ON a.id = calendar.root_group_id WHERE a.parent_id IS NULL
+          )
+    ) THEN RAISE(ABORT, 'reservation period uses a stale calendar version') END;
+    SELECT CASE WHEN NEW.status = 'open' AND EXISTS (
+        WITH RECURSIVE ancestors(id, parent_id) AS (
+            SELECT id, parent_id FROM groups WHERE id = NEW.direct_group_id
+            UNION ALL SELECT g.id, g.parent_id FROM groups g JOIN ancestors a ON a.parent_id = g.id
+        ) SELECT 1 FROM quota_definitions q JOIN ancestors a ON a.id = q.owner_group_id
+        WHERE q.status = 'active'
+          AND ((q.subject_kind = 'group' AND q.subject_id = q.owner_group_id) OR (q.subject_kind = 'user' AND q.subject_id = NEW.learner_user_id))
+          AND NOT EXISTS (SELECT 1 FROM quota_reservation_periods p WHERE p.reservation_id = NEW.id AND p.definition_id = q.id AND p.metric = q.metric AND p.quota_period = q.period AND p.limit_value = q.limit_value)
+    ) THEN RAISE(ABORT, 'finalized reservation omits an active quota definition') END;
+    SELECT CASE WHEN NEW.status = 'open' AND EXISTS (
+        WITH RECURSIVE ancestors(id, parent_id) AS (
+            SELECT id, parent_id FROM groups WHERE id = NEW.direct_group_id
+            UNION ALL SELECT g.id, g.parent_id FROM groups g JOIN ancestors a ON a.parent_id = g.id
+        ) SELECT 1 FROM ancestors a
+        JOIN active_policies active ON active.group_id = a.id
+        JOIN policy_versions version ON version.id = active.policy_version_id,
+        json_each(version.document_json, '$.llm.quotas') rule
+        WHERE json_extract(rule.value, '$.hard') = 1
+          AND NOT EXISTS (
+              SELECT 1 FROM quota_definitions q JOIN quota_reservation_periods p ON p.definition_id = q.id AND p.reservation_id = NEW.id
+              WHERE q.status = 'active' AND q.owner_group_id = a.id AND q.subject_kind = 'group' AND q.subject_id = q.owner_group_id
+                AND q.metric = json_extract(rule.value, '$.metric') AND q.period = json_extract(rule.value, '$.period')
+                AND q.limit_value <= json_extract(rule.value, '$.limit')
+          )
+    ) THEN RAISE(ABORT, 'finalized reservation omits a governed policy quota') END;
     SELECT CASE WHEN NEW.status = 'reconciled' AND (NEW.reconcile_hash IS NULL OR
         (SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = NEW.id) !=
         (SELECT COUNT(*) FROM quota_reservation_periods WHERE reservation_id = NEW.id))
@@ -293,6 +364,26 @@ BEFORE INSERT ON quota_reservation_periods
 BEGIN
     SELECT CASE WHEN (SELECT status FROM quota_reservations WHERE id = NEW.reservation_id) != 'building'
         THEN RAISE(ABORT, 'reservation periods can only be inserted while building') END;
+    SELECT CASE WHEN NEW.definition_id IS NULL AND (
+        NEW.quota_period != 'event' OR NEW.limit_value IS NOT NULL OR NEW.calendar_version IS NOT NULL
+        OR NEW.period_starts_at != (SELECT accounting_at FROM quota_reservations WHERE id = NEW.reservation_id)
+        OR NEW.period_ends_at != (SELECT accounting_at + 1 FROM quota_reservations WHERE id = NEW.reservation_id)
+    ) THEN RAISE(ABORT, 'unmetered period does not match reservation event') END;
+    SELECT CASE WHEN NEW.definition_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM quota_definitions q JOIN quota_definition_periods contract ON contract.definition_id = q.id
+        WHERE q.id = NEW.definition_id AND q.status = 'active'
+          AND q.subject_kind = NEW.scope_kind AND q.subject_id = NEW.scope_id
+          AND q.metric = NEW.metric AND q.period = NEW.quota_period AND q.limit_value = NEW.limit_value
+          AND contract.calendar_version = NEW.calendar_version AND contract.quota_period = NEW.quota_period
+          AND contract.period_starts_at = NEW.period_starts_at AND contract.period_ends_at = NEW.period_ends_at AND contract.limit_value = NEW.limit_value
+    ) THEN RAISE(ABORT, 'metered period does not match active definition contract') END;
+END;
+
+CREATE TRIGGER quota_definition_periods_immutable_update BEFORE UPDATE ON quota_definition_periods BEGIN
+    SELECT RAISE(ABORT, 'quota definition periods are immutable');
+END;
+CREATE TRIGGER quota_definition_periods_immutable_delete BEFORE DELETE ON quota_definition_periods BEGIN
+    SELECT RAISE(ABORT, 'quota definition periods are immutable');
 END;
 
 CREATE TRIGGER quota_reservation_periods_immutable_update BEFORE UPDATE ON quota_reservation_periods BEGIN
