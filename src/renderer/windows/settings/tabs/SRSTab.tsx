@@ -151,6 +151,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.LearningLimits.NewDayHour.Label')}
           description={t('mlearn.Settings.SRS.LearningLimits.NewDayHour.Description')}
+          settingKey="newDayHour"
         >
           <input
             type="number"
@@ -206,6 +207,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.AnkiIntegration.Enable.Label')}
           description={t('mlearn.Settings.SRS.AnkiIntegration.Enable.Description')}
+          settingKey="use_anki"
         >
           <ToggleSwitch
             checked={settings.use_anki}
@@ -244,6 +246,7 @@ export const SRSTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.SRS.AnkiIntegration.DeckName.Label')}
             description={t('mlearn.Settings.SRS.AnkiIntegration.DeckName.Description')}
+            settingKey="flashcard_deck"
           >
             <Show when={ankiDecks().length > 0} fallback={
               <Input
@@ -446,6 +449,7 @@ export const SRSTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.SRS.AnkiIntegration.AddScreenshots.Label')}
             description={t('mlearn.Settings.SRS.AnkiIntegration.AddScreenshots.Description')}
+            settingKey="flashcards_add_picture"
           >
             <ToggleSwitch
               checked={settings.flashcards_add_picture}
@@ -460,6 +464,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.Enable.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.Enable.Description')}
+          settingKey="enable_flashcard_creation"
         >
           <ToggleSwitch
             checked={settings.enable_flashcard_creation}
@@ -470,6 +475,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.AutomaticCreation.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.AutomaticCreation.Description')}
+          settingKey="automaticFlashcardCreation"
         >
           <ToggleSwitch
             checked={settings.automaticFlashcardCreation}
@@ -480,6 +486,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Description')}
+          settingKey="maxNewCardsPerDay"
         >
           <input
             type="number"
@@ -495,6 +502,7 @@ export const SRSTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Label')}
             description={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Description')}
+            settingKey="proportionOfLevelCards"
           >
             <input
               type="number"
@@ -510,6 +518,7 @@ export const SRSTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.SRS.BuiltInFlashcards.StaleLearningDays.Label')}
             description={t('mlearn.Settings.SRS.BuiltInFlashcards.StaleLearningDays.Description')}
+            settingKey="wordSyncStaleLearningDays"
           >
             <input
               type="number"
@@ -525,6 +534,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.CreateUnseenCards.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.CreateUnseenCards.Description')}
+          settingKey="createUnseenCards"
         >
           <ToggleSwitch
             checked={settings.createUnseenCards}
@@ -535,6 +545,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.LLMExamples.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.LLMExamples.Description')}
+          settingKey="flashcardLLMExamples"
         >
           <ToggleSwitch
             checked={settings.flashcardLLMExamples}
@@ -545,6 +556,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.FlipAnimation.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.FlipAnimation.Description')}
+          settingKey="flashcardFlipAnimation"
         >
           <ToggleSwitch
             checked={settings.flashcardFlipAnimation}
@@ -555,6 +567,7 @@ export const SRSTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.LeechThreshold.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.LeechThreshold.Description')}
+          settingKey="leechThreshold"
         >
           <input
             type="number"

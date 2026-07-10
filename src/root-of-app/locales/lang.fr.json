@@ -1,5 +1,16 @@
 {
   "mlearn": {
+    "Management": {
+      "ChooseGroup": "Choisir une classe ou un groupe",
+      "ChooseGroupDescription": "Choisissez où votre activité et les règles de l’école s’appliquent.",
+      "ActiveGroup": "Classe ou groupe actif",
+      "SwitchGroup": "Changer de groupe",
+      "ActivatingGroup": "Changement de groupe",
+      "GroupActivationError": "Impossible de changer de groupe. Vérifiez votre accès et réessayez.",
+      "GroupLoadError": "Impossible de charger vos groupes scolaires.",
+      "Retry": "Réessayer",
+      "ManagedBy": "Géré par {group}"
+    },
     "Common": {
       "Status": {
         "Unknown": "Inconnu"

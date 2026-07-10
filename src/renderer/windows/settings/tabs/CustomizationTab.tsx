@@ -140,6 +140,7 @@ export const CustomizationTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Subtitle.Theme.Label')}
           description={t('mlearn.Settings.Subtitle.Theme.Description')}
+          settingKey="subtitleTheme"
         >
           <Select
             class="setting-select"
@@ -155,6 +156,7 @@ export const CustomizationTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Subtitle.FontSize.Label')}
           description={t('mlearn.Settings.Subtitle.FontSize.Description')}
+          settingKey="subtitle_font_size"
         >
           <input
             type="number"
@@ -169,6 +171,7 @@ export const CustomizationTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Subtitle.FontWeight.Label')}
           description={t('mlearn.Settings.Subtitle.FontWeight.Description')}
+          settingKey="subtitle_font_weight"
         >
           <Select
             class="setting-select"
@@ -192,6 +195,7 @@ export const CustomizationTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Subtitle.Offset.Label')}
           description={t('mlearn.Settings.Subtitle.Offset.Description')}
+          settingKey="subsOffsetTime"
         >
           <input
             type="number"

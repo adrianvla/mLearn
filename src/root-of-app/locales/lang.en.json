@@ -1,5 +1,16 @@
 {
   "mlearn": {
+    "Management": {
+      "ChooseGroup": "Choose a class or group",
+      "ChooseGroupDescription": "Choose where your activity and school policies apply.",
+      "ActiveGroup": "Active class or group",
+      "SwitchGroup": "Switch group",
+      "ActivatingGroup": "Switching group",
+      "GroupActivationError": "Could not switch group. Check your access and try again.",
+      "GroupLoadError": "Could not load your school groups.",
+      "Retry": "Retry",
+      "ManagedBy": "Managed by {group}"
+    },
     "Common": {
       "Status": {
         "Unknown": "Unknown"

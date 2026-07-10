@@ -2,8 +2,9 @@ import { Component, createMemo, createSignal, Show } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { getOcrRuntimeConfig } from '../../../../shared/languageFeatures';
-import { Panel, Btn, AlertBanner } from '../../../components/common';
+import { Panel, Btn, AlertBanner, ManagedSettingNotice } from '../../../components/common';
 import type { LanguageDataCatalogStatus } from '../../../../shared/types';
+import type { PolicySettingKey } from '../../../../shared/managementPolicy';
 import './ComponentsTab.css';
 
 const KNOWN_OCR_ENGINE_LABEL_KEYS = {
@@ -31,6 +32,7 @@ type CatalogDictionaryPackStatus = NonNullable<LanguageDataCatalogStatus['dictio
 
 type InstalledComponentGroup = {
   key: string;
+  policySettingKey: PolicySettingKey;
   title: string;
   description: string;
   enabled: () => boolean;
@@ -106,7 +108,7 @@ function getAssetDisplayPath(asset: CatalogAssetStatus): string {
 
 export const ComponentsTab: Component = () => {
   const { t } = useLocalization();
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, getManagedSettingSource } = useSettings();
   const {
     langData,
     languageDataCatalog,
@@ -180,6 +182,7 @@ export const ComponentsTab: Component = () => {
     const groups: InstalledComponentGroup[] = [
       {
         key: 'llm',
+        policySettingKey: 'llmEnabled',
         title: t('mlearn.ComponentsTab.Groups.AI.Title'),
         description: t('mlearn.ComponentsTab.Groups.AI.Description'),
         enabled: () => settings.llmEnabled,
@@ -197,6 +200,7 @@ export const ComponentsTab: Component = () => {
       },
       {
         key: 'ocr',
+        policySettingKey: 'ocrEnabled',
         title: t('mlearn.ComponentsTab.Groups.Reader.Title'),
         description: t('mlearn.ComponentsTab.Groups.Reader.Description'),
         enabled: () => settings.ocrEnabled,
@@ -208,6 +212,7 @@ export const ComponentsTab: Component = () => {
     if (voiceItems.length > 0) {
       groups.push({
         key: 'voice',
+        policySettingKey: 'voiceEnabled',
         title: t('mlearn.ComponentsTab.Groups.Voice.Title'),
         description: t('mlearn.ComponentsTab.Groups.Voice.Description'),
         enabled: () => settings.voiceEnabled,
@@ -380,17 +385,23 @@ export const ComponentsTab: Component = () => {
                   </div>
                   <Show when={group.toggle}>
                     {(toggle) => (
-                      <label class="components-tab__toggle">
-                        <input
-                          type="checkbox"
-                          checked={group.enabled()}
-                          aria-label={group.enabled()
-                            ? t('mlearn.ComponentsTab.Enabled')
-                            : t('mlearn.ComponentsTab.Disabled')}
-                          onChange={(e) => toggle()(e.currentTarget.checked)}
-                        />
-                        <span class="components-tab__toggle-slider" />
-                      </label>
+                      <div class="components-tab__managed-toggle">
+                        <label class="components-tab__toggle">
+                          <input
+                            type="checkbox"
+                            checked={group.enabled()}
+                            disabled={Boolean(getManagedSettingSource(group.policySettingKey))}
+                            aria-label={group.enabled()
+                              ? t('mlearn.ComponentsTab.Enabled')
+                              : t('mlearn.ComponentsTab.Disabled')}
+                            onChange={(e) => toggle()(e.currentTarget.checked)}
+                          />
+                          <span class="components-tab__toggle-slider" />
+                        </label>
+                        <Show when={getManagedSettingSource(group.policySettingKey)}>
+                          {(source) => <ManagedSettingNotice sourceGroupName={source().sourceGroupName} />}
+                        </Show>
+                      </div>
                     )}
                   </Show>
                 </div>

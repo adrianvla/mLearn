@@ -36,6 +36,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.VideoPlayer.LiveTranslator.Show.Label')}
           description={t('mlearn.Settings.VideoPlayer.LiveTranslator.Show.Description')}
+          settingKey="showLiveTranslator"
         >
           <ToggleSwitch
             checked={settings.showLiveTranslator ?? DEFAULT_SETTINGS.showLiveTranslator!}
@@ -53,6 +54,7 @@ export const VideoPlayerTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.VideoPlayer.LiveTranslator.IncludeKnown.Label')}
             description={t('mlearn.Settings.VideoPlayer.LiveTranslator.IncludeKnown.Description')}
+            settingKey="liveTranslatorIncludeKnown"
           >
             <ToggleSwitch
               checked={settings.liveTranslatorIncludeKnown ?? DEFAULT_SETTINGS.liveTranslatorIncludeKnown!}
@@ -67,6 +69,7 @@ export const VideoPlayerTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Label')}
             description={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Description')}
+            settingKey="showReadingAnnotations"
           >
             <ToggleSwitch
               checked={readingAnnotationsEnabled(settings)}
@@ -81,6 +84,7 @@ export const VideoPlayerTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Label')}
             description={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Description')}
+            settingKey="hideReadingForKnownWords"
           >
             <ToggleSwitch
               checked={hideReadingAnnotationsForKnownWords(settings)}
@@ -93,6 +97,7 @@ export const VideoPlayerTab: Component = () => {
           <SettingRow
             label={getLanguageProsodyToggleLabel(currentLangData()) ?? t('mlearn.Settings.DisplayOptions.ShowProsody.Label')}
             description={getLanguageProsodyToggleDescription(currentLangData()) ?? t('mlearn.Settings.DisplayOptions.ShowProsody.Description')}
+            settingKey="showProsody"
           >
             <ToggleSwitch
               checked={showProsody()}
@@ -104,6 +109,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.ShowPos.Label')}
           description={t('mlearn.Settings.DisplayOptions.ShowPos.Description')}
+          settingKey="show_pos"
         >
           <ToggleSwitch
             checked={settings.show_pos}
@@ -116,6 +122,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.BlurEffect.BlurWords.Label')}
           description={t('mlearn.Settings.BlurEffect.BlurWords.Description')}
+          settingKey="blur_words"
         >
           <ToggleSwitch
             checked={settings.blur_words}
@@ -126,6 +133,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.VideoPlayer.KnownWords.BlurKnown.Label')}
           description={t('mlearn.Settings.VideoPlayer.KnownWords.BlurKnown.Description')}
+          settingKey="blurKnownWords"
         >
           <ToggleSwitch
             checked={settings.blurKnownWords ?? DEFAULT_SETTINGS.blurKnownWords!}
@@ -136,6 +144,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.BlurEffect.BlurKnownSubtitles.Label')}
           description={t('mlearn.Settings.BlurEffect.BlurKnownSubtitles.Description')}
+          settingKey="blur_known_subtitles"
         >
           <ToggleSwitch
             checked={settings.blur_known_subtitles}
@@ -147,6 +156,7 @@ export const VideoPlayerTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.BlurEffect.BlurAmount.Label')}
             description={t('mlearn.Settings.BlurEffect.BlurAmount.Description')}
+            settingKey="blur_amount"
           >
             <RangeInput
               min={1}
@@ -179,6 +189,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.VideoPlayer.Playback.ShowSubtitles.Label')}
           description={t('mlearn.Settings.VideoPlayer.Playback.ShowSubtitles.Description')}
+          settingKey="showSubtitles"
         >
           <ToggleSwitch
             checked={settings.showSubtitles ?? DEFAULT_SETTINGS.showSubtitles!}
@@ -189,6 +200,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.VideoPlayer.Playback.ShowTranslation.Label')}
           description={t('mlearn.Settings.VideoPlayer.Playback.ShowTranslation.Description')}
+          settingKey="showTranslation"
         >
           <ToggleSwitch
             checked={settings.showTranslation ?? DEFAULT_SETTINGS.showTranslation!}
@@ -215,6 +227,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.VideoPlayer.SubtitleProcessing.RemoveParentheses.Label')}
           description={t('mlearn.Settings.VideoPlayer.SubtitleProcessing.RemoveParentheses.Description')}
+          settingKey="removeParentheses"
         >
           <ToggleSwitch
             checked={settings.removeParentheses ?? DEFAULT_SETTINGS.removeParentheses!}
@@ -225,6 +238,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.VideoPlayer.SubtitleProcessing.RemoveSpeakerNames.Label')}
           description={t('mlearn.Settings.VideoPlayer.SubtitleProcessing.RemoveSpeakerNames.Description')}
+          settingKey="removeSpeakerNames"
         >
           <ToggleSwitch
             checked={settings.removeSpeakerNames ?? DEFAULT_SETTINGS.removeSpeakerNames!}
@@ -237,6 +251,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.VideoPlayer.FlashcardMedia.MediaType.Label')}
           description={t('mlearn.Settings.VideoPlayer.FlashcardMedia.MediaType.Description')}
+          settingKey="flashcardMediaType"
         >
           <Select
             class="setting-select"
@@ -252,6 +267,7 @@ export const VideoPlayerTab: Component = () => {
           label={t('mlearn.Settings.VideoPlayer.FlashcardMedia.VideoMargin.Label')}
           description={t('mlearn.Settings.VideoPlayer.FlashcardMedia.VideoMargin.Description')}
           disabled={settings.flashcardMediaType !== 'video'}
+          settingKey="flashcardVideoMargin"
         >
           <RangeInput
             min={0}
@@ -270,6 +286,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Label')}
           description={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Description')}
+          settingKey="immediateFetch"
         >
           <ToggleSwitch
             checked={settings.immediateFetch}
@@ -280,6 +297,7 @@ export const VideoPlayerTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Performance.HoverKnownGetFromDictionary.Label')}
           description={t('mlearn.Settings.Performance.HoverKnownGetFromDictionary.Description')}
+          settingKey="hover_known_get_from_dictionary"
         >
           <ToggleSwitch
             checked={settings.hover_known_get_from_dictionary}

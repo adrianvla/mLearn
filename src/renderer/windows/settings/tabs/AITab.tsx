@@ -677,6 +677,7 @@ export const AITab: Component = () => {
         <SettingRow
             label={t('mlearn.AI.Settings.OCR.Provider.Label')}
             description={t('mlearn.AI.Settings.OCR.Provider.Description')}
+          settingKey="ocrProvider"
         >
           <Select
               class="setting-select"

@@ -1,5 +1,16 @@
 {
   "mlearn": {
+    "Management": {
+      "ChooseGroup": "选择班级或小组",
+      "ChooseGroupDescription": "选择你的活动和学校策略所适用的班级或小组。",
+      "ActiveGroup": "当前班级或小组",
+      "SwitchGroup": "切换小组",
+      "ActivatingGroup": "正在切换小组",
+      "GroupActivationError": "无法切换小组。请检查你的访问权限后重试。",
+      "GroupLoadError": "无法加载你的学校小组。",
+      "Retry": "重试",
+      "ManagedBy": "由 {group} 管理"
+    },
     "Common": {
       "Status": {
         "Unknown": "未知"

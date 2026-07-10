@@ -104,6 +104,7 @@ export const BehaviourTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.WordStatus.SrsLearningThreshold.Label')}
           description={t('mlearn.Settings.WordStatus.SrsLearningThreshold.Description')}
+          settingKey="srsLearningThreshold"
         >
           <Input
             type="number"
@@ -123,6 +124,7 @@ export const BehaviourTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.WordStatus.KnownThreshold.Label')}
           description={t('mlearn.Settings.WordStatus.KnownThreshold.Description')}
+          settingKey="known_ease_threshold"
         >
           <Input
             type="number"
@@ -144,6 +146,7 @@ export const BehaviourTab: Component = () => {
             <SettingRow
               label={t(`mlearn.Settings.WordStatus.${item.labelKey}Threshold.Label`)}
               description={t(`mlearn.Settings.WordStatus.${item.labelKey}Threshold.Description`)}
+              settingKey={item.key}
             >
               <div class="ease-threshold-row">
                 <span class="ease-exposures">
@@ -173,6 +176,7 @@ export const BehaviourTab: Component = () => {
           <SettingRow
               label={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Label')}
             description={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Description')}
+            settingKey="ankiLearningThreshold"
           >
             <Input
               type="number"
@@ -192,6 +196,7 @@ export const BehaviourTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.WordStatus.AnkiKnownThreshold.Label')}
             description={t('mlearn.Settings.WordStatus.AnkiKnownThreshold.Description')}
+            settingKey="ankiKnownThreshold"
           >
             <Input
               type="number"
@@ -212,6 +217,7 @@ export const BehaviourTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.WordStatus.ColourKnown.Label')}
           description={t('mlearn.Settings.WordStatus.ColourKnown.Description')}
+          settingKey="do_colour_known"
         >
           <ToggleSwitch
             checked={settings.do_colour_known}
@@ -222,6 +228,7 @@ export const BehaviourTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.WordStatus.KnownColour.Label')}
           description={t('mlearn.Settings.WordStatus.KnownColour.Description')}
+          settingKey="colour_known"
         >
           <div class="color-input-wrapper">
             <input
@@ -237,6 +244,7 @@ export const BehaviourTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.WordStatus.ColourCodes.Label')}
           description={t('mlearn.Settings.WordStatus.ColourCodes.Description')}
+          settingKey="do_colour_codes"
         >
           <ToggleSwitch
             checked={settings.do_colour_codes}
@@ -250,6 +258,7 @@ export const BehaviourTab: Component = () => {
             delay: passiveHoverDelayMs(),
             count: passiveHoverFailCount(),
           })}
+          settingKey="passiveEaseEnabled"
         >
           <ToggleSwitch
             checked={settings.passiveEaseEnabled}
@@ -328,6 +337,7 @@ export const BehaviourTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.WordStatus.ManualStatusEaseBuffer.Label')}
             description={t('mlearn.Settings.WordStatus.ManualStatusEaseBuffer.Description')}
+            settingKey="manualStatusEaseBuffer"
           >
             <Input
               type="number"
@@ -351,6 +361,7 @@ export const BehaviourTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Label')}
             description={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Description')}
+            settingKey="learningLanguageLevel"
           >
             <Select
               class="setting-select"
@@ -382,6 +393,7 @@ export const BehaviourTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Behaviour.AutoSuggestFlashcards.Label')}
           description={t('mlearn.Settings.Behaviour.AutoSuggestFlashcards.Description')}
+          settingKey="autoSuggestFlashcards"
         >
           <ToggleSwitch
             checked={settings.autoSuggestFlashcards}
@@ -392,6 +404,7 @@ export const BehaviourTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.Behaviour.AutoSuggestUnknownWords.Label')}
             description={t('mlearn.Settings.Behaviour.AutoSuggestUnknownWords.Description')}
+            settingKey="autoSuggestUnknownWords"
           >
             <ToggleSwitch
               checked={settings.autoSuggestUnknownWords}
@@ -429,6 +442,7 @@ export const BehaviourTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.OpenAside.Label')}
           description={t('mlearn.Settings.DisplayOptions.OpenAside.Description')}
+          settingKey="openAside"
         >
           <ToggleSwitch
             checked={settings.openAside}
