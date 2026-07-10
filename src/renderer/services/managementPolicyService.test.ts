@@ -16,8 +16,11 @@ import {
   verifyEffectivePolicy,
 } from './managementPolicyService';
 import {
+  enrollTrustedPublicKey,
   loadCachedPolicy,
+  loadTrustedPublicKey,
   resetManagementPolicyCacheConnectionForTests,
+  saveCachedPolicyMonotonic,
 } from './managementPolicyCache';
 
 function base64Url(bytes: Uint8Array): string {
@@ -163,18 +166,26 @@ describe('management policy service', () => {
       cloudApiUrl: 'https://School.Example:443/nested/path',
     };
 
-    await expect(fetchEffectivePolicy(settings, 'secret-token', now)).resolves.toEqual({
+    const candidate = await fetchEffectivePolicy(settings, 'secret-token', now);
+    expect(candidate).toEqual(expect.objectContaining({
       policy,
+      publicKey,
+      origin: 'https://school.example',
+      userId: 'learner-1',
       fresh: true,
       source: 'network',
-    });
+    }));
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const [url, init] of fetchMock.mock.calls) {
       expect(String(url)).toMatch(/^https:\/\/school\.example\/api\/policy\//);
       expect(init?.headers).toEqual({ Authorization: 'Bearer secret-token' });
     }
-    expect(await loadCachedPolicy('https://school.example', 'learner-1')).toEqual(policy);
+    expect(await loadTrustedPublicKey('https://school.example')).toBeNull();
+    expect(await loadCachedPolicy('https://school.example', 'learner-1')).toBeNull();
     expect(await loadCachedPolicy('https://school.example', 'secret-token')).toBeNull();
+    await enrollTrustedPublicKey(candidate.origin, candidate.publicKey);
+    await saveCachedPolicyMonotonic(candidate.origin, candidate.userId, candidate.policy);
+    expect(await loadCachedPolicy('https://school.example', 'learner-1')).toEqual(policy);
 
     const rotatedKey = {
       ...publicKey,
@@ -185,5 +196,48 @@ describe('management policy service', () => {
       String(input).endsWith('/public-key') ? rotatedKey : policy,
     ), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     await expect(fetchEffectivePolicy(settings, 'new-token', now)).rejects.toThrow('re-enrollment');
+  });
+
+  it('does not trust a first-use key when its candidate snapshot is invalid', async () => {
+    const { policy, publicKey, now } = await signedPolicy();
+    const invalidPolicy = { ...policy, signature: base64Url(new Uint8Array(64)) };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+      String(input).endsWith('/public-key') ? publicKey : invalidPolicy,
+    ), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      cloudAuthStatus: 'signed-in' as const,
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    };
+
+    await expect(fetchEffectivePolicy(settings, 'secret-token', now)).rejects.toThrow('signature');
+    expect(await loadTrustedPublicKey('https://school.example')).toBeNull();
+  });
+
+  it('rejects ZIP-215 small-order signatures under strict RFC 8032 verification', async () => {
+    const identity = new Uint8Array(32);
+    identity[0] = 1;
+    const signature = new Uint8Array(64);
+    signature[0] = 1;
+    const now = Date.parse('2026-07-10T08:05:00Z');
+    const policy = {
+      ...fixture,
+      issuedAt: '2026-07-10T08:00:00Z',
+      expiresAt: '2026-07-10T08:15:00Z',
+      keyId: 'small-order-key',
+      signature: base64Url(signature),
+    };
+
+    await expect(verifyEffectivePolicy(policy, {
+      algorithm: 'Ed25519',
+      keyId: 'small-order-key',
+      publicKey: base64Url(identity),
+    }, {
+      expectedActiveGroupId: 'german-a',
+      now,
+    })).rejects.toThrow('signature');
   });
 });

@@ -14,7 +14,9 @@ import {
   ManagementPolicyKeyChangeError,
   normalizeManagementOrigin,
   resetManagementPolicyCacheConnectionForTests,
+  resetManagementPolicyTrust,
   saveCachedPolicy,
+  saveCachedPolicyMonotonic,
 } from './managementPolicyCache';
 
 const origin = 'https://school.example';
@@ -53,5 +55,55 @@ describe('management policy cache', () => {
       keyId: 'rotated-key',
     })).rejects.toBeInstanceOf(ManagementPolicyKeyChangeError);
     expect(await loadTrustedPublicKey(origin)).toEqual(publicKey);
+  });
+
+  it('resets trust and every cached user snapshot for only the confirmed origin', async () => {
+    const otherOrigin = 'https://other-school.example';
+    await enrollTrustedPublicKey(origin, publicKey);
+    await enrollTrustedPublicKey(otherOrigin, { ...publicKey, keyId: 'other-key' });
+    await saveCachedPolicy(origin, 'learner-1', fixture as EffectiveManagementPolicy);
+    await saveCachedPolicy(origin, 'learner-2', fixture as EffectiveManagementPolicy);
+    await saveCachedPolicy(otherOrigin, 'learner-1', fixture as EffectiveManagementPolicy);
+
+    await resetManagementPolicyTrust(`${origin}/nested/path`, origin);
+
+    expect(await loadTrustedPublicKey(origin)).toBeNull();
+    expect(await loadCachedPolicy(origin, 'learner-1')).toBeNull();
+    expect(await loadCachedPolicy(origin, 'learner-2')).toBeNull();
+    expect(await loadTrustedPublicKey(otherOrigin)).not.toBeNull();
+    expect(await loadCachedPolicy(otherOrigin, 'learner-1')).not.toBeNull();
+    await expect(resetManagementPolicyTrust(origin, otherOrigin)).rejects.toThrow('confirmation');
+  });
+
+  it('atomically chooses one concurrent first-use key candidate', async () => {
+    const candidateA = publicKey;
+    const candidateB = { ...publicKey, keyId: 'key-2', publicKey: 'public-key-2' };
+    const results = await Promise.allSettled([
+      enrollTrustedPublicKey(origin, candidateA),
+      enrollTrustedPublicKey(origin, candidateB),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect([candidateA, candidateB]).toContainEqual(await loadTrustedPublicKey(origin));
+  });
+
+  it('never lets an older same-user response replace a newer cached snapshot', async () => {
+    const newer = {
+      ...fixture,
+      policyVersionId: 'policy-version-newer',
+      issuedAt: '2026-07-10T08:10:00Z',
+      expiresAt: '2026-07-10T08:15:00Z',
+    } as EffectiveManagementPolicy;
+    const older = {
+      ...fixture,
+      policyVersionId: 'policy-version-older',
+      issuedAt: '2026-07-10T08:00:00Z',
+      expiresAt: '2026-07-10T08:15:00Z',
+    } as EffectiveManagementPolicy;
+
+    await expect(saveCachedPolicyMonotonic(origin, 'learner-1', newer)).resolves.toBe(true);
+    await expect(saveCachedPolicyMonotonic(origin, 'learner-1', older)).resolves.toBe(false);
+    expect(await loadCachedPolicy(origin, 'learner-1')).toEqual(newer);
   });
 });

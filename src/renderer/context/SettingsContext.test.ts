@@ -59,6 +59,8 @@ const mockNormalizeCloudAuthExpiresAt = vi.fn((expiresAt?: number) => expiresAt 
 const mockIsCloudAccessTokenExpiringSoon = vi.fn(() => false);
 const mockLoadCachedEffectivePolicy = vi.fn();
 const mockFetchEffectivePolicy = vi.fn();
+const mockEnrollTrustedPublicKey = vi.fn();
+const mockSaveCachedPolicyMonotonic = vi.fn();
 
 vi.mock('../services/cloudAuthService', () => ({
   CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS: 60_000,
@@ -74,6 +76,15 @@ vi.mock('../services/managementPolicyService', async (importOriginal) => {
     ...actual,
     loadCachedEffectivePolicy: (...args: unknown[]) => mockLoadCachedEffectivePolicy(...args),
     fetchEffectivePolicy: (...args: unknown[]) => mockFetchEffectivePolicy(...args),
+  };
+});
+
+vi.mock('../services/managementPolicyCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/managementPolicyCache')>();
+  return {
+    ...actual,
+    enrollTrustedPublicKey: (...args: unknown[]) => mockEnrollTrustedPublicKey(...args),
+    saveCachedPolicyMonotonic: (...args: unknown[]) => mockSaveCachedPolicyMonotonic(...args),
   };
 });
 
@@ -119,6 +130,46 @@ function makeSettings(overrides?: Partial<Settings>): Settings {
   return { ...DEFAULT_SETTINGS, ...overrides };
 }
 
+function freshPolicy(activeGroupId: string = 'german-a'): EffectiveManagementPolicy {
+  const now = Date.now();
+  return {
+    ...policyFixture,
+    activeGroupId,
+    issuedAt: new Date(now - 1_000).toISOString(),
+    expiresAt: new Date(now + 60_000).toISOString(),
+  } as EffectiveManagementPolicy;
+}
+
+function fetchedCandidate(
+  policy: EffectiveManagementPolicy,
+  origin: string = 'https://school.example',
+  userId: string = 'learner-1',
+) {
+  return {
+    policy,
+    fresh: true as const,
+    source: 'network' as const,
+    publicKey: {
+      keyId: policy.keyId,
+      algorithm: 'Ed25519' as const,
+      publicKey: 'candidate-public-key',
+    },
+    origin,
+    userId,
+  };
+}
+
+function stubGroupReadinessFetch(): void {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    return new Response(JSON.stringify(
+      url.endsWith('/api/groups/eligible')
+        ? { groups: [{ id: 'german-a', name: 'German A' }] }
+        : {},
+    ), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }));
+}
+
 describe('SettingsProvider', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -137,6 +188,8 @@ describe('SettingsProvider', () => {
     });
     mockLoadCachedEffectivePolicy.mockResolvedValue(null);
     mockFetchEffectivePolicy.mockRejectedValue(new Error('management unavailable'));
+    mockEnrollTrustedPublicKey.mockResolvedValue(undefined);
+    mockSaveCachedPolicyMonotonic.mockResolvedValue(true);
   });
 
   it('useSettings throws when used outside SettingsProvider', async () => {
@@ -621,6 +674,77 @@ describe('SettingsProvider', () => {
     vi.unstubAllGlobals();
   });
 
+  it('keeps first-load settings private and unsaved until the cached policy resolves', async () => {
+    const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
+    const postMessage = vi.fn();
+    function MockBroadcastChannel() {
+      return {
+        postMessage,
+        close: vi.fn(),
+        set onmessage(fn: ((event: MessageEvent) => void) | null) { state.handler = fn; },
+        get onmessage() { return state.handler; },
+      };
+    }
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+    let resolveCache!: (value: {
+      policy: EffectiveManagementPolicy;
+      fresh: false;
+      source: 'cache';
+    }) => void;
+    mockLoadCachedEffectivePolicy.mockReturnValue(new Promise((resolve) => { resolveCache = resolve; }));
+    const { ctx, dispose } = await mountProvider();
+
+    settingsCb(makeSettings({
+      theme: 'darker',
+      llmEnabled: true,
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }));
+
+    expect(ctx.isLoading()).toBe(true);
+    expect(ctx.settings.theme).toBe(DEFAULT_SETTINGS.theme);
+    expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
+    expect(postMessage).not.toHaveBeenCalled();
+    ctx.updateSetting('llmEnabled', true);
+    expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
+    expect(postMessage).not.toHaveBeenCalled();
+    state.handler!({ data: { type: 'update', settings: makeSettings({
+      theme: 'darker',
+      llmEnabled: true,
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }) } } as MessageEvent);
+    expect(ctx.isLoading()).toBe(true);
+    expect(ctx.settings.theme).toBe(DEFAULT_SETTINGS.theme);
+    expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
+    expect(postMessage).not.toHaveBeenCalled();
+
+    resolveCache({
+      policy: policyFixture as EffectiveManagementPolicy,
+      fresh: false,
+      source: 'cache',
+    });
+    await vi.waitFor(() => expect(ctx.isLoading()).toBe(false));
+    expect(ctx.settings.theme).toBe('dark');
+    expect(ctx.settings.llmEnabled).toBe(false);
+    for (const [snapshot] of mockBridge.settings.saveSettings.mock.calls) {
+      expect(snapshot).toEqual(expect.objectContaining({ theme: 'dark', llmEnabled: false }));
+    }
+    for (const [{ settings: snapshot }] of postMessage.mock.calls) {
+      expect(snapshot).toEqual(expect.objectContaining({ theme: 'dark', llmEnabled: false }));
+    }
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
   it('keeps stale cached restrictions locked but fails closed for network features', async () => {
     const policy = policyFixture as EffectiveManagementPolicy;
     mockLoadCachedEffectivePolicy.mockResolvedValue({ policy, fresh: false, source: 'cache' });
@@ -742,6 +866,163 @@ describe('SettingsProvider', () => {
     await vi.waitFor(() => expect(ctx.managedPolicy()).toEqual(secondPolicy));
     expect(ctx.policyAllowsFeature('llm')).toBe(true);
     dispose();
+  });
+
+  it.each([
+    ['group', { cloudAuthActiveGroupId: 'german-b', cloudAuthActiveGroupName: 'German B' }],
+    ['user', { cloudAuthUserId: 'learner-2' }],
+    ['origin', { cloudApiUrl: 'https://second-school.example' }],
+    ['token refresh', { cloudAuthAccessToken: 'token-2' }],
+  ] as const)('discards an out-of-order %s response before durable trust or cache writes', async (_name, patch) => {
+    stubGroupReadinessFetch();
+    mockLoadCachedEffectivePolicy.mockResolvedValue(null);
+    const resolvers: Array<(value: ReturnType<typeof fetchedCandidate>) => void> = [];
+    mockFetchEffectivePolicy.mockImplementation(() => new Promise((resolve) => { resolvers.push(resolve); }));
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'token-1',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }));
+    await vi.waitFor(() => expect(mockFetchEffectivePolicy).toHaveBeenCalledTimes(1));
+
+    ctx.updateSettings(patch);
+    await vi.waitFor(() => expect(mockFetchEffectivePolicy).toHaveBeenCalledTimes(2));
+    resolvers[0](fetchedCandidate(freshPolicy('german-a')));
+    await Promise.resolve();
+    expect(mockEnrollTrustedPublicKey).not.toHaveBeenCalled();
+    expect(mockSaveCachedPolicyMonotonic).not.toHaveBeenCalled();
+
+    const currentGroup = ctx.settings.cloudAuthActiveGroupId;
+    const currentOrigin = ctx.settings.cloudApiUrl.includes('second-school')
+      ? 'https://second-school.example'
+      : 'https://school.example';
+    const currentUser = ctx.settings.cloudAuthUserId;
+    const replacement = fetchedCandidate(freshPolicy(currentGroup), currentOrigin, currentUser);
+    resolvers[1](replacement);
+    await vi.waitFor(() => expect(mockEnrollTrustedPublicKey).toHaveBeenCalledOnce());
+    expect(mockSaveCachedPolicyMonotonic).toHaveBeenCalledWith(
+      replacement.origin,
+      replacement.userId,
+      replacement.policy,
+      expect.any(AbortSignal),
+    );
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('drops an outstanding response on sign-out', async () => {
+    stubGroupReadinessFetch();
+    mockLoadCachedEffectivePolicy.mockResolvedValue(null);
+    let resolveFetch!: (value: ReturnType<typeof fetchedCandidate>) => void;
+    mockFetchEffectivePolicy.mockReturnValue(new Promise((resolve) => { resolveFetch = resolve; }));
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'token-1',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }));
+    await vi.waitFor(() => expect(mockFetchEffectivePolicy).toHaveBeenCalledOnce());
+    const signal = mockFetchEffectivePolicy.mock.calls[0][3] as AbortSignal;
+
+    ctx.updateSetting('cloudAuthStatus', 'signed-out');
+    expect(signal.aborted).toBe(true);
+    resolveFetch(fetchedCandidate(freshPolicy()));
+    await Promise.resolve();
+    expect(mockEnrollTrustedPublicKey).not.toHaveBeenCalled();
+    expect(mockSaveCachedPolicyMonotonic).not.toHaveBeenCalled();
+
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('aborts outstanding policy work on provider cleanup before any durable write', async () => {
+    stubGroupReadinessFetch();
+    mockLoadCachedEffectivePolicy.mockResolvedValue(null);
+    let resolveFetch!: (value: ReturnType<typeof fetchedCandidate>) => void;
+    mockFetchEffectivePolicy.mockReturnValue(new Promise((resolve) => { resolveFetch = resolve; }));
+    const { dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'token-1',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }));
+    await vi.waitFor(() => expect(mockFetchEffectivePolicy).toHaveBeenCalledOnce());
+    const signal = mockFetchEffectivePolicy.mock.calls[0][3] as AbortSignal;
+
+    dispose();
+    expect(signal.aborted).toBe(true);
+    resolveFetch(fetchedCandidate(freshPolicy()));
+    await Promise.resolve();
+    expect(mockEnrollTrustedPublicKey).not.toHaveBeenCalled();
+    expect(mockSaveCachedPolicyMonotonic).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps a verified fresh policy enforced when its best-effort snapshot write fails', async () => {
+    stubGroupReadinessFetch();
+    mockLoadCachedEffectivePolicy.mockResolvedValue(null);
+    const policy = freshPolicy();
+    mockFetchEffectivePolicy.mockResolvedValue(fetchedCandidate(policy));
+    mockSaveCachedPolicyMonotonic.mockRejectedValue(new Error('quota exceeded'));
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'token-1',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      llmEnabled: true,
+    }));
+
+    await vi.waitFor(() => expect(ctx.managedPolicy()).toEqual(policy));
+    await vi.waitFor(() => expect(mockSaveCachedPolicyMonotonic).toHaveBeenCalledOnce());
+    expect(ctx.settings.llmEnabled).toBe(false);
+    expect(ctx.hasFreshNetworkPolicy()).toBe(true);
+    expect(ctx.policyAllowsFeature('llm')).toBe(true);
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('fails closed when durable deployment-key trust cannot be established', async () => {
+    stubGroupReadinessFetch();
+    mockLoadCachedEffectivePolicy.mockResolvedValue(null);
+    const policy = freshPolicy();
+    mockFetchEffectivePolicy.mockResolvedValue(fetchedCandidate(policy));
+    mockEnrollTrustedPublicKey.mockRejectedValue(new Error('key store unavailable'));
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'token-1',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      llmEnabled: true,
+    }));
+
+    await vi.waitFor(() => expect(mockEnrollTrustedPublicKey).toHaveBeenCalledOnce());
+    expect(ctx.managedPolicy()).toBeNull();
+    expect(ctx.hasFreshNetworkPolicy()).toBe(false);
+    expect(ctx.policyAllowsFeature('llm')).toBe(false);
+    expect(mockSaveCachedPolicyMonotonic).not.toHaveBeenCalled();
+    dispose();
+    vi.unstubAllGlobals();
   });
 
   it('cleanup: IPC cleanups called and BroadcastChannel closed', async () => {

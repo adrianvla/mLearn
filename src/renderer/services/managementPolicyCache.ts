@@ -109,6 +109,17 @@ async function putRow<T>(key: string, value: T): Promise<void> {
   });
 }
 
+function bindAbortSignal(transaction: IDBTransaction, signal?: AbortSignal): () => void {
+  if (!signal) return () => {};
+  if (signal.aborted) {
+    transaction.abort();
+    return () => {};
+  }
+  const abort = () => transaction.abort();
+  signal.addEventListener('abort', abort, { once: true });
+  return () => signal.removeEventListener('abort', abort);
+}
+
 export async function loadTrustedPublicKey(
   origin: string,
 ): Promise<ManagementPolicyPublicKey | null> {
@@ -118,11 +129,13 @@ export async function loadTrustedPublicKey(
 export async function enrollTrustedPublicKey(
   origin: string,
   publicKey: ManagementPolicyPublicKey,
+  signal?: AbortSignal,
 ): Promise<void> {
   const rowKey = trustedKeyCacheKey(origin);
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(STORE_RECORDS, 'readwrite');
+    const unbindAbort = bindAbortSignal(transaction, signal);
     const store = transaction.objectStore(STORE_RECORDS);
     const request = store.get(rowKey);
     let enrollmentError: Error | null = null;
@@ -142,15 +155,23 @@ export async function enrollTrustedPublicKey(
       }
     };
     request.onerror = () => reject(request.error ?? new Error('Failed to read trusted policy key'));
-    transaction.oncomplete = () => resolve();
+    transaction.oncomplete = () => {
+      unbindAbort();
+      resolve();
+    };
     transaction.onerror = () => {
       if (!enrollmentError) {
         reject(transaction.error ?? new Error('Failed to enroll trusted policy key'));
       }
     };
-    transaction.onabort = () => reject(
-      enrollmentError ?? transaction.error ?? new Error('Trusted policy key enrollment aborted'),
-    );
+    transaction.onabort = () => {
+      unbindAbort();
+      reject(enrollmentError ?? (
+        signal?.aborted
+          ? new DOMException('Management policy operation was aborted', 'AbortError')
+          : transaction.error ?? new Error('Trusted policy key enrollment aborted')
+      ));
+    };
   });
 }
 
@@ -167,6 +188,84 @@ export async function saveCachedPolicy(
   policy: EffectiveManagementPolicy,
 ): Promise<void> {
   await putRow(policyCacheRowKey(origin, userId), policy);
+}
+
+export async function saveCachedPolicyMonotonic(
+  origin: string,
+  userId: string,
+  policy: EffectiveManagementPolicy,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const rowKey = policyCacheRowKey(origin, userId);
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_RECORDS, 'readwrite');
+    const unbindAbort = bindAbortSignal(transaction, signal);
+    const store = transaction.objectStore(STORE_RECORDS);
+    const request = store.get(rowKey);
+    let stored = false;
+    request.onsuccess = () => {
+      const existing = (request.result as CacheRow<EffectiveManagementPolicy> | undefined)?.value;
+      const parsedExistingIssuedAt = existing ? Date.parse(existing.issuedAt) : Number.NEGATIVE_INFINITY;
+      const existingIssuedAt = Number.isFinite(parsedExistingIssuedAt)
+        ? parsedExistingIssuedAt
+        : Number.NEGATIVE_INFINITY;
+      const candidateIssuedAt = Date.parse(policy.issuedAt);
+      if (!Number.isFinite(candidateIssuedAt)) {
+        transaction.abort();
+        return;
+      }
+      if (!existing || candidateIssuedAt > existingIssuedAt) {
+        store.put({ key: rowKey, value: policy, updatedAt: Date.now() });
+        stored = true;
+      }
+    };
+    request.onerror = () => reject(request.error ?? new Error('Failed to read cached policy'));
+    transaction.oncomplete = () => {
+      unbindAbort();
+      resolve(stored);
+    };
+    transaction.onerror = () => {
+      if (!signal?.aborted) {
+        reject(transaction.error ?? new Error('Failed to persist cached policy'));
+      }
+    };
+    transaction.onabort = () => {
+      unbindAbort();
+      reject(signal?.aborted
+        ? new DOMException('Management policy operation was aborted', 'AbortError')
+        : transaction.error ?? new Error('Cached policy transaction aborted'));
+    };
+  });
+}
+
+export async function resetManagementPolicyTrust(
+  origin: string,
+  confirmedOrigin: string,
+): Promise<void> {
+  const normalizedOrigin = normalizeManagementOrigin(origin);
+  if (normalizeManagementOrigin(confirmedOrigin) !== normalizedOrigin) {
+    throw new Error('Management policy trust reset confirmation does not match the deployment origin');
+  }
+  const keyRow = trustedKeyCacheKey(normalizedOrigin);
+  const policyPrefix = `${POLICY_PREFIX}${normalizedOrigin}\u0000`;
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(STORE_RECORDS, 'readwrite');
+    const store = transaction.objectStore(STORE_RECORDS);
+    const request = store.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      const key = String(cursor.primaryKey);
+      if (key === keyRow || key.startsWith(policyPrefix)) cursor.delete();
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error ?? new Error('Failed to scan management policy trust'));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Failed to reset management policy trust'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('Management policy trust reset aborted'));
+  });
 }
 
 export function resetManagementPolicyCacheConnectionForTests(): void {

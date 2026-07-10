@@ -34,6 +34,10 @@ import {
   hasFreshPolicy,
   loadCachedEffectivePolicy,
 } from '../services/managementPolicyService';
+import {
+  enrollTrustedPublicKey,
+  saveCachedPolicyMonotonic,
+} from '../services/managementPolicyCache';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.context.settings");
@@ -113,9 +117,12 @@ export const SettingsProvider: ParentComponent = (props) => {
   let broadcastChannel: BroadcastChannel | null = null;
   const ipcCleanups: Array<() => void> = [];
   let pendingSettingsSnapshot: Partial<Settings> | null = null;
+  let pendingLoadedSettings: Settings | null = null;
   let unregisterCloudSessionController: (() => void) | null = null;
   let managedPolicyScope = '';
   let policyRefreshGeneration = 0;
+  let policyRefreshAbort: AbortController | null = null;
+  let disposed = false;
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
   const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
@@ -227,41 +234,8 @@ export const SettingsProvider: ParentComponent = (props) => {
         migratedSettings = true;
       }
 
-      const reconciledSettings = applyManagedSettings(
-        mergedSettings,
-        applicableManagedPolicy(mergedSettings),
-      );
-      setSettings(reconcile(reconciledSettings));
-      syncCloudState(reconciledSettings);
-      setIsLoading(false);
-      setHasLoaded(true);
-
-      // In dev builds, always force devMode on
-      if (import.meta.env.DEV) {
-        setSettings('devMode', true);
-      }
-
-      // Initialize the backend adapter with the loaded settings
-      getBackend({
-        mode: reconciledSettings.backendMode,
-        url: resolveBackendUrl(reconciledSettings),
-        authToken: resolveCloudAccessToken(reconciledSettings),
-      });
-
-      applySettingsToDOM(reconciledSettings);
-
-      if (pendingSettingsSnapshot || migratedSettings) {
-        bridge.settings.saveSettings(reconciledSettings);
-        pendingSettingsSnapshot = null;
-      }
-
-      void refreshManagedPolicy(reconciledSettings);
-
-      if (hasSignedInCloudSession(reconciledSettings)) {
-        void ensureCloudAccessToken().catch((error: unknown) => {
-          log.warn('[SettingsContext] Cloud session is not group-ready', error);
-        });
-      }
+      pendingLoadedSettings = mergedSettings;
+      beginInitialSettingsLoad(migratedSettings);
     }));
     bridge.settings.getSettings();
   };
@@ -380,6 +354,66 @@ export const SettingsProvider: ParentComponent = (props) => {
     broadcastSettingsUpdate(snapshot);
   };
 
+  const finalizeInitialSettingsLoad = (
+    loadedSettings: Settings,
+    migratedSettings: boolean,
+    policy: EffectiveManagementPolicy | null,
+  ) => {
+    if (disposed) return;
+    const shouldPersist = Boolean(pendingSettingsSnapshot) || migratedSettings;
+    const reconciledSettings = applyManagedSettings(loadedSettings, policy);
+    managedPolicyScope = policy ? managementPolicyScopeKey(reconciledSettings) : '';
+    setManagedPolicy(policy);
+    setSettings(reconcile(reconciledSettings));
+    syncCloudState(reconciledSettings);
+    setHasLoaded(true);
+    setIsLoading(false);
+    pendingLoadedSettings = null;
+    pendingSettingsSnapshot = null;
+
+    if (import.meta.env.DEV) setSettings('devMode', true);
+    getBackend({
+      mode: reconciledSettings.backendMode,
+      url: resolveBackendUrl(reconciledSettings),
+      authToken: resolveCloudAccessToken(reconciledSettings),
+    });
+    applySettingsToDOM(reconciledSettings);
+    if (shouldPersist) saveSettingsSnapshot(reconciledSettings, false);
+
+    void refreshManagedPolicy(reconciledSettings, false);
+    if (hasSignedInCloudSession(reconciledSettings)) {
+      void ensureCloudAccessToken().catch((error: unknown) => {
+        log.warn('[SettingsContext] Cloud session is not group-ready', error);
+      });
+    }
+  };
+
+  const beginInitialSettingsLoad = (migratedSettings: boolean) => {
+    const candidate = pendingLoadedSettings;
+    if (!candidate) return;
+    const scope = managementPolicyScopeKey(candidate);
+    if (!scope) {
+      finalizeInitialSettingsLoad(candidate, migratedSettings, null);
+      return;
+    }
+    void (async () => {
+      let cachedPolicy: EffectiveManagementPolicy | null = null;
+      try {
+        cachedPolicy = (await loadCachedEffectivePolicy(candidate))?.policy ?? null;
+      } catch (error) {
+        log.warn('[SettingsContext] Cached management policy was rejected', error);
+      }
+      if (disposed) return;
+      const latestCandidate = pendingLoadedSettings;
+      if (!latestCandidate) return;
+      if (managementPolicyScopeKey(latestCandidate) !== scope) {
+        beginInitialSettingsLoad(migratedSettings);
+        return;
+      }
+      finalizeInitialSettingsLoad(latestCandidate, migratedSettings, cachedPolicy);
+    })();
+  };
+
   const applyLoadedManagementPolicy = (
     policy: EffectiveManagementPolicy,
     scope: string,
@@ -405,7 +439,13 @@ export const SettingsProvider: ParentComponent = (props) => {
     saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
   };
 
-  async function refreshManagedPolicy(nextSettings: Settings): Promise<void> {
+  async function refreshManagedPolicy(
+    nextSettings: Settings,
+    includeCache: boolean = true,
+  ): Promise<void> {
+    policyRefreshAbort?.abort();
+    const abortController = new AbortController();
+    policyRefreshAbort = abortController;
     const generation = ++policyRefreshGeneration;
     const scope = managementPolicyScopeKey(nextSettings);
     if (!scope) {
@@ -418,27 +458,62 @@ export const SettingsProvider: ParentComponent = (props) => {
       setManagedPolicy(null);
     }
 
-    try {
-      const cached = await loadCachedEffectivePolicy(nextSettings);
-      if (cached) applyLoadedManagementPolicy(cached.policy, scope, generation);
-    } catch (error) {
-      log.warn('[SettingsContext] Cached management policy was rejected', error);
+    if (includeCache) {
+      try {
+        const cached = await loadCachedEffectivePolicy(nextSettings);
+        if (cached) applyLoadedManagementPolicy(cached.policy, scope, generation);
+      } catch (error) {
+        log.warn('[SettingsContext] Cached management policy was rejected', error);
+      }
     }
-    if (generation !== policyRefreshGeneration) return;
+    if (!isCurrentPolicyRequest(generation, scope, abortController.signal)) return;
 
     const accessToken = resolveCloudAccessToken(nextSettings).trim();
     if (!accessToken) return;
     try {
-      const fetched = await fetchEffectivePolicy(nextSettings, accessToken);
+      const fetched = await fetchEffectivePolicy(
+        nextSettings,
+        accessToken,
+        undefined,
+        abortController.signal,
+      );
+      if (!isCurrentPolicyRequest(generation, scope, abortController.signal)) return;
+      await enrollTrustedPublicKey(fetched.origin, fetched.publicKey, abortController.signal);
+      if (!isCurrentPolicyRequest(generation, scope, abortController.signal)) return;
       applyLoadedManagementPolicy(fetched.policy, scope, generation);
+      if (!isCurrentPolicyRequest(generation, scope, abortController.signal)) return;
+      try {
+        await saveCachedPolicyMonotonic(
+          fetched.origin,
+          fetched.userId,
+          fetched.policy,
+          abortController.signal,
+        );
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          log.warn('[SettingsContext] Verified management policy cache write failed', error);
+        }
+      }
     } catch (error) {
-      log.warn('[SettingsContext] Fresh management policy is unavailable', error);
+      if (!abortController.signal.aborted) {
+        log.warn('[SettingsContext] Fresh management policy is unavailable', error);
+      }
     }
   }
+
+  const isCurrentPolicyRequest = (
+    generation: number,
+    scope: string,
+    signal: AbortSignal,
+  ): boolean => !disposed
+    && !signal.aborted
+    && generation === policyRefreshGeneration
+    && managementPolicyScopeKey(serializeSettings(settings as Settings)) === scope;
 
   const resetPolicyForScopeChange = (currentSettings: Settings, nextSettings: Settings) => {
     if (managementPolicyScopeKey(currentSettings) === managementPolicyScopeKey(nextSettings)) return;
     policyRefreshGeneration += 1;
+    policyRefreshAbort?.abort();
     managedPolicyScope = '';
     setManagedPolicy(null);
   };
@@ -452,6 +527,21 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   // Update a single setting
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    if (!hasLoaded()) {
+      const currentSettings = pendingLoadedSettings
+        ?? ({ ...serializeSettings(settings as Settings), ...pendingSettingsSnapshot } as Settings);
+      const nextSettings = normalizeSignedOutActiveGroup({
+        ...currentSettings,
+        [key]: value,
+      } as Settings);
+      pendingSettingsSnapshot = mergePendingSettings(
+        pendingSettingsSnapshot,
+        { [key]: value } as Partial<Settings>,
+        nextSettings.cloudAuthStatus,
+      );
+      if (pendingLoadedSettings) pendingLoadedSettings = nextSettings;
+      return;
+    }
     const currentSettings = serializeSettings(settings as Settings);
     const unguardedSettings = normalizeSignedOutActiveGroup({
       ...currentSettings,
@@ -467,21 +557,27 @@ export const SettingsProvider: ParentComponent = (props) => {
     maybeReconfigureBackend(nextSettings, changedKeys);
     maybeClearAnkiCache(changedKeys);
 
-    if (!hasLoaded()) {
-      pendingSettingsSnapshot = mergePendingSettings(
-        pendingSettingsSnapshot,
-        { [key]: value } as Partial<Settings>,
-        nextSettings.cloudAuthStatus,
-      );
-      return;
-    }
-
     saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
     refreshPolicyIfNeeded(currentSettings, nextSettings);
   };
 
   // Update multiple settings
   const updateSettings = (partial: Partial<Settings>) => {
+    if (!hasLoaded()) {
+      const currentSettings = pendingLoadedSettings
+        ?? ({ ...serializeSettings(settings as Settings), ...pendingSettingsSnapshot } as Settings);
+      const nextSettings = normalizeSignedOutActiveGroup({
+        ...currentSettings,
+        ...partial,
+      } as Settings);
+      pendingSettingsSnapshot = mergePendingSettings(
+        pendingSettingsSnapshot,
+        partial,
+        nextSettings.cloudAuthStatus,
+      );
+      if (pendingLoadedSettings) pendingLoadedSettings = nextSettings;
+      return;
+    }
     const currentSettings = serializeSettings(settings as Settings);
     const unguardedSettings = normalizeSignedOutActiveGroup({
       ...currentSettings,
@@ -496,15 +592,6 @@ export const SettingsProvider: ParentComponent = (props) => {
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, changedKeys);
     maybeClearAnkiCache(changedKeys);
-
-    if (!hasLoaded()) {
-      pendingSettingsSnapshot = mergePendingSettings(
-        pendingSettingsSnapshot,
-        partial,
-        nextSettings.cloudAuthStatus,
-      );
-      return;
-    }
 
     saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
     refreshPolicyIfNeeded(currentSettings, nextSettings);
@@ -539,6 +626,12 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Handle settings from other windows
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
+      if (!hasLoaded()) {
+        const incomingSettings = normalizeSignedOutActiveGroup(event.data.settings as Settings);
+        pendingSettingsSnapshot = { ...incomingSettings };
+        if (pendingLoadedSettings) pendingLoadedSettings = incomingSettings;
+        return;
+      }
       const currentSettings = serializeSettings(settings as Settings);
       const unguardedSettings = normalizeSignedOutActiveGroup(event.data.settings as Settings);
       resetPolicyForScopeChange(currentSettings, unguardedSettings);
@@ -575,6 +668,10 @@ export const SettingsProvider: ParentComponent = (props) => {
   });
 
   onCleanup(() => {
+    disposed = true;
+    policyRefreshGeneration += 1;
+    policyRefreshAbort?.abort();
+    policyRefreshAbort = null;
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
     broadcastChannel?.close();
