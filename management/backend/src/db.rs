@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
@@ -8,12 +8,7 @@ use sqlx::{
 use crate::{config::Config, error::AppError};
 
 pub async fn connect_database(config: &Config) -> Result<SqlitePool, AppError> {
-    let options =
-        SqliteConnectOptions::from_str(&format!("sqlite://{}", config.management_db_path))
-            .map_err(database_error)?
-            .create_if_missing(true)
-            .foreign_keys(true)
-            .journal_mode(SqliteJournalMode::Wal);
+    let options = sqlite_connect_options(&config.management_db_path)?;
     let pool = SqlitePoolOptions::new()
         .max_connections(8)
         .connect_with(options)
@@ -24,6 +19,15 @@ pub async fn connect_database(config: &Config) -> Result<SqlitePool, AppError> {
         .await
         .map_err(|error| AppError::Internal(format!("database migration failed: {error}")))?;
     Ok(pool)
+}
+
+pub(crate) fn sqlite_connect_options(path: &str) -> Result<SqliteConnectOptions, AppError> {
+    Ok(SqliteConnectOptions::from_str(&format!("sqlite://{path}"))
+        .map_err(database_error)?
+        .create_if_missing(true)
+        .foreign_keys(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .busy_timeout(Duration::from_secs(5)))
 }
 
 fn database_error(error: sqlx::Error) -> AppError {
@@ -140,7 +144,7 @@ mod tests {
         sqlx::raw_sql(include_str!("../migrations/0008_llm_quotas.sql")).execute(&pool).await.unwrap();
         assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id = 'prior-user'").fetch_one(&pool).await.unwrap(), 1);
         assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id = 'prior-group'").fetch_one(&pool).await.unwrap(), 1);
-        for object in ["quota_definitions", "quota_reservations", "quota_reservation_scopes", "usage_ledger", "usage_ledger_immutable_update", "quota_reservation_scope_group_ancestry"] {
+        for object in ["quota_definitions", "quota_reservations", "quota_reservation_scopes", "quota_reservation_periods", "usage_ledger", "usage_ledger_immutable_update", "quota_reservation_scope_group_ancestry", "quota_reservations_lifecycle", "usage_ledger_snapshot_match"] {
             assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name = ?").bind(object).fetch_one(&pool).await.unwrap(), 1, "{object}");
         }
     }

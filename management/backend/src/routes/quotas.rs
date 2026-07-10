@@ -169,7 +169,11 @@ mod tests {
     #[tokio::test]
     async fn analytics_service_key_reads_own_subtree_but_cannot_administer_quotas() {
         let fixture = GroupFixture::german_tree().await;
-        for capability in [Capability::LlmConfigure, Capability::AnalyticsView] {
+        for capability in [
+            Capability::LlmConfigure,
+            Capability::AnalyticsView,
+            Capability::PoliciesView,
+        ] {
             sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('membership-a', ?)")
                 .bind(capability.as_str()).execute(&fixture.pool).await.unwrap();
         }
@@ -180,6 +184,15 @@ mod tests {
                 &fixture.german_a_teacher,
                 &fixture.german_a,
                 vec![Capability::AnalyticsView],
+                None,
+            )
+            .await
+            .unwrap();
+        let view_key = ApiKeyService::new(fixture.pool.clone())
+            .create(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                vec![Capability::PoliciesView],
                 None,
             )
             .await
@@ -204,6 +217,18 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(summary.status(), StatusCode::OK);
+
+        let definitions = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/api/llm/quotas?groupId={}", fixture.german_a))
+                    .header(header::AUTHORIZATION, format!("Bearer {}", view_key.secret))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(definitions.status(), StatusCode::OK);
 
         let sibling = app
             .clone()
