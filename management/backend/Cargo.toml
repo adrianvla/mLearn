@@ -61,6 +61,9 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+[dev-dependencies]
+static_assertions = "1"
+
 [profile.release]
 opt-level = 3
 lto = true

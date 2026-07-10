@@ -26,6 +26,7 @@ CREATE TABLE llm_models (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     UNIQUE (id, group_id),
+    UNIQUE (id, provider_id, group_id),
     UNIQUE (group_id, model_key),
     FOREIGN KEY (provider_id, group_id) REFERENCES llm_providers(id, group_id) ON DELETE RESTRICT
 );
@@ -56,11 +57,13 @@ CREATE TABLE provider_price_versions (
     unit TEXT NOT NULL CHECK (unit = 'perMillionTokens'),
     input_cost_micros INTEGER NOT NULL CHECK (input_cost_micros >= 0 AND input_cost_micros <= 9007199254740991),
     output_cost_micros INTEGER NOT NULL CHECK (output_cost_micros >= 0 AND output_cost_micros <= 9007199254740991),
-    idempotency_key TEXT NOT NULL UNIQUE,
+    operation TEXT NOT NULL DEFAULT 'price.create' CHECK (operation = 'price.create'),
+    idempotency_key TEXT NOT NULL,
     created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at INTEGER NOT NULL,
     FOREIGN KEY (provider_id, group_id) REFERENCES llm_providers(id, group_id) ON DELETE RESTRICT,
-    FOREIGN KEY (model_id, group_id) REFERENCES llm_models(id, group_id) ON DELETE RESTRICT
+    FOREIGN KEY (model_id, provider_id, group_id) REFERENCES llm_models(id, provider_id, group_id) ON DELETE RESTRICT,
+    UNIQUE (group_id, operation, idempotency_key)
 );
 
 CREATE INDEX provider_price_versions_current_idx
@@ -70,6 +73,47 @@ CREATE TRIGGER provider_price_versions_immutable_update
 BEFORE UPDATE ON provider_price_versions
 BEGIN
     SELECT RAISE(ABORT, 'provider price versions are immutable');
+END;
+
+CREATE TABLE llm_configuration_mutations (
+    group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE RESTRICT,
+    operation TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    payload_hash BLOB NOT NULL,
+    actor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    target_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (group_id, operation, idempotency_key)
+);
+
+CREATE TRIGGER llm_providers_identity_immutable
+BEFORE UPDATE OF id, group_id, created_by_user_id, created_at ON llm_providers
+BEGIN
+    SELECT RAISE(ABORT, 'provider identity and ownership are immutable');
+END;
+
+CREATE TRIGGER llm_models_identity_immutable
+BEFORE UPDATE OF id, group_id, provider_id, created_by_user_id, created_at ON llm_models
+BEGIN
+    SELECT RAISE(ABORT, 'model identity and ownership are immutable');
+END;
+
+CREATE TRIGGER prompt_profiles_identity_immutable
+BEFORE UPDATE OF id, group_id, created_by_user_id, created_at ON prompt_profiles
+BEGIN
+    SELECT RAISE(ABORT, 'prompt profile identity and ownership are immutable');
+END;
+
+CREATE TRIGGER llm_configuration_mutations_immutable_update
+BEFORE UPDATE ON llm_configuration_mutations
+BEGIN
+    SELECT RAISE(ABORT, 'LLM configuration mutations are immutable');
+END;
+
+CREATE TRIGGER llm_configuration_mutations_immutable_delete
+BEFORE DELETE ON llm_configuration_mutations
+BEGIN
+    SELECT RAISE(ABORT, 'LLM configuration mutations are immutable');
 END;
 
 CREATE TRIGGER provider_price_versions_immutable_delete
