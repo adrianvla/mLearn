@@ -10,7 +10,7 @@ const testSettings = {
 let settingsLoading = false;
 
 const languageProviderMock = vi.fn((props: { language?: string; children?: JSX.Element }) => <>{props.children}</>);
-const activeGroupGateMock = vi.fn(() => <div data-testid="active-group-gate" />);
+const activeGroupGateMock = vi.fn((_props?: { showSwitchTrigger?: boolean }) => <div data-testid="active-group-gate" />);
 
 vi.mock('./SettingsContext', () => ({
   SettingsProvider: (props: { children?: JSX.Element }) => <>{props.children}</>,
@@ -69,7 +69,7 @@ vi.mock('../components/cloud/CloudReLoginModal', () => ({
 }));
 
 vi.mock('../components/cloud/ActiveGroupSelector', () => ({
-  ActiveGroupGate: () => activeGroupGateMock(),
+  ActiveGroupGate: (props: { showSwitchTrigger?: boolean }) => activeGroupGateMock(props),
 }));
 
 vi.mock('../components/flashcard', () => ({
@@ -137,7 +137,16 @@ describe('WindowWrapper', () => {
     const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
 
     expect(activeGroupGateMock).toHaveBeenCalledTimes(1);
+    expect(activeGroupGateMock).toHaveBeenCalledWith({ showSwitchTrigger: undefined });
 
+    dispose();
+  });
+
+  it('exposes the optional switch trigger only when a primary surface requests it', async () => {
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper showActiveGroupSwitch>content</WindowWrapper>, container);
+
+    expect(activeGroupGateMock).toHaveBeenCalledWith({ showSwitchTrigger: true });
     dispose();
   });
 });

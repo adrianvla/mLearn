@@ -25,6 +25,8 @@ function assertManagedSettingTypeBoundary(
   settings.cloudAuthAccessToken = settingRule('secret');
   // @ts-expect-error Executable CSS is not policy-addressable.
   settings.customThemeCSS = settingRule('body {}');
+  // @ts-expect-error Deprecated scalar language levels are not policy-addressable.
+  settings.learningLanguageLevel = settingRule(3);
 }
 void assertManagedSettingTypeBoundary;
 
@@ -76,6 +78,15 @@ describe('management policy contract', () => {
           ...fixture.settings,
           cloudAuthRefreshToken: settingRule('secret'),
         },
+      }).ok,
+    ).toBe(false);
+  });
+
+  it('rejects the deprecated scalar language-level setting', () => {
+    expect(
+      validateEffectiveManagementPolicy({
+        ...fixture,
+        settings: { learningLanguageLevel: settingRule(3) },
       }).ok,
     ).toBe(false);
   });

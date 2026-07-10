@@ -23,9 +23,10 @@ import '../SettingsForm.css';
 import './AnkiFieldPreview.css';
 import Icon from "@renderer/components/common/Icons/Icon";
 import { DEFAULT_SETTINGS, type TTSProvider } from "@shared/types";
+import { shouldShowAnkiSettings } from './managedSettingVisibility';
 
 export const SRSTab: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { store, updateMeta, resetSRS, nukeAllFlashcards } = useFlashcards();
   const { getLanguageFeatures } = useLanguage();
@@ -215,7 +216,7 @@ export const SRSTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={settings.use_anki}>
+        <Show when={shouldShowAnkiSettings(settings.use_anki, isSettingManaged)}>
           <SettingRow
             label={t('mlearn.Settings.SRS.AnkiIntegration.ConnectUrl.Label')}
             description={t('mlearn.Settings.SRS.AnkiIntegration.ConnectUrl.Description')}

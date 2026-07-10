@@ -18,7 +18,7 @@ import {
 import '../SettingsForm.css';
 
 export const VideoPlayerTab: Component = () => {
-  const { settings, updateSettings, showProsody, setProsodyVisible } = useSettings();
+  const { settings, updateSettings, showProsody, setProsodyVisible, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { getLanguageFeatures, currentLangData } = useLanguage();
 
@@ -50,7 +50,7 @@ export const VideoPlayerTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={settings.showLiveTranslator !== false}>
+        <Show when={settings.showLiveTranslator !== false || isSettingManaged('liveTranslatorIncludeKnown')}>
           <SettingRow
             label={t('mlearn.Settings.VideoPlayer.LiveTranslator.IncludeKnown.Label')}
             description={t('mlearn.Settings.VideoPlayer.LiveTranslator.IncludeKnown.Description')}
@@ -80,7 +80,7 @@ export const VideoPlayerTab: Component = () => {
           </SettingRow>
         </Show>
 
-        <Show when={getLanguageFeatures().supportsReadings && readingAnnotationsEnabled(settings)}>
+        <Show when={(getLanguageFeatures().supportsReadings && readingAnnotationsEnabled(settings)) || isSettingManaged('hideReadingForKnownWords')}>
           <SettingRow
             label={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Label')}
             description={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Description')}
@@ -152,7 +152,7 @@ export const VideoPlayerTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={settings.blur_words || settings.blurKnownWords || settings.blur_known_subtitles}>
+        <Show when={settings.blur_words || settings.blurKnownWords || settings.blur_known_subtitles || isSettingManaged('blur_amount')}>
           <SettingRow
             label={t('mlearn.Settings.BlurEffect.BlurAmount.Label')}
             description={t('mlearn.Settings.BlurEffect.BlurAmount.Description')}

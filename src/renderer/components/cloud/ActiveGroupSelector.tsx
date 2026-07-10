@@ -14,6 +14,7 @@ export interface ActiveGroupSelectorProps {
   groups: readonly ManagementGroup[];
   activeGroupId: string;
   onActivate: (group: ManagementGroup) => Promise<unknown> | unknown;
+  showSwitchTrigger?: boolean;
 }
 
 export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) => {
@@ -23,10 +24,54 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
   const [error, setError] = createSignal('');
   const requiresSelection = () => props.groups.length > 1 && !props.activeGroupId;
   const activeGroup = () => props.groups.find((group) => group.id === props.activeGroupId);
+  let dialogRef: HTMLDivElement | undefined;
+  let wasOpen = false;
+  let restoreFocusTo: HTMLElement | null = null;
 
   createEffect(() => {
-    if (requiresSelection()) setIsOpen(true);
+    if (requiresSelection()) {
+      setIsOpen(true);
+    } else if (props.activeGroupId || props.groups.length <= 1) {
+      setIsOpen(false);
+    }
   });
+
+  createEffect(() => {
+    const open = isOpen();
+    if (open && !wasOpen) {
+      restoreFocusTo = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      queueMicrotask(() => {
+        if (!isOpen()) return;
+        dialogRef?.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
+      });
+    } else if (!open && wasOpen) {
+      restoreFocusTo?.focus();
+      restoreFocusTo = null;
+    }
+    wasOpen = open;
+  });
+
+  const containKeyboardFocus = (event: KeyboardEvent) => {
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(
+      dialogRef?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
+    );
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const close = () => {
     if (!requiresSelection() && !pendingGroupId()) setIsOpen(false);
@@ -48,7 +93,7 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
 
   return (
     <Show when={props.groups.length > 1}>
-      <Show when={activeGroup()}>
+      <Show when={props.showSwitchTrigger && activeGroup()}>
         {(group) => (
           <Btn
             class="active-group-trigger"
@@ -82,10 +127,12 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
         panelClass="active-group-modal"
       >
         <div
+          ref={dialogRef}
           class="active-group-selector"
           role="dialog"
           aria-label={t('mlearn.Management.ChooseGroup')}
           aria-modal="true"
+          onKeyDown={containKeyboardFocus}
         >
           <div class="active-group-list">
             <For each={props.groups}>
@@ -123,7 +170,7 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
   );
 };
 
-export const ActiveGroupGate: Component = () => {
+export const ActiveGroupGate: Component<{ showSwitchTrigger?: boolean }> = (props) => {
   const { settings, updateSettings, isLoading } = useSettings();
   const { t } = useLocalization();
   const [groups, setGroups] = createSignal<ManagementGroup[]>([]);
@@ -178,6 +225,7 @@ export const ActiveGroupGate: Component = () => {
         groups={groups()}
         activeGroupId={settings.cloudAuthActiveGroupId}
         onActivate={handleActivate}
+        showSwitchTrigger={props.showSwitchTrigger}
       />
       <Show when={loadError()}>
         <div class="active-group-load-error" role="alert">

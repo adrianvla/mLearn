@@ -280,7 +280,7 @@ const GlobalEulaModal: Component = () => {
  */
 const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean }> = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean }> = (props) => {
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
   const needsTitleBar = props.showTitleBar && isElectron();
 
@@ -293,7 +293,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
             <GlobalRuntimeRestartModal />
-            <ActiveGroupGate />
+            <ActiveGroupGate showSwitchTrigger={props.showActiveGroupSwitch} />
             <LowPowerGateProvider>
             <LanguageProviderBridge>
             <MigrationHandler>

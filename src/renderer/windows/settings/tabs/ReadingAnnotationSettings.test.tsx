@@ -53,6 +53,7 @@ vi.mock('../../../context', () => ({
     updateSettings: updateSettingsMock,
     showProsody: () => testSettings.showProsody,
     setProsodyVisible: setProsodyVisibleMock,
+    isSettingManaged: () => false,
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string | number>) => {

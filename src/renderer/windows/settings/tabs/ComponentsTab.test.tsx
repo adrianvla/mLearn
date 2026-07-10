@@ -424,6 +424,11 @@ describe('ComponentsTab', () => {
     const dispose = render(() => <ComponentsTab />, container);
 
     const toggles = Array.from(container.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+    expect(toggles.map((toggle) => toggle.getAttribute('aria-label'))).toEqual([
+      'AI components: Enabled',
+      'Reader and OCR components: Enabled',
+      'Voice components: Disabled',
+    ]);
     toggles[2].checked = true;
     toggles[2].dispatchEvent(new Event('change', { bubbles: true }));
 

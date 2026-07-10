@@ -21,6 +21,8 @@ export interface SettingRowProps {
   class?: string;
   style?: JSX.CSSProperties;
   settingKey?: PolicySettingKey;
+  /** Mutation control to lock separately from recovery/help children. */
+  managedControl?: JSX.Element;
 }
 
 export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
@@ -74,10 +76,21 @@ export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
         </Show>
       </div>
       <div class="setting-control">
-        <Show when={disabled()} fallback={props.children}>
-          <fieldset class="managed-setting-control" disabled>
-            {props.children}
-          </fieldset>
+        <Show when={props.managedControl} fallback={(
+          <Show when={disabled()} fallback={props.children}>
+            <fieldset class="managed-setting-control" disabled>
+              {props.children}
+            </fieldset>
+          </Show>
+        )}>
+          {(control) => (
+            <>
+              <Show when={disabled()} fallback={control()}>
+                <fieldset class="managed-setting-control" disabled>{control()}</fieldset>
+              </Show>
+              {props.children}
+            </>
+          )}
         </Show>
       </div>
     </div>

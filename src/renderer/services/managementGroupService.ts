@@ -17,6 +17,15 @@ export interface ActiveGroupResult {
 
 type UpdateSettings = (partial: Partial<Settings>) => void;
 
+interface GroupReadinessCache {
+  scope: string;
+  activeGroupId: string;
+  result: ActiveGroupResult;
+}
+
+let readinessCache: GroupReadinessCache | null = null;
+const readinessRequests = new Map<string, Promise<ActiveGroupResult>>();
+
 const CLEARED_ACTIVE_GROUP = {
   cloudAuthActiveGroupId: DEFAULT_SETTINGS.cloudAuthActiveGroupId,
   cloudAuthActiveGroupName: DEFAULT_SETTINGS.cloudAuthActiveGroupName,
@@ -61,6 +70,15 @@ function tokenFor(settings: Settings, accessToken?: string): string {
   const token = (accessToken || resolveCloudAccessToken(settings)).trim();
   if (!token) throw new Error('Missing cloud access token');
   return token;
+}
+
+function readinessScope(settings: Settings, accessToken?: string): string {
+  return `${resolveCloudApiUrl(settings)}\n${settings.cloudAuthUserId}\n${tokenFor(settings, accessToken)}`;
+}
+
+export function resetManagementGroupReadiness(): void {
+  readinessCache = null;
+  readinessRequests.clear();
 }
 
 export function requiresManagementGroup(settings: Settings): boolean {
@@ -117,7 +135,13 @@ export async function activateGroup(
       cloudAuthActiveGroupName: group.name,
     });
   }
-  return readyResult(group, groups);
+  const result = readyResult(group, groups);
+  readinessCache = {
+    scope: readinessScope(settings, accessToken),
+    activeGroupId: group.id,
+    result,
+  };
+  return result;
 }
 
 function clearActiveGroup(settings: Settings, updateSettings: UpdateSettings): void {
@@ -133,10 +157,35 @@ export async function ensureActiveGroup(
   accessToken?: string,
 ): Promise<ActiveGroupResult> {
   if (settings.cloudAuthStatus !== 'signed-in') {
+    resetManagementGroupReadiness();
     clearActiveGroup(settings, updateSettings);
     return { ready: false, needsSelection: false, id: '', name: '', groups: [] };
   }
 
+  const scope = readinessScope(settings, accessToken);
+  const activeGroupId = settings.cloudAuthActiveGroupId || DEFAULT_SETTINGS.cloudAuthActiveGroupId;
+  if (readinessCache?.scope === scope && readinessCache.activeGroupId === activeGroupId) {
+    return readinessCache.result;
+  }
+  const requestKey = `${scope}\n${activeGroupId}`;
+  const pending = readinessRequests.get(requestKey);
+  if (pending) return pending;
+
+  const request = ensureActiveGroupUncached(settings, updateSettings, accessToken, scope);
+  readinessRequests.set(requestKey, request);
+  try {
+    return await request;
+  } finally {
+    if (readinessRequests.get(requestKey) === request) readinessRequests.delete(requestKey);
+  }
+}
+
+async function ensureActiveGroupUncached(
+  settings: Settings,
+  updateSettings: UpdateSettings,
+  accessToken: string | undefined,
+  scope: string,
+): Promise<ActiveGroupResult> {
   const groups = await getEligibleGroups(settings, accessToken);
   const storedGroupId = settings.cloudAuthActiveGroupId || DEFAULT_SETTINGS.cloudAuthActiveGroupId;
   const storedGroup = groups.find((group) => group.id === storedGroupId);
@@ -144,13 +193,15 @@ export async function ensureActiveGroup(
 
   if (!selectedGroup) {
     clearActiveGroup(settings, updateSettings);
-    return {
+    const result = {
       ready: false,
       needsSelection: groups.length > 1,
       id: '',
       name: '',
       groups,
     };
+    readinessCache = { scope, activeGroupId: '', result };
+    return result;
   }
 
   try {

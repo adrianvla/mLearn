@@ -14,7 +14,7 @@ import {
 import '../SettingsForm.css';
 
 export const ReaderTab: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { getLanguageFeatures } = useLanguage();
 
@@ -260,7 +260,7 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
         
-        <Show when={settings.readerWordHoverTrigger === 'key-hover'}>
+        <Show when={settings.readerWordHoverTrigger === 'key-hover' || isSettingManaged('readerWordHoverKey')}>
           <SettingRow
             label={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Label')}
             description={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Description')}

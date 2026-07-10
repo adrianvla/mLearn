@@ -45,7 +45,7 @@ const App = () => {
   useCapacitorKeyboard();
 
   return (
-    <WindowWrapper showDragRegion={false}>
+    <WindowWrapper showDragRegion={false} showActiveGroupSwitch>
       <SyncProvider>
         <LoadingOverlay />
         <MobileContextMenuHandler />
