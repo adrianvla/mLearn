@@ -255,3 +255,61 @@ npm run typecheck
 git diff --check
 # passed
 ```
+
+---
+
+## Final re-review: legacy active-version signing boundary
+
+The accepted policy setting domain is now enforced at the last possible trust boundary, so active policy versions created before current validation cannot produce signed snapshots that JavaScript would parse differently.
+
+### RED
+
+Direct signer:
+
+```bash
+cargo test --manifest-path management/backend/Cargo.toml policy::signing::tests::signer_rejects_legacy_unsafe_integer_setting
+```
+
+Observed failure: `PolicySigner::sign_snapshot` returned `Ok` for a compiled `subtitle_font_size` value of exact Rust integer `9007199254740992`.
+
+Legacy active endpoint:
+
+```bash
+cargo test --manifest-path management/backend/Cargo.toml routes::policies::tests::legacy_active_policy_with_unsafe_integer_cannot_be_signed
+```
+
+Observed failure: `/api/policy/me` returned `200` and issued a signature for a directly stored, active legacy version containing `9007199254740992`.
+
+### GREEN
+
+- `PolicySigner::sign_snapshot` now revalidates every compiled setting key/value with `validate_setting_rule` before assigning a key ID, canonicalizing, or signing.
+- Invalid legacy data fails closed as an internal server error that identifies only the setting key and validator error, never the setting value or private key.
+- `/api/policy/me` therefore returns no policy signature for a legacy active version outside the accepted domain.
+- A direct signer regression proves finite fractional `20.5` still signs and verifies.
+- The existing endpoint regression continues to sign and publicly verify accepted `1e-7` through RFC 8785/JCS.
+- Unsigned management inspection, live membership, service-principal rejection, bounded expiry, descriptor-safe keys, and app caching/enforcement exclusions remain unchanged.
+
+### Verification
+
+```bash
+cargo test --manifest-path management/backend/Cargo.toml policy::signing::tests
+# 14 passed; 0 failed
+
+cargo test --manifest-path management/backend/Cargo.toml routes::policies::tests
+# 9 passed; 0 failed
+
+npx vitest run --project node src/shared/managementPolicy.test.ts
+# 1 file and 8 tests passed
+
+cargo test --manifest-path management/backend/Cargo.toml
+# 162 library tests and 5 binary tests passed; 0 failed
+
+npm run test
+# 231 files and 4,827 tests passed; 0 failed
+
+npm run typecheck
+# passed
+
+git diff --check
+# passed
+```

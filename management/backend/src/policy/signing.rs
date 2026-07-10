@@ -12,7 +12,10 @@ use rand::rngs::OsRng;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::{error::AppError, policy::PolicyDocument};
+use crate::{
+    error::AppError,
+    policy::{validate_setting_rule, PolicyDocument},
+};
 
 #[derive(Clone)]
 pub struct PolicySigner {
@@ -52,6 +55,13 @@ impl PolicySigner {
     }
 
     pub fn sign_snapshot(&self, mut snapshot: PolicyDocument) -> Result<PolicyDocument, AppError> {
+        for (key, rule) in &snapshot.settings {
+            validate_setting_rule(key, &rule.value).map_err(|error| {
+                AppError::Internal(format!(
+                    "compiled policy setting `{key}` failed signing validation: {error}"
+                ))
+            })?;
+        }
         snapshot.key_id = self.key_id.clone();
         snapshot.signature.clear();
         let bytes = canonical_unsigned_bytes(&snapshot)?;
@@ -265,6 +275,41 @@ mod tests {
         let mut tampered = signed.clone();
         tampered.settings.get_mut("llmEnabled").unwrap().value = json!(true);
         assert!(!signer.verify_for_test(&tampered));
+    }
+
+    #[test]
+    fn signer_rejects_legacy_unsafe_integer_setting() {
+        let signer = PolicySigner::generate_for_test();
+        let mut snapshot = fixture_snapshot();
+        snapshot.settings.insert(
+            "subtitle_font_size".into(),
+            SettingRule {
+                value: json!(9_007_199_254_740_992_u64),
+                source_group_id: "group-a".into(),
+                source_group_name: "Group A".into(),
+                locked: true,
+            },
+        );
+
+        assert!(signer.sign_snapshot(snapshot).is_err());
+    }
+
+    #[test]
+    fn signer_accepts_finite_fractional_setting() {
+        let signer = PolicySigner::generate_for_test();
+        let mut snapshot = fixture_snapshot();
+        snapshot.settings.insert(
+            "subtitle_font_size".into(),
+            SettingRule {
+                value: json!(20.5),
+                source_group_id: "group-a".into(),
+                source_group_name: "Group A".into(),
+                locked: true,
+            },
+        );
+
+        let signed = signer.sign_snapshot(snapshot).unwrap();
+        assert!(signer.verify_for_test(&signed));
     }
 
     #[test]
