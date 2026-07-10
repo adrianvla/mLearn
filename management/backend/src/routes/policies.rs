@@ -519,4 +519,40 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
+
+    #[tokio::test]
+    async fn legacy_active_policy_with_unsafe_integer_cannot_be_signed() {
+        let fixture = GroupFixture::german_tree().await;
+        let (app, token) = policy_app(&fixture).await;
+        let legacy_document =
+            r#"{"settings":{"subtitle_font_size":{"value":9007199254740992,"locked":true}}}"#;
+        sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES ('legacy-unsafe-number', ?, ?, 'legacy-document', 'legacy-compiled', ?, 'legacy unsafe number', '[]', 1)")
+            .bind(&fixture.german_a)
+            .bind(legacy_document)
+            .bind(&fixture.german_a_teacher.user_id)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES (?, 'legacy-unsafe-number', 1)")
+            .bind(&fixture.german_a)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::get("/api/policy/me")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert!(body.get("signature").is_none());
+    }
 }
