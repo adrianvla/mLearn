@@ -73,6 +73,18 @@ pub enum QuotaMetric {
     CostMicros,
 }
 
+impl QuotaMetric {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Requests => "requests",
+            Self::InputTokens => "inputTokens",
+            Self::OutputTokens => "outputTokens",
+            Self::TotalTokens => "totalTokens",
+            Self::CostMicros => "costMicros",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum QuotaPeriod {
@@ -80,4 +92,47 @@ pub enum QuotaPeriod {
     Weekly,
     Monthly,
     Term,
+}
+
+impl QuotaPeriod {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Daily => "daily",
+            Self::Weekly => "weekly",
+            Self::Monthly => "monthly",
+            Self::Term => "term",
+        }
+    }
+}
+
+#[cfg(test)]
+mod wire_identifier_tests {
+    use super::{QuotaMetric, QuotaPeriod};
+
+    #[test]
+    fn quota_wire_identifiers_match_serde_names() {
+        for metric in [
+            QuotaMetric::Requests,
+            QuotaMetric::InputTokens,
+            QuotaMetric::OutputTokens,
+            QuotaMetric::TotalTokens,
+            QuotaMetric::CostMicros,
+        ] {
+            assert_eq!(
+                serde_json::to_string(&metric).unwrap(),
+                format!(r#""{}""#, metric.as_str())
+            );
+        }
+        for period in [
+            QuotaPeriod::Daily,
+            QuotaPeriod::Weekly,
+            QuotaPeriod::Monthly,
+            QuotaPeriod::Term,
+        ] {
+            assert_eq!(
+                serde_json::to_string(&period).unwrap(),
+                format!(r#""{}""#, period.as_str())
+            );
+        }
+    }
 }

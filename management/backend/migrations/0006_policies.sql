@@ -11,6 +11,7 @@ CREATE TABLE policy_versions (
     group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE RESTRICT,
     document_json TEXT NOT NULL,
     document_hash TEXT NOT NULL,
+    compiled_hash TEXT NOT NULL,
     author_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     summary TEXT NOT NULL,
     parent_version_ids_json TEXT NOT NULL,
