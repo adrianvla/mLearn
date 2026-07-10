@@ -7,6 +7,7 @@ use aes_gcm::{
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::{rngs::OsRng, RngCore};
 use secrecy::{ExposeSecret, SecretBox};
+use sha2::Sha256;
 use zeroize::Zeroizing;
 
 use crate::{error::AppError, secret_file};
@@ -139,6 +140,21 @@ impl SecretCipher {
             )
             .map(Zeroizing::new)
             .map_err(|_| AppError::Internal("secret authentication failed".into()))
+    }
+
+    pub(crate) fn idempotency_fingerprint(&self, domain: &str, parts: &[&str]) -> Vec<u8> {
+        use hmac::{Hmac, Mac};
+
+        let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(self.key.expose_secret())
+            .expect("HMAC accepts a 32-byte deployment key");
+        mac.update(b"mlearn:secret-idempotency:v1\0");
+        mac.update(&(domain.len() as u64).to_be_bytes());
+        mac.update(domain.as_bytes());
+        for part in parts {
+            mac.update(&(part.len() as u64).to_be_bytes());
+            mac.update(part.as_bytes());
+        }
+        mac.finalize().into_bytes().to_vec()
     }
 }
 

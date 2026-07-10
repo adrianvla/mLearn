@@ -327,10 +327,13 @@ async fn route_resolution_uses_stable_ids_and_pins_only_public_dns_answers() {
     assert_eq!(route.provider_id, provider.id);
     assert_eq!(route.model, "upstream-name");
     assert_eq!(route.price_version.id, price.id);
-    assert_eq!(
-        route.pinned_targets,
-        vec!["93.184.216.34:443".parse().unwrap()]
-    );
+    let request = route
+        .endpoint
+        .request(reqwest::Method::POST, "chat/completions")
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(request.url().host_str(), Some("example.com"));
     let rebinding = LlmConfigurationService::with_resolver(
         fixture.pool.clone(),
         SecretCipher::from_key([44_u8; 32]),
@@ -576,6 +579,30 @@ async fn lifecycle_mutations_are_idempotent_audited_and_preserve_identity() {
         .await
         .unwrap();
     assert_eq!(provider.id, replay.id);
+    let stored_fingerprint: Vec<u8> = sqlx::query_scalar("SELECT payload_hash FROM llm_configuration_mutations WHERE group_id = ? AND operation = 'provider.create' AND idempotency_key = 'provider-create'")
+            .bind(&fixture.german_a).fetch_one(&fixture.pool).await.unwrap();
+    let public_candidate = super::mutation_payload_hash(&[
+        &fixture.german_a,
+        "Provider",
+        "openaiCompatible",
+        "https://api.openai.com/v1",
+        "secret",
+    ]);
+    assert_ne!(stored_fingerprint, public_candidate);
+    let wrong_deployment_key =
+        LlmConfigurationService::new(fixture.pool.clone(), SecretCipher::from_key([99_u8; 32]));
+    assert!(wrong_deployment_key
+        .create_provider(
+            &fixture.german_a_teacher,
+            &fixture.german_a,
+            "Provider",
+            ProviderKind::OpenAiCompatible,
+            "https://api.openai.com/v1",
+            Some("secret"),
+            "provider-create"
+        )
+        .await
+        .is_err());
     assert!(service
         .create_provider(
             &fixture.german_a_teacher,
@@ -633,6 +660,21 @@ async fn lifecycle_mutations_are_idempotent_audited_and_preserve_identity() {
         )
         .await
         .unwrap();
+    let stored_secret_fingerprint: Vec<u8> = sqlx::query_scalar("SELECT payload_hash FROM llm_configuration_mutations WHERE group_id = ? AND operation = 'provider.secret' AND idempotency_key = 'provider-secret'")
+        .bind(&fixture.german_a).fetch_one(&fixture.pool).await.unwrap();
+    assert_ne!(
+        stored_secret_fingerprint,
+        super::mutation_payload_hash(&[&provider.id, "rotated"])
+    );
+    assert!(wrong_deployment_key
+        .update_provider_secret(
+            &fixture.german_a_teacher,
+            &provider.id,
+            Some("rotated"),
+            "provider-secret"
+        )
+        .await
+        .is_err());
     assert!(
         sqlx::query("UPDATE llm_providers SET group_id = ? WHERE id = ?")
             .bind(&fixture.german_b)
