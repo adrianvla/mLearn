@@ -121,11 +121,11 @@ pub struct ConversationFilter<'a> {
 }
 
 impl ConversationService {
-    pub async fn record_policy_block_if_denied(
+    pub async fn record_policy_denial(
         &self,
         principal: &Principal,
         group_id: &str,
-    ) -> Result<bool, AppError> {
+    ) -> Result<(), AppError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
         authorize_read(
             &AuthorizationService::new(self.pool.clone()),
@@ -135,10 +135,6 @@ impl ConversationService {
         )
         .await?;
         let compiled = compile_in_transaction(&mut tx, group_id).await?;
-        if compiled.document.llm.enabled {
-            tx.commit().await.map_err(db)?;
-            return Ok(false);
-        }
         let version = compiled.document.policy_version_id.clone();
         let hash = hex::encode(Sha256::digest(
             serde_json::to_vec(&compiled.document)
@@ -147,7 +143,7 @@ impl ConversationService {
         sqlx::query("INSERT INTO llm_policy_block_events(id,owner_group_id,learner_user_id,policy_version_id,policy_compiled_hash,error_code,created_at) VALUES(?,?,?,?,?,'policy_denied',?)")
             .bind(Uuid::now_v7().to_string()).bind(group_id).bind(&principal.user_id).bind(version).bind(hash).bind(now()).execute(&mut *tx).await.map_err(db)?;
         tx.commit().await.map_err(db)?;
-        Ok(true)
+        Ok(())
     }
     pub fn new(pool: SqlitePool, cipher: SecretCipher) -> Self {
         Self {
@@ -176,8 +172,19 @@ impl ConversationService {
             .checked_add(self.retention_seconds)
             .ok_or_else(|| AppError::Internal("conversation retention overflow".into()))?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
-        self.redact_expired_in_transaction(&mut tx, now, None)
+        let automatic = self
+            .redact_expired_in_transaction(&mut tx, now, None)
             .await?;
+        if automatic.redacted_messages > 0 {
+            audit_retention(
+                &mut tx,
+                input.learner_user_id,
+                input.group_id,
+                automatic.redacted_messages,
+                now,
+            )
+            .await?;
+        }
         sqlx::query("INSERT INTO conversations (id, owner_group_id, learner_user_id, created_at, updated_at, retained_until, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')")
             .bind(&conversation_id).bind(input.group_id).bind(input.learner_user_id).bind(now).bind(now).bind(retained_until).execute(&mut *tx).await.map_err(db)?;
         sqlx::query("INSERT INTO llm_requests (id, conversation_id, reservation_id, provider_id, model_id, price_version_id, policy_version_id, policy_compiled_hash, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
@@ -227,7 +234,9 @@ impl ConversationService {
         }
         Ok(RetentionPage {
             redacted_messages: changed,
-            next_cursor: has_more.then(|| batch.last().cloned()).flatten(),
+            next_cursor: has_more
+                .then(|| batch.last().map(|id| encode_retention_cursor(id)))
+                .flatten(),
         })
     }
 
@@ -239,12 +248,10 @@ impl ConversationService {
         if !principal.is_root {
             return Err(AppError::Forbidden("root access required".into()));
         }
-        if cursor.is_some_and(|v| v.is_empty() || v.len() > 64 || v.chars().any(char::is_control)) {
-            return Err(AppError::BadRequest("invalid retention cursor".into()));
-        }
+        let decoded_cursor = decode_retention_cursor(cursor)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
         let result = self
-            .redact_expired_in_transaction(&mut tx, now(), cursor)
+            .redact_expired_in_transaction(&mut tx, now(), decoded_cursor.as_deref())
             .await?;
         if result.redacted_messages > 0 {
             let root_group: Option<String> =
@@ -273,6 +280,7 @@ impl ConversationService {
             return Err(AppError::BadRequest("limit must be 1..100".into()));
         }
         validate_filter(&filter)?;
+        let (date_from, date_to) = bounded_date_range(filter.from, filter.to)?;
         let (cursor_at, cursor_id) = decode_cursor(cursor)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
         authorize_read(
@@ -296,7 +304,7 @@ impl ConversationService {
                 });
             }
             let rows=sqlx::query("WITH RECURSIVE subtree(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN subtree s ON g.parent_id=s.id) SELECT e.id,e.owner_group_id,e.learner_user_id,'failed' status,e.created_at,'' provider_id,'' model_id,NULL input_tokens,NULL output_tokens,NULL cost_micros,e.policy_version_id,e.policy_compiled_hash,e.error_code FROM llm_policy_block_events e JOIN subtree s ON s.id=e.owner_group_id WHERE (e.created_at<? OR (e.created_at=? AND e.id<?)) AND (?=0 OR e.learner_user_id=?) AND (? IS NULL OR e.learner_user_id=?) AND (? IS NULL OR e.created_at>=?) AND (? IS NULL OR e.created_at<?) ORDER BY e.created_at DESC,e.id DESC LIMIT ?")
-                .bind(group_id).bind(cursor_at).bind(cursor_at).bind(&cursor_id).bind(learner_only).bind(&principal.user_id).bind(filter.learner_user_id).bind(filter.learner_user_id).bind(filter.from).bind(filter.from).bind(filter.to).bind(filter.to).bind((limit+1) as i64).fetch_all(&mut *tx).await.map_err(db)?;
+                .bind(group_id).bind(cursor_at).bind(cursor_at).bind(&cursor_id).bind(learner_only).bind(&principal.user_id).bind(filter.learner_user_id).bind(filter.learner_user_id).bind(date_from).bind(date_from).bind(date_to).bind(date_to).bind((limit+1) as i64).fetch_all(&mut *tx).await.map_err(db)?;
             tx.commit().await.map_err(db)?;
             let mut items: Vec<_> = rows.into_iter().map(summary).collect();
             let more = items.len() > limit;
@@ -310,7 +318,7 @@ impl ConversationService {
             .bind(group_id).bind(cursor_at).bind(cursor_at).bind(&cursor_id).bind(learner_only).bind(&principal.user_id)
             .bind(filter.learner_user_id).bind(filter.learner_user_id).bind(filter.provider_id).bind(filter.provider_id)
             .bind(filter.model_id).bind(filter.model_id).bind(filter.status).bind(filter.status)
-            .bind(filter.from).bind(filter.from).bind(filter.to).bind(filter.to).bind(policy_blocked).bind(policy_blocked)
+            .bind(date_from).bind(date_from).bind(date_to).bind(date_to).bind(policy_blocked).bind(policy_blocked)
             .bind((limit + 1) as i64).fetch_all(&mut *tx).await.map_err(db)?;
         tx.commit().await.map_err(db)?;
         let mut items: Vec<_> = rows.into_iter().map(summary).collect();
@@ -391,6 +399,18 @@ impl ConversationService {
     }
 }
 
+async fn audit_retention(
+    tx: &mut Transaction<'_, Sqlite>,
+    actor_user_id: &str,
+    group_id: &str,
+    count: u64,
+    timestamp: i64,
+) -> Result<(), AppError> {
+    sqlx::query("INSERT INTO audit_events(id,actor_user_id,action,target_type,target_id,metadata_json,created_at,authorized_group_id,request_id) VALUES (?,?,'conversations.retention_redacted','conversation_retention',NULL,?,?,?,NULL)")
+        .bind(Uuid::now_v7().to_string()).bind(actor_user_id).bind(format!("{{\"redactedMessages\":{count}}}")).bind(timestamp).bind(group_id).execute(&mut **tx).await.map_err(db)?;
+    Ok(())
+}
+
 impl ConversationRecorder {
     pub fn record_delta(&mut self, delta: &str) {
         let remaining = MAX_CAPTURE_BYTES.saturating_sub(self.response.len());
@@ -452,19 +472,14 @@ impl ConversationRecorder {
         .fetch_one(&mut **tx)
         .await
         .map_err(db)?;
-        let msg = GatewayMessage {
-            role: "assistant".into(),
-            content: String::from_utf8_lossy(&self.response).into_owned(),
-            tool_calls: None,
-            tool_call_id: None,
-        };
-        insert_message(
+        insert_raw_message(
             &self.service.cipher,
             tx,
             &self.conversation_id,
             &self.request_id,
             sequence,
-            &msg,
+            "assistant",
+            self.response.as_slice(),
             (!self.response_tool_data.is_empty()).then_some(self.response_tool_data.as_slice()),
             self.truncated,
             now,
@@ -478,15 +493,6 @@ impl ConversationRecorder {
                 "conversation request was already finalized".into(),
             ));
         }
-        sqlx::query(
-            "UPDATE conversations SET status=?,updated_at=? WHERE id=? AND status='pending'",
-        )
-        .bind(final_record.status)
-        .bind(now)
-        .bind(&self.conversation_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(db)?;
         Ok(())
     }
 }
@@ -505,9 +511,6 @@ async fn insert_message(
     if message.content.len() > MAX_MESSAGE_BYTES {
         return Err(AppError::BadRequest("message content is too large".into()));
     }
-    let id = Uuid::now_v7().to_string();
-    let aad = message_aad(conversation_id, request_id, &id, &message.role, sequence);
-    let encrypted = cipher.encrypt(message.content.as_bytes(), aad.as_bytes())?;
     let structured_tool_data;
     let tool_bytes = if let Some(raw) = raw_tool_data {
         Some(raw)
@@ -520,11 +523,44 @@ async fn insert_message(
     } else {
         None
     };
+    insert_raw_message(
+        cipher,
+        tx,
+        conversation_id,
+        request_id,
+        sequence,
+        &message.role,
+        message.content.as_bytes(),
+        tool_bytes,
+        truncated,
+        created_at,
+    )
+    .await
+}
+
+async fn insert_raw_message(
+    cipher: &SecretCipher,
+    tx: &mut Transaction<'_, Sqlite>,
+    conversation_id: &str,
+    request_id: &str,
+    sequence: i64,
+    role: &str,
+    content: &[u8],
+    tool_bytes: Option<&[u8]>,
+    truncated: bool,
+    created_at: i64,
+) -> Result<(), AppError> {
+    if content.len() > MAX_MESSAGE_BYTES {
+        return Err(AppError::BadRequest("message content is too large".into()));
+    }
+    let id = Uuid::now_v7().to_string();
+    let aad = message_aad(conversation_id, request_id, &id, role, sequence);
+    let encrypted = cipher.encrypt(content, aad.as_bytes())?;
     let tool_data = tool_bytes
         .map(|bytes| cipher.encrypt(bytes, aad.replace("content", "tools").as_bytes()))
         .transpose()?;
     sqlx::query("INSERT INTO conversation_messages(id,conversation_id,request_id,sequence,role,encrypted_content,encrypted_tool_data,content_bytes,truncated,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
-        .bind(id).bind(conversation_id).bind(request_id).bind(sequence).bind(&message.role).bind(encrypted.as_persisted()).bind(tool_data.as_ref().map(EncryptedSecret::as_persisted)).bind(message.content.len() as i64).bind(i64::from(truncated)).bind(created_at).execute(&mut **tx).await.map_err(db)?;
+        .bind(id).bind(conversation_id).bind(request_id).bind(sequence).bind(role).bind(encrypted.as_persisted()).bind(tool_data.as_ref().map(EncryptedSecret::as_persisted)).bind(content.len() as i64).bind(i64::from(truncated)).bind(created_at).execute(&mut **tx).await.map_err(db)?;
     Ok(())
 }
 fn message_aad(c: &str, r: &str, m: &str, role: &str, seq: i64) -> String {
@@ -564,6 +600,29 @@ fn unavailable() -> AppError {
 
 fn encode_cursor(created_at: i64, id: &str) -> String {
     URL_SAFE_NO_PAD.encode(format!("{created_at}\0{id}"))
+}
+fn encode_retention_cursor(id: &str) -> String {
+    URL_SAFE_NO_PAD.encode(format!("retention\0{id}"))
+}
+fn decode_retention_cursor(cursor: Option<&str>) -> Result<Option<String>, AppError> {
+    let Some(cursor) = cursor else {
+        return Ok(None);
+    };
+    if cursor.len() > 128 {
+        return Err(AppError::BadRequest("invalid retention cursor".into()));
+    }
+    let bytes = URL_SAFE_NO_PAD
+        .decode(cursor)
+        .map_err(|_| AppError::BadRequest("invalid retention cursor".into()))?;
+    let text = std::str::from_utf8(&bytes)
+        .map_err(|_| AppError::BadRequest("invalid retention cursor".into()))?;
+    let id = text
+        .strip_prefix("retention\0")
+        .ok_or_else(|| AppError::BadRequest("invalid retention cursor".into()))?;
+    if id.is_empty() || id.len() > 64 || id.chars().any(char::is_control) {
+        return Err(AppError::BadRequest("invalid retention cursor".into()));
+    }
+    Ok(Some(id.into()))
 }
 
 fn decode_cursor(cursor: Option<&str>) -> Result<(i64, String), AppError> {
@@ -623,6 +682,22 @@ fn validate_filter(filter: &ConversationFilter<'_>) -> Result<(), AppError> {
         }
     }
     Ok(())
+}
+fn bounded_date_range(
+    from: Option<i64>,
+    to: Option<i64>,
+) -> Result<(Option<i64>, Option<i64>), AppError> {
+    let span = 366 * 24 * 60 * 60;
+    match (from, to) {
+        (Some(from), None) => Ok((
+            Some(from),
+            Some(from.checked_add(span).ok_or_else(|| {
+                AppError::BadRequest("conversation date range is invalid".into())
+            })?),
+        )),
+        (None, Some(to)) => Ok((Some(to.saturating_sub(span).max(0)), Some(to))),
+        values => Ok(values),
+    }
 }
 fn summary(row: sqlx::sqlite::SqliteRow) -> ConversationSummary {
     ConversationSummary {
@@ -756,5 +831,25 @@ mod tests {
         );
         assert!(decode_cursor(Some("not base64!")).is_err());
         assert!(decode_cursor(Some(&URL_SAFE_NO_PAD.encode("42\0bad\n"))).is_err());
+    }
+
+    #[test]
+    fn maintenance_cursor_is_opaque_and_one_sided_dates_are_bounded() {
+        let cursor = encode_retention_cursor("conversation-id");
+        assert_ne!(cursor, "conversation-id");
+        assert_eq!(
+            decode_retention_cursor(Some(&cursor)).unwrap(),
+            Some("conversation-id".into())
+        );
+        assert!(decode_retention_cursor(Some("conversation-id")).is_err());
+        let span = 366 * 24 * 60 * 60;
+        assert_eq!(
+            bounded_date_range(Some(100), None).unwrap(),
+            (Some(100), Some(100 + span))
+        );
+        assert_eq!(
+            bounded_date_range(None, Some(span + 25)).unwrap(),
+            (Some(25), Some(span + 25))
+        );
     }
 }

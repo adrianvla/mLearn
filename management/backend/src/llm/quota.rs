@@ -1738,10 +1738,8 @@ async fn recover_abandoned_gateway_in_transaction(
         }
         sqlx::query("UPDATE llm_gateway_reservations SET phase = 'completed', completed_at = ?, updated_at = ? WHERE reservation_id = ? AND phase IN ('contacting', 'pending')")
             .bind(timestamp).bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
-        sqlx::query("UPDATE llm_requests SET status='failed',usage_quality='estimated',input_tokens=?,output_tokens=?,cost_micros=?,error_code='stream_abandoned',completed_at=? WHERE reservation_id=? AND status='pending'")
+        sqlx::query("UPDATE llm_requests SET status='failed',usage_quality='estimated',input_tokens=?,output_tokens=?,cost_micros=?,latency_ms=0,error_code='stream_abandoned',completed_at=? WHERE reservation_id=? AND status='pending'")
             .bind(actual_strings.get("inputTokens")).bind(actual_strings.get("outputTokens")).bind(actual_strings.get("costMicros"))
-            .bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
-        sqlx::query("UPDATE conversations SET status='failed',updated_at=? WHERE id IN (SELECT conversation_id FROM llm_requests WHERE reservation_id=?) AND status='pending'")
             .bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
         release_gateway_lease(tx, &reservation_id, timestamp).await?;
     }
