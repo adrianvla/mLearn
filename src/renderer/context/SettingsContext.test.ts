@@ -266,6 +266,45 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('rejects a late group-only multi-setting write after loaded sign-out', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ cloudAuthStatus: 'signed-out' }));
+
+    ctx.updateSettings({
+      cloudAuthActiveGroupId: 'late-group',
+      cloudAuthActiveGroupName: 'Late Group',
+    });
+
+    expect(ctx.settings.cloudAuthStatus).toBe('signed-out');
+    expect(ctx.settings.cloudAuthActiveGroupId).toBe('');
+    expect(ctx.settings.cloudAuthActiveGroupName).toBe('');
+    expect(mockBridge.settings.saveSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthActiveGroupId: '',
+      cloudAuthActiveGroupName: '',
+    }));
+    dispose();
+  });
+
+  it('rejects late group-only single-setting writes while sign-out is pending before load', async () => {
+    const { ctx, dispose } = await mountProvider();
+    ctx.updateSetting('cloudAuthStatus', 'signed-out');
+
+    ctx.updateSetting('cloudAuthActiveGroupId', 'late-group');
+    ctx.updateSetting('cloudAuthActiveGroupName', 'Late Group');
+
+    expect(ctx.settings.cloudAuthStatus).toBe('signed-out');
+    expect(ctx.settings.cloudAuthActiveGroupId).toBe('');
+    expect(ctx.settings.cloudAuthActiveGroupName).toBe('');
+    settingsCb(makeSettings({ cloudAuthStatus: 'signed-out' }));
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthActiveGroupId: '',
+      cloudAuthActiveGroupName: '',
+    }));
+    dispose();
+  });
+
   it('after receiving settings: initializes backend adapter', async () => {
     const { dispose } = await mountProvider();
     const loaded = makeSettings({ backendMode: 'local', backendUrl: '' });
