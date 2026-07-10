@@ -9,6 +9,7 @@ enum JsonKind {
     NumberOrNull,
     String,
     StringOrNull,
+    StringLiterals(&'static [&'static str]),
 }
 
 const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
@@ -22,7 +23,19 @@ const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
     ("colour_known", JsonKind::String),
     ("do_colour_known", JsonKind::Boolean),
     ("do_colour_codes", JsonKind::Boolean),
-    ("theme", JsonKind::String),
+    (
+        "theme",
+        JsonKind::StringLiterals(&[
+            "light",
+            "dark",
+            "glass-light",
+            "glass-dark",
+            "light-high-contrast",
+            "dark-high-contrast",
+            "darker",
+            "custom",
+        ]),
+    ),
     ("language", JsonKind::String),
     ("hover_known_get_from_dictionary", JsonKind::Boolean),
     ("show_pos", JsonKind::Boolean),
@@ -53,7 +66,10 @@ const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
     ("newDayHour", JsonKind::Number),
     ("flashcardFlipAnimation", JsonKind::Boolean),
     ("leechThreshold", JsonKind::Number),
-    ("flashcardMediaType", JsonKind::String),
+    (
+        "flashcardMediaType",
+        JsonKind::StringLiterals(&["image", "video"]),
+    ),
     ("flashcardVideoMargin", JsonKind::Number),
     ("autoSuggestFlashcards", JsonKind::Boolean),
     ("autoSuggestUnknownWords", JsonKind::Boolean),
@@ -62,7 +78,10 @@ const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
     ("rightSidebarOpen", JsonKind::Boolean),
     ("subsOffsetTime", JsonKind::Number),
     ("immediateFetch", JsonKind::Boolean),
-    ("subtitleTheme", JsonKind::String),
+    (
+        "subtitleTheme",
+        JsonKind::StringLiterals(&["marker", "background", "shadow"]),
+    ),
     ("subtitle_font_size", JsonKind::Number),
     ("subtitle_font_weight", JsonKind::Number),
     ("showSubtitles", JsonKind::Boolean),
@@ -88,17 +107,29 @@ const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
         JsonKind::Number,
     ),
     ("ocrReadingAnnotationNeighborLookahead", JsonKind::Number),
-    ("ocrProvider", JsonKind::String),
+    ("ocrProvider", JsonKind::StringLiterals(&["local", "cloud"])),
     ("readerCropMode", JsonKind::Boolean),
     ("readerDocumentOcr", JsonKind::Boolean),
-    ("readerWordHoverTrigger", JsonKind::String),
+    (
+        "readerWordHoverTrigger",
+        JsonKind::StringLiterals(&["hover", "long-hover", "key-hover"]),
+    ),
     ("readerWordHoverKey", JsonKind::String),
     ("readerReadingAnnotationHider", JsonKind::Boolean),
     ("readerCollatePages", JsonKind::Boolean),
-    ("readerPageMode", JsonKind::String),
+    (
+        "readerPageMode",
+        JsonKind::StringLiterals(&["single", "double"]),
+    ),
     ("readerFirstPageSingle", JsonKind::Boolean),
-    ("readerSpreadDirection", JsonKind::String),
-    ("readerTextFontStyle", JsonKind::String),
+    (
+        "readerSpreadDirection",
+        JsonKind::StringLiterals(&["left-to-right", "right-to-left"]),
+    ),
+    (
+        "readerTextFontStyle",
+        JsonKind::StringLiterals(&["language", "sans", "serif", "mono"]),
+    ),
     ("readerTextSize", JsonKind::Number),
     ("readerTextLineHeight", JsonKind::Number),
     ("readerTextWidth", JsonKind::Number),
@@ -121,6 +152,9 @@ pub fn validate_setting_rule(key: &str, value: &Value) -> Result<(), String> {
         JsonKind::NumberOrNull => value.is_number() || value.is_null(),
         JsonKind::String => value.is_string(),
         JsonKind::StringOrNull => value.is_string() || value.is_null(),
+        JsonKind::StringLiterals(allowed_values) => value
+            .as_str()
+            .is_some_and(|value| allowed_values.contains(&value)),
     };
     if valid {
         Ok(())
@@ -166,6 +200,9 @@ pub fn validate_policy_document(document: &PolicyDocument) -> Result<(), String>
         require_safe_identifier("prompt profile", prompt_profile_id)?;
     }
     for quota in &document.llm.quotas {
+        if quota.limit > 9_007_199_254_740_991 {
+            return Err("llm quota limit exceeds JavaScript's safe integer maximum".to_string());
+        }
         require_non_empty("llm.quotas.sourceGroupId", &quota.source_group_id)?;
     }
     Ok(())
@@ -194,6 +231,13 @@ mod tests {
     use crate::policy::model::PolicyDocument;
     use serde_json::json;
 
+    fn fixture_document() -> PolicyDocument {
+        serde_json::from_str(include_str!(
+            "../../../../test/fixtures/management-policy-v1.json"
+        ))
+        .expect("fixture should deserialize")
+    }
+
     #[test]
     fn registry_rejects_unknown_setting_and_wrong_value_type() {
         assert!(validate_setting_rule("notASetting", &json!(true)).is_err());
@@ -211,10 +255,27 @@ mod tests {
     }
 
     #[test]
+    fn registry_accepts_only_registered_literal_setting_values() {
+        assert!(validate_setting_rule("theme", &json!("dark")).is_ok());
+        assert!(validate_setting_rule("theme", &json!("neon")).is_err());
+        assert!(validate_setting_rule("readerTextFontStyle", &json!("serif")).is_ok());
+        assert!(validate_setting_rule("readerTextFontStyle", &json!("comic")).is_err());
+    }
+
+    #[test]
+    fn policy_rejects_quota_limits_above_javascript_safe_integer() {
+        let mut document = fixture_document();
+        document.llm.quotas[0].limit = 9_007_199_254_740_991;
+        assert!(validate_policy_document(&document).is_ok());
+
+        document.llm.quotas[0].limit = 9_007_199_254_740_992;
+        assert!(validate_policy_document(&document).is_err());
+    }
+
+    #[test]
     fn shared_fixture_round_trips_and_validates() {
         let fixture = include_str!("../../../../test/fixtures/management-policy-v1.json");
-        let document: PolicyDocument =
-            serde_json::from_str(fixture).expect("fixture should deserialize");
+        let document = fixture_document();
 
         validate_policy_document(&document).expect("fixture should be valid");
         let serialized = serde_json::to_value(&document).expect("document should serialize");
@@ -223,5 +284,7 @@ mod tests {
         assert_eq!(serialized, expected);
         assert_eq!(serialized["schemaVersion"], json!(1));
         assert!(serialized["settings"].get("llmEnabled").is_some());
+        assert_eq!(serialized["settings"]["theme"]["value"], json!("dark"));
+        assert!(serialized["settings"]["flashcard_deck"]["value"].is_null());
     }
 }
