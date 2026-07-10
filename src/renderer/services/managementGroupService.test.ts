@@ -39,7 +39,7 @@ describe('managementGroupService', () => {
     }));
 
     await expect(getEligibleGroups(settings(), 'refreshed-token')).resolves.toEqual([
-      { id: 'german-a', parentId: 'german', name: 'German A', slug: 'german-a', status: 'active' },
+      { id: 'german-a', name: 'German A' },
     ]);
     expect(mockFetch).toHaveBeenCalledWith(
       'https://school.example/api-root/api/groups/eligible',

@@ -5,9 +5,6 @@ import { resolveCloudAccessToken } from './cloudAuthService';
 export interface ManagementGroup {
   id: string;
   name: string;
-  parentId?: string | null;
-  slug?: string;
-  status?: string;
 }
 
 export interface ActiveGroupResult {
@@ -49,15 +46,15 @@ function validateGroups(payload: unknown): ManagementGroup[] {
     if (!candidate || typeof candidate !== 'object') return false;
     const group = candidate as Record<string, unknown>;
     return typeof group.id === 'string' && group.id.trim().length > 0
-      && typeof group.name === 'string' && group.name.trim().length > 0
-      && (group.parentId === undefined || group.parentId === null || typeof group.parentId === 'string')
-      && (group.slug === undefined || typeof group.slug === 'string')
-      && (group.status === undefined || typeof group.status === 'string');
+      && typeof group.name === 'string' && group.name.trim().length > 0;
   })) {
     throw new Error('Management API returned invalid eligible groups');
   }
 
-  return groups as ManagementGroup[];
+  return groups.map((candidate) => {
+    const group = candidate as Record<string, unknown>;
+    return { id: group.id as string, name: group.name as string };
+  });
 }
 
 function tokenFor(settings: Settings, accessToken?: string): string {

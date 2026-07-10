@@ -59,6 +59,15 @@ const LANGUAGE_RUNTIME_KEYS = new Set<keyof Settings>([
   'voiceEnabled',
 ]);
 
+function normalizeSignedOutActiveGroup<T extends Partial<Settings>>(value: T): T {
+  if (value.cloudAuthStatus !== 'signed-out') return value;
+  return {
+    ...value,
+    cloudAuthActiveGroupId: DEFAULT_SETTINGS.cloudAuthActiveGroupId,
+    cloudAuthActiveGroupName: DEFAULT_SETTINGS.cloudAuthActiveGroupName,
+  };
+}
+
 export const SettingsProvider: ParentComponent = (props) => {
   const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS });
   const [isLoading, setIsLoading] = createSignal(true);
@@ -121,7 +130,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     // Set up listener BEFORE sending request to avoid race condition
     ipcCleanups.push(bridge.settings.onSettings((loadedSettings) => {
       log.info('[SettingsContext] Settings received');
-      const mergedSettings = pendingSettingsSnapshot
+      let mergedSettings = pendingSettingsSnapshot
         ? { ...loadedSettings, ...pendingSettingsSnapshot }
         : loadedSettings;
       let migratedSettings = false;
@@ -132,6 +141,12 @@ export const SettingsProvider: ParentComponent = (props) => {
       }
       if (typeof mergedSettings.cloudAuthActiveGroupName !== 'string') {
         mergedSettings.cloudAuthActiveGroupName = DEFAULT_SETTINGS.cloudAuthActiveGroupName;
+        migratedSettings = true;
+      }
+      if (mergedSettings.cloudAuthStatus === 'signed-out'
+        && (mergedSettings.cloudAuthActiveGroupId !== DEFAULT_SETTINGS.cloudAuthActiveGroupId
+          || mergedSettings.cloudAuthActiveGroupName !== DEFAULT_SETTINGS.cloudAuthActiveGroupName)) {
+        mergedSettings = normalizeSignedOutActiveGroup(mergedSettings);
         migratedSettings = true;
       }
 
@@ -324,7 +339,10 @@ export const SettingsProvider: ParentComponent = (props) => {
     maybeClearAnkiCache(changedKeys);
 
     if (!hasLoaded()) {
-      pendingSettingsSnapshot = { ...pendingSettingsSnapshot, [key]: value };
+      pendingSettingsSnapshot = normalizeSignedOutActiveGroup({
+        ...pendingSettingsSnapshot,
+        [key]: value,
+      });
       return;
     }
 
@@ -334,13 +352,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Update multiple settings
   const updateSettings = (partial: Partial<Settings>) => {
     const currentSettings = serializeSettings(settings as Settings);
-    const normalizedPartial = partial.cloudAuthStatus === 'signed-out'
-      ? {
-          ...partial,
-          cloudAuthActiveGroupId: DEFAULT_SETTINGS.cloudAuthActiveGroupId,
-          cloudAuthActiveGroupName: DEFAULT_SETTINGS.cloudAuthActiveGroupName,
-        }
-      : partial;
+    const normalizedPartial = normalizeSignedOutActiveGroup(partial);
     const nextSettings = {
       ...currentSettings,
       ...normalizedPartial,
@@ -387,7 +399,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Handle settings from other windows
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
-      const nextSettings = event.data.settings as Settings;
+      const nextSettings = normalizeSignedOutActiveGroup(event.data.settings as Settings);
       const changedKeys = getChangedKeys(serializeSettings(settings as Settings), nextSettings, LANGUAGE_RUNTIME_KEYS);
       if (needsLanguageRuntimeRestart(changedKeys)) {
         setIsRuntimeRestartRequired(true);
