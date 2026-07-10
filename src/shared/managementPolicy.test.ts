@@ -166,6 +166,24 @@ describe('management policy contract', () => {
     ).toBe(false);
   });
 
+  it('requires bounded integer gateway RPM and concurrency controls', () => {
+    expect(validateEffectiveManagementPolicy(fixture).ok).toBe(true);
+    for (const [key, value] of [
+      ['requestsPerMinute', 0],
+      ['requestsPerMinute', 10_001],
+      ['maxConcurrentStreams', 0],
+      ['maxConcurrentStreams', 1_001],
+      ['maxConcurrentStreams', 1.5],
+    ] as const) {
+      expect(
+        validateEffectiveManagementPolicy({
+          ...fixture,
+          llm: { ...fixture.llm, [key]: value },
+        }).ok,
+      ).toBe(false);
+    }
+  });
+
   it('rejects unsafe integer settings while preserving finite fractions', () => {
     for (const value of [
       Number.MAX_SAFE_INTEGER + 1,

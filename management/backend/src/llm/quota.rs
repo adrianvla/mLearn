@@ -18,6 +18,8 @@ use crate::{
     policy::compiler::compile_in_transaction,
 };
 
+use super::configuration::gateway_config_fingerprint;
+
 pub use crate::policy::model::{QuotaMetric, QuotaPeriod};
 
 const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
@@ -99,6 +101,15 @@ pub struct QuotaReservation {
     pub expires_at: i64,
     pub accounting_at: i64,
     pub reserved_by_scope: Vec<ReservedScope>,
+}
+
+pub(crate) struct GatewayReservationRequirements<'a> {
+    pub expected_prompt_profile_id: Option<&'a str>,
+    pub config_fingerprint: [u8; 32],
+    pub conservative_actual: &'a BTreeMap<String, i64>,
+    pub requests_per_minute: u32,
+    pub max_concurrent_streams: u16,
+    pub lease_seconds: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -577,9 +588,9 @@ impl QuotaService {
         &self,
         principal: &Principal,
         request: ReserveQuotaRequest,
-        expected_prompt_profile_id: Option<&str>,
+        requirements: GatewayReservationRequirements<'_>,
     ) -> Result<QuotaReservation, AppError> {
-        self.reserve_at(principal, request, now(), Some(expected_prompt_profile_id))
+        self.reserve_at(principal, request, now(), Some(requirements))
             .await
     }
 
@@ -588,7 +599,7 @@ impl QuotaService {
         principal: &Principal,
         request: ReserveQuotaRequest,
         timestamp: i64,
-        gateway_route: Option<Option<&str>>,
+        gateway: Option<GatewayReservationRequirements<'_>>,
     ) -> Result<QuotaReservation, AppError> {
         if principal.service_key_id.is_some() || principal.identity_type != IdentityType::Learner {
             return Err(AppError::Forbidden(
@@ -627,7 +638,7 @@ impl QuotaService {
                 "LLM access requires a published governed quota policy".into(),
             ));
         }
-        if gateway_route.is_some()
+        if gateway.is_some()
             && (!compiled
                 .document
                 .llm
@@ -643,7 +654,16 @@ impl QuotaService {
                 "provider route is not allowed by the fresh effective policy".into(),
             ));
         }
-        if let Some(expected_prompt_profile_id) = gateway_route {
+        if let Some(requirements) = gateway.as_ref() {
+            let expected_prompt_profile_id = requirements.expected_prompt_profile_id;
+            if requirements.requests_per_minute > compiled.document.llm.requests_per_minute
+                || requirements.max_concurrent_streams
+                    > compiled.document.llm.max_concurrent_streams
+            {
+                return Err(AppError::Forbidden(
+                    "gateway abuse limits changed before reservation".into(),
+                ));
+            }
             if compiled.document.llm.prompt_profile_id.as_deref() != expected_prompt_profile_id {
                 return Err(AppError::Forbidden(
                     "prompt profile changed before quota reservation".into(),
@@ -658,6 +678,24 @@ impl QuotaService {
                     ));
                 }
             }
+            require_live_gateway_session(&mut tx, principal, &request.active_group_id, timestamp)
+                .await?;
+            require_gateway_configuration(
+                &mut tx,
+                &request,
+                expected_prompt_profile_id,
+                requirements.config_fingerprint,
+            )
+            .await?;
+            acquire_gateway_capacity(
+                &mut tx,
+                principal,
+                &request.active_group_id,
+                requirements.requests_per_minute,
+                requirements.max_concurrent_streams,
+                timestamp,
+            )
+            .await?;
         }
         let calendar = load_calendar(&mut tx, &request.active_group_id, timestamp).await?;
         let definitions = load_applicable_definitions(
@@ -714,6 +752,19 @@ impl QuotaService {
             .await?;
         sqlx::query("UPDATE quota_reservations SET status = 'open', finalized = 1 WHERE id = ? AND status = 'building'")
             .bind(&id).execute(&mut *tx).await.map_err(database_error)?;
+        if let Some(requirements) = gateway {
+            let conservative_json = serde_json::to_string(requirements.conservative_actual)
+                .map_err(|error| {
+                    AppError::Internal(format!("gateway accounting serialization failed: {error}"))
+                })?;
+            sqlx::query("INSERT INTO llm_gateway_reservations (reservation_id, phase, config_fingerprint, conservative_actual_json, updated_at) VALUES (?, 'reserved', ?, ?, ?)")
+                .bind(&id).bind(requirements.config_fingerprint.as_slice()).bind(conservative_json).bind(timestamp)
+                .execute(&mut *tx).await.map_err(database_error)?;
+            sqlx::query("INSERT INTO llm_gateway_leases (reservation_id, learner_user_id, direct_group_id, acquired_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(&id).bind(&principal.user_id).bind(&request.active_group_id).bind(timestamp)
+                .bind(timestamp.checked_add(requirements.lease_seconds).ok_or_else(|| AppError::BadRequest("gateway lease overflow".into()))?)
+                .execute(&mut *tx).await.map_err(database_error)?;
+        }
         audit(
             &mut tx,
             principal,
@@ -737,85 +788,110 @@ impl QuotaService {
         })
     }
 
-    pub async fn reconcile(&self, request: ReconcileQuotaRequest) -> Result<(), AppError> {
-        let actual = parse_reservation_amounts(&request.actual)?;
-        let reconciliation_hash = fingerprint_reconciliation(&request, &actual);
+    pub(crate) async fn mark_gateway_contacting(
+        &self,
+        reservation_id: &str,
+    ) -> Result<(), AppError> {
+        let timestamp = now();
+        let result = sqlx::query("UPDATE llm_gateway_reservations SET phase = 'contacting', contact_started_at = ?, updated_at = ? WHERE reservation_id = ? AND phase = 'reserved'")
+            .bind(timestamp).bind(timestamp).bind(reservation_id).execute(&self.pool).await.map_err(database_error)?;
+        if result.rows_affected() == 1 {
+            Ok(())
+        } else {
+            Err(AppError::Conflict(
+                "gateway reservation cannot begin contact".into(),
+            ))
+        }
+    }
+
+    pub(crate) async fn mark_gateway_pending(&self, reservation_id: &str) -> Result<(), AppError> {
+        let result = sqlx::query("UPDATE llm_gateway_reservations SET phase = 'pending', updated_at = ? WHERE reservation_id = ? AND phase = 'contacting'")
+            .bind(now()).bind(reservation_id).execute(&self.pool).await.map_err(database_error)?;
+        if result.rows_affected() == 1 {
+            Ok(())
+        } else {
+            Err(AppError::Conflict(
+                "gateway reservation cannot become pending".into(),
+            ))
+        }
+    }
+
+    pub(crate) async fn cancel_gateway(&self, reservation_id: &str) -> Result<(), AppError> {
+        let timestamp = now();
         let mut tx = self
             .pool
             .begin_with("BEGIN IMMEDIATE")
             .await
             .map_err(database_error)?;
-        let row = sqlx::query("SELECT status, provider_id, model_id, price_version_id, learner_user_id, direct_group_id, accounting_at, reconcile_hash FROM quota_reservations WHERE id = ?")
-            .bind(&request.reservation_id).fetch_optional(&mut *tx).await.map_err(database_error)?.ok_or_else(|| AppError::BadRequest("quota reservation not found".into()))?;
-        for (field, expected, actual_value) in [
-            (
-                "provider",
-                row.get::<String, _>("provider_id"),
-                request.provider_id.clone(),
-            ),
-            (
-                "model",
-                row.get::<String, _>("model_id"),
-                request.model_id.clone(),
-            ),
-            (
-                "price version",
-                row.get::<String, _>("price_version_id"),
-                request.price_version_id.clone(),
-            ),
-        ] {
-            if expected != actual_value {
-                return Err(AppError::Conflict(format!(
-                    "{field} does not match the immutable reservation"
-                )));
-            }
-        }
-        let status: String = row.get("status");
-        if status == "reconciled" {
-            if row.get::<Option<Vec<u8>>, _>("reconcile_hash").as_deref()
-                != Some(reconciliation_hash.as_slice())
-            {
-                return Err(AppError::Conflict(
-                    "reservation was already reconciled with different measured usage".into(),
-                ));
-            }
-            tx.commit().await.map_err(database_error)?;
-            return Ok(());
-        }
-        if status != "open" && status != "expired" {
-            return Err(AppError::Conflict(
-                "reservation has not been finalized for reconciliation".into(),
-            ));
-        }
-        let metric_rows = sqlx::query(
-            "SELECT metric, required FROM quota_reservation_metrics WHERE reservation_id = ?",
+        let phase: Option<String> = sqlx::query_scalar(
+            "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?",
         )
-        .bind(&request.reservation_id)
-        .fetch_all(&mut *tx)
+        .bind(reservation_id)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(database_error)?;
-        let reserved_metrics = metric_rows
-            .iter()
-            .map(|metric| metric_from_str(metric.get("metric")))
-            .collect::<Result<BTreeSet<_>, _>>()?;
-        if actual.keys().copied().collect::<BTreeSet<_>>() != reserved_metrics {
-            return Err(AppError::BadRequest(
-                "reconciliation must provide exactly every snapshotted metric".into(),
+        match phase.as_deref() {
+            Some("cancelled") => {}
+            Some("reserved" | "contacting") => {
+                sqlx::query("UPDATE llm_gateway_reservations SET phase = 'cancelled', completed_at = ?, updated_at = ? WHERE reservation_id = ?")
+                    .bind(timestamp).bind(timestamp).bind(reservation_id).execute(&mut *tx).await.map_err(database_error)?;
+                sqlx::query("UPDATE quota_reservations SET status = 'expired' WHERE id = ? AND status = 'open'")
+                    .bind(reservation_id).execute(&mut *tx).await.map_err(database_error)?;
+                release_gateway_lease(&mut tx, reservation_id, timestamp).await?;
+            }
+            _ => {
+                return Err(AppError::Conflict(
+                    "gateway reservation cannot be cancelled".into(),
+                ))
+            }
+        }
+        tx.commit().await.map_err(database_error)
+    }
+
+    pub(crate) async fn complete_gateway(
+        &self,
+        request: ReconcileQuotaRequest,
+    ) -> Result<(), AppError> {
+        let actual = parse_reservation_amounts(&request.actual)?;
+        let timestamp = now();
+        let mut tx = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
+        let phase: Option<String> = sqlx::query_scalar(
+            "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?",
+        )
+        .bind(&request.reservation_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(database_error)?;
+        if phase.as_deref() != Some("pending") {
+            return Err(AppError::Conflict(
+                "gateway reservation is not pending completion".into(),
             ));
         }
-        let timestamp = now();
-        let periods = sqlx::query("SELECT scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at FROM quota_reservation_periods WHERE reservation_id = ? ORDER BY scope_kind, scope_id, metric, quota_period, period_starts_at")
-            .bind(&request.reservation_id).fetch_all(&mut *tx).await.map_err(database_error)?;
-        for period in periods {
-            let metric_name: String = period.get("metric");
-            let metric = metric_from_str(&metric_name)?;
-            let value = actual.get(&metric).ok_or_else(|| {
-                AppError::BadRequest("reconciliation omitted a snapshotted metric".into())
-            })?;
-            sqlx::query("INSERT INTO usage_ledger (id, reservation_id, scope_kind, scope_id, metric, value, period_starts_at, period_ends_at, quota_period, provider_id, model_id, price_version_id, learner_user_id, direct_group_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(Uuid::now_v7().to_string()).bind(&request.reservation_id).bind(period.get::<String,_>("scope_kind")).bind(period.get::<String,_>("scope_id")).bind(&metric_name).bind(value).bind(period.get::<i64,_>("period_starts_at")).bind(period.get::<i64,_>("period_ends_at")).bind(period.get::<String,_>("quota_period")).bind(&request.provider_id).bind(&request.model_id).bind(&request.price_version_id).bind(row.get::<String,_>("learner_user_id")).bind(row.get::<String,_>("direct_group_id")).bind(row.get::<i64,_>("accounting_at")).execute(&mut *tx).await.map_err(map_write_error)?;
+        reconcile_in_transaction(&mut tx, &request, &actual, timestamp).await?;
+        let updated = sqlx::query("UPDATE llm_gateway_reservations SET phase = 'completed', measured_actual_json = ?, completed_at = ?, updated_at = ? WHERE reservation_id = ? AND phase = 'pending'")
+            .bind(serde_json::to_string(&request.actual).map_err(|error| AppError::Internal(format!("gateway accounting serialization failed: {error}")))?)
+            .bind(timestamp).bind(timestamp).bind(&request.reservation_id).execute(&mut *tx).await.map_err(database_error)?;
+        if updated.rows_affected() != 1 {
+            return Err(AppError::Conflict(
+                "gateway reservation changed during completion".into(),
+            ));
         }
-        sqlx::query("UPDATE quota_reservations SET status = 'reconciled', reconciled_at = ?, reconcile_hash = ? WHERE id = ? AND status IN ('open', 'expired')").bind(timestamp).bind(&reconciliation_hash).bind(&request.reservation_id).execute(&mut *tx).await.map_err(database_error)?;
+        release_gateway_lease(&mut tx, &request.reservation_id, timestamp).await?;
+        tx.commit().await.map_err(database_error)
+    }
+
+    pub async fn reconcile(&self, request: ReconcileQuotaRequest) -> Result<(), AppError> {
+        let actual = parse_reservation_amounts(&request.actual)?;
+        let mut tx = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
+        reconcile_in_transaction(&mut tx, &request, &actual, now()).await?;
         tx.commit().await.map_err(database_error)?;
         Ok(())
     }
@@ -1088,6 +1164,107 @@ async fn require_price_route(
             "provider, model, and immutable price version do not match active group".into(),
         ))
     }
+}
+
+async fn require_live_gateway_session(
+    tx: &mut Transaction<'_, Sqlite>,
+    principal: &Principal,
+    active_group_id: &str,
+    timestamp: i64,
+) -> Result<(), AppError> {
+    let live: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM sessions session
+            JOIN users user ON user.id = session.user_id
+            WHERE session.id = ? AND session.user_id = ?
+              AND session.revoked_at IS NULL AND session.expires_at > ?
+              AND session.active_group_id = ?
+              AND user.status = 'active' AND user.identity_type = 'learner'
+        )",
+    )
+    .bind(&principal.session_id)
+    .bind(&principal.user_id)
+    .bind(timestamp)
+    .bind(active_group_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(database_error)?;
+    if live == 1 {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "authenticated learner session is no longer live for the active group".into(),
+        ))
+    }
+}
+
+async fn require_gateway_configuration(
+    tx: &mut Transaction<'_, Sqlite>,
+    request: &ReserveQuotaRequest,
+    prompt_profile_id: Option<&str>,
+    expected: [u8; 32],
+) -> Result<(), AppError> {
+    let row = sqlx::query("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status = 'active') SELECT provider.provider_kind, provider.base_url, provider.secret_envelope, model.upstream_model, price.currency, price.unit, price.input_cost_micros, price.output_cost_micros FROM llm_providers provider JOIN llm_models model ON model.id = ? AND model.provider_id = provider.id AND model.status = 'active' JOIN provider_price_versions price ON price.id = ? AND price.provider_id = provider.id AND (price.model_id IS NULL OR price.model_id = model.id) JOIN ancestors ON ancestors.id = provider.group_id WHERE provider.id = ? AND provider.status = 'active'")
+        .bind(&request.active_group_id).bind(&request.model_id).bind(&request.price_version_id).bind(&request.provider_id)
+        .fetch_optional(&mut **tx).await.map_err(database_error)?
+        .ok_or_else(|| AppError::Forbidden("gateway configuration changed before reservation".into()))?;
+    let prompt = if let Some(prompt_profile_id) = prompt_profile_id {
+        sqlx::query_scalar::<_, String>("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status = 'active') SELECT profile.system_prompt FROM prompt_profiles profile JOIN ancestors ON ancestors.id = profile.group_id WHERE profile.id = ? AND profile.status = 'active'")
+            .bind(&request.active_group_id).bind(prompt_profile_id).fetch_optional(&mut **tx).await.map_err(database_error)?
+            .ok_or_else(|| AppError::Forbidden("gateway configuration changed before reservation".into()))?
+    } else {
+        String::new()
+    };
+    let input_cost = row.get::<i64, _>("input_cost_micros").to_string();
+    let output_cost = row.get::<i64, _>("output_cost_micros").to_string();
+    let actual = gateway_config_fingerprint(&[
+        &request.provider_id,
+        row.get::<String, _>("provider_kind").as_str(),
+        row.get::<String, _>("base_url").as_str(),
+        row.get::<Option<String>, _>("secret_envelope")
+            .as_deref()
+            .unwrap_or(""),
+        &request.model_id,
+        row.get::<String, _>("upstream_model").as_str(),
+        prompt_profile_id.unwrap_or(""),
+        &prompt,
+        &request.price_version_id,
+        row.get::<String, _>("currency").as_str(),
+        row.get::<String, _>("unit").as_str(),
+        &input_cost,
+        &output_cost,
+    ]);
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "gateway configuration changed before reservation".into(),
+        ))
+    }
+}
+
+async fn acquire_gateway_capacity(
+    tx: &mut Transaction<'_, Sqlite>,
+    principal: &Principal,
+    active_group_id: &str,
+    requests_per_minute: u32,
+    max_concurrent_streams: u16,
+    timestamp: i64,
+) -> Result<(), AppError> {
+    sqlx::query("UPDATE llm_gateway_leases SET released_at = ? WHERE released_at IS NULL AND expires_at <= ?")
+        .bind(timestamp).bind(timestamp).execute(&mut **tx).await.map_err(database_error)?;
+    let window_start = timestamp.saturating_sub(59);
+    let rpm: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM llm_gateway_leases WHERE acquired_at >= ? AND (learner_user_id = ? OR direct_group_id = ?)")
+        .bind(window_start).bind(&principal.user_id).bind(active_group_id).fetch_one(&mut **tx).await.map_err(database_error)?;
+    if rpm >= i64::from(requests_per_minute) {
+        return Err(AppError::TooManyRequests);
+    }
+    let concurrent: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM llm_gateway_leases WHERE released_at IS NULL AND expires_at > ? AND (learner_user_id = ? OR direct_group_id = ?)")
+        .bind(timestamp).bind(&principal.user_id).bind(active_group_id).fetch_one(&mut **tx).await.map_err(database_error)?;
+    if concurrent >= i64::from(max_concurrent_streams) {
+        return Err(AppError::TooManyRequests);
+    }
+    Ok(())
 }
 
 async fn load_calendar(
@@ -1477,7 +1654,127 @@ async fn release_expired_in_transaction(
     tx: &mut Transaction<'_, Sqlite>,
     timestamp: i64,
 ) -> Result<u64, AppError> {
+    recover_abandoned_gateway_in_transaction(tx, timestamp).await?;
     Ok(sqlx::query("UPDATE quota_reservations SET status = 'expired' WHERE status = 'open' AND expires_at <= ?").bind(timestamp).execute(&mut **tx).await.map_err(database_error)?.rows_affected())
+}
+
+async fn release_gateway_lease(
+    tx: &mut Transaction<'_, Sqlite>,
+    reservation_id: &str,
+    timestamp: i64,
+) -> Result<(), AppError> {
+    sqlx::query("UPDATE llm_gateway_leases SET released_at = COALESCE(released_at, ?) WHERE reservation_id = ?")
+        .bind(timestamp).bind(reservation_id).execute(&mut **tx).await.map_err(database_error)?;
+    Ok(())
+}
+
+async fn recover_abandoned_gateway_in_transaction(
+    tx: &mut Transaction<'_, Sqlite>,
+    timestamp: i64,
+) -> Result<(), AppError> {
+    let rows = sqlx::query("SELECT gateway.reservation_id, gateway.conservative_actual_json, reservation.provider_id, reservation.model_id, reservation.price_version_id, reservation.status FROM llm_gateway_reservations gateway JOIN quota_reservations reservation ON reservation.id = gateway.reservation_id JOIN llm_gateway_leases lease ON lease.reservation_id = gateway.reservation_id WHERE gateway.phase IN ('contacting', 'pending') AND lease.expires_at <= ? ORDER BY gateway.reservation_id")
+        .bind(timestamp).fetch_all(&mut **tx).await.map_err(database_error)?;
+    for row in rows {
+        let reservation_id: String = row.get("reservation_id");
+        if row.get::<String, _>("status") != "reconciled" {
+            let actual_strings: BTreeMap<String, i64> =
+                serde_json::from_str(row.get("conservative_actual_json")).map_err(|_| {
+                    AppError::Internal("persisted gateway fallback is invalid".into())
+                })?;
+            let actual = parse_reservation_amounts(&actual_strings)?;
+            let request = ReconcileQuotaRequest {
+                reservation_id: reservation_id.clone(),
+                provider_id: row.get("provider_id"),
+                model_id: row.get("model_id"),
+                price_version_id: row.get("price_version_id"),
+                actual: actual_strings,
+            };
+            reconcile_in_transaction(tx, &request, &actual, timestamp).await?;
+        }
+        sqlx::query("UPDATE llm_gateway_reservations SET phase = 'completed', completed_at = ?, updated_at = ? WHERE reservation_id = ? AND phase IN ('contacting', 'pending')")
+            .bind(timestamp).bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
+        release_gateway_lease(tx, &reservation_id, timestamp).await?;
+    }
+    Ok(())
+}
+
+async fn reconcile_in_transaction(
+    tx: &mut Transaction<'_, Sqlite>,
+    request: &ReconcileQuotaRequest,
+    actual: &BTreeMap<QuotaMetric, i64>,
+    timestamp: i64,
+) -> Result<(), AppError> {
+    let reconciliation_hash = fingerprint_reconciliation(request, actual);
+    let row = sqlx::query("SELECT status, provider_id, model_id, price_version_id, learner_user_id, direct_group_id, accounting_at, reconcile_hash FROM quota_reservations WHERE id = ?")
+        .bind(&request.reservation_id).fetch_optional(&mut **tx).await.map_err(database_error)?.ok_or_else(|| AppError::BadRequest("quota reservation not found".into()))?;
+    for (field, expected, actual_value) in [
+        (
+            "provider",
+            row.get::<String, _>("provider_id"),
+            request.provider_id.clone(),
+        ),
+        (
+            "model",
+            row.get::<String, _>("model_id"),
+            request.model_id.clone(),
+        ),
+        (
+            "price version",
+            row.get::<String, _>("price_version_id"),
+            request.price_version_id.clone(),
+        ),
+    ] {
+        if expected != actual_value {
+            return Err(AppError::Conflict(format!(
+                "{field} does not match the immutable reservation"
+            )));
+        }
+    }
+    let status: String = row.get("status");
+    if status == "reconciled" {
+        if row.get::<Option<Vec<u8>>, _>("reconcile_hash").as_deref()
+            != Some(reconciliation_hash.as_slice())
+        {
+            return Err(AppError::Conflict(
+                "reservation was already reconciled with different measured usage".into(),
+            ));
+        }
+        return Ok(());
+    }
+    if status != "open" && status != "expired" {
+        return Err(AppError::Conflict(
+            "reservation has not been finalized for reconciliation".into(),
+        ));
+    }
+    let metric_rows =
+        sqlx::query("SELECT metric FROM quota_reservation_metrics WHERE reservation_id = ?")
+            .bind(&request.reservation_id)
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(database_error)?;
+    let reserved_metrics = metric_rows
+        .iter()
+        .map(|metric| metric_from_str(metric.get("metric")))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if actual.keys().copied().collect::<BTreeSet<_>>() != reserved_metrics {
+        return Err(AppError::BadRequest(
+            "reconciliation must provide exactly every snapshotted metric".into(),
+        ));
+    }
+    let periods = sqlx::query("SELECT scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at FROM quota_reservation_periods WHERE reservation_id = ? ORDER BY scope_kind, scope_id, metric, quota_period, period_starts_at")
+        .bind(&request.reservation_id).fetch_all(&mut **tx).await.map_err(database_error)?;
+    for period in periods {
+        let metric_name: String = period.get("metric");
+        let metric = metric_from_str(&metric_name)?;
+        let value = actual.get(&metric).ok_or_else(|| {
+            AppError::BadRequest("reconciliation omitted a snapshotted metric".into())
+        })?;
+        sqlx::query("INSERT INTO usage_ledger (id, reservation_id, scope_kind, scope_id, metric, value, period_starts_at, period_ends_at, quota_period, provider_id, model_id, price_version_id, learner_user_id, direct_group_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(Uuid::now_v7().to_string()).bind(&request.reservation_id).bind(period.get::<String,_>("scope_kind")).bind(period.get::<String,_>("scope_id")).bind(&metric_name).bind(value).bind(period.get::<i64,_>("period_starts_at")).bind(period.get::<i64,_>("period_ends_at")).bind(period.get::<String,_>("quota_period")).bind(&request.provider_id).bind(&request.model_id).bind(&request.price_version_id).bind(row.get::<String,_>("learner_user_id")).bind(row.get::<String,_>("direct_group_id")).bind(row.get::<i64,_>("accounting_at")).execute(&mut **tx).await.map_err(map_write_error)?;
+    }
+    sqlx::query("UPDATE quota_reservations SET status = 'reconciled', reconciled_at = ?, reconcile_hash = ? WHERE id = ? AND status IN ('open', 'expired')")
+        .bind(timestamp).bind(&reconciliation_hash).bind(&request.reservation_id).execute(&mut **tx).await.map_err(database_error)?;
+    Ok(())
 }
 
 async fn summary_in_transaction(
@@ -2812,9 +3109,35 @@ mod tests {
     #[tokio::test]
     async fn gateway_reservation_rechecks_the_exact_route_against_fresh_policy() {
         let (pool, service, learner, mut request) = quota_fixture(1_000_000).await;
+        let fingerprint = gateway_config_fingerprint(&[
+            "provider",
+            "openaiCompatible",
+            "https://provider.test/v1",
+            "",
+            "model",
+            "model-v1",
+            "",
+            "",
+            "price",
+            "CHF",
+            "perMillionTokens",
+            "1",
+            "1",
+        ]);
         request.request_id = "fresh-route-allowed".into();
         assert!(service
-            .reserve_gateway(&learner, request.clone(), None)
+            .reserve_gateway(
+                &learner,
+                request.clone(),
+                GatewayReservationRequirements {
+                    expected_prompt_profile_id: None,
+                    config_fingerprint: fingerprint,
+                    conservative_actual: &request.amounts,
+                    requests_per_minute: 60,
+                    max_concurrent_streams: 4,
+                    lease_seconds: 240,
+                },
+            )
             .await
             .is_ok());
 
@@ -2833,9 +3156,413 @@ mod tests {
             .execute(&pool).await.unwrap();
         request.request_id = "fresh-route-denied".into();
         assert!(matches!(
-            service.reserve_gateway(&learner, request, None).await,
+            service.reserve_gateway(
+                &learner,
+                request.clone(),
+                GatewayReservationRequirements {
+                    expected_prompt_profile_id: None,
+                    config_fingerprint: fingerprint,
+                    conservative_actual: &request.amounts,
+                    requests_per_minute: 60,
+                    max_concurrent_streams: 4,
+                    lease_seconds: 240,
+                },
+            ).await,
             Err(AppError::Forbidden(message)) if message.contains("fresh effective policy")
         ));
+    }
+
+    #[tokio::test]
+    async fn gateway_session_revocation_and_group_change_win_before_reservation() {
+        let (pool, service, learner, request) = quota_fixture(1_000_000).await;
+        let fingerprint = fixture_gateway_fingerprint();
+        sqlx::query("UPDATE sessions SET revoked_at = 1 WHERE id = 'learner-session'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            service.reserve_gateway(&learner, request.clone(), fixture_gateway_requirements(&request, fingerprint, 60, 4)).await,
+            Err(AppError::Forbidden(message)) if message.contains("session")
+        ));
+        sqlx::query("UPDATE sessions SET revoked_at = NULL, active_group_id = 'school' WHERE id = 'learner-session'")
+            .execute(&pool).await.unwrap();
+        let mut second = request.clone();
+        second.request_id = "changed-active-group".into();
+        assert!(matches!(
+            service.reserve_gateway(&learner, second.clone(), fixture_gateway_requirements(&second, fingerprint, 60, 4)).await,
+            Err(AppError::Forbidden(message)) if message.contains("session")
+        ));
+    }
+
+    #[tokio::test]
+    async fn gateway_configuration_fingerprint_rejects_model_and_provider_mutation() {
+        let (pool, service, learner, request) = quota_fixture(1_000_000).await;
+        let fingerprint = fixture_gateway_fingerprint();
+        sqlx::query("UPDATE llm_models SET upstream_model = 'changed' WHERE id = 'model'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            service.reserve_gateway(&learner, request.clone(), fixture_gateway_requirements(&request, fingerprint, 60, 4)).await,
+            Err(AppError::Forbidden(message)) if message.contains("configuration")
+        ));
+        sqlx::query("UPDATE llm_models SET upstream_model = 'model-v1' WHERE id = 'model'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "UPDATE llm_providers SET base_url = 'https://changed.test/v1' WHERE id = 'provider'",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let mut second = request.clone();
+        second.request_id = "changed-provider".into();
+        assert!(matches!(
+            service.reserve_gateway(&learner, second.clone(), fixture_gateway_requirements(&second, fingerprint, 60, 4)).await,
+            Err(AppError::Forbidden(message)) if message.contains("configuration")
+        ));
+        sqlx::query("UPDATE llm_providers SET base_url = 'https://provider.test/v1', secret_envelope = 'changed-envelope' WHERE id = 'provider'")
+            .execute(&pool).await.unwrap();
+        second.request_id = "changed-secret".into();
+        assert!(matches!(
+            service.reserve_gateway(&learner, second.clone(), fixture_gateway_requirements(&second, fingerprint, 60, 4)).await,
+            Err(AppError::Forbidden(message)) if message.contains("configuration")
+        ));
+
+        sqlx::query("UPDATE llm_providers SET secret_envelope = NULL WHERE id = 'provider'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO prompt_profiles (id, group_id, name, system_prompt, status, created_by_user_id, created_at, updated_at) VALUES ('prompt', 'class', 'Prompt', 'original prompt', 'active', 'admin', 1, 1)")
+            .execute(&pool).await.unwrap();
+        let prompt_policy = serde_json::json!({"llm":{"enabled":true,"allowedProviders":["provider"],"allowedModels":["model"],"promptProfileId":"prompt","quotas":[{"metric":"costMicros","limit":1_000_000,"period":"monthly","hard":true}]}}).to_string();
+        sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES ('prompt-policy', 'school', ?, 'prompt-hash', 'prompt-compiled', 'admin', 'prompt', '[]', 3)")
+            .bind(prompt_policy).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE active_policies SET policy_version_id = 'prompt-policy', activated_at = 3 WHERE group_id = 'school'")
+            .execute(&pool).await.unwrap();
+        let prompt_fingerprint = gateway_config_fingerprint(&[
+            "provider",
+            "openaiCompatible",
+            "https://provider.test/v1",
+            "",
+            "model",
+            "model-v1",
+            "prompt",
+            "original prompt",
+            "price",
+            "CHF",
+            "perMillionTokens",
+            "1",
+            "1",
+        ]);
+        sqlx::query(
+            "UPDATE prompt_profiles SET system_prompt = 'changed prompt' WHERE id = 'prompt'",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        second.request_id = "changed-prompt".into();
+        assert!(matches!(
+            service.reserve_gateway(
+                &learner,
+                second.clone(),
+                GatewayReservationRequirements {
+                    expected_prompt_profile_id: Some("prompt"),
+                    config_fingerprint: prompt_fingerprint,
+                    conservative_actual: &second.amounts,
+                    requests_per_minute: 60,
+                    max_concurrent_streams: 4,
+                    lease_seconds: 240,
+                },
+            ).await,
+            Err(AppError::Forbidden(message)) if message.contains("configuration")
+        ));
+    }
+
+    #[tokio::test]
+    async fn precontact_cancel_is_free_while_abandoned_contact_is_durably_recovered_once() {
+        let (pool, service, learner, mut request) = quota_fixture(1_000_000).await;
+        let fingerprint = fixture_gateway_fingerprint();
+        request.request_id = "cancel-before-contact".into();
+        let cancelled = service
+            .reserve_gateway(
+                &learner,
+                request.clone(),
+                fixture_gateway_requirements(&request, fingerprint, 60, 4),
+            )
+            .await
+            .unwrap();
+        service.cancel_gateway(&cancelled.id).await.unwrap();
+        service.cancel_gateway(&cancelled.id).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?"
+            )
+            .bind(&cancelled.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?"
+            )
+            .bind(&cancelled.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "cancelled"
+        );
+
+        request.request_id = "crash-after-contact".into();
+        let pending = service
+            .reserve_gateway(
+                &learner,
+                request.clone(),
+                fixture_gateway_requirements(&request, fingerprint, 60, 4),
+            )
+            .await
+            .unwrap();
+        service.mark_gateway_contacting(&pending.id).await.unwrap();
+        service.mark_gateway_pending(&pending.id).await.unwrap();
+        sqlx::query("UPDATE llm_gateway_leases SET acquired_at = 0, expires_at = 1 WHERE reservation_id = ?").bind(&pending.id).execute(&pool).await.unwrap();
+        service.release_expired().await.unwrap();
+        let first: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?")
+                .bind(&pending.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(first > 0);
+        service.release_expired().await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?"
+            )
+            .bind(&pending.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            first
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?"
+            )
+            .bind(&pending.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "completed"
+        );
+    }
+
+    #[tokio::test]
+    async fn measured_gateway_completion_commits_accounting_and_lifecycle_atomically() {
+        let (pool, service, learner, mut request) = quota_fixture(1_000_000).await;
+        request.request_id = "atomic-measured-completion".into();
+        let fingerprint = fixture_gateway_fingerprint();
+        let reservation = service
+            .reserve_gateway(
+                &learner,
+                request.clone(),
+                fixture_gateway_requirements(&request, fingerprint, 60, 4),
+            )
+            .await
+            .unwrap();
+        service
+            .mark_gateway_contacting(&reservation.id)
+            .await
+            .unwrap();
+        service.mark_gateway_pending(&reservation.id).await.unwrap();
+        let completion = ReconcileQuotaRequest {
+            reservation_id: reservation.id.clone(),
+            provider_id: request.provider_id.clone(),
+            model_id: request.model_id.clone(),
+            price_version_id: request.price_version_id.clone(),
+            actual: request.amounts.clone(),
+        };
+
+        sqlx::query("CREATE TRIGGER reject_test_gateway_completion BEFORE UPDATE OF phase ON llm_gateway_reservations WHEN NEW.phase = 'completed' BEGIN SELECT RAISE(ABORT, 'test completion failure'); END")
+            .execute(&pool).await.unwrap();
+        assert!(service.complete_gateway(completion.clone()).await.is_err());
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?",
+            )
+            .bind(&reservation.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT status FROM quota_reservations WHERE id = ?",)
+                .bind(&reservation.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            "open"
+        );
+        sqlx::query("DROP TRIGGER reject_test_gateway_completion")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        service.complete_gateway(completion).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?",
+            )
+            .bind(&reservation.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "completed"
+        );
+        assert!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?",
+            )
+            .bind(&reservation.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+                > 0
+        );
+    }
+
+    #[tokio::test]
+    async fn durable_gateway_rpm_and_concurrency_limits_are_atomic_and_release_leases() {
+        let (_pool, service, learner, mut request) = quota_fixture(1_000_000).await;
+        let fingerprint = fixture_gateway_fingerprint();
+        request.request_id = "capacity-first".into();
+        let first = service
+            .reserve_gateway(
+                &learner,
+                request.clone(),
+                fixture_gateway_requirements(&request, fingerprint, 60, 1),
+            )
+            .await
+            .unwrap();
+        let mut second = request.clone();
+        second.request_id = "capacity-second".into();
+        assert!(matches!(
+            service
+                .reserve_gateway(
+                    &learner,
+                    second.clone(),
+                    fixture_gateway_requirements(&second, fingerprint, 60, 1)
+                )
+                .await,
+            Err(AppError::TooManyRequests)
+        ));
+        service.cancel_gateway(&first.id).await.unwrap();
+        assert!(service
+            .reserve_gateway(
+                &learner,
+                second.clone(),
+                fixture_gateway_requirements(&second, fingerprint, 60, 1)
+            )
+            .await
+            .is_ok());
+
+        let (pool, service, learner, mut request) = quota_fixture(1_000_000).await;
+        request.request_id = "rpm-first".into();
+        let first = service
+            .reserve_gateway(
+                &learner,
+                request.clone(),
+                fixture_gateway_requirements(&request, fingerprint, 1, 4),
+            )
+            .await
+            .unwrap();
+        service.cancel_gateway(&first.id).await.unwrap();
+        let mut second = request.clone();
+        second.request_id = "rpm-second".into();
+        assert!(matches!(
+            service
+                .reserve_gateway(
+                    &learner,
+                    second.clone(),
+                    fixture_gateway_requirements(&second, fingerprint, 1, 4)
+                )
+                .await,
+            Err(AppError::TooManyRequests)
+        ));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM llm_gateway_leases")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_gateway_lease_acquisition_allows_only_the_policy_limit() {
+        let (_pool, service, learner, request) = quota_fixture(10_000_000).await;
+        let fingerprint = fixture_gateway_fingerprint();
+        let attempts = (0..8).map(|index| {
+            let service = service.clone();
+            let learner = learner.clone();
+            let mut request = request.clone();
+            request.request_id = format!("gateway-contention-{index}");
+            async move {
+                service
+                    .reserve_gateway(
+                        &learner,
+                        request.clone(),
+                        fixture_gateway_requirements(&request, fingerprint, 60, 1),
+                    )
+                    .await
+            }
+        });
+        let results = futures_util::future::join_all(attempts).await;
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, Err(AppError::TooManyRequests)))
+                .count(),
+            7
+        );
+    }
+
+    fn fixture_gateway_fingerprint() -> [u8; 32] {
+        gateway_config_fingerprint(&[
+            "provider",
+            "openaiCompatible",
+            "https://provider.test/v1",
+            "",
+            "model",
+            "model-v1",
+            "",
+            "",
+            "price",
+            "CHF",
+            "perMillionTokens",
+            "1",
+            "1",
+        ])
+    }
+
+    fn fixture_gateway_requirements<'a>(
+        request: &'a ReserveQuotaRequest,
+        fingerprint: [u8; 32],
+        requests_per_minute: u32,
+        max_concurrent_streams: u16,
+    ) -> GatewayReservationRequirements<'a> {
+        GatewayReservationRequirements {
+            expected_prompt_profile_id: None,
+            config_fingerprint: fingerprint,
+            conservative_actual: &request.amounts,
+            requests_per_minute,
+            max_concurrent_streams,
+            lease_seconds: 240,
+        }
     }
 
     async fn quota_fixture(cap: i64) -> (SqlitePool, QuotaService, Principal, ReserveQuotaRequest) {
@@ -2853,6 +3580,8 @@ mod tests {
         }
         sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('school', NULL, 'School', 'school', 'active', 1), ('class', 'school', 'Class', 'class', 'active', 1)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('admin-membership', 'school', 'admin', 'active', 1), ('learner-membership', 'class', 'learner', 'active', 1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO sessions (id, user_id, expires_at, created_at, last_seen_at, active_group_id) VALUES ('learner-session', 'learner', 4102444800, 1, 1, 'class')")
+            .execute(&pool).await.unwrap();
         for capability in [
             Capability::LlmConfigure,
             Capability::AnalyticsView,

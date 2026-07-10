@@ -1,9 +1,8 @@
 use std::{collections::BTreeMap, convert::Infallible};
 
 use axum::{
-    body::{Body, Bytes},
-    extract::rejection::BytesRejection,
-    extract::{DefaultBodyLimit, State},
+    body::{to_bytes, Body, Bytes},
+    extract::{Request, State},
     http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
@@ -20,7 +19,10 @@ use crate::{
     llm::{
         configuration::LlmConfigurationService,
         provider::{adapter_for, terminal_error_frame, GatewayRequest, ProviderError},
-        quota::{QuotaService, ReconcileQuotaRequest, ReserveQuotaRequest},
+        quota::{
+            GatewayReservationRequirements, QuotaService, ReconcileQuotaRequest,
+            ReserveQuotaRequest,
+        },
     },
     state::AppState,
 };
@@ -28,11 +30,11 @@ use crate::{
 const MAX_REQUEST_BODY_BYTES: usize = 1024 * 1024;
 const RESERVED_OUTPUT_TOKENS: i64 = 4096;
 const MICROS_PER_TOKEN_PRICE_UNIT: i64 = 1_000_000;
+const GATEWAY_LEASE_SECONDS: i64 = 240;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/llm/stream", post(stream_llm))
-        .layer(DefaultBodyLimit::max(MAX_REQUEST_BODY_BYTES))
         .with_state(state)
 }
 
@@ -48,9 +50,16 @@ pub async fn get_llm_gateway(
 async fn stream_llm(
     State(state): State<AppState>,
     principal: Principal,
-    body: Result<Bytes, BytesRejection>,
+    request: Request,
 ) -> Response {
-    let body = match body {
+    if state
+        .llm_endpoint_rate_limiter
+        .check(&principal.user_id)
+        .is_err()
+    {
+        return json_failure(StatusCode::TOO_MANY_REQUESTS, "rate_limited");
+    }
+    let body = match to_bytes(request.into_body(), MAX_REQUEST_BODY_BYTES).await {
         Ok(body) => body,
         Err(_) => return json_failure(StatusCode::PAYLOAD_TOO_LARGE, "invalid_request"),
     };
@@ -93,7 +102,8 @@ async fn prepare_stream(
         route_config.price_version.input_cost_micros,
         route_config.price_version.output_cost_micros,
     )?;
-    let reservation = QuotaService::new(state.db.clone())
+    let quota = QuotaService::new(state.db.clone());
+    let reservation = quota
         .reserve_gateway(
             &principal,
             ReserveQuotaRequest {
@@ -105,43 +115,88 @@ async fn prepare_stream(
                 amounts: amounts.clone(),
                 expires_at: None,
             },
-            route_config.prompt_profile_id.as_deref(),
+            GatewayReservationRequirements {
+                expected_prompt_profile_id: route_config.prompt_profile_id.as_deref(),
+                config_fingerprint: route_config.config_fingerprint,
+                conservative_actual: &amounts,
+                requests_per_minute: route_config.requests_per_minute,
+                max_concurrent_streams: route_config.max_concurrent_streams,
+                lease_seconds: GATEWAY_LEASE_SECONDS,
+            },
         )
         .await
         .map_err(map_preflight_error)?;
 
     // Pin DNS only after quota succeeds; PinnedEndpoint disables proxies and redirects.
-    let route = configuration.pin_route(route_config).await.map_err(|_| {
-        GatewayFailure::new(StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable")
-    })?;
-
-    let reconciliation = ReservationReconciliation::new(
-        QuotaService::new(state.db.clone()),
-        ReconcileQuotaRequest {
-            reservation_id: reservation.id,
-            provider_id: route.provider_id.clone(),
-            model_id: route.model_id.clone(),
-            price_version_id: route.price_version.id.clone(),
-            actual: amounts,
-        },
-    );
+    let reservation_id = reservation.id;
+    let route = match configuration.pin_route(route_config).await {
+        Ok(route) => route,
+        Err(_) => {
+            quota
+                .cancel_gateway(&reservation_id)
+                .await
+                .map_err(map_preflight_error)?;
+            return Err(GatewayFailure::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "provider_unavailable",
+            ));
+        }
+    };
+    quota
+        .mark_gateway_contacting(&reservation_id)
+        .await
+        .map_err(map_preflight_error)?;
     let opened = match adapter_for(route.provider_kind)
         .stream(&route, normalized)
         .await
     {
         Ok(opened) => opened,
-        Err(error) => return Err(map_provider_error(error, reconciliation)),
+        Err(error) => {
+            quota
+                .cancel_gateway(&reservation_id)
+                .await
+                .map_err(map_preflight_error)?;
+            return Err(map_provider_error(error));
+        }
     };
+    quota
+        .mark_gateway_pending(&reservation_id)
+        .await
+        .map_err(map_preflight_error)?;
 
     let mut upstream = opened.stream;
+    let completion = ReconcileQuotaRequest {
+        reservation_id,
+        provider_id: route.provider_id.clone(),
+        model_id: route.model_id.clone(),
+        price_version_id: route.price_version.id.clone(),
+        actual: amounts.clone(),
+    };
+    let mut accounting = StreamAccounting::new(
+        &amounts,
+        route.price_version.input_cost_micros,
+        route.price_version.output_cost_micros,
+    );
     let downstream = async_stream::stream! {
-        // Holding this guard inside the response body makes client disconnect/drop reconcile the
-        // conservative reservation. Task 4 will replace the conservative values with measured
-        // conversation usage as part of its recorder/reconciliation handoff.
-        let _reconciliation = reconciliation;
         while let Some(item) = upstream.next().await {
             match item {
-                Ok(frame) => yield Ok::<Bytes, Infallible>(frame),
+                Ok(frame) => match accounting.observe(&frame) {
+                    Ok(FrameKind::Data) => yield Ok::<Bytes, Infallible>(frame),
+                    Ok(FrameKind::Done) => {
+                        let mut measured = completion.clone();
+                        measured.actual = accounting.measured_amounts();
+                        if quota.complete_gateway(measured).await.is_ok() {
+                            yield Ok::<Bytes, Infallible>(frame);
+                        } else {
+                            yield Ok::<Bytes, Infallible>(terminal_error_frame(ProviderError::Unavailable));
+                        }
+                        break;
+                    }
+                    Err(error) => {
+                        yield Ok::<Bytes, Infallible>(terminal_error_frame(error));
+                        break;
+                    }
+                },
                 Err(error) => {
                     yield Ok::<Bytes, Infallible>(terminal_error_frame(error));
                     break;
@@ -202,40 +257,153 @@ fn checked_ceil_price(tokens: i64, price: i64) -> Result<i64, GatewayFailure> {
         .ok_or_else(|| GatewayFailure::new(StatusCode::BAD_REQUEST, "invalid_request"))
 }
 
-struct ReservationReconciliation {
-    service: Option<QuotaService>,
-    request: Option<ReconcileQuotaRequest>,
+enum FrameKind {
+    Data,
+    Done,
 }
 
-impl ReservationReconciliation {
-    fn new(service: QuotaService, request: ReconcileQuotaRequest) -> Self {
+struct StreamAccounting {
+    reserved_input: i64,
+    reserved_output: i64,
+    reserved_total: i64,
+    reserved_cost: i64,
+    input: i64,
+    output: i64,
+    input_price: i64,
+    output_price: i64,
+}
+
+impl StreamAccounting {
+    fn new(amounts: &BTreeMap<String, i64>, input_price: i64, output_price: i64) -> Self {
         Self {
-            service: Some(service),
-            request: Some(request),
+            reserved_input: amounts["inputTokens"],
+            reserved_output: amounts["outputTokens"],
+            reserved_total: amounts["totalTokens"],
+            reserved_cost: amounts["costMicros"],
+            input: amounts["inputTokens"],
+            output: 0,
+            input_price,
+            output_price,
         }
     }
-}
 
-impl Drop for ReservationReconciliation {
-    fn drop(&mut self) {
-        let (Some(service), Some(request)) = (self.service.take(), self.request.take()) else {
-            return;
-        };
-        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
-            runtime.spawn(async move {
-                if let Err(error) = service.reconcile(request).await {
-                    tracing::error!(error = %error, "quota reservation reconciliation failed");
+    fn observe(&mut self, frame: &Bytes) -> Result<FrameKind, ProviderError> {
+        let text = std::str::from_utf8(frame).map_err(|_| ProviderError::InvalidResponse)?;
+        let mut done = false;
+        for line in text.lines() {
+            let Some(data) = line.strip_prefix("data: ") else {
+                continue;
+            };
+            if data == "[DONE]" {
+                done = true;
+                continue;
+            }
+            let value: serde_json::Value =
+                serde_json::from_str(data).map_err(|_| ProviderError::InvalidResponse)?;
+            let delta_bytes = value
+                .get("choices")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|choice| choice.get("delta"))
+                .try_fold(0_i64, |total, delta| {
+                    let content = delta
+                        .get("content")
+                        .and_then(serde_json::Value::as_str)
+                        .map_or(0_usize, str::len);
+                    let arguments = delta
+                        .get("tool_calls")
+                        .and_then(serde_json::Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|call| call.pointer("/function/arguments"))
+                        .filter_map(serde_json::Value::as_str)
+                        .map(str::len)
+                        .sum::<usize>();
+                    total.checked_add(i64::try_from(content.checked_add(arguments)?).ok()?)
+                })
+                .ok_or(ProviderError::ResponseTooLarge)?;
+            self.output = self
+                .output
+                .checked_add(delta_bytes)
+                .ok_or(ProviderError::ResponseTooLarge)?;
+            if let Some(usage) = value.get("usage") {
+                if let Some(prompt) = usage
+                    .get("prompt_tokens")
+                    .and_then(serde_json::Value::as_i64)
+                {
+                    self.input = prompt;
                 }
-            });
+                if let Some(output) = usage
+                    .get("completion_tokens")
+                    .and_then(serde_json::Value::as_i64)
+                {
+                    self.output = self.output.max(output);
+                }
+            }
+            if let Some(output) = value.get("eval_count").and_then(serde_json::Value::as_i64) {
+                self.output = self.output.max(output);
+            }
+            self.ensure_within_reservation()?;
         }
+        Ok(if done {
+            FrameKind::Done
+        } else {
+            FrameKind::Data
+        })
+    }
+
+    fn ensure_within_reservation(&self) -> Result<(), ProviderError> {
+        let total = self
+            .input
+            .checked_add(self.output)
+            .ok_or(ProviderError::ResponseTooLarge)?;
+        let cost = stream_price(self.input, self.input_price)?
+            .checked_add(stream_price(self.output, self.output_price)?)
+            .ok_or(ProviderError::ResponseTooLarge)?;
+        if self.input < 0
+            || self.output < 0
+            || self.input > self.reserved_input
+            || self.output > self.reserved_output
+            || total > self.reserved_total
+            || cost > self.reserved_cost
+        {
+            Err(ProviderError::ResponseTooLarge)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn measured_amounts(&self) -> BTreeMap<String, i64> {
+        let total = self.input + self.output;
+        let cost = stream_price(self.input, self.input_price)
+            .and_then(|input| {
+                stream_price(self.output, self.output_price).and_then(|output| {
+                    input
+                        .checked_add(output)
+                        .ok_or(ProviderError::ResponseTooLarge)
+                })
+            })
+            .unwrap_or(self.reserved_cost);
+        BTreeMap::from([
+            ("requests".into(), 1),
+            ("inputTokens".into(), self.input),
+            ("outputTokens".into(), self.output),
+            ("totalTokens".into(), total),
+            ("costMicros".into(), cost),
+        ])
     }
 }
 
-fn map_provider_error(
-    error: ProviderError,
-    reconciliation: ReservationReconciliation,
-) -> GatewayFailure {
-    drop(reconciliation);
+fn stream_price(tokens: i64, price: i64) -> Result<i64, ProviderError> {
+    tokens
+        .checked_mul(price)
+        .and_then(|value| value.checked_add(MICROS_PER_TOKEN_PRICE_UNIT - 1))
+        .map(|value| value / MICROS_PER_TOKEN_PRICE_UNIT)
+        .ok_or(ProviderError::ResponseTooLarge)
+}
+
+fn map_provider_error(error: ProviderError) -> GatewayFailure {
     match error {
         ProviderError::RateLimited => {
             GatewayFailure::new(StatusCode::TOO_MANY_REQUESTS, "rate_limited")
@@ -305,6 +473,7 @@ mod tests {
             ],
             tools: Vec::new(),
             think: false,
+            max_output_tokens: 4096,
         };
         let values = conservative_amounts(&request, 1_000_000, 2_000_000).unwrap();
         assert!(values["inputTokens"] > 12);
@@ -328,5 +497,34 @@ mod tests {
             terminal_error_frame(ProviderError::Unavailable),
             Bytes::from_static(b"data: {\"error\":\"provider_unavailable\",\"done\":true}\n\n")
         );
+    }
+
+    #[test]
+    fn streamed_output_and_provider_usage_cannot_exceed_reserved_ceiling() {
+        let amounts = BTreeMap::from([
+            ("requests".into(), 1),
+            ("inputTokens".into(), 10),
+            ("outputTokens".into(), 4),
+            ("totalTokens".into(), 14),
+            ("costMicros".into(), 14),
+        ]);
+        let mut accounting = StreamAccounting::new(&amounts, 1_000_000, 1_000_000);
+        assert!(accounting
+            .observe(&Bytes::from_static(
+                b"data: {\"choices\":[{\"delta\":{\"content\":\"1234\"}}]}\n\n"
+            ))
+            .is_ok());
+        assert!(accounting
+            .observe(&Bytes::from_static(
+                b"data: {\"choices\":[{\"delta\":{\"content\":\"5\"}}]}\n\n"
+            ))
+            .is_err());
+
+        let mut accounting = StreamAccounting::new(&amounts, 1_000_000, 1_000_000);
+        assert!(accounting
+            .observe(&Bytes::from_static(
+                b"data: {\"choices\":[{\"delta\":{}}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}\n\n"
+            ))
+            .is_err());
     }
 }

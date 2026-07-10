@@ -47,10 +47,22 @@ pub struct FeatureRule {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LlmPolicy {
     pub enabled: bool,
+    #[serde(default = "default_requests_per_minute")]
+    pub requests_per_minute: u32,
+    #[serde(default = "default_max_concurrent_streams")]
+    pub max_concurrent_streams: u16,
     pub allowed_providers: Vec<String>,
     pub allowed_models: Vec<String>,
     pub prompt_profile_id: Option<String>,
     pub quotas: Vec<QuotaRule>,
+}
+
+pub const fn default_requests_per_minute() -> u32 {
+    60
+}
+
+pub const fn default_max_concurrent_streams() -> u16 {
+    4
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

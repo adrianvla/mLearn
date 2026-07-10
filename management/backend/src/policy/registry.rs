@@ -219,6 +219,12 @@ pub fn validate_policy_document(document: &PolicyDocument) -> Result<(), String>
         }
         require_non_empty("llm.quotas.sourceGroupId", &quota.source_group_id)?;
     }
+    if document.llm.requests_per_minute == 0 || document.llm.requests_per_minute > 10_000 {
+        return Err("llm.requestsPerMinute is invalid".into());
+    }
+    if document.llm.max_concurrent_streams == 0 || document.llm.max_concurrent_streams > 1_000 {
+        return Err("llm.maxConcurrentStreams is invalid".into());
+    }
     Ok(())
 }
 

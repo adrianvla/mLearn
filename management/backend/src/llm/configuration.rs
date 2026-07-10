@@ -107,6 +107,9 @@ pub(crate) struct ResolvedLlmRouteConfig {
     pub(crate) prompt_profile_id: Option<String>,
     pub(crate) system_prompt: Option<String>,
     pub(crate) price_version: ProviderPriceVersion,
+    pub(crate) config_fingerprint: [u8; 32],
+    pub(crate) requests_per_minute: u32,
+    pub(crate) max_concurrent_streams: u16,
     base_url: String,
 }
 
@@ -999,8 +1002,9 @@ impl LlmConfigurationService {
             .ok_or_else(|| AppError::Conflict("provider route has no price version".into()))?;
         let secret_envelope: Option<String> = row.get("secret_envelope");
         let secret = secret_envelope
+            .as_ref()
             .map(|value| {
-                let encrypted = EncryptedSecret::parse(value)?;
+                let encrypted = EncryptedSecret::parse(value.clone())?;
                 let plaintext = self
                     .cipher
                     .decrypt(&encrypted, &provider_secret_aad(&provider_id))?;
@@ -1012,16 +1016,36 @@ impl LlmConfigurationService {
             .transpose()?;
         let base_url: String = row.get("base_url");
         let provider_kind = ProviderKind::parse(row.get("provider_kind"))?;
+        let upstream_model: String = row.get("upstream_model");
+        let price_version = price_from_row(&price_row);
+        let config_fingerprint = gateway_config_fingerprint(&[
+            &provider_id,
+            provider_kind.as_str(),
+            &base_url,
+            secret_envelope.as_deref().unwrap_or(""),
+            &model_id,
+            &upstream_model,
+            prompt_profile_id.as_deref().unwrap_or(""),
+            system_prompt.as_deref().unwrap_or(""),
+            &price_version.id,
+            &price_version.currency,
+            &price_version.unit,
+            &price_version.input_cost_micros.to_string(),
+            &price_version.output_cost_micros.to_string(),
+        ]);
         tx.commit().await.map_err(database_error)?;
         Ok(ResolvedLlmRouteConfig {
             provider_id,
             model_id,
             provider_kind,
             secret,
-            model: row.get("upstream_model"),
+            model: upstream_model,
             prompt_profile_id,
             system_prompt,
-            price_version: price_from_row(&price_row),
+            price_version,
+            config_fingerprint,
+            requests_per_minute: compiled.document.llm.requests_per_minute,
+            max_concurrent_streams: compiled.document.llm.max_concurrent_streams,
             base_url,
         })
     }
@@ -1045,6 +1069,15 @@ impl LlmConfigurationService {
             endpoint,
         })
     }
+}
+
+pub(crate) fn gateway_config_fingerprint(parts: &[&str]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    for part in parts {
+        hasher.update((part.len() as u64).to_be_bytes());
+        hasher.update(part.as_bytes());
+    }
+    hasher.finalize().into()
 }
 
 fn provider_secret_aad(provider_id: &str) -> Vec<u8> {

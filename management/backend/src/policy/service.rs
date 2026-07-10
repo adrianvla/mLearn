@@ -53,6 +53,10 @@ pub struct DraftLlmPolicy {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests_per_minute: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_streams: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allowed_providers: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allowed_models: Option<Vec<String>>,
@@ -376,6 +380,22 @@ fn validate_draft_document(document: &PolicyDraftDocument) -> Result<(), AppErro
         }
     }
     if let Some(llm) = &document.llm {
+        if llm
+            .requests_per_minute
+            .is_some_and(|value| value == 0 || value > 10_000)
+        {
+            return Err(AppError::BadRequest(
+                "LLM requestsPerMinute must be within 1..10000".into(),
+            ));
+        }
+        if llm
+            .max_concurrent_streams
+            .is_some_and(|value| value == 0 || value > 1_000)
+        {
+            return Err(AppError::BadRequest(
+                "LLM maxConcurrentStreams must be within 1..1000".into(),
+            ));
+        }
         if let Some(providers) = &llm.allowed_providers {
             for provider in providers {
                 require_safe_identifier("LLM provider", provider)?;
