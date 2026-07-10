@@ -12,6 +12,7 @@ import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
 import { getCurrentLocaleData } from './localization';
 import { queueCommand } from './webServer';
+import { getLogger } from '../../shared/utils/logger';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
@@ -19,6 +20,9 @@ let welcomeWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let currentWindow: BrowserWindow | null = null;
 const childWindows: Map<string, BrowserWindow> = new Map();
+const DEV_WINDOW_LOAD_RETRY_LIMIT = 20;
+const DEV_WINDOW_LOAD_RETRY_DELAY_MS = 250;
+const log = getLogger('electron.windowManager');
 
 // Context data passed to child windows
 const windowContextStore: Map<string, Record<string, unknown>> = new Map();
@@ -49,6 +53,51 @@ export function getCurrentWindow(): BrowserWindow | null {
 function focusWindow(window: BrowserWindow): void {
   if (window.isDestroyed()) return;
   window.focus();
+}
+
+function loadWindowHtml(window: BrowserWindow, type: WindowType): void {
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!isDev) {
+    window.loadFile(getWindowHtmlPath(type));
+    return;
+  }
+
+  const url = `http://localhost:3000/src/html/${type}.html`;
+  let retryCount = 0;
+  let retryTimer: NodeJS.Timeout | null = null;
+
+  const clearRetryTimer = (): void => {
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+
+  const load = (): void => {
+    if (window.isDestroyed()) return;
+    window.loadURL(url).catch((error) => {
+      if (window.isDestroyed()) return;
+      if (retryCount >= DEV_WINDOW_LOAD_RETRY_LIMIT) {
+        log.error(`Failed to load ${type} window after ${retryCount} retries:`, error);
+        return;
+      }
+      retryCount += 1;
+      retryTimer = setTimeout(load, DEV_WINDOW_LOAD_RETRY_DELAY_MS);
+    });
+  };
+
+  window.webContents.on('did-fail-load', (_event, _errorCode, errorDescription, validatedUrl, isMainFrame) => {
+    if (!isMainFrame || validatedUrl !== url || window.isDestroyed()) return;
+    if (retryCount >= DEV_WINDOW_LOAD_RETRY_LIMIT) return;
+    retryCount += 1;
+    clearRetryTimer();
+    retryTimer = setTimeout(load, DEV_WINDOW_LOAD_RETRY_DELAY_MS);
+    log.warn(`Retrying ${type} window load after dev-server failure: ${errorDescription}`);
+  });
+
+  window.on('closed', clearRetryTimer);
+  load();
 }
 
 export function getOverlayWindow(): BrowserWindow | null {
@@ -294,12 +343,7 @@ export function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow(windowOptions);
   currentWindow = mainWindow;
 
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:3000/src/html/main.html');
-  } else {
-    mainWindow.loadFile(getWindowHtmlPath('main'));
-  }
+  loadWindowHtml(mainWindow, 'main');
 
   mainWindow.on('close', (event) => {
     if (!isMac && !(app as any).isQuitting) {
@@ -343,12 +387,7 @@ export function createWelcomeWindow(): BrowserWindow {
 
   currentWindow = welcomeWindow;
 
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    welcomeWindow.loadURL('http://localhost:3000/src/html/welcome.html');
-  } else {
-    welcomeWindow.loadFile(getWindowHtmlPath('welcome'));
-  }
+  loadWindowHtml(welcomeWindow, 'welcome');
 
   welcomeWindow.on('closed', () => {
     if (currentWindow === welcomeWindow) {
@@ -384,12 +423,7 @@ export function createDiagnosticsWindow(): BrowserWindow {
 
   childWindows.set('diagnostics' as WindowType, window);
 
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    window.loadURL('http://localhost:3000/src/html/diagnostics.html');
-  } else {
-    window.loadFile(getWindowHtmlPath('diagnostics'));
-  }
+  loadWindowHtml(window, 'diagnostics' as WindowType);
 
   window.on('closed', () => {
     childWindows.delete('diagnostics' as WindowType);
@@ -432,12 +466,7 @@ export function createChildWindow(
   const window = new BrowserWindow(defaultOptions);
   childWindows.set(type, window);
 
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    window.loadURL(`http://localhost:3000/src/html/${type}.html`);
-  } else {
-    window.loadFile(getWindowHtmlPath(type));
-  }
+  loadWindowHtml(window, type);
 
   window.on('closed', () => {
     childWindows.delete(type);

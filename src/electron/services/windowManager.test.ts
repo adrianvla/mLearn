@@ -27,6 +27,7 @@ type MockWindow = {
     send: ReturnType<typeof vi.fn>;
     isLoading: ReturnType<typeof vi.fn>;
     once: ReturnType<typeof vi.fn>;
+    on: ReturnType<typeof vi.fn>;
     isDestroyed: ReturnType<typeof vi.fn>;
   };
 };
@@ -35,7 +36,7 @@ const createdWindows: MockWindow[] = [];
 
 function makeMockWindow(): MockWindow {
   const win: MockWindow = {
-    loadURL: vi.fn(),
+    loadURL: vi.fn(() => Promise.resolve()),
     loadFile: vi.fn(),
     on: vi.fn(),
     close: vi.fn(),
@@ -56,6 +57,7 @@ function makeMockWindow(): MockWindow {
       send: vi.fn(),
       isLoading: vi.fn(() => false),
       once: vi.fn(),
+      on: vi.fn(),
       isDestroyed: vi.fn(() => false),
     },
   };
@@ -89,6 +91,7 @@ class MockBrowserWindow {
     send: ReturnType<typeof vi.fn>;
     isLoading: ReturnType<typeof vi.fn>;
     once: ReturnType<typeof vi.fn>;
+    on: ReturnType<typeof vi.fn>;
     isDestroyed: ReturnType<typeof vi.fn>;
   };
 

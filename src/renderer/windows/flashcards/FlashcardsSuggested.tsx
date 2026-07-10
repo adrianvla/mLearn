@@ -8,7 +8,7 @@
  * being saved as real flashcards.
  */
 
-import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
+import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
 import {
   Btn,
   Input,
@@ -17,7 +17,6 @@ import {
   PillLabel,
   ProgressBar,
   ToggleSwitch,
-  Spinner,
   SparklesIcon,
   SearchIcon,
   TrashIcon,
@@ -64,7 +63,6 @@ export const FlashcardsSuggested: Component = () => {
     getSuggestedFlashcardsSync,
     removeSuggestedFlashcard,
     removeSuggestedFlashcards,
-    cleanupKnownSuggestions,
     promoteSuggestedFlashcards,
     ignoreWordForLanguage,
     store,
@@ -83,12 +81,6 @@ export const FlashcardsSuggested: Component = () => {
   );
   const [virtualScrollRef, setVirtualScrollRef] = createSignal<HTMLDivElement | undefined>(undefined);
   const [headerRef, setHeaderRef] = createSignal<HTMLDivElement | undefined>(undefined);
-  const [cleaningUp, setCleaningUp] = createSignal(true);
-
-  onMount(() => {
-    setCleaningUp(true);
-    void cleanupKnownSuggestions().finally(() => setCleaningUp(false));
-  });
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.
   const suggestions = createMemo(() => getSuggestedFlashcardsSync());
@@ -479,24 +471,14 @@ export const FlashcardsSuggested: Component = () => {
       </CollapsibleStickyHeader>
 
       <Show when={suggestions().length > 0} fallback={
-        <Show when={cleaningUp()} fallback={
-          <div class="flashcards-suggested-empty">
-            <EmptyState
-              icon={<SparklesIcon size={32} />}
-              title={t('mlearn.Flashcards.Suggested.EmptyTitle')}
-              description={t('mlearn.Flashcards.Suggested.EmptyDescription')}
-              variant="card"
-            />
-          </div>
-        }>
-          <div class="flashcards-suggested-loading">
-            <EmptyState
-              icon={<Spinner size={32} />}
-              title={t('mlearn.Flashcards.Suggested.Loading')}
-              variant="card"
-            />
-          </div>
-        </Show>
+        <div class="flashcards-suggested-empty">
+          <EmptyState
+            icon={<SparklesIcon size={32} />}
+            title={t('mlearn.Flashcards.Suggested.EmptyTitle')}
+            description={t('mlearn.Flashcards.Suggested.EmptyDescription')}
+            variant="card"
+          />
+        </div>
       }>
         <div class="flashcards-suggested-scroll" ref={setVirtualScrollRef}>
           <div class="flashcards-suggested-virtual-container" style={{ height: `${virtualizer().getTotalSize()}px` }}>

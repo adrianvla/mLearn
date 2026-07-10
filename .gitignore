@@ -29,3 +29,5 @@ docs/superpowers
 /*.zip
 
 .playwright-mcp
+.superpowers
+.zcode
