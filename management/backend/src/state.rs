@@ -48,3 +48,33 @@ impl AppState {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    use crate::config::Config;
+
+    use super::AppState;
+
+    #[tokio::test]
+    async fn malformed_policy_key_prevents_state_startup_without_rotation() {
+        let path = std::env::temp_dir().join(format!(
+            "mlearn-malformed-policy-key-{}",
+            uuid::Uuid::now_v7()
+        ));
+        std::fs::write(&path, b"malformed").unwrap();
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let mut config = Config::from_env();
+        config.policy_signing_key_path = path.to_string_lossy().into_owned();
+        let docker = bollard::Docker::connect_with_http_defaults().unwrap();
+
+        assert!(AppState::try_new(docker, config, pool).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"malformed");
+        std::fs::remove_file(path).unwrap();
+    }
+}

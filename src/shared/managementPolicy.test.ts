@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import fixture from '../../test/fixtures/management-policy-v1.json';
+import jcsFixture from '../../test/fixtures/policy-jcs-vectors.json';
 import {
   type EffectiveManagementPolicy,
   validateEffectiveManagementPolicy,
 } from './managementPolicy';
+import { canonicalizePolicyJson } from './policyCanonicalization';
 
 function settingRule<T>(value: T) {
   return {
@@ -27,6 +29,18 @@ function assertManagedSettingTypeBoundary(
 void assertManagedSettingTypeBoundary;
 
 describe('management policy contract', () => {
+  it('matches the shared RFC 8785 canonical byte vectors', () => {
+    for (const vector of jcsFixture.vectors) {
+      expect(canonicalizePolicyJson(vector.input), vector.name).toBe(
+        vector.canonical,
+      );
+    }
+    const { signature: _, ...unsigned } = jcsFixture.signedSnapshot;
+    expect(canonicalizePolicyJson(unsigned)).toBe(
+      jcsFixture.signedSnapshotCanonical,
+    );
+  });
+
   it('rejects executable or unknown policy fields', () => {
     expect(
       validateEffectiveManagementPolicy({

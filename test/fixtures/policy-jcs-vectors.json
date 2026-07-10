@@ -1,0 +1,79 @@
+{
+  "vectors": [
+    {
+      "name": "nested-reordered-objects",
+      "input": {
+        "z": { "b": 2, "a": 1 },
+        "a": [{ "y": true, "x": null }, "text"]
+      },
+      "canonical": "{\"a\":[{\"x\":null,\"y\":true},\"text\"],\"z\":{\"a\":1,\"b\":2}}"
+    },
+    {
+      "name": "unicode-bmp-and-astral",
+      "input": {
+        "": "private-use BMP",
+        "😀": "astral 😀",
+        "€": "BMP euro €",
+        "é": "BMP accented é",
+        "a": "line\nfeed"
+      },
+      "canonical": "{\"a\":\"line\\nfeed\",\"é\":\"BMP accented é\",\"€\":\"BMP euro €\",\"😀\":\"astral 😀\",\"\":\"private-use BMP\"}"
+    },
+    {
+      "name": "numbers-nulls-and-arrays",
+      "input": [
+        9007199254740991,
+        -9007199254740991,
+        -0.0,
+        0.000001,
+        1e-7,
+        100000000000000000000,
+        1e21,
+        333333333.33333329,
+        4.50,
+        null,
+        [false, true]
+      ],
+      "canonical": "[9007199254740991,-9007199254740991,0,0.000001,1e-7,100000000000000000000,1e+21,333333333.3333333,4.5,null,[false,true]]"
+    }
+  ],
+  "signedSnapshot": {
+    "schemaVersion": 1,
+    "policyVersionId": "version-€-😀",
+    "activeGroupId": "group-a",
+    "ancestry": [{ "id": "school", "name": "École 😀" }],
+    "settings": {
+      "subtitle_font_size": {
+        "value": 20.5,
+        "sourceGroupId": "school",
+        "sourceGroupName": "École 😀",
+        "locked": true
+      }
+    },
+    "features": {
+      "cloud_tts": {
+        "enabled": false,
+        "sourceGroupId": "school",
+        "hard": true
+      }
+    },
+    "llm": {
+      "enabled": true,
+      "allowedProviders": ["provider-b", "provider-a"],
+      "allowedModels": ["model-😀"],
+      "promptProfileId": null,
+      "quotas": [{
+        "metric": "totalTokens",
+        "limit": 9007199254740991,
+        "period": "daily",
+        "sourceGroupId": "school",
+        "hard": true
+      }]
+    },
+    "issuedAt": "2026-07-10T08:00:00Z",
+    "expiresAt": "2026-07-10T08:15:00Z",
+    "keyId": "key-1",
+    "signature": "excluded-from-canonical-bytes"
+  },
+  "signedSnapshotCanonical": "{\"activeGroupId\":\"group-a\",\"ancestry\":[{\"id\":\"school\",\"name\":\"École 😀\"}],\"expiresAt\":\"2026-07-10T08:15:00Z\",\"features\":{\"cloud_tts\":{\"enabled\":false,\"hard\":true,\"sourceGroupId\":\"school\"}},\"issuedAt\":\"2026-07-10T08:00:00Z\",\"keyId\":\"key-1\",\"llm\":{\"allowedModels\":[\"model-😀\"],\"allowedProviders\":[\"provider-b\",\"provider-a\"],\"enabled\":true,\"promptProfileId\":null,\"quotas\":[{\"hard\":true,\"limit\":9007199254740991,\"metric\":\"totalTokens\",\"period\":\"daily\",\"sourceGroupId\":\"school\"}]},\"policyVersionId\":\"version-€-😀\",\"schemaVersion\":1,\"settings\":{\"subtitle_font_size\":{\"locked\":true,\"sourceGroupId\":\"school\",\"sourceGroupName\":\"École 😀\",\"value\":20.5}}}"
+}

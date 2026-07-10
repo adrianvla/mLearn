@@ -94,6 +94,7 @@
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
     "fflate": "^0.8.3",
+    "json-canonicalize": "^2.0.0",
     "jsqr": "^1.4.0",
     "marked": "^17.0.2",
     "node-llama-cpp": "^3.18.1",

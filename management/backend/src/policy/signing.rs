@@ -10,7 +10,6 @@ use ed25519_dalek::{Signature, Verifier};
 use ed25519_dalek::{Signer, SigningKey};
 use rand::rngs::OsRng;
 use serde::Serialize;
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::{error::AppError, policy::PolicyDocument};
@@ -101,62 +100,52 @@ fn canonical_unsigned_bytes(snapshot: &PolicyDocument) -> Result<Vec<u8>, AppErr
         .as_object_mut()
         .ok_or_else(|| AppError::Internal("policy snapshot must serialize as an object".into()))?
         .remove("signature");
-    let mut output = Vec::new();
-    write_canonical_json(&value, &mut output)?;
-    Ok(output)
+    canonical_json_bytes(&value)
 }
 
-fn write_canonical_json(value: &Value, output: &mut Vec<u8>) -> Result<(), AppError> {
-    match value {
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-            serde_json::to_writer(output, value).map_err(|error| {
-                AppError::Internal(format!("policy canonicalization failed: {error}"))
-            })?;
-        }
-        Value::Array(values) => {
-            output.push(b'[');
-            for (index, value) in values.iter().enumerate() {
-                if index != 0 {
-                    output.push(b',');
-                }
-                write_canonical_json(value, output)?;
-            }
-            output.push(b']');
-        }
-        Value::Object(values) => {
-            output.push(b'{');
-            let mut entries = values.iter().collect::<Vec<_>>();
-            entries.sort_unstable_by(|left, right| left.0.cmp(right.0));
-            for (index, (key, value)) in entries.into_iter().enumerate() {
-                if index != 0 {
-                    output.push(b',');
-                }
-                serde_json::to_writer(&mut *output, key).map_err(|error| {
-                    AppError::Internal(format!("policy canonicalization failed: {error}"))
-                })?;
-                output.push(b':');
-                write_canonical_json(value, output)?;
-            }
-            output.push(b'}');
-        }
-    }
-    Ok(())
+fn canonical_json_bytes(value: &impl Serialize) -> Result<Vec<u8>, AppError> {
+    serde_json_canonicalizer::to_vec(value)
+        .map_err(|error| AppError::Internal(format!("policy canonicalization failed: {error}")))
 }
 
 fn read_key(path: &Path) -> std::io::Result<SigningKey> {
-    if fs::symlink_metadata(path)?.file_type().is_symlink() {
+    #[cfg(not(unix))]
+    {
+        if fs::symlink_metadata(path)?.file_type().is_symlink() {
+            return Err(std::io::Error::new(
+                ErrorKind::PermissionDenied,
+                "refusing policy signing key symlink",
+            ));
+        }
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK);
+    }
+    let mut file = options.open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() {
         return Err(std::io::Error::new(
-            ErrorKind::PermissionDenied,
-            "refusing policy signing key symlink",
+            ErrorKind::InvalidData,
+            "policy signing key must be a regular file",
         ));
     }
     #[cfg(unix)]
-    fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+        if file.metadata()?.permissions().mode() & 0o7777 != 0o600 {
+            return Err(std::io::Error::new(
+                ErrorKind::PermissionDenied,
+                "policy signing key permissions must be 0600",
+            ));
+        }
+    }
     let mut bytes = Vec::new();
-    OpenOptions::new()
-        .read(true)
-        .open(path)?
-        .read_to_end(&mut bytes)?;
+    file.read_to_end(&mut bytes)?;
     let bytes: [u8; 32] = bytes.try_into().map_err(|_| {
         std::io::Error::new(
             ErrorKind::InvalidData,
@@ -216,13 +205,25 @@ fn key_error(action: &str, path: &Path, error: std::io::Error) -> AppError {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{
+        collections::BTreeMap,
+        fs,
+        sync::{Arc, Barrier},
+        thread,
+    };
 
     use serde_json::json;
 
     use crate::policy::{model::PolicyAncestryEntry, LlmPolicy, PolicyDocument, SettingRule};
 
     use super::PolicySigner;
+
+    fn unique_key_path(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "mlearn-policy-signing-{label}-{}",
+            uuid::Uuid::now_v7()
+        ))
+    }
 
     fn fixture_snapshot() -> PolicyDocument {
         PolicyDocument {
@@ -263,6 +264,162 @@ mod tests {
         let signed = signer.sign_snapshot(fixture_snapshot()).unwrap();
         let mut tampered = signed.clone();
         tampered.settings.get_mut("llmEnabled").unwrap().value = json!(true);
+        assert!(!signer.verify_for_test(&tampered));
+    }
+
+    #[test]
+    fn rust_matches_shared_rfc8785_vectors() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../test/fixtures/policy-jcs-vectors.json"
+        ))
+        .unwrap();
+        for vector in fixture["vectors"].as_array().unwrap() {
+            let bytes = super::canonical_json_bytes(&vector["input"]).unwrap();
+            assert_eq!(
+                String::from_utf8(bytes).unwrap(),
+                vector["canonical"].as_str().unwrap(),
+                "{}",
+                vector["name"].as_str().unwrap()
+            );
+        }
+        let snapshot: PolicyDocument =
+            serde_json::from_value(fixture["signedSnapshot"].clone()).unwrap();
+        assert_eq!(
+            String::from_utf8(super::canonical_unsigned_bytes(&snapshot).unwrap()).unwrap(),
+            fixture["signedSnapshotCanonical"].as_str().unwrap()
+        );
+    }
+
+    #[test]
+    fn signing_key_persists_and_reloads_with_the_same_public_key() {
+        let path = unique_key_path("reload");
+        let first = PolicySigner::load_or_generate(&path).unwrap();
+        let second = PolicySigner::load_or_generate(&path).unwrap();
+        assert_eq!(first.public_key(), second.public_key());
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn concurrent_creation_converges_on_one_key() {
+        let path = unique_key_path("concurrent");
+        let barrier = Arc::new(Barrier::new(8));
+        let handles = (0..8)
+            .map(|_| {
+                let barrier = barrier.clone();
+                let path = path.clone();
+                thread::spawn(move || {
+                    barrier.wait();
+                    PolicySigner::load_or_generate(path).unwrap().public_key()
+                })
+            })
+            .collect::<Vec<_>>();
+        let keys = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>();
+        assert!(keys.iter().all(|key| key == &keys[0]));
+        fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn persisted_key_permissions_are_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = unique_key_path("mode");
+        PolicySigner::load_or_generate(&path).unwrap();
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o7777,
+            0o600
+        );
+        fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn existing_key_permissions_are_repaired_through_the_open_descriptor() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = unique_key_path("repair-mode");
+        fs::write(&path, [7_u8; 32]).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        PolicySigner::load_or_generate(&path).unwrap();
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o7777,
+            0o600
+        );
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn malformed_key_fails_startup_instead_of_rotating() {
+        let path = unique_key_path("malformed");
+        fs::write(&path, b"not-a-private-key").unwrap();
+        assert!(PolicySigner::load_or_generate(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"not-a-private-key");
+        fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_key_path_is_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let target = unique_key_path("symlink-target");
+        let link = unique_key_path("symlink-link");
+        fs::write(&target, [7_u8; 32]).unwrap();
+        symlink(&target, &link).unwrap();
+        assert!(PolicySigner::load_or_generate(&link).is_err());
+        fs::remove_file(link).unwrap();
+        fs::remove_file(target).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_regular_key_path_is_rejected_without_changing_its_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = unique_key_path("directory");
+        fs::create_dir(&path).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(PolicySigner::load_or_generate(&path).is_err());
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
+        fs::remove_dir(path).unwrap();
+    }
+
+    #[test]
+    fn signature_fails_after_active_group_is_changed() {
+        let signer = PolicySigner::generate_for_test();
+        let signed = signer.sign_snapshot(fixture_snapshot()).unwrap();
+        let tampered = PolicyDocument {
+            active_group_id: "group-b".into(),
+            ..signed
+        };
+        assert!(!signer.verify_for_test(&tampered));
+    }
+
+    #[test]
+    fn signature_fails_after_expiry_is_changed() {
+        let signer = PolicySigner::generate_for_test();
+        let signed = signer.sign_snapshot(fixture_snapshot()).unwrap();
+        let tampered = PolicyDocument {
+            expires_at: "2026-07-10T09:15:00Z".into(),
+            ..signed
+        };
+        assert!(!signer.verify_for_test(&tampered));
+    }
+
+    #[test]
+    fn signature_fails_after_key_id_is_changed() {
+        let signer = PolicySigner::generate_for_test();
+        let signed = signer.sign_snapshot(fixture_snapshot()).unwrap();
+        let tampered = PolicyDocument {
+            key_id: "another-key".into(),
+            ..signed
+        };
         assert!(!signer.verify_for_test(&tampered));
     }
 }
