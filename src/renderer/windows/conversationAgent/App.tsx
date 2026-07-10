@@ -4,7 +4,7 @@
  */
 
 import { Component, Show, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
-import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate } from '../../context';
+import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
@@ -170,6 +170,7 @@ const MicIcon: Component = () => (
 
 export const ConversationContent: Component = () => {
   const { settings, updateSettings, openCloudReLoginModal } = useSettings();
+  const server = useServer();
   const {
     currentLangData,
     isTokenTranslatable,
@@ -1782,6 +1783,9 @@ export const ConversationContent: Component = () => {
                 size="sm"
             />
           </button>
+          <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
+            <span class="ca-header-status">{server.statusMessage()}</span>
+          </Show>
         </div>
         <TabContainer
           tabs={topTabs()}
