@@ -124,6 +124,7 @@ pub struct UsageBucket {
     pub warning: bool,
     pub inherited: bool,
     pub source_visible: bool,
+    pub constraint_state: String,
     pub period_starts_at: i64,
     pub period_ends_at: i64,
 }
@@ -156,6 +157,7 @@ pub struct QuotaService {
 struct ApplicableDefinition {
     definition: QuotaDefinition,
     interval: (i64, i64),
+    calendar_root_group_id: String,
     calendar_version: i64,
 }
 
@@ -243,11 +245,25 @@ impl QuotaService {
                 && current.term_ends_at == term_ends_at
             {
                 current
+            } else if row.get::<Option<String>, _>("pending_timezone").as_deref() == Some(timezone)
+                && row.get::<Option<i64>, _>("pending_term_starts_at") == Some(term_starts_at)
+                && row.get::<Option<i64>, _>("pending_term_ends_at") == Some(term_ends_at)
+            {
+                current
             } else if term_starts_at > timestamp {
                 let next_version = current
                     .version
+                    .max(row.get::<Option<i64>, _>("pending_version").unwrap_or(0))
                     .checked_add(1)
                     .ok_or_else(|| AppError::Conflict("quota calendar version overflow".into()))?;
+                let pending = SchoolQuotaCalendar {
+                    root_group_id: root_group_id.to_string(),
+                    timezone: timezone.to_string(),
+                    term_starts_at,
+                    term_ends_at,
+                    version: next_version,
+                };
+                create_calendar_version(&mut tx, principal, &pending, "pending").await?;
                 sqlx::query("UPDATE school_quota_calendars SET pending_timezone = ?, pending_term_starts_at = ?, pending_term_ends_at = ?, pending_effective_at = ?, pending_version = ?, updated_by_user_id = ?, updated_at = ? WHERE root_group_id = ?")
                     .bind(timezone).bind(term_starts_at).bind(term_ends_at).bind(term_starts_at).bind(next_version).bind(&principal.user_id).bind(timestamp).bind(root_group_id).execute(&mut *tx).await.map_err(database_error)?;
                 current
@@ -261,6 +277,14 @@ impl QuotaService {
                     .version
                     .checked_add(1)
                     .ok_or_else(|| AppError::Conflict("quota calendar version overflow".into()))?;
+                let replacement = SchoolQuotaCalendar {
+                    root_group_id: root_group_id.to_string(),
+                    timezone: timezone.to_string(),
+                    term_starts_at,
+                    term_ends_at,
+                    version: next_version,
+                };
+                create_calendar_version(&mut tx, principal, &replacement, "active").await?;
                 sqlx::query("UPDATE school_quota_calendars SET timezone = ?, term_starts_at = ?, term_ends_at = ?, version = ?, pending_timezone = NULL, pending_term_starts_at = NULL, pending_term_ends_at = NULL, pending_effective_at = NULL, pending_version = NULL, updated_by_user_id = ?, updated_at = ? WHERE root_group_id = ?")
                     .bind(timezone).bind(term_starts_at).bind(term_ends_at).bind(next_version).bind(&principal.user_id).bind(timestamp).bind(root_group_id).execute(&mut *tx).await.map_err(database_error)?;
                 SchoolQuotaCalendar {
@@ -272,6 +296,14 @@ impl QuotaService {
                 }
             }
         } else {
+            let initial = SchoolQuotaCalendar {
+                root_group_id: root_group_id.to_string(),
+                timezone: timezone.to_string(),
+                term_starts_at,
+                term_ends_at,
+                version: 1,
+            };
+            create_calendar_version(&mut tx, principal, &initial, "active").await?;
             sqlx::query("INSERT INTO school_quota_calendars (root_group_id, timezone, term_starts_at, term_ends_at, version, updated_by_user_id, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)")
                 .bind(root_group_id).bind(timezone).bind(term_starts_at).bind(term_ends_at).bind(&principal.user_id).bind(timestamp).execute(&mut *tx).await.map_err(database_error)?;
             SchoolQuotaCalendar {
@@ -360,12 +392,36 @@ impl QuotaService {
             limit,
         )
         .await?;
-        let existing: Option<String> = sqlx::query_scalar("SELECT id FROM quota_definitions WHERE owner_group_id = ? AND subject_kind = ? AND subject_id = ? AND metric = ? AND period = ?")
+        let existing = sqlx::query("SELECT id, limit_value FROM quota_definitions WHERE owner_group_id = ? AND subject_kind = ? AND subject_id = ? AND metric = ? AND period = ? AND status = 'active'")
             .bind(owner_group_id).bind(subject_kind.as_str()).bind(subject_id).bind(metric.as_str()).bind(period.as_str()).fetch_optional(&mut *tx).await.map_err(database_error)?;
-        let id = existing.unwrap_or_else(|| Uuid::now_v7().to_string());
         let timestamp = now();
-        sqlx::query("INSERT INTO quota_definitions (id, owner_group_id, subject_kind, subject_id, metric, period, limit_value, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(owner_group_id, subject_kind, subject_id, metric, period) DO UPDATE SET limit_value = excluded.limit_value, status = 'active', updated_at = excluded.updated_at")
-            .bind(&id).bind(owner_group_id).bind(subject_kind.as_str()).bind(subject_id).bind(metric.as_str()).bind(period.as_str()).bind(limit).bind(&principal.user_id).bind(timestamp).bind(timestamp).execute(&mut *tx).await.map_err(map_write_error)?;
+        let id = if let Some(existing) = existing {
+            let existing_id: String = existing.get("id");
+            if existing.get::<i64, _>("limit_value") == limit {
+                existing_id
+            } else {
+                let revision_id = Uuid::now_v7().to_string();
+                sqlx::query("INSERT INTO quota_definitions (id, owner_group_id, subject_kind, subject_id, metric, period, limit_value, status, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'staged', ?, ?, ?)")
+                    .bind(&revision_id).bind(owner_group_id).bind(subject_kind.as_str()).bind(subject_id).bind(metric.as_str()).bind(period.as_str()).bind(limit).bind(&principal.user_id).bind(timestamp).bind(timestamp).execute(&mut *tx).await.map_err(map_write_error)?;
+                sqlx::query("UPDATE quota_definitions SET status = 'superseded', updated_at = ? WHERE id = ? AND status = 'active'")
+                    .bind(timestamp)
+                    .bind(&existing_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(map_write_error)?;
+                sqlx::query("UPDATE quota_definitions SET status = 'active' WHERE id = ? AND status = 'staged'")
+                    .bind(&revision_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(map_write_error)?;
+                revision_id
+            }
+        } else {
+            let revision_id = Uuid::now_v7().to_string();
+            sqlx::query("INSERT INTO quota_definitions (id, owner_group_id, subject_kind, subject_id, metric, period, limit_value, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(&revision_id).bind(owner_group_id).bind(subject_kind.as_str()).bind(subject_id).bind(metric.as_str()).bind(period.as_str()).bind(limit).bind(&principal.user_id).bind(timestamp).bind(timestamp).execute(&mut *tx).await.map_err(map_write_error)?;
+            revision_id
+        };
         record_mutation(
             &mut tx,
             principal,
@@ -514,6 +570,15 @@ impl QuotaService {
         principal: &Principal,
         request: ReserveQuotaRequest,
     ) -> Result<QuotaReservation, AppError> {
+        self.reserve_at(principal, request, now()).await
+    }
+
+    async fn reserve_at(
+        &self,
+        principal: &Principal,
+        request: ReserveQuotaRequest,
+        timestamp: i64,
+    ) -> Result<QuotaReservation, AppError> {
         if principal.service_key_id.is_some() || principal.identity_type != IdentityType::Learner {
             return Err(AppError::Forbidden(
                 "learner session required for LLM quota reservation".into(),
@@ -526,7 +591,6 @@ impl QuotaService {
         }
         validate_request_id(&request.request_id)?;
         let amounts = parse_reservation_amounts(&request.amounts)?;
-        let timestamp = now();
         let expires_at = request
             .expires_at
             .unwrap_or(timestamp + DEFAULT_RESERVATION_TTL_SECONDS);
@@ -883,6 +947,79 @@ async fn require_learner_context(
     }
 }
 
+async fn create_calendar_version(
+    tx: &mut Transaction<'_, Sqlite>,
+    principal: &Principal,
+    calendar: &SchoolQuotaCalendar,
+    lifecycle: &str,
+) -> Result<(), AppError> {
+    if !matches!(lifecycle, "active" | "pending") {
+        return Err(AppError::Internal(
+            "calendar version lifecycle must be active or pending".into(),
+        ));
+    }
+    sqlx::query("INSERT INTO school_quota_calendar_versions (root_group_id, version, timezone, term_starts_at, term_ends_at, lifecycle, finalized, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, 'building', 0, ?, ?)")
+        .bind(&calendar.root_group_id)
+        .bind(calendar.version)
+        .bind(&calendar.timezone)
+        .bind(calendar.term_starts_at)
+        .bind(calendar.term_ends_at)
+        .bind(&principal.user_id)
+        .bind(now())
+        .execute(&mut **tx)
+        .await
+        .map_err(map_write_error)?;
+
+    let mut instance_count = 0usize;
+    for period in [
+        QuotaPeriod::Daily,
+        QuotaPeriod::Weekly,
+        QuotaPeriod::Monthly,
+    ] {
+        let mut cursor = calendar.term_starts_at;
+        while cursor < calendar.term_ends_at {
+            let (starts_at, ends_at) = interval_for(period, cursor, calendar)?;
+            if ends_at <= cursor {
+                return Err(AppError::Internal(
+                    "quota period generation did not advance".into(),
+                ));
+            }
+            instance_count += 1;
+            if instance_count > 10_000 {
+                return Err(AppError::BadRequest(
+                    "school term is too large to materialize quota periods".into(),
+                ));
+            }
+            sqlx::query("INSERT INTO school_quota_period_instances (root_group_id, calendar_version, quota_period, period_starts_at, period_ends_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(&calendar.root_group_id)
+                .bind(calendar.version)
+                .bind(period.as_str())
+                .bind(starts_at)
+                .bind(ends_at)
+                .execute(&mut **tx)
+                .await
+                .map_err(map_write_error)?;
+            cursor = ends_at;
+        }
+    }
+    sqlx::query("INSERT INTO school_quota_period_instances (root_group_id, calendar_version, quota_period, period_starts_at, period_ends_at) VALUES (?, ?, 'term', ?, ?)")
+        .bind(&calendar.root_group_id)
+        .bind(calendar.version)
+        .bind(calendar.term_starts_at)
+        .bind(calendar.term_ends_at)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_write_error)?;
+    sqlx::query("UPDATE school_quota_calendar_versions SET lifecycle = ?, finalized = 1 WHERE root_group_id = ? AND version = ? AND lifecycle = 'building' AND finalized = 0")
+        .bind(lifecycle)
+        .bind(&calendar.root_group_id)
+        .bind(calendar.version)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_write_error)?;
+    Ok(())
+}
+
 async fn has_capability_in_transaction(
     tx: &mut Transaction<'_, Sqlite>,
     principal: &Principal,
@@ -976,6 +1113,7 @@ async fn load_applicable_definitions(
         definitions.push(ApplicableDefinition {
             interval: interval_for(definition.period, timestamp, calendar)?,
             definition,
+            calendar_root_group_id: calendar.root_group_id.clone(),
             calendar_version: calendar.version,
         });
     }
@@ -1115,8 +1253,28 @@ async fn snapshot_accounting_periods(
                     .bind(reservation_id).bind(scope.scope_kind.as_str()).bind(&scope.scope_id).bind(metric.as_str()).bind(accounting_at).bind(event_end).execute(&mut **tx).await.map_err(database_error)?;
             } else {
                 for (index, item) in matching.into_iter().enumerate() {
-                    sqlx::query("INSERT OR IGNORE INTO quota_definition_periods (definition_id, calendar_version, quota_period, period_starts_at, period_ends_at, limit_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                        .bind(&item.definition.id).bind(item.calendar_version).bind(item.definition.period.as_str()).bind(item.interval.0).bind(item.interval.1).bind(item.definition.limit).bind(accounting_at).execute(&mut **tx).await.map_err(database_error)?;
+                    let contract = sqlx::query("SELECT root_group_id, quota_period, limit_value FROM quota_definition_periods WHERE definition_id = ? AND calendar_version = ? AND period_starts_at = ? AND period_ends_at = ?")
+                        .bind(&item.definition.id)
+                        .bind(item.calendar_version)
+                        .bind(item.interval.0)
+                        .bind(item.interval.1)
+                        .fetch_optional(&mut **tx)
+                        .await
+                        .map_err(database_error)?;
+                    if let Some(contract) = contract {
+                        if contract.get::<String, _>("root_group_id") != item.calendar_root_group_id
+                            || contract.get::<String, _>("quota_period")
+                                != item.definition.period.as_str()
+                            || contract.get::<i64, _>("limit_value") != item.definition.limit
+                        {
+                            return Err(AppError::Conflict(
+                                "quota definition period contract does not match its immutable revision".into(),
+                            ));
+                        }
+                    } else {
+                        sqlx::query("INSERT INTO quota_definition_periods (definition_id, root_group_id, calendar_version, quota_period, period_starts_at, period_ends_at, limit_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                            .bind(&item.definition.id).bind(&item.calendar_root_group_id).bind(item.calendar_version).bind(item.definition.period.as_str()).bind(item.interval.0).bind(item.interval.1).bind(item.definition.limit).bind(accounting_at).execute(&mut **tx).await.map_err(map_write_error)?;
+                    }
                     sqlx::query("INSERT INTO quota_reservation_periods (reservation_id, scope_kind, scope_id, metric, quota_period, period_starts_at, period_ends_at, limit_value, definition_id, calendar_version, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                         .bind(reservation_id).bind(scope.scope_kind.as_str()).bind(&scope.scope_id).bind(metric.as_str()).bind(item.definition.period.as_str()).bind(item.interval.0).bind(item.interval.1).bind(item.definition.limit).bind(&item.definition.id).bind(item.calendar_version).bind(i64::from(index == 0)).execute(&mut **tx).await.map_err(database_error)?;
                 }
@@ -1192,6 +1350,31 @@ async fn sum_visible_subtree_reservations(
 ) -> Result<i64, AppError> {
     let values: Vec<i64> = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id = ? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id) SELECT metric.reserved_value FROM quota_reservations reservation JOIN descendants d ON d.id = reservation.direct_group_id JOIN quota_reservation_periods period ON period.reservation_id = reservation.id JOIN quota_reservation_metrics metric ON metric.reservation_id = reservation.id AND metric.metric = period.metric WHERE reservation.status = 'open' AND reservation.expires_at > ? AND period.scope_kind = ? AND period.scope_id = ? AND period.metric = ? AND period.quota_period = ? AND period.period_starts_at = ? AND period.period_ends_at = ?")
         .bind(visible_group).bind(timestamp).bind(item.definition.subject_kind.as_str()).bind(&item.definition.subject_id).bind(item.definition.metric.as_str()).bind(item.definition.period.as_str()).bind(start).bind(end).fetch_all(&mut **tx).await.map_err(database_error)?;
+    checked_sum(values)
+}
+
+async fn sum_learner_usage(
+    tx: &mut Transaction<'_, Sqlite>,
+    item: &ApplicableDefinition,
+    learner_user_id: &str,
+    start: i64,
+    end: i64,
+) -> Result<i64, AppError> {
+    let values: Vec<i64> = sqlx::query_scalar("SELECT value FROM usage_ledger WHERE learner_user_id = ? AND scope_kind = ? AND scope_id = ? AND metric = ? AND quota_period = ? AND period_starts_at = ? AND period_ends_at = ?")
+        .bind(learner_user_id).bind(item.definition.subject_kind.as_str()).bind(&item.definition.subject_id).bind(item.definition.metric.as_str()).bind(item.definition.period.as_str()).bind(start).bind(end).fetch_all(&mut **tx).await.map_err(database_error)?;
+    checked_sum(values)
+}
+
+async fn sum_learner_reservations(
+    tx: &mut Transaction<'_, Sqlite>,
+    item: &ApplicableDefinition,
+    learner_user_id: &str,
+    start: i64,
+    end: i64,
+    timestamp: i64,
+) -> Result<i64, AppError> {
+    let values: Vec<i64> = sqlx::query_scalar("SELECT metric.reserved_value FROM quota_reservations reservation JOIN quota_reservation_periods period ON period.reservation_id = reservation.id JOIN quota_reservation_metrics metric ON metric.reservation_id = reservation.id AND metric.metric = period.metric WHERE reservation.learner_user_id = ? AND reservation.status = 'open' AND reservation.expires_at > ? AND period.scope_kind = ? AND period.scope_id = ? AND period.metric = ? AND period.quota_period = ? AND period.period_starts_at = ? AND period.period_ends_at = ?")
+        .bind(learner_user_id).bind(timestamp).bind(item.definition.subject_kind.as_str()).bind(&item.definition.subject_id).bind(item.definition.metric.as_str()).bind(item.definition.period.as_str()).bind(start).bind(end).fetch_all(&mut **tx).await.map_err(database_error)?;
     checked_sum(values)
 }
 
@@ -1277,6 +1460,7 @@ async fn summary_in_transaction(
         let item = ApplicableDefinition {
             definition,
             interval,
+            calendar_root_group_id: calendar.root_group_id.clone(),
             calendar_version: calendar.version,
         };
         let inherited = item.definition.owner_group_id != group;
@@ -1288,7 +1472,29 @@ async fn summary_in_transaction(
                 Capability::AnalyticsView,
             )
             .await?;
-        let (used, reserved) = if inherited && !source_visible {
+        let learner_group_constraint =
+            learner.is_some() && item.definition.subject_kind == QuotaScopeKind::Group;
+        let (used, reserved) = if learner_group_constraint {
+            (
+                sum_learner_usage(
+                    tx,
+                    &item,
+                    learner.expect("learner summary has learner id"),
+                    interval.0,
+                    interval.1,
+                )
+                .await?,
+                sum_learner_reservations(
+                    tx,
+                    &item,
+                    learner.expect("learner summary has learner id"),
+                    interval.0,
+                    interval.1,
+                    timestamp,
+                )
+                .await?,
+            )
+        } else if inherited && !source_visible {
             (
                 sum_visible_subtree_usage(tx, &item, group, interval.0, interval.1).await?,
                 sum_visible_subtree_reservations(
@@ -1314,11 +1520,21 @@ async fn summary_in_transaction(
             used,
             reserved,
             limit: Some(item.definition.limit),
-            remaining: Some(item.definition.limit.saturating_sub(consumed)),
-            warning: item.definition.limit > 0
+            remaining: if learner_group_constraint {
+                None
+            } else {
+                Some(item.definition.limit.saturating_sub(consumed))
+            },
+            warning: !learner_group_constraint
+                && item.definition.limit > 0
                 && consumed.saturating_mul(10) >= item.definition.limit.saturating_mul(8),
             inherited,
             source_visible,
+            constraint_state: if learner_group_constraint {
+                "governed-no-peer-aggregate".into()
+            } else {
+                "exact".into()
+            },
             period_starts_at: interval.0,
             period_ends_at: interval.1,
         });
@@ -1862,8 +2078,6 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("UPDATE school_quota_calendars SET pending_timezone = 'America/New_York', pending_term_starts_at = 9007199254740000, pending_term_ends_at = 9007199254740990, pending_effective_at = 9007199254740000, pending_version = version + 1 WHERE root_group_id = 'school'")
-            .execute(&pool).await.unwrap();
         sqlx::query("DELETE FROM school_quota_calendars WHERE root_group_id = 'school'")
             .execute(&pool)
             .await
@@ -2307,6 +2521,248 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn learner_summary_numerics_do_not_change_when_classmate_uses_quota() {
+        let (pool, service, learner, request) = quota_fixture(1_000_000).await;
+        service.reserve(&learner, request.clone()).await.unwrap();
+        let before = service
+            .usage_summary(&learner, "class", None, 50)
+            .await
+            .unwrap();
+        let before_cost = before
+            .buckets
+            .iter()
+            .find(|bucket| bucket.metric == QuotaMetric::CostMicros)
+            .unwrap();
+        let before_numbers = (
+            before_cost.used,
+            before_cost.reserved,
+            before_cost.remaining,
+        );
+        sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES ('classmate', 'classmate@test.invalid', 'classmate@test.invalid', 'Classmate', 'active', 'learner', 0, 1, 1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('classmate-membership', 'class', 'classmate', 'active', 1)").execute(&pool).await.unwrap();
+        let classmate = Principal {
+            user_id: "classmate".into(),
+            service_key_id: None,
+            session_id: "classmate-session".into(),
+            device_id: "classmate-device".into(),
+            active_group_id: Some("class".into()),
+            identity_type: IdentityType::Learner,
+            is_root: false,
+        };
+        let mut peer_request = request;
+        peer_request.request_id = "classmate-request".into();
+        peer_request.amounts.insert("costMicros".into(), 300_000);
+        service.reserve(&classmate, peer_request).await.unwrap();
+        let after = service
+            .usage_summary(&learner, "class", None, 50)
+            .await
+            .unwrap();
+        let after_cost = after
+            .buckets
+            .iter()
+            .find(|bucket| bucket.metric == QuotaMetric::CostMicros)
+            .unwrap();
+        assert_eq!(
+            before_numbers,
+            (after_cost.used, after_cost.reserved, after_cost.remaining)
+        );
+        assert_eq!(after_cost.constraint_state, "governed-no-peer-aggregate");
+        assert_eq!(after_cost.remaining, None);
+    }
+
+    #[tokio::test]
+    async fn recurring_definitions_snapshot_successive_days_and_months() {
+        let (pool, service, learner, request) = quota_fixture(1_000_000).await;
+        service
+            .upsert_definition(
+                &admin_principal(),
+                "school",
+                QuotaScopeKind::Group,
+                "school",
+                QuotaMetric::Requests,
+                QuotaPeriod::Daily,
+                10,
+                "daily-requests",
+            )
+            .await
+            .unwrap();
+        for (index, instant) in [
+            "2026-01-15T12:00:00Z",
+            "2026-01-16T12:00:00Z",
+            "2026-02-15T12:00:00Z",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut request = request.clone();
+            request.request_id = format!("recurring-{index}");
+            let reservation = service
+                .reserve_at(
+                    &learner,
+                    request,
+                    chrono::DateTime::parse_from_rfc3339(instant)
+                        .unwrap()
+                        .timestamp(),
+                )
+                .await
+                .unwrap();
+            service
+                .reconcile(ReconcileQuotaRequest {
+                    reservation_id: reservation.id,
+                    provider_id: "provider".into(),
+                    model_id: "model".into(),
+                    price_version_id: "price".into(),
+                    actual: BTreeMap::from([
+                        ("requests".into(), 1),
+                        ("costMicros".into(), 200_000),
+                    ]),
+                })
+                .await
+                .unwrap();
+        }
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_definition_periods contract JOIN quota_definitions definition ON definition.id = contract.definition_id WHERE definition.metric = 'requests' AND definition.period = 'daily'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM quota_definition_periods WHERE definition_id = 'root-cost'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn post_accounting_limit_change_creates_an_immutable_revision() {
+        let (pool, service, learner, request) = quota_fixture(1_000_000).await;
+        let old = service
+            .reserve_at(
+                &learner,
+                request,
+                chrono::DateTime::parse_from_rfc3339("2026-01-15T12:00:00Z")
+                    .unwrap()
+                    .timestamp(),
+            )
+            .await
+            .unwrap();
+        service
+            .reconcile(ReconcileQuotaRequest {
+                reservation_id: old.id.clone(),
+                provider_id: "provider".into(),
+                model_id: "model".into(),
+                price_version_id: "price".into(),
+                actual: BTreeMap::from([("requests".into(), 1), ("costMicros".into(), 200_000)]),
+            })
+            .await
+            .unwrap();
+        let revision = service
+            .upsert_definition(
+                &admin_principal(),
+                "school",
+                QuotaScopeKind::Group,
+                "school",
+                QuotaMetric::CostMicros,
+                QuotaPeriod::Monthly,
+                900_000,
+                "revise-root-cost",
+            )
+            .await
+            .unwrap();
+        assert_ne!(revision.id, "root-cost");
+        let mut next_request = ReserveQuotaRequest {
+            request_id: "after-revision".into(),
+            ..request_for_fixture()
+        };
+        next_request.amounts.insert("costMicros".into(), 100_000);
+        let next = service
+            .reserve_at(
+                &learner,
+                next_request,
+                chrono::DateTime::parse_from_rfc3339("2026-02-15T12:00:00Z")
+                    .unwrap()
+                    .timestamp(),
+            )
+            .await
+            .unwrap();
+        service
+            .reconcile(ReconcileQuotaRequest {
+                reservation_id: next.id.clone(),
+                provider_id: "provider".into(),
+                model_id: "model".into(),
+                price_version_id: "price".into(),
+                actual: BTreeMap::from([("requests".into(), 1), ("costMicros".into(), 100_000)]),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT status FROM quota_definitions WHERE id = 'root-cost'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "superseded"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT definition_id FROM quota_reservation_periods WHERE reservation_id = ? AND metric = 'costMicros' AND definition_id IS NOT NULL")
+                .bind(&old.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            "root-cost"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT definition_id FROM quota_reservation_periods WHERE reservation_id = ? AND metric = 'costMicros' AND definition_id IS NOT NULL")
+                .bind(&next.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            revision.id
+        );
+    }
+
+    #[tokio::test]
+    async fn finalized_calendar_rejects_forged_instances_and_contracts() {
+        let (pool, _service, _learner, _request) = quota_fixture(1_000_000).await;
+        assert!(sqlx::query("INSERT INTO school_quota_period_instances (root_group_id, calendar_version, quota_period, period_starts_at, period_ends_at) VALUES ('school', 1, 'monthly', 123, 456)")
+            .execute(&pool)
+            .await
+            .is_err());
+        assert!(sqlx::query("INSERT INTO quota_definition_periods (definition_id, root_group_id, calendar_version, quota_period, period_starts_at, period_ends_at, limit_value, created_at) VALUES ('root-cost', 'school', 1, 'monthly', 123, 456, 1000000, 1)")
+            .execute(&pool)
+            .await
+            .is_err());
+        let authoritative = sqlx::query("SELECT period_starts_at, period_ends_at FROM school_quota_period_instances WHERE root_group_id = 'school' AND calendar_version = 1 AND quota_period = 'monthly' ORDER BY period_starts_at LIMIT 1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(sqlx::query("INSERT INTO quota_definition_periods (definition_id, root_group_id, calendar_version, quota_period, period_starts_at, period_ends_at, limit_value, created_at) VALUES ('root-cost', 'school', 1, 'monthly', ?, ?, 999999, 1)")
+            .bind(authoritative.get::<i64, _>("period_starts_at"))
+            .bind(authoritative.get::<i64, _>("period_ends_at"))
+            .execute(&pool)
+            .await
+            .is_err());
+        assert!(sqlx::query("INSERT INTO quota_definition_periods (definition_id, root_group_id, calendar_version, quota_period, period_starts_at, period_ends_at, limit_value, created_at) VALUES ('forged-revision', 'school', 1, 'monthly', ?, ?, 1000000, 1)")
+            .bind(authoritative.get::<i64, _>("period_starts_at"))
+            .bind(authoritative.get::<i64, _>("period_ends_at"))
+            .execute(&pool)
+            .await
+            .is_err());
+        assert!(sqlx::query(
+            "UPDATE quota_definitions SET status = 'superseded' WHERE id = 'root-cost'"
+        )
+        .execute(&pool)
+        .await
+        .is_err());
+    }
+
     async fn quota_fixture(cap: i64) -> (SqlitePool, QuotaService, Principal, ReserveQuotaRequest) {
         let path = std::env::temp_dir().join(format!("mlearn-quota-{}.db", Uuid::now_v7()));
         let options = crate::db::sqlite_connect_options(path.to_str().unwrap()).unwrap();
@@ -2331,7 +2787,21 @@ mod tests {
         ] {
             sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('admin-membership', ?)").bind(capability.as_str()).execute(&pool).await.unwrap();
         }
-        sqlx::query("INSERT INTO school_quota_calendars (root_group_id, timezone, term_starts_at, term_ends_at, updated_by_user_id, updated_at) VALUES ('school', 'Europe/Zurich', 1, 9007199254740991, 'admin', 1)").execute(&pool).await.unwrap();
+        let service = QuotaService::new(pool.clone());
+        service
+            .configure_calendar(
+                &admin_principal(),
+                "school",
+                "Europe/Zurich",
+                chrono::DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
+                    .unwrap()
+                    .timestamp(),
+                chrono::DateTime::parse_from_rfc3339("2028-01-01T00:00:00Z")
+                    .unwrap()
+                    .timestamp(),
+            )
+            .await
+            .unwrap();
         sqlx::query("INSERT INTO quota_definitions (id, owner_group_id, subject_kind, subject_id, metric, period, limit_value, created_by_user_id, created_at, updated_at) VALUES ('root-cost', 'school', 'group', 'school', 'costMicros', 'monthly', ?, 'admin', 1, 1)").bind(cap).execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO llm_providers (id, group_id, name, provider_kind, base_url, status, created_by_user_id, created_at, updated_at) VALUES ('provider', 'class', 'Provider', 'openaiCompatible', 'https://provider.test/v1', 'active', 'admin', 1, 1)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO llm_models (id, group_id, provider_id, model_key, upstream_model, status, created_by_user_id, created_at, updated_at) VALUES ('model', 'class', 'provider', 'balanced', 'model-v1', 'active', 'admin', 1, 1)").execute(&pool).await.unwrap();
@@ -2348,7 +2818,12 @@ mod tests {
             identity_type: IdentityType::Learner,
             is_root: false,
         };
-        let request = ReserveQuotaRequest {
+        let request = request_for_fixture();
+        (pool, service, learner, request)
+    }
+
+    fn request_for_fixture() -> ReserveQuotaRequest {
+        ReserveQuotaRequest {
             request_id: "request".into(),
             active_group_id: "class".into(),
             provider_id: "provider".into(),
@@ -2356,8 +2831,7 @@ mod tests {
             price_version_id: "price".into(),
             amounts: BTreeMap::from([("requests".into(), 1), ("costMicros".into(), 200_000)]),
             expires_at: None,
-        };
-        (pool.clone(), QuotaService::new(pool), learner, request)
+        }
     }
 
     fn admin_principal() -> Principal {

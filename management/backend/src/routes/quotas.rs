@@ -163,7 +163,7 @@ mod tests {
 
     use crate::{
         api_keys::ApiKeyService, auth::hash_token, authorization::Capability, config::Config,
-        groups::tests::GroupFixture, state::AppState,
+        groups::tests::GroupFixture, llm::quota::QuotaService, state::AppState,
     };
 
     #[tokio::test]
@@ -177,8 +177,31 @@ mod tests {
             sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('membership-a', ?)")
                 .bind(capability.as_str()).execute(&fixture.pool).await.unwrap();
         }
-        sqlx::query("INSERT INTO school_quota_calendars (root_group_id, timezone, term_starts_at, term_ends_at, updated_by_user_id, updated_at) VALUES (?, 'Europe/Zurich', 1, 9007199254740991, ?, 1)")
-            .bind(&fixture.german).bind(&fixture.german_a_teacher.user_id).execute(&fixture.pool).await.unwrap();
+        sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('calendar-admin', ?, ?, 'active', 1)")
+            .bind(&fixture.german)
+            .bind(&fixture.german_a_teacher.user_id)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('calendar-admin', ?)")
+            .bind(Capability::LlmConfigure.as_str())
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+        QuotaService::new(fixture.pool.clone())
+            .configure_calendar(
+                &fixture.german_a_teacher,
+                &fixture.german,
+                "Europe/Zurich",
+                chrono::DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
+                    .unwrap()
+                    .timestamp(),
+                chrono::DateTime::parse_from_rfc3339("2028-01-01T00:00:00Z")
+                    .unwrap()
+                    .timestamp(),
+            )
+            .await
+            .unwrap();
         let key = ApiKeyService::new(fixture.pool.clone())
             .create(
                 &fixture.german_a_teacher,
