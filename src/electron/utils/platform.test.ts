@@ -198,10 +198,8 @@ describe('platform utils', () => {
     });
   });
 
-  describe('getPythonDownloadUrl()', () => {
-    const baseUrl = 'https://example.com/python/';
-
-    it('returns darwin x64 URL', async () => {
+  describe('getRuntimeTarget()', () => {
+    it('returns darwin-x64', async () => {
       vi.resetModules();
       Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
       Object.defineProperty(process, 'arch', { value: 'x64', configurable: true });
@@ -209,11 +207,10 @@ describe('platform utils', () => {
         app: { isPackaged: false, getPath: vi.fn(() => '/tmp/userdata') },
       }));
       const darwinMod = await import('./platform');
-      const url = darwinMod.getPythonDownloadUrl(baseUrl);
-      expect(url).toBe(`${baseUrl}x86_64-apple-darwin-install_only.tar.gz?download=`);
+      expect(darwinMod.getRuntimeTarget()).toBe('darwin-x64');
     });
 
-    it('returns darwin arm64 URL', async () => {
+    it('returns darwin-arm64', async () => {
       vi.resetModules();
       Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
       Object.defineProperty(process, 'arch', { value: 'arm64', configurable: true });
@@ -221,11 +218,10 @@ describe('platform utils', () => {
         app: { isPackaged: false, getPath: vi.fn(() => '/tmp/userdata') },
       }));
       const darwinMod = await import('./platform');
-      const url = darwinMod.getPythonDownloadUrl(baseUrl);
-      expect(url).toBe(`${baseUrl}aarch64-apple-darwin-install_only.tar.gz?download=`);
+      expect(darwinMod.getRuntimeTarget()).toBe('darwin-arm64');
     });
 
-    it('returns linux x64 URL', async () => {
+    it('returns linux-x64', async () => {
       vi.resetModules();
       Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
       Object.defineProperty(process, 'arch', { value: 'x64', configurable: true });
@@ -233,11 +229,10 @@ describe('platform utils', () => {
         app: { isPackaged: false, getPath: vi.fn(() => '/tmp/userdata') },
       }));
       const linuxMod = await import('./platform');
-      const url = linuxMod.getPythonDownloadUrl(baseUrl);
-      expect(url).toBe(`${baseUrl}x86_64-unknown-linux-gnu-install_only.tar.gz?download=`);
+      expect(linuxMod.getRuntimeTarget()).toBe('linux-x64');
     });
 
-    it('returns windows URL regardless of arch', async () => {
+    it('returns win32-x64 regardless of arch', async () => {
       vi.resetModules();
       Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
       Object.defineProperty(process, 'arch', { value: 'x64', configurable: true });
@@ -245,8 +240,7 @@ describe('platform utils', () => {
         app: { isPackaged: false, getPath: vi.fn(() => '/tmp/userdata') },
       }));
       const winMod = await import('./platform');
-      const url = winMod.getPythonDownloadUrl(baseUrl);
-      expect(url).toBe(`${baseUrl}x86_64-pc-windows-msvc-install_only.tar.gz?download=`);
+      expect(winMod.getRuntimeTarget()).toBe('win32-x64');
     });
 
     it('throws for unsupported platform/arch combo (linux arm64)', async () => {
@@ -257,7 +251,7 @@ describe('platform utils', () => {
         app: { isPackaged: false, getPath: vi.fn(() => '/tmp/userdata') },
       }));
       const linuxMod = await import('./platform');
-      expect(() => linuxMod.getPythonDownloadUrl(baseUrl)).toThrow('Unsupported platform');
+      expect(() => linuxMod.getRuntimeTarget()).toThrow('Unsupported platform');
     });
 
     it('throws for completely unknown platform', async () => {
@@ -268,7 +262,7 @@ describe('platform utils', () => {
         app: { isPackaged: false, getPath: vi.fn(() => '/tmp/userdata') },
       }));
       const unknownMod = await import('./platform');
-      expect(() => unknownMod.getPythonDownloadUrl(baseUrl)).toThrow('Unsupported platform');
+      expect(() => unknownMod.getRuntimeTarget()).toThrow('Unsupported platform');
     });
 
     it('includes the platform and arch in the error message', async () => {
@@ -279,7 +273,7 @@ describe('platform utils', () => {
         app: { isPackaged: false, getPath: vi.fn(() => '/tmp/userdata') },
       }));
       const unknownMod = await import('./platform');
-      expect(() => unknownMod.getPythonDownloadUrl(baseUrl)).toThrow('sunos sparc');
+      expect(() => unknownMod.getRuntimeTarget()).toThrow('sunos sparc');
     });
   });
 });

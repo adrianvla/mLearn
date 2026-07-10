@@ -415,14 +415,8 @@ export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
 export const PASSIVE_HOVER_FAIL_ACTIONS = ['decrease-ease', 'decrease-ease-and-flashcard', 'none'] as const;
 export type PassiveHoverFailAction = typeof PASSIVE_HOVER_FAIL_ACTIONS[number];
 
-// Python download URLs
-// NOTE: Conversation voice TTS is local: Kokoro-82M (fast, CPU/MPS) or Qwen3-TTS (voice cloning).
-// Update packaged-python repo with 3.11 builds from indygreg/python-build-standalone:
-//   - aarch64-apple-darwin: cpython-3.11.x+...aarch64-apple-darwin-install_only.tar.gz
-//   - x86_64-apple-darwin:  cpython-3.11.x+...x86_64-apple-darwin-install_only.tar.gz
-//   - x86_64-linux-gnu:     cpython-3.11.x+...x86_64-unknown-linux-gnu-install_only.tar.gz
-//   - x86_64-windows-msvc:  cpython-3.11.x+...x86_64-pc-windows-msvc-install_only.tar.gz
-export const PYTHON_DOWNLOAD_BASE = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
+// Python runtime catalog — served by Cloudflare Pages, archives on R2 CDN.
+export const DEFAULT_RUNTIME_CATALOG_URL = 'https://mlearn.kikan.net/runtime-catalog.json';
 
 // Update URL
 export const UPDATE_URL = 'https://mlearn-versioning.kikan.net/version-info.json';

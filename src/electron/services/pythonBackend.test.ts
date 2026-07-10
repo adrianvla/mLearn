@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const mockIpcListeners = new Map<string, ((...args: unknown[]) => void)[]>();
 
@@ -48,7 +49,7 @@ vi.mock('../utils/platform', () => ({
   getUserDataPath: vi.fn(() => '/tmp/test-userdata'),
   getPythonExecutablePath: vi.fn(() => mockPlatformPaths.pythonExecutablePath),
   getPipExecutablePath: vi.fn(() => mockPlatformPaths.pipExecutablePath),
-  getPythonDownloadUrl: vi.fn(() => 'https://example.com/python.tar.gz'),
+  getRuntimeTarget: vi.fn(() => 'darwin-arm64'),
   getBundledDistElectronPath: vi.fn((...segments: string[]) => path.join(process.cwd(), 'src/root-of-app', ...segments)),
   isPackaged: false,
   isWindows: false,
@@ -175,6 +176,29 @@ vi.mock('fs', async (importOriginal) => {
   };
 });
 
+const MOCK_ARCHIVE_SHA256 = crypto.createHash('sha256').update('archive').digest('hex');
+
+// Mock the runtime catalog that fetchRuntimeCatalog will parse from the https response
+const mockRuntimeCatalog = {
+  version: 'python-runtimes-test',
+  generatedAt: new Date().toISOString(),
+  runtimes: {
+    'darwin-arm64': {
+      url: 'https://example.com/python-darwin-arm64.tar.gz',
+      sha256: MOCK_ARCHIVE_SHA256,
+      sizeBytes: 7,
+    },
+  },
+};
+
+const mockDownloadFileWithProgress = vi.fn(async (url: string, destPath: string) => {
+  fs.writeFileSync(destPath, 'archive');
+});
+
+vi.mock('../utils/downloadManager', () => ({
+  downloadFileWithProgress: mockDownloadFileWithProgress,
+}));
+
 const originalNodeEnv = process.env.NODE_ENV;
 
 describe('pythonBackend', () => {
@@ -285,12 +309,17 @@ describe('pythonBackend', () => {
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
       mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
-        callback(createMockHttpRes(200));
+        const catalogJson = JSON.stringify(mockRuntimeCatalog);
+        const res = createMockHttpRes(200);
+        res.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+          if (event === 'data') cb(Buffer.from(catalogJson));
+          if (event === 'end') cb();
+          return res;
+        });
+        callback(res);
         return createMockHttpReq();
       });
-      mockWriteStream.close.mockImplementation((callback?: () => void) => {
-        callback?.();
-      });
+
       mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
         const binDir = path.join(options.cwd, 'python-runtime', 'bin');
         fs.mkdirSync(binDir, { recursive: true });
@@ -306,10 +335,6 @@ describe('pythonBackend', () => {
       });
 
       await mod.startPythonInstall({ includeLLM: false, includeOCR: true, includeVoice: false });
-      fs.writeFileSync('/tmp/test-userdata/python.tar.gz', 'archive');
-      const finishHandler = mockWriteStream.on.mock.calls.find((call) => call[0] === 'finish')?.[1] as (() => void) | undefined;
-      expect(finishHandler).toBeDefined();
-      finishHandler?.();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       const pipInstallCall = mockSpawn.mock.calls.find((call) => (
@@ -883,15 +908,28 @@ describe('pythonBackend', () => {
   });
 
   describe('startPythonInstall', () => {
-    it('does nothing when install is already in progress', () => {
+    beforeEach(() => {
+      // Serve the runtime catalog JSON for fetchRuntimeCatalog (https.get)
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
+        const catalogJson = JSON.stringify(mockRuntimeCatalog);
+        const res = createMockHttpRes(200);
+        res.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+          if (event === 'data') cb(Buffer.from(catalogJson));
+          if (event === 'end') cb();
+          return res;
+        });
+        callback(res);
+        return createMockHttpReq();
+      });
+    });
+
+    it('does nothing when install is already in progress', async () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      mockHttpsGet.mockReturnValue(createMockHttpReq());
-
-      mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
+      await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
       const sendCount = mockWebContents.send.mock.calls.length;
-      mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
+      await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
 
       expect(mockWebContents.send.mock.calls.length).toBe(sendCount);
     });
@@ -900,19 +938,15 @@ describe('pythonBackend', () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      mockHttpsGet.mockReturnValue(createMockHttpReq());
-
       const options = { includeLLM: false, includeOCR: true, includeVoice: false };
       await mod.startPythonInstall(options);
 
       expect(mockWebContents.send).toHaveBeenCalledWith('install-started', options);
     });
 
-    it('initiates https download', async () => {
+    it('fetches the runtime catalog via https', async () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
-
-      mockHttpsGet.mockReturnValue(createMockHttpReq());
 
       await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
 
@@ -941,13 +975,6 @@ describe('pythonBackend', () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
-        callback(createMockHttpRes(200));
-        return createMockHttpReq();
-      });
-      mockWriteStream.close.mockImplementation((callback?: () => void) => {
-        callback?.();
-      });
       mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
         const binDir = path.join(options.cwd, 'python-runtime', 'bin');
         fs.mkdirSync(binDir, { recursive: true });
@@ -963,10 +990,6 @@ describe('pythonBackend', () => {
       });
 
       await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: true });
-      fs.writeFileSync('/tmp/test-userdata/python.tar.gz', 'archive');
-      const finishHandler = mockWriteStream.on.mock.calls.find((call) => call[0] === 'finish')?.[1] as (() => void) | undefined;
-      expect(finishHandler).toBeDefined();
-      finishHandler?.();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       const pipInstallCall = mockSpawn.mock.calls.find((call) => (
@@ -983,13 +1006,6 @@ describe('pythonBackend', () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
-        callback(createMockHttpRes(200));
-        return createMockHttpReq();
-      });
-      mockWriteStream.close.mockImplementation((callback?: () => void) => {
-        callback?.();
-      });
       mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
         const binDir = path.join(options.cwd, 'python-runtime', 'bin');
         fs.mkdirSync(binDir, { recursive: true });
@@ -1032,10 +1048,6 @@ describe('pythonBackend', () => {
       });
 
       await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
-      fs.writeFileSync('/tmp/test-userdata/python.tar.gz', 'archive');
-      const finishHandler = mockWriteStream.on.mock.calls.find((call) => call[0] === 'finish')?.[1] as (() => void) | undefined;
-      expect(finishHandler).toBeDefined();
-      finishHandler?.();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(pipClose).toBeDefined();
@@ -1082,13 +1094,7 @@ describe('pythonBackend', () => {
       await mod.findPython();
 
       mockSpawn.mockClear();
-      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
-        callback(createMockHttpRes(200));
-        return createMockHttpReq();
-      });
-      mockWriteStream.close.mockImplementation((callback?: () => void) => {
-        callback?.();
-      });
+
       mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
         const binDir = path.join(options.cwd, 'python', 'bin');
         fs.mkdirSync(binDir, { recursive: true });
@@ -1132,10 +1138,6 @@ describe('pythonBackend', () => {
       });
 
       await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
-      fs.writeFileSync('/tmp/test-userdata/python.tar.gz', 'archive');
-      const finishHandler = mockWriteStream.on.mock.calls.find((call) => call[0] === 'finish')?.[1] as (() => void) | undefined;
-      expect(finishHandler).toBeDefined();
-      finishHandler?.();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(pipClose).toBeDefined();
@@ -1154,13 +1156,6 @@ describe('pythonBackend', () => {
 
       await mod.findPython();
 
-      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
-        callback(createMockHttpRes(200));
-        return createMockHttpReq();
-      });
-      mockWriteStream.close.mockImplementation((callback?: () => void) => {
-        callback?.();
-      });
       mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
         const binDir = path.join(options.cwd, 'python-runtime', 'bin');
         fs.mkdirSync(binDir, { recursive: true });
@@ -1203,10 +1198,6 @@ describe('pythonBackend', () => {
       });
 
       await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
-      fs.writeFileSync('/tmp/test-userdata/python.tar.gz', 'archive');
-      const finishHandler = mockWriteStream.on.mock.calls.find((call) => call[0] === 'finish')?.[1] as (() => void) | undefined;
-      expect(finishHandler).toBeDefined();
-      finishHandler?.();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(pipClose).toBeDefined();
@@ -1220,13 +1211,6 @@ describe('pythonBackend', () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
-        callback(createMockHttpRes(200));
-        return createMockHttpReq();
-      });
-      mockWriteStream.close.mockImplementation((callback?: () => void) => {
-        callback?.();
-      });
       mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
         const binDir = path.join(options.cwd, 'python-runtime', 'bin');
         fs.mkdirSync(binDir, { recursive: true });
@@ -1281,9 +1265,6 @@ describe('pythonBackend', () => {
       });
 
       await mod.startPythonInstall({ includeLLM: false, includeOCR: true, includeVoice: false });
-      fs.writeFileSync('/tmp/test-userdata/python.tar.gz', 'archive');
-      const finishHandler = mockWriteStream.on.mock.calls.find((call) => call[0] === 'finish')?.[1] as (() => void) | undefined;
-      finishHandler?.();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(pipClose).toBeDefined();
@@ -1598,7 +1579,17 @@ describe('pythonBackend', () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      mockHttpsGet.mockReturnValue(createMockHttpReq());
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
+        const catalogJson = JSON.stringify(mockRuntimeCatalog);
+        const res = createMockHttpRes(200);
+        res.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+          if (event === 'data') cb(Buffer.from(catalogJson));
+          if (event === 'end') cb();
+          return res;
+        });
+        callback(res);
+        return createMockHttpReq();
+      });
 
       mod.setupPythonBackendIPC();
 
@@ -1615,7 +1606,17 @@ describe('pythonBackend', () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      mockHttpsGet.mockReturnValue(createMockHttpReq());
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
+        const catalogJson = JSON.stringify(mockRuntimeCatalog);
+        const res = createMockHttpRes(200);
+        res.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+          if (event === 'data') cb(Buffer.from(catalogJson));
+          if (event === 'end') cb();
+          return res;
+        });
+        callback(res);
+        return createMockHttpReq();
+      });
 
       mod.setupPythonBackendIPC();
 

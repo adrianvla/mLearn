@@ -67,21 +67,13 @@ export function getPipExecutablePath(): string {
   return path.join(resPath, 'env', 'bin', 'pip3');
 }
 
-// Python download URL based on platform
-export function getPythonDownloadUrl(baseUrl: string): string {
-  if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') {
-    return `${baseUrl}x86_64-apple-darwin-install_only.tar.gz?download=`;
-  }
-  if (PLATFORM === 'darwin' && ARCHITECTURE === 'arm64') {
-    return `${baseUrl}aarch64-apple-darwin-install_only.tar.gz?download=`;
-  }
-  if (PLATFORM === 'linux' && ARCHITECTURE === 'x64') {
-    return `${baseUrl}x86_64-unknown-linux-gnu-install_only.tar.gz?download=`;
-  }
+// Runtime target key for the Python runtime catalog (platform-arch).
+export function getRuntimeTarget(): string {
+  if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') return 'darwin-x64';
+  if (PLATFORM === 'darwin' && ARCHITECTURE === 'arm64') return 'darwin-arm64';
+  if (PLATFORM === 'linux' && ARCHITECTURE === 'x64') return 'linux-x64';
   // Windows (all architectures fallback to x64)
-  if (isWindows) {
-    return `${baseUrl}x86_64-pc-windows-msvc-install_only.tar.gz?download=`;
-  }
-  
+  if (isWindows) return 'win32-x64';
+
   throw new Error(`Unsupported platform: ${PLATFORM} ${ARCHITECTURE}`);
 }
