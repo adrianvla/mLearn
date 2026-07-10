@@ -15,7 +15,7 @@
   "ocr": [],
   "llm": [
     "torch",
-    "transformers",
+    "transformers>=5.12.1,<5.13",
     "sentencepiece"
   ],
   "voice": [
