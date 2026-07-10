@@ -22,6 +22,7 @@ import { exploreWikiForStoryContext } from './wikiExplorationAgent';
 import './RoleplayQuickStart.css';
 import { getLogger } from '../../../shared/utils/logger';
 import { getLocalizedLanguageName } from '../../utils/languageDisplayName';
+import { isLLMReady } from '../../services/llmProvider';
 
 const log = getLogger("renderer.conversationAgent.roleplayQuickStart");
 
@@ -601,7 +602,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
     // The character page story section is just a brief overview — the agent can find
     // detailed chapter/arc data that standard scraping missed.
     let exploredContext = '';
-    if (!chapterSummaries && settings.llmEnabled) {
+    if (!chapterSummaries && isLLMReady(settings)) {
       setLlmProgress(t('mlearn.ConversationAgent.QuickStart.ExploringWiki'));
       try {
         const exploration = await exploreWikiForStoryContext(

@@ -25,7 +25,7 @@ import { findAnkiWordMatchInCache } from '../services/ankiWordsCache';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
-import { streamChat } from '../services/llmProvider';
+import { streamChat, isLLMReady } from '../services/llmProvider';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../services/cloudSessionManager';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
@@ -827,7 +827,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
    */
   const postFlashcardCreation = (cardId: string, card: Flashcard) => {
     const hasExample = card.content.example && card.content.example !== '-' && card.content.example.replace(/<[^>]*>/g, '').trim().length > 0;
-    const needsTranslation = hasExample && !card.content.exampleMeaning && settings.llmEnabled;
+    const needsTranslation = hasExample && !card.content.exampleMeaning && isLLMReady(settings);
     const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && settings.flashcardTtsProvider !== DEFAULT_SETTINGS.flashcardTtsProvider;
     const skipExampleTts = card.content.skipExampleTts;
 

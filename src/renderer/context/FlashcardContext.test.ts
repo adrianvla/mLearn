@@ -197,6 +197,7 @@ vi.mock('../services/statsService', () => ({
 vi.mock('../services/llmProvider', () => ({
   streamChat: mockStreamChat,
   checkAvailability: vi.fn().mockResolvedValue({ available: false }),
+  isLLMReady: (settings: { llmEnabled: boolean }) => settings.llmEnabled !== false,
 }));
 
 vi.mock('../../shared/utils/textUtils', () => ({

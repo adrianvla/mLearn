@@ -13,6 +13,7 @@ import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../compone
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon, Spinner } from '../../../components/common';
+import { isLLMReady } from '../../../services/llmProvider';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
@@ -1160,7 +1161,7 @@ export const VideoRoute: Component = () => {
         break;
       }
       case 'explain-phrase': {
-        if (!settings.llmEnabled) {
+        if (!isLLMReady(settings)) {
           alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
           break;
         }
@@ -1428,7 +1429,7 @@ export const VideoRoute: Component = () => {
             ctxMenuOptions={{
               isWatchTogether: watchTogether.isActive(),
               hasContextPhrase: !!currentSubtitlePhrase(),
-              canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
+              canExplainPhrase: isLLMReady(settings) && !!currentSubtitlePhrase(),
             }}
             onContextMenuOpen={setContextMenuPosition}
             onTimeUpdate={(time) => setCurrentVideoTime(time)}

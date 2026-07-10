@@ -1094,9 +1094,14 @@ describe('llmProvider', () => {
   // --------------------------------------------------------------------------
 
   describe('isLLMReady', () => {
-    it('returns false when llmEnabled is false', async () => {
+    it('returns false when llmEnabled is false for builtin', async () => {
       const { isLLMReady } = await import('./llmProvider');
-      expect(isLLMReady(makeSettings({ llmEnabled: false }))).toBe(false);
+      expect(isLLMReady(makeSettings({ llmEnabled: false, llmProvider: 'builtin' }))).toBe(false);
+    });
+
+    it('returns true for cloud when signed in, even if llmEnabled is false', async () => {
+      const { isLLMReady } = await import('./llmProvider');
+      expect(isLLMReady(makeSettings({ llmEnabled: false, llmProvider: 'cloud', cloudAuthStatus: 'signed-in' }))).toBe(true);
     });
 
     it('returns true for cloud when signed in', async () => {

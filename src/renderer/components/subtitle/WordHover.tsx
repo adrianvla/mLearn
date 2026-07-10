@@ -8,7 +8,7 @@ import { Component, JSX, Show, For, createMemo, createSignal, createEffect } fro
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { toUniqueIdentifier } from '../../services/statsService';
-import { getCachedExplanation } from '../../services/llmProvider';
+import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch } from '../common';
@@ -427,7 +427,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     e.stopPropagation();
     
     // Check if LLM is enabled
-    if (!settings.llmEnabled) {
+    if (!isLLMReady(settings)) {
       alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
       return;
     }
