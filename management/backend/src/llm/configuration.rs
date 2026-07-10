@@ -141,8 +141,7 @@ impl LlmConfigurationService {
         }
     }
 
-    #[cfg(test)]
-    fn with_resolver(
+    pub(crate) fn with_resolver(
         pool: SqlitePool,
         cipher: SecretCipher,
         resolver: Arc<dyn EndpointResolver>,

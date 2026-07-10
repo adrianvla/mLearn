@@ -11,6 +11,7 @@ use crate::{
     crypto::SecretCipher,
     error::AppError,
     identity::IdentityService,
+    llm::endpoint::{EndpointResolver, TokioEndpointResolver},
     policy::signing::PolicySigner,
 };
 
@@ -25,6 +26,8 @@ pub struct AppState {
     pub auth_rate_limiter: AuthRateLimiter,
     pub auth_endpoint_rate_limiter: AuthRateLimiter,
     pub llm_endpoint_rate_limiter: AuthRateLimiter,
+    pub(crate) llm_endpoint_resolver: Arc<dyn EndpointResolver>,
+    pub(crate) llm_preflight_deadline: Duration,
 }
 
 impl AppState {
@@ -56,6 +59,8 @@ impl AppState {
             auth_rate_limiter,
             auth_endpoint_rate_limiter,
             llm_endpoint_rate_limiter,
+            llm_endpoint_resolver: Arc::new(TokioEndpointResolver),
+            llm_preflight_deadline: Duration::from_secs(30),
         })
     }
 }

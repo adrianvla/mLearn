@@ -1672,10 +1672,24 @@ async fn recover_abandoned_gateway_in_transaction(
     tx: &mut Transaction<'_, Sqlite>,
     timestamp: i64,
 ) -> Result<(), AppError> {
-    let rows = sqlx::query("SELECT gateway.reservation_id, gateway.conservative_actual_json, reservation.provider_id, reservation.model_id, reservation.price_version_id, reservation.status FROM llm_gateway_reservations gateway JOIN quota_reservations reservation ON reservation.id = gateway.reservation_id JOIN llm_gateway_leases lease ON lease.reservation_id = gateway.reservation_id WHERE gateway.phase IN ('contacting', 'pending') AND lease.expires_at <= ? ORDER BY gateway.reservation_id")
+    let rows = sqlx::query("SELECT gateway.reservation_id, gateway.phase, gateway.conservative_actual_json, reservation.provider_id, reservation.model_id, reservation.price_version_id, reservation.status FROM llm_gateway_reservations gateway JOIN quota_reservations reservation ON reservation.id = gateway.reservation_id JOIN llm_gateway_leases lease ON lease.reservation_id = gateway.reservation_id WHERE gateway.phase IN ('contacting', 'pending') AND lease.expires_at <= ? ORDER BY gateway.reservation_id")
         .bind(timestamp).fetch_all(&mut **tx).await.map_err(database_error)?;
     for row in rows {
         let reservation_id: String = row.get("reservation_id");
+        let phase: String = row.get("phase");
+        if phase == "contacting" {
+            sqlx::query("UPDATE llm_gateway_reservations SET phase = 'cancelled', completed_at = ?, updated_at = ? WHERE reservation_id = ? AND phase = 'contacting'")
+                .bind(timestamp).bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
+            sqlx::query(
+                "UPDATE quota_reservations SET status = 'expired' WHERE id = ? AND status = 'open'",
+            )
+            .bind(&reservation_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(database_error)?;
+            release_gateway_lease(tx, &reservation_id, timestamp).await?;
+            continue;
+        }
         if row.get::<String, _>("status") != "reconciled" {
             let actual_strings: BTreeMap<String, i64> =
                 serde_json::from_str(row.get("conservative_actual_json")).map_err(|_| {
@@ -3310,6 +3324,43 @@ mod tests {
                 "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?"
             )
             .bind(&cancelled.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "cancelled"
+        );
+
+        request.request_id = "crash-during-unconfirmed-contact".into();
+        let contacting = service
+            .reserve_gateway(
+                &learner,
+                request.clone(),
+                fixture_gateway_requirements(&request, fingerprint, 60, 4),
+            )
+            .await
+            .unwrap();
+        service
+            .mark_gateway_contacting(&contacting.id)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE llm_gateway_leases SET acquired_at = 0, expires_at = 1 WHERE reservation_id = ?")
+            .bind(&contacting.id).execute(&pool).await.unwrap();
+        service.release_expired().await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM usage_ledger WHERE reservation_id = ?"
+            )
+            .bind(&contacting.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT phase FROM llm_gateway_reservations WHERE reservation_id = ?"
+            )
+            .bind(&contacting.id)
             .fetch_one(&pool)
             .await
             .unwrap(),
