@@ -18,6 +18,7 @@ use crate::{
     identity::{IdentityType, Principal},
     llm::{
         configuration::LlmConfigurationService,
+        conversations::{BeginConversation, ConversationService},
         provider::{adapter_for, terminal_error_frame, GatewayRequest, ProviderError},
         quota::{
             GatewayReservationRequirements, QuotaService, ReconcileQuotaRequest,
@@ -112,7 +113,7 @@ async fn prepare_stream(
             &principal,
             ReserveQuotaRequest {
                 request_id: Uuid::now_v7().to_string(),
-                active_group_id,
+                active_group_id: active_group_id.clone(),
                 provider_id: route_config.provider_id.clone(),
                 model_id: route_config.model_id.clone(),
                 price_version_id: route_config.price_version.id.clone(),
@@ -134,6 +135,7 @@ async fn prepare_stream(
     // Pin DNS only after quota succeeds; PinnedEndpoint disables proxies and redirects. The
     // whole DNS/connect/header phase is bounded well inside the durable capacity lease.
     let reservation_id = reservation.id;
+    let recorder_request = normalized.clone();
     let preflight = async {
         let route = configuration.pin_route(route_config).await.map_err(|_| {
             GatewayFailure::new(StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable")
@@ -174,6 +176,24 @@ async fn prepare_stream(
         .await
         .map_err(map_preflight_error)?;
 
+    let mut recorder = ConversationService::with_retention_days(
+        state.db.clone(),
+        state.secret_cipher.as_ref().clone(),
+        state.config.conversation_retention_days,
+    )
+    .begin(BeginConversation {
+        reservation_id: &reservation_id,
+        learner_user_id: &principal.user_id,
+        group_id: &active_group_id,
+        provider_id: &route.provider_id,
+        model_id: &route.model_id,
+        price_version_id: &route.price_version.id,
+        policy_version_id: None,
+        request: &recorder_request,
+    })
+    .await
+    .map_err(map_preflight_error)?;
+
     let mut upstream = opened.stream;
     let completion = ReconcileQuotaRequest {
         reservation_id,
@@ -191,23 +211,36 @@ async fn prepare_stream(
         while let Some(item) = upstream.next().await {
             match item {
                 Ok(frame) => match accounting.observe(&frame) {
-                    Ok(FrameKind::Data) => yield Ok::<Bytes, Infallible>(frame),
-                    Ok(FrameKind::Done) => {
+                    Ok(kind) => {
+                        if let Some(delta) = accounting.take_delta() { recorder.record_delta(&delta); }
+                        if let Some(delta) = accounting.take_tool_delta() { recorder.record_tool_delta(&delta); }
+                        match kind {
+                    FrameKind::Data => yield Ok::<Bytes, Infallible>(frame),
+                    FrameKind::Done => {
                         let mut measured = completion.clone();
                         measured.actual = accounting.measured_amounts();
-                        if quota.complete_gateway(measured).await.is_ok() {
+                        let final_record = recorder.final_record(if accounting.exact_usage { "exact" } else { "estimated" }, &measured.actual, None);
+                        if quota.complete_gateway_recorded(measured, Some((&recorder, &final_record))).await.is_ok() {
                             yield Ok::<Bytes, Infallible>(frame);
                         } else {
                             yield Ok::<Bytes, Infallible>(terminal_error_frame(ProviderError::Unavailable));
                         }
                         break;
                     }
+                        }
+                    }
                     Err(error) => {
+                        let fallback = completion.clone();
+                        let record = recorder.final_record("estimated", &fallback.actual, Some(error.stable_code()));
+                        let _ = quota.complete_gateway_recorded(fallback, Some((&recorder, &record))).await;
                         yield Ok::<Bytes, Infallible>(terminal_error_frame(error));
                         break;
                     }
                 },
                 Err(error) => {
+                    let fallback = completion.clone();
+                    let record = recorder.final_record("estimated", &fallback.actual, Some(error.stable_code()));
+                    let _ = quota.complete_gateway_recorded(fallback, Some((&recorder, &record))).await;
                     yield Ok::<Bytes, Infallible>(terminal_error_frame(error));
                     break;
                 }
@@ -281,6 +314,9 @@ struct StreamAccounting {
     output: i64,
     input_price: i64,
     output_price: i64,
+    exact_usage: bool,
+    delta: Option<String>,
+    tool_delta: Option<String>,
 }
 
 impl StreamAccounting {
@@ -294,6 +330,9 @@ impl StreamAccounting {
             output: 0,
             input_price,
             output_price,
+            exact_usage: false,
+            delta: None,
+            tool_delta: None,
         }
     }
 
@@ -310,6 +349,8 @@ impl StreamAccounting {
             }
             let value: serde_json::Value =
                 serde_json::from_str(data).map_err(|_| ProviderError::InvalidResponse)?;
+            let mut captured = String::new();
+            let mut captured_tool = String::new();
             let delta_bytes = value
                 .get("choices")
                 .and_then(serde_json::Value::as_array)
@@ -317,18 +358,25 @@ impl StreamAccounting {
                 .flatten()
                 .filter_map(|choice| choice.get("delta"))
                 .try_fold(0_i64, |total, delta| {
-                    let content = delta
-                        .get("content")
-                        .and_then(serde_json::Value::as_str)
-                        .map_or(0_usize, str::len);
-                    let arguments = delta
+                    let content_value = delta.get("content").and_then(serde_json::Value::as_str);
+                    if let Some(content) = content_value {
+                        captured.push_str(content);
+                    }
+                    let content = content_value.map_or(0_usize, str::len);
+                    let argument_values = delta
                         .get("tool_calls")
                         .and_then(serde_json::Value::as_array)
                         .into_iter()
                         .flatten()
                         .filter_map(|call| call.pointer("/function/arguments"))
                         .filter_map(serde_json::Value::as_str)
-                        .map(str::len)
+                        .collect::<Vec<_>>();
+                    for arguments in &argument_values {
+                        captured_tool.push_str(arguments);
+                    }
+                    let arguments = argument_values
+                        .iter()
+                        .map(|value| value.len())
                         .sum::<usize>();
                     total.checked_add(i64::try_from(content.checked_add(arguments)?).ok()?)
                 })
@@ -337,22 +385,34 @@ impl StreamAccounting {
                 .output
                 .checked_add(delta_bytes)
                 .ok_or(ProviderError::ResponseTooLarge)?;
+            if !captured.is_empty() {
+                self.delta = Some(captured);
+            }
+            if !captured_tool.is_empty() {
+                self.tool_delta = Some(captured_tool);
+            }
             if let Some(usage) = value.get("usage") {
-                if let Some(prompt) = usage
+                let prompt = usage
                     .get("prompt_tokens")
-                    .and_then(serde_json::Value::as_i64)
-                {
-                    self.input = prompt;
-                }
-                if let Some(output) = usage
+                    .and_then(serde_json::Value::as_i64);
+                let output = usage
                     .get("completion_tokens")
-                    .and_then(serde_json::Value::as_i64)
-                {
-                    self.output = self.output.max(output);
+                    .and_then(serde_json::Value::as_i64);
+                if let (Some(prompt), Some(output)) = (prompt, output) {
+                    self.exact_usage = true;
+                    self.input = prompt;
+                    self.output = output;
                 }
             }
-            if let Some(output) = value.get("eval_count").and_then(serde_json::Value::as_i64) {
-                self.output = self.output.max(output);
+            if let (Some(input), Some(output)) = (
+                value
+                    .get("prompt_eval_count")
+                    .and_then(serde_json::Value::as_i64),
+                value.get("eval_count").and_then(serde_json::Value::as_i64),
+            ) {
+                self.exact_usage = true;
+                self.input = input;
+                self.output = output;
             }
             self.ensure_within_reservation()?;
         }
@@ -361,6 +421,13 @@ impl StreamAccounting {
         } else {
             FrameKind::Data
         })
+    }
+
+    fn take_delta(&mut self) -> Option<String> {
+        self.delta.take()
+    }
+    fn take_tool_delta(&mut self) -> Option<String> {
+        self.tool_delta.take()
     }
 
     fn ensure_within_reservation(&self) -> Result<(), ProviderError> {
@@ -473,7 +540,7 @@ mod tests {
     };
 
     use axum::{http::Request, Router};
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::{sqlite::SqlitePoolOptions, Row};
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -603,22 +670,28 @@ mod tests {
         address: SocketAddr,
         resolver: Arc<dyn EndpointResolver>,
         preflight_deadline: Duration,
-    ) -> (Router, sqlx::SqlitePool, String, Arc<AtomicUsize>) {
+    ) -> (Router, sqlx::SqlitePool, String, String) {
         let pool = SqlitePoolOptions::new()
             .max_connections(4)
             .connect("sqlite::memory:")
             .await
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
-        for (id, kind, root) in [("admin", "admin", 1_i64), ("learner", "learner", 0)] {
+        for (id, kind, root) in [
+            ("admin", "admin", 1_i64),
+            ("learner", "learner", 0),
+            ("sibling-teacher", "teacher", 0),
+        ] {
             sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?, 1, 1)")
                 .bind(id).bind(format!("{id}@test.invalid")).bind(format!("{id}@test.invalid"))
                 .bind(id).bind(kind).bind(root).execute(&pool).await.unwrap();
         }
-        sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('school', NULL, 'School', 'school', 'active', 1), ('class', 'school', 'Class', 'class', 'active', 1)")
+        sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('school', NULL, 'School', 'school', 'active', 1), ('class', 'school', 'Class', 'class', 'active', 1), ('sibling', 'school', 'Sibling', 'sibling', 'active', 1)")
             .execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('admin-membership', 'school', 'admin', 'active', 1), ('learner-membership', 'class', 'learner', 'active', 1)")
             .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO group_memberships (id,group_id,user_id,status,created_at) VALUES ('sibling-membership','sibling','sibling-teacher','active',1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO membership_capabilities (membership_id,capability) VALUES ('sibling-membership','conversations.view')").execute(&pool).await.unwrap();
         for capability in [
             Capability::LlmConfigure,
             Capability::PoliciesView,
@@ -679,9 +752,15 @@ mod tests {
             .issue_session("learner", None, Some("class"))
             .await
             .unwrap();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let app = router(state.clone()).with_state(state);
-        (app, pool, session.access_token, calls)
+        let sibling = state
+            .identity
+            .issue_session("sibling-teacher", None, Some("sibling"))
+            .await
+            .unwrap();
+        let app = router(state.clone())
+            .merge(crate::routes::conversations::router(state.clone()))
+            .with_state(state);
+        (app, pool, session.access_token, sibling.access_token)
     }
 
     async fn mock_upstream(status: u16, body: &'static str) -> SocketAddr {
@@ -718,13 +797,13 @@ mod tests {
         let address = mock_upstream(200, "{\"message\":{\"content\":\"Hallo\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":2,\"eval_count\":1}\n").await;
         let resolutions = Arc::new(AtomicUsize::new(0));
         let resolver = Arc::new(FixedResolver(address, resolutions.clone()));
-        let (app, pool, token, _) =
+        let (app, pool, token, sibling_token) =
             configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
         assert_eq!(resolutions.load(Ordering::SeqCst), 0);
-        let response = post_gateway(app, &token).await;
+        let response = post_gateway(app.clone(), &token).await;
         assert_eq!(response.status(), StatusCode::OK);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(bytes, Bytes::from_static(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hallo\"}}]}\n\ndata: {\"choices\":[{\"delta\":{}}],\"eval_count\":1}\n\ndata: [DONE]\n\n"));
+        assert_eq!(bytes, Bytes::from_static(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hallo\"}}]}\n\ndata: {\"choices\":[{\"delta\":{}}],\"eval_count\":1,\"prompt_eval_count\":2}\n\ndata: [DONE]\n\n"));
         assert_eq!(resolutions.load(Ordering::SeqCst), 1);
         assert_eq!(
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_reservations")
@@ -740,6 +819,58 @@ mod tests {
                 .unwrap(),
             "completed"
         );
+        let stored: Vec<String> = sqlx::query_scalar(
+            "SELECT encrypted_content FROM conversation_messages ORDER BY sequence",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(stored.len(), 2);
+        assert!(stored
+            .iter()
+            .all(|ciphertext| { !ciphertext.contains("hi") && !ciphertext.contains("Hallo") }));
+        let request =
+            sqlx::query("SELECT status,usage_quality,input_tokens,output_tokens FROM llm_requests")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(request.get::<String, _>("status"), "completed");
+        assert_eq!(request.get::<String, _>("usage_quality"), "exact");
+        assert_eq!(request.get::<i64, _>("input_tokens"), 2);
+        assert_eq!(request.get::<i64, _>("output_tokens"), 1);
+        let conversation_id: String = sqlx::query_scalar("SELECT id FROM conversations")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let detail_response = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/api/conversations/{conversation_id}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(detail_response.status(), StatusCode::OK);
+        let detail: serde_json::Value = serde_json::from_slice(
+            &to_bytes(detail_response.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(detail["messages"][0]["content"], "hi");
+        assert_eq!(detail["messages"][1]["content"], "Hallo");
+        let denied = app
+            .oneshot(
+                Request::get(format!("/api/conversations/{conversation_id}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {sibling_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -798,8 +929,6 @@ mod tests {
                         .unwrap();
                 }
                 "sibling" => {
-                    sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('sibling', 'school', 'Sibling', 'sibling', 'active', 1)")
-                        .execute(&pool).await.unwrap();
                     sqlx::query(
                         "UPDATE sessions SET active_group_id = 'sibling' WHERE user_id = 'learner'",
                     )
@@ -851,7 +980,7 @@ mod tests {
                     .fetch_one(&pool)
                     .await
                     .unwrap(),
-                "pending"
+                "completed"
             );
         }
     }
@@ -895,6 +1024,16 @@ mod tests {
                 .await
                 .unwrap();
         assert!(ledger_count > 0);
+        assert_eq!(
+            sqlx::query_as::<_, (String, String)>(
+                "SELECT status,error_code FROM llm_requests WHERE reservation_id=?"
+            )
+            .bind(&reservation_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            ("failed".into(), "stream_abandoned".into())
+        );
         quota.release_expired().await.unwrap();
         assert_eq!(
             sqlx::query_scalar::<_, i64>(

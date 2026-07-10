@@ -48,6 +48,7 @@ pub struct Config {
     pub policy_signing_key_path: String,
     pub encryption_key_path: String,
     pub encryption_key: Option<SecretString>,
+    pub conversation_retention_days: u16,
     pub token_hash: Option<[u8; 32]>,
     pub env_mode: EnvMode,
     pub deployment_mode: DeploymentMode,
@@ -93,6 +94,8 @@ impl Config {
             default_encryption_key_path().as_str(),
         );
         let encryption_key = env_nonempty("MLEARN_ENCRYPTION_KEY").map(SecretString::from);
+        let conversation_retention_days =
+            env_u16_or_default("MLEARN_CONVERSATION_RETENTION_DAYS", 90).clamp(1, 3650);
 
         let env_mode = EnvMode::parse(&env_or_default("MLEARN_ENV", "production"));
         let deployment_mode = env_or_default("MLEARN_DEPLOYMENT_MODE", "self-hosted");
@@ -126,6 +129,7 @@ impl Config {
             policy_signing_key_path,
             encryption_key_path,
             encryption_key,
+            conversation_retention_days,
             token_hash,
             env_mode,
             deployment_mode,
@@ -441,6 +445,7 @@ mod tests {
             policy_signing_key_path: "policy-signing-key".to_string(),
             encryption_key_path: "encryption-key".to_string(),
             encryption_key: None,
+            conversation_retention_days: 90,
             token_hash: Some([0u8; 32]),
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::SelfHosted,

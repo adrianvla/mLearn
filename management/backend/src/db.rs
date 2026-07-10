@@ -225,4 +225,55 @@ mod tests {
             );
         }
     }
+
+    #[tokio::test]
+    async fn conversations_migrate_from_0009_without_losing_prior_data() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        for migration in [
+            include_str!("../migrations/0001_identity.sql"),
+            include_str!("../migrations/0002_identity_hardening.sql"),
+            include_str!("../migrations/0003_groups.sql"),
+            include_str!("../migrations/0004_group_invariants.sql"),
+            include_str!("../migrations/0005_provisioning.sql"),
+            include_str!("../migrations/0006_policies.sql"),
+            include_str!("../migrations/0007_llm_configuration.sql"),
+            include_str!("../migrations/0008_llm_quotas.sql"),
+            include_str!("../migrations/0009_llm_gateway.sql"),
+        ] {
+            sqlx::raw_sql(migration).execute(&pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO users (id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES ('prior','prior@test.invalid','prior@test.invalid','Prior','active','admin',1,1,1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO groups (id,parent_id,name,slug,status,created_at) VALUES ('school',NULL,'School','school','active',1)").execute(&pool).await.unwrap();
+        sqlx::raw_sql(include_str!("../migrations/0010_conversations.sql"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id='prior'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        for object in [
+            "conversations",
+            "llm_requests",
+            "conversation_messages",
+            "conversation_messages_ciphertext_lifecycle",
+        ] {
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name=?")
+                    .bind(object)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                1,
+                "{object}"
+            );
+        }
+    }
 }

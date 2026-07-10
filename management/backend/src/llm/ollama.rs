@@ -152,6 +152,7 @@ impl NdjsonDecoder {
         }
         let mut normalized = json!({"choices":[{"delta": Value::Object(delta)}]});
         for metric in [
+            "prompt_eval_count",
             "eval_count",
             "eval_duration",
             "prompt_eval_duration",

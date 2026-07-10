@@ -848,9 +848,21 @@ impl QuotaService {
         tx.commit().await.map_err(database_error)
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn complete_gateway(
         &self,
         request: ReconcileQuotaRequest,
+    ) -> Result<(), AppError> {
+        self.complete_gateway_recorded(request, None).await
+    }
+
+    pub(crate) async fn complete_gateway_recorded(
+        &self,
+        request: ReconcileQuotaRequest,
+        conversation: Option<(
+            &crate::llm::conversations::ConversationRecorder,
+            &crate::llm::conversations::FinalConversation,
+        )>,
     ) -> Result<(), AppError> {
         let actual = parse_reservation_amounts(&request.actual)?;
         let timestamp = now();
@@ -872,6 +884,11 @@ impl QuotaService {
             ));
         }
         reconcile_in_transaction(&mut tx, &request, &actual, timestamp).await?;
+        if let Some((recorder, final_record)) = conversation {
+            recorder
+                .finalize_in_transaction(&mut tx, final_record)
+                .await?;
+        }
         let updated = sqlx::query("UPDATE llm_gateway_reservations SET phase = 'completed', measured_actual_json = ?, completed_at = ?, updated_at = ? WHERE reservation_id = ? AND phase = 'pending'")
             .bind(serde_json::to_string(&request.actual).map_err(|error| AppError::Internal(format!("gateway accounting serialization failed: {error}")))?)
             .bind(timestamp).bind(timestamp).bind(&request.reservation_id).execute(&mut *tx).await.map_err(database_error)?;
@@ -1690,23 +1707,27 @@ async fn recover_abandoned_gateway_in_transaction(
             release_gateway_lease(tx, &reservation_id, timestamp).await?;
             continue;
         }
+        let actual_strings: BTreeMap<String, i64> =
+            serde_json::from_str(row.get("conservative_actual_json"))
+                .map_err(|_| AppError::Internal("persisted gateway fallback is invalid".into()))?;
         if row.get::<String, _>("status") != "reconciled" {
-            let actual_strings: BTreeMap<String, i64> =
-                serde_json::from_str(row.get("conservative_actual_json")).map_err(|_| {
-                    AppError::Internal("persisted gateway fallback is invalid".into())
-                })?;
             let actual = parse_reservation_amounts(&actual_strings)?;
             let request = ReconcileQuotaRequest {
                 reservation_id: reservation_id.clone(),
                 provider_id: row.get("provider_id"),
                 model_id: row.get("model_id"),
                 price_version_id: row.get("price_version_id"),
-                actual: actual_strings,
+                actual: actual_strings.clone(),
             };
             reconcile_in_transaction(tx, &request, &actual, timestamp).await?;
         }
         sqlx::query("UPDATE llm_gateway_reservations SET phase = 'completed', completed_at = ?, updated_at = ? WHERE reservation_id = ? AND phase IN ('contacting', 'pending')")
             .bind(timestamp).bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
+        sqlx::query("UPDATE llm_requests SET status='failed',usage_quality='estimated',input_tokens=?,output_tokens=?,cost_micros=?,error_code='stream_abandoned',completed_at=? WHERE reservation_id=? AND status='pending'")
+            .bind(actual_strings.get("inputTokens")).bind(actual_strings.get("outputTokens")).bind(actual_strings.get("costMicros"))
+            .bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
+        sqlx::query("UPDATE conversations SET status='failed',updated_at=? WHERE id IN (SELECT conversation_id FROM llm_requests WHERE reservation_id=?) AND status='pending'")
+            .bind(timestamp).bind(&reservation_id).execute(&mut **tx).await.map_err(database_error)?;
         release_gateway_lease(tx, &reservation_id, timestamp).await?;
     }
     Ok(())
