@@ -30,6 +30,8 @@ export interface ProgressBarProps {
   style?: JSX.CSSProperties;
   /** Whether to animate the progress fill */
   animated?: boolean;
+  /** Indeterminate mode: animated stripe with no fixed value */
+  indeterminate?: boolean;
   /** Optional class for the track element */
   trackClass?: string;
   /** Optional class for the fill element */
@@ -92,13 +94,14 @@ export const ProgressBar: Component<ProgressBarProps> = (props) => {
     const classes = ['progress-bar-fill'];
     classes.push(`progress-bar-fill--${merged.variant}`);
     if (merged.animated) classes.push('progress-bar-fill--animated');
+    if (merged.indeterminate) classes.push('progress-bar-fill--indeterminate');
     if (merged.rounded) classes.push('progress-bar--rounded');
     if (merged.fillClass) classes.push(merged.fillClass);
     return classes.join(' ');
   };
 
   return (
-    <div 
+    <div
       class={containerClass()}
       style={merged.style}
     >
@@ -115,10 +118,17 @@ export const ProgressBar: Component<ProgressBarProps> = (props) => {
         aria-valuemax={100}
         aria-label={merged['aria-label']}
       >
-        <div
-          class={fillClass()}
-          style={{ width: `${clampedValue()}%` }}
-        />
+        <Show
+          when={merged.indeterminate}
+          fallback={
+            <div
+              class={fillClass()}
+              style={{ width: `${clampedValue()}%` }}
+            />
+          }
+        >
+          <div class={fillClass()} />
+        </Show>
       </div>
       <Show when={merged.showPercent}>
         <span class="progress-bar-percent">
