@@ -86,14 +86,28 @@ impl ResolvedSecret {
 #[allow(dead_code)] // Consumed by the streaming provider adapter in LLM Gateway Task 3.
 pub(crate) struct ResolvedLlmRoute {
     pub(crate) provider_id: String,
+    pub(crate) model_id: String,
     pub(crate) provider_kind: ProviderKind,
     #[allow(dead_code)] // Consumed by the streaming provider adapter in LLM Gateway Task 3.
     pub(crate) secret: Option<ResolvedSecret>,
     pub(crate) model: String,
     pub(crate) prompt_profile_id: Option<String>,
+    pub(crate) system_prompt: Option<String>,
     pub(crate) price_version: ProviderPriceVersion,
     #[allow(dead_code)] // Consumed by the streaming provider adapter in LLM Gateway Task 3.
     pub(crate) endpoint: PinnedEndpoint,
+}
+
+pub(crate) struct ResolvedLlmRouteConfig {
+    pub(crate) provider_id: String,
+    pub(crate) model_id: String,
+    pub(crate) provider_kind: ProviderKind,
+    pub(crate) secret: Option<ResolvedSecret>,
+    pub(crate) model: String,
+    pub(crate) prompt_profile_id: Option<String>,
+    pub(crate) system_prompt: Option<String>,
+    pub(crate) price_version: ProviderPriceVersion,
+    base_url: String,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -930,6 +944,17 @@ impl LlmConfigurationService {
         group_id: &str,
         requested_model: Option<&str>,
     ) -> Result<ResolvedLlmRoute, AppError> {
+        let route = self
+            .resolve_route_metadata(group_id, requested_model)
+            .await?;
+        self.pin_route(route).await
+    }
+
+    pub(crate) async fn resolve_route_metadata(
+        &self,
+        group_id: &str,
+        requested_model: Option<&str>,
+    ) -> Result<ResolvedLlmRouteConfig, AppError> {
         let mut tx = self.pool.begin().await.map_err(database_error)?;
         let compiled = compile_in_transaction(&mut tx, group_id).await?;
         if !compiled.document.llm.enabled {
@@ -958,15 +983,17 @@ impl LlmConfigurationService {
         let provider_id: String = row.get("provider_id");
         let model_id: String = row.get("model_id");
         let prompt_profile_id = compiled.document.llm.prompt_profile_id;
-        if let Some(profile_id) = prompt_profile_id.as_deref() {
-            let valid: i64 = sqlx::query_scalar("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status != 'archived' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status != 'archived') SELECT EXISTS(SELECT 1 FROM prompt_profiles profile JOIN ancestors ON ancestors.id = profile.group_id WHERE profile.id = ? AND profile.status = 'active')")
-                .bind(group_id).bind(profile_id).fetch_one(&mut *tx).await.map_err(database_error)?;
-            if valid != 1 {
-                return Err(AppError::Conflict(
+        let system_prompt = if let Some(profile_id) = prompt_profile_id.as_deref() {
+            let prompt: Option<String> = sqlx::query_scalar("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status != 'archived' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status != 'archived') SELECT profile.system_prompt FROM prompt_profiles profile JOIN ancestors ON ancestors.id = profile.group_id WHERE profile.id = ? AND profile.status = 'active'")
+                .bind(group_id).bind(profile_id).fetch_optional(&mut *tx).await.map_err(database_error)?;
+            Some(prompt.ok_or_else(|| {
+                AppError::Conflict(
                     "effective policy references an unavailable prompt profile".into(),
-                ));
-            }
-        }
+                )
+            })?)
+        } else {
+            None
+        };
         let price_row = sqlx::query("SELECT id, group_id, provider_id, model_id, currency, unit, input_cost_micros, output_cost_micros, created_at FROM provider_price_versions WHERE provider_id = ? AND (model_id = ? OR model_id IS NULL) ORDER BY CASE WHEN model_id = ? THEN 0 ELSE 1 END, created_at DESC, id DESC LIMIT 1")
             .bind(&provider_id).bind(&model_id).bind(&model_id).fetch_optional(&mut *tx).await.map_err(database_error)?
             .ok_or_else(|| AppError::Conflict("provider route has no price version".into()))?;
@@ -985,16 +1012,36 @@ impl LlmConfigurationService {
             .transpose()?;
         let base_url: String = row.get("base_url");
         let provider_kind = ProviderKind::parse(row.get("provider_kind"))?;
-        let endpoint =
-            PinnedEndpoint::resolve(provider_kind, &base_url, self.resolver.as_ref()).await?;
         tx.commit().await.map_err(database_error)?;
-        Ok(ResolvedLlmRoute {
+        Ok(ResolvedLlmRouteConfig {
             provider_id,
+            model_id,
             provider_kind,
             secret,
             model: row.get("upstream_model"),
             prompt_profile_id,
+            system_prompt,
             price_version: price_from_row(&price_row),
+            base_url,
+        })
+    }
+
+    pub(crate) async fn pin_route(
+        &self,
+        route: ResolvedLlmRouteConfig,
+    ) -> Result<ResolvedLlmRoute, AppError> {
+        let endpoint =
+            PinnedEndpoint::resolve(route.provider_kind, &route.base_url, self.resolver.as_ref())
+                .await?;
+        Ok(ResolvedLlmRoute {
+            provider_id: route.provider_id,
+            model_id: route.model_id,
+            provider_kind: route.provider_kind,
+            secret: route.secret,
+            model: route.model,
+            prompt_profile_id: route.prompt_profile_id,
+            system_prompt: route.system_prompt,
+            price_version: route.price_version,
             endpoint,
         })
     }

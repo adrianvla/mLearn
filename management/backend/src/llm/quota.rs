@@ -570,7 +570,17 @@ impl QuotaService {
         principal: &Principal,
         request: ReserveQuotaRequest,
     ) -> Result<QuotaReservation, AppError> {
-        self.reserve_at(principal, request, now()).await
+        self.reserve_at(principal, request, now(), None).await
+    }
+
+    pub(crate) async fn reserve_gateway(
+        &self,
+        principal: &Principal,
+        request: ReserveQuotaRequest,
+        expected_prompt_profile_id: Option<&str>,
+    ) -> Result<QuotaReservation, AppError> {
+        self.reserve_at(principal, request, now(), Some(expected_prompt_profile_id))
+            .await
     }
 
     async fn reserve_at(
@@ -578,6 +588,7 @@ impl QuotaService {
         principal: &Principal,
         request: ReserveQuotaRequest,
         timestamp: i64,
+        gateway_route: Option<Option<&str>>,
     ) -> Result<QuotaReservation, AppError> {
         if principal.service_key_id.is_some() || principal.identity_type != IdentityType::Learner {
             return Err(AppError::Forbidden(
@@ -615,6 +626,38 @@ impl QuotaService {
             return Err(AppError::Forbidden(
                 "LLM access requires a published governed quota policy".into(),
             ));
+        }
+        if gateway_route.is_some()
+            && (!compiled
+                .document
+                .llm
+                .allowed_providers
+                .contains(&request.provider_id)
+                || !compiled
+                    .document
+                    .llm
+                    .allowed_models
+                    .contains(&request.model_id))
+        {
+            return Err(AppError::Forbidden(
+                "provider route is not allowed by the fresh effective policy".into(),
+            ));
+        }
+        if let Some(expected_prompt_profile_id) = gateway_route {
+            if compiled.document.llm.prompt_profile_id.as_deref() != expected_prompt_profile_id {
+                return Err(AppError::Forbidden(
+                    "prompt profile changed before quota reservation".into(),
+                ));
+            }
+            if let Some(prompt_profile_id) = expected_prompt_profile_id {
+                let active: i64 = sqlx::query_scalar("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status = 'active') SELECT EXISTS(SELECT 1 FROM prompt_profiles profile JOIN ancestors ON ancestors.id = profile.group_id WHERE profile.id = ? AND profile.status = 'active')")
+                    .bind(&request.active_group_id).bind(prompt_profile_id).fetch_one(&mut *tx).await.map_err(database_error)?;
+                if active != 1 {
+                    return Err(AppError::Forbidden(
+                        "prompt profile is unavailable at reservation time".into(),
+                    ));
+                }
+            }
         }
         let calendar = load_calendar(&mut tx, &request.active_group_id, timestamp).await?;
         let definitions = load_applicable_definitions(
@@ -2604,6 +2647,7 @@ mod tests {
                     chrono::DateTime::parse_from_rfc3339(instant)
                         .unwrap()
                         .timestamp(),
+                    None,
                 )
                 .await
                 .unwrap();
@@ -2649,6 +2693,7 @@ mod tests {
                 chrono::DateTime::parse_from_rfc3339("2026-01-15T12:00:00Z")
                     .unwrap()
                     .timestamp(),
+                None,
             )
             .await
             .unwrap();
@@ -2688,6 +2733,7 @@ mod tests {
                 chrono::DateTime::parse_from_rfc3339("2026-02-15T12:00:00Z")
                     .unwrap()
                     .timestamp(),
+                None,
             )
             .await
             .unwrap();
@@ -2763,6 +2809,35 @@ mod tests {
         .is_err());
     }
 
+    #[tokio::test]
+    async fn gateway_reservation_rechecks_the_exact_route_against_fresh_policy() {
+        let (pool, service, learner, mut request) = quota_fixture(1_000_000).await;
+        request.request_id = "fresh-route-allowed".into();
+        assert!(service
+            .reserve_gateway(&learner, request.clone(), None)
+            .await
+            .is_ok());
+
+        let denied = serde_json::json!({
+            "llm": {
+                "enabled": true,
+                "allowedProviders": [],
+                "allowedModels": [],
+                "quotas": [{"metric":"costMicros","limit":1_000_000,"period":"monthly","hard":true}]
+            }
+        })
+        .to_string();
+        sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES ('policy-denied', 'school', ?, 'hash-denied', 'compiled-denied', 'admin', 'deny route', '[]', 2)")
+            .bind(denied).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE active_policies SET policy_version_id = 'policy-denied', activated_at = 2 WHERE group_id = 'school'")
+            .execute(&pool).await.unwrap();
+        request.request_id = "fresh-route-denied".into();
+        assert!(matches!(
+            service.reserve_gateway(&learner, request, None).await,
+            Err(AppError::Forbidden(message)) if message.contains("fresh effective policy")
+        ));
+    }
+
     async fn quota_fixture(cap: i64) -> (SqlitePool, QuotaService, Principal, ReserveQuotaRequest) {
         let path = std::env::temp_dir().join(format!("mlearn-quota-{}.db", Uuid::now_v7()));
         let options = crate::db::sqlite_connect_options(path.to_str().unwrap()).unwrap();
@@ -2806,7 +2881,7 @@ mod tests {
         sqlx::query("INSERT INTO llm_providers (id, group_id, name, provider_kind, base_url, status, created_by_user_id, created_at, updated_at) VALUES ('provider', 'class', 'Provider', 'openaiCompatible', 'https://provider.test/v1', 'active', 'admin', 1, 1)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO llm_models (id, group_id, provider_id, model_key, upstream_model, status, created_by_user_id, created_at, updated_at) VALUES ('model', 'class', 'provider', 'balanced', 'model-v1', 'active', 'admin', 1, 1)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO provider_price_versions (id, group_id, provider_id, model_id, currency, unit, input_cost_micros, output_cost_micros, idempotency_key, created_by_user_id, created_at) VALUES ('price', 'class', 'provider', 'model', 'CHF', 'perMillionTokens', 1, 1, 'price', 'admin', 1)").execute(&pool).await.unwrap();
-        let document = serde_json::json!({"llm":{"enabled":true,"quotas":[{"metric":"costMicros","limit":cap,"period":"monthly","hard":true}]}}).to_string();
+        let document = serde_json::json!({"llm":{"enabled":true,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[{"metric":"costMicros","limit":cap,"period":"monthly","hard":true}]}}).to_string();
         sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES ('policy', 'school', ?, 'hash', 'compiled', 'admin', 'governed', '[]', 1)").bind(document).execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES ('school', 'policy', 1)").execute(&pool).await.unwrap();
         let learner = Principal {
