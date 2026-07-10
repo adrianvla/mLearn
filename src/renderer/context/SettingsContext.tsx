@@ -727,6 +727,10 @@ export function useSettings(): SettingsContextValue {
   return ctx;
 }
 
+export function useOptionalSettings(): SettingsContextValue | undefined {
+  return useContext(SettingsContext);
+}
+
 // Specialized hooks for common operations
 export function useTheme() {
   const { settings, updateSetting } = useSettings();

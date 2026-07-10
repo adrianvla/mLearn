@@ -253,6 +253,7 @@ export const GeneralTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Language.LearningLanguage.Label')}
           description={t('mlearn.Settings.Language.LearningLanguage.Description')}
+          settingKey="language"
         >
           <Select
             class="setting-select"
@@ -338,6 +339,7 @@ export const GeneralTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Appearance.Theme.Label')}
           description={t('mlearn.Settings.Appearance.Theme.Description')}
+          settingKey="theme"
         >
           <Select
             class="setting-select"
@@ -391,6 +393,7 @@ export const GeneralTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Performance.LowBatteryMode.Label')}
           description={t('mlearn.Settings.Performance.LowBatteryMode.Description')}
+          settingKey="lowBatteryMode"
         >
           <ToggleSwitch
             checked={settings.lowBatteryMode}

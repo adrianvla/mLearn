@@ -112,6 +112,7 @@ export {
 
 // Select Components
 export { Select, type SelectProps, type SelectOption } from './Select';
+export { ManagedSettingNotice, type ManagedSettingNoticeProps } from './ManagedSettingNotice';
 
 // SortableList Components
 export { SortableList, type SortableListProps, type SortableListItem } from './SortableList';

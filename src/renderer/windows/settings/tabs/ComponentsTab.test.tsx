@@ -9,6 +9,7 @@ const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
 const installLanguageDataMock = vi.fn();
 let languageDataInstallErrorMock: { language: string; dictionaryTargetLanguage?: string; error: string } | null = null;
+let managedSettingKey: string | null = null;
 
 const testSettings = {
   llmEnabled: true,
@@ -106,6 +107,9 @@ vi.mock('../../../context', () => ({
   useSettings: () => ({
     settings: testSettings,
     updateSettings: updateSettingsMock,
+    getManagedSettingSource: (key: string) => key === managedSettingKey
+      ? { sourceGroupName: 'German', sourceGroupId: 'german', locked: true, value: false }
+      : null,
   }),
   useLanguage: () => ({
     langData: testLangData,
@@ -187,6 +191,7 @@ vi.mock('../../../components/common', () => ({
   AlertBanner: (props: { title?: string; message?: string }) => (
     <div>{props.title}{props.message}</div>
   ),
+  ManagedSettingNotice: (props: { sourceGroupName: string }) => <span>Managed by {props.sourceGroupName}</span>,
 }));
 
 describe('ComponentsTab', () => {
@@ -199,6 +204,7 @@ describe('ComponentsTab', () => {
     startInstallMock.mockReset();
     installLanguageDataMock.mockReset();
     languageDataInstallErrorMock = null;
+    managedSettingKey = null;
     testSettings.llmEnabled = true;
     testSettings.ocrEnabled = true;
     testSettings.voiceEnabled = false;
@@ -432,6 +438,18 @@ describe('ComponentsTab', () => {
       includeOCR: true,
       includeVoice: false,
     });
+
+    dispose();
+  });
+
+  it('disables a managed runtime toggle and identifies the source group', async () => {
+    managedSettingKey = 'llmEnabled';
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    const toggles = Array.from(container.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+    expect(toggles[0]?.disabled).toBe(true);
+    expect(container.textContent).toContain('Managed by German');
 
     dispose();
   });

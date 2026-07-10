@@ -10,6 +10,7 @@ const testSettings = {
 let settingsLoading = false;
 
 const languageProviderMock = vi.fn((props: { language?: string; children?: JSX.Element }) => <>{props.children}</>);
+const activeGroupGateMock = vi.fn(() => <div data-testid="active-group-gate" />);
 
 vi.mock('./SettingsContext', () => ({
   SettingsProvider: (props: { children?: JSX.Element }) => <>{props.children}</>,
@@ -67,6 +68,10 @@ vi.mock('../components/cloud/CloudReLoginModal', () => ({
   CloudReLoginModal: () => <div />,
 }));
 
+vi.mock('../components/cloud/ActiveGroupSelector', () => ({
+  ActiveGroupGate: () => activeGroupGateMock(),
+}));
+
 vi.mock('../components/flashcard', () => ({
   FlashcardCreationChoiceModal: () => <div />,
 }));
@@ -100,6 +105,7 @@ describe('WindowWrapper', () => {
     document.body.appendChild(container);
     settingsLoading = false;
     languageProviderMock.mockClear();
+    activeGroupGateMock.mockClear();
   });
 
   afterEach(() => {
@@ -122,6 +128,15 @@ describe('WindowWrapper', () => {
     const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
 
     expect(languageProviderMock).not.toHaveBeenCalled();
+
+    dispose();
+  });
+
+  it('mounts the active group gate once for every window entry', async () => {
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
+
+    expect(activeGroupGateMock).toHaveBeenCalledTimes(1);
 
     dispose();
   });

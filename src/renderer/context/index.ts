@@ -2,7 +2,7 @@
  * Context exports
  */
 
-export { useSettings } from './SettingsContext';
+export { useSettings, useOptionalSettings } from './SettingsContext';
 export { useLanguage } from './LanguageContext';
 export { useFlashcards } from './FlashcardContext';
 export { useServer } from './ServerContext';

@@ -32,6 +32,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.TextAppearance.Font.Label')}
           description={t('mlearn.Settings.Reader.TextAppearance.Font.Description')}
+          settingKey="readerTextFontStyle"
         >
           <Select
             value={settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!}
@@ -48,6 +49,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.TextAppearance.Size.Label')}
           description={t('mlearn.Settings.Reader.TextAppearance.Size.Description')}
+          settingKey="readerTextSize"
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <RangeInput
@@ -80,6 +82,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.TextAppearance.LineHeight.Label')}
           description={t('mlearn.Settings.Reader.TextAppearance.LineHeight.Description')}
+          settingKey="readerTextLineHeight"
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <RangeInput
@@ -111,6 +114,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.TextAppearance.Width.Label')}
           description={t('mlearn.Settings.Reader.TextAppearance.Width.Description')}
+          settingKey="readerTextWidth"
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <RangeInput
@@ -143,6 +147,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.TextAppearance.Margin.Label')}
           description={t('mlearn.Settings.Reader.TextAppearance.Margin.Description')}
+          settingKey="readerTextMargin"
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <RangeInput
@@ -176,6 +181,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.OcrSettings.Enable.Label')}
           description={t('mlearn.Settings.Reader.OcrSettings.Enable.Description')}
+          settingKey="ocrEnabled"
         >
           <ToggleSwitch
             checked={settings.ocrEnabled}
@@ -186,6 +192,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.OcrSettings.CropPadding.Label')}
           description={t('mlearn.Settings.Reader.OcrSettings.CropPadding.Description')}
+          settingKey="ocr_crop_padding"
         >
           <input
             type="number"
@@ -201,6 +208,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.OcrSettings.CropMode.Label')}
           description={t('mlearn.Settings.Reader.OcrSettings.CropMode.Description')}
+          settingKey="readerCropMode"
         >
           <ToggleSwitch
             checked={settings.readerCropMode ?? DEFAULT_SETTINGS.readerCropMode!}
@@ -211,6 +219,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.OcrSettings.DocumentOcr.Label')}
           description={t('mlearn.Settings.Reader.OcrSettings.DocumentOcr.Description')}
+          settingKey="readerDocumentOcr"
         >
           <ToggleSwitch
             checked={settings.readerDocumentOcr ?? DEFAULT_SETTINGS.readerDocumentOcr!}
@@ -222,6 +231,7 @@ export const ReaderTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Label')}
             description={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description')}
+            settingKey="ocrReadingAnnotationFiltering"
           >
             <ToggleSwitch
               checked={ocrReadingAnnotationFilteringEnabled(settings)}
@@ -237,6 +247,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Label')}
           description={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Description')}
+          settingKey="readerWordHoverTrigger"
         >
           <Select
             value={settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger!}
@@ -253,6 +264,7 @@ export const ReaderTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Label')}
             description={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Description')}
+            settingKey="readerWordHoverKey"
           >
             <KeybindInput
               value={settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!}
@@ -268,6 +280,7 @@ export const ReaderTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.Reader.ReadingAnnotations.Hide.Label')}
             description={t('mlearn.Settings.Reader.ReadingAnnotations.Hide.Description')}
+            settingKey="readerReadingAnnotationHider"
           >
             <ToggleSwitch
               checked={readerReadingAnnotationHiderEnabled(settings)}
@@ -283,6 +296,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.Magnifier.Hotkey.Label')}
           description={t('mlearn.Settings.Reader.Magnifier.Hotkey.Description')}
+          settingKey="readerMagnifierHotkey"
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <KeybindInput
@@ -298,6 +312,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.Magnifier.Zoom.Label')}
           description={t('mlearn.Settings.Reader.Magnifier.Zoom.Description')}
+          settingKey="readerMagnifierZoom"
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <RangeInput
@@ -330,6 +345,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.Magnifier.Size.Label')}
           description={t('mlearn.Settings.Reader.Magnifier.Size.Description')}
+          settingKey="readerMagnifierSize"
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <RangeInput
@@ -364,6 +380,7 @@ export const ReaderTab: Component = () => {
         <SettingRow
           label={t('mlearn.Settings.Reader.LlmIntegration.Enable.Label')}
           description={t('mlearn.Settings.Reader.LlmIntegration.Enable.Description')}
+          settingKey="llmEnabled"
         >
           <ToggleSwitch
             checked={settings.llmEnabled}

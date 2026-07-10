@@ -64,3 +64,10 @@
   align-items: flex-start;
   gap: 0.5rem;
 }
+
+.managed-setting-control {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

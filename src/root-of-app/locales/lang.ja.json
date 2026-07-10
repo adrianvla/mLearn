@@ -1,5 +1,16 @@
 {
   "mlearn": {
+    "Management": {
+      "ChooseGroup": "クラスまたはグループを選択",
+      "ChooseGroupDescription": "学習活動と学校ポリシーを適用する場所を選択してください。",
+      "ActiveGroup": "現在のクラスまたはグループ",
+      "SwitchGroup": "グループを切り替える",
+      "ActivatingGroup": "グループを切り替えています",
+      "GroupActivationError": "グループを切り替えられませんでした。アクセス権を確認して、もう一度お試しください。",
+      "GroupLoadError": "学校のグループを読み込めませんでした。",
+      "Retry": "再試行",
+      "ManagedBy": "{group} が管理"
+    },
     "Common": {
       "Status": {
         "Unknown": "未知"

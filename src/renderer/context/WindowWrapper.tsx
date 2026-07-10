@@ -17,6 +17,7 @@ import { Btn, ErrorModal, EulaModal } from '../components/common';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
+import { ActiveGroupGate } from '../components/cloud/ActiveGroupSelector';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { consumePendingFlashcardMigration, setMigrationListenerReady } from './migrationSignals';
 import { createAnkiCacheToastGate } from './windowWrapperNotifications';
@@ -292,6 +293,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
             <GlobalRuntimeRestartModal />
+            <ActiveGroupGate />
             <LowPowerGateProvider>
             <LanguageProviderBridge>
             <MigrationHandler>
