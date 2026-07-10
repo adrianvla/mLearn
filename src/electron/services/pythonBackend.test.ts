@@ -92,6 +92,11 @@ vi.mock('./languageDataService', () => ({
   getLanguageDataRoot: mockGetLanguageDataRoot,
 }));
 
+const mockEnsureLanguagePythonRequirementsInstalled = vi.fn(async () => {});
+vi.mock('./pythonRuntimeRequirements', () => ({
+  ensureLanguagePythonRequirementsInstalled: mockEnsureLanguagePythonRequirementsInstalled,
+}));
+
 type MockReqCallbacks = Record<string, ((...args: unknown[]) => void)[]>;
 
 interface MockHttpReq {
@@ -244,6 +249,31 @@ describe('pythonBackend', () => {
     fs.rmSync('/tmp/test-userdata', { recursive: true, force: true });
     fs.mkdirSync('/tmp/test-userdata', { recursive: true });
     fs.writeFileSync('/tmp/test-userdata/python-version.txt', '1.0.0');
+
+    // Default spawn mock: --version checks complete (close 0), all other
+    // processes stay alive (no close event). The reconciliation pip install
+    // is guarded by pip existence and won't spawn in test mode.
+    mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+      if (Array.isArray(args) && args[0] === '--version') {
+        return {
+          stdout: { on: vi.fn() },
+          stderr: { on: vi.fn() },
+          on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+            if (event === 'close') handler(0);
+          }),
+          kill: vi.fn(),
+          killed: false,
+        };
+      }
+      return {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        kill: vi.fn(),
+        killed: false,
+      };
+    });
+    mockEnsureLanguagePythonRequirementsInstalled.mockResolvedValue(undefined);
 
     mod = await import('./pythonBackend');
   });

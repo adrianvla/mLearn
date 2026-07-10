@@ -13,6 +13,7 @@ import { ipcMain, app } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, DEFAULT_RUNTIME_CATALOG_URL, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
 import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress, RuntimeCatalog, RuntimeCatalogEntry } from '../../shared/types';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import {
   getResourcePath,
   getAppPath,
@@ -29,6 +30,7 @@ import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
 import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFeatures';
 import { getPythonExecutableCandidates } from './pythonRuntimePaths';
+import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
 import { downloadFileWithProgress } from '../utils/downloadManager';
 
 const pyLog = getLogger('python');
@@ -992,6 +994,67 @@ function verifyPythonExecutable(pythonPath: string): Promise<boolean> {
   });
 }
 
+/**
+ * Reconcile pip packages for currently-enabled components into the existing
+ * Python env. Called on startup when a healthy runtime already exists (e.g.
+ * after the user toggles a component on and restarts). pip is idempotent —
+ * already-installed packages are skipped near-instantly — so this is safe to
+ * run on every startup and only installs what's actually missing.
+ */
+async function reconcileComponentPackages(): Promise<void> {
+  const pipExecutable = resolvePipExecutablePath();
+  if (!fs.existsSync(pipExecutable)) return;
+
+  const settings = loadSettings();
+  const options: InstallOptions = {
+    includeLLM: settings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled,
+    includeOCR: settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled,
+    includeVoice: settings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled,
+  };
+
+  const packages = buildPipRequirementList(options);
+  if (packages.length === 0) return;
+
+  log.info(`Reconciling ${packages.length} component packages...`);
+
+  const pipArgs = isWindows
+    ? ['-m', 'pip', 'install', ...packages]
+    : ['install', ...packages];
+
+  await new Promise<void>((resolve, reject) => {
+    const pipProcess = spawn(
+      isWindows ? resolvePythonExecutablePath() : pipExecutable,
+      pipArgs,
+      { cwd: envPath },
+    );
+    pipProcess.stdout.on('data', (data) => {
+      log.info(`reconcile pip: ${data.toString().trim()}`);
+    });
+    pipProcess.stderr.on('data', (data) => {
+      log.warn(`reconcile pip: ${data.toString().trim()}`);
+    });
+    pipProcess.on('error', reject);
+    pipProcess.on('close', (code) => {
+      if (code === 0 || code === null) {
+        log.info('Component package reconciliation complete');
+        resolve();
+      } else {
+        reject(new Error(`Component reconciliation pip install exited ${code}`));
+      }
+    });
+  });
+
+  // Also reconcile language-level requirements for the active language
+  const language = settings.language;
+  if (language) {
+    try {
+      await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), options);
+    } catch (e) {
+      log.warn(`Language requirement reconciliation failed for ${language}:`, e);
+    }
+  }
+}
+
 export async function findPython(): Promise<boolean> {
   log.info('Finding Python...');
 
@@ -1032,6 +1095,15 @@ export async function findPython(): Promise<boolean> {
         waitingForInstallChoice = false;
         isFirstTimeSetup = false;
         pythonSuccessInstall = true;
+
+        // Install pip packages for any components enabled since the last install.
+        // Non-fatal: the backend still starts if this fails.
+        try {
+          await reconcileComponentPackages();
+        } catch (e) {
+          log.warn('Component package reconciliation failed:', e);
+        }
+
         return await pythonFound();
       }
       log.warn('Python binary exists but is not healthy:', pythonPath);
