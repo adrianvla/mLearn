@@ -63,7 +63,64 @@ impl EndpointResolver for TokioEndpointResolver {
     }
 }
 
-pub fn validate_base_url(kind: ProviderKind, value: &str) -> Result<String, AppError> {
+#[derive(Clone)]
+pub(crate) struct PinnedEndpoint {
+    client: reqwest::Client,
+    base_url: Url,
+}
+
+impl PinnedEndpoint {
+    pub(crate) async fn resolve(
+        kind: ProviderKind,
+        value: &str,
+        resolver: &dyn EndpointResolver,
+    ) -> Result<Self, AppError> {
+        let validated = validate_base_url(kind, value)?;
+        let base_url = Url::parse(&validated)
+            .map_err(|_| AppError::BadRequest("provider base URL is invalid".into()))?;
+        let host = base_url
+            .host_str()
+            .ok_or_else(|| AppError::BadRequest("provider base URL requires a host".into()))?;
+        let targets = resolve_public_targets(kind, &validated, resolver).await?;
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .resolve_to_addrs(host, &targets)
+            .build()
+            .map_err(|_| {
+                AppError::Internal("pinned provider client initialization failed".into())
+            })?;
+        Ok(Self { client, base_url })
+    }
+
+    pub(crate) fn request(
+        &self,
+        method: reqwest::Method,
+        relative_path: &str,
+    ) -> Result<reqwest::RequestBuilder, AppError> {
+        let relative_path = relative_path.trim_matches('/');
+        if relative_path.is_empty()
+            || relative_path.contains(['?', '#', '\\', '%'])
+            || relative_path.split('/').any(|segment| {
+                segment.is_empty()
+                    || matches!(segment, "." | "..")
+                    || segment.eq_ignore_ascii_case("%2e")
+                    || segment.eq_ignore_ascii_case("%2e%2e")
+            })
+            || Url::parse(relative_path).is_ok()
+        {
+            return Err(AppError::BadRequest(
+                "provider request path must be a safe relative path".into(),
+            ));
+        }
+        let mut url = self.base_url.clone();
+        let base_path = url.path().trim_end_matches('/');
+        url.set_path(&format!("{base_path}/{relative_path}"));
+        Ok(self.client.request(method, url))
+    }
+}
+
+pub(crate) fn validate_base_url(kind: ProviderKind, value: &str) -> Result<String, AppError> {
     let url = Url::parse(value)
         .map_err(|_| AppError::BadRequest("provider base URL is invalid".into()))?;
     if !url.username().is_empty()
@@ -186,4 +243,178 @@ fn forbidden_v6(ip: Ipv6Addr) -> bool {
         || (ip.segments()[0] & 0xfe00) == 0xfc00
         || (ip.segments()[0] & 0xffc0) == 0xfe80
         || matches!(ip.to_ipv4_mapped(), Some(v4) if forbidden_v4(v4))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::VecDeque,
+        future::Future,
+        net::SocketAddr,
+        pin::Pin,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc, Mutex,
+        },
+    };
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    use super::{EndpointResolver, PinnedEndpoint, ProviderKind};
+
+    struct FixedResolver(Vec<SocketAddr>);
+
+    impl EndpointResolver for FixedResolver {
+        fn resolve<'a>(
+            &'a self,
+            _host: &'a str,
+            _port: u16,
+        ) -> Pin<
+            Box<dyn Future<Output = Result<Vec<SocketAddr>, crate::error::AppError>> + Send + 'a>,
+        > {
+            let targets = self.0.clone();
+            Box::pin(async move { Ok(targets) })
+        }
+    }
+
+    struct ChangingResolver(Mutex<VecDeque<Vec<SocketAddr>>>);
+
+    impl EndpointResolver for ChangingResolver {
+        fn resolve<'a>(
+            &'a self,
+            _host: &'a str,
+            _port: u16,
+        ) -> Pin<
+            Box<dyn Future<Output = Result<Vec<SocketAddr>, crate::error::AppError>> + Send + 'a>,
+        > {
+            Box::pin(async move {
+                self.0.lock().unwrap().pop_front().ok_or_else(|| {
+                    crate::error::AppError::Internal("test resolver exhausted".into())
+                })
+            })
+        }
+    }
+
+    async fn response_server(
+        status: &str,
+        headers: &str,
+        body: &str,
+    ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let response = format!(
+            "HTTP/1.1 {status}\r\nContent-Length: {}\r\n{headers}\r\n{body}",
+            body.len()
+        );
+        let handle = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let _ = socket.read(&mut request).await.unwrap();
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        (address, handle)
+    }
+
+    async fn tracked_server(
+        body: &'static str,
+    ) -> (SocketAddr, Arc<AtomicBool>, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let connected = Arc::new(AtomicBool::new(false));
+        let connected_for_task = connected.clone();
+        let handle = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            connected_for_task.store(true, Ordering::SeqCst);
+            let mut request = [0_u8; 4096];
+            let _ = socket.read(&mut request).await.unwrap();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        (address, connected, handle)
+    }
+
+    #[tokio::test]
+    async fn pinned_endpoint_retains_hostname_and_rejects_absolute_request_targets() {
+        let endpoint = PinnedEndpoint::resolve(
+            ProviderKind::Ollama,
+            "http://ollama:11434",
+            &FixedResolver(vec!["127.0.0.1:11434".parse().unwrap()]),
+        )
+        .await
+        .unwrap();
+        let request = endpoint
+            .request(reqwest::Method::POST, "api/chat")
+            .unwrap()
+            .build()
+            .unwrap();
+        assert_eq!(request.url().host_str(), Some("ollama"));
+        assert_eq!(request.url().path(), "/api/chat");
+        assert!(endpoint
+            .request(reqwest::Method::GET, "http://127.0.0.1/metadata")
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn dns_changes_after_validation_cannot_change_the_connection_target() {
+        let (first, first_server) = response_server("200 OK", "", "first").await;
+        let (second, second_connected, second_server) = tracked_server("second").await;
+        let resolver = ChangingResolver(Mutex::new(VecDeque::from([vec![first], vec![second]])));
+        let endpoint = PinnedEndpoint::resolve(
+            ProviderKind::Ollama,
+            &format!("http://ollama:{}", first.port()),
+            &resolver,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            resolver.resolve("ollama", first.port()).await.unwrap(),
+            vec![second]
+        );
+
+        let body = endpoint
+            .request(reqwest::Method::GET, "api/status")
+            .unwrap()
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert_eq!(body, "first");
+        assert!(!second_connected.load(Ordering::SeqCst));
+        second_server.abort();
+        first_server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn redirect_to_private_target_is_never_followed() {
+        let (private, private_connected, private_server) = tracked_server("private").await;
+        let (source, source_server) = response_server(
+            "302 Found",
+            &format!("Location: http://{private}/metadata\r\n"),
+            "",
+        )
+        .await;
+        let endpoint = PinnedEndpoint::resolve(
+            ProviderKind::Ollama,
+            &format!("http://ollama:{}", source.port()),
+            &FixedResolver(vec![source]),
+        )
+        .await
+        .unwrap();
+
+        let response = endpoint
+            .request(reqwest::Method::GET, "api/status")
+            .unwrap()
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::FOUND);
+        assert!(!private_connected.load(Ordering::SeqCst));
+        private_server.abort();
+        source_server.await.unwrap();
+    }
 }

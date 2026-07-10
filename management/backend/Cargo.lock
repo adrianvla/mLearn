@@ -1256,6 +1256,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-util",
  "hex",
+ "hmac",
  "include_dir",
  "jsonwebtoken",
  "libc",

@@ -53,6 +53,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 libc = "0.2"
 sha2 = "0.10"
+hmac = "0.12"
 subtle = "2.6"
 hex = "0.4"
 

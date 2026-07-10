@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -15,8 +15,8 @@ use crate::{
     policy::compiler::compile_in_transaction,
 };
 
-use super::endpoint::{resolve_public_targets, EndpointResolver, TokioEndpointResolver};
-pub use super::endpoint::{validate_base_url, ProviderKind};
+pub use super::endpoint::ProviderKind;
+use super::endpoint::{validate_base_url, EndpointResolver, PinnedEndpoint, TokioEndpointResolver};
 
 const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
 
@@ -87,14 +87,13 @@ impl ResolvedSecret {
 pub(crate) struct ResolvedLlmRoute {
     pub(crate) provider_id: String,
     pub(crate) provider_kind: ProviderKind,
-    pub(crate) base_url: String,
     #[allow(dead_code)] // Consumed by the streaming provider adapter in LLM Gateway Task 3.
     pub(crate) secret: Option<ResolvedSecret>,
     pub(crate) model: String,
     pub(crate) prompt_profile_id: Option<String>,
     pub(crate) price_version: ProviderPriceVersion,
     #[allow(dead_code)] // Consumed by the streaming provider adapter in LLM Gateway Task 3.
-    pub(crate) pinned_targets: Vec<SocketAddr>,
+    pub(crate) endpoint: PinnedEndpoint,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -153,13 +152,16 @@ impl LlmConfigurationService {
         validate_label("provider name", name, 120)?;
         let base_url = validate_base_url(kind, base_url)?;
         validate_secret(secret)?;
-        let payload_hash = mutation_payload_hash(&[
-            group_id,
-            name.trim(),
-            kind.as_str(),
-            &base_url,
-            secret.unwrap_or(""),
-        ]);
+        let payload_hash = self.cipher.idempotency_fingerprint(
+            "llm.provider.create",
+            &[
+                group_id,
+                name.trim(),
+                kind.as_str(),
+                &base_url,
+                secret.unwrap_or(""),
+            ],
+        );
         let mut tx = self
             .pool
             .begin_with("BEGIN IMMEDIATE")
@@ -226,7 +228,10 @@ impl LlmConfigurationService {
     ) -> Result<LlmProvider, AppError> {
         require_human(principal)?;
         validate_secret(secret)?;
-        let payload_hash = mutation_payload_hash(&[provider_id, secret.unwrap_or("")]);
+        let payload_hash = self.cipher.idempotency_fingerprint(
+            "llm.provider.secret.rotate",
+            &[provider_id, secret.unwrap_or("")],
+        );
         let mut tx = self
             .pool
             .begin_with("BEGIN IMMEDIATE")
@@ -980,18 +985,17 @@ impl LlmConfigurationService {
             .transpose()?;
         let base_url: String = row.get("base_url");
         let provider_kind = ProviderKind::parse(row.get("provider_kind"))?;
-        let pinned_targets =
-            resolve_public_targets(provider_kind, &base_url, self.resolver.as_ref()).await?;
+        let endpoint =
+            PinnedEndpoint::resolve(provider_kind, &base_url, self.resolver.as_ref()).await?;
         tx.commit().await.map_err(database_error)?;
         Ok(ResolvedLlmRoute {
             provider_id,
             provider_kind,
-            base_url,
             secret,
             model: row.get("upstream_model"),
             prompt_profile_id,
             price_version: price_from_row(&price_row),
-            pinned_targets,
+            endpoint,
         })
     }
 }
