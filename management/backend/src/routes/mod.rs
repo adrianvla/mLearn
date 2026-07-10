@@ -7,6 +7,7 @@ pub mod config;
 pub mod distribution;
 pub mod groups;
 pub mod llm_gateway;
+pub mod llm_configuration;
 pub mod logs;
 pub mod overview;
 pub mod policies;

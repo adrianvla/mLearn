@@ -100,6 +100,9 @@ See [`.env.example`](.env.example) for the full list with documentation.
 | `MLEARN_MANAGEMENT_PUBLIC_URL` | `http://127.0.0.1:3000` | Navigable browser origin used in desktop login links. Set this to the external HTTPS origin behind a reverse proxy |
 | `MLEARN_MANAGEMENT_TOKEN` | _(empty)_ | Admin token for API auth. Generated on first boot if empty |
 | `MLEARN_MANAGEMENT_TOKEN_HASH` | _(empty)_ | Pre-hashed token (SHA-256 hex). Takes precedence over plaintext |
+| `MLEARN_ENCRYPTION_KEY_PATH` | `/data/encryption-key` | Protected persistent 32-byte AES key; generated atomically with mode `0600` when absent |
+| `MLEARN_ENCRYPTION_KEY` | _(empty)_ | Optional externally managed key using `hex:` or unpadded `base64url:` encoding |
+| `MLEARN_POLICY_SIGNING_KEY_PATH` | `/data/policy-signing-key` | Protected persistent Ed25519 policy-signing key |
 | `MLEARN_ENV` | `production` | `production` (fail-closed auth) or `development` |
 | `MLEARN_DEPLOYMENT_MODE` | `self-hosted` | `local-only`, `self-hosted`, or `cloud-connected` |
 
@@ -111,6 +114,8 @@ See [`.env.example`](.env.example) for the full list with documentation.
 - **Secret redaction.** The backend redacts secrets from all API responses and log lines before sending them to the frontend. Key names matching `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, etc. and values matching API key patterns (`sk-...`, `AKIA...`, JWTs, long hex/base64) are masked.
 - **Scoped to mLearn project.** Container actions are validated against the `com.docker.compose.project` label. Actions on non-mLearn containers are rejected.
 - **No destructive operations in v1.** Volume deletion, container removal, and image pruning are intentionally not implemented.
+- **Encrypted provider credentials.** Provider secrets use AES-256-GCM with a random nonce and entity-bound associated data. API responses expose only `hasSecret`; health validation never returns a credential or performs an outbound request.
+- **Back up keys with the database.** Back up `/data/encryption-key`, `/data/policy-signing-key`, and `/data/management.db` together. A lost encryption key cannot be reconstructed and encrypted provider credentials cannot be recovered from the database alone.
 
 ## Docker Socket Assumptions
 

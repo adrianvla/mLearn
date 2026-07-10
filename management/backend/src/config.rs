@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use crate::auth::hash_token;
+use secrecy::SecretString;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnvMode {
@@ -45,6 +46,8 @@ pub struct Config {
     pub compose_project: String,
     pub management_db_path: String,
     pub policy_signing_key_path: String,
+    pub encryption_key_path: String,
+    pub encryption_key: Option<SecretString>,
     pub token_hash: Option<[u8; 32]>,
     pub env_mode: EnvMode,
     pub deployment_mode: DeploymentMode,
@@ -85,6 +88,11 @@ impl Config {
             "MLEARN_POLICY_SIGNING_KEY_PATH",
             default_policy_signing_key_path().as_str(),
         );
+        let encryption_key_path = env_or_default(
+            "MLEARN_ENCRYPTION_KEY_PATH",
+            default_encryption_key_path().as_str(),
+        );
+        let encryption_key = env_nonempty("MLEARN_ENCRYPTION_KEY").map(SecretString::from);
 
         let env_mode = EnvMode::parse(&env_or_default("MLEARN_ENV", "production"));
         let deployment_mode = env_or_default("MLEARN_DEPLOYMENT_MODE", "self-hosted");
@@ -116,6 +124,8 @@ impl Config {
             compose_project,
             management_db_path,
             policy_signing_key_path,
+            encryption_key_path,
+            encryption_key,
             token_hash,
             env_mode,
             deployment_mode,
@@ -140,6 +150,23 @@ impl Config {
 
     pub fn fail_closed(&self) -> bool {
         self.env_mode == EnvMode::Production && self.token_hash.is_none()
+    }
+}
+
+fn default_encryption_key_path() -> String {
+    if cfg!(test) {
+        return std::env::temp_dir()
+            .join(format!(
+                "mlearn-encryption-key-tests-{}",
+                std::process::id()
+            ))
+            .to_string_lossy()
+            .into_owned();
+    }
+    if cfg!(debug_assertions) {
+        "encryption-key".into()
+    } else {
+        "/data/encryption-key".into()
     }
 }
 
@@ -412,6 +439,8 @@ mod tests {
             compose_project: "mlearn".to_string(),
             management_db_path: "management.db".to_string(),
             policy_signing_key_path: "policy-signing-key".to_string(),
+            encryption_key_path: "encryption-key".to_string(),
+            encryption_key: None,
             token_hash: Some([0u8; 32]),
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::SelfHosted,

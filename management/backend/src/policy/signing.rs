@@ -1,8 +1,4 @@
-use std::{
-    fs::{self, OpenOptions},
-    io::{ErrorKind, Read, Write},
-    path::{Path, PathBuf},
-};
+use std::{io::ErrorKind, path::Path};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 #[cfg(test)]
@@ -15,6 +11,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     error::AppError,
     policy::{validate_setting_rule, PolicyDocument},
+    secret_file,
 };
 
 #[derive(Clone)]
@@ -34,16 +31,17 @@ pub struct PolicyPublicKey {
 impl PolicySigner {
     pub fn load_or_generate(path: impl AsRef<Path>) -> Result<Self, AppError> {
         let path = path.as_ref();
-        match read_key(path) {
-            Ok(key) => return Ok(Self::from_signing_key(key)),
+        match secret_file::read_32(path, "policy signing key") {
+            Ok(key) => return Ok(Self::from_signing_key(SigningKey::from_bytes(&key))),
             Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => return Err(key_error("read", path, error)),
         }
 
         let signing_key = SigningKey::generate(&mut OsRng);
-        persist_new_key(path, &signing_key)?;
-        let signing_key = read_key(path).map_err(|error| key_error("read", path, error))?;
-        Ok(Self::from_signing_key(signing_key))
+        secret_file::persist_new_32(path, &signing_key.to_bytes(), "policy signing key")?;
+        let signing_key = secret_file::read_32(path, "policy signing key")
+            .map_err(|error| key_error("read", path, error))?;
+        Ok(Self::from_signing_key(SigningKey::from_bytes(&signing_key)))
     }
 
     pub fn public_key(&self) -> PolicyPublicKey {
@@ -116,94 +114,6 @@ fn canonical_unsigned_bytes(snapshot: &PolicyDocument) -> Result<Vec<u8>, AppErr
 fn canonical_json_bytes(value: &impl Serialize) -> Result<Vec<u8>, AppError> {
     serde_json_canonicalizer::to_vec(value)
         .map_err(|error| AppError::Internal(format!("policy canonicalization failed: {error}")))
-}
-
-fn read_key(path: &Path) -> std::io::Result<SigningKey> {
-    #[cfg(not(unix))]
-    {
-        if fs::symlink_metadata(path)?.file_type().is_symlink() {
-            return Err(std::io::Error::new(
-                ErrorKind::PermissionDenied,
-                "refusing policy signing key symlink",
-            ));
-        }
-    }
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK);
-    }
-    let mut file = options.open(path)?;
-    let metadata = file.metadata()?;
-    if !metadata.file_type().is_file() {
-        return Err(std::io::Error::new(
-            ErrorKind::InvalidData,
-            "policy signing key must be a regular file",
-        ));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        file.set_permissions(fs::Permissions::from_mode(0o600))?;
-        if file.metadata()?.permissions().mode() & 0o7777 != 0o600 {
-            return Err(std::io::Error::new(
-                ErrorKind::PermissionDenied,
-                "policy signing key permissions must be 0600",
-            ));
-        }
-    }
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)?;
-    let bytes: [u8; 32] = bytes.try_into().map_err(|_| {
-        std::io::Error::new(
-            ErrorKind::InvalidData,
-            "policy signing key must be 32 bytes",
-        )
-    })?;
-    Ok(SigningKey::from_bytes(&bytes))
-}
-
-fn persist_new_key(path: &Path, signing_key: &SigningKey) -> Result<(), AppError> {
-    let parent = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty());
-    if let Some(parent) = parent {
-        fs::create_dir_all(parent)
-            .map_err(|error| key_error("create directory for", path, error))?;
-    }
-    let temp_path = temporary_key_path(path);
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options
-        .open(&temp_path)
-        .map_err(|error| key_error("create temporary", path, error))?;
-    let result = (|| {
-        file.write_all(&signing_key.to_bytes())?;
-        file.sync_all()?;
-        match fs::hard_link(&temp_path, path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => Ok(()),
-            Err(error) => Err(error),
-        }
-    })();
-    drop(file);
-    let _ = fs::remove_file(&temp_path);
-    result.map_err(|error| key_error("persist", path, error))
-}
-
-fn temporary_key_path(path: &Path) -> PathBuf {
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("policy-signing-key");
-    path.with_file_name(format!(".{file_name}.{}.tmp", uuid::Uuid::now_v7()))
 }
 
 fn key_error(action: &str, path: &Path, error: std::io::Error) -> AppError {
