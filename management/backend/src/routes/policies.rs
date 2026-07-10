@@ -336,6 +336,39 @@ mod tests {
     async fn current_session_receives_a_signed_policy_for_its_active_group() {
         let fixture = GroupFixture::german_tree().await;
         let (app, token) = policy_app(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"settings":{"subtitle_font_size":{"value":1e20,"locked":true}}}),
+            )
+            .await
+            .unwrap();
+        service
+            .publish(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                "numeric JCS policy",
+            )
+            .await
+            .unwrap();
+
+        let public_key_response = app
+            .clone()
+            .oneshot(
+                Request::get("/api/policy/public-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let public_key_body: Value = serde_json::from_slice(
+            &to_bytes(public_key_response.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
 
         let response = app
             .oneshot(
@@ -353,6 +386,7 @@ mod tests {
                 .unwrap();
         assert_eq!(body["activeGroupId"], fixture.german_a);
         assert!(!body["keyId"].as_str().unwrap().is_empty());
+        assert_eq!(body["keyId"], public_key_body["keyId"]);
         assert!(!body["signature"].as_str().unwrap().is_empty());
         let issued_at = time::OffsetDateTime::parse(
             body["issuedAt"].as_str().unwrap(),
@@ -366,6 +400,27 @@ mod tests {
         .unwrap();
         assert!(expires_at > issued_at);
         assert!(expires_at - issued_at <= time::Duration::minutes(15));
+
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+        let public_key: [u8; 32] = URL_SAFE_NO_PAD
+            .decode(public_key_body["publicKey"].as_str().unwrap())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let signature = Signature::from_slice(
+            &URL_SAFE_NO_PAD
+                .decode(body["signature"].as_str().unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        let mut unsigned = body;
+        unsigned.as_object_mut().unwrap().remove("signature");
+        let canonical = serde_json_canonicalizer::to_vec(&unsigned).unwrap();
+        assert!(VerifyingKey::from_bytes(&public_key)
+            .unwrap()
+            .verify(&canonical, &signature)
+            .is_ok());
     }
 
     #[tokio::test]
