@@ -90,15 +90,21 @@ vi.mock('./cloudSessionManager', () => ({
   withCloudAuth: (op: unknown, options?: unknown) => mockWithCloudAuth(op, options),
 }));
 
+const mockBuiltinModelReady = vi.fn(() => true);
+
+vi.mock('../context/llmModelSignals', () => ({
+  builtinModelReady: () => mockBuiltinModelReady(),
+}));
+
 // ============================================================================
 // Helpers
 // ============================================================================
 
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
   return {
-    llmConfigured: true,
     llmProvider: 'builtin',
     llmEnabled: true,
+    cloudAuthStatus: 'signed-in',
     ...overrides,
   } as Settings;
 }
@@ -376,10 +382,11 @@ describe('llmProvider', () => {
   // --------------------------------------------------------------------------
 
   describe('checkAvailability', () => {
-    it('returns not_configured when llmConfigured is false', async () => {
+    it('returns auth_required when cloud has no access token', async () => {
+      mockEnsureCloudAccessToken.mockResolvedValueOnce(null);
       const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmConfigured: false }));
-      expect(result).toEqual({ available: false, reason: 'not_configured' });
+      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
+      expect(result).toEqual({ available: false, reason: 'auth_required' });
     });
 
     it('checks built-in model via bridge.llm.llmCheckModel', async () => {
@@ -1083,18 +1090,56 @@ describe('llmProvider', () => {
   });
 
   // --------------------------------------------------------------------------
+  // isLLMReady
+  // --------------------------------------------------------------------------
+
+  describe('isLLMReady', () => {
+    it('returns false when llmEnabled is false', async () => {
+      const { isLLMReady } = await import('./llmProvider');
+      expect(isLLMReady(makeSettings({ llmEnabled: false }))).toBe(false);
+    });
+
+    it('returns true for cloud when signed in', async () => {
+      const { isLLMReady } = await import('./llmProvider');
+      expect(isLLMReady(makeSettings({ llmProvider: 'cloud', cloudAuthStatus: 'signed-in' }))).toBe(true);
+    });
+
+    it('returns false for cloud when signed out', async () => {
+      const { isLLMReady } = await import('./llmProvider');
+      expect(isLLMReady(makeSettings({ llmProvider: 'cloud', cloudAuthStatus: 'signed-out' }))).toBe(false);
+    });
+
+    it('returns true for ollama regardless of model state', async () => {
+      const { isLLMReady } = await import('./llmProvider');
+      expect(isLLMReady(makeSettings({ llmProvider: 'ollama' }))).toBe(true);
+    });
+
+    it('returns true for builtin when model is downloaded', async () => {
+      mockBuiltinModelReady.mockReturnValue(true);
+      const { isLLMReady } = await import('./llmProvider');
+      expect(isLLMReady(makeSettings({ llmProvider: 'builtin' }))).toBe(true);
+    });
+
+    it('returns false for builtin when model is not downloaded', async () => {
+      mockBuiltinModelReady.mockReturnValue(false);
+      const { isLLMReady } = await import('./llmProvider');
+      expect(isLLMReady(makeSettings({ llmProvider: 'builtin' }))).toBe(false);
+    });
+  });
+
+  // --------------------------------------------------------------------------
   // requiresSetup
   // --------------------------------------------------------------------------
 
   describe('requiresSetup', () => {
-    it('returns true when llmConfigured is false', async () => {
+    it('returns false when the provider is ready', async () => {
       const { requiresSetup } = await import('./llmProvider');
-      expect(requiresSetup(makeSettings({ llmConfigured: false }))).toBe(true);
+      expect(requiresSetup(makeSettings({ llmProvider: 'ollama' }))).toBe(false);
     });
 
-    it('returns false when llmConfigured is true', async () => {
+    it('returns true when the provider is not ready', async () => {
       const { requiresSetup } = await import('./llmProvider');
-      expect(requiresSetup(makeSettings({ llmConfigured: true }))).toBe(false);
+      expect(requiresSetup(makeSettings({ llmProvider: 'cloud', cloudAuthStatus: 'signed-out' }))).toBe(true);
     });
   });
 });

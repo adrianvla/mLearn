@@ -792,7 +792,6 @@ export const ConversationContent: Component = () => {
     const provider = settings.llmProvider;
     void settings.ollamaUrl;
     void settings.ollamaModel;
-    void settings.llmConfigured;
     void settings.cloudAuthAccessToken;
     void settings.cloudAuthToken;
     void settings.cloudAuthStatus;

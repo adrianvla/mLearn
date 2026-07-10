@@ -316,9 +316,6 @@ export interface Settings {
   /** Low battery mode: intercepts local neural network calls (LLM, TTS, OCR) with a user prompt */
   lowBatteryMode: boolean;
 
-  /** Whether the user has completed initial LLM provider setup */
-  llmConfigured: boolean;
-
   // OCR settings
   ocr_crop_padding: number;
   /** Use lightweight OCR detection to reduce memory usage (only visible for languages that support it) */
@@ -602,7 +599,6 @@ export const DEFAULT_SETTINGS: Settings = {
   passiveHoverFailCount: 1,
   passiveHoverFailAction: 'decrease-ease',
   passiveHoverEaseDecrease: 0.05,
-  llmConfigured: false,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: '',

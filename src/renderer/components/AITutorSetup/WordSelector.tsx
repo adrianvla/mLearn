@@ -17,7 +17,7 @@ import { useLocalization, useSettings, useLowPowerGate } from '../../context';
 import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
-import { streamChat } from '../../services/llmProvider';
+import { streamChat, isLLMReady } from '../../services/llmProvider';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, getLanguagePromptName, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { resolveWordSelectorLanguageData } from './wordSelectorLanguage';
@@ -356,7 +356,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     const topic = topicInput().trim();
     if (!topic || isGenerating()) return;
 
-    if (!settings.llmEnabled || !settings.llmConfigured) {
+    if (!isLLMReady(settings)) {
       setGenerationError(t('mlearn.AITutorSetup.LLMNotConfigured'));
       return;
     }
@@ -535,7 +535,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
         </div>
 
         {/* LLM vocabulary generation */}
-        <Show when={settings.llmEnabled && settings.llmConfigured}>
+        <Show when={isLLMReady(settings)}>
           <div class="word-selector__generate-section">
             <div class="word-selector__generate-row">
               <Input

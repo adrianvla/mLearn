@@ -75,7 +75,6 @@ const builtinModels = [
 
 type TestSettings = {
   llmProvider: 'builtin' | 'ollama' | 'cloud';
-  llmConfigured: boolean;
   builtinModel: string;
   builtinModelAutoselected: boolean;
   ollamaUrl: string;
@@ -232,7 +231,6 @@ describe('AITab', () => {
 
     const [store, setStore] = createStore<TestSettings>({
       llmProvider: 'builtin',
-      llmConfigured: true,
       builtinModel: 'small.gguf',
       builtinModelAutoselected: true,
       ollamaUrl: 'http://localhost:11434',
