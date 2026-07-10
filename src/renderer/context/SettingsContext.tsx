@@ -68,6 +68,20 @@ function normalizeSignedOutActiveGroup<T extends Partial<Settings>>(value: T): T
   };
 }
 
+function mergePendingSettings(
+  pending: Partial<Settings> | null,
+  partial: Partial<Settings>,
+  effectiveStatus: Settings['cloudAuthStatus'],
+): Partial<Settings> {
+  const merged = { ...pending, ...partial };
+  if (effectiveStatus !== 'signed-out') return merged;
+  return {
+    ...merged,
+    cloudAuthActiveGroupId: DEFAULT_SETTINGS.cloudAuthActiveGroupId,
+    cloudAuthActiveGroupName: DEFAULT_SETTINGS.cloudAuthActiveGroupName,
+  };
+}
+
 export const SettingsProvider: ParentComponent = (props) => {
   const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS });
   const [isLoading, setIsLoading] = createSignal(true);
@@ -322,14 +336,10 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Update a single setting
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     const currentSettings = serializeSettings(settings as Settings);
-    const nextSettings = {
+    const nextSettings = normalizeSignedOutActiveGroup({
       ...currentSettings,
       [key]: value,
-    } as Settings;
-    if (key === 'cloudAuthStatus' && value === 'signed-out') {
-      nextSettings.cloudAuthActiveGroupId = DEFAULT_SETTINGS.cloudAuthActiveGroupId;
-      nextSettings.cloudAuthActiveGroupName = DEFAULT_SETTINGS.cloudAuthActiveGroupName;
-    }
+    } as Settings);
     const changedKeys = getChangedKeys(currentSettings, nextSettings, [key]);
 
     setSettings(reconcile(nextSettings));
@@ -339,10 +349,11 @@ export const SettingsProvider: ParentComponent = (props) => {
     maybeClearAnkiCache(changedKeys);
 
     if (!hasLoaded()) {
-      pendingSettingsSnapshot = normalizeSignedOutActiveGroup({
-        ...pendingSettingsSnapshot,
-        [key]: value,
-      });
+      pendingSettingsSnapshot = mergePendingSettings(
+        pendingSettingsSnapshot,
+        { [key]: value } as Partial<Settings>,
+        nextSettings.cloudAuthStatus,
+      );
       return;
     }
 
@@ -352,12 +363,11 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Update multiple settings
   const updateSettings = (partial: Partial<Settings>) => {
     const currentSettings = serializeSettings(settings as Settings);
-    const normalizedPartial = normalizeSignedOutActiveGroup(partial);
-    const nextSettings = {
+    const nextSettings = normalizeSignedOutActiveGroup({
       ...currentSettings,
-      ...normalizedPartial,
-    } as Settings;
-    const changedKeys = getChangedKeys(currentSettings, nextSettings, Object.keys(normalizedPartial) as (keyof Settings)[]);
+      ...partial,
+    } as Settings);
+    const changedKeys = getChangedKeys(currentSettings, nextSettings, Object.keys(partial) as (keyof Settings)[]);
 
     setSettings(reconcile(nextSettings));
     syncCloudState(nextSettings);
@@ -366,7 +376,11 @@ export const SettingsProvider: ParentComponent = (props) => {
     maybeClearAnkiCache(changedKeys);
 
     if (!hasLoaded()) {
-      pendingSettingsSnapshot = { ...pendingSettingsSnapshot, ...normalizedPartial };
+      pendingSettingsSnapshot = mergePendingSettings(
+        pendingSettingsSnapshot,
+        partial,
+        nextSettings.cloudAuthStatus,
+      );
       return;
     }
 
