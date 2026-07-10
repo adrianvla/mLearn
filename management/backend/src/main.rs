@@ -355,6 +355,7 @@ fn build_router(state: AppState) -> Router {
         .merge(routes::policies::router(state.clone()))
         .merge(routes::llm_configuration::router(state.clone()))
         .merge(routes::quotas::router(state.clone()))
+        .merge(routes::llm_gateway::router(state.clone()))
         .merge(protected)
         .fallback(static_handler::serve_spa)
         .layer(TraceLayer::new_for_http())
