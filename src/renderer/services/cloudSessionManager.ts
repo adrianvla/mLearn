@@ -265,6 +265,10 @@ function requestCloudSessionRecovery(openModal: boolean = true): Promise<string 
   return pendingSessionRecovery.promise;
 }
 
+function requestGroupReadyCloudSessionRecovery(openModal: boolean): Promise<string | null> {
+  return requestCloudSessionRecovery(openModal).then(requireActiveManagementGroupIfPresent);
+}
+
 export function syncCloudSessionState(settings: Settings): void {
   const accessToken = resolveCloudAccessToken(settings);
 
@@ -316,7 +320,7 @@ export async function ensureCloudAccessToken(
       return null;
     }
 
-    return requestCloudSessionRecovery(true);
+    return requestGroupReadyCloudSessionRecovery(true);
   }
 
   if (!options.forceRefresh && currentToken && initialSettings && !isCloudAccessTokenExpiringSoon(initialSettings, CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS)) {
@@ -332,11 +336,11 @@ export async function ensureCloudAccessToken(
       return null;
     }
 
-    return requestCloudSessionRecovery(true);
+    return requestGroupReadyCloudSessionRecovery(true);
   }
 
   if (!active) {
-    return requestCloudSessionRecovery(shouldOpenModal);
+    return requestGroupReadyCloudSessionRecovery(shouldOpenModal);
   }
 
   if (refreshInFlight) {
@@ -373,7 +377,7 @@ export async function ensureCloudAccessToken(
         }
 
         if (shouldOpenModal) {
-          return requestCloudSessionRecovery(true);
+          return requestGroupReadyCloudSessionRecovery(true);
         }
       }
 

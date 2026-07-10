@@ -61,6 +61,18 @@ struct GroupsResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EligibleGroup {
+    id: String,
+    name: String,
+}
+
+#[derive(Serialize)]
+struct EligibleGroupsResponse {
+    groups: Vec<EligibleGroup>,
+}
+
+#[derive(Serialize)]
 struct MembershipsResponse {
     memberships: Vec<Membership>,
 }
@@ -103,11 +115,17 @@ async fn list_groups(
 async fn list_eligible_groups(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<GroupsResponse>, AppError> {
+) -> Result<Json<EligibleGroupsResponse>, AppError> {
     let groups = GroupService::new(state.db)
         .eligible_groups(&principal)
-        .await?;
-    Ok(Json(GroupsResponse { groups }))
+        .await?
+        .into_iter()
+        .map(|group| EligibleGroup {
+            id: group.id,
+            name: group.name,
+        })
+        .collect();
+    Ok(Json(EligibleGroupsResponse { groups }))
 }
 
 async fn create_group(
@@ -290,7 +308,7 @@ mod tests {
 
     use crate::{auth::hash_token, config::Config, routes, state::AppState};
 
-    async fn fixture() -> (Router, String, sqlx::SqlitePool) {
+    async fn fixture() -> (Router, String, sqlx::SqlitePool, AppState) {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -305,8 +323,8 @@ mod tests {
         let app = Router::new()
             .merge(routes::auth::router(state.clone()))
             .merge(super::router(state.clone()))
-            .with_state(state);
-        (app, bootstrap, pool)
+            .with_state(state.clone());
+        (app, bootstrap, pool, state)
     }
 
     async fn request(
@@ -338,7 +356,7 @@ mod tests {
 
     #[tokio::test]
     async fn bootstrap_membership_authorizes_group_creation_and_audits_it() {
-        let (app, bootstrap, pool) = fixture().await;
+        let (app, bootstrap, pool, _) = fixture().await;
         let (status, bootstrapped) = request(
             &app,
             "POST",
@@ -377,7 +395,7 @@ mod tests {
 
     #[tokio::test]
     async fn group_routes_reject_recovery_credentials_and_missing_sessions() {
-        let (app, bootstrap, _) = fixture().await;
+        let (app, bootstrap, _, _) = fixture().await;
         let (recovery_status, _) =
             request(&app, "GET", "/api/groups", Value::Null, Some(&bootstrap)).await;
         let (anonymous_status, _) = request(&app, "GET", "/api/groups", Value::Null, None).await;
@@ -387,7 +405,7 @@ mod tests {
 
     #[tokio::test]
     async fn eligible_groups_returns_only_the_authenticated_visible_tree() {
-        let (app, bootstrap, pool) = fixture().await;
+        let (app, bootstrap, pool, _) = fixture().await;
         let (status, bootstrapped) = request(
             &app,
             "POST",
@@ -417,5 +435,44 @@ mod tests {
         let groups = payload["groups"].as_array().unwrap();
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0]["id"], root_group_id);
+    }
+
+    #[tokio::test]
+    async fn eligible_groups_does_not_disclose_an_inaccessible_parent_id() {
+        let (app, _bootstrap, pool, state) = fixture().await;
+        sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES ('learner', 'learner@school.test', 'learner@school.test', 'Learner', 'active', 'learner', 0, 1, 1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('hidden-parent', NULL, 'Hidden Parent', 'hidden-parent', 'active', 1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at) VALUES ('learner-group', 'hidden-parent', 'Learner Group', 'learner-group', 'active', 1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, status, created_at) VALUES ('learner-membership', 'learner-group', 'learner', 'active', 1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let session = state
+            .identity
+            .issue_session("learner", None, None)
+            .await
+            .unwrap();
+
+        let (status, payload) = request(
+            &app,
+            "GET",
+            "/api/groups/eligible",
+            Value::Null,
+            Some(&session.access_token),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{payload}");
+        assert_eq!(payload["groups"], json!([{ "id": "learner-group", "name": "Learner Group" }]));
+        assert!(payload.to_string().find("hidden-parent").is_none());
     }
 }

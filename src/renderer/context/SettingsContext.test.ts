@@ -205,6 +205,51 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('normalizes a persisted signed-out snapshot that still contains an active group', async () => {
+    const { ctx, dispose } = await mountProvider();
+
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthActiveGroupId: 'stale-group',
+      cloudAuthActiveGroupName: 'Stale Group',
+    }));
+
+    expect(ctx.settings.cloudAuthActiveGroupId).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupId);
+    expect(ctx.settings.cloudAuthActiveGroupName).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupName);
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthActiveGroupId: '',
+      cloudAuthActiveGroupName: '',
+    }));
+    dispose();
+  });
+
+  it('keeps a pre-load sign-out authoritative over an earlier pending active group', async () => {
+    const { ctx, dispose } = await mountProvider();
+    ctx.updateSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+    });
+    ctx.updateSetting('cloudAuthStatus', 'signed-out');
+
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthActiveGroupId: 'server-group',
+      cloudAuthActiveGroupName: 'Server Group',
+    }));
+
+    expect(ctx.settings.cloudAuthStatus).toBe('signed-out');
+    expect(ctx.settings.cloudAuthActiveGroupId).toBe('');
+    expect(ctx.settings.cloudAuthActiveGroupName).toBe('');
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthActiveGroupId: '',
+      cloudAuthActiveGroupName: '',
+    }));
+    dispose();
+  });
+
   it('clears the active group whenever the account is signed out', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings({
@@ -426,6 +471,37 @@ describe('SettingsProvider', () => {
     const updatedSettings = makeSettings({ theme: 'glass-dark' });
     state.handler!({ data: { type: 'update', settings: updatedSettings } } as MessageEvent);
     expect(ctx.settings.theme).toBe('glass-dark');
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('BroadcastChannel: strips stale active-group state from signed-out input', async () => {
+    const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
+    function MockBroadcastChannel() {
+      return {
+        postMessage: vi.fn(),
+        close: vi.fn(),
+        set onmessage(fn: ((event: MessageEvent) => void) | null) { state.handler = fn; },
+        get onmessage() { return state.handler; },
+      };
+    }
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+    }));
+
+    state.handler!({ data: { type: 'update', settings: makeSettings({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthActiveGroupId: 'stale-group',
+      cloudAuthActiveGroupName: 'Stale Group',
+    }) } } as MessageEvent);
+
+    expect(ctx.settings.cloudAuthStatus).toBe('signed-out');
+    expect(ctx.settings.cloudAuthActiveGroupId).toBe('');
+    expect(ctx.settings.cloudAuthActiveGroupName).toBe('');
     dispose();
     vi.unstubAllGlobals();
   });
