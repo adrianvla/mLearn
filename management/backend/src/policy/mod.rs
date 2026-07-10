@@ -2,6 +2,7 @@ pub mod compiler;
 pub mod model;
 pub mod registry;
 pub mod service;
+pub mod signing;
 
 pub use compiler::{CompiledPolicy, RuleProvenance};
 pub use model::{FeatureRule, LlmPolicy, PolicyDocument, QuotaRule, SettingRule};

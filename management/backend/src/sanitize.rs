@@ -690,6 +690,7 @@ mod tests {
             public_url: "https://school.example".to_string(),
             compose_project: "mlearn".to_string(),
             management_db_path: "/data/management.db".to_string(),
+            policy_signing_key_path: "/data/policy-signing-key".to_string(),
             token_hash: None,
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::CloudConnected,

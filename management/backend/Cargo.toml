@@ -43,6 +43,7 @@ argon2 = "0.5"
 base64 = "0.22"
 jsonwebtoken = "9"
 rand = "0.8"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
 sha2 = "0.10"
 subtle = "2.6"
 hex = "0.4"
