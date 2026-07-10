@@ -17,8 +17,17 @@ type BaseSettingJsonKind<T> =
 type SettingJsonKindFor<T> = null extends T
   ? `${BaseSettingJsonKind<T>}OrNull`
   : BaseSettingJsonKind<T>;
+type SettingDescriptorFor<T> =
+  NonNullable<T> extends string
+    ? string extends NonNullable<T>
+      ? SettingJsonKindFor<T>
+      : {
+          kind: SettingJsonKindFor<T>;
+          allowedValues: readonly NonNullable<T>[];
+        }
+    : SettingJsonKindFor<T>;
 type SettingRegistry = {
-  [K in keyof Settings]?: SettingJsonKindFor<Settings[K]>;
+  [K in keyof Settings]?: SettingDescriptorFor<Settings[K]>;
 };
 
 const settingRegistry = {
@@ -32,7 +41,19 @@ const settingRegistry = {
   colour_known: 'string',
   do_colour_known: 'boolean',
   do_colour_codes: 'boolean',
-  theme: 'string',
+  theme: {
+    kind: 'string',
+    allowedValues: [
+      'light',
+      'dark',
+      'glass-light',
+      'glass-dark',
+      'light-high-contrast',
+      'dark-high-contrast',
+      'darker',
+      'custom',
+    ],
+  },
   language: 'string',
   hover_known_get_from_dictionary: 'boolean',
   show_pos: 'boolean',
@@ -63,7 +84,10 @@ const settingRegistry = {
   newDayHour: 'number',
   flashcardFlipAnimation: 'boolean',
   leechThreshold: 'number',
-  flashcardMediaType: 'string',
+  flashcardMediaType: {
+    kind: 'string',
+    allowedValues: ['image', 'video'],
+  },
   flashcardVideoMargin: 'number',
   autoSuggestFlashcards: 'boolean',
   autoSuggestUnknownWords: 'boolean',
@@ -72,7 +96,10 @@ const settingRegistry = {
   rightSidebarOpen: 'boolean',
   subsOffsetTime: 'number',
   immediateFetch: 'boolean',
-  subtitleTheme: 'string',
+  subtitleTheme: {
+    kind: 'string',
+    allowedValues: ['marker', 'background', 'shadow'],
+  },
   subtitle_font_size: 'number',
   subtitle_font_weight: 'number',
   showSubtitles: 'boolean',
@@ -95,17 +122,32 @@ const settingRegistry = {
   ocrReadingAnnotationWidthRatio: 'number',
   ocrReadingAnnotationNeighborWindowMultiplier: 'number',
   ocrReadingAnnotationNeighborLookahead: 'number',
-  ocrProvider: 'string',
+  ocrProvider: {
+    kind: 'string',
+    allowedValues: ['local', 'cloud'],
+  },
   readerCropMode: 'boolean',
   readerDocumentOcr: 'boolean',
-  readerWordHoverTrigger: 'string',
+  readerWordHoverTrigger: {
+    kind: 'string',
+    allowedValues: ['hover', 'long-hover', 'key-hover'],
+  },
   readerWordHoverKey: 'string',
   readerReadingAnnotationHider: 'boolean',
   readerCollatePages: 'boolean',
-  readerPageMode: 'string',
+  readerPageMode: {
+    kind: 'string',
+    allowedValues: ['single', 'double'],
+  },
   readerFirstPageSingle: 'boolean',
-  readerSpreadDirection: 'string',
-  readerTextFontStyle: 'string',
+  readerSpreadDirection: {
+    kind: 'string',
+    allowedValues: ['left-to-right', 'right-to-left'],
+  },
+  readerTextFontStyle: {
+    kind: 'string',
+    allowedValues: ['language', 'sans', 'serif', 'mono'],
+  },
   readerTextSize: 'number',
   readerTextLineHeight: 'number',
   readerTextWidth: 'number',
@@ -118,7 +160,7 @@ const settingRegistry = {
 
 export type PolicySettingKey = keyof typeof settingRegistry;
 
-export interface ManagedSettingRule<K extends keyof Settings> {
+export interface ManagedSettingRule<K extends PolicySettingKey> {
   value: Settings[K];
   sourceGroupId: string;
   sourceGroupName: string;
@@ -160,7 +202,7 @@ export interface EffectiveManagementPolicy {
   policyVersionId: string;
   activeGroupId: string;
   ancestry: Array<{ id: string; name: string }>;
-  settings: Partial<{ [K in keyof Settings]: ManagedSettingRule<K> }>;
+  settings: Partial<{ [K in PolicySettingKey]: ManagedSettingRule<K> }>;
   features: Record<string, FeatureRule>;
   llm: EffectiveLlmPolicy;
   issuedAt: string;
@@ -236,7 +278,10 @@ function validatePolicy(input: unknown): string | null {
     )
       return `setting ${key} has an invalid rule`;
     if (
-      !matchesSettingKind(rule.value, settingRegistry[key as PolicySettingKey])
+      !matchesSettingDescriptor(
+        rule.value,
+        settingRegistry[key as PolicySettingKey],
+      )
     )
       return `setting ${key} has the wrong JSON value type`;
     if (
@@ -301,23 +346,33 @@ function isQuotaRule(input: unknown): boolean {
       'sourceGroupId',
       'hard',
     ]) &&
+    typeof input.metric === 'string' &&
     [
       'requests',
       'inputTokens',
       'outputTokens',
       'totalTokens',
       'costMicros',
-    ].includes(String(input.metric)) &&
+    ].includes(input.metric) &&
     typeof input.limit === 'number' &&
     Number.isSafeInteger(input.limit) &&
     input.limit >= 0 &&
-    ['daily', 'weekly', 'monthly', 'term'].includes(String(input.period)) &&
+    typeof input.period === 'string' &&
+    ['daily', 'weekly', 'monthly', 'term'].includes(input.period) &&
     isNonEmptyString(input.sourceGroupId) &&
     typeof input.hard === 'boolean'
   );
 }
 
-function matchesSettingKind(value: unknown, kind: SettingJsonKind): boolean {
+function matchesSettingDescriptor(
+  value: unknown,
+  descriptor: (typeof settingRegistry)[PolicySettingKey],
+): boolean {
+  if (typeof descriptor !== 'string') {
+    const allowedValues: readonly string[] = descriptor.allowedValues;
+    return typeof value === 'string' && allowedValues.includes(value);
+  }
+  const kind: SettingJsonKind = descriptor;
   if (kind === 'stringOrNull')
     return value === null || typeof value === 'string';
   if (kind === 'numberOrNull')

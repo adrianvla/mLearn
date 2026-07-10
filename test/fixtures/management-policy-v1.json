@@ -19,6 +19,18 @@
       "sourceGroupId": "german-a",
       "sourceGroupName": "German A",
       "locked": true
+    },
+    "theme": {
+      "value": "dark",
+      "sourceGroupId": "school",
+      "sourceGroupName": "School",
+      "locked": true
+    },
+    "flashcard_deck": {
+      "value": null,
+      "sourceGroupId": "german-a",
+      "sourceGroupName": "German A",
+      "locked": true
     }
   },
   "features": {
