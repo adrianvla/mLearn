@@ -1262,6 +1262,19 @@ export interface LanguageCatalogManifest {
   languages: Record<string, LanguageCatalogEntry>;
 }
 
+// Python runtime catalog (served from mlearn.kikan.net/runtime-catalog.json)
+export interface RuntimeCatalogEntry {
+  url: string;
+  sha256: string;
+  sizeBytes: number;
+}
+
+export interface RuntimeCatalog {
+  version: string;
+  generatedAt: string;
+  runtimes: Partial<Record<string, RuntimeCatalogEntry>>;
+}
+
 export interface LanguageDataCatalogStatus {
   language: string;
   name: string;

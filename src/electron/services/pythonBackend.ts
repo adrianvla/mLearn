@@ -7,20 +7,21 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
+import crypto from 'crypto';
 import { spawn, exec, execSync, ChildProcess } from 'child_process';
 import { ipcMain, app } from 'electron';
 import * as tar from 'tar';
-import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
-import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress } from '../../shared/types';
-import { 
-  getResourcePath, 
-  getAppPath, 
+import { IPC_CHANNELS, PYTHON_BACKEND_PORT, DEFAULT_RUNTIME_CATALOG_URL, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
+import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress, RuntimeCatalog, RuntimeCatalogEntry } from '../../shared/types';
+import {
+  getResourcePath,
+  getAppPath,
   getBundledDistElectronPath,
   getUserDataPath,
-  getPythonExecutablePath, 
-  getPipExecutablePath, 
-  getPythonDownloadUrl,
-  isWindows 
+  getPythonExecutablePath,
+  getPipExecutablePath,
+  getRuntimeTarget,
+  isWindows
 } from '../utils/platform';
 import { hasSettingsFile, loadLangData, loadSettings } from './settings';
 import { getLanguageDataRoot } from './languageDataService';
@@ -28,6 +29,7 @@ import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
 import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFeatures';
 import { getPythonExecutableCandidates } from './pythonRuntimePaths';
+import { downloadFileWithProgress } from '../utils/downloadManager';
 
 const pyLog = getLogger('python');
 const lifecycleLog = getLogger('python.lifecycle');
@@ -149,6 +151,83 @@ const downloadPath = path.join(userDataPath, 'python.tar.gz');
 const extractPath = path.join(userDataPath, 'py');
 const envPath = path.join(userDataPath, 'env');
 const pythonVersionPath = path.join(userDataPath, 'python-version.txt');
+const runtimeReceiptPath = path.join(userDataPath, 'python-install-receipt.json');
+
+interface RuntimeInstallReceipt {
+  sha256: string;
+  version: string;
+  installedAt: string;
+}
+
+function readRuntimeReceipt(): RuntimeInstallReceipt | null {
+  try {
+    if (fs.existsSync(runtimeReceiptPath)) {
+      return JSON.parse(fs.readFileSync(runtimeReceiptPath, 'utf-8'));
+    }
+  } catch (e) {
+    log.warn('Failed to read runtime install receipt:', e);
+  }
+  return null;
+}
+
+function writeRuntimeReceipt(entry: RuntimeCatalogEntry, version: string): void {
+  try {
+    const receipt: RuntimeInstallReceipt = {
+      sha256: entry.sha256,
+      version,
+      installedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(runtimeReceiptPath, JSON.stringify(receipt, null, 2), 'utf-8');
+  } catch (e) {
+    log.warn('Failed to write runtime install receipt:', e);
+  }
+}
+
+/**
+ * Fetch the runtime catalog JSON from the CDN.
+ * Small file (~1KB), cached on Pages for 5min.
+ */
+function fetchRuntimeCatalog(catalogUrl: string): Promise<RuntimeCatalog> {
+  return new Promise((resolve, reject) => {
+    const doRequest = (reqUrl: string, redirectCount = 0) => {
+      if (redirectCount > 5) {
+        reject(new Error('Too many redirects fetching runtime catalog'));
+        return;
+      }
+      const protocol = reqUrl.startsWith('https') ? https : http;
+      protocol.get(reqUrl, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          doRequest(res.headers.location, redirectCount + 1);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error(`HTTP ${res.statusCode} fetching runtime catalog`));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8')));
+          } catch (e) {
+            reject(new Error(`Failed to parse runtime catalog: ${e}`));
+          }
+        });
+        res.on('error', reject);
+      }).on('error', reject);
+    };
+    doRequest(catalogUrl);
+  });
+}
+
+function computeSha256(filePath: string): string {
+  const hash = crypto.createHash('sha256');
+  const data = fs.readFileSync(filePath);
+  hash.update(data);
+  return hash.digest('hex');
+}
 
 function getUserDataPythonExecutablePath(): string {
   return isWindows
@@ -536,67 +615,6 @@ async function verifyPythonInstallation(options: InstallOptions): Promise<boolea
       } else {
         resolve(true);
       }
-    });
-  });
-}
-
-// Download file with redirect handling
-function downloadFile(
-  fileUrl: string, 
-  dest: string, 
-  callback: () => void, 
-  redirectCount = 0
-): void {
-  const MAX_REDIRECTS = 5;
-  const file = fs.createWriteStream(dest);
-
-  https.get(fileUrl, (response) => {
-    // Handle redirects
-    if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-      if (redirectCount >= MAX_REDIRECTS) {
-        file.destroy();
-        fs.unlink(dest, () => {});
-        handleInstallerFailure('Too many redirects during download', { emitNetworkError: true });
-        return;
-      }
-
-      const redirectUrl = new URL(response.headers.location, fileUrl).toString();
-      file.destroy();
-      response.resume();
-      downloadFile(redirectUrl, dest, callback, redirectCount + 1);
-      return;
-    }
-
-    if (response.statusCode !== 200) {
-      file.destroy();
-      response.resume();
-      fs.unlink(dest, () => {});
-      handleInstallerFailure('Download failed', {
-        detail: `Status code: ${response.statusCode}`,
-        emitNetworkError: true,
-      });
-      return;
-    }
-
-    response.pipe(file);
-    file.on('finish', () => {
-      file.close(() => {
-        const stats = fs.statSync(dest);
-        if (stats.size === 0) {
-          fs.unlink(dest, () => {});
-          handleInstallerFailure('Downloaded file is empty', { emitNetworkError: true });
-          return;
-        }
-        log.info('Download complete!');
-        callback();
-      });
-    });
-  }).on('error', (err) => {
-    file.destroy();
-    fs.unlink(dest, () => {});
-    handleInstallerFailure('Download error', {
-      detail: err.message,
-      emitNetworkError: true,
     });
   });
 }
@@ -1071,25 +1089,72 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
     log.error("error", e);
   }
 
-  sendStatusUpdate('Downloading Python...');
-
-  // Clean up previous installation attempts
-  try {
-    if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
-    if (fs.existsSync(envPath)) fs.rmSync(envPath, { recursive: true, force: true });
-  } catch (e) {
-    log.warn('Cleanup failed:', e);
-  }
+  sendStatusUpdate('Resolving Python runtime...');
 
   const pipRequirements = buildPipRequirementList(options);
   log.info('Pip packages:', pipRequirements.join(', '));
 
-  const pythonUrl = getPythonDownloadUrl(PYTHON_DOWNLOAD_BASE);
+  // Fetch runtime catalog and resolve the target-specific archive entry
+  let catalogEntry: RuntimeCatalogEntry;
+  let catalogVersion: string;
+  try {
+    const catalog = await fetchRuntimeCatalog(DEFAULT_RUNTIME_CATALOG_URL);
+    catalogVersion = catalog.version;
+    const target = getRuntimeTarget();
+    const entry = catalog.runtimes[target];
+    if (!entry) {
+      throw new Error(`No runtime available for target ${target}`);
+    }
+    catalogEntry = entry;
+    log.info(`Runtime catalog: ${catalogVersion}, target ${target}, sha256 ${entry.sha256.slice(0, 12)}`);
+  } catch (error) {
+    handleInstallerFailure('Failed to resolve Python runtime', {
+      detail: error instanceof Error ? error.message : 'Unknown error',
+      emitNetworkError: true,
+    });
+    return;
+  }
 
-  // Start download
-  downloadFile(pythonUrl, downloadPath, async () => {
+  // Cache check: if the receipt sha256 matches the catalog, skip the download
+  const receipt = readRuntimeReceipt();
+  const cacheHit = receipt && receipt.sha256 === catalogEntry.sha256;
+
+  try {
+    if (cacheHit) {
+      log.info('Runtime archive cached (sha256 matches receipt), skipping download');
+      sendStatusUpdate('Using cached runtime...');
+    } else {
+      // Clean up previous installation attempts
+      try {
+        if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
+        if (fs.existsSync(envPath)) fs.rmSync(envPath, { recursive: true, force: true });
+      } catch (e) {
+        log.warn('Cleanup failed:', e);
+      }
+
+      sendStatusUpdate('Downloading Python...');
+      await downloadFileWithProgress(catalogEntry.url, downloadPath, (progress) => {
+        const percent = progress.expectedBytes > 0
+          ? Math.round(progress.progress * 100)
+          : 0;
+        sendStatusUpdate(`Downloading Python... ${percent}%`);
+      });
+
+      // Verify sha256 integrity
+      const actualSha = computeSha256(downloadPath);
+      if (actualSha !== catalogEntry.sha256) {
+        try { fs.unlinkSync(downloadPath); } catch {}
+        handleInstallerFailure('Runtime integrity check failed', {
+          detail: `sha256 mismatch: expected ${catalogEntry.sha256.slice(0, 12)}, got ${actualSha.slice(0, 12)}`,
+          emitNetworkError: true,
+        });
+        return;
+      }
+      log.info('Runtime sha256 verified');
+    }
+
     sendStatusUpdate('Download complete, extracting...');
-    
+
     try {
       fs.mkdirSync(extractPath, { recursive: true });
       await extractFile(downloadPath, extractPath);
@@ -1097,6 +1162,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
       sendStatusUpdate('Extraction complete, installing libraries...');
 
       if (pipRequirements.length === 0) {
+        writeRuntimeReceipt(catalogEntry, catalogVersion);
         installInProgress = false;
         pythonSuccessInstall = true;
         await pythonFound();
@@ -1167,6 +1233,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
           if (verified) {
             log.info('Installation complete');
             pythonSuccessInstall = true;
+            writeRuntimeReceipt(catalogEntry, catalogVersion);
             setInstalledPythonVersion(app.getVersion());
             sendStatusUpdate('Installation complete');
             await pythonFound();
@@ -1189,7 +1256,13 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
         detail: error instanceof Error ? error.message : 'Unknown error',
       });
     }
-  });
+  } catch (error) {
+    log.error('Download failed:', error);
+    handleInstallerFailure('Download failed', {
+      detail: error instanceof Error ? error.message : 'Unknown error',
+      emitNetworkError: true,
+    });
+  }
 }
 
 // Terminate Python backend
