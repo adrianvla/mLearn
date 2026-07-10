@@ -71,6 +71,15 @@
   color:var(--text-secondary);
 }
 
+.ca-header-status {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
 /* Tabs integrated into header */
 .ca-header-tabs {
   -webkit-app-region: no-drag;

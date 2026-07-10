@@ -1016,6 +1016,7 @@ async function reconcileComponentPackages(): Promise<void> {
   if (packages.length === 0) return;
 
   log.info(`Reconciling ${packages.length} component packages...`);
+  sendStatusUpdate(`Installing ${packages.length} component packages...`);
 
   const pipArgs = isWindows
     ? ['-m', 'pip', 'install', ...packages]
@@ -1028,15 +1029,23 @@ async function reconcileComponentPackages(): Promise<void> {
       { cwd: envPath },
     );
     pipProcess.stdout.on('data', (data) => {
-      log.info(`reconcile pip: ${data.toString().trim()}`);
+      const line = data.toString().trim();
+      if (line) {
+        log.info(`reconcile pip: ${line}`);
+        sendStatusUpdate(line);
+      }
     });
     pipProcess.stderr.on('data', (data) => {
-      log.warn(`reconcile pip: ${data.toString().trim()}`);
+      const line = data.toString().trim();
+      if (line) {
+        log.warn(`reconcile pip: ${line}`);
+      }
     });
     pipProcess.on('error', reject);
     pipProcess.on('close', (code) => {
       if (code === 0 || code === null) {
         log.info('Component package reconciliation complete');
+        sendStatusUpdate('Starting Python backend...');
         resolve();
       } else {
         reject(new Error(`Component reconciliation pip install exited ${code}`));
