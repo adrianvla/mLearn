@@ -185,6 +185,42 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('migrates missing active-group settings to their declared defaults', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const legacy = makeSettings() as Settings & {
+      cloudAuthActiveGroupId?: string;
+      cloudAuthActiveGroupName?: string;
+    };
+    delete legacy.cloudAuthActiveGroupId;
+    delete legacy.cloudAuthActiveGroupName;
+
+    settingsCb(legacy);
+
+    expect(ctx.settings.cloudAuthActiveGroupId).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupId);
+    expect(ctx.settings.cloudAuthActiveGroupName).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupName);
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      cloudAuthActiveGroupId: DEFAULT_SETTINGS.cloudAuthActiveGroupId,
+      cloudAuthActiveGroupName: DEFAULT_SETTINGS.cloudAuthActiveGroupName,
+    }));
+    dispose();
+  });
+
+  it('clears the active group whenever the account is signed out', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'access-token',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+    }));
+
+    ctx.updateSettings({ cloudAuthStatus: 'signed-out' });
+
+    expect(ctx.settings.cloudAuthActiveGroupId).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupId);
+    expect(ctx.settings.cloudAuthActiveGroupName).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupName);
+    dispose();
+  });
+
   it('after receiving settings: initializes backend adapter', async () => {
     const { dispose } = await mountProvider();
     const loaded = makeSettings({ backendMode: 'local', backendUrl: '' });

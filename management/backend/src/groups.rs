@@ -343,6 +343,44 @@ impl GroupService {
         Ok(rows.into_iter().map(group_from_row).collect())
     }
 
+    pub async fn eligible_groups(&self, principal: &Principal) -> Result<Vec<Group>, AppError> {
+        if principal.service_key_id.is_some() {
+            return Err(AppError::Forbidden(
+                "active groups require a human session".into(),
+            ));
+        }
+        let rows = sqlx::query(
+            "WITH RECURSIVE viewable(id) AS (
+                SELECT membership.group_id
+                FROM group_memberships membership
+                JOIN membership_capabilities capability ON capability.membership_id = membership.id
+                JOIN groups source ON source.id = membership.group_id
+                WHERE membership.user_id = ? AND membership.status = 'active'
+                  AND capability.capability = 'group.view' AND source.status = 'active'
+                UNION
+                SELECT child.id FROM groups child JOIN viewable parent ON child.parent_id = parent.id
+                WHERE child.status = 'active'
+            ), eligible(id) AS (
+                SELECT membership.group_id
+                FROM group_memberships membership
+                JOIN groups direct_group ON direct_group.id = membership.group_id
+                WHERE membership.user_id = ? AND membership.status = 'active'
+                  AND direct_group.status = 'active'
+                UNION
+                SELECT id FROM viewable
+            )
+            SELECT groups.id, groups.parent_id, groups.name, groups.slug, groups.status
+            FROM groups JOIN eligible ON eligible.id = groups.id
+            ORDER BY groups.name, groups.id",
+        )
+        .bind(&principal.user_id)
+        .bind(&principal.user_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(database_error)?;
+        Ok(rows.into_iter().map(group_from_row).collect())
+    }
+
     pub async fn list_memberships(
         &self,
         principal: &Principal,
@@ -431,12 +469,54 @@ impl GroupService {
                 "active group changes require a human session".into(),
             ));
         }
-        self.authorization
-            .require(principal, group_id, Capability::GroupView)
-            .await?;
-        let mut transaction = self.pool.begin().await.map_err(database_error)?;
-        sqlx::query("UPDATE sessions SET active_group_id = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL")
-            .bind(group_id).bind(&principal.session_id).bind(&principal.user_id).execute(&mut *transaction).await.map_err(database_error)?;
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
+        let eligible: i64 = sqlx::query_scalar(
+            "WITH RECURSIVE viewable(id) AS (
+                SELECT membership.group_id
+                FROM group_memberships membership
+                JOIN membership_capabilities capability ON capability.membership_id = membership.id
+                JOIN groups source ON source.id = membership.group_id
+                WHERE membership.user_id = ? AND membership.status = 'active'
+                  AND capability.capability = 'group.view' AND source.status = 'active'
+                UNION
+                SELECT child.id FROM groups child JOIN viewable parent ON child.parent_id = parent.id
+                WHERE child.status = 'active'
+            ), eligible(id) AS (
+                SELECT membership.group_id
+                FROM group_memberships membership
+                JOIN groups direct_group ON direct_group.id = membership.group_id
+                WHERE membership.user_id = ? AND membership.status = 'active'
+                  AND direct_group.status = 'active'
+                UNION
+                SELECT id FROM viewable
+            )
+            SELECT EXISTS(SELECT 1 FROM eligible WHERE id = ?)",
+        )
+        .bind(&principal.user_id)
+        .bind(&principal.user_id)
+        .bind(group_id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        if eligible != 1 {
+            return Err(AppError::Forbidden("group is not eligible".into()));
+        }
+        let changed = sqlx::query("UPDATE sessions SET active_group_id = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?")
+            .bind(group_id)
+            .bind(&principal.session_id)
+            .bind(&principal.user_id)
+            .bind(now())
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error)?
+            .rows_affected();
+        if changed != 1 {
+            return Err(AppError::Unauthorized);
+        }
         audit(
             &mut transaction,
             principal,
@@ -775,6 +855,64 @@ pub(crate) mod tests {
         assert!(ids.contains(&fixture.project_1));
         assert!(!ids.contains(&fixture.german));
         assert!(!ids.contains(&fixture.german_b));
+    }
+
+    #[tokio::test]
+    async fn direct_member_without_management_capabilities_can_select_their_group() {
+        let fixture = GroupFixture::german_tree().await;
+
+        let eligible = fixture
+            .groups
+            .eligible_groups(&fixture.other_teacher)
+            .await
+            .unwrap();
+
+        assert_eq!(eligible.len(), 1);
+        assert_eq!(eligible[0].id, fixture.project_1);
+    }
+
+    #[tokio::test]
+    async fn activation_accepts_a_direct_member_without_group_view() {
+        let fixture = GroupFixture::german_tree().await;
+        sqlx::query("INSERT INTO sessions (id, user_id, expires_at, revoked_at, created_at, last_seen_at, active_group_id) VALUES (?, ?, 9999999999, NULL, 1, 1, NULL)")
+            .bind(&fixture.other_teacher.session_id)
+            .bind(&fixture.other_teacher.user_id)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+
+        fixture
+            .groups
+            .activate(&fixture.other_teacher, &fixture.project_1)
+            .await
+            .unwrap();
+
+        let active_group: Option<String> =
+            sqlx::query_scalar("SELECT active_group_id FROM sessions WHERE id = ?")
+                .bind(&fixture.other_teacher.session_id)
+                .fetch_one(&fixture.pool)
+                .await
+                .unwrap();
+        assert_eq!(active_group.as_deref(), Some(fixture.project_1.as_str()));
+    }
+
+    #[tokio::test]
+    async fn activation_fails_when_the_authenticated_session_is_no_longer_live() {
+        let fixture = GroupFixture::german_tree().await;
+
+        let result = fixture
+            .groups
+            .activate(&fixture.other_teacher, &fixture.project_1)
+            .await;
+
+        assert!(matches!(result, Err(AppError::Unauthorized)));
+        let audits: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'group.activated'",
+        )
+        .fetch_one(&fixture.pool)
+        .await
+        .unwrap();
+        assert_eq!(audits, 0);
     }
 
     #[tokio::test]
