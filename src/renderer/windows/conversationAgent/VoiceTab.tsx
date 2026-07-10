@@ -1642,12 +1642,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       <Show when={isDownloading()}>
         <div class="voice-download-section">
           <p class="voice-download-hint">
-            <Show
-              when={downloadProgress() < 50}
-              fallback={t('mlearn.ConversationAgent.Voice.DownloadingModels')}
-            >
-              {t('mlearn.ConversationAgent.Voice.InstallingDependencies')}
-            </Show>
+            {modelStatus()?.statusMessage
+              || (downloadProgress() < 50
+                ? t('mlearn.ConversationAgent.Voice.InstallingDependencies')
+                : t('mlearn.ConversationAgent.Voice.DownloadingModels'))}
           </p>
           <ProgressBar value={downloadProgress()} showPercent variant="primary" size="md" />
         </div>
