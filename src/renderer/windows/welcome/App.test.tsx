@@ -52,6 +52,7 @@ type TestSettings = {
   dictionaryTargetLanguages?: Record<string, string>;
   llmEnabled?: boolean;
   ocrEnabled?: boolean;
+  voiceEnabled?: boolean;
 };
 
 type LanguageRecord = Record<string, { name: string; name_translated?: string }>;
@@ -151,7 +152,17 @@ vi.mock('../../components/common', () => ({
       {props.logs?.map((entry) => <div data-testid="log-entry">{entry.message}</div>)}
     </div>
   ),
-  CheckboxCard: (props: { title: string; description: string }) => <div>{props.title}{props.description}</div>,
+  CheckboxCard: (props: { title: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) => (
+    <label>
+      <input
+        type="checkbox"
+        checked={props.checked}
+        onChange={(event) => props.onChange(event.currentTarget.checked)}
+      />
+      {props.title}
+      {props.description}
+    </label>
+  ),
   ProgressBar: () => <div>progress</div>,
   Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string }>; placeholder?: string }) => (
     <select {...props}>
@@ -308,6 +319,48 @@ describe('WelcomeApp', () => {
     dispose();
   });
 
+  it('passes the selected runtime components into language data installation', async () => {
+    setLanguageDataCatalog([
+      {
+        language: 'ja',
+        name: 'Japanese',
+        installed: false,
+        missingRequiredAssets: ['language-metadata'],
+        dictionaryPacks: [{ targetLanguage: 'en', name: 'Japanese -> English', installed: false }],
+      },
+    ]);
+
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+
+    const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+    expect(checkboxes).toHaveLength(3);
+    checkboxes[0]!.checked = false;
+    checkboxes[0]!.dispatchEvent(new Event('change', { bubbles: true }));
+    checkboxes[2]!.checked = false;
+    checkboxes[2]!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    installerStateHandler?.({ success: true });
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Install Selected Language Data');
+    });
+
+    const continueButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Install Selected Language Data'));
+    continueButton?.click();
+
+    expect(installLanguageDataMock).toHaveBeenCalledWith('ja', 'en', {
+      includeLLM: false,
+      includeOCR: true,
+      includeVoice: false,
+    });
+
+    dispose();
+  });
+
   it('keeps dictionary language in advanced options and summarizes the selected languages', async () => {
     setLanguageDataCatalog([
       {
@@ -411,7 +464,11 @@ describe('WelcomeApp', () => {
     });
 
     continueButton?.click();
-    expect(installLanguageDataMock).toHaveBeenCalledWith('ja', 'de');
+    expect(installLanguageDataMock).toHaveBeenCalledWith('ja', 'de', {
+      includeLLM: true,
+      includeOCR: true,
+      includeVoice: true,
+    });
     expect(installLanguageDataMock).not.toHaveBeenCalledWith('ja', 'en');
 
     dispose();
@@ -438,7 +495,11 @@ describe('WelcomeApp', () => {
     });
     continueButton?.click();
 
-    expect(installLanguageDataMock).toHaveBeenCalledWith('de', 'en');
+    expect(installLanguageDataMock).toHaveBeenCalledWith('de', 'en', {
+      includeLLM: true,
+      includeOCR: true,
+      includeVoice: true,
+    });
     expect(installLanguageDataMock).not.toHaveBeenCalledWith('ja');
     expect(updateSettingsMock).not.toHaveBeenCalled();
 

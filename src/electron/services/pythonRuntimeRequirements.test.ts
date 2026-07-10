@@ -89,6 +89,79 @@ describe('pythonRuntimeRequirements', () => {
     );
   });
 
+  it('verifies selected language Python import checks after installation', async () => {
+    const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+    fs.mkdirSync(envBin, { recursive: true });
+    fs.writeFileSync(path.join(envBin, 'pip3'), '');
+    fs.writeFileSync(path.join(envBin, 'python3'), '');
+    mockSpawn.mockReturnValue(makeProcess(0));
+
+    const mod = await import('./pythonRuntimeRequirements');
+    await mod.ensureLanguagePythonRequirementsInstalled('aa', {
+      aa: {
+        name: 'Alpha',
+        runtime: {
+          python: {
+            packagesByComponent: {
+              ocr: ['aa-ocr'],
+            },
+            importChecksByComponent: {
+              core: ['aa_core'],
+              ocr: ['aa_ocr'],
+              voice: ['aa_voice'],
+            },
+          },
+        },
+      },
+    }, {
+      includeLLM: false,
+      includeOCR: true,
+      includeVoice: false,
+    });
+
+    expect(mockSpawn).toHaveBeenCalledWith(
+      path.join(envBin, 'pip3'),
+      ['install', 'aa-ocr'],
+      { cwd: path.join(tempDir.tmpDir, 'env') },
+    );
+    expect(mockSpawn).toHaveBeenCalledWith(
+      path.join(envBin, 'python3'),
+      expect.arrayContaining(['-c', expect.any(String), JSON.stringify(['aa_core', 'aa_ocr'])]),
+      { cwd: path.join(tempDir.tmpDir, 'env') },
+    );
+  });
+
+  it('rejects when selected language Python import checks fail', async () => {
+    const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+    fs.mkdirSync(envBin, { recursive: true });
+    fs.writeFileSync(path.join(envBin, 'pip3'), '');
+    fs.writeFileSync(path.join(envBin, 'python3'), '');
+    mockSpawn
+      .mockReturnValueOnce(makeProcess(0))
+      .mockReturnValueOnce(makeProcess(1));
+
+    const mod = await import('./pythonRuntimeRequirements');
+    await expect(mod.ensureLanguagePythonRequirementsInstalled('aa', {
+      aa: {
+        name: 'Alpha',
+        runtime: {
+          python: {
+            packagesByComponent: {
+              ocr: ['aa-ocr'],
+            },
+            importChecksByComponent: {
+              ocr: ['aa_ocr'],
+            },
+          },
+        },
+      },
+    }, {
+      includeLLM: false,
+      includeOCR: true,
+      includeVoice: false,
+    })).rejects.toThrow('Python requirement import checks failed');
+  });
+
   it('rejects package installation when required language packages need a missing Python runtime', async () => {
     vi.spyOn(process, 'cwd').mockReturnValue(path.join(tempDir.tmpDir, 'repo-without-runtime'));
     const mod = await import('./pythonRuntimeRequirements');

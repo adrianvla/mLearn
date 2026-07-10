@@ -105,7 +105,7 @@ export interface LocalizationBridge {
   onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
   getLanguageDataCatalog: () => void;
   onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
   onLanguageDataInstallError: (callback: (payload: LanguageDataInstallError) => void) => () => void;
   installLanguage: (url: string) => void;

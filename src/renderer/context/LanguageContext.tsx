@@ -5,7 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { FlashcardProsody, LanguageDataCatalogStatus, LanguageDataInstallError, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
+import type { FlashcardProsody, InstallOptions, LanguageDataCatalogStatus, LanguageDataInstallError, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import {
   buildLexemeIndex,
@@ -111,7 +111,7 @@ interface LanguageContextValue {
   isLoading: () => boolean;
   languageDataCatalog: () => LanguageDataCatalogStatus[];
   getLanguageDataStatus: (language: string) => LanguageDataCatalogStatus | undefined;
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string) => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => void;
   isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
   refreshLanguageData: () => void;
   languageDataInstallError: () => LanguageDataInstallError | null;
@@ -316,13 +316,13 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const getLanguageDataInstallKey = (language: string, dictionaryTargetLanguage?: string): string =>
     dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
 
-  const installLanguageData = (language: string, dictionaryTargetLanguage?: string): void => {
+  const installLanguageData = (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions): void => {
     setLanguageDataInstallError(null);
     setLanguageDataInstalls((previous) => ({
       ...previous,
       [getLanguageDataInstallKey(language, dictionaryTargetLanguage)]: true,
     }));
-    getBridge().localization.installLanguageData(language, dictionaryTargetLanguage);
+    getBridge().localization.installLanguageData(language, dictionaryTargetLanguage, installOptions);
   };
 
   const isLanguageDataInstalling = (language: string, dictionaryTargetLanguage?: string): boolean =>

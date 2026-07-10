@@ -38,8 +38,8 @@ const mLearnIPC = {
   getLanguageDataCatalog: () => ipcRenderer.send(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG),
   onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) =>
     ipcOn(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, (_event, data) => callback(data)),
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, language, dictionaryTargetLanguage),
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) =>
+    ipcRenderer.send(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, language, dictionaryTargetLanguage, installOptions),
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) =>
     ipcOn(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, (_event, status) => callback(status)),
   onLanguageDataInstallError: (callback: (payload: LanguageDataInstallError) => void) =>
