@@ -19,6 +19,7 @@ import {
   withCloudAuth,
 } from './cloudSessionManager';
 import { hasCompleteStructuredExplainerOutput } from '../components/subtitle/explainerPopupState';
+import { builtinModelReady } from '../context/llmModelSignals';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.services.llmProvider");
@@ -346,10 +347,6 @@ function streamChatMobile(
 export async function checkAvailability(settings: Settings): Promise<{ available: boolean; reason?: string }> {
   const bridge = getBridge();
 
-  if (!settings.llmConfigured) {
-    return { available: false, reason: 'not_configured' };
-  }
-
   if (settings.llmProvider === 'cloud') {
     try {
       const accessToken = await ensureCloudAccessToken({ interactive: false, openModalOnExpiry: false });
@@ -405,10 +402,30 @@ export async function checkAvailability(settings: Settings): Promise<{ available
 }
 
 /**
- * Check if setup is required (llmConfigured is false)
+ * Whether the selected LLM provider is configured and ready to use,
+ * derived from real provider state instead of a sticky setup flag.
+ * - cloud: ready when the user is signed in
+ * - ollama: ready when selected (runtime calls verify reachability)
+ * - builtin: ready when the selected model is downloaded
+ * Always returns false when the LLM feature is disabled.
+ */
+export function isLLMReady(settings: Settings): boolean {
+  if (!settings.llmEnabled) return false;
+  switch (settings.llmProvider) {
+    case 'cloud':
+      return settings.cloudAuthStatus === 'signed-in';
+    case 'ollama':
+      return true;
+    case 'builtin':
+      return builtinModelReady();
+  }
+}
+
+/**
+ * Check if setup is required (provider not ready).
  */
 export function requiresSetup(settings: Settings): boolean {
-  return !settings.llmConfigured;
+  return !isLLMReady(settings);
 }
 
 // ============================================================================

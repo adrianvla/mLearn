@@ -12,6 +12,7 @@ import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
+import { isLLMReady } from '../../../services/llmProvider';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { UPDATE_URL } from '../../../../shared/constants';
 import Icon from '../../../components/common/Icons/Icon';
@@ -245,7 +246,7 @@ export const WelcomeRoute: Component = () => {
         />
 
         <Show
-          when={!settings.llmEnabled || !settings.llmConfigured}
+          when={!isLLMReady(settings)}
           fallback={
             <ActionCard
               icon={<BotIcon size={24} />}

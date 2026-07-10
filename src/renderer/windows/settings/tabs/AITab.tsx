@@ -206,7 +206,7 @@ export const AITab: Component = () => {
   }
 
   function handleProviderChange(provider: LLMProvider) {
-    updateSettings({ llmProvider: provider, llmConfigured: true });
+    updateSettings({ llmProvider: provider });
   }
 
   async function handleDownloadModel() {

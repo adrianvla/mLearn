@@ -19,6 +19,7 @@ import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { consumePendingFlashcardMigration, setMigrationListenerReady } from './migrationSignals';
+import { setBuiltinModelReady } from './llmModelSignals';
 import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
 import { isElectron } from '../../shared/platform';
@@ -271,6 +272,55 @@ const GlobalEulaModal: Component = () => {
 };
 
 /**
+ * BuiltinModelStatusListener - Keeps the shared builtinModelReady signal in sync
+ * with whether the built-in LLM model is downloaded. Reads the selected model
+ * reactively and refreshes on provider/model change and on download events.
+ * Renders nothing. Only relevant when llmProvider is 'builtin'; for other
+ * providers the signal value is unused by the readiness derivation.
+ */
+const BuiltinModelStatusListener: Component = () => {
+  const { settings } = useSettings();
+  const bridge = getBridge();
+
+  createEffect(() => {
+    // Reactive deps: re-run when provider or selected model changes
+    const provider = settings.llmProvider;
+    const modelFile = settings.builtinModel;
+
+    if (provider !== 'builtin') {
+      setBuiltinModelReady(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    void bridge.llm.llmCheckModel(modelFile).then((status) => {
+      if (!cancelled) setBuiltinModelReady(status.downloaded);
+    }).catch((e) => {
+      log.error("[BuiltinModelStatusListener] model check failed", e);
+    });
+
+    onCleanup(() => { cancelled = true; });
+  });
+
+  onMount(() => {
+    const cleanupProgress = bridge.llm.onLLMDownloadProgress((status) => {
+      setBuiltinModelReady(status.downloaded);
+    });
+    const cleanupStatus = bridge.llm.onLLMModelStatus((status) => {
+      setBuiltinModelReady(status.downloaded);
+    });
+
+    onCleanup(() => {
+      cleanupProgress();
+      cleanupStatus();
+    });
+  });
+
+  return null;
+};
+
+/**
  * WindowWrapper wraps all window entry points with necessary providers
  * This ensures consistent context availability across all windows
  * 
@@ -292,6 +342,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
             <GlobalRuntimeRestartModal />
+            <BuiltinModelStatusListener />
             <LowPowerGateProvider>
             <LanguageProviderBridge>
             <MigrationHandler>

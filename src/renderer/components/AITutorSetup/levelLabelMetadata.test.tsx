@@ -80,8 +80,8 @@ let tutorSettings = {
   easeThresholdKnown: 3,
   easeThresholdMastered: 4,
   llmEnabled: false,
-  llmConfigured: false,
   llmProvider: 'cloud',
+  cloudAuthStatus: 'signed-out',
 };
 
 vi.mock('../../context', () => ({
@@ -138,6 +138,11 @@ vi.mock('../../../shared/bridges', () => ({
 
 vi.mock('../../services/llmProvider', () => ({
   streamChat: streamChatMock,
+  isLLMReady: (settings: { llmEnabled: boolean; llmProvider: string; cloudAuthStatus?: string }) =>
+    settings.llmEnabled && (
+      (settings.llmProvider === 'cloud' && settings.cloudAuthStatus === 'signed-in') ||
+      settings.llmProvider === 'ollama'
+    ),
 }));
 
 vi.mock('../common', () => ({
@@ -204,8 +209,8 @@ describe('AI tutor setup level labels', () => {
       easeThresholdKnown: 3,
       easeThresholdMastered: 4,
       llmEnabled: false,
-      llmConfigured: false,
       llmProvider: 'cloud',
+      cloudAuthStatus: 'signed-out',
     };
     streamChatMock.mockClear();
   });
@@ -289,8 +294,8 @@ describe('AI tutor setup level labels', () => {
       ...tutorSettings,
       language: 'ar',
       llmEnabled: true,
-      llmConfigured: true,
       llmProvider: 'cloud',
+      cloudAuthStatus: 'signed-in',
     };
 
     const { WordSelector } = await import('./WordSelector');

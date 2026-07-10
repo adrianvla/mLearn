@@ -78,7 +78,6 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     voiceAutoSendOnSilence: false,
     devMode: false,
     lowBatteryMode: false,
-    llmConfigured: false,
     ocr_crop_padding: 0,
     maxNewCardsPerDay: 20,
     proportionOfLevelCards: 0,
