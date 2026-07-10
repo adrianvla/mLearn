@@ -459,6 +459,18 @@ describe('ComponentsTab', () => {
     dispose();
   });
 
+  it('keeps a managed voice control visible without an installed voice runtime', async () => {
+    testLangData = { de: { name: 'German', settings: { fixed: {} } } };
+    managedSettingKey = 'voiceEnabled';
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    const voiceToggle = Array.from(container.querySelectorAll('input[type="checkbox"]'))
+      .find((toggle) => toggle.getAttribute('aria-label')?.startsWith('Voice components:')) as HTMLInputElement;
+    expect(voiceToggle?.disabled).toBe(true);
+    dispose();
+  });
+
   it('installs a single missing dictionary pack instead of reinstalling all components', async () => {
     const { ComponentsTab } = await import('./ComponentsTab');
     const dispose = render(() => <ComponentsTab />, container);

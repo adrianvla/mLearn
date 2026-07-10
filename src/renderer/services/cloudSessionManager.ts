@@ -8,6 +8,7 @@ import {
 } from './cloudAuthService';
 import {
   ensureActiveGroup,
+  resetManagementGroupReadiness,
   requiresManagementGroup,
   type ManagementGroup,
 } from './managementGroupService';
@@ -274,6 +275,8 @@ export function syncCloudSessionState(settings: Settings): void {
 
   if (settings.cloudAuthStatus === 'signed-in' && accessToken) {
     resolvePendingSessionRecovery(accessToken);
+  } else {
+    resetManagementGroupReadiness();
   }
 }
 

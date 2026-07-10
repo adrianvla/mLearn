@@ -23,7 +23,7 @@ import '../SettingsForm.css';
 import './AnkiFieldPreview.css';
 import Icon from "@renderer/components/common/Icons/Icon";
 import { DEFAULT_SETTINGS, type TTSProvider } from "@shared/types";
-import { shouldShowAnkiSettings } from './managedSettingVisibility';
+import { shouldShowAnkiSettings, shouldShowFrequencySettings } from './managedSettingVisibility';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings, isSettingManaged } = useSettings();
@@ -499,7 +499,7 @@ export const SRSTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={hasFreqLevels()}>
+        <Show when={shouldShowFrequencySettings(hasFreqLevels(), isSettingManaged)}>
           <SettingRow
             label={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Label')}
             description={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Description')}

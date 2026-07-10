@@ -111,4 +111,25 @@ describe('ActiveGroupSelector', () => {
     first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
     expect(document.activeElement).toBe(last);
   });
+
+  it('includes the optional close button in switch-modal focus containment', async () => {
+    dispose = render(() => (
+      <ActiveGroupSelector
+        groups={groups}
+        activeGroupId="german-b"
+        onActivate={vi.fn()}
+        showSwitchTrigger
+      />
+    ), document.body);
+    (document.querySelector('.active-group-trigger') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(document.activeElement?.getAttribute('data-group-id')).toBe('german-a'));
+    const close = document.querySelector('.active-group-modal button[aria-label]') as HTMLButtonElement;
+    const last = document.querySelector('[data-group-id="german-b"]') as HTMLButtonElement;
+
+    last.focus();
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(document.activeElement).toBe(close);
+    close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+    expect(document.activeElement).toBe(last);
+  });
 });

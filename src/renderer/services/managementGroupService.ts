@@ -17,13 +17,13 @@ export interface ActiveGroupResult {
 
 type UpdateSettings = (partial: Partial<Settings>) => void;
 
-interface GroupReadinessCache {
+interface ActivationHandoff {
   scope: string;
   activeGroupId: string;
   result: ActiveGroupResult;
 }
 
-let readinessCache: GroupReadinessCache | null = null;
+let activationHandoff: ActivationHandoff | null = null;
 const readinessRequests = new Map<string, Promise<ActiveGroupResult>>();
 
 const CLEARED_ACTIVE_GROUP = {
@@ -77,7 +77,7 @@ function readinessScope(settings: Settings, accessToken?: string): string {
 }
 
 export function resetManagementGroupReadiness(): void {
-  readinessCache = null;
+  activationHandoff = null;
   readinessRequests.clear();
 }
 
@@ -136,7 +136,7 @@ export async function activateGroup(
     });
   }
   const result = readyResult(group, groups);
-  readinessCache = {
+  activationHandoff = {
     scope: readinessScope(settings, accessToken),
     activeGroupId: group.id,
     result,
@@ -164,14 +164,16 @@ export async function ensureActiveGroup(
 
   const scope = readinessScope(settings, accessToken);
   const activeGroupId = settings.cloudAuthActiveGroupId || DEFAULT_SETTINGS.cloudAuthActiveGroupId;
-  if (readinessCache?.scope === scope && readinessCache.activeGroupId === activeGroupId) {
-    return readinessCache.result;
+  if (activationHandoff?.scope === scope && activationHandoff.activeGroupId === activeGroupId) {
+    const result = activationHandoff.result;
+    activationHandoff = null;
+    return result;
   }
   const requestKey = `${scope}\n${activeGroupId}`;
   const pending = readinessRequests.get(requestKey);
   if (pending) return pending;
 
-  const request = ensureActiveGroupUncached(settings, updateSettings, accessToken, scope);
+  const request = ensureActiveGroupUncached(settings, updateSettings, accessToken);
   readinessRequests.set(requestKey, request);
   try {
     return await request;
@@ -184,7 +186,6 @@ async function ensureActiveGroupUncached(
   settings: Settings,
   updateSettings: UpdateSettings,
   accessToken: string | undefined,
-  scope: string,
 ): Promise<ActiveGroupResult> {
   const groups = await getEligibleGroups(settings, accessToken);
   const storedGroupId = settings.cloudAuthActiveGroupId || DEFAULT_SETTINGS.cloudAuthActiveGroupId;
@@ -193,15 +194,13 @@ async function ensureActiveGroupUncached(
 
   if (!selectedGroup) {
     clearActiveGroup(settings, updateSettings);
-    const result = {
+    return {
       ready: false,
       needsSelection: groups.length > 1,
       id: '',
       name: '',
       groups,
     };
-    readinessCache = { scope, activeGroupId: '', result };
-    return result;
   }
 
   try {

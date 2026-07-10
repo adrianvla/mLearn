@@ -9,6 +9,7 @@ const mockResolveCloudAccessToken = vi.fn<(settings: Settings) => string>((setti
 const mockIsCloudAccessTokenExpiringSoon = vi.fn<(settings: Settings, bufferMs?: number) => boolean>(() => false);
 const mockNormalizeCloudAuthExpiresAt = vi.fn<(expiresAt?: number, accessToken?: string) => number>((expiresAt?: number) => expiresAt ?? 0);
 const mockEnsureActiveGroup = vi.fn();
+const mockResetManagementGroupReadiness = vi.fn();
 
 vi.mock('./cloudAuthService', () => ({
   CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS: 60_000,
@@ -20,6 +21,7 @@ vi.mock('./cloudAuthService', () => ({
 
 vi.mock('./managementGroupService', () => ({
   ensureActiveGroup: (...args: unknown[]) => mockEnsureActiveGroup(...args),
+  resetManagementGroupReadiness: () => mockResetManagementGroupReadiness(),
   requiresManagementGroup: (settings: Settings) => (
     settings.overrideCloudEndpointUrl && settings.cloudApiUrl.trim().length > 0
   ),
@@ -49,6 +51,7 @@ describe('cloudSessionManager', () => {
       name: 'German A',
       groups: [{ id: 'german-a', name: 'German A' }],
     });
+    mockResetManagementGroupReadiness.mockReset();
   });
 
   it('does not run a custom group-scoped operation until the active group is activated', async () => {
@@ -81,6 +84,14 @@ describe('cloudSessionManager', () => {
     await expect(pending).resolves.toBe('done');
     expect(operation).toHaveBeenCalledWith('access-token');
     cleanup();
+  });
+
+  it('clears group readiness when the cloud session is signed out', async () => {
+    const { syncCloudSessionState } = await import('./cloudSessionManager');
+
+    syncCloudSessionState(makeSettings({ cloudAuthStatus: 'signed-out' }));
+
+    expect(mockResetManagementGroupReadiness).toHaveBeenCalledOnce();
   });
 
   it('exposes needsSelection and blocks custom group-scoped operations when multiple groups exist', async () => {

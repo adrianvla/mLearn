@@ -209,7 +209,7 @@ export const ComponentsTab: Component = () => {
       },
     ];
 
-    if (voiceItems.length > 0) {
+    if (voiceItems.length > 0 || getManagedSettingSource('voiceEnabled')) {
       groups.push({
         key: 'voice',
         policySettingKey: 'voiceEnabled',

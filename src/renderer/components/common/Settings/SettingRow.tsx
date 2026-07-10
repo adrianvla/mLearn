@@ -42,6 +42,7 @@ export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
     ? settingsCtx?.getManagedSettingSource(props.settingKey)
     : null;
   const disabled = () => Boolean(props.disabled || managedSource());
+  const managed = () => Boolean(managedSource());
 
   createEffect(() => {
     const tabId = tabCtx?.tabId;
@@ -54,7 +55,7 @@ export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
   return (
     <Show when={matches()}>
       <div
-        class={`setting-row ${disabled() ? 'disabled' : ''} ${props.class || ''}`}
+        class={`setting-row ${props.disabled ? 'disabled' : ''} ${managed() ? 'managed' : ''} ${props.class || ''}`}
         aria-disabled={disabled() ? 'true' : undefined}
         style={props.style}
       >

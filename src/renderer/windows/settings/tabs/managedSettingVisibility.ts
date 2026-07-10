@@ -11,3 +11,12 @@ export function shouldShowAnkiSettings(
 ): boolean {
   return useAnki || ANKI_CONDITIONAL_SETTING_KEYS.some(isSettingManaged);
 }
+
+export function shouldShowFrequencySettings(
+  supportsFrequencyLevels: boolean,
+  isSettingManaged: (key: PolicySettingKey) => boolean,
+): boolean {
+  return supportsFrequencyLevels
+    || isSettingManaged('proportionOfLevelCards')
+    || isSettingManaged('wordSyncStaleLearningDays');
+}

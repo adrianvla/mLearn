@@ -65,7 +65,7 @@ export const VideoPlayerTab: Component = () => {
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
-        <Show when={getLanguageFeatures().supportsReadings}>
+        <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('showReadingAnnotations')}>
           <SettingRow
             label={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Label')}
             description={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Description')}
@@ -93,7 +93,7 @@ export const VideoPlayerTab: Component = () => {
           </SettingRow>
         </Show>
 
-        <Show when={getLanguageFeatures().supportsProsody}>
+        <Show when={getLanguageFeatures().supportsProsody || isSettingManaged('showProsody')}>
           <SettingRow
             label={getLanguageProsodyToggleLabel(currentLangData()) ?? t('mlearn.Settings.DisplayOptions.ShowProsody.Label')}
             description={getLanguageProsodyToggleDescription(currentLangData()) ?? t('mlearn.Settings.DisplayOptions.ShowProsody.Description')}
