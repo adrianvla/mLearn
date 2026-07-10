@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -9,13 +9,23 @@ use serde_json::Value;
 use crate::{
     error::AppError,
     identity::Principal,
-    policy::{CompiledPolicy, DraftValidation, PolicyDraft, PolicyService, PolicyVersion},
+    policy::{
+        CompiledPolicy, DraftValidation, PolicyDraft, PolicyHistoryPage, PolicyService,
+        PolicyVersion,
+    },
     state::AppState,
 };
 
 #[derive(Deserialize)]
 struct PublishRequest {
     summary: String,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HistoryQuery {
+    cursor: Option<String>,
+    limit: Option<usize>,
 }
 
 pub fn router(state: AppState) -> Router<AppState> {
@@ -88,10 +98,16 @@ async fn history(
     State(state): State<AppState>,
     principal: Principal,
     Path(group_id): Path<String>,
-) -> Result<Json<Vec<PolicyVersion>>, AppError> {
+    Query(query): Query<HistoryQuery>,
+) -> Result<Json<PolicyHistoryPage>, AppError> {
     Ok(Json(
         PolicyService::new(state.db)
-            .history(&principal, &group_id)
+            .history(
+                &principal,
+                &group_id,
+                query.cursor.as_deref(),
+                query.limit.unwrap_or(50),
+            )
             .await?,
     ))
 }
@@ -111,16 +127,16 @@ async fn effective(
 #[cfg(test)]
 mod tests {
     use axum::{
-        body::Body,
+        body::{to_bytes, Body},
         http::{header, Request, StatusCode},
         Router,
     };
-    use serde_json::json;
+    use serde_json::{json, Value};
     use tower::ServiceExt;
 
     use crate::{
         api_keys::ApiKeyService, auth::hash_token, authorization::Capability, config::Config,
-        groups::tests::GroupFixture, state::AppState,
+        groups::tests::GroupFixture, policy::PolicyService, state::AppState,
     };
 
     async fn policy_app(fixture: &GroupFixture) -> (Router, String) {
@@ -211,5 +227,46 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(write.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn history_route_returns_cursor_page_shape() {
+        let fixture = GroupFixture::german_tree().await;
+        let (app, token) = policy_app(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"features":{"cloud_tts":{"enabled":false}}}),
+            )
+            .await
+            .unwrap();
+        for summary in ["first", "second"] {
+            service
+                .publish(&fixture.german_a_teacher, &fixture.german_a, summary)
+                .await
+                .unwrap();
+        }
+
+        let response = app
+            .oneshot(
+                Request::get(format!(
+                    "/api/groups/{}/policy/history?limit=1",
+                    fixture.german_a
+                ))
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(body["items"].as_array().unwrap().len(), 1);
+        assert!(body["items"][0]["compiledHash"].is_string());
+        assert!(body["nextCursor"].is_string());
     }
 }

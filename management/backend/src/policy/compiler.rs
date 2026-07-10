@@ -37,9 +37,31 @@ struct ActiveDefinition {
     created_at: i64,
 }
 
+pub(crate) struct CandidatePolicyVersion<'a> {
+    pub version_id: &'a str,
+    pub document: &'a PolicyDraftDocument,
+    pub created_at: i64,
+}
+
 pub(crate) async fn compile_in_transaction(
     transaction: &mut Transaction<'_, Sqlite>,
     group_id: &str,
+) -> Result<CompiledPolicy, AppError> {
+    compile_with_candidate_in_transaction(transaction, group_id, None).await
+}
+
+pub(crate) async fn compile_candidate_in_transaction(
+    transaction: &mut Transaction<'_, Sqlite>,
+    group_id: &str,
+    candidate: CandidatePolicyVersion<'_>,
+) -> Result<CompiledPolicy, AppError> {
+    compile_with_candidate_in_transaction(transaction, group_id, Some(candidate)).await
+}
+
+async fn compile_with_candidate_in_transaction(
+    transaction: &mut Transaction<'_, Sqlite>,
+    group_id: &str,
+    candidate: Option<CandidatePolicyVersion<'_>>,
 ) -> Result<CompiledPolicy, AppError> {
     let rows = sqlx::query(
         "WITH RECURSIVE ancestors(id, parent_id, name, depth) AS (
@@ -71,26 +93,37 @@ pub(crate) async fn compile_in_transaction(
             name: row.get("group_name"),
         })
         .collect::<Vec<_>>();
-    let definitions = rows
-        .into_iter()
-        .filter_map(|row| {
-            let version_id = row.get::<Option<String>, _>("version_id")?;
-            Some((row, version_id))
-        })
-        .map(|(row, version_id)| {
-            let document_json: String = row.get("document_json");
-            let document = serde_json::from_str(&document_json).map_err(|error| {
-                AppError::Internal(format!("invalid stored policy version: {error}"))
-            })?;
-            Ok(ActiveDefinition {
-                group_id: row.get("group_id"),
-                group_name: row.get("group_name"),
-                version_id,
-                document,
-                created_at: row.get("created_at"),
-            })
-        })
-        .collect::<Result<Vec<_>, AppError>>()?;
+    let mut definitions = Vec::new();
+    for row in rows {
+        let row_group_id: String = row.get("group_id");
+        let group_name: String = row.get("group_name");
+        if row_group_id == group_id {
+            if let Some(candidate) = &candidate {
+                definitions.push(ActiveDefinition {
+                    group_id: row_group_id,
+                    group_name,
+                    version_id: candidate.version_id.to_string(),
+                    document: candidate.document.clone(),
+                    created_at: candidate.created_at,
+                });
+                continue;
+            }
+        }
+        let Some(version_id) = row.get::<Option<String>, _>("version_id") else {
+            continue;
+        };
+        let document_json: String = row.get("document_json");
+        let document = serde_json::from_str(&document_json).map_err(|error| {
+            AppError::Internal(format!("invalid stored policy version: {error}"))
+        })?;
+        definitions.push(ActiveDefinition {
+            group_id: row_group_id,
+            group_name,
+            version_id,
+            document,
+            created_at: row.get("created_at"),
+        });
+    }
 
     let mut settings = BTreeMap::new();
     let mut features = BTreeMap::new();
@@ -122,7 +155,7 @@ pub(crate) async fn compile_in_transaction(
         for (key, rule) in &definition.document.features {
             if features
                 .get(key)
-                .is_some_and(|inherited: &FeatureRule| inherited.hard)
+                .is_some_and(|inherited: &FeatureRule| inherited.hard && !inherited.enabled)
             {
                 continue;
             }
@@ -160,7 +193,7 @@ pub(crate) async fn compile_in_transaction(
                 provenance.insert("llm.promptProfileId".into(), definition.provenance());
             }
             for quota in &draft_llm.quotas {
-                let key = format!("{:?}:{:?}", quota.metric, quota.period);
+                let key = format!("{}:{}", quota.metric.as_str(), quota.period.as_str());
                 let existing = quotas.get(&key);
                 if existing.is_some_and(|current| current.limit <= quota.limit) {
                     continue;
@@ -256,6 +289,7 @@ fn merge_allowlist(
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use sha2::Digest;
 
     use crate::{
         authorization::Capability, groups::tests::GroupFixture, policy::service::PolicyService,
@@ -416,7 +450,7 @@ mod tests {
             fixture.german
         );
         assert_eq!(
-            effective.provenance["llm.quotas.Requests:Daily"].source_group_id,
+            effective.provenance["llm.quotas.requests:daily"].source_group_id,
             fixture.german
         );
     }
@@ -443,11 +477,11 @@ mod tests {
             .await
             .unwrap();
         let history = service
-            .history(&fixture.german_a_teacher, &fixture.german_a)
+            .history(&fixture.german_a_teacher, &fixture.german_a, None, 50)
             .await
             .unwrap();
         assert_eq!(
-            history[0].document,
+            history.items[0].document,
             json!({"features":{"cloud_tts":{"enabled":false,"hard":false}}})
         );
         assert!(sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES (?, ?, 1)")
@@ -500,5 +534,258 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!((versions, active), (0, 0));
+    }
+
+    #[tokio::test]
+    async fn publish_rejects_stored_draft_that_no_longer_passes_registry_validation() {
+        let fixture = GroupFixture::german_tree().await;
+        grant_policy_capabilities(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"settings":{"language":{"value":"de","locked":true}}}),
+            )
+            .await
+            .unwrap();
+        sqlx::query("UPDATE policy_drafts SET document_json = ? WHERE group_id = ?")
+            .bind(r#"{"settings":{"cloudAuthAccessToken":{"value":"secret","locked":true}}}"#)
+            .bind(&fixture.german_a)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+
+        assert!(service
+            .publish(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                "must reject stale draft",
+            )
+            .await
+            .is_err());
+        let versions: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM policy_versions WHERE group_id = ?")
+                .bind(&fixture.german_a)
+                .fetch_one(&fixture.pool)
+                .await
+                .unwrap();
+        assert_eq!(versions, 0);
+    }
+
+    #[tokio::test]
+    async fn publish_rejects_stored_draft_hash_mismatch() {
+        let fixture = GroupFixture::german_tree().await;
+        grant_policy_capabilities(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"features":{"cloud_tts":{"enabled":false}}}),
+            )
+            .await
+            .unwrap();
+        sqlx::query("UPDATE policy_drafts SET document_hash = 'stale' WHERE group_id = ?")
+            .bind(&fixture.german_a)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+
+        assert!(service
+            .publish(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                "must reject stale hash",
+            )
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn compiled_hash_attests_candidate_with_captured_parent_versions() {
+        let fixture = GroupFixture::german_tree().await;
+        grant_policy_capabilities(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german,
+                json!({"settings":{"language":{"value":"en","locked":true}}}),
+            )
+            .await
+            .unwrap();
+        let first_parent = service
+            .publish(&fixture.german_a_teacher, &fixture.german, "English")
+            .await
+            .unwrap();
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"features":{"cloud_tts":{"enabled":false}}}),
+            )
+            .await
+            .unwrap();
+        let first_child = service
+            .publish(&fixture.german_a_teacher, &fixture.german_a, "child policy")
+            .await
+            .unwrap();
+
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german,
+                json!({"settings":{"language":{"value":"fr","locked":true}}}),
+            )
+            .await
+            .unwrap();
+        let second_parent = service
+            .publish(&fixture.german_a_teacher, &fixture.german, "French")
+            .await
+            .unwrap();
+        let second_child = service
+            .publish(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                "same child policy",
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(first_child.document_hash, second_child.document_hash);
+        assert_ne!(first_child.compiled_hash, second_child.compiled_hash);
+        assert_ne!(second_child.document_hash, second_child.compiled_hash);
+        assert_eq!(first_child.parent_version_ids, vec![first_parent.id]);
+        assert_eq!(second_child.parent_version_ids, vec![second_parent.id]);
+        let effective = service
+            .effective_for_group(&fixture.german_a_teacher, &fixture.german_a)
+            .await
+            .unwrap();
+        let effective_hash = hex::encode(sha2::Sha256::digest(
+            serde_json::to_vec(&effective).unwrap(),
+        ));
+        assert_eq!(second_child.compiled_hash, effective_hash);
+        let metadata: String = sqlx::query_scalar(
+            "SELECT metadata_json FROM audit_events WHERE action = 'policy.published' AND target_id = ?",
+        )
+        .bind(&second_child.id)
+        .fetch_one(&fixture.pool)
+        .await
+        .unwrap();
+        let metadata: serde_json::Value = serde_json::from_str(&metadata).unwrap();
+        assert_eq!(metadata["compiledHash"], json!(second_child.compiled_hash));
+    }
+
+    #[tokio::test]
+    async fn history_pages_same_timestamp_versions_by_created_at_and_id() {
+        let fixture = GroupFixture::german_tree().await;
+        grant_policy_capabilities(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"features":{"cloud_tts":{"enabled":false}}}),
+            )
+            .await
+            .unwrap();
+        for summary in ["one", "two", "three"] {
+            service
+                .publish(&fixture.german_a_teacher, &fixture.german_a, summary)
+                .await
+                .unwrap();
+        }
+
+        let expected: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM policy_versions WHERE group_id = ? ORDER BY created_at DESC, id DESC",
+        )
+        .bind(&fixture.german_a)
+        .fetch_all(&fixture.pool)
+        .await
+        .unwrap();
+        let same_timestamp_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM policy_versions WHERE group_id = ? AND created_at = (SELECT MAX(created_at) FROM policy_versions WHERE group_id = ?)",
+        )
+        .bind(&fixture.german_a)
+        .bind(&fixture.german_a)
+        .fetch_one(&fixture.pool)
+        .await
+        .unwrap();
+        assert!(same_timestamp_count >= 2);
+
+        let first = service
+            .history(&fixture.german_a_teacher, &fixture.german_a, None, 2)
+            .await
+            .unwrap();
+        let second = service
+            .history(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                first.next_cursor.as_deref(),
+                2,
+            )
+            .await
+            .unwrap();
+        let actual = first
+            .items
+            .iter()
+            .chain(&second.items)
+            .map(|version| version.id.clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(actual, expected);
+        assert!(first.next_cursor.is_some());
+        assert!(second.next_cursor.is_none());
+        let clamped = service
+            .history(&fixture.german_a_teacher, &fixture.german_a, None, 0)
+            .await
+            .unwrap();
+        assert_eq!(clamped.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn legacy_parent_hard_enabled_rule_does_not_block_child_deny() {
+        let fixture = GroupFixture::german_tree().await;
+        grant_policy_capabilities(&fixture).await;
+        let service = PolicyService::new(fixture.pool.clone());
+        sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES ('legacy-hard-enable', ?, ?, 'legacy-local', 'legacy-compiled', ?, 'legacy', '[]', 1)")
+            .bind(&fixture.german)
+            .bind(r#"{"features":{"cloud_tts":{"enabled":true,"hard":true}}}"#)
+            .bind(&fixture.german_a_teacher.user_id)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES (?, 'legacy-hard-enable', 1)")
+            .bind(&fixture.german)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+        service
+            .save_draft(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                json!({"features":{"cloud_tts":{"enabled":false}}}),
+            )
+            .await
+            .unwrap();
+        service
+            .publish(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                "tighten legacy rule",
+            )
+            .await
+            .unwrap();
+
+        let effective = service
+            .effective_for_group(&fixture.german_a_teacher, &fixture.german_a)
+            .await
+            .unwrap();
+        assert!(!effective.document.features["cloud_tts"].enabled);
+        assert_eq!(
+            effective.document.features["cloud_tts"].source_group_id,
+            fixture.german_a
+        );
     }
 }

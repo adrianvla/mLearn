@@ -17,7 +17,10 @@ use crate::{
     },
 };
 
-use super::compiler::{compile_in_transaction, CompiledPolicy};
+use super::compiler::{
+    compile_candidate_in_transaction, compile_in_transaction, CandidatePolicyVersion,
+    CompiledPolicy,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -94,10 +97,18 @@ pub struct PolicyVersion {
     pub group_id: String,
     pub document: Value,
     pub document_hash: String,
+    pub compiled_hash: String,
     pub author_user_id: String,
     pub summary: String,
     pub parent_version_ids: Vec<String>,
     pub created_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHistoryPage {
+    pub items: Vec<PolicyVersion>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Clone)]
@@ -214,39 +225,47 @@ impl PolicyService {
         .await
         .map_err(database_error)?
         .ok_or_else(|| AppError::BadRequest("policy draft does not exist".into()))?;
-        let document_json: String = draft.get("document_json");
-        let _: PolicyDraftDocument = serde_json::from_str(&document_json).map_err(json_error)?;
-        let parent_version_ids: Vec<String> = sqlx::query_scalar(
-            "WITH RECURSIVE ancestors(id, parent_id, depth) AS (
-                SELECT id, parent_id, 0 FROM groups WHERE id = ? AND status != 'archived'
-                UNION ALL
-                SELECT parent.id, parent.parent_id, child.depth + 1
-                FROM groups parent JOIN ancestors child ON child.parent_id = parent.id
-                WHERE parent.status != 'archived'
-            )
-            SELECT active.policy_version_id FROM ancestors
-            JOIN active_policies active ON active.group_id = ancestors.id
-            WHERE ancestors.id != ? ORDER BY ancestors.depth DESC",
-        )
-        .bind(group_id)
-        .bind(group_id)
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(database_error)?;
+        let stored_document_json: String = draft.get("document_json");
+        let stored_document_hash: String = draft.get("document_hash");
+        let stored_document: Value =
+            serde_json::from_str(&stored_document_json).map_err(|error| {
+                AppError::BadRequest(format!("invalid stored policy draft: {error}"))
+            })?;
+        let (document, document_json, document_hash) = normalize_and_validate(stored_document)?;
+        if document_json != stored_document_json || document_hash != stored_document_hash {
+            return Err(AppError::Conflict(
+                "stored policy draft failed canonical integrity verification".into(),
+            ));
+        }
         let id = Uuid::now_v7().to_string();
         let created_at = now();
+        let compiled = compile_candidate_in_transaction(
+            &mut transaction,
+            group_id,
+            CandidatePolicyVersion {
+                version_id: &id,
+                document: &document,
+                created_at,
+            },
+        )
+        .await?;
+        let compiled_hash = hex::encode(Sha256::digest(
+            serde_json::to_vec(&compiled).map_err(json_error)?,
+        ));
+        let parent_version_ids = compiled.parent_versions;
         let parent_json = serde_json::to_string(&parent_version_ids).map_err(json_error)?;
-        let document_hash: String = draft.get("document_hash");
-        sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            .bind(&id).bind(group_id).bind(&document_json).bind(&document_hash)
+        sqlx::query("INSERT INTO policy_versions (id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(&id).bind(group_id).bind(&document_json).bind(&document_hash).bind(&compiled_hash)
             .bind(&principal.user_id).bind(summary.trim()).bind(&parent_json).bind(created_at)
             .execute(&mut *transaction).await.map_err(database_error)?;
         sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES (?, ?, ?) ON CONFLICT(group_id) DO UPDATE SET policy_version_id = excluded.policy_version_id, activated_at = excluded.activated_at")
             .bind(group_id).bind(&id).bind(created_at)
             .execute(&mut *transaction).await.map_err(database_error)?;
         let metadata = serde_json::to_string(&serde_json::json!({
-            "summary": summary.trim(), "documentHash": document_hash, "parentVersionIds": parent_version_ids,
-        })).map_err(json_error)?;
+            "summary": summary.trim(), "documentHash": document_hash, "compiledHash": compiled_hash,
+            "parentVersionIds": parent_version_ids,
+        }))
+        .map_err(json_error)?;
         sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at, authorized_group_id, request_id) VALUES (?, ?, 'policy.published', 'policy_version', ?, ?, ?, ?, NULL)")
             .bind(Uuid::now_v7().to_string()).bind(&principal.user_id).bind(&id)
             .bind(metadata).bind(created_at).bind(group_id)
@@ -257,6 +276,7 @@ impl PolicyService {
             group_id: group_id.to_string(),
             document: serde_json::from_str(&document_json).map_err(json_error)?,
             document_hash,
+            compiled_hash,
             author_user_id: principal.user_id.clone(),
             summary: summary.trim().to_string(),
             parent_version_ids,
@@ -268,13 +288,32 @@ impl PolicyService {
         &self,
         principal: &Principal,
         group_id: &str,
-    ) -> Result<Vec<PolicyVersion>, AppError> {
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<PolicyHistoryPage, AppError> {
         self.authorization
             .require(principal, group_id, Capability::PoliciesView)
             .await?;
-        let rows = sqlx::query("SELECT id, group_id, document_json, document_hash, author_user_id, summary, parent_version_ids_json, created_at FROM policy_versions WHERE group_id = ? ORDER BY created_at DESC, id DESC")
-            .bind(group_id).fetch_all(&self.pool).await.map_err(database_error)?;
-        rows.into_iter().map(version_from_row).collect()
+        let cursor = cursor.map(parse_history_cursor).transpose()?;
+        let cursor_created_at = cursor.as_ref().map(|cursor| cursor.0);
+        let cursor_id = cursor.as_ref().map(|cursor| cursor.1.as_str());
+        let limit = limit.clamp(1, 100);
+        let rows = sqlx::query("SELECT id, group_id, document_json, document_hash, compiled_hash, author_user_id, summary, parent_version_ids_json, created_at FROM policy_versions WHERE group_id = ? AND (? IS NULL OR created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC, id DESC LIMIT ?")
+            .bind(group_id)
+            .bind(cursor_created_at)
+            .bind(cursor_created_at)
+            .bind(cursor_created_at)
+            .bind(cursor_id)
+            .bind((limit + 1) as i64)
+            .fetch_all(&self.pool).await.map_err(database_error)?;
+        let mut items = rows
+            .into_iter()
+            .map(version_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_more = items.len() > limit;
+        items.truncate(limit);
+        let next_cursor = has_more.then(|| items.last().map(history_cursor)).flatten();
+        Ok(PolicyHistoryPage { items, next_cursor })
     }
 
     pub async fn effective_for_group(
@@ -300,9 +339,20 @@ impl PolicyService {
 fn normalize_and_validate(
     document: Value,
 ) -> Result<(PolicyDraftDocument, String, String), AppError> {
-    let document: PolicyDraftDocument = serde_json::from_value(document)
+    let mut document: PolicyDraftDocument = serde_json::from_value(document)
         .map_err(|error| AppError::BadRequest(format!("invalid policy draft: {error}")))?;
     validate_draft_document(&document)?;
+    if let Some(llm) = &mut document.llm {
+        for values in [&mut llm.allowed_providers, &mut llm.allowed_models]
+            .into_iter()
+            .flatten()
+        {
+            values.sort();
+            values.dedup();
+        }
+        llm.quotas
+            .sort_by_key(|quota| (quota.metric.as_str(), quota.period.as_str()));
+    }
     let normalized = serde_json::to_string(&document).map_err(json_error)?;
     let hash = hex::encode(Sha256::digest(normalized.as_bytes()));
     Ok((document, normalized, hash))
@@ -317,8 +367,13 @@ fn validate_draft_document(document: &PolicyDraftDocument) -> Result<(), AppErro
             )));
         }
     }
-    for key in document.features.keys() {
+    for (key, rule) in &document.features {
         require_safe_identifier("feature", key)?;
+        if rule.hard && rule.enabled {
+            return Err(AppError::BadRequest(format!(
+                "hard feature rule `{key}` must be a deny"
+            )));
+        }
     }
     if let Some(llm) = &document.llm {
         if let Some(providers) = &llm.allowed_providers {
@@ -336,11 +391,19 @@ fn validate_draft_document(document: &PolicyDraftDocument) -> Result<(), AppErro
         if let Some(Some(prompt)) = &llm.prompt_profile_id {
             require_safe_identifier("prompt profile", prompt)?;
         }
+        let mut quota_keys = std::collections::BTreeSet::new();
         for quota in &llm.quotas {
             if quota.limit > 9_007_199_254_740_991 {
                 return Err(AppError::BadRequest(
                     "LLM quota exceeds JavaScript's safe integer maximum".into(),
                 ));
+            }
+            let key = (quota.metric.as_str(), quota.period.as_str());
+            if !quota_keys.insert(key) {
+                return Err(AppError::BadRequest(format!(
+                    "duplicate LLM quota {}:{}",
+                    key.0, key.1
+                )));
             }
         }
     }
@@ -384,6 +447,7 @@ fn version_from_row(row: sqlx::sqlite::SqliteRow) -> Result<PolicyVersion, AppEr
         group_id: row.get("group_id"),
         document: serde_json::from_str(&document_json).map_err(json_error)?,
         document_hash: row.get("document_hash"),
+        compiled_hash: row.get("compiled_hash"),
         author_user_id: row.get("author_user_id"),
         summary: row.get("summary"),
         parent_version_ids: serde_json::from_str(&parent_json).map_err(json_error)?,
@@ -394,9 +458,79 @@ fn version_from_row(row: sqlx::sqlite::SqliteRow) -> Result<PolicyVersion, AppEr
 fn now() -> i64 {
     OffsetDateTime::now_utc().unix_timestamp()
 }
+
+fn parse_history_cursor(cursor: &str) -> Result<(i64, String), AppError> {
+    let (created_at, id) = cursor
+        .split_once(':')
+        .ok_or_else(|| AppError::BadRequest("invalid policy history cursor".into()))?;
+    let created_at = created_at
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid policy history cursor".into()))?;
+    if id.is_empty() {
+        return Err(AppError::BadRequest("invalid policy history cursor".into()));
+    }
+    Ok((created_at, id.to_string()))
+}
+
+fn history_cursor(version: &PolicyVersion) -> String {
+    format!("{}:{}", version.created_at, version.id)
+}
 pub(crate) fn database_error(error: sqlx::Error) -> AppError {
     AppError::Internal(format!("database error: {error}"))
 }
 fn json_error(error: serde_json::Error) -> AppError {
     AppError::Internal(format!("JSON error: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::normalize_and_validate;
+
+    #[test]
+    fn canonicalization_sorts_sets_and_quotas_for_stable_hashes() {
+        let first = json!({"llm": {
+            "allowedProviders": ["ollama", "builtin", "ollama"],
+            "allowedModels": ["z-model", "a-model", "z-model"],
+            "quotas": [
+                {"metric":"totalTokens", "limit":20, "period":"monthly"},
+                {"metric":"requests", "limit":10, "period":"daily"}
+            ]
+        }});
+        let second = json!({"llm": {
+            "allowedProviders": ["builtin", "ollama"],
+            "allowedModels": ["a-model", "z-model"],
+            "quotas": [
+                {"metric":"requests", "limit":10, "period":"daily"},
+                {"metric":"totalTokens", "limit":20, "period":"monthly"}
+            ]
+        }});
+
+        let (_, first_json, first_hash) = normalize_and_validate(first).unwrap();
+        let (_, second_json, second_hash) = normalize_and_validate(second).unwrap();
+
+        assert_eq!(first_json, second_json);
+        assert_eq!(first_hash, second_hash);
+        assert!(first_json.contains(r#""allowedProviders":["builtin","ollama"]"#));
+        assert!(first_json.contains(r#""allowedModels":["a-model","z-model"]"#));
+    }
+
+    #[test]
+    fn duplicate_quota_metric_and_period_is_rejected() {
+        let result = normalize_and_validate(json!({"llm":{"quotas":[
+            {"metric":"requests", "limit":10, "period":"daily"},
+            {"metric":"requests", "limit":20, "period":"daily"}
+        ]}}));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn hard_enabled_feature_is_rejected() {
+        let result =
+            normalize_and_validate(json!({"features":{"cloud_tts":{"enabled":true,"hard":true}}}));
+
+        assert!(result.is_err());
+    }
 }

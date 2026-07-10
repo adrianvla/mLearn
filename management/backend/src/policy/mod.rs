@@ -6,4 +6,4 @@ pub mod service;
 pub use compiler::{CompiledPolicy, RuleProvenance};
 pub use model::{FeatureRule, LlmPolicy, PolicyDocument, QuotaRule, SettingRule};
 pub use registry::{validate_policy_document, validate_setting_rule};
-pub use service::{DraftValidation, PolicyDraft, PolicyService, PolicyVersion};
+pub use service::{DraftValidation, PolicyDraft, PolicyHistoryPage, PolicyService, PolicyVersion};
