@@ -36,6 +36,7 @@ body.theme-dark-high-contrast,
     --panel-border-hover: var(--border-color-intense);
     --bg-primary: var(--bg);
     --bg-secondary: var(--bg-intense);
+    --bg-tertiary: var(--bg-intense);
     --shadow-border:var(--border-color) 0px 0px 0px 1px;
 
     --overlay-bg: rgba(0, 0, 0, 0.6);
