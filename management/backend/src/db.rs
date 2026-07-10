@@ -258,6 +258,12 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
+        sqlx::raw_sql(include_str!(
+            "../migrations/0012_conversation_terminal_invariants.sql"
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
         assert_eq!(
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id='prior'")
                 .fetch_one(&pool)
@@ -273,6 +279,7 @@ mod tests {
             "llm_requests_terminal_immutable",
             "conversations_retention_idx",
             "llm_policy_block_events",
+            "llm_requests_terminalize_conversation",
         ] {
             assert_eq!(
                 sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master WHERE name=?")

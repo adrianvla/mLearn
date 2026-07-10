@@ -93,14 +93,6 @@ async fn prepare_stream(
         state.secret_cipher.as_ref().clone(),
         state.config.conversation_retention_days,
     );
-    if conversation_service
-        .record_policy_block_if_denied(&principal, &active_group_id)
-        .await
-        .map_err(map_preflight_error)?
-    {
-        return Err(GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"));
-    }
-
     let configuration = LlmConfigurationService::with_resolver(
         state.db.clone(),
         state.secret_cipher.as_ref().clone(),
@@ -108,10 +100,21 @@ async fn prepare_stream(
     );
     // This performs policy/database resolution only. DNS and provider connection happen after
     // the quota transaction has accepted this exact stable provider/model/price tuple.
-    let route_config = configuration
+    let route_config = match configuration
         .resolve_route_metadata(&active_group_id, None)
         .await
-        .map_err(map_preflight_error)?;
+    {
+        Ok(route) => route,
+        Err(error) => {
+            if is_policy_denial(&error) {
+                conversation_service
+                    .record_policy_denial(&principal, &active_group_id)
+                    .await
+                    .map_err(map_preflight_error)?;
+            }
+            return Err(map_preflight_error(error));
+        }
+    };
     let normalized = request
         .validate(route_config.system_prompt.as_deref())
         .map_err(map_preflight_error)?;
@@ -144,8 +147,19 @@ async fn prepare_stream(
                 lease_seconds: GATEWAY_LEASE_SECONDS,
             },
         )
-        .await
-        .map_err(map_preflight_error)?;
+        .await;
+    let reservation = match reservation {
+        Ok(value) => value,
+        Err(error) => {
+            if is_policy_denial(&error) {
+                conversation_service
+                    .record_policy_denial(&principal, &active_group_id)
+                    .await
+                    .map_err(map_preflight_error)?;
+            }
+            return Err(map_preflight_error(error));
+        }
+    };
 
     // Pin DNS only after quota succeeds; PinnedEndpoint disables proxies and redirects. The
     // whole DNS/connect/header phase is bounded well inside the durable capacity lease.
@@ -526,6 +540,24 @@ fn map_preflight_error(error: AppError) -> GatewayFailure {
     }
 }
 
+fn is_policy_denial(error: &AppError) -> bool {
+    match error {
+        AppError::Forbidden(message) => {
+            let message = message.to_ascii_lowercase();
+            message.contains("policy")
+                || message.contains("governed")
+                || message.contains("required quota")
+                || message.contains("prompt profile")
+                || message.contains("not allowed")
+        }
+        AppError::Conflict(message) => {
+            message.contains("matches effective policy")
+                || message.contains("effective policy references")
+        }
+        _ => false,
+    }
+}
+
 #[derive(Debug)]
 struct GatewayFailure {
     status: StatusCode,
@@ -687,9 +719,12 @@ mod tests {
         resolver: Arc<dyn EndpointResolver>,
         preflight_deadline: Duration,
     ) -> (Router, sqlx::SqlitePool, String, String, String) {
+        let database_path =
+            std::env::temp_dir().join(format!("mlearn-gateway-real-{}.db", Uuid::now_v7()));
+        let options = crate::db::sqlite_connect_options(database_path.to_str().unwrap()).unwrap();
         let pool = SqlitePoolOptions::new()
             .max_connections(4)
-            .connect("sqlite::memory:")
+            .connect_with(options)
             .await
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
@@ -812,7 +847,7 @@ mod tests {
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"term\":\"private-tool-argument\"}"}}]},{"role":"tool","content":"private-tool-result","tool_call_id":"call_1"}],"tools":[{"type":"function","function":{"name":"lookup","description":"","parameters":{"type":"object"}}}],"think":false}"#,
+                    r#"{"messages":[{"role":"user","content":"private-gateway-prompt-7f4b"},{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"term\":\"private-tool-argument\"}"}}]},{"role":"tool","content":"private-tool-result","tool_call_id":"call_1"}],"tools":[{"type":"function","function":{"name":"lookup","description":"","parameters":{"type":"object"}}}],"think":false}"#,
                 ))
                 .unwrap(),
         )
@@ -820,24 +855,72 @@ mod tests {
         .unwrap()
     }
 
+    async fn assert_gateway_files_exclude(pool: &sqlx::SqlitePool, secrets: &[&str]) {
+        let row = sqlx::query("PRAGMA database_list")
+            .fetch_all(pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|row| row.get::<String, _>("name") == "main")
+            .unwrap();
+        let path: String = row.get("file");
+        assert!(!path.is_empty());
+        for candidate in [path.clone(), format!("{path}-wal"), format!("{path}-shm")] {
+            if let Ok(bytes) = std::fs::read(&candidate) {
+                for secret in secrets {
+                    assert!(
+                        !bytes
+                            .windows(secret.len())
+                            .any(|window| window == secret.as_bytes()),
+                        "plaintext leaked to {candidate}"
+                    );
+                }
+            }
+        }
+    }
+
     #[tokio::test]
     async fn configured_router_reserves_before_contact_and_completes_exact_sse() {
-        let address = mock_upstream(200, "{\"message\":{\"content\":\"Hallo\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":2,\"eval_count\":1}\n").await;
+        let address = mock_upstream(200, "{\"message\":{\"content\":\"private-assistant-response-93ac\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":2,\"eval_count\":1}\n").await;
         let resolutions = Arc::new(AtomicUsize::new(0));
         let resolver = Arc::new(FixedResolver(address, resolutions.clone()));
         let (app, pool, token, sibling_token, admin_token) =
             configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+        sqlx::query("INSERT INTO quota_reservations(id,request_id,learner_user_id,direct_group_id,provider_id,model_id,price_version_id,payload_hash,status,expires_at,accounting_at,finalized,created_at,reconciled_at,reconcile_hash) VALUES('expired-retention-reservation','expired-retention-request','learner','class','provider','model','price',zeroblob(32),'reconciled',1,1,1,1,1,zeroblob(32))").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO conversations(id,owner_group_id,learner_user_id,created_at,updated_at,retained_until,status) VALUES('expired-retention','class','learner',0,0,0,'pending')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO llm_requests(id,conversation_id,reservation_id,provider_id,model_id,price_version_id,status,created_at) VALUES('expired-retention-request-row','expired-retention','expired-retention-reservation','provider','model','price','pending',0)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO conversation_messages(id,conversation_id,request_id,sequence,role,encrypted_content,content_bytes,truncated,retained,created_at) VALUES('expired-message','expired-retention','expired-retention-request-row',0,'user','v1.AAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAA',8,0,1,0)").execute(&pool).await.unwrap();
         assert_eq!(resolutions.load(Ordering::SeqCst), 0);
         let response = post_gateway(app.clone(), &token).await;
         assert_eq!(response.status(), StatusCode::OK);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(bytes, Bytes::from_static(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hallo\"}}]}\n\ndata: {\"choices\":[{\"delta\":{}}],\"eval_count\":1,\"prompt_eval_count\":2}\n\ndata: [DONE]\n\n"));
+        assert_eq!(bytes, Bytes::from_static(b"data: {\"choices\":[{\"delta\":{\"content\":\"private-assistant-response-93ac\"}}]}\n\ndata: {\"choices\":[{\"delta\":{}}],\"eval_count\":1,\"prompt_eval_count\":2}\n\ndata: [DONE]\n\n"));
         assert_eq!(resolutions.load(Ordering::SeqCst), 1);
         assert_eq!(
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_reservations")
-                .fetch_one(&pool)
-                .await
-                .unwrap(),
+            sqlx::query_scalar::<_, i64>(
+                "SELECT retained FROM conversation_messages WHERE id='expired-message'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM audit_events WHERE action='conversations.retention_redacted'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM quota_reservations WHERE id!='expired-retention-reservation'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
             1
         );
         assert_eq!(
@@ -848,7 +931,7 @@ mod tests {
             "completed"
         );
         let stored: Vec<String> = sqlx::query_scalar(
-            "SELECT encrypted_content FROM conversation_messages ORDER BY sequence",
+            "SELECT encrypted_content FROM conversation_messages WHERE conversation_id!='expired-retention' ORDER BY sequence",
         )
         .fetch_all(&pool)
         .await
@@ -856,15 +939,25 @@ mod tests {
         assert_eq!(stored.len(), 4);
         assert!(stored.iter().all(|ciphertext| {
             !ciphertext.contains("hi")
-                && !ciphertext.contains("Hallo")
+                && !ciphertext.contains("private-assistant-response-93ac")
                 && !ciphertext.contains("private-tool")
         }));
         let stored_tools:Vec<String>=sqlx::query_scalar("SELECT encrypted_tool_data FROM conversation_messages WHERE encrypted_tool_data IS NOT NULL").fetch_all(&pool).await.unwrap();
         assert!(stored_tools
             .iter()
             .all(|ciphertext| !ciphertext.contains("private-tool")));
+        assert_gateway_files_exclude(
+            &pool,
+            &[
+                "private-gateway-prompt-7f4b",
+                "private-assistant-response-93ac",
+                "private-tool-argument",
+                "private-tool-result",
+            ],
+        )
+        .await;
         let request =
-            sqlx::query("SELECT status,usage_quality,input_tokens,output_tokens,policy_version_id,policy_compiled_hash FROM llm_requests")
+            sqlx::query("SELECT status,usage_quality,input_tokens,output_tokens,policy_version_id,policy_compiled_hash FROM llm_requests WHERE status='completed'")
                 .fetch_one(&pool)
                 .await
                 .unwrap();
@@ -874,10 +967,11 @@ mod tests {
         assert_eq!(request.get::<i64, _>("output_tokens"), 1);
         assert!(!request.get::<String, _>("policy_version_id").is_empty());
         assert_eq!(request.get::<String, _>("policy_compiled_hash").len(), 64);
-        let conversation_id: String = sqlx::query_scalar("SELECT id FROM conversations")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        let conversation_id: String =
+            sqlx::query_scalar("SELECT id FROM conversations WHERE id!='expired-retention'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         let detail_response = app
             .clone()
             .oneshot(
@@ -895,13 +989,19 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(detail["messages"][0]["content"], "hi");
+        assert_eq!(
+            detail["messages"][0]["content"],
+            "private-gateway-prompt-7f4b"
+        );
         assert_eq!(
             detail["messages"][1]["toolData"][0][0]["function"]["arguments"],
             "{\"term\":\"private-tool-argument\"}"
         );
         assert_eq!(detail["messages"][2]["content"], "private-tool-result");
-        assert_eq!(detail["messages"][3]["content"], "Hallo");
+        assert_eq!(
+            detail["messages"][3]["content"],
+            "private-assistant-response-93ac"
+        );
         let normal_list = app
             .clone()
             .oneshot(
@@ -1032,6 +1132,7 @@ mod tests {
                     .unwrap(),
                 "cancelled"
             );
+            assert_gateway_files_exclude(&pool, &["secret provider body"]).await;
         }
     }
 
@@ -1065,6 +1166,7 @@ mod tests {
             1
         );
         let list = app
+            .clone()
             .oneshot(
                 Request::get("/api/conversations?groupId=class&policyBlocked=true")
                     .header(header::AUTHORIZATION, format!("Bearer {token}"))
@@ -1077,6 +1179,35 @@ mod tests {
         let value: serde_json::Value =
             serde_json::from_slice(&to_bytes(list.into_body(), usize::MAX).await.unwrap()).unwrap();
         assert_eq!(value["items"].as_array().unwrap().len(), 1);
+        let disallowed=serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":[],"allowedModels":[],"quotas":[{"metric":"costMicros","limit":1000000000_i64,"period":"monthly","hard":true}]}}).to_string();
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('disallowed-policy','school',?,'disallowed-hash','disallowed-compiled','admin','disallowed','[]',3)").bind(disallowed).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE active_policies SET policy_version_id='disallowed-policy',activated_at=3 WHERE group_id='school'").execute(&pool).await.unwrap();
+        assert_eq!(
+            post_gateway(app.clone(), &token).await.status(),
+            StatusCode::CONFLICT
+        );
+        let no_quota=serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[]}}).to_string();
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('no-quota-policy','school',?,'no-quota-hash','no-quota-compiled','admin','no quota','[]',4)").bind(no_quota).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE active_policies SET policy_version_id='no-quota-policy',activated_at=4 WHERE group_id='school'").execute(&pool).await.unwrap();
+        assert_eq!(
+            post_gateway(app, &token).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM llm_policy_block_events")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            3
+        );
+        assert_eq!(resolutions.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_reservations")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            0
+        );
     }
 
     #[tokio::test]
@@ -1182,6 +1313,19 @@ mod tests {
             .await
             .unwrap(),
             "pending"
+        );
+        assert!(
+            sqlx::query("UPDATE llm_requests SET status='completed' WHERE reservation_id=?")
+                .bind(&reservation_id)
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        assert!(
+            sqlx::query("UPDATE conversations SET status='failed',updated_at=unixepoch()")
+                .execute(&pool)
+                .await
+                .is_err()
         );
         sqlx::query("UPDATE llm_gateway_leases SET acquired_at = 0, expires_at = 1 WHERE reservation_id = ?")
             .bind(&reservation_id).execute(&pool).await.unwrap();
