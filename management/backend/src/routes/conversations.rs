@@ -4,13 +4,13 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
 
 use crate::{
     error::AppError,
     identity::Principal,
     llm::conversations::{
-        ConversationDetail, ConversationFilter, ConversationService, ConversationSummary,
+        ConversationDetail, ConversationFilter, ConversationPage, ConversationService,
+        RetentionPage,
     },
     state::AppState,
 };
@@ -19,7 +19,7 @@ use crate::{
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ListQuery {
     group_id: String,
-    cursor: Option<i64>,
+    cursor: Option<String>,
     limit: Option<usize>,
     learner_user_id: Option<String>,
     provider_id: Option<String>,
@@ -28,6 +28,10 @@ struct ListQuery {
     from: Option<i64>,
     to: Option<i64>,
     policy_blocked: Option<bool>,
+}
+#[derive(Deserialize)]
+struct MaintenanceQuery {
+    cursor: Option<String>,
 }
 
 pub fn router(state: AppState) -> Router<AppState> {
@@ -48,13 +52,13 @@ async fn list(
     State(state): State<AppState>,
     principal: Principal,
     Query(query): Query<ListQuery>,
-) -> Result<Json<Vec<ConversationSummary>>, AppError> {
+) -> Result<Json<ConversationPage>, AppError> {
     Ok(Json(
         service(&state)
             .list(
                 &principal,
                 &query.group_id,
-                query.cursor,
+                query.cursor.as_deref(),
                 query.limit.unwrap_or(50),
                 ConversationFilter {
                     learner_user_id: query.learner_user_id.as_deref(),
@@ -79,7 +83,10 @@ async fn get_one(
 async fn maintenance(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<Value>, AppError> {
-    let redacted = service(&state).maintain_retention(&principal).await?;
-    Ok(Json(json!({"redactedMessages":redacted})))
+    Query(query): Query<MaintenanceQuery>,
+) -> Result<Json<RetentionPage>, AppError> {
+    let result = service(&state)
+        .maintain_retention(&principal, query.cursor.as_deref())
+        .await?;
+    Ok(Json(result))
 }

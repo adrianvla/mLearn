@@ -261,6 +261,8 @@ mod tests {
 
     async fn route(address: SocketAddr) -> ResolvedLlmRoute {
         ResolvedLlmRoute {
+            policy_version_id: "policy".into(),
+            policy_compiled_hash: "compiled".into(),
             provider_id: "provider-id".into(),
             model_id: "model-id".into(),
             provider_kind: ProviderKind::OpenAiCompatible,

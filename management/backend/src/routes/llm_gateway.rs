@@ -88,6 +88,19 @@ async fn prepare_stream(
         .clone()
         .ok_or_else(|| GatewayFailure::new(StatusCode::CONFLICT, "invalid_active_group"))?;
 
+    let conversation_service = ConversationService::with_retention_days(
+        state.db.clone(),
+        state.secret_cipher.as_ref().clone(),
+        state.config.conversation_retention_days,
+    );
+    if conversation_service
+        .record_policy_block_if_denied(&principal, &active_group_id)
+        .await
+        .map_err(map_preflight_error)?
+    {
+        return Err(GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"));
+    }
+
     let configuration = LlmConfigurationService::with_resolver(
         state.db.clone(),
         state.secret_cipher.as_ref().clone(),
@@ -121,6 +134,8 @@ async fn prepare_stream(
                 expires_at: None,
             },
             GatewayReservationRequirements {
+                policy_version_id: &route_config.policy_version_id,
+                policy_compiled_hash: &route_config.policy_compiled_hash,
                 expected_prompt_profile_id: route_config.prompt_profile_id.as_deref(),
                 config_fingerprint: route_config.config_fingerprint,
                 conservative_actual: &amounts,
@@ -188,7 +203,8 @@ async fn prepare_stream(
         provider_id: &route.provider_id,
         model_id: &route.model_id,
         price_version_id: &route.price_version.id,
-        policy_version_id: None,
+        policy_version_id: Some(&route.policy_version_id),
+        policy_compiled_hash: Some(&route.policy_compiled_hash),
         request: &recorder_request,
     })
     .await
@@ -670,7 +686,7 @@ mod tests {
         address: SocketAddr,
         resolver: Arc<dyn EndpointResolver>,
         preflight_deadline: Duration,
-    ) -> (Router, sqlx::SqlitePool, String, String) {
+    ) -> (Router, sqlx::SqlitePool, String, String, String) {
         let pool = SqlitePoolOptions::new()
             .max_connections(4)
             .connect("sqlite::memory:")
@@ -697,6 +713,7 @@ mod tests {
             Capability::PoliciesView,
             Capability::PoliciesEdit,
             Capability::PoliciesPublish,
+            Capability::ConversationsView,
         ] {
             sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES ('admin-membership', ?)")
                 .bind(capability.as_str()).execute(&pool).await.unwrap();
@@ -757,10 +774,21 @@ mod tests {
             .issue_session("sibling-teacher", None, Some("sibling"))
             .await
             .unwrap();
+        let admin_session = state
+            .identity
+            .issue_session("admin", None, Some("school"))
+            .await
+            .unwrap();
         let app = router(state.clone())
             .merge(crate::routes::conversations::router(state.clone()))
             .with_state(state);
-        (app, pool, session.access_token, sibling.access_token)
+        (
+            app,
+            pool,
+            session.access_token,
+            sibling.access_token,
+            admin_session.access_token,
+        )
     }
 
     async fn mock_upstream(status: u16, body: &'static str) -> SocketAddr {
@@ -784,7 +812,7 @@ mod tests {
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"messages":[{"role":"user","content":"hi"}],"think":false}"#,
+                    r#"{"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"term\":\"private-tool-argument\"}"}}]},{"role":"tool","content":"private-tool-result","tool_call_id":"call_1"}],"tools":[{"type":"function","function":{"name":"lookup","description":"","parameters":{"type":"object"}}}],"think":false}"#,
                 ))
                 .unwrap(),
         )
@@ -797,7 +825,7 @@ mod tests {
         let address = mock_upstream(200, "{\"message\":{\"content\":\"Hallo\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":2,\"eval_count\":1}\n").await;
         let resolutions = Arc::new(AtomicUsize::new(0));
         let resolver = Arc::new(FixedResolver(address, resolutions.clone()));
-        let (app, pool, token, sibling_token) =
+        let (app, pool, token, sibling_token, admin_token) =
             configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
         assert_eq!(resolutions.load(Ordering::SeqCst), 0);
         let response = post_gateway(app.clone(), &token).await;
@@ -825,12 +853,18 @@ mod tests {
         .fetch_all(&pool)
         .await
         .unwrap();
-        assert_eq!(stored.len(), 2);
-        assert!(stored
+        assert_eq!(stored.len(), 4);
+        assert!(stored.iter().all(|ciphertext| {
+            !ciphertext.contains("hi")
+                && !ciphertext.contains("Hallo")
+                && !ciphertext.contains("private-tool")
+        }));
+        let stored_tools:Vec<String>=sqlx::query_scalar("SELECT encrypted_tool_data FROM conversation_messages WHERE encrypted_tool_data IS NOT NULL").fetch_all(&pool).await.unwrap();
+        assert!(stored_tools
             .iter()
-            .all(|ciphertext| { !ciphertext.contains("hi") && !ciphertext.contains("Hallo") }));
+            .all(|ciphertext| !ciphertext.contains("private-tool")));
         let request =
-            sqlx::query("SELECT status,usage_quality,input_tokens,output_tokens FROM llm_requests")
+            sqlx::query("SELECT status,usage_quality,input_tokens,output_tokens,policy_version_id,policy_compiled_hash FROM llm_requests")
                 .fetch_one(&pool)
                 .await
                 .unwrap();
@@ -838,6 +872,8 @@ mod tests {
         assert_eq!(request.get::<String, _>("usage_quality"), "exact");
         assert_eq!(request.get::<i64, _>("input_tokens"), 2);
         assert_eq!(request.get::<i64, _>("output_tokens"), 1);
+        assert!(!request.get::<String, _>("policy_version_id").is_empty());
+        assert_eq!(request.get::<String, _>("policy_compiled_hash").len(), 64);
         let conversation_id: String = sqlx::query_scalar("SELECT id FROM conversations")
             .fetch_one(&pool)
             .await
@@ -860,8 +896,83 @@ mod tests {
         )
         .unwrap();
         assert_eq!(detail["messages"][0]["content"], "hi");
-        assert_eq!(detail["messages"][1]["content"], "Hallo");
+        assert_eq!(
+            detail["messages"][1]["toolData"][0][0]["function"]["arguments"],
+            "{\"term\":\"private-tool-argument\"}"
+        );
+        assert_eq!(detail["messages"][2]["content"], "private-tool-result");
+        assert_eq!(detail["messages"][3]["content"], "Hallo");
+        let normal_list = app
+            .clone()
+            .oneshot(
+                Request::get("/api/conversations?groupId=class&policyBlocked=false&limit=1")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let normal_status = normal_list.status();
+        let normal_bytes = to_bytes(normal_list.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(
+            normal_status,
+            StatusCode::OK,
+            "{}",
+            String::from_utf8_lossy(&normal_bytes)
+        );
+        let normal_list: serde_json::Value = serde_json::from_slice(&normal_bytes).unwrap();
+        assert_eq!(normal_list["items"].as_array().unwrap().len(), 1);
+        assert!(normal_list.get("nextCursor").is_some());
+        assert!(
+            sqlx::query("UPDATE llm_requests SET cost_micros=999 WHERE status='completed'")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        assert!(sqlx::query(
+            "UPDATE conversations SET retained_until=999999 WHERE status='completed'"
+        )
+        .execute(&pool)
+        .await
+        .is_err());
+        assert!(
+            sqlx::query("UPDATE conversation_messages SET encrypted_content='v1.bad.bad'")
+                .execute(&pool)
+                .await
+                .is_err()
+        );
+        sqlx::query("UPDATE sessions SET revoked_at=unixepoch() WHERE user_id='learner'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let revoked = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/api/conversations/{conversation_id}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(revoked.status(), StatusCode::UNAUTHORIZED);
+        sqlx::query("UPDATE groups SET status='archived' WHERE id='class'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let archived = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/api/conversations/{conversation_id}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {admin_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(archived.status(), StatusCode::OK);
         let denied = app
+            .clone()
             .oneshot(
                 Request::get(format!("/api/conversations/{conversation_id}"))
                     .header(header::AUTHORIZATION, format!("Bearer {sibling_token}"))
@@ -871,6 +982,21 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        let denied_body = to_bytes(denied.into_body(), usize::MAX).await.unwrap();
+        let missing = app
+            .oneshot(
+                Request::get("/api/conversations/does-not-exist")
+                    .header(header::AUTHORIZATION, format!("Bearer {sibling_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            to_bytes(missing.into_body(), usize::MAX).await.unwrap(),
+            denied_body
+        );
     }
 
     #[tokio::test]
@@ -884,7 +1010,7 @@ mod tests {
         ] {
             let address = mock_upstream(status, "secret provider body").await;
             let resolver = Arc::new(FixedResolver(address, Arc::new(AtomicUsize::new(0))));
-            let (app, pool, token, _) =
+            let (app, pool, token, _, _) =
                 configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
             let response = post_gateway(app, &token).await;
             assert_eq!(response.status(), expected_status, "upstream {status}");
@@ -910,12 +1036,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn policy_denial_records_only_filterable_metadata_without_contact_or_charge() {
+        let address: SocketAddr = "93.184.216.34:11434".parse().unwrap();
+        let resolutions = Arc::new(AtomicUsize::new(0));
+        let resolver = Arc::new(FixedResolver(address, resolutions.clone()));
+        let (app, pool, token, _, _) =
+            configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
+        let denied=serde_json::json!({"llm":{"enabled":false,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[]}}).to_string();
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('denied-policy','school',?,'denied-hash','denied-compiled','admin','denied','[]',2)").bind(denied).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE active_policies SET policy_version_id='denied-policy',activated_at=2 WHERE group_id='school'").execute(&pool).await.unwrap();
+        let response = post_gateway(app.clone(), &token).await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(resolutions.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_reservations")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM llm_policy_block_events WHERE error_code='policy_denied'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            1
+        );
+        let list = app
+            .oneshot(
+                Request::get("/api/conversations?groupId=class&policyBlocked=true")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(list.status(), StatusCode::OK);
+        let value: serde_json::Value =
+            serde_json::from_slice(&to_bytes(list.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(value["items"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
     async fn configured_router_rejects_revoked_archived_and_sibling_context_before_contact() {
         for scenario in ["revoked", "archived", "sibling"] {
             let address: SocketAddr = "93.184.216.34:11434".parse().unwrap();
             let resolutions = Arc::new(AtomicUsize::new(0));
             let resolver = Arc::new(FixedResolver(address, resolutions.clone()));
-            let (app, pool, token, _) =
+            let (app, pool, token, _, _) =
                 configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
             match scenario {
                 "revoked" => {
@@ -966,7 +1136,7 @@ mod tests {
         ] {
             let address = mock_upstream(200, body).await;
             let resolver = Arc::new(FixedResolver(address, Arc::new(AtomicUsize::new(0))));
-            let (app, pool, token, _) =
+            let (app, pool, token, _, _) =
                 configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
             let response = post_gateway(app, &token).await;
             assert_eq!(response.status(), StatusCode::OK);
@@ -993,7 +1163,7 @@ mod tests {
         )
         .await;
         let resolver = Arc::new(FixedResolver(address, Arc::new(AtomicUsize::new(0))));
-        let (app, pool, token, _) =
+        let (app, pool, token, _, _) =
             configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
         let response = post_gateway(app, &token).await;
         assert_eq!(response.status(), StatusCode::OK);
@@ -1056,7 +1226,7 @@ mod tests {
             address,
             resolutions.clone(),
         ));
-        let (app, pool, token, _) =
+        let (app, pool, token, _, _) =
             configured_router_fixture(address, resolver, Duration::from_millis(20)).await;
         let first = post_gateway(app.clone(), &token).await;
         assert_eq!(first.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -1100,7 +1270,7 @@ mod tests {
             address,
             resolutions.clone(),
         ));
-        let (app, pool, token, _) =
+        let (app, pool, token, _, _) =
             configured_router_fixture(address, resolver, Duration::from_secs(2)).await;
         let first_app = app.clone();
         let first_token = token.clone();

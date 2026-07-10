@@ -104,6 +104,8 @@ pub struct QuotaReservation {
 }
 
 pub(crate) struct GatewayReservationRequirements<'a> {
+    pub policy_version_id: &'a str,
+    pub policy_compiled_hash: &'a str,
     pub expected_prompt_profile_id: Option<&'a str>,
     pub config_fingerprint: [u8; 32],
     pub conservative_actual: &'a BTreeMap<String, i64>,
@@ -655,6 +657,19 @@ impl QuotaService {
             ));
         }
         if let Some(requirements) = gateway.as_ref() {
+            let compiled_hash = hex::encode(Sha256::digest(
+                serde_json::to_vec(&compiled.document).map_err(|_| {
+                    AppError::Internal("effective policy serialization failed".into())
+                })?,
+            ));
+            if !requirements.policy_version_id.is_empty()
+                && (compiled.document.policy_version_id != requirements.policy_version_id
+                    || compiled_hash != requirements.policy_compiled_hash)
+            {
+                return Err(AppError::Forbidden(
+                    "effective policy changed before quota reservation".into(),
+                ));
+            }
             let expected_prompt_profile_id = requirements.expected_prompt_profile_id;
             if requirements.requests_per_minute > compiled.document.llm.requests_per_minute
                 || requirements.max_concurrent_streams
@@ -3165,6 +3180,8 @@ mod tests {
                 &learner,
                 request.clone(),
                 GatewayReservationRequirements {
+                    policy_version_id: "",
+                    policy_compiled_hash: "",
                     expected_prompt_profile_id: None,
                     config_fingerprint: fingerprint,
                     conservative_actual: &request.amounts,
@@ -3195,6 +3212,8 @@ mod tests {
                 &learner,
                 request.clone(),
                 GatewayReservationRequirements {
+                    policy_version_id: "",
+                    policy_compiled_hash: "",
                     expected_prompt_profile_id: None,
                     config_fingerprint: fingerprint,
                     conservative_actual: &request.amounts,
@@ -3303,6 +3322,8 @@ mod tests {
                 &learner,
                 second.clone(),
                 GatewayReservationRequirements {
+                    policy_version_id: "",
+                    policy_compiled_hash: "",
                     expected_prompt_profile_id: Some("prompt"),
                     config_fingerprint: prompt_fingerprint,
                     conservative_actual: &second.amounts,
@@ -3628,6 +3649,8 @@ mod tests {
         max_concurrent_streams: u16,
     ) -> GatewayReservationRequirements<'a> {
         GatewayReservationRequirements {
+            policy_version_id: "",
+            policy_compiled_hash: "",
             expected_prompt_profile_id: None,
             config_fingerprint: fingerprint,
             conservative_actual: &request.amounts,

@@ -85,6 +85,8 @@ impl ResolvedSecret {
 
 #[allow(dead_code)] // Consumed by the streaming provider adapter in LLM Gateway Task 3.
 pub(crate) struct ResolvedLlmRoute {
+    pub(crate) policy_version_id: String,
+    pub(crate) policy_compiled_hash: String,
     pub(crate) provider_id: String,
     pub(crate) model_id: String,
     pub(crate) provider_kind: ProviderKind,
@@ -99,6 +101,8 @@ pub(crate) struct ResolvedLlmRoute {
 }
 
 pub(crate) struct ResolvedLlmRouteConfig {
+    pub(crate) policy_version_id: String,
+    pub(crate) policy_compiled_hash: String,
     pub(crate) provider_id: String,
     pub(crate) model_id: String,
     pub(crate) provider_kind: ProviderKind,
@@ -959,6 +963,11 @@ impl LlmConfigurationService {
     ) -> Result<ResolvedLlmRouteConfig, AppError> {
         let mut tx = self.pool.begin().await.map_err(database_error)?;
         let compiled = compile_in_transaction(&mut tx, group_id).await?;
+        let policy_version_id = compiled.document.policy_version_id.clone();
+        let policy_compiled_hash = hex::encode(Sha256::digest(
+            serde_json::to_vec(&compiled.document)
+                .map_err(|_| AppError::Internal("effective policy serialization failed".into()))?,
+        ));
         if !compiled.document.llm.enabled {
             return Err(AppError::Forbidden(
                 "LLM access is disabled by policy".into(),
@@ -1034,6 +1043,8 @@ impl LlmConfigurationService {
         ]);
         tx.commit().await.map_err(database_error)?;
         Ok(ResolvedLlmRouteConfig {
+            policy_version_id,
+            policy_compiled_hash,
             provider_id,
             model_id,
             provider_kind,
@@ -1057,6 +1068,8 @@ impl LlmConfigurationService {
             PinnedEndpoint::resolve(route.provider_kind, &route.base_url, self.resolver.as_ref())
                 .await?;
         Ok(ResolvedLlmRoute {
+            policy_version_id: route.policy_version_id,
+            policy_compiled_hash: route.policy_compiled_hash,
             provider_id: route.provider_id,
             model_id: route.model_id,
             provider_kind: route.provider_kind,
