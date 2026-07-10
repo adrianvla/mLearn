@@ -16,6 +16,7 @@ import {
   getFrequencyLevelsAtOrEasierThanTarget,
   getFrequencyLevelVisualRank,
   getGrammarLevelVisualRank,
+  getLanguagePythonImportChecksForInstall,
   getLanguagePythonRequirementsForInstall,
   getLanguageFeatureFlags,
   getLanguageFixedSettings,
@@ -2541,6 +2542,46 @@ describe('language feature bricks', () => {
       includeOCR: true,
       includeVoice: false,
     })).toEqual(['ja-required-extra', 'language-specific-ocr-extra', 'spacy-de-extra', 'sudachi-runtime-extra']);
+  });
+
+  it('collects Python import checks declared by installed language runtime components', () => {
+    const languageData = {
+      ja: {
+        name: 'Japanese',
+        runtime: {
+          python: {
+            importChecksByComponent: {
+              core: ['sudachipy'],
+              ocr: ['manga_ocr', 'paddleocr'],
+              voice: ['misaki'],
+              segmentation: ['sudachi_runtime'],
+            },
+          },
+        },
+      },
+      de: {
+        name: 'German',
+        runtime: {
+          python: {
+            importChecksByComponent: {
+              morphology: ['spacy'],
+            },
+          },
+        },
+      },
+    };
+
+    expect(getLanguagePythonImportChecksForInstall(languageData, {
+      includeLLM: false,
+      includeOCR: true,
+      includeVoice: false,
+    })).toEqual(['manga_ocr', 'paddleocr', 'spacy', 'sudachi_runtime', 'sudachipy']);
+
+    expect(getLanguagePythonImportChecksForInstall(languageData, {
+      includeLLM: false,
+      includeOCR: false,
+      includeVoice: true,
+    })).toEqual(['misaki', 'spacy', 'sudachi_runtime', 'sudachipy']);
   });
 
   it('uses OCR runtime metadata for vertical text support', () => {

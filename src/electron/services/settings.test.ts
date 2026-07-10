@@ -1331,6 +1331,27 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
         includeOCR: true,
         includeVoice: true,
       },
+      expect.objectContaining({
+        onStatus: expect.any(Function),
+      }),
+    );
+
+    mockEnsureLanguagePythonRequirementsInstalled.mockClear();
+    const explicitOptions = { includeLLM: false, includeOCR: true, includeVoice: false };
+    const explicitEvent = makeEvent();
+    for (const h of handlers) await h(explicitEvent, 'aa', undefined, explicitOptions);
+
+    expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalledWith(
+      'aa',
+      expect.objectContaining({
+        aa: expect.objectContaining({
+          runtime: metadata.runtime,
+        }),
+      }),
+      explicitOptions,
+      expect.objectContaining({
+        onStatus: expect.any(Function),
+      }),
     );
   });
 

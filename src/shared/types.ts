@@ -1192,6 +1192,8 @@ export interface LanguagePythonRuntimeConfig {
   packages?: string[];
   /** Extra pip requirements needed by this language for selected optional runtime components. */
   packagesByComponent?: Partial<Record<LanguagePythonRequirementComponent, string[]>>;
+  /** Python modules that must import successfully for selected runtime components. */
+  importChecksByComponent?: Partial<Record<LanguagePythonRequirementComponent, string[]>>;
 }
 
 export interface LanguageRuntimeConfig {

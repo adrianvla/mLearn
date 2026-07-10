@@ -308,7 +308,11 @@ const WelcomeContent: Component = () => {
     setProgress(96);
     setOverallStatus(t('mlearn.Installer.Status.InstallingLanguageData'));
     logInfo(t('mlearn.Installer.Status.InstallingLanguageData'));
-    installLanguageData(languageCode, selectedDictionaryTargetLanguage() || undefined);
+    installLanguageData(languageCode, selectedDictionaryTargetLanguage() || undefined, {
+      includeLLM: includeLLM(),
+      includeOCR: includeOCR(),
+      includeVoice: includeVoice(),
+    });
   };
 
   const handleUILanguageChange = (languageCode: string) => {

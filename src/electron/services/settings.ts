@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import { Settings, DEFAULT_SETTINGS, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
+import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { setUILanguage } from './localization';
 import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus, resolveDictionaryTargetLanguage } from './languageDataService';
@@ -653,6 +653,22 @@ function getEnabledLanguageDataComponents(settings: Settings): LanguagePythonReq
   return components;
 }
 
+function getInstallOptionsFromSettings(settings: Settings): InstallOptions {
+  return {
+    includeLLM: settings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled,
+    includeOCR: settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled,
+    includeVoice: settings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled,
+  };
+}
+
+function getLanguageDataComponentsFromInstallOptions(options: InstallOptions): LanguagePythonRequirementComponent[] {
+  const components: LanguagePythonRequirementComponent[] = ['core'];
+  if (options.includeOCR) components.push('ocr');
+  if (options.includeVoice) components.push('voice');
+  if (options.includeLLM) components.push('llm');
+  return components;
+}
+
 export function setupSettingsIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_SETTINGS, (event) => {
     const settings = loadSettings();
@@ -684,16 +700,17 @@ export function setupSettingsIPC(): void {
     event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData));
   });
 
-  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string) => {
+  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => {
     try {
       const settings = loadSettings();
       const langData = await loadLanguagePackageCatalog();
-      const components = getEnabledLanguageDataComponents(settings);
+      const effectiveInstallOptions = installOptions ?? getInstallOptionsFromSettings(settings);
+      const components = installOptions
+        ? getLanguageDataComponentsFromInstallOptions(effectiveInstallOptions)
+        : getEnabledLanguageDataComponents(settings);
       await ensureLanguageDataInstalled(language, langData, undefined, undefined, { components });
-      await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), {
-        includeLLM: settings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled,
-        includeOCR: settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled,
-        includeVoice: settings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled,
+      await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), effectiveInstallOptions, {
+        onStatus: (message) => event.reply(IPC_CHANNELS.SERVER_STATUS_UPDATE, message),
       });
       const resolvedDictionaryTarget = dictionaryTargetLanguage
         ? resolveDictionaryTargetLanguage(language, langData, dictionaryTargetLanguage)
