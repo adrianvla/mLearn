@@ -68,6 +68,7 @@ struct MembershipsResponse {
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/groups", get(list_groups).post(create_group))
+        .route("/api/groups/eligible", get(list_eligible_groups))
         .route("/api/groups/{id}", get(get_group).patch(update_group))
         .route("/api/groups/{id}/archive", post(archive_group))
         .route(
@@ -96,6 +97,16 @@ async fn list_groups(
     principal: Principal,
 ) -> Result<Json<GroupsResponse>, AppError> {
     let groups = GroupService::new(state.db).visible_tree(&principal).await?;
+    Ok(Json(GroupsResponse { groups }))
+}
+
+async fn list_eligible_groups(
+    State(state): State<AppState>,
+    principal: Principal,
+) -> Result<Json<GroupsResponse>, AppError> {
+    let groups = GroupService::new(state.db)
+        .eligible_groups(&principal)
+        .await?;
     Ok(Json(GroupsResponse { groups }))
 }
 
@@ -372,5 +383,39 @@ mod tests {
         let (anonymous_status, _) = request(&app, "GET", "/api/groups", Value::Null, None).await;
         assert_eq!(recovery_status, StatusCode::UNAUTHORIZED);
         assert_eq!(anonymous_status, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn eligible_groups_returns_only_the_authenticated_visible_tree() {
+        let (app, bootstrap, pool) = fixture().await;
+        let (status, bootstrapped) = request(
+            &app,
+            "POST",
+            "/api/auth/bootstrap",
+            json!({ "email": "root@school.test", "password": "Correct Horse Battery Staple" }),
+            Some(&bootstrap),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{bootstrapped}");
+        let token = bootstrapped["session"]["accessToken"].as_str().unwrap();
+        let root_group_id: String =
+            sqlx::query_scalar("SELECT id FROM groups WHERE parent_id IS NULL")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        let (status, payload) = request(
+            &app,
+            "GET",
+            "/api/groups/eligible",
+            Value::Null,
+            Some(token),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{payload}");
+        let groups = payload["groups"].as_array().unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0]["id"], root_group_id);
     }
 }

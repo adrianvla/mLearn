@@ -6,6 +6,11 @@ import {
   refreshCloudSession,
   resolveCloudAccessToken,
 } from './cloudAuthService';
+import {
+  ensureActiveGroup,
+  requiresManagementGroup,
+  type ManagementGroup,
+} from './managementGroupService';
 
 export class CloudSessionCancelledError extends Error {
   readonly code = 'cloud_session_cancelled';
@@ -24,6 +29,21 @@ export class CloudUnreachableError extends Error {
     super(message);
     this.name = 'CloudUnreachableError';
     this.cause = cause;
+  }
+}
+
+export class CloudGroupSelectionRequiredError extends Error {
+  readonly code = 'cloud_group_selection_required';
+  readonly needsSelection: boolean;
+  readonly groups: ManagementGroup[];
+
+  constructor(groups: ManagementGroup[], needsSelection: boolean) {
+    super(needsSelection
+      ? 'Choose an active school group before using cloud features'
+      : 'No eligible school group is available');
+    this.name = 'CloudGroupSelectionRequiredError';
+    this.needsSelection = needsSelection;
+    this.groups = groups;
   }
 }
 
@@ -62,7 +82,27 @@ function buildExpiredSessionPatch(): Partial<Settings> {
     cloudAuthUserEmail: '',
     cloudAuthExpiresAt: 0,
     cloudAuthStatus: 'signed-out',
+    cloudAuthActiveGroupId: '',
+    cloudAuthActiveGroupName: '',
   };
+}
+
+async function requireActiveManagementGroup(token: string): Promise<string> {
+  const active = getActiveController();
+  if (!active) return token;
+
+  const settings = active.getSettings();
+  if (!requiresManagementGroup(settings)) return token;
+
+  const result = await ensureActiveGroup(settings, active.updateSettings, token);
+  if (!result.ready) {
+    throw new CloudGroupSelectionRequiredError(result.groups, result.needsSelection);
+  }
+  return token;
+}
+
+async function requireActiveManagementGroupIfPresent(token: string | null): Promise<string | null> {
+  return token ? requireActiveManagementGroup(token) : null;
 }
 
 function getErrorRecord(error: unknown): Record<string, unknown> | null {
@@ -264,7 +304,7 @@ export async function ensureCloudAccessToken(
   const shouldOpenModal = options.interactive ?? options.openModalOnExpiry !== false;
 
   if (pendingSessionRecovery && (!currentToken || options.forceRefresh)) {
-    return pendingSessionRecovery.promise;
+    return pendingSessionRecovery.promise.then(requireActiveManagementGroupIfPresent);
   }
 
   if (!currentToken && !hasRefreshToken) {
@@ -280,7 +320,7 @@ export async function ensureCloudAccessToken(
   }
 
   if (!options.forceRefresh && currentToken && initialSettings && !isCloudAccessTokenExpiringSoon(initialSettings, CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS)) {
-    return currentToken;
+    return requireActiveManagementGroup(currentToken);
   }
 
   if (!hasRefreshToken) {
@@ -321,10 +361,10 @@ export async function ensureCloudAccessToken(
         cloudAuthStatus: 'signed-in',
       });
 
-      return refreshed.accessToken;
+      return requireActiveManagementGroup(refreshed.accessToken);
     } catch (error) {
       if (!options.forceRefresh && !isCloudSessionError(error) && fallbackToken && !isCloudAccessTokenExpiringSoon(latestSettings, 0)) {
-        return fallbackToken;
+        return requireActiveManagementGroup(fallbackToken);
       }
 
       if (isCloudSessionError(error)) {

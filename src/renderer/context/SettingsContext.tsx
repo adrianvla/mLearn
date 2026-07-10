@@ -126,6 +126,15 @@ export const SettingsProvider: ParentComponent = (props) => {
         : loadedSettings;
       let migratedSettings = false;
 
+      if (typeof mergedSettings.cloudAuthActiveGroupId !== 'string') {
+        mergedSettings.cloudAuthActiveGroupId = DEFAULT_SETTINGS.cloudAuthActiveGroupId;
+        migratedSettings = true;
+      }
+      if (typeof mergedSettings.cloudAuthActiveGroupName !== 'string') {
+        mergedSettings.cloudAuthActiveGroupName = DEFAULT_SETTINGS.cloudAuthActiveGroupName;
+        migratedSettings = true;
+      }
+
       if (mergedSettings.knowledgeSourceOrder) {
         const validSources = new Set(KNOWLEDGE_SOURCES);
         const currentSources = new Set(mergedSettings.knowledgeSourceOrder as string[]);
@@ -173,7 +182,9 @@ export const SettingsProvider: ParentComponent = (props) => {
       }
 
       if (hasSignedInCloudSession(mergedSettings)) {
-        void ensureCloudAccessToken();
+        void ensureCloudAccessToken().catch((error: unknown) => {
+          log.warn('[SettingsContext] Cloud session is not group-ready', error);
+        });
       }
     }));
     bridge.settings.getSettings();
@@ -300,6 +311,10 @@ export const SettingsProvider: ParentComponent = (props) => {
       ...currentSettings,
       [key]: value,
     } as Settings;
+    if (key === 'cloudAuthStatus' && value === 'signed-out') {
+      nextSettings.cloudAuthActiveGroupId = DEFAULT_SETTINGS.cloudAuthActiveGroupId;
+      nextSettings.cloudAuthActiveGroupName = DEFAULT_SETTINGS.cloudAuthActiveGroupName;
+    }
     const changedKeys = getChangedKeys(currentSettings, nextSettings, [key]);
 
     setSettings(reconcile(nextSettings));
@@ -319,11 +334,18 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Update multiple settings
   const updateSettings = (partial: Partial<Settings>) => {
     const currentSettings = serializeSettings(settings as Settings);
+    const normalizedPartial = partial.cloudAuthStatus === 'signed-out'
+      ? {
+          ...partial,
+          cloudAuthActiveGroupId: DEFAULT_SETTINGS.cloudAuthActiveGroupId,
+          cloudAuthActiveGroupName: DEFAULT_SETTINGS.cloudAuthActiveGroupName,
+        }
+      : partial;
     const nextSettings = {
       ...currentSettings,
-      ...partial,
+      ...normalizedPartial,
     } as Settings;
-    const changedKeys = getChangedKeys(currentSettings, nextSettings, Object.keys(partial) as (keyof Settings)[]);
+    const changedKeys = getChangedKeys(currentSettings, nextSettings, Object.keys(normalizedPartial) as (keyof Settings)[]);
 
     setSettings(reconcile(nextSettings));
     syncCloudState(nextSettings);
@@ -332,7 +354,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     maybeClearAnkiCache(changedKeys);
 
     if (!hasLoaded()) {
-      pendingSettingsSnapshot = { ...pendingSettingsSnapshot, ...partial };
+      pendingSettingsSnapshot = { ...pendingSettingsSnapshot, ...normalizedPartial };
       return;
     }
 
