@@ -402,22 +402,26 @@ export async function checkAvailability(settings: Settings): Promise<{ available
 }
 
 /**
- * Whether the selected LLM provider is configured and ready to use,
- * derived from real provider state instead of a sticky setup flag.
- * - cloud: ready when the user is signed in
+ * Whether the LLM is configured and ready to use, derived from real
+ * provider state instead of a sticky setup flag.
+ * - cloud: ready when the user is signed in (bypasses llmEnabled — cloud
+ *   doesn't require the local Python LLM component to be installed)
  * - ollama: ready when selected (runtime calls verify reachability)
  * - builtin: ready when the selected model is downloaded
- * Always returns false when the LLM feature is disabled.
+ * For ollama/builtin, requires llmEnabled (the local component install flag).
  */
 export function isLLMReady(settings: Settings): boolean {
+  if (settings.llmProvider === 'cloud') {
+    return settings.cloudAuthStatus === 'signed-in';
+  }
   if (!settings.llmEnabled) return false;
   switch (settings.llmProvider) {
-    case 'cloud':
-      return settings.cloudAuthStatus === 'signed-in';
     case 'ollama':
       return true;
     case 'builtin':
       return builtinModelReady();
+    default:
+      return false;
   }
 }
 

@@ -14,6 +14,7 @@ import { initWordLookupBridge } from '../../../services/wordLookupService';
 import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
+import { isLLMReady } from '../../../services/llmProvider';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, ReaderTextFontStyle } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
@@ -2107,7 +2108,7 @@ export const ReaderRoute: Component = () => {
           break;
         }
         case 'explain-phrase':
-          if (!settings.llmEnabled) {
+          if (!isLLMReady(settings)) {
             alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
             break;
           }
@@ -2137,7 +2138,7 @@ export const ReaderRoute: Component = () => {
       readingAnnotationHiderEnabled: readingAnnotationHiderEnabled(),
       canToggleReadingHider: canToggleReadingHider(),
       hasContextPhrase,
-      canExplainPhrase: settings.llmEnabled && hasContextPhrase,
+      canExplainPhrase: isLLMReady(settings) && hasContextPhrase,
       collatePagesEnabled: collatePages(),
       isDoublePageMode: pageMode() === 'double',
     });

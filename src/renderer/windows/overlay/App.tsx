@@ -28,6 +28,7 @@ import { WORD_STATUS, ANKI_EASE } from '../../../shared/constants';
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
 import { showToast } from '../../components/common/Feedback/Toast';
+import { isLLMReady } from '../../services/llmProvider';
 import { getLogger } from '../../../shared/utils/logger';
 import { clipVideo } from '../../services/videoClipService';
 
@@ -675,7 +676,7 @@ export const App: Component = () => {
         break;
       }
       case 'explain-phrase': {
-        if (!settings.llmEnabled) {
+        if (!isLLMReady(settings)) {
           break;
         }
         const phrase = currentSubtitlePhrase();
@@ -1115,7 +1116,7 @@ export const App: Component = () => {
                 bridge.window.showCtxMenu({
                   isWatchTogether: watchTogether.isActive(),
                   hasContextPhrase: !!currentSubtitlePhrase(),
-                  canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
+                  canExplainPhrase: isLLMReady(settings) && !!currentSubtitlePhrase(),
                 });
               }}
             >
