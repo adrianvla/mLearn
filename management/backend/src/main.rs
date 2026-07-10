@@ -354,6 +354,7 @@ fn build_router(state: AppState) -> Router {
         .merge(routes::api_keys::router(state.clone()))
         .merge(routes::audit::router(state.clone()))
         .merge(routes::policies::router(state.clone()))
+        .merge(routes::llm_configuration::router(state.clone()))
         .merge(protected)
         .fallback(static_handler::serve_spa)
         .layer(TraceLayer::new_for_http())
@@ -425,9 +426,13 @@ mod tests {
         let signing_key_path = std::env::temp_dir()
             .join(format!("mlearn-policy-signing-key-{}", uuid::Uuid::now_v7()));
         config.policy_signing_key_path = signing_key_path.to_string_lossy().into_owned();
+        let encryption_key_path = std::env::temp_dir()
+            .join(format!("mlearn-encryption-key-{}", uuid::Uuid::now_v7()));
+        config.encryption_key_path = encryption_key_path.to_string_lossy().into_owned();
         let docker = bollard::Docker::connect_with_http_defaults().unwrap();
         let app = build_router(AppState::new(docker, config, pool));
         let _ = std::fs::remove_file(signing_key_path);
+        let _ = std::fs::remove_file(encryption_key_path);
 
         let health = app
             .clone()
@@ -495,9 +500,13 @@ mod tests {
         let signing_key_path = std::env::temp_dir()
             .join(format!("mlearn-policy-signing-key-{}", uuid::Uuid::now_v7()));
         config.policy_signing_key_path = signing_key_path.to_string_lossy().into_owned();
+        let encryption_key_path = std::env::temp_dir()
+            .join(format!("mlearn-encryption-key-{}", uuid::Uuid::now_v7()));
+        config.encryption_key_path = encryption_key_path.to_string_lossy().into_owned();
         let docker = bollard::Docker::connect_with_http_defaults().unwrap();
         let state = AppState::new(docker, config, pool.clone());
         let _ = std::fs::remove_file(signing_key_path);
+        let _ = std::fs::remove_file(encryption_key_path);
         let user_id = uuid::Uuid::now_v7().to_string();
         let now = time::OffsetDateTime::now_utc().unix_timestamp();
         sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, 'admin@branch.test', 'admin@branch.test', 'Branch Admin', 'active', 'admin', 0, ?, ?)")
