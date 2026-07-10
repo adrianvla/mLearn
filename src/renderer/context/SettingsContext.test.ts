@@ -1,6 +1,8 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
+import type { EffectiveManagementPolicy } from '../../shared/managementPolicy';
+import policyFixture from '../../../test/fixtures/management-policy-v1.json';
 
 let settingsCb: (s: Settings) => void;
 let settingsSavedCb: (() => void) | undefined;
@@ -42,6 +44,7 @@ const mockResetBackend = vi.fn();
 vi.mock('../../shared/backends', () => ({
   getBackend: (...args: unknown[]) => mockGetBackend(...args),
   resetBackend: () => mockResetBackend(),
+  resolveCloudApiUrl: (settings: Settings) => settings.cloudApiUrl,
 }));
 
 vi.mock('../../shared/platform', () => ({
@@ -54,6 +57,8 @@ const mockResolveCloudAccessToken = vi.fn((settings: Settings) => (
 const mockRefreshCloudSession = vi.fn();
 const mockNormalizeCloudAuthExpiresAt = vi.fn((expiresAt?: number) => expiresAt ?? 0);
 const mockIsCloudAccessTokenExpiringSoon = vi.fn(() => false);
+const mockLoadCachedEffectivePolicy = vi.fn();
+const mockFetchEffectivePolicy = vi.fn();
 
 vi.mock('../services/cloudAuthService', () => ({
   CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS: 60_000,
@@ -62,6 +67,15 @@ vi.mock('../services/cloudAuthService', () => ({
   refreshCloudSession: (...args: unknown[]) => mockRefreshCloudSession(...args),
   resolveCloudAccessToken: (...args: unknown[]) => mockResolveCloudAccessToken(...args),
 }));
+
+vi.mock('../services/managementPolicyService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/managementPolicyService')>();
+  return {
+    ...actual,
+    loadCachedEffectivePolicy: (...args: unknown[]) => mockLoadCachedEffectivePolicy(...args),
+    fetchEffectivePolicy: (...args: unknown[]) => mockFetchEffectivePolicy(...args),
+  };
+});
 
 type SettingsCtx = {
   settings: Settings;
@@ -77,6 +91,11 @@ type SettingsCtx = {
   closeCloudReLoginModal: () => void;
   showProsody: () => boolean;
   setProsodyVisible: (show: boolean) => void;
+  managedPolicy: () => EffectiveManagementPolicy | null;
+  isSettingManaged: (key: keyof Settings) => boolean;
+  getManagedSettingSource: (key: keyof Settings) => { sourceGroupName: string } | null;
+  hasFreshNetworkPolicy: () => boolean;
+  policyAllowsFeature: (featureId: string) => boolean;
 };
 
 async function mountProvider() {
@@ -116,6 +135,8 @@ describe('SettingsProvider', () => {
       refreshToken: 'refreshed-refresh',
       expiresAt: 0,
     });
+    mockLoadCachedEffectivePolicy.mockResolvedValue(null);
+    mockFetchEffectivePolicy.mockRejectedValue(new Error('management unavailable'));
   });
 
   it('useSettings throws when used outside SettingsProvider', async () => {
@@ -543,6 +564,184 @@ describe('SettingsProvider', () => {
     expect(ctx.settings.cloudAuthActiveGroupName).toBe('');
     dispose();
     vi.unstubAllGlobals();
+  });
+
+  it('restores a cached managed value for local, multi-setting, and broadcast updates', async () => {
+    const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
+    const postMessage = vi.fn();
+    function MockBroadcastChannel() {
+      return {
+        postMessage,
+        close: vi.fn(),
+        set onmessage(fn: ((event: MessageEvent) => void) | null) { state.handler = fn; },
+        get onmessage() { return state.handler; },
+      };
+    }
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+    const policy = policyFixture as EffectiveManagementPolicy;
+    mockLoadCachedEffectivePolicy.mockResolvedValue({ policy, fresh: false, source: 'cache' });
+
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      llmEnabled: true,
+    }));
+    await vi.waitFor(() => expect(ctx.settings.llmEnabled).toBe(false));
+
+    ctx.updateSetting('llmEnabled', true);
+    expect(ctx.settings.llmEnabled).toBe(false);
+    ctx.updateSettings({ llmEnabled: true, maxNewCardsPerDay: 99 });
+    expect(ctx.settings.llmEnabled).toBe(false);
+    expect(ctx.settings.maxNewCardsPerDay).toBe(15);
+
+    state.handler!({ data: { type: 'update', settings: makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      llmEnabled: true,
+    }) } } as MessageEvent);
+    expect(ctx.settings.llmEnabled).toBe(false);
+    expect(ctx.isSettingManaged('llmEnabled')).toBe(true);
+    expect(ctx.getManagedSettingSource('llmEnabled')?.sourceGroupName).toBe('School');
+    expect(mockBridge.settings.saveSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ llmEnabled: false }),
+    );
+    expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      settings: expect.objectContaining({ llmEnabled: true }),
+    }));
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps stale cached restrictions locked but fails closed for network features', async () => {
+    const policy = policyFixture as EffectiveManagementPolicy;
+    mockLoadCachedEffectivePolicy.mockResolvedValue({ policy, fresh: false, source: 'cache' });
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }));
+    await vi.waitFor(() => expect(ctx.managedPolicy()).toEqual(policy));
+
+    expect(ctx.settings.llmEnabled).toBe(false);
+    expect(ctx.hasFreshNetworkPolicy()).toBe(false);
+    expect(ctx.policyAllowsFeature('cloud_tts')).toBe(false);
+    expect(ctx.policyAllowsFeature('llm')).toBe(false);
+    dispose();
+  });
+
+  it('applies a managed policy after merging pre-load mutations and persists only reconciled values', async () => {
+    const policy = policyFixture as EffectiveManagementPolicy;
+    mockLoadCachedEffectivePolicy.mockResolvedValue({ policy, fresh: false, source: 'cache' });
+    const { ctx, dispose } = await mountProvider();
+    ctx.updateSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    });
+    ctx.updateSetting('llmEnabled', true);
+
+    settingsCb(makeSettings({ llmEnabled: true }));
+    await vi.waitFor(() => expect(ctx.settings.llmEnabled).toBe(false));
+    expect(mockBridge.settings.saveSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ llmEnabled: false }),
+    );
+    dispose();
+  });
+
+  it('allows a policy feature only while the verified snapshot is fresh', async () => {
+    const now = Date.now();
+    const policy = {
+      ...policyFixture,
+      issuedAt: new Date(now - 1_000).toISOString(),
+      expiresAt: new Date(now + 60_000).toISOString(),
+    } as EffectiveManagementPolicy;
+    mockLoadCachedEffectivePolicy.mockResolvedValue({ policy, fresh: true, source: 'cache' });
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }));
+    await vi.waitFor(() => expect(ctx.managedPolicy()).toEqual(policy));
+
+    expect(ctx.hasFreshNetworkPolicy()).toBe(true);
+    expect(ctx.policyAllowsFeature('llm')).toBe(true);
+    expect(ctx.policyAllowsFeature('cloud_tts')).toBe(false);
+    expect(ctx.policyAllowsFeature('unlisted_feature')).toBe(false);
+    dispose();
+  });
+
+  it('drops network authorization on active-group change until that scope is verified', async () => {
+    const now = Date.now();
+    const firstPolicy = {
+      ...policyFixture,
+      issuedAt: new Date(now - 1_000).toISOString(),
+      expiresAt: new Date(now + 60_000).toISOString(),
+    } as EffectiveManagementPolicy;
+    const secondPolicy = {
+      ...firstPolicy,
+      activeGroupId: 'german-b',
+      ancestry: [
+        ...firstPolicy.ancestry.slice(0, -1),
+        { id: 'german-b', name: 'German B' },
+      ],
+    };
+    let resolveSecond!: (value: {
+      policy: EffectiveManagementPolicy;
+      fresh: true;
+      source: 'cache';
+    }) => void;
+    mockLoadCachedEffectivePolicy
+      .mockResolvedValueOnce({ policy: firstPolicy, fresh: true, source: 'cache' })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve; }));
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthUserId: 'learner-1',
+      cloudAuthActiveGroupId: 'german-a',
+      cloudAuthActiveGroupName: 'German A',
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+    }));
+    await vi.waitFor(() => expect(ctx.policyAllowsFeature('llm')).toBe(true));
+
+    ctx.updateSettings({
+      cloudAuthActiveGroupId: 'german-b',
+      cloudAuthActiveGroupName: 'German B',
+    });
+    expect(ctx.managedPolicy()).toBeNull();
+    expect(ctx.hasFreshNetworkPolicy()).toBe(false);
+    expect(ctx.policyAllowsFeature('llm')).toBe(false);
+    expect(mockLoadCachedEffectivePolicy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        cloudAuthUserId: 'learner-1',
+        cloudAuthActiveGroupId: 'german-b',
+      }),
+    );
+
+    resolveSecond({ policy: secondPolicy, fresh: true, source: 'cache' });
+    await vi.waitFor(() => expect(ctx.managedPolicy()).toEqual(secondPolicy));
+    expect(ctx.policyAllowsFeature('llm')).toBe(true);
+    dispose();
   });
 
   it('cleanup: IPC cleanups called and BroadcastChannel closed', async () => {

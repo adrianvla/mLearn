@@ -211,6 +211,12 @@ export interface EffectiveManagementPolicy {
   signature: string;
 }
 
+export interface ManagementPolicyPublicKey {
+  keyId: string;
+  algorithm: 'Ed25519';
+  publicKey: string;
+}
+
 export type PolicyValidationResult =
   | { ok: true; value: EffectiveManagementPolicy }
   | { ok: false; error: string };

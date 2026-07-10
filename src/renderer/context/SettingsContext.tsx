@@ -7,6 +7,11 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile } from 'solid-js/store';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
+import type {
+  EffectiveManagementPolicy,
+  ManagedSettingRule,
+  PolicySettingKey,
+} from '../../shared/managementPolicy';
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
 import { APP_THEMES, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
@@ -21,6 +26,14 @@ import {
   syncCloudSessionState,
 } from '../services/cloudSessionManager';
 import { clearAnkiWordsCache } from '../services/ankiWordsCache';
+import { requiresManagementGroup } from '../services/managementGroupService';
+import {
+  applyManagedSettings,
+  fetchEffectivePolicy,
+  getManagedSettingRule,
+  hasFreshPolicy,
+  loadCachedEffectivePolicy,
+} from '../services/managementPolicyService';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.context.settings");
@@ -42,6 +55,11 @@ interface SettingsContextValue {
   showProsody: () => boolean;
   /** Generic prosody/accent visibility setter. */
   setProsodyVisible: (show: boolean) => void;
+  managedPolicy: () => EffectiveManagementPolicy | null;
+  isSettingManaged: (key: keyof Settings) => boolean;
+  getManagedSettingSource: <K extends PolicySettingKey>(key: K) => ManagedSettingRule<K> | null;
+  hasFreshNetworkPolicy: () => boolean;
+  policyAllowsFeature: (featureId: string) => boolean;
 }
 
 // Create context
@@ -87,6 +105,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   const [isLoading, setIsLoading] = createSignal(true);
   const [isCloudReLoginModalOpen, setIsCloudReLoginModalOpen] = createSignal(false);
   const [isRuntimeRestartRequired, setIsRuntimeRestartRequired] = createSignal(false);
+  const [managedPolicy, setManagedPolicy] = createSignal<EffectiveManagementPolicy | null>(null);
   // Track whether settings have been loaded from disk at least once
   // This prevents saving default values before real settings are loaded
   const [hasLoaded, setHasLoaded] = createSignal(false);
@@ -95,6 +114,8 @@ export const SettingsProvider: ParentComponent = (props) => {
   const ipcCleanups: Array<() => void> = [];
   let pendingSettingsSnapshot: Partial<Settings> | null = null;
   let unregisterCloudSessionController: (() => void) | null = null;
+  let managedPolicyScope = '';
+  let policyRefreshGeneration = 0;
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
   const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
@@ -135,6 +156,26 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   const resolveCloudAccessToken = (nextSettings: Settings): string => (
     nextSettings.cloudAuthAccessToken || nextSettings.cloudAuthToken
+  );
+
+  const managementPolicyScopeKey = (nextSettings: Settings): string => {
+    if (!requiresManagementGroup(nextSettings)
+      || nextSettings.cloudAuthStatus !== 'signed-in'
+      || !nextSettings.cloudAuthUserId.trim()
+      || !nextSettings.cloudAuthActiveGroupId.trim()) {
+      return '';
+    }
+    return JSON.stringify([
+      nextSettings.cloudApiUrl.trim(),
+      nextSettings.cloudAuthUserId.trim(),
+      nextSettings.cloudAuthActiveGroupId.trim(),
+    ]);
+  };
+
+  const applicableManagedPolicy = (nextSettings: Settings): EffectiveManagementPolicy | null => (
+    managedPolicyScope && managedPolicyScope === managementPolicyScopeKey(nextSettings)
+      ? managedPolicy()
+      : null
   );
 
   // Load settings from main process or platform bridge
@@ -186,8 +227,12 @@ export const SettingsProvider: ParentComponent = (props) => {
         migratedSettings = true;
       }
 
-      setSettings(reconcile(mergedSettings));
-      syncCloudState(mergedSettings);
+      const reconciledSettings = applyManagedSettings(
+        mergedSettings,
+        applicableManagedPolicy(mergedSettings),
+      );
+      setSettings(reconcile(reconciledSettings));
+      syncCloudState(reconciledSettings);
       setIsLoading(false);
       setHasLoaded(true);
 
@@ -198,19 +243,21 @@ export const SettingsProvider: ParentComponent = (props) => {
 
       // Initialize the backend adapter with the loaded settings
       getBackend({
-        mode: mergedSettings.backendMode,
-        url: resolveBackendUrl(mergedSettings),
-        authToken: resolveCloudAccessToken(mergedSettings),
+        mode: reconciledSettings.backendMode,
+        url: resolveBackendUrl(reconciledSettings),
+        authToken: resolveCloudAccessToken(reconciledSettings),
       });
 
-      applySettingsToDOM(mergedSettings);
+      applySettingsToDOM(reconciledSettings);
 
       if (pendingSettingsSnapshot || migratedSettings) {
-        bridge.settings.saveSettings(mergedSettings);
+        bridge.settings.saveSettings(reconciledSettings);
         pendingSettingsSnapshot = null;
       }
 
-      if (hasSignedInCloudSession(mergedSettings)) {
+      void refreshManagedPolicy(reconciledSettings);
+
+      if (hasSignedInCloudSession(reconciledSettings)) {
         void ensureCloudAccessToken().catch((error: unknown) => {
           log.warn('[SettingsContext] Cloud session is not group-ready', error);
         });
@@ -333,13 +380,85 @@ export const SettingsProvider: ParentComponent = (props) => {
     broadcastSettingsUpdate(snapshot);
   };
 
+  const applyLoadedManagementPolicy = (
+    policy: EffectiveManagementPolicy,
+    scope: string,
+    generation: number,
+  ) => {
+    if (generation !== policyRefreshGeneration) return;
+    const currentSettings = serializeSettings(settings as Settings);
+    if (managementPolicyScopeKey(currentSettings) !== scope) return;
+    managedPolicyScope = scope;
+    setManagedPolicy(policy);
+    const nextSettings = normalizeSignedOutActiveGroup(applyManagedSettings(currentSettings, policy));
+    const changedKeys = getChangedKeys(
+      currentSettings,
+      nextSettings,
+      Object.keys(policy.settings) as (keyof Settings)[],
+    );
+    if (changedKeys.size === 0) return;
+    setSettings(reconcile(nextSettings));
+    syncCloudState(nextSettings);
+    applySettingsToDOM(nextSettings);
+    maybeReconfigureBackend(nextSettings, changedKeys);
+    maybeClearAnkiCache(changedKeys);
+    saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
+  };
+
+  async function refreshManagedPolicy(nextSettings: Settings): Promise<void> {
+    const generation = ++policyRefreshGeneration;
+    const scope = managementPolicyScopeKey(nextSettings);
+    if (!scope) {
+      managedPolicyScope = '';
+      setManagedPolicy(null);
+      return;
+    }
+    if (managedPolicyScope !== scope) {
+      managedPolicyScope = '';
+      setManagedPolicy(null);
+    }
+
+    try {
+      const cached = await loadCachedEffectivePolicy(nextSettings);
+      if (cached) applyLoadedManagementPolicy(cached.policy, scope, generation);
+    } catch (error) {
+      log.warn('[SettingsContext] Cached management policy was rejected', error);
+    }
+    if (generation !== policyRefreshGeneration) return;
+
+    const accessToken = resolveCloudAccessToken(nextSettings).trim();
+    if (!accessToken) return;
+    try {
+      const fetched = await fetchEffectivePolicy(nextSettings, accessToken);
+      applyLoadedManagementPolicy(fetched.policy, scope, generation);
+    } catch (error) {
+      log.warn('[SettingsContext] Fresh management policy is unavailable', error);
+    }
+  }
+
+  const resetPolicyForScopeChange = (currentSettings: Settings, nextSettings: Settings) => {
+    if (managementPolicyScopeKey(currentSettings) === managementPolicyScopeKey(nextSettings)) return;
+    policyRefreshGeneration += 1;
+    managedPolicyScope = '';
+    setManagedPolicy(null);
+  };
+
+  const refreshPolicyIfNeeded = (currentSettings: Settings, nextSettings: Settings) => {
+    if (managementPolicyScopeKey(currentSettings) !== managementPolicyScopeKey(nextSettings)
+      || resolveCloudAccessToken(currentSettings) !== resolveCloudAccessToken(nextSettings)) {
+      void refreshManagedPolicy(nextSettings);
+    }
+  };
+
   // Update a single setting
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     const currentSettings = serializeSettings(settings as Settings);
-    const nextSettings = normalizeSignedOutActiveGroup({
+    const unguardedSettings = normalizeSignedOutActiveGroup({
       ...currentSettings,
       [key]: value,
     } as Settings);
+    resetPolicyForScopeChange(currentSettings, unguardedSettings);
+    const nextSettings = applyManagedSettings(unguardedSettings, applicableManagedPolicy(unguardedSettings));
     const changedKeys = getChangedKeys(currentSettings, nextSettings, [key]);
 
     setSettings(reconcile(nextSettings));
@@ -358,15 +477,18 @@ export const SettingsProvider: ParentComponent = (props) => {
     }
 
     saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
+    refreshPolicyIfNeeded(currentSettings, nextSettings);
   };
 
   // Update multiple settings
   const updateSettings = (partial: Partial<Settings>) => {
     const currentSettings = serializeSettings(settings as Settings);
-    const nextSettings = normalizeSignedOutActiveGroup({
+    const unguardedSettings = normalizeSignedOutActiveGroup({
       ...currentSettings,
       ...partial,
     } as Settings);
+    resetPolicyForScopeChange(currentSettings, unguardedSettings);
+    const nextSettings = applyManagedSettings(unguardedSettings, applicableManagedPolicy(unguardedSettings));
     const changedKeys = getChangedKeys(currentSettings, nextSettings, Object.keys(partial) as (keyof Settings)[]);
 
     setSettings(reconcile(nextSettings));
@@ -385,11 +507,15 @@ export const SettingsProvider: ParentComponent = (props) => {
     }
 
     saveSettingsSnapshot(nextSettings, needsLanguageRuntimeRestart(changedKeys));
+    refreshPolicyIfNeeded(currentSettings, nextSettings);
   };
 
   // Save settings to main process
   const saveSettings = () => {
-    const snapshot = serializeSettings(settings as Settings);
+    const snapshot = applyManagedSettings(
+      serializeSettings(settings as Settings),
+      applicableManagedPolicy(settings as Settings),
+    );
 
     // CRITICAL: Don't save until we've loaded settings from disk
     // This prevents overwriting user settings with defaults during app startup
@@ -413,14 +539,21 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Handle settings from other windows
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
-      const nextSettings = normalizeSignedOutActiveGroup(event.data.settings as Settings);
-      const changedKeys = getChangedKeys(serializeSettings(settings as Settings), nextSettings, LANGUAGE_RUNTIME_KEYS);
+      const currentSettings = serializeSettings(settings as Settings);
+      const unguardedSettings = normalizeSignedOutActiveGroup(event.data.settings as Settings);
+      resetPolicyForScopeChange(currentSettings, unguardedSettings);
+      const nextSettings = applyManagedSettings(
+        unguardedSettings,
+        applicableManagedPolicy(unguardedSettings),
+      );
+      const changedKeys = getChangedKeys(currentSettings, nextSettings, LANGUAGE_RUNTIME_KEYS);
       if (needsLanguageRuntimeRestart(changedKeys)) {
         setIsRuntimeRestartRequired(true);
       }
       setSettings(reconcile(nextSettings));
       syncCloudState(nextSettings);
       applySettingsToDOM(nextSettings);
+      refreshPolicyIfNeeded(currentSettings, nextSettings);
     }
   };
 
@@ -463,6 +596,22 @@ export const SettingsProvider: ParentComponent = (props) => {
     closeCloudReLoginModal,
     showProsody,
     setProsodyVisible,
+    managedPolicy,
+    isSettingManaged: (key) => Boolean(
+      applicableManagedPolicy(settings as Settings)?.settings[key as PolicySettingKey],
+    ),
+    getManagedSettingSource: (key) => getManagedSettingRule(
+      applicableManagedPolicy(settings as Settings),
+      key,
+    ),
+    hasFreshNetworkPolicy: () => hasFreshPolicy(applicableManagedPolicy(settings as Settings)),
+    policyAllowsFeature: (featureId) => {
+      const policy = applicableManagedPolicy(settings as Settings);
+      if (!hasFreshPolicy(policy)) return false;
+      return featureId === 'llm'
+        ? policy?.llm.enabled === true
+        : policy?.features[featureId]?.enabled === true;
+    },
   };
 
   return (
