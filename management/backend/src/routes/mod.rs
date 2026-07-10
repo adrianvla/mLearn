@@ -11,6 +11,7 @@ pub mod llm_configuration;
 pub mod logs;
 pub mod overview;
 pub mod policies;
+pub mod quotas;
 pub mod school;
 pub mod services;
 pub mod storage;
