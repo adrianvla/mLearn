@@ -11,11 +11,10 @@ import {
 import { canonicalizePolicyJson } from '../../shared/policyCanonicalization';
 import type { Settings } from '../../shared/types';
 import {
-  enrollTrustedPublicKey,
   loadCachedPolicy,
   loadTrustedPublicKey,
+  ManagementPolicyKeyChangeError,
   normalizeManagementOrigin,
-  saveCachedPolicy,
 } from './managementPolicyCache';
 
 const MAX_POLICY_LIFETIME_MS = 15 * 60 * 1000;
@@ -31,6 +30,14 @@ export interface LoadedManagementPolicy {
   policy: EffectiveManagementPolicy;
   fresh: boolean;
   source: 'cache' | 'network';
+}
+
+export interface FetchedManagementPolicy extends LoadedManagementPolicy {
+  fresh: true;
+  source: 'network';
+  publicKey: ManagementPolicyPublicKey;
+  origin: string;
+  userId: string;
 }
 
 function decodeBase64Url(value: string, expectedLength: number, label: string): Uint8Array {
@@ -113,7 +120,7 @@ export async function verifyEffectivePolicy(
   const message = new TextEncoder().encode(canonicalizePolicyJson(unsigned));
   const signatureBytes = decodeBase64Url(signature, 64, 'Management policy signature');
   const publicKeyBytes = decodeBase64Url(publicKey.publicKey, 32, 'Management policy public key');
-  if (!await verifyAsync(signatureBytes, message, publicKeyBytes)) {
+  if (!await verifyAsync(signatureBytes, message, publicKeyBytes, { zip215: false })) {
     throw new Error('Management policy signature is invalid');
   }
   return policy;
@@ -166,25 +173,39 @@ async function jsonResponse(response: Response, label: string): Promise<unknown>
 export async function fetchEffectivePolicy(
   settings: Settings,
   accessToken: string,
-  now: number = Date.now(),
-): Promise<LoadedManagementPolicy> {
+  now?: number,
+  signal?: AbortSignal,
+): Promise<FetchedManagementPolicy> {
   const scope = requireManagementScope(settings);
   const token = accessToken.trim();
   if (!token) throw new Error('Management policy request requires an access token');
   const headers = { Authorization: `Bearer ${token}` };
   const [keyResponse, policyResponse] = await Promise.all([
-    fetch(`${scope.origin}/api/policy/public-key`, { method: 'GET', headers }),
-    fetch(`${scope.origin}/api/policy/me`, { method: 'GET', headers }),
+    fetch(`${scope.origin}/api/policy/public-key`, { method: 'GET', headers, signal }),
+    fetch(`${scope.origin}/api/policy/me`, { method: 'GET', headers, signal }),
   ]);
   const publicKey = validatePublicKey(await jsonResponse(keyResponse, 'Management policy key request'));
-  await enrollTrustedPublicKey(scope.origin, publicKey);
+  const trustedPublicKey = await loadTrustedPublicKey(scope.origin);
+  if (trustedPublicKey && (
+    trustedPublicKey.keyId !== publicKey.keyId
+    || trustedPublicKey.algorithm !== publicKey.algorithm
+    || trustedPublicKey.publicKey !== publicKey.publicKey
+  )) {
+    throw new ManagementPolicyKeyChangeError(scope.origin);
+  }
   const policy = await verifyEffectivePolicy(
     await jsonResponse(policyResponse, 'Management policy request'),
     publicKey,
-    { expectedActiveGroupId: scope.activeGroupId, now },
+    { expectedActiveGroupId: scope.activeGroupId, now: now ?? Date.now() },
   );
-  await saveCachedPolicy(scope.origin, scope.userId, policy);
-  return { policy, fresh: true, source: 'network' };
+  return {
+    policy,
+    fresh: true,
+    source: 'network',
+    publicKey,
+    origin: scope.origin,
+    userId: scope.userId,
+  };
 }
 
 export async function loadCachedEffectivePolicy(
