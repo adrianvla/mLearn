@@ -170,11 +170,15 @@ describe('BehaviourTab', () => {
     testSettings.autoSuggestFlashcards = false;
     managedKeys.add('manualStatusEaseBuffer');
     managedKeys.add('autoSuggestUnknownWords');
+    managedKeys.add('ankiLearningThreshold');
+    managedKeys.add('ankiKnownThreshold');
     const { BehaviourTab } = await import('./BehaviourTab');
     const dispose = render(() => <BehaviourTab />, container);
 
     expect(container.querySelector('[data-setting-key="manualStatusEaseBuffer"]')).not.toBeNull();
     expect(container.querySelector('[data-setting-key="autoSuggestUnknownWords"]')).not.toBeNull();
+    expect(container.querySelector('[data-setting-key="ankiLearningThreshold"]')).not.toBeNull();
+    expect(container.querySelector('[data-setting-key="ankiKnownThreshold"]')).not.toBeNull();
     dispose();
   });
 });

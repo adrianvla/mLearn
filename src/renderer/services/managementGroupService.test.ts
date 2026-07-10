@@ -172,7 +172,8 @@ describe('managementGroupService', () => {
         { id: 'german-a', name: 'German A' },
         { id: 'german-b', name: 'German B' },
       ] }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(jsonResponse({ groups: [] }));
     const current = settings({ cloudAuthActiveGroupId: '', cloudAuthActiveGroupName: '' });
     const updateSettings = vi.fn((partial) => Object.assign(current, partial));
 
@@ -187,6 +188,40 @@ describe('managementGroupService', () => {
     await activateGroup(current, left.groups[0]!, updateSettings, 'access-token', left.groups);
     await ensureActiveGroup(current, updateSettings, 'access-token');
     expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    const revalidated = await ensureActiveGroup(current, updateSettings, 'access-token');
+    expect(revalidated.ready).toBe(false);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('revalidates later checks so new membership becomes visible', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ groups: [] }))
+      .mockResolvedValueOnce(jsonResponse({ groups: [{ id: 'new-class', name: 'New Class' }] }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const current = settings();
+    const updateSettings = vi.fn((partial) => Object.assign(current, partial));
+
+    expect((await ensureActiveGroup(current, updateSettings)).ready).toBe(false);
+    expect((await ensureActiveGroup(current, updateSettings)).id).toBe('new-class');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('revalidates after the one-use handoff so revoked or archived membership disappears', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ groups: [{ id: 'german-a', name: 'German A' }] }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(jsonResponse({ groups: [] }));
+    const current = settings();
+    const updateSettings = vi.fn((partial) => Object.assign(current, partial));
+
+    expect((await ensureActiveGroup(current, updateSettings)).id).toBe('german-a');
+    expect((await ensureActiveGroup(current, updateSettings)).id).toBe('german-a');
+    expect((await ensureActiveGroup(current, updateSettings)).ready).toBe(false);
+    expect(updateSettings).toHaveBeenLastCalledWith({
+      cloudAuthActiveGroupId: '',
+      cloudAuthActiveGroupName: '',
+    });
   });
 
   it('rejects malformed eligible-group payloads instead of silently becoming ready', async () => {

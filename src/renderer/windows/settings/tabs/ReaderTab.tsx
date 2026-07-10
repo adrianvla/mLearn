@@ -227,7 +227,7 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={getLanguageFeatures().supportsReadings}>
+        <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('ocrReadingAnnotationFiltering')}>
           <SettingRow
             label={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Label')}
             description={t('mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description')}
@@ -275,7 +275,7 @@ export const ReaderTab: Component = () => {
         </Show>
       </SettingGroup>
       
-      <Show when={getLanguageFeatures().supportsReadings}>
+      <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('readerReadingAnnotationHider')}>
         <SettingGroup title={t('mlearn.Settings.Reader.ReadingAnnotations.Title')}>
           <SettingRow
             label={t('mlearn.Settings.Reader.ReadingAnnotations.Hide.Label')}

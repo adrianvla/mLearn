@@ -172,7 +172,7 @@ export const BehaviourTab: Component = () => {
         </For>
 
         {/* Anki thresholds (only when Anki is enabled) */}
-        <Show when={settings.use_anki}>
+        <Show when={settings.use_anki || isSettingManaged('ankiLearningThreshold') || isSettingManaged('ankiKnownThreshold')}>
           <SettingRow
               label={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Label')}
             description={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Description')}

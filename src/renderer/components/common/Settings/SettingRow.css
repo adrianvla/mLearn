@@ -25,6 +25,10 @@
   pointer-events: none;
 }
 
+.setting-row.managed .managed-setting-control {
+  opacity: 0.5;
+}
+
 .setting-info {
   flex: 1;
   min-width: 0;

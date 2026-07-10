@@ -24,7 +24,7 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
   const [error, setError] = createSignal('');
   const requiresSelection = () => props.groups.length > 1 && !props.activeGroupId;
   const activeGroup = () => props.groups.find((group) => group.id === props.activeGroupId);
-  let dialogRef: HTMLDivElement | undefined;
+  let modalPanelRef: HTMLDivElement | undefined;
   let wasOpen = false;
   let restoreFocusTo: HTMLElement | null = null;
 
@@ -44,7 +44,7 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
         : null;
       queueMicrotask(() => {
         if (!isOpen()) return;
-        dialogRef?.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
+        modalPanelRef?.querySelector<HTMLElement>('.active-group-option:not(:disabled)')?.focus();
       });
     } else if (!open && wasOpen) {
       restoreFocusTo?.focus();
@@ -56,7 +56,7 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
   const containKeyboardFocus = (event: KeyboardEvent) => {
     if (event.key !== 'Tab') return;
     const focusable = Array.from(
-      dialogRef?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
+      modalPanelRef?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
     );
     if (focusable.length === 0) {
       event.preventDefault();
@@ -125,14 +125,14 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
         closeOnOverlay={!requiresSelection()}
         showCloseButton={!requiresSelection()}
         panelClass="active-group-modal"
+        panelRef={(element) => { modalPanelRef = element; }}
+        onPanelKeyDown={containKeyboardFocus}
       >
         <div
-          ref={dialogRef}
           class="active-group-selector"
           role="dialog"
           aria-label={t('mlearn.Management.ChooseGroup')}
           aria-modal="true"
-          onKeyDown={containKeyboardFocus}
         >
           <div class="active-group-list">
             <For each={props.groups}>

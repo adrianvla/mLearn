@@ -40,18 +40,26 @@ describe('SettingRow managed policy affordance', () => {
   });
 
   it('locks only the mutation control while leaving recovery actions available', () => {
+    const recover = vi.fn();
     const dispose = render(() => (
       <SettingRow
         label="Language"
         settingKey="language"
         managedControl={<select aria-label="Learning language"><option>German</option></select>}
       >
-        <button type="button">Retry language pack</button>
+        <button type="button" onClick={recover}>Retry language pack</button>
       </SettingRow>
     ), document.body);
 
     expect((document.querySelector('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
     expect((document.querySelector('button') as HTMLButtonElement).disabled).toBe(false);
+    const row = document.querySelector('.setting-row')!;
+    const recovery = document.querySelector('button') as HTMLButtonElement;
+    expect(row.classList.contains('disabled')).toBe(false);
+    recovery.focus();
+    recovery.click();
+    expect(document.activeElement).toBe(recovery);
+    expect(recover).toHaveBeenCalledOnce();
     dispose();
   });
 });

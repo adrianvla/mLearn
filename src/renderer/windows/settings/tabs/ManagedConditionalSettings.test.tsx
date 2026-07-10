@@ -55,6 +55,8 @@ describe('managed conditional setting visibility', () => {
     managedKeys.add('liveTranslatorIncludeKnown');
     managedKeys.add('hideReadingForKnownWords');
     managedKeys.add('blur_amount');
+    managedKeys.add('showReadingAnnotations');
+    managedKeys.add('showProsody');
     const { VideoPlayerTab } = await import('./VideoPlayerTab');
     const dispose = render(() => <VideoPlayerTab />, document.body);
 
@@ -66,6 +68,8 @@ describe('managed conditional setting visibility', () => {
 
   it('keeps the managed reader hover key visible outside key-hover mode', async () => {
     managedKeys.add('readerWordHoverKey');
+    managedKeys.add('ocrReadingAnnotationFiltering');
+    managedKeys.add('readerReadingAnnotationHider');
     const { ReaderTab } = await import('./ReaderTab');
     const dispose = render(() => <ReaderTab />, document.body);
 
