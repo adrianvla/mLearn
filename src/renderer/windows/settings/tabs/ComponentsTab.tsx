@@ -391,9 +391,9 @@ export const ComponentsTab: Component = () => {
                             type="checkbox"
                             checked={group.enabled()}
                             disabled={Boolean(getManagedSettingSource(group.policySettingKey))}
-                            aria-label={group.enabled()
+                            aria-label={`${group.title}: ${group.enabled()
                               ? t('mlearn.ComponentsTab.Enabled')
-                              : t('mlearn.ComponentsTab.Disabled')}
+                              : t('mlearn.ComponentsTab.Disabled')}`}
                             onChange={(e) => toggle()(e.currentTarget.checked)}
                           />
                           <span class="components-tab__toggle-slider" />

@@ -6,6 +6,7 @@ import type { JSX } from 'solid-js';
 import type { LanguageData, WordFrequencyMap } from '../../../../shared/types';
 
 const updateSettingsMock = vi.fn();
+const managedKeys = new Set<string>();
 
 const testSettings = {
   language: 'xx',
@@ -49,6 +50,7 @@ vi.mock('../../../context', () => ({
   useSettings: () => ({
     settings: testSettings,
     updateSettings: updateSettingsMock,
+    isSettingManaged: (key: string) => managedKeys.has(key),
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string>) => {
@@ -68,7 +70,7 @@ vi.mock('../../../context', () => ({
 }));
 
 vi.mock('../../../components/common', () => ({
-  SettingRow: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
+  SettingRow: (props: { children?: JSX.Element; settingKey?: string }) => <div data-setting-key={props.settingKey}>{props.children}</div>,
   SettingGroup: (props: { children?: JSX.Element }) => <section>{props.children}</section>,
   ToggleSwitch: () => <div />,
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
@@ -90,6 +92,7 @@ describe('BehaviourTab', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     updateSettingsMock.mockReset();
+    managedKeys.clear();
     testSettings.language = 'xx';
     testSettings.learningLanguageLevels = {};
     testLanguageData = {
@@ -159,6 +162,19 @@ describe('BehaviourTab', () => {
       },
     });
 
+    dispose();
+  });
+
+  it('shows independently managed children when their ordinary parents are off', async () => {
+    testSettings.passiveEaseEnabled = false;
+    testSettings.autoSuggestFlashcards = false;
+    managedKeys.add('manualStatusEaseBuffer');
+    managedKeys.add('autoSuggestUnknownWords');
+    const { BehaviourTab } = await import('./BehaviourTab');
+    const dispose = render(() => <BehaviourTab />, container);
+
+    expect(container.querySelector('[data-setting-key="manualStatusEaseBuffer"]')).not.toBeNull();
+    expect(container.querySelector('[data-setting-key="autoSuggestUnknownWords"]')).not.toBeNull();
     dispose();
   });
 });

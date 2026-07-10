@@ -6,7 +6,6 @@ use super::model::PolicyDocument;
 enum JsonKind {
     Boolean,
     Number,
-    NumberOrNull,
     String,
     StringOrNull,
     StringLiterals(&'static [&'static str]),
@@ -73,7 +72,6 @@ const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
     ("flashcardVideoMargin", JsonKind::Number),
     ("autoSuggestFlashcards", JsonKind::Boolean),
     ("autoSuggestUnknownWords", JsonKind::Boolean),
-    ("learningLanguageLevel", JsonKind::NumberOrNull),
     ("openAside", JsonKind::Boolean),
     ("rightSidebarOpen", JsonKind::Boolean),
     ("subsOffsetTime", JsonKind::Number),
@@ -149,7 +147,6 @@ pub fn validate_setting_rule(key: &str, value: &Value) -> Result<(), String> {
     let valid = match kind {
         JsonKind::Boolean => value.is_boolean(),
         JsonKind::Number => is_i_json_policy_number(value),
-        JsonKind::NumberOrNull => value.is_null() || is_i_json_policy_number(value),
         JsonKind::String => value.is_string(),
         JsonKind::StringOrNull => value.is_string() || value.is_null(),
         JsonKind::StringLiterals(allowed_values) => value
@@ -260,6 +257,11 @@ mod tests {
         assert!(validate_setting_rule("notASetting", &json!(true)).is_err());
         assert!(validate_setting_rule("llmEnabled", &json!("yes")).is_err());
         assert!(validate_setting_rule("llmEnabled", &json!(false)).is_ok());
+    }
+
+    #[test]
+    fn registry_rejects_deprecated_scalar_language_level() {
+        assert!(validate_setting_rule("learningLanguageLevel", &json!(3)).is_err());
     }
 
     #[test]

@@ -254,8 +254,7 @@ export const GeneralTab: Component = () => {
           label={t('mlearn.Settings.Language.LearningLanguage.Label')}
           description={t('mlearn.Settings.Language.LearningLanguage.Description')}
           settingKey="language"
-        >
-          <Select
+          managedControl={<Select
             class="setting-select"
             value={settings.language}
             onChange={async (e) => {
@@ -263,7 +262,8 @@ export const GeneralTab: Component = () => {
               updateSettings({ language });
             }}
             options={learningLanguageOptions()}
-          />
+          />}
+        >
           <Show when={selectedLanguageDataStatus()}>
             {(status) => (
               <span class={`setting-hint language-data-status ${languageDataStatusClass(status())}`}>

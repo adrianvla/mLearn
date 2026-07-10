@@ -3,7 +3,6 @@ import { DEFAULT_SETTINGS, type Settings } from './types';
 type SettingJsonKind =
   | 'boolean'
   | 'number'
-  | 'numberOrNull'
   | 'string'
   | 'stringOrNull';
 type BaseSettingJsonKind<T> =
@@ -91,7 +90,6 @@ const settingRegistry = {
   flashcardVideoMargin: 'number',
   autoSuggestFlashcards: 'boolean',
   autoSuggestUnknownWords: 'boolean',
-  learningLanguageLevel: 'numberOrNull',
   openAside: 'boolean',
   rightSidebarOpen: 'boolean',
   subsOffsetTime: 'number',
@@ -381,8 +379,6 @@ function matchesSettingDescriptor(
   const kind: SettingJsonKind = descriptor;
   if (kind === 'stringOrNull')
     return value === null || typeof value === 'string';
-  if (kind === 'numberOrNull')
-    return value === null || isIJsonPolicyNumber(value);
   if (kind === 'number')
     return isIJsonPolicyNumber(value);
   return typeof value === kind;

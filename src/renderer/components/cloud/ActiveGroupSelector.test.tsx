@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 
 vi.mock('../../context/LocalizationContext', () => ({
   useLocalization: () => ({
@@ -75,5 +76,39 @@ describe('ActiveGroupSelector', () => {
 
     await vi.waitFor(() => expect(activate).toHaveBeenCalledWith(groups[1]));
     await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+  });
+
+  it('closes when another window supplies the active group and restores focus', async () => {
+    let setActiveGroupId!: (value: string) => string;
+    const Harness = () => {
+      const [activeGroupId, setActive] = createSignal('');
+      setActiveGroupId = setActive;
+      return <ActiveGroupSelector groups={groups} activeGroupId={activeGroupId()} onActivate={vi.fn()} />;
+    };
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    dispose = render(() => <Harness />, document.body);
+    await vi.waitFor(() => expect(document.activeElement?.getAttribute('data-group-id')).toBe('german-a'));
+
+    setActiveGroupId('german-b');
+
+    await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('contains tab focus inside the required dialog', async () => {
+    dispose = render(() => (
+      <ActiveGroupSelector groups={groups} activeGroupId="" onActivate={vi.fn()} />
+    ), document.body);
+    await vi.waitFor(() => expect(document.activeElement?.getAttribute('data-group-id')).toBe('german-a'));
+    const first = document.querySelector('[data-group-id="german-a"]') as HTMLButtonElement;
+    const last = document.querySelector('[data-group-id="german-b"]') as HTMLButtonElement;
+
+    last.focus();
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(document.activeElement).toBe(first);
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+    expect(document.activeElement).toBe(last);
   });
 });

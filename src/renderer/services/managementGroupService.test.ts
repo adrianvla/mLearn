@@ -5,6 +5,7 @@ import {
   activateGroup,
   ensureActiveGroup,
   getEligibleGroups,
+  resetManagementGroupReadiness,
 } from './managementGroupService';
 
 const mockFetch = vi.fn();
@@ -31,6 +32,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe('managementGroupService', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    resetManagementGroupReadiness();
   });
 
   it('loads eligible groups from the resolved management API with the supplied refreshed token', async () => {
@@ -162,6 +164,29 @@ describe('managementGroupService', () => {
       cloudAuthActiveGroupId: 'german-a',
       cloudAuthActiveGroupName: 'German A',
     });
+  });
+
+  it('shares one readiness transition between concurrent callers and explicit activation', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ groups: [
+        { id: 'german-a', name: 'German A' },
+        { id: 'german-b', name: 'German B' },
+      ] }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const current = settings({ cloudAuthActiveGroupId: '', cloudAuthActiveGroupName: '' });
+    const updateSettings = vi.fn((partial) => Object.assign(current, partial));
+
+    const [left, right] = await Promise.all([
+      ensureActiveGroup(current, updateSettings, 'access-token'),
+      ensureActiveGroup(current, updateSettings, 'access-token'),
+    ]);
+    expect(left.needsSelection).toBe(true);
+    expect(right.needsSelection).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await activateGroup(current, left.groups[0]!, updateSettings, 'access-token', left.groups);
+    await ensureActiveGroup(current, updateSettings, 'access-token');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('rejects malformed eligible-group payloads instead of silently becoming ready', async () => {

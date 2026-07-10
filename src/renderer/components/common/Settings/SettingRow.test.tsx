@@ -6,7 +6,7 @@ import { render } from 'solid-js/web';
 vi.mock('../../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key }),
   useOptionalSettings: () => ({
-    getManagedSettingSource: (key: string) => key === 'llmEnabled'
+    getManagedSettingSource: (key: string) => key === 'llmEnabled' || key === 'language'
       ? { sourceGroupName: 'German', sourceGroupId: 'german', locked: true, value: false }
       : null,
   }),
@@ -36,6 +36,22 @@ describe('SettingRow managed policy affordance', () => {
     expect(document.body.textContent).toContain('LLM');
     expect(document.body.textContent).toContain('Managed by German');
     expect(document.querySelector('.setting-row')?.getAttribute('aria-disabled')).toBe('true');
+    dispose();
+  });
+
+  it('locks only the mutation control while leaving recovery actions available', () => {
+    const dispose = render(() => (
+      <SettingRow
+        label="Language"
+        settingKey="language"
+        managedControl={<select aria-label="Learning language"><option>German</option></select>}
+      >
+        <button type="button">Retry language pack</button>
+      </SettingRow>
+    ), document.body);
+
+    expect((document.querySelector('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+    expect((document.querySelector('button') as HTMLButtonElement).disabled).toBe(false);
     dispose();
   });
 });

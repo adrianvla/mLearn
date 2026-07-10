@@ -12,7 +12,7 @@ import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, getPassiveHoverFai
 import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { currentLangData, getFreqLevelNames, getLanguageFeatures, getWordFrequency } = useLanguage();
 
@@ -334,6 +334,9 @@ export const BehaviourTab: Component = () => {
             </SettingRow>
           </Show>
 
+        </Show>
+
+        <Show when={settings.passiveEaseEnabled || isSettingManaged('manualStatusEaseBuffer')}>
           <SettingRow
             label={t('mlearn.Settings.WordStatus.ManualStatusEaseBuffer.Label')}
             description={t('mlearn.Settings.WordStatus.ManualStatusEaseBuffer.Description')}
@@ -361,7 +364,6 @@ export const BehaviourTab: Component = () => {
           <SettingRow
             label={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Label')}
             description={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Description')}
-            settingKey="learningLanguageLevel"
           >
             <Select
               class="setting-select"
@@ -400,7 +402,7 @@ export const BehaviourTab: Component = () => {
             onChange={(checked) => updateSettings({ autoSuggestFlashcards: checked })}
           />
         </SettingRow>
-        <Show when={settings.autoSuggestFlashcards}>
+        <Show when={settings.autoSuggestFlashcards || isSettingManaged('autoSuggestUnknownWords')}>
           <SettingRow
             label={t('mlearn.Settings.Behaviour.AutoSuggestUnknownWords.Label')}
             description={t('mlearn.Settings.Behaviour.AutoSuggestUnknownWords.Description')}
