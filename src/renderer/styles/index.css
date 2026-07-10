@@ -274,6 +274,7 @@
   /* Background aliases for common patterns */
   --bg-primary: var(--bg);
   --bg-secondary: var(--bg-intense);
+  --bg-tertiary: var(--bg-intense);
   
   /* Color border hover */
   --color-border-hover: var(--border-color-intense);

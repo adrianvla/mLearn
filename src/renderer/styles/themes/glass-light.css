@@ -32,6 +32,7 @@ body.theme-glass-light {
   --panel-border-hover: var(--border-color-intense);
   --bg-primary: var(--bg);
   --bg-secondary: var(--bg-intense);
+    --bg-tertiary: var(--bg-intense);
   --shadow-border:var(--border-color) 0px 0px 0px 1px;
 
   --overlay-bg: rgba(255,255,255, 0.6);
