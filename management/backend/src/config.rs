@@ -44,6 +44,7 @@ pub struct Config {
     pub public_url: String,
     pub compose_project: String,
     pub management_db_path: String,
+    pub policy_signing_key_path: String,
     pub token_hash: Option<[u8; 32]>,
     pub env_mode: EnvMode,
     pub deployment_mode: DeploymentMode,
@@ -80,6 +81,10 @@ impl Config {
                 "/data/management.db"
             },
         );
+        let policy_signing_key_path = env_or_default(
+            "MLEARN_POLICY_SIGNING_KEY_PATH",
+            default_policy_signing_key_path().as_str(),
+        );
 
         let env_mode = EnvMode::parse(&env_or_default("MLEARN_ENV", "production"));
         let deployment_mode = env_or_default("MLEARN_DEPLOYMENT_MODE", "self-hosted");
@@ -110,6 +115,7 @@ impl Config {
             public_url,
             compose_project,
             management_db_path,
+            policy_signing_key_path,
             token_hash,
             env_mode,
             deployment_mode,
@@ -134,6 +140,23 @@ impl Config {
 
     pub fn fail_closed(&self) -> bool {
         self.env_mode == EnvMode::Production && self.token_hash.is_none()
+    }
+}
+
+fn default_policy_signing_key_path() -> String {
+    if cfg!(test) {
+        return std::env::temp_dir()
+            .join(format!(
+                "mlearn-policy-signing-key-tests-{}",
+                std::process::id()
+            ))
+            .to_string_lossy()
+            .into_owned();
+    }
+    if cfg!(debug_assertions) {
+        "policy-signing-key".into()
+    } else {
+        "/data/policy-signing-key".into()
     }
 }
 
@@ -388,6 +411,7 @@ mod tests {
             public_url: "http://127.0.0.1:3000".to_string(),
             compose_project: "mlearn".to_string(),
             management_db_path: "management.db".to_string(),
+            policy_signing_key_path: "policy-signing-key".to_string(),
             token_hash: Some([0u8; 32]),
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::SelfHosted,

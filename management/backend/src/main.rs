@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let db = connect_database(&config).await?;
-    let state = AppState::new(docker, config, db);
+    let state = AppState::try_new(docker, config, db)?;
 
     let bind_addr: SocketAddr = format!("{}:{}", state.config.bind_address, state.config.port)
         .parse()
@@ -422,8 +422,12 @@ mod tests {
         let recovery_token = "application-router-recovery";
         let mut config = Config::from_env();
         config.token_hash = Some(auth::hash_token(recovery_token));
+        let signing_key_path = std::env::temp_dir()
+            .join(format!("mlearn-policy-signing-key-{}", uuid::Uuid::now_v7()));
+        config.policy_signing_key_path = signing_key_path.to_string_lossy().into_owned();
         let docker = bollard::Docker::connect_with_http_defaults().unwrap();
         let app = build_router(AppState::new(docker, config, pool));
+        let _ = std::fs::remove_file(signing_key_path);
 
         let health = app
             .clone()
@@ -488,8 +492,12 @@ mod tests {
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         let mut config = Config::from_env();
         config.token_hash = Some(auth::hash_token("root-recovery"));
+        let signing_key_path = std::env::temp_dir()
+            .join(format!("mlearn-policy-signing-key-{}", uuid::Uuid::now_v7()));
+        config.policy_signing_key_path = signing_key_path.to_string_lossy().into_owned();
         let docker = bollard::Docker::connect_with_http_defaults().unwrap();
         let state = AppState::new(docker, config, pool.clone());
+        let _ = std::fs::remove_file(signing_key_path);
         let user_id = uuid::Uuid::now_v7().to_string();
         let now = time::OffsetDateTime::now_utc().unix_timestamp();
         sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, 'admin@branch.test', 'admin@branch.test', 'Branch Admin', 'active', 'admin', 0, ?, ?)")

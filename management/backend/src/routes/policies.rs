@@ -5,13 +5,14 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 
 use crate::{
     error::AppError,
     identity::Principal,
     policy::{
-        CompiledPolicy, DraftValidation, PolicyDraft, PolicyHistoryPage, PolicyService,
-        PolicyVersion,
+        compiler::compile_in_transaction, signing::PolicyPublicKey, CompiledPolicy,
+        DraftValidation, PolicyDraft, PolicyHistoryPage, PolicyService, PolicyVersion,
     },
     state::AppState,
 };
@@ -41,7 +42,68 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/api/groups/{group_id}/policy/publish", post(publish))
         .route("/api/groups/{group_id}/policy/history", get(history))
         .route("/api/groups/{group_id}/policy/effective", get(effective))
+        .route("/api/policy/me", get(effective_for_session))
+        .route("/api/policy/public-key", get(public_key))
         .with_state(state)
+}
+
+const POLICY_SNAPSHOT_LIFETIME: Duration = Duration::minutes(15);
+
+async fn effective_for_session(
+    State(state): State<AppState>,
+    principal: Principal,
+) -> Result<Json<crate::policy::PolicyDocument>, AppError> {
+    if principal.service_key_id.is_some() {
+        return Err(AppError::Forbidden(
+            "session policy snapshots require a human actor".into(),
+        ));
+    }
+    let group_id = principal
+        .active_group_id
+        .as_deref()
+        .ok_or_else(|| AppError::Forbidden("an active group session is required".into()))?;
+    let mut transaction = state.db.begin().await.map_err(database_error)?;
+    let eligible: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM group_memberships membership
+            JOIN groups ON groups.id = membership.group_id
+            WHERE membership.group_id = ? AND membership.user_id = ?
+              AND membership.status = 'active' AND groups.status != 'archived'
+        )",
+    )
+    .bind(group_id)
+    .bind(&principal.user_id)
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(database_error)?;
+    if eligible != 1 {
+        return Err(AppError::Forbidden(
+            "active group membership is required".into(),
+        ));
+    }
+    let mut snapshot = compile_in_transaction(&mut transaction, group_id)
+        .await?
+        .document;
+    transaction.commit().await.map_err(database_error)?;
+
+    let issued_at = OffsetDateTime::now_utc();
+    snapshot.issued_at = issued_at.format(&Rfc3339).map_err(|error| {
+        AppError::Internal(format!("policy timestamp formatting failed: {error}"))
+    })?;
+    snapshot.expires_at = (issued_at + POLICY_SNAPSHOT_LIFETIME)
+        .format(&Rfc3339)
+        .map_err(|error| {
+            AppError::Internal(format!("policy timestamp formatting failed: {error}"))
+        })?;
+    Ok(Json(state.policy_signer.sign_snapshot(snapshot)?))
+}
+
+async fn public_key(State(state): State<AppState>) -> Json<PolicyPublicKey> {
+    Json(state.policy_signer.public_key())
+}
+
+fn database_error(error: sqlx::Error) -> AppError {
+    AppError::Internal(format!("database error: {error}"))
 }
 
 async fn get_draft(
@@ -268,5 +330,137 @@ mod tests {
         assert_eq!(body["items"].as_array().unwrap().len(), 1);
         assert!(body["items"][0]["compiledHash"].is_string());
         assert!(body["nextCursor"].is_string());
+    }
+
+    #[tokio::test]
+    async fn current_session_receives_a_signed_policy_for_its_active_group() {
+        let fixture = GroupFixture::german_tree().await;
+        let (app, token) = policy_app(&fixture).await;
+
+        let response = app
+            .oneshot(
+                Request::get("/api/policy/me")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(body["activeGroupId"], fixture.german_a);
+        assert!(!body["keyId"].as_str().unwrap().is_empty());
+        assert!(!body["signature"].as_str().unwrap().is_empty());
+        let issued_at = time::OffsetDateTime::parse(
+            body["issuedAt"].as_str().unwrap(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap();
+        let expires_at = time::OffsetDateTime::parse(
+            body["expiresAt"].as_str().unwrap(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap();
+        assert!(expires_at > issued_at);
+        assert!(expires_at - issued_at <= time::Duration::minutes(15));
+    }
+
+    #[tokio::test]
+    async fn public_key_is_available_without_authentication() {
+        let fixture = GroupFixture::german_tree().await;
+        let (app, _) = policy_app(&fixture).await;
+
+        let response = app
+            .oneshot(
+                Request::get("/api/policy/public-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(body["algorithm"], "Ed25519");
+        assert!(!body["keyId"].as_str().unwrap().is_empty());
+        assert!(!body["publicKey"].as_str().unwrap().is_empty());
+        assert!(body.get("privateKey").is_none());
+    }
+
+    #[tokio::test]
+    async fn removed_membership_cannot_receive_a_new_policy_snapshot() {
+        let fixture = GroupFixture::german_tree().await;
+        let (app, token) = policy_app(&fixture).await;
+        sqlx::query("UPDATE group_memberships SET status = 'archived' WHERE id = 'membership-a'")
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::get("/api/policy/me")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn archived_active_group_cannot_receive_a_new_policy_snapshot() {
+        let fixture = GroupFixture::german_tree().await;
+        let (app, token) = policy_app(&fixture).await;
+        sqlx::query("UPDATE groups SET status = 'archived' WHERE id = ?")
+            .bind(&fixture.german_a)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::get("/api/policy/me")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn service_key_cannot_use_the_session_policy_route() {
+        let fixture = GroupFixture::german_tree().await;
+        let (app, _) = policy_app(&fixture).await;
+        let key = ApiKeyService::new(fixture.pool.clone())
+            .create(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                vec![Capability::PoliciesView],
+                None,
+            )
+            .await
+            .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::get("/api/policy/me")
+                    .header(header::AUTHORIZATION, format!("Bearer {}", key.secret))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 }
