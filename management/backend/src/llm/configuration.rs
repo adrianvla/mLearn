@@ -969,27 +969,48 @@ impl LlmConfigurationService {
                 .map_err(|_| AppError::Internal("effective policy serialization failed".into()))?,
         ));
         if !compiled.document.llm.enabled {
-            return Err(AppError::Forbidden(
+            return Err(AppError::PolicyDenied(
                 "LLM access is disabled by policy".into(),
             ));
         }
         let allowed_providers = compiled.document.llm.allowed_providers;
         let allowed_models = compiled.document.llm.allowed_models;
-        let rows = sqlx::query("WITH RECURSIVE ancestors(id, parent_id, depth) AS (SELECT id, parent_id, 0 FROM groups WHERE id = ? AND status != 'archived' UNION ALL SELECT parent.id, parent.parent_id, child.depth + 1 FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status != 'archived') SELECT model.id AS model_id, model.model_key, model.upstream_model, provider.id AS provider_id, provider.name AS provider_name, provider.provider_kind, provider.base_url, provider.secret_envelope, ancestors.depth FROM ancestors JOIN llm_models model ON model.group_id = ancestors.id AND model.status = 'active' JOIN llm_providers provider ON provider.id = model.provider_id AND provider.status = 'active' ORDER BY ancestors.depth, model.model_key, model.id")
+        let rows = sqlx::query("WITH RECURSIVE ancestors(id, parent_id, depth) AS (SELECT id, parent_id, 0 FROM groups WHERE id = ? AND status != 'archived' UNION ALL SELECT parent.id, parent.parent_id, child.depth + 1 FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status != 'archived') SELECT model.id AS model_id, model.model_key, model.upstream_model, model.status AS model_status, provider.id AS provider_id, provider.name AS provider_name, provider.provider_kind, provider.base_url, provider.secret_envelope, provider.status AS provider_status, ancestors.depth FROM ancestors JOIN llm_models model ON model.group_id = ancestors.id JOIN llm_providers provider ON provider.id = model.provider_id ORDER BY ancestors.depth, model.model_key, model.id")
             .bind(group_id).fetch_all(&mut *tx).await.map_err(database_error)?;
+        let has_active_route = rows.iter().any(|row| {
+            row.get::<String, _>("model_status") == "active"
+                && row.get::<String, _>("provider_status") == "active"
+        });
+        let allowed_config_exists = rows.iter().any(|row| {
+            allowed_providers.contains(&row.get::<String, _>("provider_id"))
+                && allowed_models.contains(&row.get::<String, _>("model_id"))
+        });
         let row = rows
             .into_iter()
             .find(|row| {
                 let provider_id: String = row.get("provider_id");
                 let model_id: String = row.get("model_id");
-                allowed_providers.contains(&provider_id)
+                row.get::<String, _>("model_status") == "active"
+                    && row.get::<String, _>("provider_status") == "active"
+                    && allowed_providers.contains(&provider_id)
                     && allowed_models.contains(&model_id)
                     && requested_model
                         .map(|value| value == model_id)
                         .unwrap_or(true)
             })
             .ok_or_else(|| {
-                AppError::Conflict("no active provider route matches effective policy".into())
+                if allowed_providers.is_empty()
+                    || allowed_models.is_empty()
+                    || (has_active_route && !allowed_config_exists)
+                {
+                    AppError::PolicyDenied(
+                        "no configured route is allowed by effective policy".into(),
+                    )
+                } else {
+                    AppError::ConfigurationUnavailable(
+                        "allowed provider or model is unavailable".into(),
+                    )
+                }
             })?;
         let provider_id: String = row.get("provider_id");
         let model_id: String = row.get("model_id");
@@ -998,7 +1019,7 @@ impl LlmConfigurationService {
             let prompt: Option<String> = sqlx::query_scalar("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status != 'archived' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status != 'archived') SELECT profile.system_prompt FROM prompt_profiles profile JOIN ancestors ON ancestors.id = profile.group_id WHERE profile.id = ? AND profile.status = 'active'")
                 .bind(group_id).bind(profile_id).fetch_optional(&mut *tx).await.map_err(database_error)?;
             Some(prompt.ok_or_else(|| {
-                AppError::Conflict(
+                AppError::ConfigurationUnavailable(
                     "effective policy references an unavailable prompt profile".into(),
                 )
             })?)

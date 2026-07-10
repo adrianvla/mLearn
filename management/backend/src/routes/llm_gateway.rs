@@ -534,6 +534,10 @@ fn map_preflight_error(error: AppError) -> GatewayFailure {
             GatewayFailure::new(StatusCode::CONFLICT, "invalid_active_group")
         }
         AppError::Forbidden(_) => GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"),
+        AppError::PolicyDenied(_) => GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"),
+        AppError::ConfigurationUnavailable(_) => {
+            GatewayFailure::new(StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable")
+        }
         AppError::BadRequest(_) => GatewayFailure::new(StatusCode::BAD_REQUEST, "invalid_request"),
         AppError::Conflict(_) => GatewayFailure::new(StatusCode::CONFLICT, "policy_denied"),
         _ => GatewayFailure::new(StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable"),
@@ -541,21 +545,7 @@ fn map_preflight_error(error: AppError) -> GatewayFailure {
 }
 
 fn is_policy_denial(error: &AppError) -> bool {
-    match error {
-        AppError::Forbidden(message) => {
-            let message = message.to_ascii_lowercase();
-            message.contains("policy")
-                || message.contains("governed")
-                || message.contains("required quota")
-                || message.contains("prompt profile")
-                || message.contains("not allowed")
-        }
-        AppError::Conflict(message) => {
-            message.contains("matches effective policy")
-                || message.contains("effective policy references")
-        }
-        _ => false,
-    }
+    matches!(error, AppError::PolicyDenied(_))
 }
 
 #[derive(Debug)]
@@ -1156,6 +1146,46 @@ mod tests {
                 .unwrap(),
             0
         );
+        sqlx::query("UPDATE active_policies SET policy_version_id='policy',activated_at=5 WHERE group_id='school'").execute(&pool).await.unwrap();
+        sqlx::query("UPDATE llm_providers SET status='disabled' WHERE id='provider'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            post_gateway(app.clone(), &token).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        sqlx::query("UPDATE llm_providers SET status='active' WHERE id='provider'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE llm_models SET status='disabled' WHERE id='model'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            post_gateway(app.clone(), &token).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        sqlx::query("UPDATE llm_models SET status='active' WHERE id='model'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO prompt_profiles(id,group_id,name,system_prompt,status,created_by_user_id,created_at,updated_at) VALUES('missing-prompt','class','Missing','private prompt','disabled','admin',5,5)").execute(&pool).await.unwrap();
+        let prompt_policy=serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"promptProfileId":"missing-prompt","quotas":[{"metric":"costMicros","limit":1000000000_i64,"period":"monthly","hard":true}]}}).to_string();
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('missing-prompt-policy','school',?,'missing-prompt-hash','missing-prompt-compiled','admin','missing prompt','[]',5)").bind(prompt_policy).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE active_policies SET policy_version_id='missing-prompt-policy',activated_at=5 WHERE group_id='school'").execute(&pool).await.unwrap();
+        assert_eq!(
+            post_gateway(app.clone(), &token).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM llm_policy_block_events")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
         assert_eq!(
             sqlx::query_scalar::<_, i64>(
                 "SELECT COUNT(*) FROM llm_policy_block_events WHERE error_code='policy_denied'"
@@ -1184,13 +1214,13 @@ mod tests {
         sqlx::query("UPDATE active_policies SET policy_version_id='disallowed-policy',activated_at=3 WHERE group_id='school'").execute(&pool).await.unwrap();
         assert_eq!(
             post_gateway(app.clone(), &token).await.status(),
-            StatusCode::CONFLICT
+            StatusCode::FORBIDDEN
         );
         let no_quota=serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[]}}).to_string();
         sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('no-quota-policy','school',?,'no-quota-hash','no-quota-compiled','admin','no quota','[]',4)").bind(no_quota).execute(&pool).await.unwrap();
         sqlx::query("UPDATE active_policies SET policy_version_id='no-quota-policy',activated_at=4 WHERE group_id='school'").execute(&pool).await.unwrap();
         assert_eq!(
-            post_gateway(app, &token).await.status(),
+            post_gateway(app.clone(), &token).await.status(),
             StatusCode::FORBIDDEN
         );
         assert_eq!(

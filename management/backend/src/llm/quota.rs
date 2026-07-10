@@ -636,7 +636,7 @@ impl QuotaService {
         if !compiled.document.llm.enabled
             || compiled.document.llm.quotas.iter().all(|rule| !rule.hard)
         {
-            return Err(AppError::Forbidden(
+            return Err(AppError::PolicyDenied(
                 "LLM access requires a published governed quota policy".into(),
             ));
         }
@@ -652,7 +652,7 @@ impl QuotaService {
                     .allowed_models
                     .contains(&request.model_id))
         {
-            return Err(AppError::Forbidden(
+            return Err(AppError::PolicyDenied(
                 "provider route is not allowed by the fresh effective policy".into(),
             ));
         }
@@ -666,7 +666,7 @@ impl QuotaService {
                 && (compiled.document.policy_version_id != requirements.policy_version_id
                     || compiled_hash != requirements.policy_compiled_hash)
             {
-                return Err(AppError::Forbidden(
+                return Err(AppError::PolicyDenied(
                     "effective policy changed before quota reservation".into(),
                 ));
             }
@@ -680,7 +680,7 @@ impl QuotaService {
                 ));
             }
             if compiled.document.llm.prompt_profile_id.as_deref() != expected_prompt_profile_id {
-                return Err(AppError::Forbidden(
+                return Err(AppError::PolicyDenied(
                     "prompt profile changed before quota reservation".into(),
                 ));
             }
@@ -688,7 +688,7 @@ impl QuotaService {
                 let active: i64 = sqlx::query_scalar("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status = 'active') SELECT EXISTS(SELECT 1 FROM prompt_profiles profile JOIN ancestors ON ancestors.id = profile.group_id WHERE profile.id = ? AND profile.status = 'active')")
                     .bind(&request.active_group_id).bind(prompt_profile_id).fetch_one(&mut *tx).await.map_err(database_error)?;
                 if active != 1 {
-                    return Err(AppError::Forbidden(
+                    return Err(AppError::ConfigurationUnavailable(
                         "prompt profile is unavailable at reservation time".into(),
                     ));
                 }
@@ -1239,11 +1239,11 @@ async fn require_gateway_configuration(
     let row = sqlx::query("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status = 'active') SELECT provider.provider_kind, provider.base_url, provider.secret_envelope, model.upstream_model, price.currency, price.unit, price.input_cost_micros, price.output_cost_micros FROM llm_providers provider JOIN llm_models model ON model.id = ? AND model.provider_id = provider.id AND model.status = 'active' JOIN provider_price_versions price ON price.id = ? AND price.provider_id = provider.id AND (price.model_id IS NULL OR price.model_id = model.id) JOIN ancestors ON ancestors.id = provider.group_id WHERE provider.id = ? AND provider.status = 'active'")
         .bind(&request.active_group_id).bind(&request.model_id).bind(&request.price_version_id).bind(&request.provider_id)
         .fetch_optional(&mut **tx).await.map_err(database_error)?
-        .ok_or_else(|| AppError::Forbidden("gateway configuration changed before reservation".into()))?;
+        .ok_or_else(|| AppError::ConfigurationUnavailable("gateway configuration changed before reservation".into()))?;
     let prompt = if let Some(prompt_profile_id) = prompt_profile_id {
         sqlx::query_scalar::<_, String>("WITH RECURSIVE ancestors(id, parent_id) AS (SELECT id, parent_id FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT parent.id, parent.parent_id FROM groups parent JOIN ancestors child ON child.parent_id = parent.id WHERE parent.status = 'active') SELECT profile.system_prompt FROM prompt_profiles profile JOIN ancestors ON ancestors.id = profile.group_id WHERE profile.id = ? AND profile.status = 'active'")
             .bind(&request.active_group_id).bind(prompt_profile_id).fetch_optional(&mut **tx).await.map_err(database_error)?
-            .ok_or_else(|| AppError::Forbidden("gateway configuration changed before reservation".into()))?
+            .ok_or_else(|| AppError::ConfigurationUnavailable("gateway configuration changed before reservation".into()))?
     } else {
         String::new()
     };
@@ -1269,7 +1269,7 @@ async fn require_gateway_configuration(
     if actual == expected {
         Ok(())
     } else {
-        Err(AppError::Forbidden(
+        Err(AppError::ConfigurationUnavailable(
             "gateway configuration changed before reservation".into(),
         ))
     }
@@ -2666,7 +2666,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             service.reserve(&learner, request.clone()).await,
-            Err(AppError::Forbidden(_))
+            Err(AppError::PolicyDenied(_))
         ));
         sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES ('school', 'policy', 1)").execute(&pool).await.unwrap();
         request.request_id = "expires".into();
@@ -3220,7 +3220,7 @@ mod tests {
                     lease_seconds: 240,
                 },
             ).await,
-            Err(AppError::Forbidden(message)) if message.contains("fresh effective policy")
+            Err(AppError::PolicyDenied(message)) if message.contains("fresh effective policy")
         ));
     }
 
@@ -3256,7 +3256,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             service.reserve_gateway(&learner, request.clone(), fixture_gateway_requirements(&request, fingerprint, 60, 4)).await,
-            Err(AppError::Forbidden(message)) if message.contains("configuration")
+            Err(AppError::ConfigurationUnavailable(message)) if message.contains("configuration")
         ));
         sqlx::query("UPDATE llm_models SET upstream_model = 'model-v1' WHERE id = 'model'")
             .execute(&pool)
@@ -3272,14 +3272,14 @@ mod tests {
         second.request_id = "changed-provider".into();
         assert!(matches!(
             service.reserve_gateway(&learner, second.clone(), fixture_gateway_requirements(&second, fingerprint, 60, 4)).await,
-            Err(AppError::Forbidden(message)) if message.contains("configuration")
+            Err(AppError::ConfigurationUnavailable(message)) if message.contains("configuration")
         ));
         sqlx::query("UPDATE llm_providers SET base_url = 'https://provider.test/v1', secret_envelope = 'changed-envelope' WHERE id = 'provider'")
             .execute(&pool).await.unwrap();
         second.request_id = "changed-secret".into();
         assert!(matches!(
             service.reserve_gateway(&learner, second.clone(), fixture_gateway_requirements(&second, fingerprint, 60, 4)).await,
-            Err(AppError::Forbidden(message)) if message.contains("configuration")
+            Err(AppError::ConfigurationUnavailable(message)) if message.contains("configuration")
         ));
 
         sqlx::query("UPDATE llm_providers SET secret_envelope = NULL WHERE id = 'provider'")
@@ -3330,7 +3330,7 @@ mod tests {
                     lease_seconds: 240,
                 },
             ).await,
-            Err(AppError::Forbidden(message)) if message.contains("configuration")
+            Err(AppError::ConfigurationUnavailable(message)) if message.contains("configuration")
         ));
     }
 

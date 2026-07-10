@@ -21,6 +21,12 @@ pub enum AppError {
     #[error("Forbidden: {0}")]
     Forbidden(String),
 
+    #[error("Policy denied: {0}")]
+    PolicyDenied(String),
+
+    #[error("Configuration unavailable: {0}")]
+    ConfigurationUnavailable(String),
+
     #[error("{0}")]
     Conflict(String),
 
@@ -51,6 +57,8 @@ impl AppError {
             Self::ContainerNotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
+            Self::PolicyDenied(_) => StatusCode::FORBIDDEN,
+            Self::ConfigurationUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::ActionNotAllowed => StatusCode::FORBIDDEN,
