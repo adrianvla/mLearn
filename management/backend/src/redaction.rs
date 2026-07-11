@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 const REDACTED: &str = "[REDACTED]";
-const SENSITIVE_KEY_PATTERNS: [&str; 19] = [
+const SENSITIVE_KEY_PATTERNS: [&str; 20] = [
     "KEY",
     "TOKEN",
     "SECRET",
@@ -15,6 +15,7 @@ const SENSITIVE_KEY_PATTERNS: [&str; 19] = [
     "COOKIE",
     "SESSION",
     "AUTH",
+    "AUTHORIZATION",
     "OPENAI",
     "ANTHROPIC",
     "DEEPSEEK",
@@ -26,9 +27,16 @@ const SENSITIVE_KEY_PATTERNS: [&str; 19] = [
 
 pub fn is_sensitive_key(key: &str) -> bool {
     let upper_key = key.to_ascii_uppercase();
-    SENSITIVE_KEY_PATTERNS
-        .iter()
-        .any(|pattern| upper_key.contains(pattern))
+    let segments: Vec<&str> = upper_key
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    SENSITIVE_KEY_PATTERNS.iter().any(|pattern| {
+        let pattern_segments: Vec<&str> = pattern.split('_').collect();
+        segments
+            .windows(pattern_segments.len())
+            .any(|window| window == pattern_segments)
+    })
 }
 
 pub fn looks_like_secret(value: &str) -> bool {
@@ -314,7 +322,7 @@ mod tests {
 
     #[test]
     fn leaves_non_sensitive_keys_unflagged() {
-        for key in ["PORT", "NAME", "HOST", "DEBUG"] {
+        for key in ["PORT", "NAME", "HOST", "DEBUG", "MONKEY_ID", "COMPASS_GROUP"] {
             assert!(!is_sensitive_key(key), "{key} should not be sensitive");
         }
     }

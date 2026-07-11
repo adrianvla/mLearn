@@ -38,7 +38,8 @@ impl ProviderKind {
     }
 }
 
-pub(crate) trait EndpointResolver: Send + Sync {
+#[doc(hidden)]
+pub trait EndpointResolver: Send + Sync {
     fn resolve<'a>(
         &'a self,
         host: &'a str,
@@ -46,7 +47,8 @@ pub(crate) trait EndpointResolver: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<Vec<SocketAddr>, AppError>> + Send + 'a>>;
 }
 
-pub(crate) struct TokioEndpointResolver;
+#[doc(hidden)]
+pub struct TokioEndpointResolver;
 
 impl EndpointResolver for TokioEndpointResolver {
     fn resolve<'a>(

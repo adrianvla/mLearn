@@ -1,4 +1,5 @@
 pub mod api_keys;
+mod application;
 pub mod auth;
 pub mod authorization;
 pub mod config;
@@ -19,3 +20,5 @@ pub(crate) mod secret_file;
 pub mod state;
 pub mod static_handler;
 pub mod validation;
+
+pub use application::application_router;

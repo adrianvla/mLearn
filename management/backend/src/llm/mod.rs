@@ -1,6 +1,7 @@
 pub mod configuration;
 pub mod conversations;
-pub(crate) mod endpoint;
+#[doc(hidden)]
+pub mod endpoint;
 pub(crate) mod ollama;
 pub(crate) mod openai;
 pub(crate) mod provider;
