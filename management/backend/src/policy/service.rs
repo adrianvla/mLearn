@@ -75,6 +75,21 @@ pub struct PolicyDraftDocument {
     pub features: BTreeMap<String, DraftFeatureRule>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm: Option<DraftLlmPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub governance: Option<DraftGovernancePolicy>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DraftGovernancePolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity_retention_days: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_retention_days: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub teacher_analytics_export: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub teacher_conversation_export: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -424,6 +439,21 @@ fn validate_draft_document(document: &PolicyDraftDocument) -> Result<(), AppErro
                     "duplicate LLM quota {}:{}",
                     key.0, key.1
                 )));
+            }
+        }
+    }
+    if let Some(governance) = &document.governance {
+        for days in [
+            governance.activity_retention_days,
+            governance.conversation_retention_days,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !(1..=90).contains(&days) {
+                return Err(AppError::BadRequest(
+                    "governance retention must be within 1..90 days".into(),
+                ));
             }
         }
     }

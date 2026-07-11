@@ -57,6 +57,12 @@
       }
     ]
   },
+  "governance": {
+    "activityRetentionDays": 60,
+    "conversationRetentionDays": 30,
+    "teacherAnalyticsExport": true,
+    "teacherConversationExport": false
+  },
   "issuedAt": "2026-07-10T08:00:00Z",
   "expiresAt": "2026-07-10T09:00:00Z",
   "keyId": "school-policy-key-1",

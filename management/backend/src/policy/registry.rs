@@ -181,6 +181,11 @@ pub fn validate_policy_document(document: &PolicyDocument) -> Result<(), String>
     if document.schema_version != 1 {
         return Err("unsupported management policy schema version".to_string());
     }
+    if !(1..=90).contains(&document.governance.activity_retention_days)
+        || !(1..=90).contains(&document.governance.conversation_retention_days)
+    {
+        return Err("governance retention must be between 1 and 90 days".into());
+    }
     require_non_empty("policyVersionId", &document.policy_version_id)?;
     require_non_empty("activeGroupId", &document.active_group_id)?;
     require_non_empty("issuedAt", &document.issued_at)?;

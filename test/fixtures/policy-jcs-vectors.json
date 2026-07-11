@@ -72,10 +72,16 @@
         "hard": true
       }]
     },
+    "governance": {
+      "activityRetentionDays": 60,
+      "conversationRetentionDays": 30,
+      "teacherAnalyticsExport": true,
+      "teacherConversationExport": false
+    },
     "issuedAt": "2026-07-10T08:00:00Z",
     "expiresAt": "2026-07-10T08:15:00Z",
     "keyId": "key-1",
     "signature": "excluded-from-canonical-bytes"
   },
-  "signedSnapshotCanonical": "{\"activeGroupId\":\"group-a\",\"ancestry\":[{\"id\":\"school\",\"name\":\"École 😀\"}],\"expiresAt\":\"2026-07-10T08:15:00Z\",\"features\":{\"cloud_tts\":{\"enabled\":false,\"hard\":true,\"sourceGroupId\":\"school\"}},\"issuedAt\":\"2026-07-10T08:00:00Z\",\"keyId\":\"key-1\",\"llm\":{\"allowedModels\":[\"model-😀\"],\"allowedProviders\":[\"provider-b\",\"provider-a\"],\"enabled\":true,\"maxConcurrentStreams\":4,\"promptProfileId\":null,\"quotas\":[{\"hard\":true,\"limit\":9007199254740991,\"metric\":\"totalTokens\",\"period\":\"daily\",\"sourceGroupId\":\"school\"}],\"requestsPerMinute\":60},\"policyVersionId\":\"version-€-😀\",\"schemaVersion\":1,\"settings\":{\"subtitle_font_size\":{\"locked\":true,\"sourceGroupId\":\"school\",\"sourceGroupName\":\"École 😀\",\"value\":20.5}}}"
+  "signedSnapshotCanonical": "{\"activeGroupId\":\"group-a\",\"ancestry\":[{\"id\":\"school\",\"name\":\"École 😀\"}],\"expiresAt\":\"2026-07-10T08:15:00Z\",\"features\":{\"cloud_tts\":{\"enabled\":false,\"hard\":true,\"sourceGroupId\":\"school\"}},\"governance\":{\"activityRetentionDays\":60,\"conversationRetentionDays\":30,\"teacherAnalyticsExport\":true,\"teacherConversationExport\":false},\"issuedAt\":\"2026-07-10T08:00:00Z\",\"keyId\":\"key-1\",\"llm\":{\"allowedModels\":[\"model-😀\"],\"allowedProviders\":[\"provider-b\",\"provider-a\"],\"enabled\":true,\"maxConcurrentStreams\":4,\"promptProfileId\":null,\"quotas\":[{\"hard\":true,\"limit\":9007199254740991,\"metric\":\"totalTokens\",\"period\":\"daily\",\"sourceGroupId\":\"school\"}],\"requestsPerMinute\":60},\"policyVersionId\":\"version-€-😀\",\"schemaVersion\":1,\"settings\":{\"subtitle_font_size\":{\"locked\":true,\"sourceGroupId\":\"school\",\"sourceGroupName\":\"École 😀\",\"value\":20.5}}}"
 }

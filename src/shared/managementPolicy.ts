@@ -205,6 +205,12 @@ export interface EffectiveManagementPolicy {
   settings: Partial<{ [K in PolicySettingKey]: ManagedSettingRule<K> }>;
   features: Record<string, FeatureRule>;
   llm: EffectiveLlmPolicy;
+  governance: {
+    activityRetentionDays: number;
+    conversationRetentionDays: number;
+    teacherAnalyticsExport: boolean;
+    teacherConversationExport: boolean;
+  };
   issuedAt: string;
   expiresAt: string;
   keyId: string;
@@ -240,6 +246,7 @@ function validatePolicy(input: unknown): string | null {
       'settings',
       'features',
       'llm',
+      'governance',
       'issuedAt',
       'expiresAt',
       'keyId',
@@ -308,8 +315,14 @@ function validatePolicy(input: unknown): string | null {
     )
       return `feature ${key} is invalid`;
   }
-  return validateLlmPolicy(input.llm);
+  const llmError = validateLlmPolicy(input.llm);
+  if (llmError) return llmError;
+  if (!isExactRecord(input.governance,['activityRetentionDays','conversationRetentionDays','teacherAnalyticsExport','teacherConversationExport'])) return 'governance policy is invalid';
+  if (!isRetentionDays(input.governance.activityRetentionDays) || !isRetentionDays(input.governance.conversationRetentionDays) || typeof input.governance.teacherAnalyticsExport !== 'boolean' || typeof input.governance.teacherConversationExport !== 'boolean') return 'governance policy is invalid';
+  return null;
 }
+
+function isRetentionDays(value:unknown):value is number{return Number.isInteger(value)&&typeof value==='number'&&value>=1&&value<=90;}
 
 function validateLlmPolicy(input: unknown): string | null {
   if (
