@@ -1,4 +1,7 @@
 import {
+  isValidActivityIdentifier,
+  projectActivityContext,
+  projectAppActivity,
   shouldEmitVideoProgressUpdate,
   type ActivityContext,
   type AppActivity,
@@ -9,6 +12,13 @@ import {
 export type ActivityPolicyScope = {
   activeGroupId: string
   policyVersionId: string
+}
+
+function projectScope(value: ActivityPolicyScope | null): ActivityPolicyScope | null {
+  if (!value
+    || !isValidActivityIdentifier(value.activeGroupId)
+    || !isValidActivityIdentifier(value.policyVersionId)) return null
+  return { activeGroupId: value.activeGroupId, policyVersionId: value.policyVersionId }
 }
 
 export type ProjectedActivity = {
@@ -36,8 +46,12 @@ function defaultUuid(): string {
   return globalThis.crypto.randomUUID()
 }
 
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
+function cloneProjected(value: ProjectedActivity): ProjectedActivity {
+  return {
+    sourceId: value.sourceId,
+    activity: { ...value.activity },
+    context: { ...value.context },
+  }
 }
 
 function contentIdentity(projected: ProjectedActivity): string {
@@ -54,11 +68,18 @@ function contentIdentity(projected: ProjectedActivity): string {
 }
 
 function sessionIdentity(projected: ProjectedActivity, scope: ActivityPolicyScope): string {
-  return [projected.sourceId, contentIdentity(projected), scope.activeGroupId, scope.policyVersionId].join('\u0000')
+  return [
+    projected.sourceId,
+    contentIdentity(projected),
+    projected.context.language ?? '',
+    projected.context.privacy,
+    scope.activeGroupId,
+    scope.policyVersionId,
+  ].join('\u0000')
 }
 
 function sanitize(projected: ProjectedActivity): ProjectedActivity {
-  const result = clone(projected)
+  const result = cloneProjected(projected)
   if (result.context.privacy === 'progress-only' && 'workName' in result.activity) {
     result.activity.workName = ''
   }
@@ -99,23 +120,54 @@ export function createActivitySessionizer(options: ActivitySessionizerOptions) {
   const now = options.now ?? (() => new Date())
   const uuid = options.uuid ?? defaultUuid
   let active: ActiveSession | null = null
+  let lastOccurredAt = -1
 
-  function emit(type: ManagementActivityEventType, session: ActiveSession, projected: ProjectedActivity): void {
-    session.sequence += 1
+  function nextId(): string | null {
+    try {
+      const id = uuid()
+      return isValidActivityIdentifier(id) ? id : null
+    } catch {
+      return null
+    }
+  }
+
+  function nextOccurredAt(): string | null {
+    try {
+      const date = now()
+      if (!(date instanceof Date)) return null
+      const candidate = date.getTime()
+      if (!Number.isFinite(candidate)) return null
+      const next = Math.max(candidate, lastOccurredAt + 1)
+      const occurredAt = new Date(next).toISOString()
+      lastOccurredAt = next
+      return occurredAt
+    } catch {
+      return null
+    }
+  }
+
+  function emit(type: ManagementActivityEventType, session: ActiveSession, projected: ProjectedActivity): boolean {
+    const id = nextId()
+    if (!id) return false
+    const occurredAt = nextOccurredAt()
+    if (!occurredAt) return false
+    const sequence = session.sequence + 1
     const safe = sanitize(projected)
     options.emit({
       schemaVersion: 1,
-      id: uuid(),
+      id,
       type,
       sessionId: session.sessionId,
       sourceId: safe.sourceId,
       activeGroupId: session.scope.activeGroupId,
       policyVersionId: session.scope.policyVersionId,
-      sequence: session.sequence,
-      occurredAt: now().toISOString(),
+      sequence,
+      occurredAt,
       activity: safe.activity,
       context: safe.context,
     })
+    session.sequence = sequence
+    return true
   }
 
   function stop(): void {
@@ -125,44 +177,56 @@ export function createActivitySessionizer(options: ActivitySessionizerOptions) {
   }
 
   function start(projected: ProjectedActivity, scope: ActivityPolicyScope): void {
+    const sessionId = nextId()
+    if (!sessionId) return
     active = {
       identity: sessionIdentity(projected, scope),
-      sessionId: uuid(),
+      sessionId,
       sequence: 0,
       completed: false,
-      projected: clone(projected),
+      projected: cloneProjected(projected),
       scope: { ...scope },
     }
-    emit('activity.started', active, projected)
+    if (!emit('activity.started', active, projected)) {
+      active = null
+      return
+    }
     if (isComplete(projected.activity)) {
-      active.completed = true
-      emit('activity.completed', active, projected)
+      active.completed = emit('activity.completed', active, projected)
     }
   }
 
   return {
     update(projected: ProjectedActivity | null, scope: ActivityPolicyScope | null): void {
-      const eligible = projected?.activity.kind === 'idle' ? null : projected
-      if (!eligible || !scope) {
+      const projectedActivity = projected && projectAppActivity(projected.activity)
+      const projectedContext = projected && projectActivityContext(projected.context)
+      const safeScope = projectScope(scope)
+      const eligible = projected
+        && isValidActivityIdentifier(projected.sourceId)
+        && projectedActivity?.ok
+        && projectedContext?.ok
+        && projectedActivity.value.kind !== 'idle'
+        ? { sourceId: projected.sourceId, activity: projectedActivity.value, context: projectedContext.value }
+        : null
+      if (!eligible || !safeScope) {
         stop()
         return
       }
-      const identity = sessionIdentity(eligible, scope)
+      const identity = sessionIdentity(eligible, safeScope)
       if (!active || active.identity !== identity) {
         stop()
-        start(eligible, scope)
+        start(eligible, safeScope)
         return
       }
 
       const previous = active.projected.activity
       const completed = isComplete(eligible.activity)
       if (completed && !active.completed) {
-        active.completed = true
-        emit('activity.completed', active, eligible)
+        active.completed = emit('activity.completed', active, eligible)
       } else if (!active.completed && hasProgressed(previous, eligible.activity)) {
         emit('activity.progressed', active, eligible)
       }
-      active.projected = clone(eligible)
+      active.projected = cloneProjected(eligible)
     },
     stop,
   }

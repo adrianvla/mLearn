@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AppActivity, ActivityContext } from '../../shared/plugins/appActivity'
-import { createActivityHub } from './activityHub'
+import { compareActivitySourceCandidates, createActivityHub } from './activityHub'
 
 const context: ActivityContext = { contentId: 'content-1', privacy: 'title-and-progress' }
 const scope = { activeGroupId: 'class-a', policyVersionId: 'policy-a' }
@@ -105,5 +105,99 @@ describe('activity hub', () => {
     currentScope = scope
     hub.refreshPolicyScope()
     expect(events).toHaveBeenCalledTimes(1)
+  })
+
+  it('projects exact per-kind schemas and strips malicious extra text', () => {
+    const emitted: unknown[] = []
+    const hub = createActivityHub({ getPolicyScope: () => scope, emitEvent: event => emitted.push(event) })
+    const cases = [
+      { sourceId: 'idle', activity: { kind: 'idle', prompt: 'secret' }, context: { privacy: 'title-and-progress', userText: 'secret' } },
+      { sourceId: 'reader', activity: { kind: 'reader', workName: 'Book', currentPage: 1, totalPages: 2, documentText: 'secret', nested: { prompt: 'secret' } }, context: { contentId: 'book-1', language: 'de', privacy: 'title-and-progress', ocrText: 'secret' } },
+      { sourceId: 'video', activity: { kind: 'video', workName: 'Film', currentTimeSeconds: 1, durationSeconds: 20, subtitleText: 'secret' }, context: { contentId: 'film-1', privacy: 'title-and-progress', prompt: 'secret' } },
+      { sourceId: 'cards', activity: { kind: 'flashcards', answerText: 'secret' }, context: { privacy: 'progress-only', cardText: 'secret' } },
+    ] as const
+    for (const item of cases) {
+      hub.updateSource(item.sourceId, { isFocused: true, priority: 1, activity: item.activity as unknown as AppActivity, context: item.context as unknown as ActivityContext })
+      const live = hub.getLive()
+      expect(JSON.stringify(live)).not.toContain('secret')
+    }
+    expect(JSON.stringify(emitted)).not.toContain('secret')
+  })
+
+  it('rejects malformed activity and attribution without poisoning safe live state', () => {
+    let currentScope: typeof scope | null = scope
+    const events = vi.fn()
+    const live = vi.fn()
+    const hub = createActivityHub({ getPolicyScope: () => currentScope, emitEvent: events })
+    hub.subscribeLive(live)
+    const invalidActivities = [
+      { kind: 'reader', workName: 'Book', currentPage: 0, totalPages: 2 },
+      { kind: 'reader', workName: 'Book', currentPage: 3, totalPages: 2 },
+      { kind: 'video', workName: 'Film', currentTimeSeconds: Number.NaN, durationSeconds: 10 },
+      { kind: 'video', workName: 'Film', currentTimeSeconds: 1, durationSeconds: Number.POSITIVE_INFINITY },
+      { kind: 'unknown' },
+    ]
+    for (const activity of invalidActivities) {
+      hub.updateSource('bad', { isFocused: true, activity: activity as AppActivity, context })
+    }
+    expect(events).not.toHaveBeenCalled()
+    expect(hub.getLive()).toBeNull()
+
+    hub.updateSource('safe', { isFocused: true, activity: reader('Safe'), context: { privacy: 'invalid' } as ActivityContext })
+    expect(hub.getLive()?.activity).toEqual(reader('Safe'))
+    expect(events).not.toHaveBeenCalled()
+    currentScope = { activeGroupId: '', policyVersionId: 'policy-a' }
+    hub.updateSource('safe', { isFocused: true, activity: { ...reader('Safe'), currentPage: 2 }, context })
+    expect(events).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid optional identifiers, generated IDs, and clocks', () => {
+    const events = vi.fn()
+    const badIds = createActivityHub({ getPolicyScope: () => scope, uuid: () => '', emitEvent: events })
+    badIds.updateSource('reader', { isFocused: true, activity: reader('Book'), context })
+    expect(events).not.toHaveBeenCalled()
+    const badClock = createActivityHub({ getPolicyScope: () => scope, now: () => new Date(Number.NaN), emitEvent: events })
+    badClock.updateSource('reader', { isFocused: true, activity: reader('Book'), context })
+    expect(events).not.toHaveBeenCalled()
+    const hub = createActivityHub({ getPolicyScope: () => scope, emitEvent: events })
+    hub.updateSource('', { isFocused: true, activity: reader('Book'), context })
+    hub.updateSource('reader', { isFocused: true, activity: reader('Book'), context: { ...context, contentId: '' } })
+    hub.updateSource('reader', { isFocused: true, activity: reader('Book'), context: { ...context, language: 'x'.repeat(300) } })
+    expect(events).not.toHaveBeenCalled()
+  })
+
+  it('uses source ID as a deterministic final tie break', () => {
+    const candidates = [
+      ['z', { priority: 1, activation: 4 }],
+      ['a', { priority: 1, activation: 4 }],
+    ] as const
+    expect([...candidates].sort(compareActivitySourceCandidates).map(([id]) => id)).toEqual(['a', 'z'])
+  })
+
+  it('tracks an explicit flashcard lifecycle without duplicate progress', () => {
+    const types: string[] = []
+    const hub = createActivityHub({ getPolicyScope: () => scope, emitEvent: event => types.push(event.type) })
+    const cards = { isFocused: true, activity: { kind: 'flashcards' } as const, context: { privacy: 'progress-only' as const } }
+    hub.updateSource('cards', cards)
+    hub.updateSource('cards', { ...cards, activity: { kind: 'flashcards' } })
+    hub.updateSource('cards', { ...cards, isFocused: false })
+    hub.removeSource('cards')
+    expect(types).toEqual(['activity.started', 'activity.stopped'])
+  })
+
+  it('never exposes a progress-only title to subscribers or through mutation', () => {
+    const observed: string[] = []
+    const hub = createActivityHub({ getPolicyScope: () => scope })
+    hub.subscribeEvents(event => {
+      if ('workName' in event.activity) {
+        observed.push(event.activity.workName)
+        ;(event.activity as { workName: string }).workName = 'attempted mutation'
+      }
+    })
+    hub.subscribeEvents(event => {
+      if ('workName' in event.activity) observed.push(event.activity.workName)
+    })
+    hub.updateSource('reader', { isFocused: true, activity: reader('Confidential'), context: { privacy: 'progress-only' } })
+    expect(observed).toEqual(['', ''])
   })
 })
