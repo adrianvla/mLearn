@@ -15,6 +15,11 @@ export default function Groups() {
   const [tab, setTab] = useState("overview");
   const [search, setSearch] = useState("");
   const [selectedMembershipId, setSelectedMembershipId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<'create' | 'edit' | null>(null);
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [mutationError, setMutationError] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     api
@@ -61,11 +66,44 @@ export default function Groups() {
     const updated = await api.get<Membership>(`/api/groups/${encodeURIComponent(selectedId)}/memberships/${encodeURIComponent(selectedMembership.id)}`, { method: "PATCH", body: JSON.stringify({ capabilities }) });
     setMemberships((items) => items.map((item) => item.id === updated.id ? updated : item));
   };
+  const canManage = scope.status === 'ready' && scope.can('group.manage');
+  const openEditor = (mode: 'create' | 'edit') => {
+    setEditor(mode);
+    setName(mode === 'edit' ? selected?.name ?? '' : '');
+    setSlug(mode === 'edit' ? selected?.slug ?? '' : '');
+    setMutationError(null);
+  };
+  const saveGroup = async () => {
+    if (!selected || !editor) return;
+    try {
+      const group = await api.get<GroupNode>(editor === 'create' ? '/api/groups' : `/api/groups/${encodeURIComponent(selected.id)}`, {
+        method: editor === 'create' ? 'POST' : 'PATCH',
+        body: JSON.stringify(editor === 'create' ? { parentId: selected.id, name, slug } : { name, slug }),
+      });
+      setGroups((items) => editor === 'create' ? [...items, group] : items.map((item) => item.id === group.id ? group : item));
+      setSelectedId(group.id);
+      setEditor(null);
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'Group update failed');
+    }
+  };
+  const archiveGroup = async () => {
+    if (!selected) return;
+    try {
+      await api.get(`/api/groups/${encodeURIComponent(selected.id)}/archive`, { method: 'POST' });
+      setGroups((items) => items.filter((item) => item.id !== selected.id));
+      setSelectedId(selected.parentId);
+      setArchiveConfirm(false);
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'Group archive failed');
+    }
+  };
   return (
     <div className="resource-page">
       <PageToolbar
         title="Groups"
         description="The authorized school hierarchy, memberships, and delegated authority."
+        actions={canManage && selected ? <div className="toolbar-actions"><button className="secondary-action" onClick={() => openEditor('edit')}>Edit group</button><button className="primary-action" onClick={() => openEditor('create')}>Create child group</button></div> : undefined}
       />
       <div className="group-workspace">
         <aside>
@@ -86,7 +124,9 @@ export default function Groups() {
                     {selected.slug} · {selected.status}
                   </p>
                 </div>
+                {canManage && selected.parentId !== null ? <button className="table-link" onClick={() => setArchiveConfirm(true)}>Archive group</button> : null}
               </header>
+              {mutationError ? <p role="alert">{mutationError}</p> : null}
               <div className="detail-tabs" role="tablist">
                 {[
                   "overview",
@@ -163,6 +203,8 @@ export default function Groups() {
           )}
         </section>
       </div>
+      {editor && selected ? <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="group-editor-title" className="console-dialog"><h2 id="group-editor-title">{editor === 'create' ? `Create child of ${selected.name}` : `Edit ${selected.name}`}</h2><label>Group name<input aria-label="Group name" value={name} onChange={(event) => setName(event.currentTarget.value)} /></label><label>Slug<input aria-label="Group slug" value={slug} onChange={(event) => setSlug(event.currentTarget.value)} /></label><footer><button onClick={() => setEditor(null)}>Cancel</button><button disabled={!name.trim() || !slug.trim()} onClick={() => void saveGroup()}>{editor === 'create' ? 'Create group' : 'Save group'}</button></footer></section></div> : null}
+      {archiveConfirm && selected ? <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="archive-group-title" className="console-dialog"><h2 id="archive-group-title">Archive {selected.name}?</h2><p>Archived groups and their active memberships stop granting access immediately.</p><footer><button onClick={() => setArchiveConfirm(false)}>Cancel</button><button onClick={() => void archiveGroup()}>Confirm archive</button></footer></section></div> : null}
     </div>
   );
 }
