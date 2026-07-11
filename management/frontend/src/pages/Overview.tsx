@@ -28,6 +28,7 @@ export default function Overview() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [view, setView] = useState<"overview" | "usage" | "security">("overview");
   const retry = useCallback(() => setRevision((value) => value + 1), []);
 
   useEffect(() => {
@@ -79,9 +80,9 @@ export default function Overview() {
         }
       />
       <div className="dashboard-tabs" aria-label="Dashboard view">
-        <button className="active">Overview</button>
-        <button>Usage</button>
-        <button>Security</button>
+        <button className={view === "overview" ? "active" : undefined} onClick={() => setView("overview")}>Overview</button>
+        <button className={view === "usage" ? "active" : undefined} onClick={() => setView("usage")}>Usage</button>
+        <button className={view === "security" ? "active" : undefined} onClick={() => setView("security")}>Security</button>
         <select aria-label="Date period" defaultValue="30">
           <option value="7">7 days</option>
           <option value="30">30 days</option>
@@ -110,7 +111,7 @@ export default function Overview() {
           detail="Requests stopped by policy"
         />
       </section>
-      <section className="dashboard-primary-grid">
+      {view === "overview" && <><section className="dashboard-primary-grid">
         <article className="dashboard-panel">
           <header>
             <div>
@@ -168,7 +169,9 @@ export default function Overview() {
         loading={groupId !== null && data === null && error === null}
         error={error ?? undefined}
         onRetry={retry}
-      />
+      /></>}
+      {view === "usage" && <section className="dashboard-primary-grid"><article className="dashboard-panel"><header><div><h2>Token usage</h2><p>Input and output tokens across the selected subtree</p></div><strong>{((data?.llm.costMicros ?? 0) / 1_000_000).toFixed(4)} cost</strong></header><LineChart title="Total tokens" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.totalTokens }))} /></article><article className="dashboard-panel controls-panel"><header><div><h2>Usage summary</h2><p>Governed provider activity</p></div></header><dl><div><dt>Requests</dt><dd>{data?.llm.requests ?? 0}</dd></div><div><dt>Input tokens</dt><dd>{(data?.llm.inputTokens ?? 0).toLocaleString()}</dd></div><div><dt>Output tokens</dt><dd>{(data?.llm.outputTokens ?? 0).toLocaleString()}</dd></div></dl></article></section>}
+      {view === "security" && <section className="dashboard-primary-grid"><article className="dashboard-panel controls-panel"><header><div><h2>Policy enforcement</h2><p>Requests stopped before provider execution</p></div><ShieldCheck /></header><dl><div><dt>Policy blocks</dt><dd>{summary?.policyBlocks ?? 0}</dd></div><div><dt>Effective scope</dt><dd>{scope.status === "ready" ? scope.selectedGroup?.name : "Loading"}</dd></div><div><dt>Conversation governance</dt><dd>Signed policy active</dd></div></dl></article><article className="dashboard-panel"><header><div><h2>Security activity</h2><p>Policy blocks over the selected period</p></div></header><LineChart title="Policy blocks" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.policyBlocks }))} /></article></section>}
     </div>
   );
 }
