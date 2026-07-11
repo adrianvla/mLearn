@@ -81,12 +81,18 @@ async fn prepare_stream(
 ) -> Result<Response, GatewayFailure> {
     debug_assert!(state.llm_preflight_deadline.as_secs() < GATEWAY_LEASE_SECONDS as u64);
     if principal.service_key_id.is_some() || principal.identity_type != IdentityType::Learner {
-        return Err(GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"));
+        return Err(map_preflight_error(AppError::InvalidActiveGroup(
+            "learner session required for LLM gateway".into(),
+        )));
     }
     let active_group_id = principal
         .active_group_id
         .clone()
-        .ok_or_else(|| GatewayFailure::new(StatusCode::CONFLICT, "invalid_active_group"))?;
+        .ok_or_else(|| {
+            map_preflight_error(AppError::InvalidActiveGroup(
+                "authenticated session has no active group".into(),
+            ))
+        })?;
 
     let conversation_service = ConversationService::with_retention_days(
         state.db.clone(),
@@ -522,24 +528,22 @@ fn map_provider_error(error: ProviderError) -> GatewayFailure {
 fn map_preflight_error(error: AppError) -> GatewayFailure {
     match error {
         AppError::Unauthorized => GatewayFailure::new(StatusCode::UNAUTHORIZED, "unauthorized"),
-        AppError::TooManyRequests => {
+        AppError::TooManyRequests | AppError::RateLimited(_) => {
             GatewayFailure::new(StatusCode::TOO_MANY_REQUESTS, "rate_limited")
         }
-        AppError::Conflict(message) if message.contains("quota exceeded") => {
+        AppError::QuotaExceeded(_) => {
             GatewayFailure::new(StatusCode::TOO_MANY_REQUESTS, "quota_exceeded")
         }
-        AppError::Forbidden(message)
-            if message.contains("active group") || message.contains("membership") =>
-        {
+        AppError::InvalidActiveGroup(_) => {
             GatewayFailure::new(StatusCode::CONFLICT, "invalid_active_group")
         }
-        AppError::Forbidden(_) => GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"),
+        AppError::Forbidden(_) => GatewayFailure::new(StatusCode::FORBIDDEN, "forbidden"),
         AppError::PolicyDenied(_) => GatewayFailure::new(StatusCode::FORBIDDEN, "policy_denied"),
         AppError::ConfigurationUnavailable(_) => {
             GatewayFailure::new(StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable")
         }
         AppError::BadRequest(_) => GatewayFailure::new(StatusCode::BAD_REQUEST, "invalid_request"),
-        AppError::Conflict(_) => GatewayFailure::new(StatusCode::CONFLICT, "policy_denied"),
+        AppError::Conflict(_) => GatewayFailure::new(StatusCode::CONFLICT, "conflict"),
         _ => GatewayFailure::new(StatusCode::SERVICE_UNAVAILABLE, "provider_unavailable"),
     }
 }
@@ -673,6 +677,57 @@ mod tests {
             terminal_error_frame(ProviderError::Unavailable),
             Bytes::from_static(b"data: {\"error\":\"provider_unavailable\",\"done\":true}\n\n")
         );
+    }
+
+    #[test]
+    fn preflight_errors_use_only_typed_wire_categories() {
+        let cases = [
+            (
+                AppError::Unauthorized,
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+            ),
+            (
+                AppError::QuotaExceeded("requests daily".into()),
+                StatusCode::TOO_MANY_REQUESTS,
+                "quota_exceeded",
+            ),
+            (
+                AppError::InvalidActiveGroup("membership revoked".into()),
+                StatusCode::CONFLICT,
+                "invalid_active_group",
+            ),
+            (
+                AppError::RateLimited("gateway capacity".into()),
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+            ),
+            (
+                AppError::ConfigurationUnavailable("model missing".into()),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "provider_unavailable",
+            ),
+            (
+                AppError::PolicyDenied("model disallowed".into()),
+                StatusCode::FORBIDDEN,
+                "policy_denied",
+            ),
+            (
+                AppError::Forbidden("policy_denied quota exceeded active group".into()),
+                StatusCode::FORBIDDEN,
+                "forbidden",
+            ),
+            (
+                AppError::Conflict("policy_denied quota exceeded active group".into()),
+                StatusCode::CONFLICT,
+                "conflict",
+            ),
+        ];
+        for (error, status, code) in cases {
+            let failure = map_preflight_error(error);
+            assert_eq!(failure.status, status);
+            assert_eq!(failure.code, code);
+        }
     }
 
     #[test]
@@ -928,7 +983,7 @@ mod tests {
         .unwrap();
         assert_eq!(stored.len(), 4);
         assert!(stored.iter().all(|ciphertext| {
-            !ciphertext.contains("hi")
+            !ciphertext.contains("private-gateway-prompt-7f4b")
                 && !ciphertext.contains("private-assistant-response-93ac")
                 && !ciphertext.contains("private-tool")
         }));
@@ -1195,6 +1250,58 @@ mod tests {
             .unwrap(),
             1
         );
+        for (id, providers, models, prompt) in [
+            (
+                "missing-provider-policy",
+                serde_json::json!(["missing-provider"]),
+                serde_json::json!(["model"]),
+                serde_json::Value::Null,
+            ),
+            (
+                "missing-model-policy",
+                serde_json::json!(["provider"]),
+                serde_json::json!(["missing-model"]),
+                serde_json::Value::Null,
+            ),
+            (
+                "absent-prompt-policy",
+                serde_json::json!(["provider"]),
+                serde_json::json!(["model"]),
+                serde_json::json!("absent-prompt"),
+            ),
+        ] {
+            let mut llm = serde_json::json!({
+                "enabled": true,
+                "requestsPerMinute": 60,
+                "maxConcurrentStreams": 1,
+                "allowedProviders": providers,
+                "allowedModels": models,
+                "quotas": [{"metric":"costMicros","limit":1000000000_i64,"period":"monthly","hard":true}]
+            });
+            if !prompt.is_null() {
+                llm["promptProfileId"] = prompt;
+            }
+            let document = serde_json::json!({"llm": llm}).to_string();
+            sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES(?, 'school', ?, ?, ?, 'admin', 'missing resource', '[]', 6)")
+                .bind(id).bind(document).bind(format!("{id}-hash")).bind(format!("{id}-compiled"))
+                .execute(&pool).await.unwrap();
+            sqlx::query("UPDATE active_policies SET policy_version_id=?,activated_at=6 WHERE group_id='school'")
+                .bind(id).execute(&pool).await.unwrap();
+            let response = post_gateway(app.clone(), &token).await;
+            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE, "{id}");
+            let body: serde_json::Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                    .unwrap();
+            assert_eq!(body["error"], "provider_unavailable", "{id}");
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM llm_policy_block_events")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap(),
+                1,
+                "{id} must not be recorded as a policy denial",
+            );
+        }
         let list = app
             .clone()
             .oneshot(
@@ -1209,12 +1316,22 @@ mod tests {
         let value: serde_json::Value =
             serde_json::from_slice(&to_bytes(list.into_body(), usize::MAX).await.unwrap()).unwrap();
         assert_eq!(value["items"].as_array().unwrap().len(), 1);
-        let disallowed=serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":[],"allowedModels":[],"quotas":[{"metric":"costMicros","limit":1000000000_i64,"period":"monthly","hard":true}]}}).to_string();
+        sqlx::query("INSERT INTO llm_providers (id,group_id,name,provider_kind,base_url,status,created_by_user_id,created_at,updated_at) VALUES ('other-provider','class','Other','ollama','http://ollama:11434','active','admin',7,7)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO llm_models (id,group_id,provider_id,model_key,upstream_model,status,created_by_user_id,created_at,updated_at) VALUES ('other-model','class','other-provider','other','other-v1','active','admin',7,7)").execute(&pool).await.unwrap();
+        let disallowed=serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["other-model"],"quotas":[{"metric":"costMicros","limit":1000000000_i64,"period":"monthly","hard":true}]}}).to_string();
         sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('disallowed-policy','school',?,'disallowed-hash','disallowed-compiled','admin','disallowed','[]',3)").bind(disallowed).execute(&pool).await.unwrap();
         sqlx::query("UPDATE active_policies SET policy_version_id='disallowed-policy',activated_at=3 WHERE group_id='school'").execute(&pool).await.unwrap();
         assert_eq!(
             post_gateway(app.clone(), &token).await.status(),
             StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM llm_policy_block_events")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            2,
+            "nonempty but disallowed provider/model IDs must record a block event",
         );
         let no_quota=serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":60,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[]}}).to_string();
         sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('no-quota-policy','school',?,'no-quota-hash','no-quota-compiled','admin','no quota','[]',4)").bind(no_quota).execute(&pool).await.unwrap();
