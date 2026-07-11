@@ -332,3 +332,12 @@ export interface CursorQuery {
   cursor?: string;
   limit?: number;
 }
+
+export interface AnalyticsSummary {
+  activeLearners: number; sessions: number; watchSeconds: number; completions: number;
+  readerPages: number; flashcardEvents: number; llmRequests: number; inputTokens: number;
+  outputTokens: number; totalTokens: number; costMicros: number; policyBlocks: number;
+}
+export interface TimeseriesPoint extends AnalyticsSummary { dayStart: number }
+export interface LlmAnalytics { requests: number; inputTokens: number; outputTokens: number; totalTokens: number; costMicros: number }
+export interface LearnerAnalytics extends AnalyticsSummary { learnerId: string; displayName: string; lastActivityAt: number }
