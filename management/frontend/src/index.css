@@ -5,6 +5,70 @@ html, body, #root {
   margin: 0;
 }
 
+* { box-sizing: border-box; }
+body { font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif; background: #101112; color: #f5f7fa; }
+button, input, select { font: inherit; }
+button, a, select { outline-offset: 3px; }
+:focus-visible { outline: 2px solid #5a9cff; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.console-shell { min-height: 100%; display: flex; background: #101112; }
+.app-sidebar { width: 248px; position: fixed; inset: 0 auto 0 0; z-index: 30; display: flex; flex-direction: column; background: #111214; border-right: 1px solid #27292c; }
+.sidebar-brand { height: 76px; padding: 16px 18px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid #25272a; }
+.sidebar-brand img { width: 38px; height: 38px; object-fit: contain; }
+.sidebar-brand div { display: grid; line-height: 1.1; }
+.sidebar-brand strong { font-size: 15px; letter-spacing: .01em; }
+.sidebar-brand span, .signed-in-user small { color: #8f959d; font-size: 11px; margin-top: 5px; }
+.sidebar-brand > button { display: none; }
+.app-sidebar nav { flex: 1; overflow-y: auto; padding: 18px 12px; }
+.app-sidebar nav a { min-height: 42px; display: flex; align-items: center; gap: 12px; margin: 2px 0; padding: 0 12px; border-radius: 8px; color: #aeb3ba; font-size: 13px; font-weight: 600; text-decoration: none; }
+.app-sidebar nav a:hover { color: #fff; background: #202225; }
+.app-sidebar nav a.active { color: #fff; background: #2a2b2d; box-shadow: inset 3px 0 #4b91f7; }
+.app-sidebar svg { width: 17px; height: 17px; }
+.sidebar-footer { padding: 14px 16px 18px; border-top: 1px solid #25272a; }
+.signed-in-user { min-width: 0; display: grid; margin-bottom: 12px; }
+.signed-in-user span { overflow: hidden; color: #d9dde2; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-footer button { width: 100%; display: flex; align-items: center; gap: 9px; padding: 9px 0; border: 0; background: none; color: #9ea4ab; cursor: pointer; }
+.console-workspace { min-width: 0; min-height: 100vh; flex: 1; margin-left: 248px; }
+.console-topbar { height: 64px; position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: flex-end; padding: 0 28px; background: rgba(16,17,18,.94); border-bottom: 1px solid #27292c; backdrop-filter: blur(12px); }
+.console-main { min-height: calc(100vh - 64px); }
+.group-switcher { min-width: 178px; height: 36px; position: relative; display: flex; align-items: center; border: 1px solid #34373b; border-radius: 7px; background: #191a1c; color: #f7f8fa; }
+.group-switcher select { width: 100%; height: 100%; appearance: none; padding: 0 34px 0 12px; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.group-switcher > span { padding: 0 12px; }
+.group-switcher svg { width: 14px; position: absolute; right: 10px; pointer-events: none; }
+.group-scope-state { color: #9ca2aa; font-size: 13px; }
+.page-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.page-toolbar h1 { margin: 0; font-size: clamp(25px, 3vw, 34px); font-weight: 650; letter-spacing: -.035em; }
+.page-toolbar p { max-width: 680px; margin: 7px 0 0; color: #969ca4; font-size: 13px; line-height: 1.5; }
+.page-actions { display: flex; gap: 8px; }
+.metric-card { min-height: 126px; padding: 20px; background: #191a1c; border: 1px solid #282a2d; border-radius: 10px; }
+.metric-card > span { display: block; color: #9298a0; font-size: 12px; font-weight: 600; }
+.metric-card strong { display: block; margin-top: 13px; font-size: 30px; font-weight: 650; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.metric-card small { display: block; margin-top: 8px; color: #898f97; }
+.chart { margin: 0; color: #4b91f7; }
+.chart figcaption { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: #c9cdd2; font-size: 12px; }
+.chart-key { width: 8px; height: 8px; border-radius: 2px; background: #4b91f7; }
+.chart svg { width: 100%; min-height: 190px; overflow: visible; }
+.bar-chart { height: 220px; display: flex; align-items: end; gap: 10px; border-bottom: 1px solid #34373a; }
+.bar-chart > div { height: 100%; min-width: 20px; flex: 1; display: flex; flex-direction: column; justify-content: end; text-align: center; }
+.bar-chart span { min-height: 2px; display: block; background: #4b91f7; border-radius: 3px 3px 0 0; }
+.bar-chart small { height: 24px; overflow: hidden; color: #858b93; font-size: 9px; text-overflow: ellipsis; }
+.data-table-shell { overflow: hidden; background: #191a1c; border: 1px solid #282a2d; border-radius: 10px; }
+.table-controls { padding: 14px 16px; border-bottom: 1px solid #292b2e; }
+.table-state { min-height: 180px; display: grid; place-content: center; gap: 12px; padding: 24px; color: #969ca4; text-align: center; }
+.table-state button { padding: 8px 14px; border: 0; border-radius: 6px; background: #4b91f7; color: white; cursor: pointer; }
+.mobile-nav-trigger, .mobile-backdrop { display: none; }
+
+@media (max-width: 767px) {
+  .mobile-nav-trigger { width: 40px; height: 40px; position: fixed; top: 12px; left: 14px; z-index: 25; display: grid; place-items: center; border: 1px solid #34373b; border-radius: 7px; background: #191a1c; color: white; }
+  .mobile-nav-trigger svg { width: 19px; }
+  .mobile-backdrop { position: fixed; inset: 0; z-index: 35; display: block; border: 0; background: rgba(0,0,0,.68); }
+  .app-sidebar { z-index: 40; transform: translateX(-100%); transition: transform 180ms ease; }
+  .app-sidebar.is-open { transform: translateX(0); }
+  .sidebar-brand > button { width: 32px; height: 32px; display: grid; place-items: center; margin-left: auto; border: 0; background: none; color: #aeb3ba; }
+  .console-workspace { margin-left: 0; }
+  .console-topbar { padding: 0 14px 0 68px; }
+}
+
 /*
  * Dark theme — HeroUI v3 ships only a light theme by default.
  * These overrides activate when .dark is on <html> (set in main.tsx).
