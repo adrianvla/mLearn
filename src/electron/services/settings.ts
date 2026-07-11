@@ -661,6 +661,29 @@ function getInstallOptionsFromSettings(settings: Settings): InstallOptions {
   };
 }
 
+function didLanguageRuntimeComponentSettingsChange(prevSettings: Settings, nextSettings: Settings): boolean {
+  return (
+    prevSettings.language !== nextSettings.language ||
+    (prevSettings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled) !== (nextSettings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled) ||
+    (prevSettings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled) !== (nextSettings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled) ||
+    (prevSettings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled) !== (nextSettings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled)
+  );
+}
+
+async function repairActiveLanguagePythonRequirements(settings: Settings): Promise<boolean> {
+  if (!settings.language) return false;
+
+  const installedLanguageData = loadLangData();
+  if (!installedLanguageData[settings.language]) return false;
+
+  await ensureLanguagePythonRequirementsInstalled(
+    settings.language,
+    installedLanguageData,
+    getInstallOptionsFromSettings(settings),
+  );
+  return true;
+}
+
 function getLanguageDataComponentsFromInstallOptions(options: InstallOptions): LanguagePythonRequirementComponent[] {
   const components: LanguagePythonRequirementComponent[] = ['core'];
   if (options.includeOCR) components.push('ocr');
@@ -682,6 +705,17 @@ export function setupSettingsIPC(): void {
 
     if (settings.uiLanguage && settings.uiLanguage !== prevSettings.uiLanguage) {
       setUILanguage(settings.uiLanguage);
+    }
+
+    if (didLanguageRuntimeComponentSettingsChange(prevSettings, settings)) {
+      try {
+        if (await repairActiveLanguagePythonRequirements(settings)) {
+          const { restartPythonBackend } = await import('./pythonBackend');
+          restartPythonBackend();
+        }
+      } catch (error) {
+        log.error('Failed to repair language runtime requirements after settings change:', error);
+      }
     }
 
     if (didAnkiSettingsChange(prevSettings, settings)) {
