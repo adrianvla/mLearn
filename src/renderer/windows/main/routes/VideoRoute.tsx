@@ -151,6 +151,7 @@ export const VideoRoute: Component = () => {
   const [detectedSubtitleTracks, setDetectedSubtitleTracks] = createSignal<Array<{ index: number; label: string; language: string | null; extractedPath?: string }>>([]);
   const [activeDetectedSubtitleTrack, setActiveDetectedSubtitleTrack] = createSignal<number | null>(null);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
+  const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [showWatchTogetherModeModal, setShowWatchTogetherModeModal] = createSignal(false);
   const [showWatchTogetherCodeModal, setShowWatchTogetherCodeModal] = createSignal(false);
   const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
@@ -491,7 +492,7 @@ export const VideoRoute: Component = () => {
     currentTimeSeconds: currentVideoTime,
     durationSeconds: currentVideoDuration,
     isFocused: isWindowFocused,
-    isVisible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
+    isVisible: isWindowVisible,
     contentId: () => opaqueActivityContentId('video', currentVideoPath()),
     language: () => settings.language,
   });
@@ -733,6 +734,7 @@ export const VideoRoute: Component = () => {
   onMount(() => {
     const syncWindowFocus = () => {
       setIsWindowFocused(document.hasFocus())
+      setIsWindowVisible(document.visibilityState === 'visible')
     }
 
     window.addEventListener('focus', syncWindowFocus)

@@ -99,6 +99,7 @@ export const FlashcardsContent: Component = () => {
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
+  const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
   const [showAddModal, setShowAddModal] = createSignal(false);
@@ -167,6 +168,7 @@ export const FlashcardsContent: Component = () => {
 
     const syncWindowFocus = () => {
       setIsWindowFocused(document.hasFocus());
+      setIsWindowVisible(document.visibilityState === 'visible');
     };
 
     window.addEventListener('focus', syncWindowFocus);
@@ -183,7 +185,7 @@ export const FlashcardsContent: Component = () => {
   syncFlashcardsPluginActivity({
     activeTab,
     isFocused: isWindowFocused,
-    isVisible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
+    isVisible: isWindowVisible,
     language: () => settings.language,
   });
 

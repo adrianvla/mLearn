@@ -505,6 +505,7 @@ export const ReaderRoute: Component = () => {
   const [textPageCapacity, setTextPageCapacity] = createSignal(460);
   const [currentPage, setCurrentPage] = createSignal(0);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
+  const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
   // Track the filesystem path of the current book (PDF file or directory)
   // Used for persisting to recent items so users can click to re-open
@@ -600,8 +601,8 @@ export const ReaderRoute: Component = () => {
     currentPage,
     pages,
     isFocused: isWindowFocused,
-    isVisible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
-    contentId: () => currentBookId() ?? opaqueActivityContentId('reader', currentBookPath()),
+    isVisible: isWindowVisible,
+    contentId: () => opaqueActivityContentId('reader', currentBookId() ?? currentBookPath()),
     language: () => settings.language,
   });
 
@@ -2046,6 +2047,7 @@ export const ReaderRoute: Component = () => {
   onMount(() => {
     const syncWindowFocus = () => {
       setIsWindowFocused(document.hasFocus())
+      setIsWindowVisible(document.visibilityState === 'visible')
     }
 
     window.addEventListener('focus', syncWindowFocus)

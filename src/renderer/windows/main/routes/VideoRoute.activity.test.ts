@@ -2,6 +2,40 @@ import { createRoot, createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 
 describe('syncVideoPluginActivity', () => {
+  it('publishes full source changes even within the same progress bucket', async () => {
+    const { syncVideoPluginActivity } = await import('./videoPluginActivity')
+    const updateSource = vi.fn()
+    let setContentId!: (value: string) => void
+    let setLanguage!: (value: string) => void
+    let setVisible!: (value: boolean) => void
+    let dispose!: () => void
+    createRoot(rootDispose => {
+      dispose = rootDispose
+      const [contentId, updateContentId] = createSignal('video-a')
+      const [language, updateLanguage] = createSignal('de')
+      const [visible, updateVisible] = createSignal(true)
+      setContentId = updateContentId
+      setLanguage = updateLanguage
+      setVisible = updateVisible
+      syncVideoPluginActivity({
+        workName: () => 'Lesson', currentTimeSeconds: () => 12, durationSeconds: () => 60,
+        isFocused: () => true, isVisible: visible, contentId, language, updateSource,
+      })
+    })
+    await Promise.resolve()
+    updateSource.mockClear()
+    setContentId('video-b')
+    setLanguage('fr')
+    setVisible(false)
+    await Promise.resolve()
+    expect(updateSource).toHaveBeenCalledTimes(3)
+    expect(updateSource).toHaveBeenLastCalledWith('video-route', expect.objectContaining({
+      isVisible: false,
+      context: { privacy: 'title-and-progress', contentId: 'video-b', language: 'fr' },
+    }))
+    dispose()
+  })
+
   it('publishes a new snapshot immediately when the work changes', async () => {
     const { syncVideoPluginActivity } = await import('./videoPluginActivity')
     const updateSource = vi.fn()

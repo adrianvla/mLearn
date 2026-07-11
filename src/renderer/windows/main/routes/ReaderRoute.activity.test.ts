@@ -30,6 +30,35 @@ describe('syncReaderPluginActivity', () => {
     expect(events.filter(type => type === 'activity.started')).toHaveLength(1)
   })
 
+  it('stops and restarts exactly once across visibility changes while focused', async () => {
+    const { createActivityHub } = await import('../../../services/activityHub')
+    const { syncReaderPluginActivity } = await import('./readerPluginActivity')
+    const events: string[] = []
+    const hub = createActivityHub({
+      getPolicyScope: () => ({ activeGroupId: 'class-a', policyVersionId: 'policy-1' }),
+      emitEvent: event => events.push(event.type),
+    })
+    let setVisible!: (value: boolean) => void
+    let dispose!: () => void
+    createRoot(rootDispose => {
+      dispose = rootDispose
+      const [visible, updateVisible] = createSignal(true)
+      setVisible = updateVisible
+      syncReaderPluginActivity({
+        bookTitle: () => 'Book', currentPage: () => 0, pages: () => [1, 2],
+        isFocused: () => true, isVisible: visible, contentId: () => 'reader-hash',
+        updateSource: hub.updateSource, removeSource: hub.removeSource,
+      })
+    })
+    await Promise.resolve()
+    setVisible(false)
+    await Promise.resolve()
+    setVisible(true)
+    await Promise.resolve()
+    expect(events).toEqual(['activity.started', 'activity.stopped', 'activity.started'])
+    dispose()
+  })
+
   it('publishes a reader snapshot for a focused qualified source', async () => {
     const { syncReaderPluginActivity } = await import('./readerPluginActivity')
     const updateSource = vi.fn()

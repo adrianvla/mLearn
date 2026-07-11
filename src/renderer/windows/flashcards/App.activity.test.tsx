@@ -72,4 +72,27 @@ describe('getFlashcardsPluginActivityValue', () => {
     expect(publishSourceUpdate).toHaveBeenCalledTimes(1);
     expect(removeSource).toHaveBeenCalledWith('flashcards-window');
   });
+
+  it('publishes reactive visibility transitions while focus is unchanged', async () => {
+    const updateSource = vi.fn();
+    let setVisible!: (value: boolean) => void;
+    let dispose!: () => void;
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      const [visible, updateVisible] = createSignal(true);
+      setVisible = updateVisible;
+      syncFlashcardsPluginActivity({
+        activeTab: () => 'review',
+        isFocused: () => true,
+        isVisible: visible,
+        updateSource,
+      });
+    });
+    await Promise.resolve();
+    updateSource.mockClear();
+    setVisible(false);
+    await Promise.resolve();
+    expect(updateSource).toHaveBeenCalledWith('flashcards-window', expect.objectContaining({ isVisible: false }));
+    dispose();
+  });
 });

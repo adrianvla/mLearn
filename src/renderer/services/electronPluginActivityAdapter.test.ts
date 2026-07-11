@@ -48,4 +48,24 @@ describe('ElectronPluginActivityAdapter', () => {
     expect(() => hub.removeSource('reader-route')).not.toThrow()
     disposeRejecting()
   })
+
+  it('handles a promise-rejecting bridge without interrupting analytics', async () => {
+    const events: string[] = []
+    const hub = createActivityHub({
+      getPolicyScope: () => ({ activeGroupId: 'class-a', policyVersionId: 'policy-1' }),
+      emitEvent: event => events.push(event.type),
+    })
+    const dispose = createElectronPluginActivityAdapter(hub, () => Promise.reject(new Error('closed')))
+
+    hub.updateSource('flashcards-window', {
+      isFocused: true,
+      activity: { kind: 'flashcards' },
+      context: { privacy: 'progress-only', contentId: 'flashcards-review' },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(events).toEqual(['activity.started'])
+    dispose()
+  })
 })
