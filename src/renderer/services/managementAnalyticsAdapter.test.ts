@@ -5,7 +5,7 @@ import type { ManagementActivityEventV1 } from '../../shared/plugins/appActivity
 import type { ActivityQueue } from './activityQueue'
 import { createManagementAnalyticsAdapter } from './managementAnalyticsAdapter'
 
-const EVENT: ManagementActivityEventV1 = { schemaVersion: 1, id: 'e1', type: 'activity.started', sessionId: 's1', sourceId: 'reader', activeGroupId: 'g1', policyVersionId: 'p1', sequence: 0, occurredAt: '2026-07-11T00:00:00.000Z', activity: { kind: 'flashcards' }, context: { privacy: 'progress-only' } }
+const EVENT: ManagementActivityEventV1 = { schemaVersion: 1, id: 'e1', type: 'activity.started', sessionId: 's1', sourceId: 'reader', activeGroupId: 'g1', policyVersionId: 'p1', sequence: 1, occurredAt: '2026-07-11T00:00:00.000Z', activity: { kind: 'flashcards' }, context: { privacy: 'progress-only' } }
 function settings(extra: Partial<Settings> = {}): Settings { return { ...DEFAULT_SETTINGS, overrideCloudEndpointUrl: true, cloudApiUrl: 'https://school.test', cloudAuthStatus: 'signed-in', cloudAuthUserId: 'u1', cloudAuthActiveGroupId: 'g1', ...extra } }
 function harness(response: Response) {
   let listener: ((event: ManagementActivityEventV1) => void) | undefined
@@ -26,6 +26,11 @@ describe('ManagementAnalyticsAdapter', () => {
   it('retains the entire batch for a malformed response', async () => {
     const h = harness(new Response('{}', { status: 200 })); h.adapter.start(); await h.adapter.flush()
     expect(h.queue.acknowledge).not.toHaveBeenCalled()
+  })
+  it('recognizes bounded duplicate-in-batch rejection codes', async () => {
+    const h = harness(new Response(JSON.stringify({ acceptedIds: [], duplicateIds: [], rejected: [{ id: 'e1', code: 'duplicate_in_batch', retryable: false }] }), { status: 200 }))
+    h.adapter.start(); await h.adapter.flush()
+    expect(h.queue.quarantine).toHaveBeenCalledWith(['e1'], 'duplicate_in_batch')
   })
   it('removes subscriptions on stop', () => {
     const h = harness(new Response('{}')); h.adapter.start(); h.adapter.stop(); h.emit()

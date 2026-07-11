@@ -9,6 +9,28 @@ function event(id: string, sequence: number, type: ManagementActivityEventV1['ty
 }
 
 describe('ActivityQueue', () => {
+  it('drops legacy zero-sequence rows during upgrade and counts the quarantine', async () => {
+    const factory = new IDBFactory()
+    await new Promise<void>((resolve, reject) => {
+      const request = factory.open('mlearn-management-analytics', 2)
+      request.onupgradeneeded = () => {
+        const events = request.result.createObjectStore('events', { keyPath: 'key' })
+        events.createIndex('partition', 'partition')
+        events.createIndex('occurredAtSequence', 'order')
+        events.createIndex('partitionGroupOrder', 'partitionGroupOrder')
+        request.result.createObjectStore('meta', { keyPath: 'key' })
+        const legacy = event('legacy-zero', 1, 'activity.started')
+        const invalid = { ...legacy, sequence: 0 }
+        const partition = 'https://school.test\nalice'
+        events.put({ key: `${partition}\nlegacy-zero`, partition, groupId: 'group', order: [invalid.occurredAt, invalid.sessionId, 0, invalid.id], partitionGroupOrder: [partition, 'group', invalid.occurredAt, invalid.sessionId, 0, invalid.id], bytes: 1, event: invalid })
+      }
+      request.onsuccess = () => { request.result.close(); resolve() }
+      request.onerror = () => reject(request.error)
+    })
+    const queue = await createActivityQueue({ origin: 'https://school.test', userId: 'alice', indexedDB: factory })
+    expect(await queue.stats()).toMatchObject({ count: 0, dropped: 1, droppedReasons: { invalid_legacy: 1 } })
+  })
+
   it('partitions users and acknowledges only named events', async () => {
     const factory = new IDBFactory()
     const alice = await createActivityQueue({ origin: 'https://school.test/', userId: 'alice', indexedDB: factory })
@@ -27,9 +49,9 @@ describe('ActivityQueue', () => {
 
   it('drops progress before lifecycle events at capacity and counts drops', async () => {
     const queue = await createActivityQueue({ origin: 'https://school.test', userId: 'alice', indexedDB: new IDBFactory(), maxEvents: 2 })
-    await queue.enqueue(event('start', 0, 'activity.started'))
-    await queue.enqueue(event('progress', 1))
-    await queue.enqueue(event('done', 2, 'activity.completed'))
+    await queue.enqueue(event('start', 1, 'activity.started'))
+    await queue.enqueue(event('progress', 2))
+    await queue.enqueue(event('done', 3, 'activity.completed'))
     expect((await queue.peekBatch('group', 10, 64_000)).map(row => row.id)).toEqual(['start', 'done'])
     expect(await queue.stats()).toMatchObject({ count: 2, dropped: 1, droppedReasons: { coalesced_progress: 1 } })
   })
@@ -38,6 +60,7 @@ describe('ActivityQueue', () => {
     await expect(createActivityQueue({ origin: 'https://school.test', userId: 'alice', indexedDB: undefined })).rejects.toThrow()
     const queue = await createActivityQueue({ origin: 'https://school.test', userId: 'alice', indexedDB: new IDBFactory() })
     await expect(queue.enqueue({ ...event('bad', 1), sequence: Number.NaN })).rejects.toThrow('Invalid')
+    await expect(queue.enqueue({ ...event('zero', 1), sequence: 0 })).rejects.toThrow('Invalid')
   })
 
   it('filters interleaved groups without head-of-line blocking and resumes on switch-back', async () => {
