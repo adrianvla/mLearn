@@ -50,6 +50,7 @@ import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModify
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
 import { syncReaderPluginActivity } from './readerPluginActivity';
+import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
 import { getSpreadPageSideClass, getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
@@ -505,6 +506,7 @@ export const ReaderRoute: Component = () => {
   const [textPageCapacity, setTextPageCapacity] = createSignal(460);
   const [currentPage, setCurrentPage] = createSignal(0);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
+  const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
   // Track the filesystem path of the current book (PDF file or directory)
   // Used for persisting to recent items so users can click to re-open
@@ -600,6 +602,9 @@ export const ReaderRoute: Component = () => {
     currentPage,
     pages,
     isFocused: isWindowFocused,
+    isVisible: isWindowVisible,
+    contentId: () => opaqueActivityContentId('reader', currentBookId() ?? currentBookPath()),
+    language: () => settings.language,
   });
 
   // OCR debug overlay (dev mode only)
@@ -2043,6 +2048,7 @@ export const ReaderRoute: Component = () => {
   onMount(() => {
     const syncWindowFocus = () => {
       setIsWindowFocused(document.hasFocus())
+      setIsWindowVisible(document.visibilityState === 'visible')
     }
 
     window.addEventListener('focus', syncWindowFocus)

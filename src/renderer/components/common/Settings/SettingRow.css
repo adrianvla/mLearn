@@ -25,6 +25,10 @@
   pointer-events: none;
 }
 
+.setting-row.managed .managed-setting-control {
+  opacity: 0.5;
+}
+
 .setting-info {
   flex: 1;
   min-width: 0;
@@ -63,4 +67,11 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
+}
+
+.managed-setting-control {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }

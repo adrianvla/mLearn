@@ -1,55 +1,43 @@
 import { createEffect, onCleanup, type Accessor } from 'solid-js'
 
-import { normalizeReaderAppActivity, type AppActivity } from '../../../../shared/plugins/appActivity'
+import { normalizeReaderAppActivity, type ActivityContext } from '../../../../shared/plugins/appActivity'
+import { activityHub } from '../../../services/activityHubRuntime'
 
 export const READER_ACTIVITY_SOURCE_ID = 'reader-route'
-
-export type ScopedActivityPayload = {
-  sourceId: string
-  isFocused: boolean
-  value: AppActivity | null
-}
-
-export function publishScopedActivityValue(payload: ScopedActivityPayload): void {
-  window.mLearnInternal?.setScopedPluginValue({
-    sourceId: payload.sourceId,
-    isFocused: payload.isFocused,
-    channel: 'app.user.activity',
-    value: payload.value,
-  })
-}
 
 export function syncReaderPluginActivity(input: {
   bookTitle: Accessor<string>
   currentPage: Accessor<number>
   pages: Accessor<ArrayLike<unknown>>
   isFocused: Accessor<boolean>
-  publishScopedValue?: (payload: ScopedActivityPayload) => void
+  isVisible?: Accessor<boolean>
+  contentId?: Accessor<string | undefined>
+  language?: Accessor<string | undefined>
+  updateSource?: typeof activityHub.updateSource
+  removeSource?: typeof activityHub.removeSource
 }): void {
-  const publishScopedValue = input.publishScopedValue ?? publishScopedActivityValue
+  const updateSource = input.updateSource ?? activityHub.updateSource
+  const removeSource = input.removeSource ?? activityHub.removeSource
 
   createEffect(() => {
     const isFocused = input.isFocused()
-    const value = isFocused
-      ? normalizeReaderAppActivity(
+    const activity = normalizeReaderAppActivity(
         input.bookTitle(),
         input.currentPage(),
         input.pages().length,
       )
-      : null
-
-    publishScopedValue({
-      sourceId: READER_ACTIVITY_SOURCE_ID,
+    const context: ActivityContext = {
+      privacy: 'title-and-progress',
+      ...(input.contentId?.() ? { contentId: input.contentId() } : {}),
+      ...(input.language?.() ? { language: input.language() } : {}),
+    }
+    updateSource(READER_ACTIVITY_SOURCE_ID, {
       isFocused,
-      value,
+      isVisible: input.isVisible?.() ?? true,
+      activity: activity ?? { kind: 'idle' },
+      context,
     })
   })
 
-  onCleanup(() => {
-    publishScopedValue({
-      sourceId: READER_ACTIVITY_SOURCE_ID,
-      isFocused: false,
-      value: null,
-    })
-  })
+  onCleanup(() => removeSource(READER_ACTIVITY_SOURCE_ID))
 }

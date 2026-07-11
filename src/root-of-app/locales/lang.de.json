@@ -1,5 +1,16 @@
 {
   "mlearn": {
+    "Management": {
+      "ChooseGroup": "Klasse oder Gruppe auswählen",
+      "ChooseGroupDescription": "Wähle aus, wo deine Aktivität und die Schulrichtlinien gelten.",
+      "ActiveGroup": "Aktive Klasse oder Gruppe",
+      "SwitchGroup": "Gruppe wechseln",
+      "ActivatingGroup": "Gruppe wird gewechselt",
+      "GroupActivationError": "Die Gruppe konnte nicht gewechselt werden. Prüfe deinen Zugriff und versuche es erneut.",
+      "GroupLoadError": "Deine Schulgruppen konnten nicht geladen werden.",
+      "Retry": "Erneut versuchen",
+      "ManagedBy": "Verwaltet von {group}"
+    },
     "Common": {
       "Status": {
         "Unknown": "Unbekannt"

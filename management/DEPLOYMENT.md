@@ -45,7 +45,7 @@ The management service is the **only** service that mounts the Docker socket. It
 
 ## School Deployment Checklist
 
-1. **Set a strong admin token**
+1. **Set a strong bootstrap recovery token**
    ```bash
    # Generate a random token
    openssl rand -hex 32
@@ -55,7 +55,9 @@ The management service is the **only** service that mounts the Docker socket. It
 
 2. **Verify localhost binding**
    - Default `MLEARN_BIND_ADDRESS=127.0.0.1` is correct for local access
+   - Keep `MLEARN_MANAGEMENT_PUBLIC_URL=http://127.0.0.1:3000` for local access
    - For network access, use a reverse proxy with TLS — never expose port 3000 directly
+   - Behind a reverse proxy, set `MLEARN_MANAGEMENT_PUBLIC_URL` to the external HTTPS origin
 
 3. **Check AI configuration**
    - `MLEARN_LOCAL_AI_ENABLED=true` — local AI is available
@@ -69,6 +71,13 @@ The management service is the **only** service that mounts the Docker socket. It
    ```
 
 5. **Review the School Deployment page** in the console for safety warnings
+
+6. **Bootstrap named administration**
+   - Open `/bootstrap` through the protected local or HTTPS origin.
+   - Enter the recovery token once and create the root administrator.
+   - Sign in with the named account for normal operation; do not reuse or share
+     the recovery token as a browser session credential.
+   - Delegate the minimum group capabilities required by each manager or teacher.
 
 ## Security Assumptions
 
@@ -85,10 +94,13 @@ The management console is designed for safe day-to-day operation by school IT st
 
 ## Backup Strategy
 
-The management console does not manage backups. The institution is responsible for:
+The management console documents backup state but does not copy backups itself. The institution is responsible for:
 - Backing up the `mlearn-app-data` volume (student flashcards, settings)
 - Backing up the `mlearn-language-data` volume (dictionaries, language packages)
 - Testing restore procedures
+- Snapshotting `management.db` together with `/data/encryption-key` and
+  `/data/policy-signing-key`; restoring the database without its matching keys
+  cannot recover encrypted provider or conversation data.
 
 See [SCHOOL_DEPLOYMENT.md §4.4 Data Backup](../SCHOOL_DEPLOYMENT.md) for details.
 
@@ -102,6 +114,14 @@ See [SCHOOL_DEPLOYMENT.md §4.4 Data Backup](../SCHOOL_DEPLOYMENT.md) for detail
 | 11434 | _(host)_ | Ollama local AI (if used) |
 
 All ports bind to `127.0.0.1` by default. For network access, configure a reverse proxy:
+
+```dotenv
+MLEARN_MANAGEMENT_PUBLIC_URL=https://mlearn.school.edu
+```
+
+The public URL is used for browser-facing desktop login links. It must be an
+absolute, navigable `http://` or `https://` origin. Never use `0.0.0.0` or `::`;
+those wildcard bind addresses cannot be opened by a browser.
 
 ```nginx
 server {

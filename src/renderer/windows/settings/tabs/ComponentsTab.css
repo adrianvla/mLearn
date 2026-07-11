@@ -167,6 +167,13 @@
   height: 24px;
 }
 
+.components-tab__managed-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-1);
+}
+
 .components-tab__toggle input {
   opacity: 0;
   width: 0;

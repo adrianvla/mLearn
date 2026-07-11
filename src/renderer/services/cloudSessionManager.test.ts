@@ -8,6 +8,8 @@ const mockResolveCloudAccessToken = vi.fn<(settings: Settings) => string>((setti
 ));
 const mockIsCloudAccessTokenExpiringSoon = vi.fn<(settings: Settings, bufferMs?: number) => boolean>(() => false);
 const mockNormalizeCloudAuthExpiresAt = vi.fn<(expiresAt?: number, accessToken?: string) => number>((expiresAt?: number) => expiresAt ?? 0);
+const mockEnsureActiveGroup = vi.fn();
+const mockResetManagementGroupReadiness = vi.fn();
 
 vi.mock('./cloudAuthService', () => ({
   CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS: 60_000,
@@ -15,6 +17,14 @@ vi.mock('./cloudAuthService', () => ({
   normalizeCloudAuthExpiresAt: (expiresAt?: number, accessToken?: string) => mockNormalizeCloudAuthExpiresAt(expiresAt, accessToken),
   refreshCloudSession: (settings: Settings) => mockRefreshCloudSession(settings),
   resolveCloudAccessToken: (settings: Settings) => mockResolveCloudAccessToken(settings),
+}));
+
+vi.mock('./managementGroupService', () => ({
+  ensureActiveGroup: (...args: unknown[]) => mockEnsureActiveGroup(...args),
+  resetManagementGroupReadiness: () => mockResetManagementGroupReadiness(),
+  requiresManagementGroup: (settings: Settings) => (
+    settings.overrideCloudEndpointUrl && settings.cloudApiUrl.trim().length > 0
+  ),
 }));
 
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
@@ -34,6 +44,88 @@ describe('cloudSessionManager', () => {
     ));
     mockIsCloudAccessTokenExpiringSoon.mockReturnValue(false);
     mockNormalizeCloudAuthExpiresAt.mockImplementation((expiresAt?: number) => expiresAt ?? 0);
+    mockEnsureActiveGroup.mockResolvedValue({
+      ready: true,
+      needsSelection: false,
+      id: 'german-a',
+      name: 'German A',
+      groups: [{ id: 'german-a', name: 'German A' }],
+    });
+    mockResetManagementGroupReadiness.mockReset();
+  });
+
+  it('does not run a custom group-scoped operation until the active group is activated', async () => {
+    const { registerCloudSessionController, withCloudAuth } = await import('./cloudSessionManager');
+    const currentSettings = makeSettings({
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'access-token',
+      cloudAuthActiveGroupId: '',
+      cloudAuthActiveGroupName: '',
+    });
+    const updateSettings = vi.fn();
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings,
+      openCloudReLoginModal: vi.fn(),
+    });
+    let resolveActivation!: (value: unknown) => void;
+    mockEnsureActiveGroup.mockReturnValueOnce(new Promise((resolve) => {
+      resolveActivation = resolve;
+    }));
+    const operation = vi.fn(async () => 'done');
+
+    const pending = withCloudAuth(operation);
+    await vi.waitFor(() => expect(mockEnsureActiveGroup).toHaveBeenCalled());
+    expect(operation).not.toHaveBeenCalled();
+    resolveActivation({ ready: true, needsSelection: false, id: 'german-a', name: 'German A', groups: [] });
+
+    await expect(pending).resolves.toBe('done');
+    expect(operation).toHaveBeenCalledWith('access-token');
+    cleanup();
+  });
+
+  it('clears group readiness when the cloud session is signed out', async () => {
+    const { syncCloudSessionState } = await import('./cloudSessionManager');
+
+    syncCloudSessionState(makeSettings({ cloudAuthStatus: 'signed-out' }));
+
+    expect(mockResetManagementGroupReadiness).toHaveBeenCalledOnce();
+  });
+
+  it('exposes needsSelection and blocks custom group-scoped operations when multiple groups exist', async () => {
+    const {
+      CloudGroupSelectionRequiredError,
+      registerCloudSessionController,
+      withCloudAuth,
+    } = await import('./cloudSessionManager');
+    const currentSettings = makeSettings({
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'access-token',
+    });
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings: vi.fn(),
+      openCloudReLoginModal: vi.fn(),
+    });
+    mockEnsureActiveGroup.mockResolvedValueOnce({
+      ready: false,
+      needsSelection: true,
+      id: '',
+      name: '',
+      groups: [{ id: 'german-a', name: 'German A' }, { id: 'german-b', name: 'German B' }],
+    });
+    const operation = vi.fn();
+
+    const error = await withCloudAuth(operation).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(CloudGroupSelectionRequiredError);
+    expect(error).toMatchObject({ needsSelection: true });
+    expect(operation).not.toHaveBeenCalled();
+    cleanup();
   });
 
   it('waits for re-login completion when no cloud token is available', async () => {
@@ -72,6 +164,102 @@ describe('cloudSessionManager', () => {
     syncCloudSessionState(currentSettings);
 
     await expect(pendingToken).resolves.toBe('fresh-access-token');
+    cleanup();
+  });
+
+  it('gates the first custom-management login waiter before returning its recovered token', async () => {
+    const {
+      CloudGroupSelectionRequiredError,
+      ensureCloudAccessToken,
+      registerCloudSessionController,
+      syncCloudSessionState,
+    } = await import('./cloudSessionManager');
+    let currentSettings = makeSettings({
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      cloudAuthStatus: 'signed-out',
+      cloudAuthAccessToken: '',
+      cloudAuthRefreshToken: '',
+    });
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings: (partial) => { currentSettings = { ...currentSettings, ...partial }; },
+      openCloudReLoginModal: vi.fn(),
+    });
+    mockEnsureActiveGroup.mockResolvedValueOnce({
+      ready: false,
+      needsSelection: true,
+      id: '',
+      name: '',
+      groups: [{ id: 'german-a', name: 'German A' }, { id: 'german-b', name: 'German B' }],
+    });
+
+    const pending = ensureCloudAccessToken();
+    currentSettings = makeSettings({
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'recovered-token',
+      cloudAuthRefreshToken: 'recovered-refresh',
+    });
+    syncCloudSessionState(currentSettings);
+
+    await expect(pending).rejects.toBeInstanceOf(CloudGroupSelectionRequiredError);
+    expect(mockEnsureActiveGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ cloudAuthAccessToken: 'recovered-token' }),
+      expect.any(Function),
+      'recovered-token',
+    );
+    cleanup();
+  });
+
+  it('gates the first refresh-failure reauthentication token before returning it', async () => {
+    const {
+      CloudGroupSelectionRequiredError,
+      ensureCloudAccessToken,
+      registerCloudSessionController,
+      syncCloudSessionState,
+    } = await import('./cloudSessionManager');
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(true);
+    mockRefreshCloudSession.mockRejectedValueOnce(new Error('401 invalid session'));
+    let currentSettings = makeSettings({
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'expired-token',
+      cloudAuthRefreshToken: 'expired-refresh',
+    });
+    const openCloudReLoginModal = vi.fn();
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings: (partial) => { currentSettings = { ...currentSettings, ...partial }; },
+      openCloudReLoginModal,
+    });
+    mockEnsureActiveGroup.mockResolvedValueOnce({
+      ready: false,
+      needsSelection: true,
+      id: '',
+      name: '',
+      groups: [{ id: 'german-a', name: 'German A' }, { id: 'german-b', name: 'German B' }],
+    });
+
+    const pending = ensureCloudAccessToken();
+    await vi.waitFor(() => expect(openCloudReLoginModal).toHaveBeenCalledOnce());
+    currentSettings = makeSettings({
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://school.example',
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'reauthenticated-token',
+      cloudAuthRefreshToken: 'reauthenticated-refresh',
+    });
+    syncCloudSessionState(currentSettings);
+
+    await expect(pending).rejects.toBeInstanceOf(CloudGroupSelectionRequiredError);
+    expect(mockEnsureActiveGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ cloudAuthAccessToken: 'reauthenticated-token' }),
+      expect.any(Function),
+      'reauthenticated-token',
+    );
     cleanup();
   });
 
@@ -515,5 +703,24 @@ describe('cloudSessionManager', () => {
 
     await expect(pendingToken).resolves.toBe('fresh-token');
     mainCleanup();
+  });
+
+  it('notifies isolated listeners only after a successful refresh', async () => {
+    const { registerCloudSessionController, ensureCloudAccessToken, subscribeCloudSessionRefresh } = await import('./cloudSessionManager');
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(true);
+    mockRefreshCloudSession.mockResolvedValue({ accessToken: 'fresh', refreshToken: 'next', expiresAt: 2_000_000_000 });
+    let current = makeSettings({ cloudAuthStatus: 'signed-in', cloudAuthAccessToken: 'old', cloudAuthRefreshToken: 'refresh' });
+    const cleanup = registerCloudSessionController({
+      getSettings: () => current,
+      updateSettings: patch => { current = { ...current, ...patch }; },
+      openCloudReLoginModal: vi.fn(),
+    });
+    const observed = vi.fn();
+    const unsubscribeThrowing = subscribeCloudSessionRefresh(() => { throw new Error('observer failure'); });
+    const unsubscribe = subscribeCloudSessionRefresh(observed);
+
+    await expect(ensureCloudAccessToken()).resolves.toBe('fresh');
+    expect(observed).toHaveBeenCalledOnce();
+    unsubscribe(); unsubscribeThrowing(); cleanup();
   });
 });

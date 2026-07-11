@@ -4,9 +4,10 @@ import {
   isSameAppActivity,
   normalizeVideoAppActivity,
   shouldEmitVideoProgressUpdate,
+  type ActivityContext,
   type AppActivity,
 } from '../../../../shared/plugins/appActivity'
-import { publishScopedActivityValue, type ScopedActivityPayload } from './readerPluginActivity'
+import { activityHub } from '../../../services/activityHubRuntime'
 
 export const VIDEO_ACTIVITY_SOURCE_ID = 'video-route'
 
@@ -15,21 +16,34 @@ export function syncVideoPluginActivity(input: {
   currentTimeSeconds: Accessor<number>
   durationSeconds: Accessor<number | null>
   isFocused: Accessor<boolean>
-  publishScopedValue?: (payload: ScopedActivityPayload) => void
+  isVisible?: Accessor<boolean>
+  contentId?: Accessor<string | undefined>
+  language?: Accessor<string | undefined>
+  updateSource?: typeof activityHub.updateSource
+  removeSource?: typeof activityHub.removeSource
 }): void {
-  const publishScopedValue = input.publishScopedValue ?? publishScopedActivityValue
+  const updateSource = input.updateSource ?? activityHub.updateSource
+  const removeSource = input.removeSource ?? activityHub.removeSource
   let previousActivity: AppActivity | null = null
   let previousIsFocused: boolean | null = null
+  let previousIsVisible: boolean | null = null
+  let previousContext: ActivityContext | null = null
 
   createEffect(() => {
     const isFocused = input.isFocused()
     const workName = input.workName()
     const currentTimeSeconds = input.currentTimeSeconds()
     const durationSeconds = input.durationSeconds()
+    const isVisible = input.isVisible?.() ?? true
+    const contentId = input.contentId?.()
+    const language = input.language?.()
+    const context: ActivityContext = {
+      privacy: 'title-and-progress',
+      ...(contentId ? { contentId } : {}),
+      ...(language ? { language } : {}),
+    }
 
-    let value = isFocused
-      ? normalizeVideoAppActivity(workName, currentTimeSeconds, durationSeconds)
-      : null
+    let value = normalizeVideoAppActivity(workName, currentTimeSeconds, durationSeconds)
 
     if (
       value
@@ -46,25 +60,28 @@ export function syncVideoPluginActivity(input: {
       ? value === null
       : value !== null && isSameAppActivity(previousActivity, value)
 
-    if (previousIsFocused === isFocused && isSameActivity) {
+    const isSameContext = previousContext?.contentId === context.contentId
+      && previousContext?.language === context.language
+      && previousContext?.privacy === context.privacy
+
+    if (previousIsFocused === isFocused
+      && previousIsVisible === isVisible
+      && isSameActivity
+      && isSameContext) {
       return
     }
 
     previousActivity = value
     previousIsFocused = isFocused
-
-    publishScopedValue({
-      sourceId: VIDEO_ACTIVITY_SOURCE_ID,
+    previousIsVisible = isVisible
+    previousContext = context
+    updateSource(VIDEO_ACTIVITY_SOURCE_ID, {
       isFocused,
-      value,
+      isVisible,
+      activity: value ?? { kind: 'idle' },
+      context,
     })
   })
 
-  onCleanup(() => {
-    publishScopedValue({
-      sourceId: VIDEO_ACTIVITY_SOURCE_ID,
-      isFocused: false,
-      value: null,
-    })
-  })
+  onCleanup(() => removeSource(VIDEO_ACTIVITY_SOURCE_ID))
 }

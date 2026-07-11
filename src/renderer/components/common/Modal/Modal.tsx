@@ -28,6 +28,8 @@ export interface ModalProps {
   panelClass?: string;
   noBottomPadding?: boolean;
   headerDraggable?: boolean;
+  panelRef?: (element: HTMLDivElement) => void;
+  onPanelKeyDown?: JSX.EventHandlerUnion<HTMLDivElement, KeyboardEvent>;
 }
 
 export const Modal: Component<ModalProps> = (props) => {
@@ -59,7 +61,9 @@ export const Modal: Component<ModalProps> = (props) => {
     'fullHeight',
     'panelClass',
     'noBottomPadding',
-    'headerDraggable'
+    'headerDraggable',
+    'panelRef',
+    'onPanelKeyDown',
   ]);
 
   // Handle escape key
@@ -142,6 +146,8 @@ export const Modal: Component<ModalProps> = (props) => {
           }}
         >
           <Panel
+            ref={local.panelRef}
+            onKeyDown={local.onPanelKeyDown}
             variant="solid"
             rounded="lg"
             padding="none"

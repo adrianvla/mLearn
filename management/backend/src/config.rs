@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use crate::auth::hash_token;
+use secrecy::SecretString;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnvMode {
@@ -41,7 +42,13 @@ impl FromStr for DeploymentMode {
 pub struct Config {
     pub bind_address: String,
     pub port: u16,
+    pub public_url: String,
     pub compose_project: String,
+    pub management_db_path: String,
+    pub policy_signing_key_path: String,
+    pub encryption_key_path: String,
+    pub encryption_key: Option<SecretString>,
+    pub conversation_retention_days: u16,
     pub token_hash: Option<[u8; 32]>,
     pub env_mode: EnvMode,
     pub deployment_mode: DeploymentMode,
@@ -64,7 +71,31 @@ impl Config {
         let bind_address =
             env_or_default("MLEARN_BIND_ADDRESS", "127.0.0.1");
         let port = env_u16_or_default("MLEARN_MANAGEMENT_PORT", 3000);
+        let public_url = derive_public_url(
+            &bind_address,
+            port,
+            env_nonempty("MLEARN_MANAGEMENT_PUBLIC_URL"),
+        );
         let compose_project = env_or_default("MLEARN_COMPOSE_PROJECT", "mlearn");
+        let management_db_path = env_or_default(
+            "MLEARN_MANAGEMENT_DB",
+            if cfg!(debug_assertions) {
+                "management.db"
+            } else {
+                "/data/management.db"
+            },
+        );
+        let policy_signing_key_path = env_or_default(
+            "MLEARN_POLICY_SIGNING_KEY_PATH",
+            default_policy_signing_key_path().as_str(),
+        );
+        let encryption_key_path = env_or_default(
+            "MLEARN_ENCRYPTION_KEY_PATH",
+            default_encryption_key_path().as_str(),
+        );
+        let encryption_key = env_nonempty("MLEARN_ENCRYPTION_KEY").map(SecretString::from);
+        let conversation_retention_days =
+            env_u16_or_default("MLEARN_CONVERSATION_RETENTION_DAYS", 90).clamp(1, 3650);
 
         let env_mode = EnvMode::parse(&env_or_default("MLEARN_ENV", "production"));
         let deployment_mode = env_or_default("MLEARN_DEPLOYMENT_MODE", "self-hosted");
@@ -92,7 +123,13 @@ impl Config {
         Self {
             bind_address,
             port,
+            public_url,
             compose_project,
+            management_db_path,
+            policy_signing_key_path,
+            encryption_key_path,
+            encryption_key,
+            conversation_retention_days,
             token_hash,
             env_mode,
             deployment_mode,
@@ -120,8 +157,57 @@ impl Config {
     }
 }
 
+fn default_encryption_key_path() -> String {
+    if cfg!(test) {
+        return std::env::temp_dir()
+            .join(format!(
+                "mlearn-encryption-key-tests-{}",
+                std::process::id()
+            ))
+            .to_string_lossy()
+            .into_owned();
+    }
+    if cfg!(debug_assertions) {
+        "encryption-key".into()
+    } else {
+        "/data/encryption-key".into()
+    }
+}
+
+fn default_policy_signing_key_path() -> String {
+    if cfg!(test) {
+        return std::env::temp_dir()
+            .join(format!(
+                "mlearn-policy-signing-key-tests-{}",
+                std::process::id()
+            ))
+            .to_string_lossy()
+            .into_owned();
+    }
+    if cfg!(debug_assertions) {
+        "policy-signing-key".into()
+    } else {
+        "/data/policy-signing-key".into()
+    }
+}
+
 fn env_or_default(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+fn derive_public_url(bind_address: &str, port: u16, explicit: Option<String>) -> String {
+    if let Some(explicit) = explicit
+        .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
+    {
+        return explicit.trim_end_matches('/').to_string();
+    }
+
+    let host = match bind_address.trim() {
+        "0.0.0.0" | "::" | "[::]" => "127.0.0.1".to_string(),
+        value if value.contains(':') && !value.starts_with('[') => format!("[{value}]"),
+        value => value.to_string(),
+    };
+    format!("http://{host}:{port}")
 }
 
 fn env_nonempty(key: &str) -> Option<String> {
@@ -332,6 +418,7 @@ mod tests {
     fn config_from_env_uses_defaults_when_unset() {
         std::env::remove_var("MLEARN_BIND_ADDRESS");
         std::env::remove_var("MLEARN_MANAGEMENT_PORT");
+        std::env::remove_var("MLEARN_MANAGEMENT_PUBLIC_URL");
         std::env::remove_var("MLEARN_COMPOSE_PROJECT");
         std::env::remove_var("MLEARN_MANAGEMENT_TOKEN_HASH");
         std::env::remove_var("MLEARN_MANAGEMENT_TOKEN");
@@ -342,6 +429,7 @@ mod tests {
 
         assert_eq!(config.bind_address, "127.0.0.1");
         assert_eq!(config.port, 3000);
+        assert_eq!(config.public_url, "http://127.0.0.1:3000");
         assert_eq!(config.compose_project, "mlearn");
         assert!(config.feature_flags.is_empty());
     }
@@ -351,7 +439,13 @@ mod tests {
         let mut config = Config {
             bind_address: "127.0.0.1".to_string(),
             port: 3000,
+            public_url: "http://127.0.0.1:3000".to_string(),
             compose_project: "mlearn".to_string(),
+            management_db_path: "management.db".to_string(),
+            policy_signing_key_path: "policy-signing-key".to_string(),
+            encryption_key_path: "encryption-key".to_string(),
+            encryption_key: None,
+            conversation_retention_days: 90,
             token_hash: Some([0u8; 32]),
             env_mode: EnvMode::Production,
             deployment_mode: DeploymentMode::SelfHosted,
@@ -379,5 +473,25 @@ mod tests {
         config.env_mode = EnvMode::Development;
         assert!(!config.auth_enabled());
         assert!(!config.fail_closed());
+    }
+
+    #[test]
+    fn public_url_derivation_uses_navigable_loopback_for_wildcard_binds() {
+        assert_eq!(
+            derive_public_url("0.0.0.0", 3000, None),
+            "http://127.0.0.1:3000"
+        );
+        assert_eq!(
+            derive_public_url("::", 3000, None),
+            "http://127.0.0.1:3000"
+        );
+        assert_eq!(
+            derive_public_url(
+                "0.0.0.0",
+                3000,
+                Some("https://school.example/console/".to_string())
+            ),
+            "https://school.example/console"
+        );
     }
 }

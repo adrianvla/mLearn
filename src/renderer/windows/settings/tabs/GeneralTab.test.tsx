@@ -78,7 +78,7 @@ vi.mock('../../../../shared/bridges/bundledLanguageAssets', () => ({
 }));
 
 vi.mock('../../../components/common', () => ({
-  SettingRow: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
+  SettingRow: (props: { children?: JSX.Element; managedControl?: JSX.Element }) => <div>{props.managedControl}{props.children}</div>,
   SettingGroup: (props: { children?: JSX.Element }) => <section>{props.children}</section>,
   ToggleSwitch: () => <div />,
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,

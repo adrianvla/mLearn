@@ -1,5 +1,16 @@
 {
   "mlearn": {
+    "Management": {
+      "ChooseGroup": "Выберите класс или группу",
+      "ChooseGroupDescription": "Выберите, где будут применяться ваши действия и правила школы.",
+      "ActiveGroup": "Активный класс или группа",
+      "SwitchGroup": "Сменить группу",
+      "ActivatingGroup": "Смена группы",
+      "GroupActivationError": "Не удалось сменить группу. Проверьте доступ и повторите попытку.",
+      "GroupLoadError": "Не удалось загрузить школьные группы.",
+      "Retry": "Повторить",
+      "ManagedBy": "Управляется группой {group}"
+    },
     "Common": {
       "Status": {
         "Unknown": "Неизвестно"
