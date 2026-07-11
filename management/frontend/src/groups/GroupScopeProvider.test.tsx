@@ -29,6 +29,13 @@ it('restores the session and selects only eligible group automatically', async (
   expect(activateGroup).toHaveBeenCalledWith('german-a', expect.anything());
 });
 
+it('treats root administrators as holding every capability', async () => {
+  const activateGroup = vi.fn().mockResolvedValue(undefined);
+  render(<Providers user={{ id: 'root', email: 'root@school.test', isRoot: true, groups: [GERMAN_B] }} groupApi={{ activateGroup }} />);
+  expect(await screen.findByText('German B')).toBeVisible();
+  expect(screen.getByText('can analytics')).toBeVisible();
+});
+
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
   return {
