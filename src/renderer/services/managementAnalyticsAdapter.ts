@@ -26,7 +26,7 @@ export type ManagementAnalyticsAdapterOptions = {
   batchBytes?: number
   flushThreshold?: number
 }
-export interface ManagementAnalyticsAdapter { start(): void; flush(): Promise<void>; stop(): Promise<void> }
+export interface ManagementAnalyticsAdapter { start(): void; updateScope(settings: Settings): void; flush(): Promise<void>; stop(): Promise<void> }
 
 function eligible(settings: Settings): Scope | null {
   if (settings.cloudAuthStatus !== 'signed-in') return null
@@ -36,6 +36,11 @@ function eligible(settings: Settings): Scope | null {
 }
 function sameScope(left: Scope, right: Scope | null): boolean {
   return !!right && left.origin === right.origin && left.userId === right.userId && left.groupId === right.groupId
+}
+function scopeFingerprint(settings: Settings): string {
+  let origin = 'invalid-origin'
+  try { origin = normalizeAnalyticsOrigin(resolveCloudApiUrl(settings)) } catch { /* invalid settings are still an epoch */ }
+  return [settings.cloudAuthStatus, origin, settings.cloudAuthUserId.trim(), settings.cloudAuthActiveGroupId.trim()].join('\n')
 }
 function ingestionActions(value: unknown, batch: ReadonlySet<string>): IngestionActions | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
@@ -70,11 +75,13 @@ export function createManagementAnalyticsAdapter(options: ManagementAnalyticsAda
   const queues = new Map<string, Promise<ActivityQueue>>()
   const pendingEnqueues = new Set<Promise<void>>()
   const aborters = new Set<AbortController>()
-  let started = false; let generation = 0; let flushing: Promise<void> | null = null
+  let started = false; let generation = 0; let scopeEpoch = 0
+  let fingerprint = scopeFingerprint(options.getSettings()); let flushing: Promise<void> | null = null
   let unsubscribeHub: (() => void) | null = null; let unsubscribeRefresh: (() => void) | null = null
 
-  function current(scope: Scope, expectedGeneration: number): boolean {
-    return started && generation === expectedGeneration && sameScope(scope, eligible(options.getSettings()))
+  function current(scope: Scope, expectedGeneration: number, expectedEpoch: number): boolean {
+    return started && generation === expectedGeneration && scopeEpoch === expectedEpoch
+      && sameScope(scope, eligible(options.getSettings()))
   }
   async function queueFor(scope: Pick<Scope, 'origin' | 'userId'>): Promise<ActivityQueue> {
     const key = `${scope.origin}\n${scope.userId}`
@@ -86,26 +93,27 @@ export function createManagementAnalyticsAdapter(options: ManagementAnalyticsAda
     }
     return queue
   }
-  async function enqueue(event: ManagementActivityEventV1, expectedGeneration: number): Promise<void> {
-    const scope = eligible(options.getSettings())
-    if (!scope || !current(scope, expectedGeneration) || event.activeGroupId !== scope.groupId) return
+  async function enqueue(event: ManagementActivityEventV1, scope: Scope, expectedGeneration: number, expectedEpoch: number): Promise<void> {
     const queue = await queueFor(scope)
-    if (!current(scope, expectedGeneration)) return
+    // The hub accepted this event under the captured identity. Persist it even if
+    // opening IndexedDB outlives a scope change or window shutdown.
     await queue.enqueue(event)
-    if (!current(scope, expectedGeneration)) return
+    if (!current(scope, expectedGeneration, expectedEpoch)) return
     const stats = await queue.stats()
-    if (current(scope, expectedGeneration) && stats.count >= threshold && targetWindow.navigator.onLine !== false) void flush()
+    if (current(scope, expectedGeneration, expectedEpoch) && stats.count >= threshold && targetWindow.navigator.onLine !== false) void flush()
   }
   function trackEnqueue(event: ManagementActivityEventV1, expectedGeneration: number): void {
-    const work = enqueue(event, expectedGeneration).catch(() => {}).finally(() => pendingEnqueues.delete(work))
+    const scope = eligible(options.getSettings()); const expectedEpoch = scopeEpoch
+    if (!scope || event.activeGroupId !== scope.groupId) return
+    const work = enqueue(event, scope, expectedGeneration, expectedEpoch).catch(() => {}).finally(() => pendingEnqueues.delete(work))
     pendingEnqueues.add(work)
   }
-  async function upload(scope: Scope, queue: ActivityQueue, expectedGeneration: number): Promise<void> {
-    if (!current(scope, expectedGeneration) || targetWindow.navigator.onLine === false) return
+  async function upload(scope: Scope, queue: ActivityQueue, expectedGeneration: number, expectedEpoch: number): Promise<void> {
+    if (!current(scope, expectedGeneration, expectedEpoch) || targetWindow.navigator.onLine === false) return
     const events = await queue.peekBatch(scope.groupId, batchCount, batchBytes)
-    if (!current(scope, expectedGeneration) || !events.length || events.some(event => event.activeGroupId !== scope.groupId)) return
+    if (!current(scope, expectedGeneration, expectedEpoch) || !events.length || events.some(event => event.activeGroupId !== scope.groupId)) return
     let accessToken = await token({ interactive: false, openModalOnExpiry: false })
-    if (!current(scope, expectedGeneration) || !accessToken) return
+    if (!current(scope, expectedGeneration, expectedEpoch) || !accessToken) return
     const controller = new AbortController(); aborters.add(controller)
     const send = (bearer: string) => fetcher(`${scope.origin}/api/analytics/events`, {
       method: 'POST', signal: controller.signal,
@@ -114,45 +122,46 @@ export function createManagementAnalyticsAdapter(options: ManagementAnalyticsAda
     })
     try {
       let response = await send(accessToken)
-      if (!current(scope, expectedGeneration)) return
+      if (!current(scope, expectedGeneration, expectedEpoch)) return
       if (response.status === 401) {
         accessToken = await token({ forceRefresh: true, interactive: false, openModalOnExpiry: false })
-        if (!current(scope, expectedGeneration) || !accessToken) return
+        if (!current(scope, expectedGeneration, expectedEpoch) || !accessToken) return
         response = await send(accessToken)
-        if (!current(scope, expectedGeneration)) return
+        if (!current(scope, expectedGeneration, expectedEpoch)) return
       }
       if (!response.ok) return
       const payload: unknown = await response.json()
-      if (!current(scope, expectedGeneration)) return
+      if (!current(scope, expectedGeneration, expectedEpoch)) return
       const actions = ingestionActions(payload, new Set(events.map(event => event.id)))
       if (!actions) return
-      if (!current(scope, expectedGeneration)) return
+      if (!current(scope, expectedGeneration, expectedEpoch)) return
       await queue.acknowledge(actions.acknowledge)
-      if (!current(scope, expectedGeneration)) return
+      if (!current(scope, expectedGeneration, expectedEpoch)) return
       const byCode = new Map<RejectionCode, string[]>()
       for (const item of actions.permanent) byCode.set(item.code, [...(byCode.get(item.code) ?? []), item.id])
       for (const [code, ids] of byCode) {
-        if (!current(scope, expectedGeneration)) return
+        if (!current(scope, expectedGeneration, expectedEpoch)) return
         await queue.quarantine(ids, code)
       }
     } finally { aborters.delete(controller) }
   }
-  async function lockedUpload(expectedGeneration: number): Promise<void> {
+  async function lockedUpload(expectedGeneration: number, expectedEpoch: number): Promise<void> {
     const scope = eligible(options.getSettings())
-    if (!scope || !current(scope, expectedGeneration)) return
+    if (!scope || !current(scope, expectedGeneration, expectedEpoch)) return
     const queue = await queueFor(scope)
-    if (!current(scope, expectedGeneration)) return
+    if (!current(scope, expectedGeneration, expectedEpoch)) return
     await queue.withLease(leaseOwner, async () => {
-      if (!current(scope, expectedGeneration)) return
-      await upload(scope, queue, expectedGeneration)
+      if (!current(scope, expectedGeneration, expectedEpoch)) return
+      await upload(scope, queue, expectedGeneration, expectedEpoch)
     })
-    if (!current(scope, expectedGeneration)) return
+    if (!current(scope, expectedGeneration, expectedEpoch)) return
   }
   function flush(): Promise<void> {
     if (!started) return Promise.resolve()
     if (!flushing) {
       const expectedGeneration = generation
-      const work = lockedUpload(expectedGeneration).catch(() => {}).finally(() => { if (flushing === work) flushing = null })
+      const expectedEpoch = scopeEpoch
+      const work = lockedUpload(expectedGeneration, expectedEpoch).catch(() => {}).finally(() => { if (flushing === work) flushing = null })
       flushing = work
     }
     return flushing
@@ -168,6 +177,12 @@ export function createManagementAnalyticsAdapter(options: ManagementAnalyticsAda
       unsubscribeRefresh = subscribeRefresh(() => { void flush() })
       targetWindow.addEventListener('online', onOnline); targetWindow.addEventListener('pagehide', onPageHide)
       targetDocument.addEventListener('visibilitychange', onVisibility)
+    },
+    updateScope(settings) {
+      const next = scopeFingerprint(settings)
+      if (next === fingerprint) return
+      fingerprint = next; scopeEpoch++
+      for (const controller of aborters) controller.abort()
     },
     flush,
     async stop() {

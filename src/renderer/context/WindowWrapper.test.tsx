@@ -112,7 +112,7 @@ vi.mock('../services/electronPluginActivityAdapter', () => ({
 }));
 
 vi.mock('../services/managementAnalyticsAdapter', () => ({
-  createManagementAnalyticsAdapter: () => ({ start: vi.fn(), flush: vi.fn(), stop: vi.fn() }),
+  createManagementAnalyticsAdapter: () => ({ start: vi.fn(), updateScope: vi.fn(), flush: vi.fn(), stop: vi.fn() }),
 }));
 
 describe('WindowWrapper', () => {
