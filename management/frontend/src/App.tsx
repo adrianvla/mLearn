@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react';
 import { Spinner } from '@heroui/react';
 import { useAuth } from './auth/AuthProvider';
 import type { ReactNode } from 'react';
+import Login, { DesktopApproval } from './pages/Login';
 
 const Overview = lazy(() => import('./pages/Overview'));
 const Services = lazy(() => import('./pages/Services'));
@@ -19,10 +20,8 @@ const Distribution = lazy(() => import('./pages/Distribution'));
 const LlmGateway = lazy(() => import('./pages/LlmGateway'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const Settings = lazy(() => import('./pages/Settings'));
-const Login = lazy(() => import('./pages/Login'));
 const Bootstrap = lazy(() => import('./pages/Bootstrap'));
 const Diagnostics = lazy(() => import('./pages/Diagnostics'));
-import { DesktopApproval } from './pages/Login';
 
 function PageLoader() {
   return (
