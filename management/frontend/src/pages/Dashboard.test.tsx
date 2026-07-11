@@ -29,6 +29,9 @@ it('renders the selected-group school dashboard without operational diagnostics'
   fireEvent.click(screen.getByRole('button', { name: 'Security' }));
   expect(screen.getByRole('heading', { name: 'Policy enforcement' })).toBeVisible();
   expect(fetch).toHaveBeenCalledWith(expect.stringContaining('groupId=german'), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  fireEvent.change(screen.getByLabelText('Date period'), { target: { value: '7' } });
+  expect(await screen.findByLabelText('Date period')).toHaveValue('7');
+  expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/from=\d+&to=\d+/), expect.anything());
 });
 
 function response(body: unknown) { return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })); }
