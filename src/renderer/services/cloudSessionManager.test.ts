@@ -704,4 +704,23 @@ describe('cloudSessionManager', () => {
     await expect(pendingToken).resolves.toBe('fresh-token');
     mainCleanup();
   });
+
+  it('notifies isolated listeners only after a successful refresh', async () => {
+    const { registerCloudSessionController, ensureCloudAccessToken, subscribeCloudSessionRefresh } = await import('./cloudSessionManager');
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(true);
+    mockRefreshCloudSession.mockResolvedValue({ accessToken: 'fresh', refreshToken: 'next', expiresAt: 2_000_000_000 });
+    let current = makeSettings({ cloudAuthStatus: 'signed-in', cloudAuthAccessToken: 'old', cloudAuthRefreshToken: 'refresh' });
+    const cleanup = registerCloudSessionController({
+      getSettings: () => current,
+      updateSettings: patch => { current = { ...current, ...patch }; },
+      openCloudReLoginModal: vi.fn(),
+    });
+    const observed = vi.fn();
+    const unsubscribeThrowing = subscribeCloudSessionRefresh(() => { throw new Error('observer failure'); });
+    const unsubscribe = subscribeCloudSessionRefresh(observed);
+
+    await expect(ensureCloudAccessToken()).resolves.toBe('fresh');
+    expect(observed).toHaveBeenCalledOnce();
+    unsubscribe(); unsubscribeThrowing(); cleanup();
+  });
 });

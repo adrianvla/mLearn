@@ -28,6 +28,7 @@ import { installRendererLogSink } from '../utils/installLogSink';
 import { getLogger } from '../../shared/utils/logger';
 import { activityHub, setActivityPolicyScope } from '../services/activityHubRuntime';
 import { createElectronPluginActivityAdapter } from '../services/electronPluginActivityAdapter';
+import { createManagementAnalyticsAdapter } from '../services/managementAnalyticsAdapter';
 
 const log = getLogger("renderer.context.windowWrapper");
 
@@ -233,7 +234,9 @@ const ActivityRuntimeBridge: Component = () => {
 
   onMount(() => {
     const disposeAdapter = createElectronPluginActivityAdapter(activityHub);
-    onCleanup(disposeAdapter);
+    const analytics = createManagementAnalyticsAdapter({ getSettings: () => settings as typeof settings });
+    analytics.start();
+    onCleanup(() => { disposeAdapter(); analytics.stop(); });
   });
 
   createEffect(() => {

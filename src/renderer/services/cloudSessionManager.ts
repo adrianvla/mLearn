@@ -69,6 +69,19 @@ interface PendingCloudSessionRecovery {
 const controllers: CloudSessionController[] = [];
 let refreshInFlight: Promise<string | null> | null = null;
 let pendingSessionRecovery: PendingCloudSessionRecovery | null = null;
+const sessionRefreshListeners = new Set<() => void>();
+
+function notifyCloudSessionRefresh(): void {
+  for (const listener of [...sessionRefreshListeners]) {
+    try { listener(); } catch { /* session observers cannot break authentication */ }
+  }
+}
+
+/** Subscribe to completed authentication refreshes. Tokens are intentionally never exposed. */
+export function subscribeCloudSessionRefresh(listener: () => void): () => void {
+  sessionRefreshListeners.add(listener);
+  return () => sessionRefreshListeners.delete(listener);
+}
 
 function getActiveController(): CloudSessionController | null {
   return controllers.length > 0 ? controllers[controllers.length - 1] : null;
@@ -368,7 +381,9 @@ export async function ensureCloudAccessToken(
         cloudAuthStatus: 'signed-in',
       });
 
-      return requireActiveManagementGroup(refreshed.accessToken);
+      const readyToken = await requireActiveManagementGroup(refreshed.accessToken);
+      notifyCloudSessionRefresh();
+      return readyToken;
     } catch (error) {
       if (!options.forceRefresh && !isCloudSessionError(error) && fallbackToken && !isCloudAccessTokenExpiringSoon(latestSettings, 0)) {
         return requireActiveManagementGroup(fallbackToken);
