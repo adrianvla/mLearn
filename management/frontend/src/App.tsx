@@ -12,6 +12,7 @@ const AiStatus = lazy(() => import('./pages/AiStatus'));
 const School = lazy(() => import('./pages/School'));
 const Users = lazy(() => import('./pages/Users'));
 const Groups = lazy(() => import('./pages/Groups'));
+const Policies = lazy(() => import('./pages/Policies'));
 const Distribution = lazy(() => import('./pages/Distribution'));
 const LlmGateway = lazy(() => import('./pages/LlmGateway'));
 const Analytics = lazy(() => import('./pages/Analytics'));
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
         <Route path="/users" element={<Suspense fallback={<PageLoader />}><Users /></Suspense>} />
         <Route path="/groups" element={<Suspense fallback={<PageLoader />}><Groups /></Suspense>} />
+        <Route path="/policies" element={<Suspense fallback={<PageLoader />}><Policies /></Suspense>} />
         <Route path="/distribution" element={<Suspense fallback={<PageLoader />}><Distribution /></Suspense>} />
         <Route path="/llm-gateway" element={<Suspense fallback={<PageLoader />}><LlmGateway /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
