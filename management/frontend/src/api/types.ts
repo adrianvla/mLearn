@@ -341,3 +341,7 @@ export interface AnalyticsSummary {
 export interface TimeseriesPoint extends AnalyticsSummary { dayStart: number }
 export interface LlmAnalytics { requests: number; inputTokens: number; outputTokens: number; totalTokens: number; costMicros: number }
 export interface LearnerAnalytics extends AnalyticsSummary { learnerId: string; displayName: string; lastActivityAt: number }
+export interface ScopedManagedUser { id:string;email:string;displayName:string;identityType:string;status:string;groupIds:string[] }
+export interface GroupNode { id:string;parentId:string|null;name:string;slug:string;status:string }
+export interface Membership { id:string;groupId:string;userId:string|null;invitedEmail:string|null;status:string;capabilities:Capability[] }
+export interface CsvPreview { validRows:number;errors:Array<{row:number;message:string}> }
