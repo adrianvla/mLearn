@@ -6,11 +6,15 @@ import type { JSX } from 'solid-js';
 
 const testSettings = {
   language: 'de',
+  cloudAuthStatus: 'signed-out',
+  cloudAuthActiveGroupId: '',
 };
 let settingsLoading = false;
 
 const languageProviderMock = vi.fn((props: { language?: string; children?: JSX.Element }) => <>{props.children}</>);
 const activeGroupGateMock = vi.fn((_props?: { showSwitchTrigger?: boolean }) => <div data-testid="active-group-gate" />);
+const pluginAdapterMock = vi.fn(() => vi.fn());
+const policyScopeMock = vi.fn();
 
 vi.mock('./SettingsContext', () => ({
   SettingsProvider: (props: { children?: JSX.Element }) => <>{props.children}</>,
@@ -21,6 +25,7 @@ vi.mock('./SettingsContext', () => ({
     closeCloudReLoginModal: vi.fn(),
     isRuntimeRestartRequired: () => false,
     restartAppForRuntimeSettings: vi.fn(),
+    managedPolicy: () => null,
   }),
 }));
 
@@ -97,6 +102,15 @@ vi.mock('../../shared/platform', () => ({
   getPlatform: () => 'web',
 }));
 
+vi.mock('../services/activityHubRuntime', () => ({
+  activityHub: {},
+  setActivityPolicyScope: policyScopeMock,
+}));
+
+vi.mock('../services/electronPluginActivityAdapter', () => ({
+  createElectronPluginActivityAdapter: pluginAdapterMock,
+}));
+
 describe('WindowWrapper', () => {
   let container: HTMLDivElement;
 
@@ -106,6 +120,8 @@ describe('WindowWrapper', () => {
     settingsLoading = false;
     languageProviderMock.mockClear();
     activeGroupGateMock.mockClear();
+    pluginAdapterMock.mockClear();
+    policyScopeMock.mockClear();
   });
 
   afterEach(() => {
@@ -139,6 +155,14 @@ describe('WindowWrapper', () => {
     expect(activeGroupGateMock).toHaveBeenCalledTimes(1);
     expect(activeGroupGateMock).toHaveBeenCalledWith({ showSwitchTrigger: undefined });
 
+    dispose();
+  });
+
+  it('mounts exactly one plugin activity adapter per window wrapper', async () => {
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
+
+    expect(pluginAdapterMock).toHaveBeenCalledTimes(1);
     dispose();
   });
 

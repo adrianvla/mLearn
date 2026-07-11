@@ -183,6 +183,8 @@ export const FlashcardsContent: Component = () => {
   syncFlashcardsPluginActivity({
     activeTab,
     isFocused: isWindowFocused,
+    isVisible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
+    language: () => settings.language,
   });
 
   // Scan for broken TTS after flashcards finish loading

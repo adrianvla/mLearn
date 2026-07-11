@@ -49,6 +49,7 @@ import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModify
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
 import { syncReaderPluginActivity } from './readerPluginActivity';
+import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
 import { getSpreadPageSideClass, getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
@@ -599,6 +600,9 @@ export const ReaderRoute: Component = () => {
     currentPage,
     pages,
     isFocused: isWindowFocused,
+    isVisible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
+    contentId: () => currentBookId() ?? opaqueActivityContentId('reader', currentBookPath()),
+    language: () => settings.language,
   });
 
   // OCR debug overlay (dev mode only)
