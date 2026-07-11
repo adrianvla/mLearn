@@ -4,9 +4,11 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use sqlx::Row;
 
 use crate::{
+    authorization::{AuthorizationService, Capability},
     error::AppError,
     identity::Principal,
     llm::quota::{
@@ -57,6 +59,24 @@ struct DeleteQuery {
     idempotency_key: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CurrentReservation {
+    id: String,
+    learner_user_id: String,
+    direct_group_id: String,
+    provider_id: String,
+    model_id: String,
+    status: String,
+    expires_at: i64,
+    created_at: i64,
+}
+
+#[derive(Serialize)]
+struct CurrentReservationsResponse {
+    items: Vec<CurrentReservation>,
+}
+
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/llm/quota-calendar", put(configure_calendar))
@@ -66,7 +86,35 @@ pub fn router(state: AppState) -> Router<AppState> {
         )
         .route("/api/llm/quotas/{definition_id}", delete(delete_definition))
         .route("/api/llm/usage", get(usage_summary))
+        .route("/api/llm/reservations", get(current_reservations))
         .with_state(state)
+}
+
+async fn current_reservations(
+    State(state): State<AppState>,
+    principal: Principal,
+    Query(query): Query<GroupQuery>,
+) -> Result<Json<CurrentReservationsResponse>, AppError> {
+    AuthorizationService::new(state.db.clone())
+        .require(&principal, &query.group_id, Capability::LlmConfigure)
+        .await?;
+    let rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? AND status='active' UNION ALL SELECT child.id FROM groups child JOIN descendants parent ON child.parent_id=parent.id WHERE child.status='active') SELECT reservation.id,reservation.learner_user_id,reservation.direct_group_id,reservation.provider_id,reservation.model_id,reservation.status,reservation.expires_at,reservation.created_at FROM quota_reservations reservation JOIN descendants scope ON scope.id=reservation.direct_group_id WHERE reservation.status='open' AND reservation.expires_at>unixepoch() ORDER BY reservation.created_at DESC,reservation.id DESC LIMIT 100")
+        .bind(&query.group_id).fetch_all(&state.db).await.map_err(|error| AppError::Internal(format!("quota reservation database error: {error}")))?;
+    Ok(Json(CurrentReservationsResponse {
+        items: rows
+            .into_iter()
+            .map(|row| CurrentReservation {
+                id: row.get("id"),
+                learner_user_id: row.get("learner_user_id"),
+                direct_group_id: row.get("direct_group_id"),
+                provider_id: row.get("provider_id"),
+                model_id: row.get("model_id"),
+                status: row.get("status"),
+                expires_at: row.get("expires_at"),
+                created_at: row.get("created_at"),
+            })
+            .collect(),
+    }))
 }
 
 fn service(state: &AppState) -> QuotaService {
@@ -227,7 +275,31 @@ mod tests {
             config,
             fixture.pool.clone(),
         );
+        let human_session = state
+            .identity
+            .issue_session(
+                &fixture.german_a_teacher.user_id,
+                None,
+                Some(&fixture.german_a),
+            )
+            .await
+            .unwrap()
+            .access_token;
         let app = super::router(state.clone()).with_state(state);
+        let reservations = app
+            .clone()
+            .oneshot(
+                Request::get(format!(
+                    "/api/llm/reservations?groupId={}",
+                    fixture.german_a
+                ))
+                .header(header::AUTHORIZATION, format!("Bearer {}", human_session))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(reservations.status(), StatusCode::OK);
 
         let summary = app
             .clone()
