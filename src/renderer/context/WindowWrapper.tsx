@@ -26,6 +26,8 @@ import { isElectron } from '../../shared/platform';
 import { getBridge } from '../../shared/bridges';
 import { installRendererLogSink } from '../utils/installLogSink';
 import { getLogger } from '../../shared/utils/logger';
+import { activityHub, setActivityPolicyScope } from '../services/activityHubRuntime';
+import { createElectronPluginActivityAdapter } from '../services/electronPluginActivityAdapter';
 
 const log = getLogger("renderer.context.windowWrapper");
 
@@ -226,6 +228,29 @@ const GlobalRuntimeRestartModal: Component = () => {
   );
 };
 
+const ActivityRuntimeBridge: Component = () => {
+  const { settings, managedPolicy } = useSettings();
+
+  onMount(() => {
+    const disposeAdapter = createElectronPluginActivityAdapter(activityHub);
+    onCleanup(disposeAdapter);
+  });
+
+  createEffect(() => {
+    const policy = managedPolicy();
+    const activeGroupId = settings.cloudAuthActiveGroupId?.trim();
+    const scope = settings.cloudAuthStatus === 'signed-in'
+      && activeGroupId
+      && policy?.activeGroupId === activeGroupId
+      ? { activeGroupId, policyVersionId: policy.policyVersionId }
+      : null;
+    setActivityPolicyScope(scope);
+  });
+
+  onCleanup(() => setActivityPolicyScope(null));
+  return null;
+};
+
 
 async function computeSha256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -290,6 +315,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
         <ServerStatusObserver />
         <ResponsiveProvider>
           <SettingsProvider>
+            <ActivityRuntimeBridge />
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
             <GlobalRuntimeRestartModal />

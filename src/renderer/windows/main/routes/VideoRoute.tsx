@@ -44,6 +44,7 @@ import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hoo
 import type { ConversationAgentContext } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
+import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
 import { collectDroppedMediaFiles } from './videoDropUtils';
 import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
 import { clipVideo } from '../../../services/videoClipService';
@@ -490,6 +491,9 @@ export const VideoRoute: Component = () => {
     currentTimeSeconds: currentVideoTime,
     durationSeconds: currentVideoDuration,
     isFocused: isWindowFocused,
+    isVisible: () => typeof document === 'undefined' || document.visibilityState === 'visible',
+    contentId: () => opaqueActivityContentId('video', currentVideoPath()),
+    language: () => settings.language,
   });
 
   // Accumulate unknown words from subtitle tokens as they appear

@@ -1,54 +1,57 @@
 import { createEffect, onCleanup, type Accessor } from 'solid-js';
 
 import type { AppActivity } from '../../../shared/plugins/appActivity';
+import { activityHub } from '../../services/activityHubRuntime';
 
 export type FlashcardsTabId = 'review' | 'browse' | 'generate' | 'suggested' | 'stats';
 
 export const FLASHCARDS_ACTIVITY_SOURCE_ID = 'flashcards-window';
 
-export type FlashcardsScopedActivityPayload = {
-  sourceId: string;
-  isFocused: boolean;
-  value: AppActivity | null;
-};
+type LegacyPublisher = (payload: { sourceId: string; isFocused: boolean; value: AppActivity | null }) => void;
 
 export function getFlashcardsPluginActivityValue(activeTab: FlashcardsTabId): AppActivity {
   return activeTab === 'review' ? { kind: 'flashcards' } : { kind: 'idle' };
 }
 
-export function publishFlashcardsScopedActivityValue(payload: FlashcardsScopedActivityPayload): void {
-  window.mLearnInternal?.setScopedPluginValue({
-    sourceId: payload.sourceId,
-    isFocused: payload.isFocused,
-    channel: 'app.user.activity',
-    value: payload.value,
-  });
-}
-
 export function syncFlashcardsPluginActivity(input: {
   activeTab: Accessor<FlashcardsTabId>;
   isFocused: Accessor<boolean>;
-  publishScopedValue?: (payload: FlashcardsScopedActivityPayload) => void;
+  isVisible?: Accessor<boolean>;
+  language?: Accessor<string | undefined>;
+  updateSource?: typeof activityHub.updateSource;
+  removeSource?: typeof activityHub.removeSource;
+  /** @deprecated Test seam retained for compatibility; production uses ActivityHub. */
+  publishScopedValue?: LegacyPublisher;
 }): void {
-  const publishScopedValue = input.publishScopedValue ?? publishFlashcardsScopedActivityValue;
-  const idleActivity: AppActivity = { kind: 'idle' };
+  const updateSource = input.updateSource ?? activityHub.updateSource;
+  const removeSource = input.removeSource ?? activityHub.removeSource;
 
   createEffect(() => {
     const isFocused = input.isFocused();
-    const value = isFocused ? getFlashcardsPluginActivityValue(input.activeTab()) : idleActivity;
-
-    publishScopedValue({
-      sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID,
-      isFocused,
-      value,
-    });
+    const activity = getFlashcardsPluginActivityValue(input.activeTab());
+    if (input.publishScopedValue) {
+      input.publishScopedValue({
+        sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID,
+        isFocused,
+        value: isFocused ? activity : { kind: 'idle' },
+      });
+    } else {
+      updateSource(FLASHCARDS_ACTIVITY_SOURCE_ID, {
+        isFocused,
+        isVisible: input.isVisible?.() ?? true,
+        activity,
+        context: {
+          privacy: 'progress-only',
+          contentId: 'flashcards-review',
+          ...(input.language?.() ? { language: input.language() } : {}),
+        },
+      });
+    }
   });
 
   onCleanup(() => {
-    publishScopedValue({
-      sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID,
-      isFocused: false,
-      value: idleActivity,
-    });
+    if (input.publishScopedValue) {
+      input.publishScopedValue({ sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID, isFocused: false, value: { kind: 'idle' } });
+    } else removeSource(FLASHCARDS_ACTIVITY_SOURCE_ID);
   });
 }
