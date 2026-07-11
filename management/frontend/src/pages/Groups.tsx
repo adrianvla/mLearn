@@ -4,13 +4,17 @@ import type { GroupNode, Membership } from "../api/types";
 import { CapabilityEditor } from "../components/CapabilityEditor";
 import { GroupTree } from "../components/GroupTree";
 import { PageToolbar } from "../components/PageToolbar";
+import { Link } from "react-router-dom";
+import { useGroupScope } from "../groups/GroupScopeProvider";
 const api = new ApiClient();
 export default function Groups() {
+  const scope = useGroupScope();
   const [groups, setGroups] = useState<GroupNode[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [tab, setTab] = useState("overview");
   const [search, setSearch] = useState("");
+  const [selectedMembershipId, setSelectedMembershipId] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     api
@@ -50,6 +54,13 @@ export default function Groups() {
     [groups, search],
   );
   const selected = groups.find((group) => group.id === selectedId) ?? null;
+  const selectedMembership = memberships.find((membership) => membership.id === selectedMembershipId) ?? null;
+  const grantable = scope.status === "ready" ? scope.selectedGroup?.capabilities ?? [] : [];
+  const updateCapabilities = async (capabilities: Membership["capabilities"]) => {
+    if (!selectedId || !selectedMembership) return;
+    const updated = await api.get<Membership>(`/api/groups/${encodeURIComponent(selectedId)}/memberships/${encodeURIComponent(selectedMembership.id)}`, { method: "PATCH", body: JSON.stringify({ capabilities }) });
+    setMemberships((items) => items.map((item) => item.id === updated.id ? updated : item));
+  };
   return (
     <div className="resource-page">
       <PageToolbar
@@ -114,6 +125,7 @@ export default function Groups() {
                         <th>Member</th>
                         <th>Status</th>
                         <th>Capabilities</th>
+                        <th><span className="sr-only">Actions</span></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -124,6 +136,7 @@ export default function Groups() {
                           </th>
                           <td>{membership.status}</td>
                           <td>{membership.capabilities.length}</td>
+                          <td><button className="table-link" onClick={() => { setSelectedMembershipId(membership.id); setTab("permissions"); }}>Edit {membership.userId ?? membership.invitedEmail} permissions</button></td>
                         </tr>
                       ))}
                     </tbody>
@@ -133,15 +146,17 @@ export default function Groups() {
               {tab === "permissions" && (
                 <>
                   <p>
-                    Select a member in the Members tab before changing delegated authority. Inherited authority is enforced by the backend.
+                    {selectedMembership ? `Editing ${selectedMembership.userId ?? selectedMembership.invitedEmail}. ` : "Select a member in the Members tab before changing delegated authority. "}Inherited authority is enforced by the backend.
                   </p>
                   <CapabilityEditor
-                    value={[]}
-                    grantable={[]}
-                    onChange={() => {}}
+                    value={selectedMembership?.capabilities ?? []}
+                    grantable={selectedMembership ? grantable : []}
+                    onChange={(capabilities) => void updateCapabilities(capabilities)}
                   />
                 </>
               )}
+              {tab === "policy" && <section className="table-state"><p>Review the local draft, inherited constraints, and published history for this group.</p><Link className="table-link" to="/policies">Open policy editor</Link></section>}
+              {tab === "analytics" && <section className="table-state"><p>Learning, content, LLM, and policy outcomes use this selected group as their scope.</p><Link className="table-link" to="/analytics">Open scoped analytics</Link></section>}
             </>
           ) : (
             <p>Select a group.</p>
