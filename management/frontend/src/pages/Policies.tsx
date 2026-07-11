@@ -46,13 +46,14 @@ export default function Policies() {
           );
         }
       })
-      .catch((caught) =>
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : "Policy could not be loaded",
-        ),
-      );
+      .catch((caught) => {
+        if (!controller.signal.aborted)
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Policy could not be loaded",
+          );
+      });
     return () => controller.abort();
   }, [groupId]);
   const document = effective?.document ?? effective;
