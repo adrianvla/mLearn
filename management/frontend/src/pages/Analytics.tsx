@@ -21,12 +21,15 @@ export default function Analytics() {
   const [llm, setLlm] = useState<LlmAnalytics | null>(null);
   const [blocks, setBlocks] = useState<PolicyBlockAnalytics | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [periodDays, setPeriodDays] = useState(30);
 
   useEffect(() => {
     setSummary(null); setSeries([]); setLearners([]); setContent([]); setLlm(null); setBlocks(null);
     if (!groupId) return;
     const controller = new AbortController();
-    const query = `groupId=${encodeURIComponent(groupId)}`;
+    const to = Date.now();
+    const from = to - periodDays * 86_400_000;
+    const query = `groupId=${encodeURIComponent(groupId)}&from=${from}&to=${to}`;
     Promise.all([
       api.get<AnalyticsSummary>(`/api/analytics/summary?${query}`, { signal: controller.signal }),
       api.get<TimeseriesPoint[]>(`/api/analytics/timeseries?${query}`, { signal: controller.signal }),
@@ -39,14 +42,18 @@ export default function Analytics() {
       setSummary(nextSummary); setSeries(nextSeries); setLearners(nextLearners.items); setContent(nextContent.items); setLlm(nextLlm); setBlocks(nextBlocks);
     });
     return () => controller.abort();
-  }, [groupId]);
+  }, [groupId, periodDays]);
 
   const exportCsv = () => {
-    if (groupId) window.location.assign(`/api/analytics/export.csv?groupId=${encodeURIComponent(groupId)}&limit=200`);
+    if (groupId) {
+      const to = Date.now();
+      const from = to - periodDays * 86_400_000;
+      window.location.assign(`/api/analytics/export.csv?groupId=${encodeURIComponent(groupId)}&from=${from}&to=${to}&limit=200`);
+    }
   };
 
   return <div className="resource-page">
-    <PageToolbar title="Analytics" description="Scoped learning, content, LLM usage, and policy outcomes." actions={scope.status === 'ready' && scope.can('analytics.view') ? <button className="secondary-action" onClick={() => setConfirm(true)}><Download />Export CSV</button> : undefined} />
+    <PageToolbar title="Analytics" description="Scoped learning, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions"><select aria-label="Analytics date period" value={periodDays} onChange={(event) => setPeriodDays(Number(event.currentTarget.value))}><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select>{scope.status === 'ready' && scope.can('analytics.view') ? <button className="secondary-action" onClick={() => setConfirm(true)}><Download />Export CSV</button> : null}</div>} />
     <div className="detail-tabs" role="tablist">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <button key={name} role="tab" aria-selected={tab === name} onClick={() => setTab(name)}>{name}</button>)}</div>
     {tab === 'overview' && <><section className="metric-grid"><MetricCard label="Active learners" value={summary?.activeLearners ?? '—'} /><MetricCard label="Content watched" value={`${Math.round((summary?.watchSeconds ?? 0) / 60)} min`} /><MetricCard label="LLM cost" value={((summary?.costMicros ?? 0) / 1_000_000).toFixed(2)} /><MetricCard label="Policy blocks" value={summary?.policyBlocks ?? '—'} /></section><section className="dashboard-panel"><LineChart title="Learning sessions" data={series.map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.sessions }))} /></section></>}
     {tab === 'learners' && <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks])} />}

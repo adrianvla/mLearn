@@ -29,6 +29,7 @@ export default function Overview() {
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [view, setView] = useState<"overview" | "usage" | "security">("overview");
+  const [periodDays, setPeriodDays] = useState(30);
   const retry = useCallback(() => setRevision((value) => value + 1), []);
 
   useEffect(() => {
@@ -36,7 +37,9 @@ export default function Overview() {
     setError(null);
     if (groupId === null) return;
     const controller = new AbortController();
-    const query = `groupId=${encodeURIComponent(groupId)}`;
+    const to = Date.now();
+    const from = to - periodDays * 86_400_000;
+    const query = `groupId=${encodeURIComponent(groupId)}&from=${from}&to=${to}`;
     Promise.all([
       api.get<AnalyticsSummary>(`/api/analytics/summary?${query}`, {
         signal: controller.signal,
@@ -65,7 +68,7 @@ export default function Overview() {
           );
       });
     return () => controller.abort();
-  }, [groupId, revision]);
+  }, [groupId, periodDays, revision]);
 
   const summary = data?.summary;
   return (
@@ -83,7 +86,7 @@ export default function Overview() {
         <button className={view === "overview" ? "active" : undefined} onClick={() => setView("overview")}>Overview</button>
         <button className={view === "usage" ? "active" : undefined} onClick={() => setView("usage")}>Usage</button>
         <button className={view === "security" ? "active" : undefined} onClick={() => setView("security")}>Security</button>
-        <select aria-label="Date period" defaultValue="30">
+        <select aria-label="Date period" value={periodDays} onChange={(event) => setPeriodDays(Number(event.currentTarget.value))}>
           <option value="7">7 days</option>
           <option value="30">30 days</option>
           <option value="90">90 days</option>
