@@ -111,6 +111,10 @@ vi.mock('../services/electronPluginActivityAdapter', () => ({
   createElectronPluginActivityAdapter: pluginAdapterMock,
 }));
 
+vi.mock('../services/managementAnalyticsAdapter', () => ({
+  createManagementAnalyticsAdapter: () => ({ start: vi.fn(), flush: vi.fn(), stop: vi.fn() }),
+}));
+
 describe('WindowWrapper', () => {
   let container: HTMLDivElement;
 
