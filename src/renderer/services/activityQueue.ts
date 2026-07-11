@@ -13,11 +13,11 @@ export type ActivityQueueOptions = {
   maxBytes?: number
   indexedDB?: IDBFactory
 }
-type StoredEvent = { key: string; partition: string; bytes: number; event: ManagementActivityEventV1 }
+type StoredEvent = { key: string; partition: string; groupId: string; order: [string, string, number, string]; partitionGroupOrder: [string, string, string, string, number, string]; bytes: number; event: ManagementActivityEventV1 }
 type Meta = { key: string; value: number; owner?: string }
 
 const DB_NAME = 'mlearn-management-analytics'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const EVENTS = 'events'
 const META = 'meta'
 const encoder = new TextEncoder()
@@ -33,8 +33,12 @@ export function normalizeAnalyticsOrigin(value: string): string {
 export function projectManagementActivityEvent(value: unknown): ManagementActivityEventV1 | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const row = value as Record<string, unknown>
-  const activity = projectAppActivity(row.activity)
   const context = projectActivityContext(row.context)
+  const rawActivity = row.activity && typeof row.activity === 'object' && !Array.isArray(row.activity)
+    ? row.activity as Record<string, unknown> : null
+  const redacted = context.ok && context.value.privacy === 'progress-only'
+    && (rawActivity?.kind === 'reader' || rawActivity?.kind === 'video') && rawActivity.workName === ''
+  const activity = projectAppActivity(redacted ? { ...rawActivity, workName: 'redacted' } : row.activity)
   if (row.schemaVersion !== 1 || !activity.ok || !context.ok
     || !['activity.started', 'activity.progressed', 'activity.completed', 'activity.stopped'].includes(String(row.type))
     || !isValidActivityIdentifier(row.id) || !isValidActivityIdentifier(row.sessionId)
@@ -52,7 +56,9 @@ export function projectManagementActivityEvent(value: unknown): ManagementActivi
     policyVersionId: row.policyVersionId,
     sequence: row.sequence,
     occurredAt: new Date(row.occurredAt).toISOString(),
-    activity: Object.freeze({ ...activity.value }),
+    activity: Object.freeze(activity.value.kind === 'reader' || activity.value.kind === 'video'
+      ? { ...activity.value, workName: context.value.privacy === 'progress-only' ? '' : activity.value.workName }
+      : { ...activity.value }),
     context: Object.freeze({ ...context.value }),
   }) as ManagementActivityEventV1
 }
@@ -72,16 +78,33 @@ function complete(tx: IDBTransaction): Promise<void> {
 }
 async function open(factory: IDBFactory): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    let rejected = false
     const req = factory.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = () => {
       const db = req.result
-      const store = db.createObjectStore(EVENTS, { keyPath: 'key' })
-      store.createIndex('partition', 'partition')
-      db.createObjectStore(META, { keyPath: 'key' })
+      const store = db.objectStoreNames.contains(EVENTS)
+        ? req.transaction!.objectStore(EVENTS)
+        : db.createObjectStore(EVENTS, { keyPath: 'key' })
+      if (!store.indexNames.contains('partition')) store.createIndex('partition', 'partition')
+      if (!store.indexNames.contains('occurredAtSequence')) store.createIndex('occurredAtSequence', 'order')
+      if (!store.indexNames.contains('partitionGroupOrder')) store.createIndex('partitionGroupOrder', 'partitionGroupOrder')
+      if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: 'key' })
+      const cursor = store.openCursor()
+      cursor.onsuccess = () => {
+        const current = cursor.result
+        if (!current) return
+        const row = current.value as StoredEvent
+        const event = projectManagementActivityEvent(row.event)
+        if (event) {
+          const order: StoredEvent['order'] = [event.occurredAt, event.sessionId, event.sequence, event.id]
+          current.update({ ...row, groupId: event.activeGroupId, order, partitionGroupOrder: [row.partition, event.activeGroupId, ...order], event })
+        } else current.delete()
+        current.continue()
+      }
     }
-    req.onsuccess = () => resolve(req.result)
+    req.onsuccess = () => { if (rejected) req.result.close(); else resolve(req.result) }
     req.onerror = () => reject(req.error ?? new Error('Unable to open analytics queue'))
-    req.onblocked = () => reject(new Error('Analytics queue upgrade blocked'))
+    req.onblocked = () => { rejected = true; reject(new Error('Analytics queue upgrade blocked')) }
   })
 }
 function sortEvents(rows: StoredEvent[]): StoredEvent[] {
@@ -92,7 +115,7 @@ function sortEvents(rows: StoredEvent[]): StoredEvent[] {
 
 export interface ActivityQueue {
   enqueue(event: ManagementActivityEventV1): Promise<void>
-  peekBatch(maxCount: number, maxBytes: number): Promise<ManagementActivityEventV1[]>
+  peekBatch(groupId: string, maxCount: number, maxBytes: number): Promise<ManagementActivityEventV1[]>
   acknowledge(ids: readonly string[]): Promise<void>
   quarantine(ids: readonly string[], reason: string): Promise<void>
   compact(): Promise<void>
@@ -119,7 +142,7 @@ export async function createActivityQueue(options: ActivityQueueOptions): Promis
     const key = `${partition}\ndropped:${reason}`
     const store = tx.objectStore(META)
     const current = await request(store.get(key)) as Meta | undefined
-    store.put({ key, value: (current?.value ?? 0) + count })
+    store.put({ key, value: Math.min(Number.MAX_SAFE_INTEGER, (current?.value ?? 0) + count) })
   }
   async function enforce(tx: IDBTransaction): Promise<void> {
     const store = tx.objectStore(EVENTS)
@@ -128,11 +151,24 @@ export async function createActivityQueue(options: ActivityQueueOptions): Promis
     let bytes = all.reduce((sum, row) => sum + row.bytes, 0)
     if (count <= maxEvents && bytes <= maxBytes) return
     const progress = all.filter(row => row.event.type === 'activity.progressed')
-    const terminal = all.filter(row => row.event.type !== 'activity.progressed')
-    for (const row of [...progress, ...terminal]) {
+    for (const row of progress) {
       if (count <= maxEvents && bytes <= maxBytes) break
       store.delete(row.key); count--; bytes -= row.bytes
-      await addDropped(tx, row.event.type === 'activity.progressed' ? 'capacity_progress' : 'capacity_terminal', 1)
+      await addDropped(tx, 'capacity_progress', 1)
+    }
+    if (count <= maxEvents && bytes <= maxBytes) return
+    const remaining = all.filter(row => !progress.includes(row))
+    const sessions = new Map<string, StoredEvent[]>()
+    for (const row of remaining) {
+      const key = `${row.event.activeGroupId}\n${row.event.sessionId}`
+      const session = sessions.get(key) ?? []; session.push(row); sessions.set(key, session)
+    }
+    const orderedSessions = [...sessions.values()].sort((a, b) => sortEvents(a.slice())[0]!.event.occurredAt.localeCompare(sortEvents(b.slice())[0]!.event.occurredAt))
+    for (const session of orderedSessions) {
+      if (count <= maxEvents && bytes <= maxBytes) break
+      const closed = session.some(row => row.event.type === 'activity.completed' || row.event.type === 'activity.stopped')
+      for (const row of session) { store.delete(row.key); count--; bytes -= row.bytes }
+      await addDropped(tx, closed ? 'capacity_closed_session' : 'capacity_open_session', session.length)
     }
   }
   async function mutate(fn: (tx: IDBTransaction) => Promise<void>): Promise<void> {
@@ -145,28 +181,30 @@ export async function createActivityQueue(options: ActivityQueueOptions): Promis
       const event = projectManagementActivityEvent(input)
       if (!event) throw new Error('Invalid management activity event')
       const json = JSON.stringify(event)
-      const stored: StoredEvent = { key: `${partition}\n${event.id}`, partition, bytes: encoder.encode(json).byteLength, event }
+      const order: StoredEvent['order'] = [event.occurredAt, event.sessionId, event.sequence, event.id]
+      const stored: StoredEvent = { key: `${partition}\n${event.id}`, partition, groupId: event.activeGroupId, order,
+        partitionGroupOrder: [partition, event.activeGroupId, ...order], bytes: encoder.encode(json).byteLength, event }
       await mutate(async tx => {
         const store = tx.objectStore(EVENTS)
         if (await request(store.get(stored.key))) return
         // Superseded progress in the same content session has no durable value.
         const existing = await rows(tx)
         if (event.type === 'activity.progressed' && existing.some(row => row.event.type === 'activity.progressed'
-          && row.event.sessionId === event.sessionId && row.event.sequence > event.sequence)) {
+          && row.event.activeGroupId === event.activeGroupId && row.event.sessionId === event.sessionId && row.event.sequence > event.sequence)) {
           await addDropped(tx, 'coalesced_progress', 1)
           return
         }
         let coalesced = 0
         for (const row of existing) if (row.event.type === 'activity.progressed'
-          && row.event.sessionId === event.sessionId && row.event.sequence < event.sequence) { store.delete(row.key); coalesced++ }
+          && row.event.activeGroupId === event.activeGroupId && row.event.sessionId === event.sessionId && row.event.sequence < event.sequence) { store.delete(row.key); coalesced++ }
         if (coalesced) await addDropped(tx, 'coalesced_progress', coalesced)
         store.put(stored)
         await enforce(tx)
       })
     },
-    async peekBatch(maxCount, batchBytes) {
+    async peekBatch(groupId, maxCount, batchBytes) {
       const tx = db.transaction(EVENTS, 'readonly')
-      const all = sortEvents(await rows(tx)); await complete(tx)
+      const all = sortEvents((await rows(tx)).filter(row => row.event.activeGroupId === groupId)); await complete(tx)
       const result: ManagementActivityEventV1[] = []; let bytes = 0
       for (const row of all) {
         if (result.length >= maxCount || (result.length > 0 && bytes + row.bytes > batchBytes)) break
