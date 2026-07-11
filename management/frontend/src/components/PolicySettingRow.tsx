@@ -1,0 +1,2 @@
+import type { ReactNode } from 'react';
+export function PolicySettingRow({ label, source, constrained=false, disabled=false, children }: { label:string;source?:string;constrained?:boolean;disabled?:boolean;children:ReactNode }) { const provenance=source?`${constrained?'Constrained by':'Inherited from'} ${source}`:'Local';return <div className={`policy-row ${disabled?'is-disabled':''}`}><div><strong>{label}</strong><span>{provenance}</span></div><fieldset disabled={disabled} aria-label={`${label} value`}>{children}</fieldset></div>; }

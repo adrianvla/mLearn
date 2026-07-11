@@ -45,7 +45,7 @@ const MainRoutes = () => {
 };
 
 const App = () => (
-  <WindowWrapper showDragRegion={false}>
+  <WindowWrapper showDragRegion={false} showActiveGroupSwitch>
     <LoadingOverlay />
     <MainRoutes />
   </WindowWrapper>

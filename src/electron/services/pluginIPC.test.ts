@@ -578,12 +578,13 @@ describe('pluginIPC pluginOpenWindow', () => {
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
     });
 
@@ -623,12 +624,13 @@ describe('pluginIPC pluginOpenWindow', () => {
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
     });
 
@@ -663,12 +665,13 @@ describe('pluginIPC pluginOpenWindow', () => {
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
 
       queueMicrotask(dispose);
@@ -699,12 +702,13 @@ describe('pluginIPC pluginOpenWindow', () => {
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
     });
 
@@ -744,12 +748,13 @@ describe('pluginIPC pluginOpenWindow', () => {
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
     });
 
@@ -777,12 +782,13 @@ describe('pluginIPC pluginOpenWindow', () => {
       syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
     });
 
@@ -793,7 +799,7 @@ describe('pluginIPC pluginOpenWindow', () => {
     dispose();
 
     expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(2, 'flashcards-window', false);
-    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', null);
   });
 
   it('app-internal flashcards publishing emits idle for non-review tabs', async () => {
@@ -809,12 +815,13 @@ describe('pluginIPC pluginOpenWindow', () => {
       syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
     });
 
@@ -825,7 +832,7 @@ describe('pluginIPC pluginOpenWindow', () => {
     dispose();
 
     expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(2, 'flashcards-window', false);
-    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', null);
   });
 
   it('app-internal flashcards publishing emits idle on focus loss', async () => {
@@ -843,12 +850,13 @@ describe('pluginIPC pluginOpenWindow', () => {
       syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishScopedValue: (payload) => updateSource({}, {
-          sourceId: payload.sourceId,
-          isFocused: payload.isFocused,
+        updateSource: (sourceId, state) => updateSource({}, {
+          sourceId,
+          isFocused: state.isFocused,
           channel: 'app.user.activity',
-          value: payload.value,
+          value: state.activity,
         }),
+        removeSource: (sourceId) => updateSource({}, { sourceId, isFocused: false, channel: 'app.user.activity', value: null }),
       });
     });
 
@@ -858,12 +866,12 @@ describe('pluginIPC pluginOpenWindow', () => {
     await Promise.resolve();
 
     expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(2, 'flashcards-window', false);
-    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', { kind: 'flashcards' });
 
     dispose();
 
     expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(3, 'flashcards-window', false);
-    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(3, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(3, 'app.user.activity', 'flashcards-window', null);
   });
 
   it('plugin-facing consumers receive idle when the app activity bus value becomes idle', async () => {

@@ -6,6 +6,12 @@ import {
   refreshCloudSession,
   resolveCloudAccessToken,
 } from './cloudAuthService';
+import {
+  ensureActiveGroup,
+  resetManagementGroupReadiness,
+  requiresManagementGroup,
+  type ManagementGroup,
+} from './managementGroupService';
 
 export class CloudSessionCancelledError extends Error {
   readonly code = 'cloud_session_cancelled';
@@ -24,6 +30,21 @@ export class CloudUnreachableError extends Error {
     super(message);
     this.name = 'CloudUnreachableError';
     this.cause = cause;
+  }
+}
+
+export class CloudGroupSelectionRequiredError extends Error {
+  readonly code = 'cloud_group_selection_required';
+  readonly needsSelection: boolean;
+  readonly groups: ManagementGroup[];
+
+  constructor(groups: ManagementGroup[], needsSelection: boolean) {
+    super(needsSelection
+      ? 'Choose an active school group before using cloud features'
+      : 'No eligible school group is available');
+    this.name = 'CloudGroupSelectionRequiredError';
+    this.needsSelection = needsSelection;
+    this.groups = groups;
   }
 }
 
@@ -48,6 +69,19 @@ interface PendingCloudSessionRecovery {
 const controllers: CloudSessionController[] = [];
 let refreshInFlight: Promise<string | null> | null = null;
 let pendingSessionRecovery: PendingCloudSessionRecovery | null = null;
+const sessionRefreshListeners = new Set<() => void>();
+
+function notifyCloudSessionRefresh(): void {
+  for (const listener of [...sessionRefreshListeners]) {
+    try { listener(); } catch { /* session observers cannot break authentication */ }
+  }
+}
+
+/** Subscribe to completed authentication refreshes. Tokens are intentionally never exposed. */
+export function subscribeCloudSessionRefresh(listener: () => void): () => void {
+  sessionRefreshListeners.add(listener);
+  return () => sessionRefreshListeners.delete(listener);
+}
 
 function getActiveController(): CloudSessionController | null {
   return controllers.length > 0 ? controllers[controllers.length - 1] : null;
@@ -62,7 +96,27 @@ function buildExpiredSessionPatch(): Partial<Settings> {
     cloudAuthUserEmail: '',
     cloudAuthExpiresAt: 0,
     cloudAuthStatus: 'signed-out',
+    cloudAuthActiveGroupId: '',
+    cloudAuthActiveGroupName: '',
   };
+}
+
+async function requireActiveManagementGroup(token: string): Promise<string> {
+  const active = getActiveController();
+  if (!active) return token;
+
+  const settings = active.getSettings();
+  if (!requiresManagementGroup(settings)) return token;
+
+  const result = await ensureActiveGroup(settings, active.updateSettings, token);
+  if (!result.ready) {
+    throw new CloudGroupSelectionRequiredError(result.groups, result.needsSelection);
+  }
+  return token;
+}
+
+async function requireActiveManagementGroupIfPresent(token: string | null): Promise<string | null> {
+  return token ? requireActiveManagementGroup(token) : null;
 }
 
 function getErrorRecord(error: unknown): Record<string, unknown> | null {
@@ -225,11 +279,17 @@ function requestCloudSessionRecovery(openModal: boolean = true): Promise<string 
   return pendingSessionRecovery.promise;
 }
 
+function requestGroupReadyCloudSessionRecovery(openModal: boolean): Promise<string | null> {
+  return requestCloudSessionRecovery(openModal).then(requireActiveManagementGroupIfPresent);
+}
+
 export function syncCloudSessionState(settings: Settings): void {
   const accessToken = resolveCloudAccessToken(settings);
 
   if (settings.cloudAuthStatus === 'signed-in' && accessToken) {
     resolvePendingSessionRecovery(accessToken);
+  } else {
+    resetManagementGroupReadiness();
   }
 }
 
@@ -264,7 +324,7 @@ export async function ensureCloudAccessToken(
   const shouldOpenModal = options.interactive ?? options.openModalOnExpiry !== false;
 
   if (pendingSessionRecovery && (!currentToken || options.forceRefresh)) {
-    return pendingSessionRecovery.promise;
+    return pendingSessionRecovery.promise.then(requireActiveManagementGroupIfPresent);
   }
 
   if (!currentToken && !hasRefreshToken) {
@@ -276,11 +336,11 @@ export async function ensureCloudAccessToken(
       return null;
     }
 
-    return requestCloudSessionRecovery(true);
+    return requestGroupReadyCloudSessionRecovery(true);
   }
 
   if (!options.forceRefresh && currentToken && initialSettings && !isCloudAccessTokenExpiringSoon(initialSettings, CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS)) {
-    return currentToken;
+    return requireActiveManagementGroup(currentToken);
   }
 
   if (!hasRefreshToken) {
@@ -292,11 +352,11 @@ export async function ensureCloudAccessToken(
       return null;
     }
 
-    return requestCloudSessionRecovery(true);
+    return requestGroupReadyCloudSessionRecovery(true);
   }
 
   if (!active) {
-    return requestCloudSessionRecovery(shouldOpenModal);
+    return requestGroupReadyCloudSessionRecovery(shouldOpenModal);
   }
 
   if (refreshInFlight) {
@@ -321,10 +381,12 @@ export async function ensureCloudAccessToken(
         cloudAuthStatus: 'signed-in',
       });
 
-      return refreshed.accessToken;
+      const readyToken = await requireActiveManagementGroup(refreshed.accessToken);
+      notifyCloudSessionRefresh();
+      return readyToken;
     } catch (error) {
       if (!options.forceRefresh && !isCloudSessionError(error) && fallbackToken && !isCloudAccessTokenExpiringSoon(latestSettings, 0)) {
-        return fallbackToken;
+        return requireActiveManagementGroup(fallbackToken);
       }
 
       if (isCloudSessionError(error)) {
@@ -333,7 +395,7 @@ export async function ensureCloudAccessToken(
         }
 
         if (shouldOpenModal) {
-          return requestCloudSessionRecovery(true);
+          return requestGroupReadyCloudSessionRecovery(true);
         }
       }
 

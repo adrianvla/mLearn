@@ -1,23 +1,13 @@
 use std::{io::ErrorKind, net::SocketAddr};
 
-use axum::{
-    extract::{Request, State},
-    http::StatusCode,
-    middleware::{self, Next},
-    response::Response,
-    routing::{get, post},
-    Json, Router,
-};
+use axum::Router;
 use mlearn_management::{
-    auth,
+    application_router, auth,
     config::{Config, EnvMode},
-    docker, routes,
+    db::connect_database,
+    docker,
     state::AppState,
-    static_handler,
 };
-use serde_json::json;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
 const TOKEN_FILE_TOKEN_PREFIX: &str = "token:";
@@ -63,7 +53,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => tracing::warn!("Docker daemon unavailable: {}", e),
     }
 
-    let state = AppState::new(docker, config);
+    let db = connect_database(&config).await?;
+    let state = AppState::try_new(docker, config, db)?;
 
     let bind_addr: SocketAddr = format!("{}:{}", state.config.bind_address, state.config.port)
         .parse()
@@ -286,85 +277,20 @@ fn token_file_path() -> String {
     }
 }
 
-async fn auth_middleware(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    if state.config.fail_closed() {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let stored_hash = match &state.config.token_hash {
-        Some(hash) => hash,
-        None => return Ok(next.run(request).await),
-    };
-
-    let auth_header = request
-        .headers()
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    let provided = auth::extract_bearer(auth_header).ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if auth::verify_token(provided, stored_hash) {
-        Ok(next.run(request).await)
-    } else {
-        Err(StatusCode::UNAUTHORIZED)
-    }
-}
-
 fn build_router(state: AppState) -> Router {
-    let protected = Router::new()
-        .route("/api/overview", get(routes::overview::get_overview))
-        .route("/api/services", get(routes::services::get_services))
-        .route(
-            "/api/services/{id}/{action}",
-            post(routes::services::perform_service_action),
-        )
-        .route(
-            "/api/services/{id}/logs",
-            get(routes::logs::get_service_logs),
-        )
-        .route("/api/config", get(routes::config::get_config))
-        .route("/api/storage", get(routes::storage::get_storage))
-        .route("/api/ai-status", get(routes::ai_status::get_ai_status))
-        .route("/api/school", get(routes::school::get_school_status))
-        .route("/api/users", get(routes::users::get_users))
-        .route(
-            "/api/distribution",
-            get(routes::distribution::get_distribution),
-        )
-        .route(
-            "/api/llm-gateway",
-            get(routes::llm_gateway::get_llm_gateway),
-        )
-        .route("/api/analytics", get(routes::analytics::get_analytics))
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth_middleware,
-        ));
-
-    Router::new()
-        .route(
-            "/api/health",
-            get(|| async { Json(json!({"status": "ok"})) }),
-        )
-        .merge(protected)
-        .fallback(static_handler::serve_spa)
-        .layer(TraceLayer::new_for_http())
-        .layer(if cfg!(debug_assertions) {
-            CorsLayer::permissive()
-        } else {
-            CorsLayer::new()
-        })
-        .with_state(state)
+    application_router(state)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{
+        body::{to_bytes, Body},
+        http::{header, Request, StatusCode},
+    };
+    use serde_json::Value;
+    use sqlx::sqlite::SqlitePoolOptions;
+    use tower::ServiceExt;
 
     fn args(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
@@ -399,5 +325,288 @@ mod tests {
     fn cli_rejects_unknown_commands() {
         assert!(parse_cli_command(&args(&["wat"])).is_err());
         assert!(parse_cli_command(&args(&["reset-admin-token", "extra"])).is_err());
+    }
+
+    #[tokio::test]
+    async fn application_router_uses_named_sessions_and_preserves_health() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let recovery_token = "application-router-recovery";
+        let mut config = Config::from_env();
+        config.token_hash = Some(auth::hash_token(recovery_token));
+        let signing_key_path = std::env::temp_dir().join(format!(
+            "mlearn-policy-signing-key-{}",
+            uuid::Uuid::now_v7()
+        ));
+        config.policy_signing_key_path = signing_key_path.to_string_lossy().into_owned();
+        let encryption_key_path =
+            std::env::temp_dir().join(format!("mlearn-encryption-key-{}", uuid::Uuid::now_v7()));
+        config.encryption_key_path = encryption_key_path.to_string_lossy().into_owned();
+        let docker = bollard::Docker::connect_with_http_defaults().unwrap();
+        let app = build_router(AppState::new(docker, config, pool));
+        let _ = std::fs::remove_file(signing_key_path);
+        let _ = std::fs::remove_file(encryption_key_path);
+
+        let health = app
+            .clone()
+            .oneshot(Request::get("/api/health").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
+
+        let legacy = app
+            .clone()
+            .oneshot(
+                Request::get("/api/school")
+                    .header(header::AUTHORIZATION, format!("Bearer {recovery_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(legacy.status(), StatusCode::UNAUTHORIZED);
+
+        let bootstrap = app
+            .clone()
+            .oneshot(
+                Request::post("/api/auth/bootstrap")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {recovery_token}"))
+                    .body(Body::from(
+                        serde_json::json!({
+                            "email": "admin@school.test",
+                            "password": "Correct Horse Battery Staple"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(bootstrap.status(), StatusCode::OK);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(bootstrap.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let access_token = body["session"]["accessToken"].as_str().unwrap();
+        let named = app
+            .oneshot(
+                Request::get("/api/school")
+                    .header(header::AUTHORIZATION, format!("Bearer {access_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(named.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn non_root_admin_cannot_access_root_only_legacy_routes() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let mut config = Config::from_env();
+        config.token_hash = Some(auth::hash_token("root-recovery"));
+        let signing_key_path = std::env::temp_dir().join(format!(
+            "mlearn-policy-signing-key-{}",
+            uuid::Uuid::now_v7()
+        ));
+        config.policy_signing_key_path = signing_key_path.to_string_lossy().into_owned();
+        let encryption_key_path =
+            std::env::temp_dir().join(format!("mlearn-encryption-key-{}", uuid::Uuid::now_v7()));
+        config.encryption_key_path = encryption_key_path.to_string_lossy().into_owned();
+        let docker = bollard::Docker::connect_with_http_defaults().unwrap();
+        let state = AppState::new(docker, config, pool.clone());
+        let _ = std::fs::remove_file(signing_key_path);
+        let _ = std::fs::remove_file(encryption_key_path);
+        let user_id = uuid::Uuid::now_v7().to_string();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, 'admin@branch.test', 'admin@branch.test', 'Branch Admin', 'active', 'admin', 0, ?, ?)")
+            .bind(&user_id)
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let issued = state
+            .identity
+            .issue_session(&user_id, None, None)
+            .await
+            .unwrap();
+        let app = build_router(state);
+
+        let response = app
+            .oneshot(
+                Request::get("/api/school")
+                    .header(
+                        header::AUTHORIZATION,
+                        format!("Bearer {}", issued.access_token),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn llm_stream_router_enforces_named_learner_sessions_and_stable_errors() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(2)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let mut config = Config::from_env();
+        let signing_key_path = std::env::temp_dir().join(format!(
+            "mlearn-policy-signing-key-{}",
+            uuid::Uuid::now_v7()
+        ));
+        config.policy_signing_key_path = signing_key_path.to_string_lossy().into_owned();
+        let encryption_key_path =
+            std::env::temp_dir().join(format!("mlearn-encryption-key-{}", uuid::Uuid::now_v7()));
+        config.encryption_key_path = encryption_key_path.to_string_lossy().into_owned();
+        let state = AppState::new(
+            bollard::Docker::connect_with_http_defaults().unwrap(),
+            config,
+            pool.clone(),
+        );
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        for (id, kind) in [("teacher", "teacher"), ("learner", "learner")] {
+            sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, 0, ?, ?)")
+                .bind(id).bind(format!("{id}@test.invalid")).bind(format!("{id}@test.invalid")).bind(id).bind(kind).bind(now).bind(now).execute(&pool).await.unwrap();
+        }
+        let teacher = state
+            .identity
+            .issue_session("teacher", None, None)
+            .await
+            .unwrap();
+        let learner = state
+            .identity
+            .issue_session("learner", None, None)
+            .await
+            .unwrap();
+        let app = build_router(state);
+        let body = serde_json::json!({"messages":[{"role":"user","content":"hi"}]}).to_string();
+
+        let nonlearner = app
+            .clone()
+            .oneshot(
+                Request::post("/api/llm/stream")
+                    .header(
+                        header::AUTHORIZATION,
+                        format!("Bearer {}", teacher.access_token),
+                    )
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(nonlearner.status(), StatusCode::CONFLICT);
+        assert_eq!(
+            serde_json::from_slice::<Value>(
+                &to_bytes(nonlearner.into_body(), usize::MAX).await.unwrap()
+            )
+            .unwrap()["error"],
+            "invalid_active_group"
+        );
+
+        let no_group = app
+            .clone()
+            .oneshot(
+                Request::post("/api/llm/stream")
+                    .header(
+                        header::AUTHORIZATION,
+                        format!("Bearer {}", learner.access_token),
+                    )
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(no_group.status(), StatusCode::CONFLICT);
+        assert_eq!(
+            serde_json::from_slice::<Value>(
+                &to_bytes(no_group.into_body(), usize::MAX).await.unwrap()
+            )
+            .unwrap()["error"],
+            "invalid_active_group"
+        );
+
+        for _ in 0..119 {
+            let invalid = app
+                .clone()
+                .oneshot(
+                    Request::post("/api/llm/stream")
+                        .header(
+                            header::AUTHORIZATION,
+                            format!("Bearer {}", learner.access_token),
+                        )
+                        .body(Body::from("not-json"))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+        }
+        let limited = app
+            .clone()
+            .oneshot(
+                Request::post("/api/llm/stream")
+                    .header(
+                        header::AUTHORIZATION,
+                        format!("Bearer {}", learner.access_token),
+                    )
+                    .body(Body::from("not-json"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(limited.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            serde_json::from_slice::<Value>(
+                &to_bytes(limited.into_body(), usize::MAX).await.unwrap()
+            )
+            .unwrap()["error"],
+            "rate_limited"
+        );
+
+        let session_id: String =
+            sqlx::query_scalar("SELECT id FROM sessions WHERE user_id = 'learner'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        sqlx::query("UPDATE sessions SET revoked_at = ? WHERE id = ?")
+            .bind(now)
+            .bind(session_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let revoked = app
+            .oneshot(
+                Request::post("/api/llm/stream")
+                    .header(
+                        header::AUTHORIZATION,
+                        format!("Bearer {}", learner.access_token),
+                    )
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(revoked.status(), StatusCode::UNAUTHORIZED);
+        let _ = std::fs::remove_file(signing_key_path);
+        let _ = std::fs::remove_file(encryption_key_path);
     }
 }

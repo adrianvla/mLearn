@@ -45,6 +45,7 @@ import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hoo
 import type { ConversationAgentContext } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
+import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
 import { collectDroppedMediaFiles } from './videoDropUtils';
 import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
 import { clipVideo } from '../../../services/videoClipService';
@@ -151,6 +152,7 @@ export const VideoRoute: Component = () => {
   const [detectedSubtitleTracks, setDetectedSubtitleTracks] = createSignal<Array<{ index: number; label: string; language: string | null; extractedPath?: string }>>([]);
   const [activeDetectedSubtitleTrack, setActiveDetectedSubtitleTrack] = createSignal<number | null>(null);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
+  const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [showWatchTogetherModeModal, setShowWatchTogetherModeModal] = createSignal(false);
   const [showWatchTogetherCodeModal, setShowWatchTogetherCodeModal] = createSignal(false);
   const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
@@ -491,6 +493,9 @@ export const VideoRoute: Component = () => {
     currentTimeSeconds: currentVideoTime,
     durationSeconds: currentVideoDuration,
     isFocused: isWindowFocused,
+    isVisible: isWindowVisible,
+    contentId: () => opaqueActivityContentId('video', currentVideoPath()),
+    language: () => settings.language,
   });
 
   // Accumulate unknown words from subtitle tokens as they appear
@@ -730,6 +735,7 @@ export const VideoRoute: Component = () => {
   onMount(() => {
     const syncWindowFocus = () => {
       setIsWindowFocused(document.hasFocus())
+      setIsWindowVisible(document.visibilityState === 'visible')
     }
 
     window.addEventListener('focus', syncWindowFocus)

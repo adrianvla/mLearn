@@ -27,7 +27,7 @@ describe('getFlashcardsPluginActivityValue', () => {
       syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishScopedValue: publishSourceUpdate,
+        updateSource: publishSourceUpdate,
       });
     });
 
@@ -36,10 +36,11 @@ describe('getFlashcardsPluginActivityValue', () => {
     setIsFocused(false);
     await Promise.resolve();
 
-    expect(publishSourceUpdate).toHaveBeenNthCalledWith(2, {
-      sourceId: 'flashcards-window',
+    expect(publishSourceUpdate).toHaveBeenNthCalledWith(2, 'flashcards-window', {
       isFocused: false,
-      value: { kind: 'idle' },
+      isVisible: true,
+      activity: { kind: 'flashcards' },
+      context: { privacy: 'progress-only', contentId: 'flashcards-review' },
     });
 
     dispose();
@@ -47,6 +48,7 @@ describe('getFlashcardsPluginActivityValue', () => {
 
   it('publishes an unfocused idle update on cleanup', async () => {
     const publishSourceUpdate = vi.fn();
+    const removeSource = vi.fn();
 
     let dispose!: () => void;
 
@@ -58,7 +60,8 @@ describe('getFlashcardsPluginActivityValue', () => {
       syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishScopedValue: publishSourceUpdate,
+        updateSource: publishSourceUpdate,
+        removeSource,
       });
     });
 
@@ -66,10 +69,30 @@ describe('getFlashcardsPluginActivityValue', () => {
 
     dispose();
 
-    expect(publishSourceUpdate).toHaveBeenNthCalledWith(2, {
-      sourceId: 'flashcards-window',
-      isFocused: false,
-      value: { kind: 'idle' },
+    expect(publishSourceUpdate).toHaveBeenCalledTimes(1);
+    expect(removeSource).toHaveBeenCalledWith('flashcards-window');
+  });
+
+  it('publishes reactive visibility transitions while focus is unchanged', async () => {
+    const updateSource = vi.fn();
+    let setVisible!: (value: boolean) => void;
+    let dispose!: () => void;
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      const [visible, updateVisible] = createSignal(true);
+      setVisible = updateVisible;
+      syncFlashcardsPluginActivity({
+        activeTab: () => 'review',
+        isFocused: () => true,
+        isVisible: visible,
+        updateSource,
+      });
     });
+    await Promise.resolve();
+    updateSource.mockClear();
+    setVisible(false);
+    await Promise.resolve();
+    expect(updateSource).toHaveBeenCalledWith('flashcards-window', expect.objectContaining({ isVisible: false }));
+    dispose();
   });
 });

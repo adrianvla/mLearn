@@ -289,3 +289,65 @@ export interface LogStream {
   enabled: boolean;
   destination: string;
 }
+
+export type Capability =
+  | 'group.view' | 'group.manage'
+  | 'members.view' | 'members.manage'
+  | 'permissions.delegate'
+  | 'policies.view' | 'policies.edit' | 'policies.publish'
+  | 'analytics.view'
+  | 'conversations.view' | 'conversations.export'
+  | 'llm.configure' | 'api_keys.manage';
+
+export interface AuthorizedGroupNode {
+  id: string;
+  name: string;
+  /** The current backend eligible-groups response omits effective capabilities. */
+  capabilities: readonly Capability[];
+}
+
+export interface AuthorizedUser {
+  id: string;
+  email: string;
+  isRoot?: boolean;
+  groups: AuthorizedGroupNode[];
+}
+
+export interface AuthSession {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: number;
+}
+
+export interface AuthResponse {
+  session: AuthSession;
+  user: { id: string; email: string; isRoot?: boolean };
+}
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+export interface CursorQuery {
+  cursor?: string;
+  limit?: number;
+}
+
+export interface AnalyticsSummary {
+  activeLearners: number; sessions: number; watchSeconds: number; completions: number;
+  readerPages: number; flashcardEvents: number; llmRequests: number; inputTokens: number;
+  outputTokens: number; totalTokens: number; costMicros: number; policyBlocks: number;
+}
+export interface TimeseriesPoint extends AnalyticsSummary { dayStart: number }
+export interface LlmAnalytics { requests: number; inputTokens: number; outputTokens: number; totalTokens: number; costMicros: number }
+export interface LearnerAnalytics extends AnalyticsSummary { learnerId: string; displayName: string; lastActivityAt: number }
+export interface DimensionAnalytics extends AnalyticsSummary { key: string; title: string | null; lastActivityAt: number }
+export interface PolicyBlockAnalytics { blocks: number }
+export interface ScopedManagedUser { id:string;email:string;displayName:string;identityType:string;status:string;groupIds:string[] }
+export interface GroupNode { id:string;parentId:string|null;name:string;slug:string;status:string }
+export interface Membership { id:string;groupId:string;userId:string|null;invitedEmail:string|null;status:string;capabilities:Capability[] }
+export interface CsvPreview { validRows:number;errors:Array<{row:number;message:string}> }
+export interface ConversationSummary { id:string;groupId:string;learnerUserId:string;status:string;createdAt:number;providerId:string;modelId:string;inputTokens:number|null;outputTokens:number|null;costMicros:number|null;policyVersionId:string|null;policyCompiledHash:string|null;errorCode:string|null }
+export interface ConversationMessage { role:string;content:string;sequence:number;truncated:boolean;toolData?:unknown }
+export interface ConversationDetailDto { summary:ConversationSummary;messages:ConversationMessage[] }

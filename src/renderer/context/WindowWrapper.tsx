@@ -18,6 +18,7 @@ import { Btn, ErrorModal, EulaModal, Modal, ProgressBar } from '../components/co
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
+import { ActiveGroupGate } from '../components/cloud/ActiveGroupSelector';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { consumePendingFlashcardMigration, setMigrationListenerReady } from './migrationSignals';
 import { setBuiltinModelReady } from './llmModelSignals';
@@ -27,6 +28,9 @@ import { isElectron } from '../../shared/platform';
 import { getBridge } from '../../shared/bridges';
 import { installRendererLogSink } from '../utils/installLogSink';
 import { getLogger } from '../../shared/utils/logger';
+import { activityHub, setActivityPolicyScope } from '../services/activityHubRuntime';
+import { createElectronPluginActivityAdapter } from '../services/electronPluginActivityAdapter';
+import { createManagementAnalyticsAdapter } from '../services/managementAnalyticsAdapter';
 
 const log = getLogger("renderer.context.windowWrapper");
 
@@ -227,6 +231,34 @@ const GlobalRuntimeRestartModal: Component = () => {
   );
 };
 
+const ActivityRuntimeBridge: Component = () => {
+  const { settings, managedPolicy } = useSettings();
+  let analytics: ReturnType<typeof createManagementAnalyticsAdapter> | null = null;
+
+  onMount(() => {
+    const disposeAdapter = createElectronPluginActivityAdapter(activityHub);
+    analytics = createManagementAnalyticsAdapter({ getSettings: () => settings as typeof settings });
+    analytics.updateScope(settings as typeof settings);
+    analytics.start();
+    onCleanup(() => { disposeAdapter(); void analytics?.stop(); analytics = null; });
+  });
+
+  createEffect(() => {
+    analytics?.updateScope(settings as typeof settings);
+    const policy = managedPolicy();
+    const activeGroupId = settings.cloudAuthActiveGroupId?.trim();
+    const scope = settings.cloudAuthStatus === 'signed-in'
+      && activeGroupId
+      && policy?.activeGroupId === activeGroupId
+      ? { activeGroupId, policyVersionId: policy.policyVersionId }
+      : null;
+    setActivityPolicyScope(scope);
+  });
+
+  onCleanup(() => setActivityPolicyScope(null));
+  return null;
+};
+
 
 async function computeSha256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -373,7 +405,7 @@ const BuiltinModelStatusListener: Component = () => {
  */
 const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean }> = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean }> = (props) => {
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
   const needsTitleBar = props.showTitleBar && isElectron();
 
@@ -384,11 +416,13 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
         <ServerStatusObserver />
         <ResponsiveProvider>
           <SettingsProvider>
+            <ActivityRuntimeBridge />
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
             <GlobalRuntimeRestartModal />
             <GlobalInstallProgressModal />
             <BuiltinModelStatusListener />
+            <ActiveGroupGate showSwitchTrigger={props.showActiveGroupSwitch} />
             <LowPowerGateProvider>
             <LanguageProviderBridge>
             <MigrationHandler>

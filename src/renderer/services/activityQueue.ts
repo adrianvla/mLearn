@@ -1,0 +1,262 @@
+import {
+  isValidActivityIdentifier,
+  projectActivityContext,
+  projectAppActivity,
+  type ManagementActivityEventV1,
+} from '../../shared/plugins/appActivity'
+
+export type ActivityQueueStats = { count: number; bytes: number; dropped: number; droppedReasons: Record<string, number> }
+export type ActivityQueueOptions = {
+  origin: string
+  userId: string
+  maxEvents?: number
+  maxBytes?: number
+  indexedDB?: IDBFactory
+}
+type StoredEvent = { key: string; partition: string; groupId: string; order: [string, string, number, string]; partitionGroupOrder: [string, string, string, string, number, string]; bytes: number; event: ManagementActivityEventV1 }
+type Meta = { key: string; value: number; owner?: string }
+
+const DB_NAME = 'mlearn-management-analytics'
+const DB_VERSION = 3
+const EVENTS = 'events'
+const META = 'meta'
+const encoder = new TextEncoder()
+
+export function normalizeAnalyticsOrigin(value: string): string {
+  const url = new URL(value)
+  url.hash = ''
+  url.search = ''
+  url.pathname = url.pathname.replace(/\/+$/u, '')
+  return url.toString().replace(/\/$/u, '')
+}
+
+export function projectManagementActivityEvent(value: unknown): ManagementActivityEventV1 | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const row = value as Record<string, unknown>
+  const context = projectActivityContext(row.context)
+  const rawActivity = row.activity && typeof row.activity === 'object' && !Array.isArray(row.activity)
+    ? row.activity as Record<string, unknown> : null
+  const redacted = context.ok && context.value.privacy === 'progress-only'
+    && (rawActivity?.kind === 'reader' || rawActivity?.kind === 'video') && rawActivity.workName === ''
+  const activity = projectAppActivity(redacted ? { ...rawActivity, workName: 'redacted' } : row.activity)
+  if (row.schemaVersion !== 1 || !activity.ok || !context.ok
+    || !['activity.started', 'activity.progressed', 'activity.completed', 'activity.stopped'].includes(String(row.type))
+    || !isValidActivityIdentifier(row.id) || !isValidActivityIdentifier(row.sessionId)
+    || !isValidActivityIdentifier(row.sourceId) || !isValidActivityIdentifier(row.activeGroupId)
+    || !isValidActivityIdentifier(row.policyVersionId) || !Number.isSafeInteger(row.sequence)
+    || (row.sequence as number) < 1 || typeof row.occurredAt !== 'string'
+    || !Number.isFinite(Date.parse(row.occurredAt))) return null
+  return Object.freeze({
+    schemaVersion: 1,
+    id: row.id,
+    type: row.type,
+    sessionId: row.sessionId,
+    sourceId: row.sourceId,
+    activeGroupId: row.activeGroupId,
+    policyVersionId: row.policyVersionId,
+    sequence: row.sequence,
+    occurredAt: new Date(row.occurredAt).toISOString(),
+    activity: Object.freeze(activity.value.kind === 'reader' || activity.value.kind === 'video'
+      ? { ...activity.value, workName: context.value.privacy === 'progress-only' ? '' : activity.value.workName }
+      : { ...activity.value }),
+    context: Object.freeze({ ...context.value }),
+  }) as ManagementActivityEventV1
+}
+
+function request<T>(value: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    value.onsuccess = () => resolve(value.result)
+    value.onerror = () => reject(value.error ?? new Error('IndexedDB request failed'))
+  })
+}
+function complete(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'))
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'))
+  })
+}
+async function open(factory: IDBFactory): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    let rejected = false
+    const req = factory.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      const store = db.objectStoreNames.contains(EVENTS)
+        ? req.transaction!.objectStore(EVENTS)
+        : db.createObjectStore(EVENTS, { keyPath: 'key' })
+      if (!store.indexNames.contains('partition')) store.createIndex('partition', 'partition')
+      if (!store.indexNames.contains('occurredAtSequence')) store.createIndex('occurredAtSequence', 'order')
+      if (!store.indexNames.contains('partitionGroupOrder')) store.createIndex('partitionGroupOrder', 'partitionGroupOrder')
+      if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: 'key' })
+      const legacyDrops = new Map<string, number>()
+      const cursor = store.openCursor()
+      cursor.onsuccess = () => {
+        const current = cursor.result
+        if (!current) {
+          const meta = req.transaction!.objectStore(META)
+          for (const [key, count] of legacyDrops) {
+            const lookup = meta.get(key)
+            lookup.onsuccess = () => {
+              const prior = lookup.result as Meta | undefined
+              meta.put({ key, value: Math.min(Number.MAX_SAFE_INTEGER, (prior?.value ?? 0) + count) })
+            }
+          }
+          return
+        }
+        const row = current.value as StoredEvent
+        const event = projectManagementActivityEvent(row.event)
+        if (event) {
+          const order: StoredEvent['order'] = [event.occurredAt, event.sessionId, event.sequence, event.id]
+          current.update({ ...row, groupId: event.activeGroupId, order, partitionGroupOrder: [row.partition, event.activeGroupId, ...order], event })
+        } else {
+          current.delete()
+          const key = `${row.partition}\ndropped:invalid_legacy`
+          legacyDrops.set(key, (legacyDrops.get(key) ?? 0) + 1)
+        }
+        current.continue()
+      }
+    }
+    req.onsuccess = () => { if (rejected) req.result.close(); else resolve(req.result) }
+    req.onerror = () => reject(req.error ?? new Error('Unable to open analytics queue'))
+    req.onblocked = () => { rejected = true; reject(new Error('Analytics queue upgrade blocked')) }
+  })
+}
+function sortEvents(rows: StoredEvent[]): StoredEvent[] {
+  return rows.sort((a, b) => a.event.occurredAt.localeCompare(b.event.occurredAt)
+    || a.event.sessionId.localeCompare(b.event.sessionId) || a.event.sequence - b.event.sequence
+    || a.event.id.localeCompare(b.event.id))
+}
+
+export interface ActivityQueue {
+  enqueue(event: ManagementActivityEventV1): Promise<void>
+  peekBatch(groupId: string, maxCount: number, maxBytes: number): Promise<ManagementActivityEventV1[]>
+  acknowledge(ids: readonly string[]): Promise<void>
+  quarantine(ids: readonly string[], reason: string): Promise<void>
+  compact(): Promise<void>
+  stats(): Promise<ActivityQueueStats>
+  withLease<T>(owner: string, operation: () => Promise<T>): Promise<T | undefined>
+  close(): void
+}
+
+export async function createActivityQueue(options: ActivityQueueOptions): Promise<ActivityQueue> {
+  const factory = options.indexedDB ?? globalThis.indexedDB
+  if (!factory) throw new Error('IndexedDB is unavailable')
+  const origin = normalizeAnalyticsOrigin(options.origin)
+  const userId = options.userId.trim()
+  if (!userId) throw new Error('Analytics queue requires a stable user id')
+  const partition = `${origin}\n${userId}`
+  const maxEvents = options.maxEvents ?? 5_000
+  const maxBytes = options.maxBytes ?? 8 * 1024 * 1024
+  const db = await open(factory)
+
+  async function rows(tx: IDBTransaction): Promise<StoredEvent[]> {
+    return (await request(tx.objectStore(EVENTS).index('partition').getAll(partition))) as StoredEvent[]
+  }
+  async function addDropped(tx: IDBTransaction, reason: string, count: number): Promise<void> {
+    const key = `${partition}\ndropped:${reason}`
+    const store = tx.objectStore(META)
+    const current = await request(store.get(key)) as Meta | undefined
+    store.put({ key, value: Math.min(Number.MAX_SAFE_INTEGER, (current?.value ?? 0) + count) })
+  }
+  async function enforce(tx: IDBTransaction): Promise<void> {
+    const store = tx.objectStore(EVENTS)
+    const all = sortEvents(await rows(tx))
+    let count = all.length
+    let bytes = all.reduce((sum, row) => sum + row.bytes, 0)
+    if (count <= maxEvents && bytes <= maxBytes) return
+    const progress = all.filter(row => row.event.type === 'activity.progressed')
+    for (const row of progress) {
+      if (count <= maxEvents && bytes <= maxBytes) break
+      store.delete(row.key); count--; bytes -= row.bytes
+      await addDropped(tx, 'capacity_progress', 1)
+    }
+    if (count <= maxEvents && bytes <= maxBytes) return
+    const remaining = all.filter(row => !progress.includes(row))
+    const sessions = new Map<string, StoredEvent[]>()
+    for (const row of remaining) {
+      const key = `${row.event.activeGroupId}\n${row.event.sessionId}`
+      const session = sessions.get(key) ?? []; session.push(row); sessions.set(key, session)
+    }
+    const orderedSessions = [...sessions.values()].sort((a, b) => sortEvents(a.slice())[0]!.event.occurredAt.localeCompare(sortEvents(b.slice())[0]!.event.occurredAt))
+    for (const session of orderedSessions) {
+      if (count <= maxEvents && bytes <= maxBytes) break
+      const closed = session.some(row => row.event.type === 'activity.completed' || row.event.type === 'activity.stopped')
+      for (const row of session) { store.delete(row.key); count--; bytes -= row.bytes }
+      await addDropped(tx, closed ? 'capacity_closed_session' : 'capacity_open_session', session.length)
+    }
+  }
+  async function mutate(fn: (tx: IDBTransaction) => Promise<void>): Promise<void> {
+    const tx = db.transaction([EVENTS, META], 'readwrite')
+    try { await fn(tx); await complete(tx) } catch (error) { try { tx.abort() } catch { /* settled */ } throw error }
+  }
+
+  return {
+    async enqueue(input) {
+      const event = projectManagementActivityEvent(input)
+      if (!event) throw new Error('Invalid management activity event')
+      const json = JSON.stringify(event)
+      const order: StoredEvent['order'] = [event.occurredAt, event.sessionId, event.sequence, event.id]
+      const stored: StoredEvent = { key: `${partition}\n${event.id}`, partition, groupId: event.activeGroupId, order,
+        partitionGroupOrder: [partition, event.activeGroupId, ...order], bytes: encoder.encode(json).byteLength, event }
+      await mutate(async tx => {
+        const store = tx.objectStore(EVENTS)
+        if (await request(store.get(stored.key))) return
+        // Superseded progress in the same content session has no durable value.
+        const existing = await rows(tx)
+        if (event.type === 'activity.progressed' && existing.some(row => row.event.type === 'activity.progressed'
+          && row.event.activeGroupId === event.activeGroupId && row.event.sessionId === event.sessionId && row.event.sequence > event.sequence)) {
+          await addDropped(tx, 'coalesced_progress', 1)
+          return
+        }
+        let coalesced = 0
+        for (const row of existing) if (row.event.type === 'activity.progressed'
+          && row.event.activeGroupId === event.activeGroupId && row.event.sessionId === event.sessionId && row.event.sequence < event.sequence) { store.delete(row.key); coalesced++ }
+        if (coalesced) await addDropped(tx, 'coalesced_progress', coalesced)
+        store.put(stored)
+        await enforce(tx)
+      })
+    },
+    async peekBatch(groupId, maxCount, batchBytes) {
+      const tx = db.transaction(EVENTS, 'readonly')
+      const all = sortEvents((await rows(tx)).filter(row => row.event.activeGroupId === groupId)); await complete(tx)
+      const result: ManagementActivityEventV1[] = []; let bytes = 0
+      for (const row of all) {
+        if (result.length >= maxCount || (result.length > 0 && bytes + row.bytes > batchBytes)) break
+        if (row.bytes > batchBytes && result.length === 0) continue
+        result.push(projectManagementActivityEvent(row.event)!); bytes += row.bytes
+      }
+      return result
+    },
+    async acknowledge(ids) { await mutate(async tx => { for (const id of new Set(ids)) tx.objectStore(EVENTS).delete(`${partition}\n${id}`) }) },
+    async quarantine(ids, reason) { await mutate(async tx => { for (const id of new Set(ids)) tx.objectStore(EVENTS).delete(`${partition}\n${id}`); await addDropped(tx, `rejected:${reason}`, new Set(ids).size) }) },
+    async compact() { await mutate(enforce) },
+    async stats() {
+      const tx = db.transaction([EVENTS, META], 'readonly'); const all = await rows(tx)
+      const meta = await request(tx.objectStore(META).getAll()) as Meta[]; await complete(tx)
+      const reasons: Record<string, number> = {}
+      for (const item of meta) if (item.key.startsWith(`${partition}\ndropped:`)) reasons[item.key.slice(`${partition}\ndropped:`.length)] = item.value
+      return { count: all.length, bytes: all.reduce((sum, row) => sum + row.bytes, 0), dropped: Object.values(reasons).reduce((a, b) => a + b, 0), droppedReasons: reasons }
+    },
+    async withLease(owner, operation) {
+      const leaseKey = `${partition}\nlease`
+      let acquired = false
+      await mutate(async tx => {
+        const store = tx.objectStore(META)
+        const current = await request(store.get(leaseKey)) as Meta | undefined
+        if (current && current.value > Date.now() && current.owner !== owner) return
+        store.put({ key: leaseKey, owner, value: Date.now() + 120_000 })
+        acquired = true
+      })
+      if (!acquired) return undefined
+      try { return await operation() } finally {
+        await mutate(async tx => {
+          const store = tx.objectStore(META)
+          const current = await request(store.get(leaseKey)) as Meta | undefined
+          if (current?.owner === owner) store.delete(leaseKey)
+        }).catch(() => {})
+      }
+    },
+    close() { db.close() },
+  }
+}

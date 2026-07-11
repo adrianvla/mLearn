@@ -267,6 +267,10 @@ export interface Settings {
   cloudAuthExpiresAt: number;
   /** Cloud auth status */
   cloudAuthStatus: 'signed-out' | 'signed-in';
+  /** Server-activated school group used for policy, LLM, and analytics scope */
+  cloudAuthActiveGroupId: string;
+  /** Display name for the server-activated school group */
+  cloudAuthActiveGroupName: string;
   /** URL of the Electron node server (port 7753) for tethered mode sync */
   nodeServerUrl: string;
   /** Whether cloud endpoint URLs are manually overridden */
@@ -519,6 +523,8 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudAuthUserEmail: '',
   cloudAuthExpiresAt: 0,
   cloudAuthStatus: 'signed-out',
+  cloudAuthActiveGroupId: '',
+  cloudAuthActiveGroupName: '',
   nodeServerUrl: `http://127.0.0.1:${PROXY_SERVER_PORT}`,
   overrideCloudEndpointUrl: false,
   cloudLoginUrl: '',

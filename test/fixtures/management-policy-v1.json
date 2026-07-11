@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "policyVersionId": "policy-version-1",
+  "activeGroupId": "german-a",
+  "ancestry": [
+    { "id": "school", "name": "School" },
+    { "id": "german", "name": "German" },
+    { "id": "german-a", "name": "German A" }
+  ],
+  "settings": {
+    "llmEnabled": {
+      "value": false,
+      "sourceGroupId": "school",
+      "sourceGroupName": "School",
+      "locked": true
+    },
+    "maxNewCardsPerDay": {
+      "value": 15,
+      "sourceGroupId": "german-a",
+      "sourceGroupName": "German A",
+      "locked": true
+    },
+    "theme": {
+      "value": "dark",
+      "sourceGroupId": "school",
+      "sourceGroupName": "School",
+      "locked": true
+    },
+    "flashcard_deck": {
+      "value": null,
+      "sourceGroupId": "german-a",
+      "sourceGroupName": "German A",
+      "locked": true
+    }
+  },
+  "features": {
+    "cloud_tts": {
+      "enabled": false,
+      "sourceGroupId": "school",
+      "hard": true
+    }
+  },
+  "llm": {
+    "enabled": true,
+    "requestsPerMinute": 60,
+    "maxConcurrentStreams": 4,
+    "allowedProviders": ["school-openai"],
+    "allowedModels": ["instruction-medium"],
+    "promptProfileId": "language-tutor",
+    "quotas": [
+      {
+        "metric": "totalTokens",
+        "limit": 100000,
+        "period": "monthly",
+        "sourceGroupId": "school",
+        "hard": true
+      }
+    ]
+  },
+  "governance": {
+    "activityRetentionDays": 60,
+    "conversationRetentionDays": 30,
+    "teacherAnalyticsExport": true,
+    "teacherConversationExport": false
+  },
+  "issuedAt": "2026-07-10T08:00:00Z",
+  "expiresAt": "2026-07-10T09:00:00Z",
+  "keyId": "school-policy-key-1",
+  "signature": "fixture-signature"
+}
