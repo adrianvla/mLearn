@@ -694,7 +694,15 @@ fn database_error(error: sqlx::Error) -> AppError {
     AppError::Internal(format!("database error: {error}"))
 }
 fn map_group_write_error(error: sqlx::Error) -> AppError {
-    if matches!(&error, sqlx::Error::Database(db) if db.is_unique_violation()) {
+    let invariant_conflict = matches!(&error, sqlx::Error::Database(db) if {
+        let message = db.message().to_ascii_lowercase();
+        db.is_unique_violation()
+            || message.contains("group tree")
+            || message.contains("group parent")
+            || message.contains("root group")
+            || message.contains("membership already")
+    });
+    if invariant_conflict {
         AppError::Conflict("group or membership already exists".into())
     } else {
         database_error(error)

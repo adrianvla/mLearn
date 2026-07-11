@@ -45,7 +45,7 @@ The management service is the **only** service that mounts the Docker socket. It
 
 ## School Deployment Checklist
 
-1. **Set a strong admin token**
+1. **Set a strong bootstrap recovery token**
    ```bash
    # Generate a random token
    openssl rand -hex 32
@@ -72,6 +72,13 @@ The management service is the **only** service that mounts the Docker socket. It
 
 5. **Review the School Deployment page** in the console for safety warnings
 
+6. **Bootstrap named administration**
+   - Open `/bootstrap` through the protected local or HTTPS origin.
+   - Enter the recovery token once and create the root administrator.
+   - Sign in with the named account for normal operation; do not reuse or share
+     the recovery token as a browser session credential.
+   - Delegate the minimum group capabilities required by each manager or teacher.
+
 ## Security Assumptions
 
 - The Docker socket (`/var/run/docker.sock`) is mounted read-only into the management container
@@ -87,10 +94,13 @@ The management console is designed for safe day-to-day operation by school IT st
 
 ## Backup Strategy
 
-The management console does not manage backups. The institution is responsible for:
+The management console documents backup state but does not copy backups itself. The institution is responsible for:
 - Backing up the `mlearn-app-data` volume (student flashcards, settings)
 - Backing up the `mlearn-language-data` volume (dictionaries, language packages)
 - Testing restore procedures
+- Snapshotting `management.db` together with `/data/encryption-key` and
+  `/data/policy-signing-key`; restoring the database without its matching keys
+  cannot recover encrypted provider or conversation data.
 
 See [SCHOOL_DEPLOYMENT.md §4.4 Data Backup](../SCHOOL_DEPLOYMENT.md) for details.
 

@@ -106,4 +106,12 @@ describe('management policy cache', () => {
     await expect(saveCachedPolicyMonotonic(origin, 'learner-1', older)).resolves.toBe(false);
     expect(await loadCachedPolicy(origin, 'learner-1')).toEqual(newer);
   });
+
+  it('breaks equal issuedAt ties deterministically by policyVersionId', async () => {
+    const lower = { ...fixture, policyVersionId: 'policy-a' } as EffectiveManagementPolicy;
+    const higher = { ...fixture, policyVersionId: 'policy-b' } as EffectiveManagementPolicy;
+    await expect(saveCachedPolicyMonotonic(origin, 'learner-1', higher)).resolves.toBe(true);
+    await expect(saveCachedPolicyMonotonic(origin, 'learner-1', lower)).resolves.toBe(false);
+    expect(await loadCachedPolicy(origin, 'learner-1')).toEqual(higher);
+  });
 });
