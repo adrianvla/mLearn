@@ -1013,6 +1013,26 @@ mod tests {
         .execute(&f.pool)
         .await
         .is_err());
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('reassignment-child','class','Child','reassignment-child','active',1)").execute(&f.pool).await.unwrap();
+        let building: i64 =
+            sqlx::query_scalar("SELECT id FROM activity_events WHERE event_id='building'")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        let finalized: i64 =
+            sqlx::query_scalar("SELECT id FROM activity_events WHERE event_id='template'")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'reassignment-child')").bind(building).execute(&f.pool).await.unwrap();
+        assert!(sqlx::query(
+            "UPDATE activity_event_ancestry SET event_row_id=? WHERE event_row_id=?"
+        )
+        .bind(finalized)
+        .bind(building)
+        .execute(&f.pool)
+        .await
+        .is_err());
     }
 
     #[tokio::test]
