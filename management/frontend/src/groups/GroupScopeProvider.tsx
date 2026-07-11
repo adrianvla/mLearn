@@ -89,7 +89,8 @@ export function GroupScopeProvider({ children, api = defaultApi }: { children: R
   const value = useMemo<GroupScopeValue>(() => {
     if (status === 'ready') return {
       status, error: null, groups, selectedGroup, selectGroup,
-      can: (capability) => selectedGroup?.capabilities.includes(capability) ?? false,
+      can: (capability) => (auth.status === 'authenticated' && auth.user.isRoot === true)
+        || (selectedGroup?.capabilities.includes(capability) ?? false),
     };
     if (status === 'error') return { status, error: error ?? new Error('Group activation failed'), groups, selectedGroup: null };
     return { status, error: null, groups, selectedGroup: null };

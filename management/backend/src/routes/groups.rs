@@ -7,7 +7,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    authorization::Capability,
+    authorization::{AuthorizationService, Capability},
     error::AppError,
     groups::{Group, GroupService, Membership},
     identity::{IdentityType, Principal},
@@ -65,6 +65,7 @@ struct GroupsResponse {
 struct EligibleGroup {
     id: String,
     name: String,
+    capabilities: Vec<Capability>,
 }
 
 #[derive(Serialize)]
@@ -116,15 +117,30 @@ async fn list_eligible_groups(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<Json<EligibleGroupsResponse>, AppError> {
-    let groups = GroupService::new(state.db)
+    let groups = GroupService::new(state.db.clone())
         .eligible_groups(&principal)
-        .await?
-        .into_iter()
-        .map(|group| EligibleGroup {
+        .await?;
+    let authorization = AuthorizationService::new(state.db);
+    let mut eligible = Vec::with_capacity(groups.len());
+    for group in groups {
+        let mut capabilities = Vec::new();
+        for capability in Capability::ALL {
+            match authorization
+                .require(&principal, &group.id, capability)
+                .await
+            {
+                Ok(()) => capabilities.push(capability),
+                Err(AppError::Forbidden(_)) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        eligible.push(EligibleGroup {
             id: group.id,
             name: group.name,
-        })
-        .collect();
+            capabilities,
+        });
+    }
+    let groups = eligible;
     Ok(Json(EligibleGroupsResponse { groups }))
 }
 
@@ -306,7 +322,9 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use tower::ServiceExt;
 
-    use crate::{auth::hash_token, config::Config, routes, state::AppState};
+    use crate::{
+        auth::hash_token, authorization::Capability, config::Config, routes, state::AppState,
+    };
 
     async fn fixture() -> (Router, String, sqlx::SqlitePool, AppState) {
         let pool = SqlitePoolOptions::new()
@@ -435,6 +453,10 @@ mod tests {
         let groups = payload["groups"].as_array().unwrap();
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0]["id"], root_group_id);
+        assert_eq!(
+            groups[0]["capabilities"].as_array().unwrap().len(),
+            Capability::ALL.len()
+        );
     }
 
     #[tokio::test]
@@ -472,7 +494,10 @@ mod tests {
         .await;
 
         assert_eq!(status, StatusCode::OK, "{payload}");
-        assert_eq!(payload["groups"], json!([{ "id": "learner-group", "name": "Learner Group" }]));
+        assert_eq!(
+            payload["groups"],
+            json!([{ "id": "learner-group", "name": "Learner Group", "capabilities": [] }])
+        );
         assert!(payload.to_string().find("hidden-parent").is_none());
     }
 }
