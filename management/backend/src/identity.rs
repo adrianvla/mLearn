@@ -75,6 +75,7 @@ pub struct AuthenticatedUser {
     pub id: String,
     pub email: String,
     pub identity_type: IdentityType,
+    pub is_root: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -245,6 +246,7 @@ impl IdentityService {
             id: user_id,
             email: email.trim().to_string(),
             identity_type: IdentityType::Admin,
+            is_root: true,
         })
     }
 
@@ -340,7 +342,7 @@ impl IdentityService {
         password: &str,
     ) -> Result<AuthenticatedUser, AppError> {
         let row = sqlx::query(
-            "SELECT users.id, users.email, users.identity_type, password_credentials.password_hash FROM users JOIN password_credentials ON password_credentials.user_id = users.id WHERE users.normalized_email = ? AND users.status = 'active'",
+            "SELECT users.id, users.email, users.identity_type, users.is_root, password_credentials.password_hash FROM users JOIN password_credentials ON password_credentials.user_id = users.id WHERE users.normalized_email = ? AND users.status = 'active'",
         )
         .bind(normalize_email(email))
         .fetch_optional(&self.pool)
@@ -354,6 +356,7 @@ impl IdentityService {
             id: row.get("id"),
             email: row.get("email"),
             identity_type: IdentityType::parse(row.get("identity_type"))?,
+            is_root: row.get::<i64, _>("is_root") != 0,
         })
     }
 
@@ -523,7 +526,7 @@ impl IdentityService {
 
     pub async fn user(&self, user_id: &str) -> Result<AuthenticatedUser, AppError> {
         let row = sqlx::query(
-            "SELECT id, email, identity_type FROM users WHERE id = ? AND status = 'active'",
+            "SELECT id, email, identity_type, is_root FROM users WHERE id = ? AND status = 'active'",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -534,6 +537,7 @@ impl IdentityService {
             id: row.get("id"),
             email: row.get("email"),
             identity_type: IdentityType::parse(row.get("identity_type"))?,
+            is_root: row.get::<i64, _>("is_root") != 0,
         })
     }
 

@@ -392,7 +392,7 @@ fn auth_response(user: AuthenticatedUser, session: IssuedSession) -> AuthRespons
         user: UserDto {
             id: user.id,
             email: user.email,
-            is_root: false,
+            is_root: user.is_root,
         },
     }
 }
@@ -559,6 +559,7 @@ mod tests {
     async fn desktop_exchange_returns_compatible_camel_case_session_envelope() {
         let (app, bootstrap_token, pool) = fixture().await;
         let bootstrapped = bootstrap(&app, &bootstrap_token).await;
+        assert_eq!(bootstrapped["user"]["isRoot"], true);
         let access_token = bootstrapped["session"]["accessToken"].as_str().unwrap();
         let verifier = "desktop-pkce-verifier";
         let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
