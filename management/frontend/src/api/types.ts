@@ -289,3 +289,46 @@ export interface LogStream {
   enabled: boolean;
   destination: string;
 }
+
+export type Capability =
+  | 'group.view' | 'group.manage'
+  | 'members.view' | 'members.manage'
+  | 'permissions.delegate'
+  | 'policies.view' | 'policies.edit' | 'policies.publish'
+  | 'analytics.view'
+  | 'conversations.view' | 'conversations.export'
+  | 'llm.configure' | 'api_keys.manage';
+
+export interface AuthorizedGroupNode {
+  id: string;
+  name: string;
+  /** The current backend eligible-groups response omits effective capabilities. */
+  capabilities: readonly Capability[];
+}
+
+export interface AuthorizedUser {
+  id: string;
+  email: string;
+  groups: AuthorizedGroupNode[];
+}
+
+export interface AuthSession {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: number;
+}
+
+export interface AuthResponse {
+  session: AuthSession;
+  user: { id: string; email: string };
+}
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+export interface CursorQuery {
+  cursor?: string;
+  limit?: number;
+}
