@@ -134,7 +134,9 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::policy::{model::PolicyAncestryEntry, LlmPolicy, PolicyDocument, SettingRule};
+    use crate::policy::{
+        model::PolicyAncestryEntry, GovernancePolicy, LlmPolicy, PolicyDocument, SettingRule,
+    };
 
     use super::PolicySigner;
 
@@ -172,6 +174,12 @@ mod tests {
                 allowed_models: Vec::new(),
                 prompt_profile_id: None,
                 quotas: Vec::new(),
+            },
+            governance: GovernancePolicy {
+                activity_retention_days: 90,
+                conversation_retention_days: 90,
+                teacher_analytics_export: false,
+                teacher_conversation_export: false,
             },
             issued_at: "2026-07-10T08:00:00Z".into(),
             expires_at: "2026-07-10T08:15:00Z".into(),

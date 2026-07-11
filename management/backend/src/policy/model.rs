@@ -13,10 +13,20 @@ pub struct PolicyDocument {
     pub settings: BTreeMap<String, SettingRule>,
     pub features: BTreeMap<String, FeatureRule>,
     pub llm: LlmPolicy,
+    pub governance: GovernancePolicy,
     pub issued_at: String,
     pub expires_at: String,
     pub key_id: String,
     pub signature: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GovernancePolicy {
+    pub activity_retention_days: u16,
+    pub conversation_retention_days: u16,
+    pub teacher_analytics_export: bool,
+    pub teacher_conversation_export: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

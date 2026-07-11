@@ -122,6 +122,11 @@ impl AnalyticsIngestionService {
         let mut connection = self.pool.acquire().await.map_err(db)?;
         let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
         let (group_id, ancestry) = live_scope(&mut tx, principal).await?;
+        let retention_days = crate::policy::compiler::compile_in_transaction(&mut tx, &group_id)
+            .await?
+            .document
+            .governance
+            .activity_retention_days;
         let now = OffsetDateTime::now_utc().unix_timestamp();
         let mut result = IngestionResult {
             accepted_ids: vec![],
@@ -183,7 +188,16 @@ impl AnalyticsIngestionService {
                 });
                 continue;
             }
-            match insert_event(&mut tx, principal, &ancestry, &normalized, now).await? {
+            match insert_event(
+                &mut tx,
+                principal,
+                &ancestry,
+                &normalized,
+                now,
+                retention_days,
+            )
+            .await?
+            {
                 InsertOutcome::Accepted => result.accepted_ids.push(id),
                 InsertOutcome::Duplicate => result.duplicate_ids.push(id),
                 InsertOutcome::IdConflict => result.rejected.push(RejectedEvent {
@@ -198,6 +212,15 @@ impl AnalyticsIngestionService {
                 }),
             }
         }
+        // Opportunistic, bounded cleanup for this learner. Daily aggregate rows are
+        // intentionally independent and survive raw-event expiry.
+        sqlx::query("INSERT OR IGNORE INTO analytics_retention_delete_queue(event_row_id) SELECT id FROM activity_events WHERE user_id=? AND retained_until<=? ORDER BY retained_until,id LIMIT 25")
+            .bind(&principal.user_id).bind(now.saturating_mul(1_000)).execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("DELETE FROM activity_events WHERE id IN (SELECT event_row_id FROM analytics_retention_delete_queue)").execute(&mut *tx).await.map_err(db)?;
+        sqlx::query("DELETE FROM analytics_retention_delete_queue")
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
         tx.commit().await.map_err(db)?;
         Ok(result)
     }
@@ -509,6 +532,7 @@ async fn insert_event(
     ancestry: &[String],
     e: &Normalized,
     now: i64,
+    retention_days: u16,
 ) -> Result<InsertOutcome, AppError> {
     if let Some(hash) = sqlx::query_scalar::<_, String>(
         "SELECT payload_hash FROM activity_events WHERE user_id=? AND event_id=?",
@@ -538,8 +562,11 @@ async fn insert_event(
     {
         return Ok(InsertOutcome::SequenceConflict);
     }
-    let result=sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,content_id,language,title,current_page,total_pages,current_time_millis,duration_millis) VALUES(?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-        .bind(&e.id).bind(&p.user_id).bind(p.active_group_id.as_deref()).bind(&e.policy_version_id).bind(&e.payload_hash).bind(&e.event_type).bind(e.kind).bind(&e.privacy).bind(&e.session_id).bind(&e.source_id).bind(e.sequence).bind(e.occurred_at).bind(now).bind(&e.content_id).bind(&e.language).bind(&e.title).bind(e.current_page).bind(e.total_pages).bind(e.current_time_millis).bind(e.duration_millis).execute(&mut **tx).await.map_err(db)?;
+    let retained_until = e
+        .occurred_at
+        .saturating_add(i64::from(retention_days) * 86_400_000);
+    let result=sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,content_id,language,title,current_page,total_pages,current_time_millis,duration_millis,retention_days,retained_until) VALUES(?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        .bind(&e.id).bind(&p.user_id).bind(p.active_group_id.as_deref()).bind(&e.policy_version_id).bind(&e.payload_hash).bind(&e.event_type).bind(e.kind).bind(&e.privacy).bind(&e.session_id).bind(&e.source_id).bind(e.sequence).bind(e.occurred_at).bind(now).bind(&e.content_id).bind(&e.language).bind(&e.title).bind(e.current_page).bind(e.total_pages).bind(e.current_time_millis).bind(e.duration_millis).bind(i64::from(retention_days)).bind(retained_until).execute(&mut **tx).await.map_err(db)?;
     let row_id = result.last_insert_rowid();
     for (ordinal, group) in ancestry.iter().enumerate() {
         sqlx::query(
@@ -557,6 +584,8 @@ async fn insert_event(
         .execute(&mut **tx)
         .await
         .map_err(db)?;
+    sqlx::query("WITH target AS (SELECT a.group_id,(e.occurred_at/86400000)*86400000 day_start,e.activity_kind,COALESCE(e.content_id,'') content_id,COALESCE(e.language,'') language FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE e.id=?), scoped AS (SELECT t.group_id scope_group,e.*,LAG(e.occurred_at) OVER(PARTITION BY t.group_id,e.user_id,e.activity_session_id ORDER BY e.sequence,e.id) prev_at,LAG(e.current_time_millis) OVER(PARTITION BY t.group_id,e.user_id,e.activity_session_id ORDER BY e.sequence,e.id) prev_media,LAG(e.current_page) OVER(PARTITION BY t.group_id,e.user_id,e.activity_session_id ORDER BY e.sequence,e.id) prev_page FROM target t JOIN activity_event_ancestry a ON a.group_id=t.group_id JOIN activity_events e ON e.id=a.event_row_id AND (e.occurred_at/86400000)=t.day_start AND e.activity_kind=t.activity_kind AND COALESCE(e.content_id,'')=t.content_id AND COALESCE(e.language,'')=t.language) INSERT INTO analytics_daily_rollups(group_id,day_start,activity_kind,content_id,language,active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events,updated_at) SELECT t.group_id,t.day_start,t.activity_kind,t.content_id,t.language,COUNT(DISTINCT s.user_id),COUNT(DISTINCT s.user_id||char(0)||s.activity_session_id),COALESCE(SUM(CASE WHEN s.activity_kind='video' AND s.prev_at IS NOT NULL AND s.occurred_at-s.prev_at BETWEEN 1 AND 300000 AND s.current_time_millis-s.prev_media>0 AND s.current_time_millis-s.prev_media<=s.occurred_at-s.prev_at+2000 THEN MIN(s.current_time_millis-s.prev_media,s.occurred_at-s.prev_at)/1000 ELSE 0 END),0),SUM(CASE WHEN s.event_type='activity.completed' THEN 1 ELSE 0 END),COALESCE(SUM(CASE WHEN s.activity_kind='reader' AND s.prev_at IS NOT NULL AND s.occurred_at-s.prev_at BETWEEN 1 AND 300000 THEN MAX(s.current_page-s.prev_page,0) ELSE 0 END),0),SUM(CASE WHEN s.activity_kind='flashcards' AND s.event_type='activity.completed' THEN 1 ELSE 0 END),? FROM target t JOIN scoped s ON s.scope_group=t.group_id GROUP BY t.group_id,t.day_start,t.activity_kind,t.content_id,t.language ON CONFLICT(group_id,day_start,activity_kind,content_id,language) DO UPDATE SET active_learners=excluded.active_learners,sessions=excluded.sessions,watch_seconds=excluded.watch_seconds,completions=excluded.completions,reader_pages=excluded.reader_pages,flashcard_events=excluded.flashcard_events,updated_at=excluded.updated_at")
+        .bind(row_id).bind(now).execute(&mut **tx).await.map_err(db)?;
     Ok(InsertOutcome::Accepted)
 }
 fn db(error: sqlx::Error) -> AppError {

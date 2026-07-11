@@ -7,8 +7,8 @@ use sqlx::{Row, Sqlite, Transaction};
 use crate::{
     error::AppError,
     policy::model::{
-        default_max_concurrent_streams, default_requests_per_minute, FeatureRule, LlmPolicy,
-        PolicyAncestryEntry, PolicyDocument, QuotaRule, SettingRule,
+        default_max_concurrent_streams, default_requests_per_minute, FeatureRule, GovernancePolicy,
+        LlmPolicy, PolicyAncestryEntry, PolicyDocument, QuotaRule, SettingRule,
     },
 };
 
@@ -141,6 +141,10 @@ async fn compile_with_candidate_in_transaction(
     let mut model_limit = None::<BTreeSet<String>>;
     let mut quotas = BTreeMap::<String, QuotaRule>::new();
     let mut provenance = BTreeMap::new();
+    let mut activity_retention_days = 90_u16;
+    let mut conversation_retention_days = 90_u16;
+    let mut teacher_analytics_export = None::<bool>;
+    let mut teacher_conversation_export = None::<bool>;
 
     for definition in &definitions {
         for (key, rule) in &definition.document.settings {
@@ -223,6 +227,38 @@ async fn compile_with_candidate_in_transaction(
                 provenance.insert(format!("llm.quotas.{key}"), definition.provenance());
             }
         }
+        if let Some(governance) = &definition.document.governance {
+            if let Some(days) = governance.activity_retention_days {
+                activity_retention_days = activity_retention_days.min(days);
+                provenance.insert(
+                    "governance.activityRetentionDays".into(),
+                    definition.provenance(),
+                );
+            }
+            if let Some(days) = governance.conversation_retention_days {
+                conversation_retention_days = conversation_retention_days.min(days);
+                provenance.insert(
+                    "governance.conversationRetentionDays".into(),
+                    definition.provenance(),
+                );
+            }
+            if let Some(value) = governance.teacher_analytics_export {
+                teacher_analytics_export =
+                    Some(teacher_analytics_export.map_or(value, |inherited| inherited && value));
+                provenance.insert(
+                    "governance.teacherAnalyticsExport".into(),
+                    definition.provenance(),
+                );
+            }
+            if let Some(value) = governance.teacher_conversation_export {
+                teacher_conversation_export =
+                    Some(teacher_conversation_export.map_or(value, |inherited| inherited && value));
+                provenance.insert(
+                    "governance.teacherConversationExport".into(),
+                    definition.provenance(),
+                );
+            }
+        }
     }
     llm.allowed_providers = provider_limit.unwrap_or_default().into_iter().collect();
     llm.allowed_models = model_limit.unwrap_or_default().into_iter().collect();
@@ -258,6 +294,12 @@ async fn compile_with_candidate_in_transaction(
             settings,
             features,
             llm,
+            governance: GovernancePolicy {
+                activity_retention_days,
+                conversation_retention_days,
+                teacher_analytics_export: teacher_analytics_export.unwrap_or(false),
+                teacher_conversation_export: teacher_conversation_export.unwrap_or(false),
+            },
             issued_at,
             expires_at: String::new(),
             key_id: String::new(),
