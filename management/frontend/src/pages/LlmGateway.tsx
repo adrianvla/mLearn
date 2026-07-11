@@ -28,12 +28,18 @@ interface Price {
   outputCostMicros: number;
   createdAt: number;
 }
+interface PromptProfile { id: string; name: string; systemPrompt: string; status: string }
+interface UsageBucket { scopeKind: string; scopeId: string; metric: string; used: number; reserved: number; limit: number | null; remaining: number | null; warning: boolean }
+interface ApiKeySummary { id: string; name: string | null; capabilities: string[]; expiresAt: number | null }
 export default function LlmGateway() {
   const scope = useGroupScope();
   const groupId = scope.status === "ready" ? scope.selectedGroup?.id : null;
   const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
+  const [profiles, setProfiles] = useState<PromptProfile[]>([]);
+  const [usage, setUsage] = useState<UsageBucket[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
   const [secret, setSecret] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [health, setHealth] = useState<string | null>(null);
@@ -51,11 +57,17 @@ export default function LlmGateway() {
       api.get<{ items: Price[] }>(`/api/llm/prices?${q}`, {
         signal: controller.signal,
       }),
-    ]).then(([p, m, r]) => {
+      api.get<{ items: PromptProfile[] }>(`/api/llm/prompt-profiles?${q}`, { signal: controller.signal }),
+      api.get<{ buckets: UsageBucket[] }>(`/api/llm/usage?${q}`, { signal: controller.signal }),
+      api.get<{ apiKeys: ApiKeySummary[] }>(`/api/groups/${encodeURIComponent(groupId)}/api-keys`, { signal: controller.signal }),
+    ]).then(([p, m, r, nextProfiles, nextUsage, nextKeys]) => {
       if (!controller.signal.aborted) {
         setProviders(p.items);
         setModels(m.items);
         setPrices(r.items);
+        setProfiles(nextProfiles.items);
+        setUsage(nextUsage.buckets);
+        setApiKeys(nextKeys.apiKeys);
       }
     });
     return () => controller.abort();
@@ -164,6 +176,18 @@ export default function LlmGateway() {
               </span>
             </div>
           ))}
+        </article>
+        <article className="dashboard-panel">
+          <h2>Prompt profiles</h2>
+          {profiles.map((profile) => <div className="gateway-item" key={profile.id}><strong>{profile.name}</strong><span>{profile.status} · {profile.systemPrompt}</span></div>)}
+        </article>
+        <article className="dashboard-panel">
+          <h2>Quota summary</h2>
+          {usage.map((bucket) => <div className="gateway-item" key={`${bucket.scopeKind}-${bucket.scopeId}-${bucket.metric}`}><strong>{bucket.metric}</strong><span>{bucket.used} used · {bucket.reserved} reserved · {bucket.remaining === null ? 'No limit' : `${bucket.remaining} remaining`}</span></div>)}
+        </article>
+        <article className="dashboard-panel">
+          <h2>API keys</h2>
+          {apiKeys.map((key) => <div className="gateway-item" key={key.id}><strong>{key.name ?? 'Unnamed key'}</strong><span>{key.capabilities.join(', ') || 'No capabilities'} · {key.expiresAt ? `expires ${new Date(key.expiresAt * 1000).toLocaleDateString()}` : 'no expiry'}</span></div>)}
         </article>
       </section>
       {selected && (
