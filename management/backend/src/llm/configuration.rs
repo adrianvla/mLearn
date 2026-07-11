@@ -981,6 +981,12 @@ impl LlmConfigurationService {
             row.get::<String, _>("model_status") == "active"
                 && row.get::<String, _>("provider_status") == "active"
         });
+        let allowed_provider_exists = rows.iter().any(|row| {
+            allowed_providers.contains(&row.get::<String, _>("provider_id"))
+        });
+        let allowed_model_exists = rows
+            .iter()
+            .any(|row| allowed_models.contains(&row.get::<String, _>("model_id")));
         let allowed_config_exists = rows.iter().any(|row| {
             allowed_providers.contains(&row.get::<String, _>("provider_id"))
                 && allowed_models.contains(&row.get::<String, _>("model_id"))
@@ -999,12 +1005,18 @@ impl LlmConfigurationService {
                         .unwrap_or(true)
             })
             .ok_or_else(|| {
-                if allowed_providers.is_empty()
-                    || allowed_models.is_empty()
-                    || (has_active_route && !allowed_config_exists)
-                {
+                if allowed_providers.is_empty() || allowed_models.is_empty() {
                     AppError::PolicyDenied(
                         "no configured route is allowed by effective policy".into(),
+                    )
+                } else if !allowed_provider_exists || !allowed_model_exists {
+                    AppError::ConfigurationUnavailable(
+                        "effective policy references an unavailable provider or model".into(),
+                    )
+                } else if has_active_route && !allowed_config_exists {
+                    AppError::PolicyDenied(
+                        "no configured provider and model pair is allowed by effective policy"
+                            .into(),
                     )
                 } else {
                     AppError::ConfigurationUnavailable(

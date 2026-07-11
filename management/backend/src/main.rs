@@ -598,13 +598,13 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(nonlearner.status(), StatusCode::FORBIDDEN);
+        assert_eq!(nonlearner.status(), StatusCode::CONFLICT);
         assert_eq!(
             serde_json::from_slice::<Value>(
                 &to_bytes(nonlearner.into_body(), usize::MAX).await.unwrap()
             )
             .unwrap()["error"],
-            "policy_denied"
+            "invalid_active_group"
         );
 
         let no_group = app

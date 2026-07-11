@@ -604,12 +604,12 @@ impl QuotaService {
         gateway: Option<GatewayReservationRequirements<'_>>,
     ) -> Result<QuotaReservation, AppError> {
         if principal.service_key_id.is_some() || principal.identity_type != IdentityType::Learner {
-            return Err(AppError::Forbidden(
+            return Err(AppError::InvalidActiveGroup(
                 "learner session required for LLM quota reservation".into(),
             ));
         }
         if principal.active_group_id.as_deref() != Some(request.active_group_id.as_str()) {
-            return Err(AppError::Forbidden(
+            return Err(AppError::InvalidActiveGroup(
                 "request active group does not match the authenticated session".into(),
             ));
         }
@@ -675,7 +675,7 @@ impl QuotaService {
                 || requirements.max_concurrent_streams
                     > compiled.document.llm.max_concurrent_streams
             {
-                return Err(AppError::Forbidden(
+                return Err(AppError::PolicyDenied(
                     "gateway abuse limits changed before reservation".into(),
                 ));
             }
@@ -745,8 +745,8 @@ impl QuotaService {
             let open = sum_open_reservations(&mut tx, applicable, start, end, timestamp).await?;
             let projected = checked_add(checked_add(used, open)?, requested)?;
             if projected > applicable.definition.limit {
-                return Err(AppError::Conflict(format!(
-                    "quota exceeded for {} {}",
+                return Err(AppError::QuotaExceeded(format!(
+                    "{} {}",
                     applicable.definition.metric.as_str(),
                     applicable.definition.period.as_str()
                 )));
@@ -1092,7 +1092,7 @@ async fn require_learner_context(
     if ok == 1 {
         Ok(())
     } else {
-        Err(AppError::Forbidden(
+        Err(AppError::InvalidActiveGroup(
             "learner membership is inactive or revoked".into(),
         ))
     }
@@ -1224,7 +1224,7 @@ async fn require_live_gateway_session(
     if live == 1 {
         Ok(())
     } else {
-        Err(AppError::Forbidden(
+        Err(AppError::InvalidActiveGroup(
             "authenticated learner session is no longer live for the active group".into(),
         ))
     }
@@ -1289,12 +1289,14 @@ async fn acquire_gateway_capacity(
     let rpm: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM llm_gateway_leases WHERE acquired_at >= ? AND (learner_user_id = ? OR direct_group_id = ?)")
         .bind(window_start).bind(&principal.user_id).bind(active_group_id).fetch_one(&mut **tx).await.map_err(database_error)?;
     if rpm >= i64::from(requests_per_minute) {
-        return Err(AppError::TooManyRequests);
+        return Err(AppError::RateLimited("requests per minute exceeded".into()));
     }
     let concurrent: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM llm_gateway_leases WHERE released_at IS NULL AND expires_at > ? AND (learner_user_id = ? OR direct_group_id = ?)")
         .bind(timestamp).bind(&principal.user_id).bind(active_group_id).fetch_one(&mut **tx).await.map_err(database_error)?;
     if concurrent >= i64::from(max_concurrent_streams) {
-        return Err(AppError::TooManyRequests);
+        return Err(AppError::RateLimited(
+            "concurrent stream limit exceeded".into(),
+        ));
     }
     Ok(())
 }
@@ -1444,7 +1446,7 @@ fn validate_policy_definitions(
                 && item.definition.limit <= rule.limit
         });
         if !found {
-            return Err(AppError::Forbidden(format!(
+            return Err(AppError::PolicyDenied(format!(
                 "governed policy quota {} {} has no matching enforceable definition",
                 rule.metric.as_str(),
                 rule.period.as_str()
@@ -2276,7 +2278,7 @@ mod tests {
         for result in &results {
             match result {
                 Ok(Ok(_)) => successes += 1,
-                Ok(Err(AppError::Conflict(message))) if message.contains("quota exceeded") => {
+                Ok(Err(AppError::QuotaExceeded(_))) => {
                     cap_denials += 1
                 }
                 other => panic!("contention produced a non-quota result: {other:?}"),
@@ -2600,7 +2602,7 @@ mod tests {
             .amounts
             .insert("costMicros".into(), 200_000);
         assert!(
-            matches!(service.reserve(&learner_b, aggregate_denied).await, Err(AppError::Conflict(message)) if message.contains("quota exceeded"))
+            matches!(service.reserve(&learner_b, aggregate_denied).await, Err(AppError::QuotaExceeded(_)))
         );
         let definitions = service.list_definitions(&teacher, "class").await.unwrap();
         let hidden_ids = definitions
@@ -2653,7 +2655,7 @@ mod tests {
         sqlx::query("INSERT INTO active_policies (group_id, policy_version_id, activated_at) VALUES ('school', 'policy', 3)").execute(&pool).await.unwrap();
         assert!(matches!(
             service.reserve(&learner, next).await,
-            Err(AppError::Forbidden(_))
+            Err(AppError::PolicyDenied(_))
         ));
     }
 
@@ -2695,7 +2697,7 @@ mod tests {
         sqlx::query("UPDATE group_memberships SET status = 'archived', archived_at = ? WHERE user_id = 'learner'").bind(now()).execute(&pool).await.unwrap();
         assert!(matches!(
             service.reserve(&learner, request.clone()).await,
-            Err(AppError::Forbidden(_))
+            Err(AppError::InvalidActiveGroup(_))
         ));
         sqlx::query("UPDATE group_memberships SET status = 'active', archived_at = NULL WHERE user_id = 'learner'").execute(&pool).await.unwrap();
         sqlx::query("UPDATE groups SET status = 'archived', archived_at = ? WHERE id = 'class'")
@@ -2706,7 +2708,7 @@ mod tests {
         request.request_id = "archived-group".into();
         assert!(matches!(
             service.reserve(&learner, request).await,
-            Err(AppError::Forbidden(_))
+            Err(AppError::InvalidActiveGroup(_))
         ));
     }
 
@@ -2769,7 +2771,7 @@ mod tests {
         request.request_id = "zero-denied".into();
         assert!(matches!(
             service.reserve(&learner, request.clone()).await,
-            Err(AppError::Conflict(_))
+            Err(AppError::QuotaExceeded(_))
         ));
         assert_eq!(
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM quota_reservations")
@@ -2905,7 +2907,7 @@ mod tests {
         request.request_id = "still-filled-after-calendar-attempt".into();
         request.amounts.insert("costMicros".into(), 1);
         assert!(
-            matches!(service.reserve(&learner, request).await, Err(AppError::Conflict(message)) if message.contains("quota exceeded"))
+            matches!(service.reserve(&learner, request).await, Err(AppError::QuotaExceeded(_)))
         );
     }
 
@@ -3234,7 +3236,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             service.reserve_gateway(&learner, request.clone(), fixture_gateway_requirements(&request, fingerprint, 60, 4)).await,
-            Err(AppError::Forbidden(message)) if message.contains("session")
+            Err(AppError::InvalidActiveGroup(_))
         ));
         sqlx::query("UPDATE sessions SET revoked_at = NULL, active_group_id = 'school' WHERE id = 'learner-session'")
             .execute(&pool).await.unwrap();
@@ -3242,7 +3244,7 @@ mod tests {
         second.request_id = "changed-active-group".into();
         assert!(matches!(
             service.reserve_gateway(&learner, second.clone(), fixture_gateway_requirements(&second, fingerprint, 60, 4)).await,
-            Err(AppError::Forbidden(message)) if message.contains("session")
+            Err(AppError::InvalidActiveGroup(_))
         ));
     }
 
@@ -3548,7 +3550,7 @@ mod tests {
                     fixture_gateway_requirements(&second, fingerprint, 60, 1)
                 )
                 .await,
-            Err(AppError::TooManyRequests)
+            Err(AppError::RateLimited(_))
         ));
         service.cancel_gateway(&first.id).await.unwrap();
         assert!(service
@@ -3581,7 +3583,7 @@ mod tests {
                     fixture_gateway_requirements(&second, fingerprint, 1, 4)
                 )
                 .await,
-            Err(AppError::TooManyRequests)
+            Err(AppError::RateLimited(_))
         ));
         assert_eq!(
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM llm_gateway_leases")
@@ -3616,7 +3618,7 @@ mod tests {
         assert_eq!(
             results
                 .iter()
-                .filter(|result| matches!(result, Err(AppError::TooManyRequests)))
+                .filter(|result| matches!(result, Err(AppError::RateLimited(_))))
                 .count(),
             7
         );

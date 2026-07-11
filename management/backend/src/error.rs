@@ -27,6 +27,15 @@ pub enum AppError {
     #[error("Configuration unavailable: {0}")]
     ConfigurationUnavailable(String),
 
+    #[error("Quota exceeded: {0}")]
+    QuotaExceeded(String),
+
+    #[error("Invalid active group: {0}")]
+    InvalidActiveGroup(String),
+
+    #[error("Rate limited: {0}")]
+    RateLimited(String),
+
     #[error("{0}")]
     Conflict(String),
 
@@ -59,6 +68,10 @@ impl AppError {
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::PolicyDenied(_) => StatusCode::FORBIDDEN,
             Self::ConfigurationUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+            Self::QuotaExceeded(_) | Self::RateLimited(_) => {
+                StatusCode::TOO_MANY_REQUESTS
+            }
+            Self::InvalidActiveGroup(_) => StatusCode::CONFLICT,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::ActionNotAllowed => StatusCode::FORBIDDEN,
