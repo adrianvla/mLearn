@@ -231,15 +231,18 @@ const GlobalRuntimeRestartModal: Component = () => {
 
 const ActivityRuntimeBridge: Component = () => {
   const { settings, managedPolicy } = useSettings();
+  let analytics: ReturnType<typeof createManagementAnalyticsAdapter> | null = null;
 
   onMount(() => {
     const disposeAdapter = createElectronPluginActivityAdapter(activityHub);
-    const analytics = createManagementAnalyticsAdapter({ getSettings: () => settings as typeof settings });
+    analytics = createManagementAnalyticsAdapter({ getSettings: () => settings as typeof settings });
+    analytics.updateScope(settings as typeof settings);
     analytics.start();
-    onCleanup(() => { disposeAdapter(); analytics.stop(); });
+    onCleanup(() => { disposeAdapter(); void analytics?.stop(); analytics = null; });
   });
 
   createEffect(() => {
+    analytics?.updateScope(settings as typeof settings);
     const policy = managedPolicy();
     const activeGroupId = settings.cloudAuthActiveGroupId?.trim();
     const scope = settings.cloudAuthStatus === 'signed-in'
