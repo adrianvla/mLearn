@@ -1,4 +1,5 @@
 pub mod api_keys;
+pub mod analytics;
 mod application;
 pub mod auth;
 pub mod authorization;

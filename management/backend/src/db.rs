@@ -58,6 +58,8 @@ mod tests {
         assert!(tables.contains(&"users".to_string()));
         assert!(tables.contains(&"sessions".to_string()));
         assert!(tables.contains(&"audit_events".to_string()));
+        assert!(tables.contains(&"activity_events".to_string()));
+        assert!(tables.contains(&"activity_event_ancestry".to_string()));
         assert_eq!(
             sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
                 .fetch_one(&pool)
@@ -79,6 +81,62 @@ mod tests {
         assert!(columns.contains(&"identity_type".to_string()));
         assert!(columns.contains(&"is_root".to_string()));
         assert!(columns.contains(&"status".to_string()));
+    }
+
+    #[tokio::test]
+    async fn analytics_migrates_from_0012_without_losing_identity_or_group_data() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        for migration in [
+            include_str!("../migrations/0001_identity.sql"),
+            include_str!("../migrations/0002_identity_hardening.sql"),
+            include_str!("../migrations/0003_groups.sql"),
+            include_str!("../migrations/0004_group_invariants.sql"),
+            include_str!("../migrations/0005_provisioning.sql"),
+            include_str!("../migrations/0006_policies.sql"),
+            include_str!("../migrations/0007_llm_configuration.sql"),
+            include_str!("../migrations/0008_llm_quotas.sql"),
+            include_str!("../migrations/0009_llm_gateway.sql"),
+            include_str!("../migrations/0010_conversations.sql"),
+            include_str!("../migrations/0011_conversation_hardening.sql"),
+            include_str!("../migrations/0012_conversation_terminal_invariants.sql"),
+        ] {
+            sqlx::raw_sql(migration).execute(&pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('prior','p@test','p@test','Prior','active','learner',0,1,1)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('prior-group',NULL,'Prior','prior','active',1)").execute(&pool).await.unwrap();
+
+        sqlx::raw_sql(include_str!("../migrations/0013_analytics.sql"))
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id='prior'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id='prior-group'")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='activity_events'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            1
+        );
     }
 
     #[tokio::test]
