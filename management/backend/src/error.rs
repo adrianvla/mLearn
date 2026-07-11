@@ -15,6 +15,9 @@ pub enum AppError {
     #[error("Container not found: {0}")]
     ContainerNotFound(String),
 
+    #[error("{0}")]
+    NotFound(String),
+
     #[error("Unauthorized")]
     Unauthorized,
 
@@ -64,13 +67,12 @@ impl AppError {
             Self::DockerUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::DockerPermissionDenied => StatusCode::FORBIDDEN,
             Self::ContainerNotFound(_) => StatusCode::NOT_FOUND,
+            Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::PolicyDenied(_) => StatusCode::FORBIDDEN,
             Self::ConfigurationUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
-            Self::QuotaExceeded(_) | Self::RateLimited(_) => {
-                StatusCode::TOO_MANY_REQUESTS
-            }
+            Self::QuotaExceeded(_) | Self::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::InvalidActiveGroup(_) => StatusCode::CONFLICT,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
@@ -140,6 +142,10 @@ mod tests {
         );
         assert_eq!(
             AppError::ContainerNotFound("abc".into()).status_code(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            AppError::NotFound("missing".into()).status_code(),
             StatusCode::NOT_FOUND
         );
         assert_eq!(
