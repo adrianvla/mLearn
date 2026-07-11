@@ -20,7 +20,7 @@ const ITEMS: NavigationItem[] = [
 export function AppSidebar({ mobileOpen = false, onNavigate }: { mobileOpen?: boolean; onNavigate?: () => void }) {
   const scope = useGroupScope();
   const auth = useAuth();
-  const can = (capability?: Capability) => capability === undefined || (scope.status === 'ready' && scope.can(capability));
+  const can = (capability?: Capability) => capability === undefined || (auth.status === 'authenticated' && auth.user.isRoot === true) || (scope.status === 'ready' && scope.can(capability));
   return <aside className={`app-sidebar ${mobileOpen ? 'is-open' : ''}`}>
     <div className="sidebar-brand"><img src={appLogoUrl} alt="" /><div><strong>mLearn</strong><span>School Console</span></div><button aria-label="Close navigation" onClick={onNavigate}><X /></button></div>
     <nav aria-label="Primary">{ITEMS.filter((item) => can(item.capability)).map((item) => <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={onNavigate}><item.icon /><span>{item.label}</span></NavLink>)}</nav>
