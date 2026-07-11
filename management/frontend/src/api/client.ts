@@ -96,7 +96,7 @@ export class ApiClient {
   }
 
   async me(signal?: AbortSignal): Promise<AuthorizedUser> {
-    const user = await this.get<{ id: string; email: string }>('/api/auth/me', { signal });
+    const user = await this.get<{ id: string; email: string; isRoot: boolean }>('/api/auth/me', { signal });
     const eligible = await this.get<{ groups: Array<{ id: string; name: string }> }>('/api/groups/eligible', { signal });
     return { ...user, groups: eligible.groups.map((group) => ({ ...group, capabilities: [] })) };
   }

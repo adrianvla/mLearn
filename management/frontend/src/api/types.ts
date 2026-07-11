@@ -309,6 +309,7 @@ export interface AuthorizedGroupNode {
 export interface AuthorizedUser {
   id: string;
   email: string;
+  isRoot?: boolean;
   groups: AuthorizedGroupNode[];
 }
 
@@ -320,7 +321,7 @@ export interface AuthSession {
 
 export interface AuthResponse {
   session: AuthSession;
-  user: { id: string; email: string };
+  user: { id: string; email: string; isRoot?: boolean };
 }
 
 export interface CursorPage<T> {
