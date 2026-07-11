@@ -40,6 +40,7 @@ export default function LlmGateway() {
   const [profiles, setProfiles] = useState<PromptProfile[]>([]);
   const [usage, setUsage] = useState<UsageBucket[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
   const [secret, setSecret] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [health, setHealth] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export default function LlmGateway() {
     if (!groupId) return;
     const controller = new AbortController();
     const q = `groupId=${encodeURIComponent(groupId)}`;
+    setQuotaError(null);
     Promise.all([
       api.get<{ items: Provider[] }>(`/api/llm/providers?${q}`, {
         signal: controller.signal,
@@ -58,18 +60,16 @@ export default function LlmGateway() {
         signal: controller.signal,
       }),
       api.get<{ items: PromptProfile[] }>(`/api/llm/prompt-profiles?${q}`, { signal: controller.signal }),
-      api.get<{ buckets: UsageBucket[] }>(`/api/llm/usage?${q}`, { signal: controller.signal }),
-      api.get<{ apiKeys: ApiKeySummary[] }>(`/api/groups/${encodeURIComponent(groupId)}/api-keys`, { signal: controller.signal }),
-    ]).then(([p, m, r, nextProfiles, nextUsage, nextKeys]) => {
+    ]).then(([p, m, r, nextProfiles]) => {
       if (!controller.signal.aborted) {
         setProviders(p.items);
         setModels(m.items);
         setPrices(r.items);
         setProfiles(nextProfiles.items);
-        setUsage(nextUsage.buckets);
-        setApiKeys(nextKeys.apiKeys);
       }
     });
+    api.get<{ buckets: UsageBucket[] }>(`/api/llm/usage?${q}`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setUsage(result.buckets); }).catch(() => { if (!controller.signal.aborted) { setUsage([]); setQuotaError('Quota summary unavailable until the school quota calendar is configured.'); } });
+    api.get<{ apiKeys: ApiKeySummary[] }>(`/api/groups/${encodeURIComponent(groupId)}/api-keys`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setApiKeys(result.apiKeys); }).catch(() => { if (!controller.signal.aborted) setApiKeys([]); });
     return () => controller.abort();
   }, [groupId]);
   const replace = async () => {
@@ -183,6 +183,7 @@ export default function LlmGateway() {
         </article>
         <article className="dashboard-panel">
           <h2>Quota summary</h2>
+          {quotaError && <p role="status">{quotaError}</p>}
           {usage.map((bucket) => <div className="gateway-item" key={`${bucket.scopeKind}-${bucket.scopeId}-${bucket.metric}`}><strong>{bucket.metric}</strong><span>{bucket.used} used · {bucket.reserved} reserved · {bucket.remaining === null ? 'No limit' : `${bucket.remaining} remaining`}</span></div>)}
         </article>
         <article className="dashboard-panel">

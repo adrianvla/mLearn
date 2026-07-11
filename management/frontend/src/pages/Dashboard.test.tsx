@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Overview from './Overview';
 
@@ -24,6 +24,10 @@ it('renders the selected-group school dashboard without operational diagnostics'
   expect(screen.getByRole('img', { name: 'LLM requests' })).toBeVisible();
   expect(screen.getByText('School controls')).toBeVisible();
   expect(screen.queryByText('Container logs')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Usage' }));
+  expect(screen.getByRole('heading', { name: 'Token usage' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Security' }));
+  expect(screen.getByRole('heading', { name: 'Policy enforcement' })).toBeVisible();
   expect(fetch).toHaveBeenCalledWith(expect.stringContaining('groupId=german'), expect.objectContaining({ signal: expect.any(AbortSignal) }));
 });
 
