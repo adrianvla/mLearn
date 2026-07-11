@@ -32,6 +32,7 @@ export default function App() {
         <Route path="/" element={<Suspense fallback={<PageLoader />}><Overview /></Suspense>} />
         <Route path="/services" element={<Suspense fallback={<PageLoader />}><Services /></Suspense>} />
         <Route path="/logs" element={<Suspense fallback={<PageLoader />}><Logs /></Suspense>} />
+        <Route path="/conversations" element={<Suspense fallback={<PageLoader />}><Logs /></Suspense>} />
         <Route path="/config" element={<Suspense fallback={<PageLoader />}><Config /></Suspense>} />
         <Route path="/storage" element={<Suspense fallback={<PageLoader />}><Storage /></Suspense>} />
         <Route path="/ai-status" element={<Suspense fallback={<PageLoader />}><AiStatus /></Suspense>} />
