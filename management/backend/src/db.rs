@@ -21,7 +21,8 @@ pub async fn connect_database(config: &Config) -> Result<SqlitePool, AppError> {
     Ok(pool)
 }
 
-pub(crate) fn sqlite_connect_options(path: &str) -> Result<SqliteConnectOptions, AppError> {
+#[doc(hidden)]
+pub fn sqlite_connect_options(path: &str) -> Result<SqliteConnectOptions, AppError> {
     Ok(SqliteConnectOptions::from_str(&format!("sqlite://{path}"))
         .map_err(database_error)?
         .create_if_missing(true)

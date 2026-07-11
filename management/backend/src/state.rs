@@ -63,6 +63,18 @@ impl AppState {
             llm_preflight_deadline: Duration::from_secs(30),
         })
     }
+
+    /// Overrides provider DNS resolution for deterministic integration testing.
+    #[doc(hidden)]
+    pub fn with_llm_endpoint_resolver(
+        mut self,
+        resolver: Arc<dyn EndpointResolver>,
+        preflight_deadline: Duration,
+    ) -> Self {
+        self.llm_endpoint_resolver = resolver;
+        self.llm_preflight_deadline = preflight_deadline;
+        self
+    }
 }
 
 #[cfg(test)]
