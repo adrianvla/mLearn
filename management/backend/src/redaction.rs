@@ -1,7 +1,18 @@
-
 use std::collections::HashMap;
 
 const REDACTED: &str = "[REDACTED]";
+const COMPACT_SENSITIVE_KEYS: [&str; 10] = [
+    "APIKEY",
+    "ACCESSTOKEN",
+    "REFRESHTOKEN",
+    "CLIENTSECRET",
+    "PRIVATEKEY",
+    "SESSIONID",
+    "AUTHHEADER",
+    "DATABASEURL",
+    "DBURL",
+    "AUTHORIZATION",
+];
 const SENSITIVE_KEY_PATTERNS: [&str; 20] = [
     "KEY",
     "TOKEN",
@@ -27,16 +38,52 @@ const SENSITIVE_KEY_PATTERNS: [&str; 20] = [
 
 pub fn is_sensitive_key(key: &str) -> bool {
     let upper_key = key.to_ascii_uppercase();
-    let segments: Vec<&str> = upper_key
-        .split(|character: char| !character.is_ascii_alphanumeric())
-        .filter(|segment| !segment.is_empty())
+    let compact: String = upper_key
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
         .collect();
+    if COMPACT_SENSITIVE_KEYS.contains(&compact.as_str()) {
+        return true;
+    }
+    let segments = key_segments(key);
     SENSITIVE_KEY_PATTERNS.iter().any(|pattern| {
-        let pattern_segments: Vec<&str> = pattern.split('_').collect();
+        let pattern_segments: Vec<String> = pattern.split('_').map(str::to_string).collect();
         segments
             .windows(pattern_segments.len())
             .any(|window| window == pattern_segments)
     })
+}
+
+fn key_segments(key: &str) -> Vec<String> {
+    let characters: Vec<char> = key.chars().collect();
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    for (index, character) in characters.iter().copied().enumerate() {
+        if !character.is_ascii_alphanumeric() {
+            if !current.is_empty() {
+                segments.push(std::mem::take(&mut current).to_ascii_uppercase());
+            }
+            continue;
+        }
+        let previous = index
+            .checked_sub(1)
+            .and_then(|i| characters.get(i))
+            .copied();
+        let next = characters.get(index + 1).copied();
+        let camel_boundary = character.is_ascii_uppercase()
+            && !current.is_empty()
+            && (previous.is_some_and(|value| value.is_ascii_lowercase() || value.is_ascii_digit())
+                || (previous.is_some_and(|value| value.is_ascii_uppercase())
+                    && next.is_some_and(|value| value.is_ascii_lowercase())));
+        if camel_boundary {
+            segments.push(std::mem::take(&mut current).to_ascii_uppercase());
+        }
+        current.push(character);
+    }
+    if !current.is_empty() {
+        segments.push(current.to_ascii_uppercase());
+    }
+    segments
 }
 
 pub fn looks_like_secret(value: &str) -> bool {
@@ -85,8 +132,7 @@ fn redact_assignment_token(token: &str) -> String {
     let Some(separator_index) = token.find('=') else {
         return token.to_string();
     };
-    let key = token[..separator_index]
-        .trim_matches(|character: char| !is_key_character(character));
+    let key = token[..separator_index].trim_matches(|character: char| !is_key_character(character));
 
     if is_sensitive_key(key) && &token[separator_index + 1..] != "Bearer" {
         format!("{}={}", &token[..separator_index], REDACTED)
@@ -120,7 +166,10 @@ fn find_secret_range(value: &str, from: usize) -> Option<(usize, usize)> {
         find_long_base64(value, from),
     ];
 
-    candidates.into_iter().flatten().min_by_key(|(start, _)| *start)
+    candidates
+        .into_iter()
+        .flatten()
+        .min_by_key(|(start, _)| *start)
 }
 
 fn find_openai_key(value: &str, from: usize) -> Option<(usize, usize)> {
@@ -160,7 +209,9 @@ fn find_bearer_token(value: &str, from: usize) -> Option<(usize, usize)> {
         };
         let start = search_from + relative_index;
         let token_start = start + "Bearer ".len();
-        let token_len = take_while_len(&value[token_start..], |character| !character.is_whitespace());
+        let token_len = take_while_len(&value[token_start..], |character| {
+            !character.is_whitespace()
+        });
 
         if token_len > 0 {
             return Some((start, token_start + token_len));
@@ -322,7 +373,14 @@ mod tests {
 
     #[test]
     fn leaves_non_sensitive_keys_unflagged() {
-        for key in ["PORT", "NAME", "HOST", "DEBUG", "MONKEY_ID", "COMPASS_GROUP"] {
+        for key in [
+            "PORT",
+            "NAME",
+            "HOST",
+            "DEBUG",
+            "MONKEY_ID",
+            "COMPASS_GROUP",
+        ] {
             assert!(!is_sensitive_key(key), "{key} should not be sensitive");
         }
     }
@@ -332,6 +390,27 @@ mod tests {
         assert!(is_sensitive_key("api_key"));
         assert!(is_sensitive_key("API_KEY"));
         assert!(is_sensitive_key("Api_Key"));
+    }
+
+    #[test]
+    fn detects_camel_case_and_compact_credential_keys_without_substring_false_positives() {
+        for key in [
+            "apiKey",
+            "apikey",
+            "accessToken",
+            "refreshToken",
+            "clientSecret",
+            "privateKey",
+            "sessionId",
+            "authHeader",
+            "api-key",
+            "ACCESS_TOKEN",
+        ] {
+            assert!(is_sensitive_key(key), "{key} should be sensitive");
+        }
+        for key in ["monkey_id", "compass_group", "hockeyTeam", "bypassMode"] {
+            assert!(!is_sensitive_key(key), "{key} should remain visible");
+        }
     }
 
     #[test]
@@ -355,7 +434,14 @@ mod tests {
 
     #[test]
     fn leaves_non_secret_values_unflagged() {
-        for value in ["3000", "localhost", "true", "hello", "sk-short", "AKIASHORT"] {
+        for value in [
+            "3000",
+            "localhost",
+            "true",
+            "hello",
+            "sk-short",
+            "AKIASHORT",
+        ] {
             assert!(!looks_like_secret(value), "{value} should not look secret");
         }
     }
@@ -409,9 +495,6 @@ mod tests {
     fn redacts_database_credentials_inline() {
         let line = "DATABASE_URL=postgres://user:pass@localhost:5432/mlearn ready=true";
 
-        assert_eq!(
-            redact_line(line),
-            "DATABASE_URL=[REDACTED] ready=true"
-        );
+        assert_eq!(redact_line(line), "DATABASE_URL=[REDACTED] ready=true");
     }
 }

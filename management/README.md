@@ -137,9 +137,13 @@ uses the same HTTPS API and needs no Electron-only integration.
 
 `GET /api/health` intentionally reports only process availability and does not
 require a session. It does not prove that a provider is configured or reachable.
-All identity, policy, quota, conversation, and configuration routes require a
-named session or an explicitly scoped service key. Provider health validation is
-permission-scoped and never returns a credential or provider response body.
+Protected identity/group management, policy, quota, conversation, and
+configuration routes require a named session or an explicitly scoped service
+key. Bootstrap/recovery, login, desktop-init/exchange, and refresh are public
+authentication entry points with their own token, one-time-code, credential, or
+rate-limit checks; they do not accept a management capability as authorization.
+Provider health validation is permission-scoped and never returns a credential
+or provider response body.
 
 ## LLM Providers and Governed Routing
 

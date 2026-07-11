@@ -1,9 +1,12 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     future::Future,
     net::SocketAddr,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 
@@ -30,7 +33,10 @@ use tokio::{
 use tower::ServiceExt;
 use uuid::Uuid;
 
-struct FixedResolver(SocketAddr);
+struct FixedResolver {
+    address: SocketAddr,
+    calls: Arc<AtomicUsize>,
+}
 
 impl EndpointResolver for FixedResolver {
     fn resolve<'a>(
@@ -38,7 +44,10 @@ impl EndpointResolver for FixedResolver {
         _host: &'a str,
         _port: u16,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<SocketAddr>, AppError>> + Send + 'a>> {
-        Box::pin(async move { Ok(vec![self.0]) })
+        Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![self.address])
+        })
     }
 }
 
@@ -50,6 +59,8 @@ struct Fixture {
     learner_b: String,
     teacher_b: String,
     root: String,
+    resolver_calls: Arc<AtomicUsize>,
+    provider_contacts: Arc<AtomicUsize>,
     key_paths: Vec<String>,
 }
 
@@ -68,17 +79,23 @@ impl Drop for Fixture {
     }
 }
 
-async fn mock_ollama(responses: Vec<(u16, &'static str, Duration)>) -> SocketAddr {
+async fn mock_ollama(
+    responses: Vec<(u16, &'static str, Duration)>,
+) -> (SocketAddr, Arc<AtomicUsize>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let responses = Arc::new(Mutex::new(VecDeque::from(responses)));
+    let contacts = Arc::new(AtomicUsize::new(0));
+    let task_contacts = contacts.clone();
     tokio::spawn(async move {
         loop {
             let Ok((mut socket, _)) = listener.accept().await else {
                 break;
             };
             let responses = responses.clone();
+            let contacts = task_contacts.clone();
             tokio::spawn(async move {
+                contacts.fetch_add(1, Ordering::SeqCst);
                 let mut request = vec![0_u8; 64 * 1024];
                 let _ = socket.read(&mut request).await;
                 let (status, body, delay) = responses.lock().unwrap().pop_front().unwrap_or((
@@ -96,10 +113,10 @@ async fn mock_ollama(responses: Vec<(u16, &'static str, Duration)>) -> SocketAdd
             });
         }
     });
-    address
+    (address, contacts)
 }
 
-async fn setup(address: SocketAddr) -> Fixture {
+async fn setup(address: SocketAddr, provider_contacts: Arc<AtomicUsize>) -> Fixture {
     let db_path = std::env::temp_dir()
         .join(format!("mlearn-llm-e2e-{}.db", Uuid::now_v7()))
         .to_string_lossy()
@@ -182,13 +199,16 @@ async fn setup(address: SocketAddr) -> Fixture {
         )
         .await
         .unwrap();
-    for (id, group, limit) in [
-        ("root-cost", "school", 1_000_000_i64),
-        ("class-a-cost", "class-a", 500_000),
-        ("class-b-cost", "class-b", 500_000),
+    for (id, group, metric, limit) in [
+        ("root-cost", "school", "costMicros", 1_000_000_i64),
+        ("class-a-cost", "class-a", "costMicros", 500_000),
+        ("class-b-cost", "class-b", "costMicros", 500_000),
+        ("root-requests", "school", "requests", 3),
+        ("class-a-requests", "class-a", "requests", 1),
+        ("class-b-requests", "class-b", "requests", 2),
     ] {
-        sqlx::query("INSERT INTO quota_definitions(id,owner_group_id,subject_kind,subject_id,metric,period,limit_value,created_by_user_id,created_at,updated_at) VALUES(?,?,'group',?,'costMicros','monthly',?,'root',1,1)")
-            .bind(id).bind(group).bind(group).bind(limit).execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO quota_definitions(id,owner_group_id,subject_kind,subject_id,metric,period,limit_value,created_by_user_id,created_at,updated_at) VALUES(?,?,'group',?,?, 'monthly',?,'root',1,1)")
+            .bind(id).bind(group).bind(group).bind(metric).bind(limit).execute(&pool).await.unwrap();
     }
     sqlx::query("INSERT INTO llm_providers(id,group_id,name,provider_kind,base_url,status,created_by_user_id,created_at,updated_at) VALUES('provider','school','Pinned mock','ollama',?,'active','root',1,1)")
         .bind(format!("http://ollama:{}", address.port())).execute(&pool).await.unwrap();
@@ -196,7 +216,7 @@ async fn setup(address: SocketAddr) -> Fixture {
         .execute(&pool).await.unwrap();
     sqlx::query("INSERT INTO provider_price_versions(id,group_id,provider_id,model_id,currency,unit,input_cost_micros,output_cost_micros,idempotency_key,created_by_user_id,created_at) VALUES('price','school','provider','model','CHF','perMillionTokens',1000,2000,'price-v1','root',1)")
         .execute(&pool).await.unwrap();
-    let policy = serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":2,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[{"metric":"costMicros","limit":1000000_i64,"period":"monthly","hard":true}]}}).to_string();
+    let policy = serde_json::json!({"llm":{"enabled":true,"requestsPerMinute":3,"maxConcurrentStreams":1,"allowedProviders":["provider"],"allowedModels":["model"],"quotas":[{"metric":"costMicros","limit":1000000_i64,"period":"monthly","hard":true},{"metric":"requests","limit":3,"period":"monthly","hard":true}]}}).to_string();
     sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('policy','school',?,'document-hash','compiled-hash','root','governed','[]',1)")
         .bind(policy).execute(&pool).await.unwrap();
     sqlx::query("INSERT INTO active_policies(group_id,policy_version_id,activated_at) VALUES('school','policy',1)")
@@ -216,13 +236,20 @@ async fn setup(address: SocketAddr) -> Fixture {
     config.encryption_key_path = encryption.clone();
     config.encryption_key = None;
     config.conversation_retention_days = 30;
+    let resolver_calls = Arc::new(AtomicUsize::new(0));
     let state = AppState::try_new(
         bollard::Docker::connect_with_http_defaults().unwrap(),
         config,
         pool.clone(),
     )
     .unwrap()
-    .with_llm_endpoint_resolver(Arc::new(FixedResolver(address)), Duration::from_secs(3));
+    .with_llm_endpoint_resolver(
+        Arc::new(FixedResolver {
+            address,
+            calls: resolver_calls.clone(),
+        }),
+        Duration::from_secs(3),
+    );
     let learner_a = state
         .identity
         .issue_session("learner-a", None, Some("class-a"))
@@ -255,6 +282,8 @@ async fn setup(address: SocketAddr) -> Fixture {
         learner_b,
         teacher_b,
         root,
+        resolver_calls,
+        provider_contacts,
         key_paths: vec![signing, encryption],
     }
 }
@@ -296,12 +325,12 @@ async fn get_json(app: Router, token: &str, uri: &str) -> (StatusCode, Value) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
-    let address = mock_ollama(vec![
+    let (address, provider_contacts) = mock_ollama(vec![
         (200, "{\"message\":{\"content\":\"Hallo A\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":4,\"eval_count\":2}\n", Duration::ZERO),
         (200, "{\"message\":{\"content\":\"Hallo B\"},\"done\":false}\n{\"done\":true}\n", Duration::ZERO),
         (503, "provider-private-body-9a72", Duration::ZERO),
     ]).await;
-    let fixture = setup(address).await;
+    let fixture = setup(address, provider_contacts).await;
 
     let first = post_stream(
         fixture.app.clone(),
@@ -338,7 +367,7 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
         .unwrap();
     let (failure_status, failure_body) = post_stream(
         fixture.app.clone(),
-        &fixture.learner_a,
+        &fixture.learner_b,
         "failure-private-prompt-55d1",
     )
     .await;
@@ -354,6 +383,10 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
             .unwrap(),
         before_failure
     );
+    let resolver_before_denial = fixture.resolver_calls.load(Ordering::SeqCst);
+    let contacts_before_denial = fixture.provider_contacts.load(Ordering::SeqCst);
+    assert_eq!(resolver_before_denial, 3);
+    assert_eq!(contacts_before_denial, 3);
     let (limited_status, limited_body) = post_stream(
         fixture.app.clone(),
         &fixture.learner_a,
@@ -363,7 +396,15 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
     assert_eq!(limited_status, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(
         serde_json::from_slice::<Value>(&limited_body).unwrap()["error"],
-        "rate_limited"
+        "quota_exceeded"
+    );
+    assert_eq!(
+        fixture.resolver_calls.load(Ordering::SeqCst),
+        resolver_before_denial
+    );
+    assert_eq!(
+        fixture.provider_contacts.load(Ordering::SeqCst),
+        contacts_before_denial
     );
 
     let qualities: Vec<String> = sqlx::query_scalar(
@@ -373,6 +414,65 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
     .await
     .unwrap();
     assert_eq!(qualities, vec!["estimated", "exact"]);
+    let completed: Vec<(String, String, String, String, i64, i64, i64, String)> = sqlx::query_as(
+        "SELECT r.reservation_id,q.learner_user_id,q.direct_group_id,r.usage_quality,r.input_tokens,r.output_tokens,r.cost_micros,r.price_version_id FROM llm_requests r JOIN quota_reservations q ON q.id=r.reservation_id WHERE r.status='completed' ORDER BY r.usage_quality",
+    )
+    .fetch_all(&fixture.pool)
+    .await
+    .unwrap();
+    assert_eq!(completed.len(), 2);
+    for (reservation, learner, group, quality, input, output, cost, price) in &completed {
+        assert_eq!(price, "price");
+        let expected = if quality == "exact" {
+            assert_eq!((*input, *output, *cost), (4, 2, 2));
+            [
+                ("requests", 1),
+                ("inputTokens", 4),
+                ("outputTokens", 2),
+                ("totalTokens", 6),
+                ("costMicros", 2),
+            ]
+        } else {
+            assert_eq!(quality, "estimated");
+            assert_eq!((*input, *output, *cost), (122, 7, 2));
+            [
+                ("requests", 1),
+                ("inputTokens", 122),
+                ("outputTokens", 7),
+                ("totalTokens", 129),
+                ("costMicros", 2),
+            ]
+        };
+        for (scope_kind, scope_id) in [
+            ("user", learner.as_str()),
+            ("group", group.as_str()),
+            ("group", "school"),
+        ] {
+            for &(metric, value) in &expected {
+                let stored: (i64, String) = sqlx::query_as(
+                    "SELECT value,price_version_id FROM usage_ledger WHERE reservation_id=? AND scope_kind=? AND scope_id=? AND metric=?",
+                )
+                .bind(reservation)
+                .bind(scope_kind)
+                .bind(scope_id)
+                .bind(metric)
+                .fetch_one(&fixture.pool)
+                .await
+                .unwrap();
+                assert_eq!(stored, (value, "price".into()));
+            }
+        }
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM usage_ledger WHERE reservation_id=?"
+            )
+            .bind(reservation)
+            .fetch_one(&fixture.pool)
+            .await
+            .unwrap(),
+            15,
+        );
+    }
     let conversation_a: String = sqlx::query_scalar(
         "SELECT id FROM conversations WHERE owner_group_id='class-a' AND status='completed'",
     )
@@ -401,6 +501,13 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
         archived["messages"][0]["content"],
         "learner-a-private-prompt-61bc"
     );
+    let (archived_sibling_status, _) = get_json(
+        fixture.app.clone(),
+        &fixture.teacher_b,
+        &format!("/api/conversations/{conversation_a}"),
+    )
+    .await;
+    assert_eq!(archived_sibling_status, StatusCode::FORBIDDEN);
 
     let (rollup_status, rollup) = get_json(
         fixture.app.clone(),
@@ -416,6 +523,29 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
     assert!(breakdowns
         .iter()
         .any(|row| row["learnerUserId"] == "learner-b"));
+    for (metric, expected_total) in [
+        ("requests", 2_i64),
+        ("inputTokens", 126),
+        ("outputTokens", 9),
+        ("totalTokens", 135),
+        ("costMicros", 4),
+    ] {
+        let breakdown_total: i64 = breakdowns
+            .iter()
+            .filter(|row| row["metric"] == metric)
+            .map(|row| row["value"].as_i64().unwrap())
+            .sum();
+        assert_eq!(breakdown_total, expected_total, "root {metric} rollup");
+        if matches!(metric, "requests" | "costMicros") {
+            let bucket = rollup["buckets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["scopeId"] == "school" && row["metric"] == metric)
+                .unwrap();
+            assert_eq!(bucket["used"], expected_total);
+        }
+    }
     let scopes: Vec<String> =
         sqlx::query("SELECT DISTINCT scope_id FROM usage_ledger ORDER BY scope_id")
             .fetch_all(&fixture.pool)
@@ -470,7 +600,7 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn production_router_enforces_concurrency_and_recovers_abandoned_stream_once() {
-    let address = mock_ollama(vec![
+    let (address, provider_contacts) = mock_ollama(vec![
         (
             200,
             "{\"message\":{\"content\":\"slow\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":1,\"eval_count\":1}\n",
@@ -483,7 +613,7 @@ async fn production_router_enforces_concurrency_and_recovers_abandoned_stream_on
         ),
     ])
     .await;
-    let fixture = setup(address).await;
+    let fixture = setup(address, provider_contacts).await;
     let first_app = fixture.app.clone();
     let first_token = fixture.learner_a.clone();
     let first =
@@ -587,4 +717,36 @@ fn operational_redaction_preserves_safe_identifiers_and_removes_secret_material(
         "ordinary words must not be guessed as secrets"
     );
     assert!(redacted.contains("policy_signing_key=[REDACTED]"));
+
+    for key in [
+        "apiKey",
+        "apikey",
+        "accessToken",
+        "refreshToken",
+        "clientSecret",
+        "privateKey",
+        "sessionId",
+        "authHeader",
+        "api-key",
+        "ACCESS_TOKEN",
+    ] {
+        assert_eq!(
+            mlearn_management::redaction::redact_value(key, "ordinary-private-value"),
+            "[REDACTED]",
+            "{key} must be recognized as credential material",
+        );
+    }
+    let audit_metadata = mlearn_management::redaction::redact_map(&HashMap::from([
+        ("apiKey".to_string(), "audit-private-api-key".to_string()),
+        (
+            "refreshToken".to_string(),
+            "audit-private-refresh-token".to_string(),
+        ),
+        ("provider_id".to_string(), "provider-v1".to_string()),
+    ]));
+    let serialized = serde_json::to_string(&audit_metadata).unwrap();
+    assert!(!serialized.contains("audit-private"));
+    assert_eq!(audit_metadata["apiKey"], "[REDACTED]");
+    assert_eq!(audit_metadata["refreshToken"], "[REDACTED]");
+    assert_eq!(audit_metadata["provider_id"], "provider-v1");
 }
