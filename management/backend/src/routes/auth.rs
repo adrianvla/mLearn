@@ -72,6 +72,8 @@ struct AuthSessionDto {
 struct UserDto {
     id: String,
     email: String,
+    #[serde(rename = "isRoot")]
+    is_root: bool,
 }
 
 #[derive(Serialize)]
@@ -370,6 +372,7 @@ async fn me(
     Ok(Json(UserDto {
         id: user.id,
         email: user.email,
+        is_root: principal.is_root,
     }))
 }
 
@@ -389,6 +392,7 @@ fn auth_response(user: AuthenticatedUser, session: IssuedSession) -> AuthRespons
         user: UserDto {
             id: user.id,
             email: user.email,
+            is_root: false,
         },
     }
 }
