@@ -17,7 +17,7 @@ type StoredEvent = { key: string; partition: string; groupId: string; order: [st
 type Meta = { key: string; value: number; owner?: string }
 
 const DB_NAME = 'mlearn-management-analytics'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const EVENTS = 'events'
 const META = 'meta'
 const encoder = new TextEncoder()
@@ -44,7 +44,7 @@ export function projectManagementActivityEvent(value: unknown): ManagementActivi
     || !isValidActivityIdentifier(row.id) || !isValidActivityIdentifier(row.sessionId)
     || !isValidActivityIdentifier(row.sourceId) || !isValidActivityIdentifier(row.activeGroupId)
     || !isValidActivityIdentifier(row.policyVersionId) || !Number.isSafeInteger(row.sequence)
-    || (row.sequence as number) < 0 || typeof row.occurredAt !== 'string'
+    || (row.sequence as number) < 1 || typeof row.occurredAt !== 'string'
     || !Number.isFinite(Date.parse(row.occurredAt))) return null
   return Object.freeze({
     schemaVersion: 1,
@@ -89,16 +89,31 @@ async function open(factory: IDBFactory): Promise<IDBDatabase> {
       if (!store.indexNames.contains('occurredAtSequence')) store.createIndex('occurredAtSequence', 'order')
       if (!store.indexNames.contains('partitionGroupOrder')) store.createIndex('partitionGroupOrder', 'partitionGroupOrder')
       if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: 'key' })
+      const legacyDrops = new Map<string, number>()
       const cursor = store.openCursor()
       cursor.onsuccess = () => {
         const current = cursor.result
-        if (!current) return
+        if (!current) {
+          const meta = req.transaction!.objectStore(META)
+          for (const [key, count] of legacyDrops) {
+            const lookup = meta.get(key)
+            lookup.onsuccess = () => {
+              const prior = lookup.result as Meta | undefined
+              meta.put({ key, value: Math.min(Number.MAX_SAFE_INTEGER, (prior?.value ?? 0) + count) })
+            }
+          }
+          return
+        }
         const row = current.value as StoredEvent
         const event = projectManagementActivityEvent(row.event)
         if (event) {
           const order: StoredEvent['order'] = [event.occurredAt, event.sessionId, event.sequence, event.id]
           current.update({ ...row, groupId: event.activeGroupId, order, partitionGroupOrder: [row.partition, event.activeGroupId, ...order], event })
-        } else current.delete()
+        } else {
+          current.delete()
+          const key = `${row.partition}\ndropped:invalid_legacy`
+          legacyDrops.set(key, (legacyDrops.get(key) ?? 0) + 1)
+        }
         current.continue()
       }
     }

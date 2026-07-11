@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn analytics_migrates_from_0012_without_losing_identity_or_group_data() {
+    async fn analytics_migrates_from_0012_through_0014_without_losing_data() {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -113,6 +113,17 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at) VALUES('prior-event','prior','prior-group','policy','hash',1,'activity.started','flashcards','progress-only','session','source',1,1000,1)").execute(&pool).await.unwrap();
+        let event_row_id: i64 =
+            sqlx::query_scalar("SELECT id FROM activity_events WHERE event_id='prior-event'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'prior-group')").bind(event_row_id).execute(&pool).await.unwrap();
+        sqlx::raw_sql(include_str!("../migrations/0014_analytics_hardening.sql"))
+            .execute(&pool)
+            .await
+            .unwrap();
 
         assert_eq!(
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE id='prior'")
@@ -120,6 +131,24 @@ mod tests {
                 .await
                 .unwrap(),
             1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT ancestry_state FROM activity_events WHERE event_id='prior-event'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "finalized"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT occurred_at FROM activity_events WHERE event_id='prior-event'"
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            1_000_000
         );
         assert_eq!(
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups WHERE id='prior-group'")

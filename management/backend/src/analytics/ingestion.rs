@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, Row, Sqlite, SqlitePool, Transaction};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
@@ -106,6 +106,19 @@ impl AnalyticsIngestionService {
                 "analytics batch must contain 1 to 100 events".into(),
             ));
         }
+        let mut id_counts = HashMap::new();
+        for raw in &batch.events {
+            let id = raw
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|id| identifier(id))
+                .ok_or_else(|| {
+                    AppError::BadRequest(
+                        "every analytics event requires a bounded nonempty id".into(),
+                    )
+                })?;
+            *id_counts.entry(id.to_owned()).or_insert(0_usize) += 1;
+        }
         let mut connection = self.pool.acquire().await.map_err(db)?;
         let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
         let (group_id, ancestry) = live_scope(&mut tx, principal).await?;
@@ -122,6 +135,17 @@ impl AnalyticsIngestionService {
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("")
                 .to_owned();
+            if !seen_ids.insert(id.clone()) {
+                continue;
+            }
+            if id_counts.get(&id).copied().unwrap_or_default() > 1 {
+                result.rejected.push(RejectedEvent {
+                    id,
+                    code: "duplicate_in_batch",
+                    retryable: false,
+                });
+                continue;
+            }
             let event: ActivityEvent = match serde_json::from_value(raw) {
                 Ok(event) => event,
                 Err(_) => {
@@ -133,9 +157,6 @@ impl AnalyticsIngestionService {
                     continue;
                 }
             };
-            if !seen_ids.insert(event.id.clone()) {
-                continue;
-            }
             let normalized = match normalize(batch.schema_version, event, &group_id, now) {
                 Ok(value) => value,
                 Err(code) => {
@@ -194,12 +215,22 @@ async fn live_scope(
     let live: Option<String> = sqlx::query_scalar("SELECT s.active_group_id FROM sessions s JOIN users u ON u.id=s.user_id JOIN groups g ON g.id=s.active_group_id JOIN group_memberships m ON m.group_id=g.id AND m.user_id=u.id WHERE s.id=? AND s.user_id=? AND s.revoked_at IS NULL AND s.expires_at>? AND s.active_group_id=? AND u.status='active' AND u.identity_type='learner' AND g.status='active' AND m.status='active'")
         .bind(&principal.session_id).bind(&principal.user_id).bind(now).bind(expected).fetch_optional(&mut **tx).await.map_err(db)?;
     let group = live.ok_or(AppError::Unauthorized)?;
-    let rows = sqlx::query("WITH RECURSIVE chain(id,parent_id,depth) AS (SELECT id,parent_id,0 FROM groups WHERE id=? AND status='active' UNION ALL SELECT g.id,g.parent_id,chain.depth+1 FROM groups g JOIN chain ON chain.parent_id=g.id WHERE g.status='active') SELECT id FROM chain ORDER BY depth DESC")
+    let rows = sqlx::query("WITH RECURSIVE chain(id,parent_id,depth) AS (SELECT id,parent_id,0 FROM groups WHERE id=? AND status='active' UNION ALL SELECT g.id,g.parent_id,chain.depth+1 FROM groups g JOIN chain ON chain.parent_id=g.id WHERE g.status='active') SELECT id,parent_id FROM chain ORDER BY depth DESC")
         .bind(&group).fetch_all(&mut **tx).await.map_err(db)?;
-    let ancestry: Vec<String> = rows.into_iter().map(|r| r.get("id")).collect();
-    if ancestry.is_empty() {
+    let chain: Vec<(String, Option<String>)> = rows
+        .into_iter()
+        .map(|r| (r.get("id"), r.get("parent_id")))
+        .collect();
+    if chain.is_empty()
+        || chain.first().is_some_and(|row| row.1.is_some())
+        || chain.last().map_or(true, |row| row.0 != group)
+        || chain
+            .windows(2)
+            .any(|pair| pair[1].1.as_deref() != Some(pair[0].0.as_str()))
+    {
         return Err(AppError::Unauthorized);
     }
+    let ancestry = chain.into_iter().map(|row| row.0).collect();
     Ok((group, ancestry))
 }
 
@@ -281,13 +312,14 @@ fn normalize(
     {
         return Err("invalid_event");
     }
-    let occurred = OffsetDateTime::parse(&e.occurred_at, &Rfc3339)
-        .map_err(|_| "invalid_event")?
-        .unix_timestamp();
-    if occurred < now - MAX_AGE_SECONDS {
+    let parsed = OffsetDateTime::parse(&e.occurred_at, &Rfc3339).map_err(|_| "invalid_event")?;
+    let occurred =
+        i64::try_from(parsed.unix_timestamp_nanos() / 1_000_000).map_err(|_| "invalid_event")?;
+    let now_millis = now.saturating_mul(1_000);
+    if occurred < now_millis - MAX_AGE_SECONDS * 1_000 {
         return Err("event_too_old");
     }
-    if occurred > now + MAX_FUTURE_SECONDS {
+    if occurred > now_millis + MAX_FUTURE_SECONDS * 1_000 {
         return Err("event_too_new");
     }
     let (kind, title, page, total, current, duration) = match &e.activity {
@@ -400,15 +432,64 @@ async fn policy_existed(
     wanted: &str,
     occurred: i64,
 ) -> Result<bool, AppError> {
+    let occurred_seconds = occurred.div_euclid(1_000);
     for group in ancestry.iter().rev() {
-        let rows=sqlx::query("SELECT id,parent_version_ids_json FROM policy_versions WHERE group_id=? AND created_at<=?").bind(group).bind(occurred).fetch_all(&mut **tx).await.map_err(db)?;
+        let rows = sqlx::query("SELECT id,parent_version_ids_json FROM policy_versions WHERE group_id=? AND created_at<=?")
+            .bind(group).bind(occurred_seconds).fetch_all(&mut **tx).await.map_err(db)?;
         for row in rows {
             let id: String = row.get("id");
             let json: String = row.get("parent_version_ids_json");
-            let mut ids: Vec<String> = serde_json::from_str(&json)
+            let parents: Vec<String> = serde_json::from_str(&json)
                 .map_err(|_| AppError::Internal("invalid policy ancestry".into()))?;
+            let mut ids = parents.clone();
             ids.push(id);
-            if hex::encode(Sha256::digest(ids.join("\n").as_bytes())) == wanted {
+            if hex::encode(Sha256::digest(ids.join("\n").as_bytes())) != wanted {
+                continue;
+            }
+            let mut previous_index = None;
+            let mut referenced_groups = HashSet::new();
+            let mut exact = true;
+            for (position, version_id) in ids.iter().enumerate() {
+                let version = sqlx::query("SELECT group_id,parent_version_ids_json,created_at FROM policy_versions WHERE id=?")
+                    .bind(version_id).fetch_optional(&mut **tx).await.map_err(db)?;
+                let Some(version) = version else {
+                    exact = false;
+                    break;
+                };
+                let version_group: String = version.get("group_id");
+                let Some(index) = ancestry.iter().position(|value| value == &version_group) else {
+                    exact = false;
+                    break;
+                };
+                let captured: String = version.get("parent_version_ids_json");
+                let captured: Vec<String> = serde_json::from_str(&captured)
+                    .map_err(|_| AppError::Internal("invalid policy ancestry".into()))?;
+                if captured != ids[..position]
+                    || version.get::<i64, _>("created_at") > occurred_seconds
+                    || previous_index.is_some_and(|previous| index <= previous)
+                {
+                    exact = false;
+                    break;
+                }
+                previous_index = Some(index);
+                referenced_groups.insert(version_group);
+            }
+            for ancestor in ancestry {
+                let had_policy = sqlx::query_scalar::<_, i64>(
+                    "SELECT 1 FROM policy_versions WHERE group_id=? AND created_at<=? LIMIT 1",
+                )
+                .bind(ancestor)
+                .bind(occurred_seconds)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(db)?
+                .is_some();
+                if had_policy && !referenced_groups.contains(ancestor) {
+                    exact = false;
+                    break;
+                }
+            }
+            if exact {
                 return Ok(true);
             }
         }
@@ -471,6 +552,11 @@ async fn insert_event(
         .await
         .map_err(db)?;
     }
+    sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+        .bind(row_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(db)?;
     Ok(InsertOutcome::Accepted)
 }
 fn db(error: sqlx::Error) -> AppError {
@@ -564,15 +650,11 @@ mod tests {
     #[tokio::test]
     async fn duplicate_reordered_and_conflicting_batches_are_stable() {
         let f = Fixture::new().await;
-        let first = f
-            .ingest(vec![f.event("two", 2), f.event("one", 1)])
-            .await
-            .unwrap();
+        let two = f.event("two", 2);
+        let one = f.event("one", 1);
+        let first = f.ingest(vec![two.clone(), one.clone()]).await.unwrap();
         assert_eq!(first.accepted_ids, vec!["two", "one"]);
-        let retry = f
-            .ingest(vec![f.event("one", 1), f.event("two", 2)])
-            .await
-            .unwrap();
+        let retry = f.ingest(vec![one, two]).await.unwrap();
         assert_eq!(retry.duplicate_ids, vec!["one", "two"]);
         let conflict = f.ingest(vec![f.event("different-id", 1)]).await.unwrap();
         assert_eq!(conflict.rejected[0].code, "sequence_conflict");
@@ -615,6 +697,84 @@ mod tests {
                 .await
                 .unwrap(),
             1
+        );
+    }
+
+    #[tokio::test]
+    async fn repeated_ids_are_one_rejection_and_commit_no_row_for_that_id() {
+        let f = Fixture::new().await;
+        let repeated = serde_json::to_value(f.event("repeated", 1)).unwrap();
+        let valid = serde_json::to_value(f.event("valid", 2)).unwrap();
+        let result = AnalyticsIngestionService::new(f.pool.clone())
+            .ingest(
+                &f.principal,
+                IngestionBatch {
+                    schema_version: 1,
+                    events: vec![repeated.clone(), valid, repeated],
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.accepted_ids, vec!["valid"]);
+        assert_eq!(
+            result.rejected,
+            vec![RejectedEvent {
+                id: "repeated".into(),
+                code: "duplicate_in_batch",
+                retryable: false
+            }]
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM activity_events WHERE event_id='repeated'"
+            )
+            .fetch_one(&f.pool)
+            .await
+            .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_event_id_is_an_uncorrelatable_whole_batch_error() {
+        let f = Fixture::new().await;
+        let valid = serde_json::to_value(f.event("valid", 1)).unwrap();
+        let result = AnalyticsIngestionService::new(f.pool.clone())
+            .ingest(
+                &f.principal,
+                IngestionBatch {
+                    schema_version: 1,
+                    events: vec![serde_json::json!({"type":"activity.started"}), valid],
+                },
+            )
+            .await;
+        assert!(matches!(result, Err(AppError::BadRequest(_))));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM activity_events")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn subsecond_timestamp_changes_are_payload_conflicts() {
+        let f = Fixture::new().await;
+        let mut first = f.event("same", 1);
+        let base = OffsetDateTime::now_utc();
+        first.occurred_at = base.format(&Rfc3339).unwrap();
+        let mut changed = first.clone();
+        changed.occurred_at = (base + time::Duration::milliseconds(1))
+            .format(&Rfc3339)
+            .unwrap();
+        assert_eq!(
+            f.ingest(vec![first]).await.unwrap().accepted_ids,
+            vec!["same"]
+        );
+        assert_eq!(
+            f.ingest(vec![changed]).await.unwrap().rejected[0].code,
+            "id_conflict"
         );
     }
 
@@ -741,6 +901,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn policy_chain_must_match_every_current_ancestor_in_order() {
+        let mut f = Fixture::new().await;
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('child','class','Child','child','active',?)").bind(now).execute(&f.pool).await.unwrap();
+        sqlx::query("INSERT INTO group_memberships(id,group_id,user_id,status,created_at) VALUES('child-member','child','learner','active',?)").bind(now).execute(&f.pool).await.unwrap();
+        sqlx::query("UPDATE sessions SET active_group_id='child' WHERE id='http-session'")
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('child-v','child','{}','dc','cc','learner','child','[\"v1\"]',?)").bind(now-1).execute(&f.pool).await.unwrap();
+        f.group = "child".into();
+        f.principal.active_group_id = Some("child".into());
+        f.policy = hex::encode(Sha256::digest(b"v1\nchild-v"));
+        assert_eq!(
+            f.ingest(vec![f.event("valid-chain", 1)])
+                .await
+                .unwrap()
+                .accepted_ids,
+            vec!["valid-chain"]
+        );
+
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('bad-child','child','{}','db','cb','learner','bad','[]',?)").bind(now-1).execute(&f.pool).await.unwrap();
+        f.policy = hex::encode(Sha256::digest(b"bad-child"));
+        assert_eq!(
+            f.ingest(vec![f.event("omitted-parent", 2)])
+                .await
+                .unwrap()
+                .rejected[0]
+                .code,
+            "invalid_scope"
+        );
+
+        sqlx::query("UPDATE groups SET status='archived' WHERE id='class'")
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            f.ingest(vec![f.event("archived-parent", 3)]).await,
+            Err(AppError::Unauthorized)
+        ));
+    }
+
+    #[tokio::test]
     async fn revoked_session_and_nonlearner_are_whole_request_failures() {
         let f = Fixture::new().await;
         sqlx::query("UPDATE sessions SET revoked_at=1")
@@ -777,6 +980,84 @@ mod tests {
             .is_err());
         assert!(
             sqlx::query("UPDATE activity_event_ancestry SET group_id='spoof'")
+                .execute(&f.pool)
+                .await
+                .is_err()
+        );
+        assert!(sqlx::query("DELETE FROM activity_event_ancestry")
+            .execute(&f.pool)
+            .await
+            .is_err());
+        assert!(sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) SELECT id,1,'class' FROM activity_events").execute(&f.pool).await.is_err());
+        sqlx::query("DELETE FROM activity_events")
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM activity_event_ancestry")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn incomplete_building_ancestry_cannot_finalize() {
+        let f = Fixture::new().await;
+        f.ingest(vec![f.event("template", 1)]).await.unwrap();
+        sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at) SELECT 'building',user_id,group_id,policy_version_id,'other',schema_version,event_type,activity_kind,privacy,'building-session',source_id,2,occurred_at,ingested_at FROM activity_events WHERE event_id='template'").execute(&f.pool).await.unwrap();
+        assert!(sqlx::query(
+            "UPDATE activity_events SET ancestry_state='finalized' WHERE event_id='building'"
+        )
+        .execute(&f.pool)
+        .await
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn reordered_and_sibling_building_ancestry_cannot_finalize() {
+        let f = Fixture::new().await;
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        for id in ["child", "sibling"] {
+            sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES(?,'class',?,?,'active',?)").bind(id).bind(id).bind(id).bind(now).execute(&f.pool).await.unwrap();
+        }
+        f.ingest(vec![f.event("template", 1)]).await.unwrap();
+        for (event_id, sequence) in [("reordered", 2), ("sibling-chain", 3)] {
+            sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at) SELECT ?,user_id,'child',policy_version_id,?,schema_version,event_type,activity_kind,privacy,?,source_id,?,occurred_at,ingested_at FROM activity_events WHERE event_id='template'").bind(event_id).bind(format!("hash-{event_id}")).bind(format!("session-{event_id}")).bind(sequence).execute(&f.pool).await.unwrap();
+        }
+        let reordered: i64 =
+            sqlx::query_scalar("SELECT id FROM activity_events WHERE event_id='reordered'")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        sqlx::query("INSERT INTO activity_event_ancestry VALUES(?,0,'child'),(?,1,'class')")
+            .bind(reordered)
+            .bind(reordered)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        assert!(
+            sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+                .bind(reordered)
+                .execute(&f.pool)
+                .await
+                .is_err()
+        );
+        let sibling: i64 =
+            sqlx::query_scalar("SELECT id FROM activity_events WHERE event_id='sibling-chain'")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        sqlx::query("INSERT INTO activity_event_ancestry VALUES(?,0,'class'),(?,1,'sibling')")
+            .bind(sibling)
+            .bind(sibling)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        assert!(
+            sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+                .bind(sibling)
                 .execute(&f.pool)
                 .await
                 .is_err()
