@@ -1,12 +1,13 @@
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppSidebar } from './components/AppSidebar';
 import { GroupSwitcher } from './components/GroupSwitcher';
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  useDialogFocusManagement();
   const closeNavigation = () => {
     setMobileOpen(false);
     triggerRef.current?.focus();
@@ -22,4 +23,30 @@ export default function Layout() {
       </section>
     </div>
   );
+}
+
+function useDialogFocusManagement() {
+  useEffect(() => {
+    let activeDialog: HTMLElement | null = null;
+    let returnFocus: HTMLElement | null = null;
+    const sync = () => {
+      const nextDialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
+      if (nextDialog && !activeDialog) {
+        activeDialog = nextDialog;
+        returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        queueMicrotask(() => {
+          const focusTarget = nextDialog.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])');
+          focusTarget?.focus();
+        });
+      } else if (!nextDialog && activeDialog) {
+        activeDialog = null;
+        returnFocus?.focus();
+        returnFocus = null;
+      }
+    };
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { childList: true, subtree: true });
+    sync();
+    return () => observer.disconnect();
+  }, []);
 }

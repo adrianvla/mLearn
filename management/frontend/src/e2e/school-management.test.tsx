@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 import { AppSidebar } from '../components/AppSidebar';
 import { GroupTree } from '../components/GroupTree';
 import Layout from '../Layout';
+import { useState } from 'react';
 
 const can = vi.fn((capability: string) => ['members.view', 'group.view', 'policies.view', 'analytics.view', 'conversations.view'].includes(capability));
 vi.mock('../groups/GroupScopeProvider', () => ({ useGroupScope: () => ({ status: 'ready', groups: [{ id: 'german-a', name: 'German A' }], selectedGroup: { id: 'german-a', name: 'German A', capabilities: [] }, can }) }));
@@ -24,4 +25,19 @@ it('restores focus to the navigation trigger after the drawer closes', () => {
   fireEvent.click(trigger);
   fireEvent.click(screen.getAllByRole('button', { name: 'Close navigation' })[1]);
   expect(trigger).toHaveFocus();
+});
+
+it('moves focus into dialogs and restores the invoking control', async () => {
+  function DialogProbe() {
+    const [open, setOpen] = useState(false);
+    return <><button onClick={() => setOpen(true)}>Open governed action</button>{open ? <section role="dialog" aria-modal="true" aria-label="Governed action"><button onClick={() => setOpen(false)}>Close governed action</button></section> : null}</>;
+  }
+  render(<MemoryRouter><Routes><Route element={<Layout />}><Route index element={<DialogProbe />} /></Route></Routes></MemoryRouter>);
+  const trigger = screen.getByRole('button', { name: 'Open governed action' });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const close = screen.getByRole('button', { name: 'Close governed action' });
+  await waitFor(() => expect(close).toHaveFocus());
+  fireEvent.click(close);
+  await waitFor(() => expect(trigger).toHaveFocus());
 });
