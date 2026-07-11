@@ -11,8 +11,6 @@ import { activityHub } from '../../../services/activityHubRuntime'
 
 export const VIDEO_ACTIVITY_SOURCE_ID = 'video-route'
 
-type LegacyPublisher = (payload: { sourceId: string; isFocused: boolean; value: AppActivity | null }) => void
-
 export function syncVideoPluginActivity(input: {
   workName: Accessor<string>
   currentTimeSeconds: Accessor<number>
@@ -23,19 +21,27 @@ export function syncVideoPluginActivity(input: {
   language?: Accessor<string | undefined>
   updateSource?: typeof activityHub.updateSource
   removeSource?: typeof activityHub.removeSource
-  /** @deprecated Test seam retained for compatibility; production uses ActivityHub. */
-  publishScopedValue?: LegacyPublisher
 }): void {
   const updateSource = input.updateSource ?? activityHub.updateSource
   const removeSource = input.removeSource ?? activityHub.removeSource
   let previousActivity: AppActivity | null = null
   let previousIsFocused: boolean | null = null
+  let previousIsVisible: boolean | null = null
+  let previousContext: ActivityContext | null = null
 
   createEffect(() => {
     const isFocused = input.isFocused()
     const workName = input.workName()
     const currentTimeSeconds = input.currentTimeSeconds()
     const durationSeconds = input.durationSeconds()
+    const isVisible = input.isVisible?.() ?? true
+    const contentId = input.contentId?.()
+    const language = input.language?.()
+    const context: ActivityContext = {
+      privacy: 'title-and-progress',
+      ...(contentId ? { contentId } : {}),
+      ...(language ? { language } : {}),
+    }
 
     let value = normalizeVideoAppActivity(workName, currentTimeSeconds, durationSeconds)
 
@@ -54,33 +60,28 @@ export function syncVideoPluginActivity(input: {
       ? value === null
       : value !== null && isSameAppActivity(previousActivity, value)
 
-    if (previousIsFocused === isFocused && isSameActivity) {
+    const isSameContext = previousContext?.contentId === context.contentId
+      && previousContext?.language === context.language
+      && previousContext?.privacy === context.privacy
+
+    if (previousIsFocused === isFocused
+      && previousIsVisible === isVisible
+      && isSameActivity
+      && isSameContext) {
       return
     }
 
     previousActivity = value
     previousIsFocused = isFocused
-
-    const context: ActivityContext = {
-      privacy: 'title-and-progress',
-      ...(input.contentId?.() ? { contentId: input.contentId() } : {}),
-      ...(input.language?.() ? { language: input.language() } : {}),
-    }
-    if (input.publishScopedValue) {
-      input.publishScopedValue({ sourceId: VIDEO_ACTIVITY_SOURCE_ID, isFocused, value })
-    } else {
-      updateSource(VIDEO_ACTIVITY_SOURCE_ID, {
-        isFocused,
-        isVisible: input.isVisible?.() ?? true,
-        activity: value ?? { kind: 'idle' },
-        context,
-      })
-    }
+    previousIsVisible = isVisible
+    previousContext = context
+    updateSource(VIDEO_ACTIVITY_SOURCE_ID, {
+      isFocused,
+      isVisible,
+      activity: value ?? { kind: 'idle' },
+      context,
+    })
   })
 
-  onCleanup(() => {
-    if (input.publishScopedValue) {
-      input.publishScopedValue({ sourceId: VIDEO_ACTIVITY_SOURCE_ID, isFocused: false, value: null })
-    } else removeSource(VIDEO_ACTIVITY_SOURCE_ID)
-  })
+  onCleanup(() => removeSource(VIDEO_ACTIVITY_SOURCE_ID))
 }
