@@ -10,8 +10,8 @@ type ActivityEventSource = { subscribeEvents(listener: (event: ManagementActivit
 type Scope = { origin: string; userId: string; groupId: string }
 type Rejected = { id: string; code: RejectionCode; retryable: boolean }
 type IngestionActions = { acknowledge: string[]; permanent: Rejected[] }
-const REJECTION_CODES = new Set(['invalid_schema', 'invalid_event', 'invalid_activity', 'invalid_progress', 'title_too_long', 'event_too_old', 'event_too_new', 'active_group_mismatch', 'invalid_scope'])
-type RejectionCode = 'invalid_schema' | 'invalid_event' | 'invalid_activity' | 'invalid_progress' | 'title_too_long' | 'event_too_old' | 'event_too_new' | 'active_group_mismatch' | 'invalid_scope'
+const REJECTION_CODES = new Set(['invalid_schema', 'invalid_event', 'invalid_activity', 'invalid_progress', 'title_too_long', 'event_too_old', 'event_too_new', 'active_group_mismatch', 'invalid_scope', 'id_conflict', 'sequence_conflict'])
+type RejectionCode = 'invalid_schema' | 'invalid_event' | 'invalid_activity' | 'invalid_progress' | 'title_too_long' | 'event_too_old' | 'event_too_new' | 'active_group_mismatch' | 'invalid_scope' | 'id_conflict' | 'sequence_conflict'
 
 export type ManagementAnalyticsAdapterOptions = {
   getSettings: () => Settings
