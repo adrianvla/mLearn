@@ -35,6 +35,7 @@ struct ApiKeySummary {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ApiKeysResponse {
     api_keys: Vec<ApiKeySummary>,
 }
@@ -182,6 +183,8 @@ mod tests {
         let listed: Value =
             serde_json::from_slice(&to_bytes(listed.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
+        assert!(listed["apiKeys"].is_array());
+        assert!(listed.get("api_keys").is_none());
         assert!(listed.to_string().find(secret).is_none());
 
         let key_request = app
@@ -269,16 +272,10 @@ mod tests {
 
         let response = app
             .oneshot(
-                Request::post(format!(
-                    "/api/groups/{}/activate",
-                    fixture.german_a
-                ))
-                .header(
-                    header::AUTHORIZATION,
-                    format!("Bearer {}", created.secret),
-                )
-                .body(Body::empty())
-                .unwrap(),
+                Request::post(format!("/api/groups/{}/activate", fixture.german_a))
+                    .header(header::AUTHORIZATION, format!("Bearer {}", created.secret))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
