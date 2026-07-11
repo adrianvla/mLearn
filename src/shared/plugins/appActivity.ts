@@ -14,6 +14,32 @@ export type AppActivity =
     }
   | { kind: 'flashcards' }
 
+export type ActivityContext = {
+  contentId?: string
+  language?: string
+  privacy: 'title-and-progress' | 'progress-only'
+}
+
+export type ManagementActivityEventType =
+  | 'activity.started'
+  | 'activity.progressed'
+  | 'activity.completed'
+  | 'activity.stopped'
+
+export type ManagementActivityEventV1 = {
+  schemaVersion: 1
+  id: string
+  type: ManagementActivityEventType
+  sessionId: string
+  sourceId: string
+  activeGroupId: string
+  policyVersionId: string
+  sequence: number
+  occurredAt: string
+  activity: AppActivity
+  context: ActivityContext
+}
+
 export function isSameAppActivity(
   left: AppActivity,
   right: AppActivity,
