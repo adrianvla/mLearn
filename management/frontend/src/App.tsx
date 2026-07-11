@@ -1,4 +1,4 @@
-import { Navigate, Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import { lazy, Suspense } from 'react';
 import { Spinner } from '@heroui/react';
@@ -22,6 +22,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 const Login = lazy(() => import('./pages/Login'));
 const Bootstrap = lazy(() => import('./pages/Bootstrap'));
 const Diagnostics = lazy(() => import('./pages/Diagnostics'));
+import { DesktopApproval } from './pages/Login';
 
 function PageLoader() {
   return (
@@ -33,8 +34,10 @@ function PageLoader() {
 
 export default function App() {
   const auth = useAuth();
+  const location = useLocation();
   if (auth.status === 'loading') return <PageLoader />;
   if (auth.status !== 'authenticated') return <Routes><Route path="/bootstrap" element={<Suspense fallback={<PageLoader />}><Bootstrap /></Suspense>} /><Route path="*" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} /></Routes>;
+  if (location.pathname === '/login' && new URLSearchParams(location.search).has('request')) return <DesktopApproval />;
   return (
     <Routes>
       <Route element={<Layout />}>
