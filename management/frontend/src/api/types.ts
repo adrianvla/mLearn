@@ -345,3 +345,6 @@ export interface ScopedManagedUser { id:string;email:string;displayName:string;i
 export interface GroupNode { id:string;parentId:string|null;name:string;slug:string;status:string }
 export interface Membership { id:string;groupId:string;userId:string|null;invitedEmail:string|null;status:string;capabilities:Capability[] }
 export interface CsvPreview { validRows:number;errors:Array<{row:number;message:string}> }
+export interface ConversationSummary { id:string;groupId:string;learnerUserId:string;status:string;createdAt:number;providerId:string;modelId:string;inputTokens:number|null;outputTokens:number|null;costMicros:number|null;policyVersionId:string|null;policyCompiledHash:string|null;errorCode:string|null }
+export interface ConversationMessage { role:string;content:string;sequence:number;truncated:boolean;toolData?:unknown }
+export interface ConversationDetailDto { summary:ConversationSummary;messages:ConversationMessage[] }
