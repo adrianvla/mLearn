@@ -52,6 +52,42 @@ describe('activity sessionizer', () => {
     expect(new Set(emitted.filter(event => event.type === 'activity.started').map(event => event.sessionId)).size).toBe(3)
   })
 
+  it('restarts in stopped-started order when language or privacy changes', () => {
+    const events: Array<{ type: string; sequence: number; privacy: string; language?: string }> = []
+    const sessionizer = createActivitySessionizer({
+      emit: event => events.push({ type: event.type, sequence: event.sequence, privacy: event.context.privacy, language: event.context.language }),
+    })
+    const projected = { sourceId: 'reader', activity: { kind: 'reader', workName: 'Book', currentPage: 1, totalPages: 4 } as AppActivity, context: CONTEXT }
+    sessionizer.update(projected, SCOPE)
+    sessionizer.update({ ...projected, context: { ...CONTEXT, language: 'fr' } }, SCOPE)
+    sessionizer.update({ ...projected, context: { ...CONTEXT, language: 'fr', privacy: 'progress-only' } }, SCOPE)
+    expect(events).toEqual([
+      { type: 'activity.started', sequence: 1, privacy: 'title-and-progress', language: 'de' },
+      { type: 'activity.stopped', sequence: 2, privacy: 'title-and-progress', language: 'de' },
+      { type: 'activity.started', sequence: 1, privacy: 'title-and-progress', language: 'fr' },
+      { type: 'activity.stopped', sequence: 2, privacy: 'title-and-progress', language: 'fr' },
+      { type: 'activity.started', sequence: 1, privacy: 'progress-only', language: 'fr' },
+    ])
+  })
+
+  it('normalizes timestamps to a strictly increasing sequence', () => {
+    const timestamps: string[] = []
+    const times = [
+      new Date('2026-07-11T10:00:00.000Z'),
+      new Date('2026-07-11T09:59:00.000Z'),
+      new Date('2026-07-11T10:00:00.000Z'),
+    ]
+    const sessionizer = createActivitySessionizer({ now: () => times.shift()!, emit: event => timestamps.push(event.occurredAt) })
+    sessionizer.update({ sourceId: 'reader', activity: { kind: 'reader', workName: 'Book', currentPage: 1, totalPages: 3 }, context: CONTEXT }, SCOPE)
+    sessionizer.update({ sourceId: 'reader', activity: { kind: 'reader', workName: 'Book', currentPage: 2, totalPages: 3 }, context: CONTEXT }, SCOPE)
+    sessionizer.update(null, SCOPE)
+    expect(timestamps).toEqual([
+      '2026-07-11T10:00:00.000Z',
+      '2026-07-11T10:00:00.001Z',
+      '2026-07-11T10:00:00.002Z',
+    ])
+  })
+
   it('handles reader progress/completion, backward movement, and reopen', () => {
     const types: string[] = []
     const sessionizer = createActivitySessionizer({ emit: event => types.push(event.type) })
