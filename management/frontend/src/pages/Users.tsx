@@ -1,12 +1,157 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
-import { ApiClient } from '../api/client';
-import type { ScopedManagedUser } from '../api/types';
-import { CsvImportDialog } from '../components/CsvImportDialog';
-import { DataTableShell } from '../components/DataTableShell';
-import { PageToolbar } from '../components/PageToolbar';
-import { useGroupScope } from '../groups/GroupScopeProvider';
-const api=new ApiClient();
-export default function Users(){const scope=useGroupScope();const groupId=scope.status==='ready'?scope.selectedGroup?.id:null;const [users,setUsers]=useState<ScopedManagedUser[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState<string|null>(null);const [search,setSearch]=useState('');const [revision,setRevision]=useState(0);
-useEffect(()=>{setUsers([]);if(!groupId){setLoading(false);return}const controller=new AbortController();setLoading(true);api.get<{users:ScopedManagedUser[]}>(`/api/users?groupId=${encodeURIComponent(groupId)}`,{signal:controller.signal}).then((result)=>{if(!controller.signal.aborted)setUsers(result.users)}).catch((caught)=>{if(!controller.signal.aborted)setError(caught instanceof Error?caught.message:'Users could not be loaded')}).finally(()=>{if(!controller.signal.aborted)setLoading(false)});return()=>controller.abort()},[groupId,revision]);
-const filtered=useMemo(()=>users.filter((user)=>`${user.displayName} ${user.email} ${user.identityType}`.toLowerCase().includes(search.toLowerCase())),[search,users]);return <div className="resource-page"><PageToolbar title="Users" description="Accounts and memberships in the selected group and its descendants." actions={groupId&&scope.status==='ready'&&scope.can('members.manage')?<><CsvImportDialog groupId={groupId} onImported={()=>setRevision((value)=>value+1)}/><button className="primary-action"><UserPlus/>Invite user</button></>:undefined}/><DataTableShell label="Managed users" loading={loading} error={error??undefined} onRetry={()=>setRevision((value)=>value+1)} controls={<label className="search-field"><Search/><span className="sr-only">Search users</span><input placeholder="Search users" value={search} onChange={(event)=>setSearch(event.currentTarget.value)}/></label>}>{filtered.length?<div className="table-scroll"><table><caption className="sr-only">Managed users</caption><thead><tr><th>User</th><th>Type</th><th>Status</th><th>Groups</th></tr></thead><tbody>{filtered.map((user)=><tr key={user.id}><th><strong>{user.displayName}</strong><small>{user.email}</small></th><td>{user.identityType}</td><td>{user.status}</td><td>{user.groupIds.length}</td></tr>)}</tbody></table></div>:undefined}</DataTableShell></div>}
+import { useEffect, useMemo, useState } from "react";
+import { Search, UserPlus } from "lucide-react";
+import { ApiClient } from "../api/client";
+import type { ScopedManagedUser } from "../api/types";
+import { CsvImportDialog } from "../components/CsvImportDialog";
+import { DataTableShell } from "../components/DataTableShell";
+import { PageToolbar } from "../components/PageToolbar";
+import { useGroupScope } from "../groups/GroupScopeProvider";
+const api = new ApiClient();
+export default function Users() {
+  const scope = useGroupScope();
+  const groupId = scope.status === "ready" ? scope.selectedGroup?.id : null;
+  const [users, setUsers] = useState<ScopedManagedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
+  useEffect(() => {
+    setUsers([]);
+    if (!groupId) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setLoading(true);
+    api
+      .get<{ users: ScopedManagedUser[] }>(
+        `/api/users?groupId=${encodeURIComponent(groupId)}`,
+        { signal: controller.signal },
+      )
+      .then((result) => {
+        if (!controller.signal.aborted) setUsers(result.users);
+      })
+      .catch((caught) => {
+        if (!controller.signal.aborted)
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Users could not be loaded",
+          );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [groupId, revision]);
+  const filtered = useMemo(
+    () =>
+      users.filter((user) =>
+        `${user.displayName} ${user.email} ${user.identityType}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+      ),
+    [search, users],
+  );
+  const invite = async () => {
+    if (!groupId) return;
+    setInviting(true);
+    setInviteError(null);
+    try {
+      await api.get(`/api/groups/${encodeURIComponent(groupId)}/invitations`, {
+        method: "POST",
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      });
+      setInviteOpen(false);
+      setInviteEmail("");
+      setRevision((value) => value + 1);
+    } catch (caught) {
+      setInviteError(caught instanceof Error ? caught.message : "Invitation could not be created");
+    } finally {
+      setInviting(false);
+    }
+  };
+  return (
+    <div className="resource-page">
+      <PageToolbar
+        title="Users"
+        description="Accounts and memberships in the selected group and its descendants."
+        actions={
+          groupId && scope.status === "ready" && scope.can("members.manage") ? (
+            <>
+              <CsvImportDialog
+                groupId={groupId}
+                onImported={() => setRevision((value) => value + 1)}
+              />
+              <button className="primary-action" onClick={() => setInviteOpen(true)}>
+                <UserPlus />
+                Invite user
+              </button>
+            </>
+          ) : undefined
+        }
+      />
+      <DataTableShell
+        label="Managed users"
+        loading={loading}
+        error={error ?? undefined}
+        onRetry={() => setRevision((value) => value + 1)}
+        controls={
+          <label className="search-field">
+            <Search />
+            <span className="sr-only">Search users</span>
+            <input
+              placeholder="Search users"
+              value={search}
+              onChange={(event) => setSearch(event.currentTarget.value)}
+            />
+          </label>
+        }
+      >
+        {filtered.length ? (
+          <div className="table-scroll">
+            <table>
+              <caption className="sr-only">Managed users</caption>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Groups</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((user) => (
+                  <tr key={user.id}>
+                    <th>
+                      <strong>{user.displayName}</strong>
+                      <small>{user.email}</small>
+                    </th>
+                    <td>{user.identityType}</td>
+                    <td>{user.status}</td>
+                    <td>{user.groupIds.length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : undefined}
+      </DataTableShell>
+      {inviteOpen && (
+        <div className="dialog-backdrop">
+          <section role="dialog" aria-modal="true" aria-labelledby="invite-title" className="console-dialog">
+            <h2 id="invite-title">Invite user</h2>
+            <p>Create a pending membership for this group. The invitation address is never exposed outside your authorized scope.</p>
+            <label>Email address<input type="email" required autoFocus value={inviteEmail} onChange={(event) => setInviteEmail(event.currentTarget.value)} /></label>
+            {inviteError && <p role="alert">{inviteError}</p>}
+            <footer><button onClick={() => setInviteOpen(false)}>Cancel</button><button disabled={inviting || !inviteEmail.trim()} onClick={() => void invite()}>{inviting ? "Inviting…" : "Create invitation"}</button></footer>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}

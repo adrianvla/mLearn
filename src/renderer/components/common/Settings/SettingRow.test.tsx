@@ -35,7 +35,8 @@ describe('SettingRow managed policy affordance', () => {
     expect((document.querySelector('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
     expect(document.body.textContent).toContain('LLM');
     expect(document.body.textContent).toContain('Managed by German');
-    expect(document.querySelector('.setting-row')?.getAttribute('aria-disabled')).toBe('true');
+    expect(document.querySelector('.setting-row')?.hasAttribute('aria-disabled')).toBe(false);
+    expect(document.querySelector('.managed-setting-control')?.hasAttribute('disabled')).toBe(true);
     dispose();
   });
 

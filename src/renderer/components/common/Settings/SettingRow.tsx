@@ -56,7 +56,6 @@ export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
     <Show when={matches()}>
       <div
         class={`setting-row ${props.disabled ? 'disabled' : ''} ${managed() ? 'managed' : ''} ${props.class || ''}`}
-        aria-disabled={disabled() ? 'true' : undefined}
         style={props.style}
       >
       <div class="setting-info">

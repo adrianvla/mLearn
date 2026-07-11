@@ -76,7 +76,7 @@ cargo run    # serves http://127.0.0.1:3000
 cargo test   # run all tests
 ```
 
-### Frontend (SolidJS)
+### Frontend (React 19 + HeroUI 3)
 
 ```bash
 cd management/frontend
@@ -91,6 +91,13 @@ npm run build  # production build → dist/
 Terminal 1: `cd management/backend && cargo run`
 Terminal 2: `cd management/frontend && npm run dev`
 Open `http://127.0.0.1:5173`
+
+The production console uses named user sessions, an authorized active-group
+scope, and permission-aware navigation. Use `/bootstrap` once with the recovery
+credential to create the first root administrator; the recovery credential is
+sent only to that endpoint and is never stored by the browser. Operational
+container, storage, distribution, and redacted-log tools live under
+**Settings → Diagnostics** and require the root administrator.
 
 ## Environment Variables
 

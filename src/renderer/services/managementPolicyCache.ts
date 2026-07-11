@@ -98,17 +98,6 @@ async function getRow<T>(key: string): Promise<T | null> {
   });
 }
 
-async function putRow<T>(key: string, value: T): Promise<void> {
-  const db = await openDatabase();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(STORE_RECORDS, 'readwrite');
-    transaction.objectStore(STORE_RECORDS).put({ key, value, updatedAt: Date.now() });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error('Failed to write management policy cache'));
-    transaction.onabort = () => reject(transaction.error ?? new Error('Management policy cache transaction aborted'));
-  });
-}
-
 function bindAbortSignal(transaction: IDBTransaction, signal?: AbortSignal): () => void {
   if (!signal) return () => {};
   if (signal.aborted) {
@@ -187,7 +176,7 @@ export async function saveCachedPolicy(
   userId: string,
   policy: EffectiveManagementPolicy,
 ): Promise<void> {
-  await putRow(policyCacheRowKey(origin, userId), policy);
+  await saveCachedPolicyMonotonic(origin, userId, policy);
 }
 
 export async function saveCachedPolicyMonotonic(
@@ -215,7 +204,9 @@ export async function saveCachedPolicyMonotonic(
         transaction.abort();
         return;
       }
-      if (!existing || candidateIssuedAt > existingIssuedAt) {
+      const winsTimestampTie = candidateIssuedAt === existingIssuedAt
+        && policy.policyVersionId.localeCompare(existing?.policyVersionId ?? '') > 0;
+      if (!existing || candidateIssuedAt > existingIssuedAt || winsTimestampTie) {
         store.put({ key: rowKey, value: policy, updatedAt: Date.now() });
         stored = true;
       }
