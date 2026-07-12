@@ -41,4 +41,13 @@ describe('Button', () => {
 
     dispose();
   });
+
+  it('marks pill icons as fixed-size flex items', async () => {
+    const { PillBtn } = await import('./Button');
+    const dispose = render(() => <PillBtn icon="cross2" label="Unknown" />, container);
+
+    expect(container.querySelector('.btn-pill > .btn-icon-content')).not.toBeNull();
+
+    dispose();
+  });
 });

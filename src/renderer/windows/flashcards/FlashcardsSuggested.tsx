@@ -8,7 +8,7 @@
  * being saved as real flashcards.
  */
 
-import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
+import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
 import {
   Btn,
   Input,
@@ -26,13 +26,13 @@ import {
   Tooltip,
   SelectableCard,
   CollapsibleStickyHeader,
+  Spinner,
 } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
 import { FlashcardWordTitle } from '../../components/flashcard';
 import { useFlashcards, useLocalization, useLanguage, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
-import { cacheVersion, getCachedReading, getCachedTranslation, warmTranslationCache } from '../../hooks/useTranslation';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { cacheVersion, getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
@@ -44,14 +44,13 @@ import {
   buildSuggestedFlashcardPreviewContent,
   buildSuggestedLevelFilterOptions,
   buildSuggestedWordLookupOptions,
-  groupSuggestedWordsByLanguageForWarmCache,
   resolveSuggestedLevel,
   suggestedLevelFilterMatches,
 } from './flashcardsSuggestedPreview';
+import { createSuggestedVirtualRowItems } from './flashcardsSuggestedVirtualRows';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 
 const log = getLogger("renderer.flashcards.flashcardsSuggested");
-const SUGGESTED_CACHE_WARM_DEBOUNCE_MS = 300;
 
 type QuickFilter = 'all' | 'failed' | 'dict';
 
@@ -64,6 +63,7 @@ export const FlashcardsSuggested: Component = () => {
     removeSuggestedFlashcard,
     removeSuggestedFlashcards,
     promoteSuggestedFlashcards,
+    garbageCollectSuggestedFlashcards,
     ignoreWordForLanguage,
     store,
   } = useFlashcards();
@@ -75,6 +75,7 @@ export const FlashcardsSuggested: Component = () => {
   const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
+  const [garbageCollecting, setGarbageCollecting] = createSignal(true);
   const wordLookupOptionsForLanguage = (language: string) => buildSuggestedWordLookupOptions(settings, language, langCtx);
   const languageDataFor = (language: string) => (
     langCtx.langData[language] ?? (language === settings.language ? langCtx.currentLangData() : null)
@@ -84,6 +85,14 @@ export const FlashcardsSuggested: Component = () => {
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.
   const suggestions = createMemo(() => getSuggestedFlashcardsSync());
+
+  onMount(() => {
+    void garbageCollectSuggestedFlashcards()
+      .catch((error) => {
+        log.warn('Failed to garbage collect suggested flashcards:', error);
+      })
+      .finally(() => setGarbageCollecting(false));
+  });
 
   const levelNames = createMemo(() => langCtx.getFreqLevelNames());
 
@@ -198,29 +207,10 @@ export const FlashcardsSuggested: Component = () => {
     onCleanup(() => { if (ro) ro.disconnect(); });
   });
 
-  createEffect(() => {
-    const groups = groupSuggestedWordsByLanguageForWarmCache(
-      Object.values(store.suggestedFlashcards),
-      settings.language,
-    );
-    if (groups.length === 0) return;
-    const timeout = setTimeout(() => {
-      for (const group of groups) {
-        void warmTranslationCache(
-          group.words,
-          undefined,
-          undefined,
-          group.language,
-          getDictionaryTargetLanguageForSettings(settings, group.language),
-          languageDataFor(group.language),
-        );
-      }
-    }, SUGGESTED_CACHE_WARM_DEBOUNCE_MS);
-    onCleanup(() => clearTimeout(timeout));
-  });
-
   const previewContentById = createMemo(() => {
     cacheVersion();
+
+    if (garbageCollecting()) return new Map<string, FlashcardContent>();
 
     const content = new Map<string, FlashcardContent>();
     for (const suggestion of filtered()) {
@@ -470,6 +460,11 @@ export const FlashcardsSuggested: Component = () => {
         </Show>
       </CollapsibleStickyHeader>
 
+      <Show when={!garbageCollecting()} fallback={
+        <div class="flashcards-suggested-loading">
+          <Spinner size={32} text={t('mlearn.Flashcards.Suggested.Loading')} />
+        </div>
+      }>
       <Show when={suggestions().length > 0} fallback={
         <div class="flashcards-suggested-empty">
           <EmptyState
@@ -484,10 +479,7 @@ export const FlashcardsSuggested: Component = () => {
           <div class="flashcards-suggested-virtual-container" style={{ height: `${virtualizer().getTotalSize()}px` }}>
             <For each={virtualizer().getVirtualItems()}>
               {(item) => {
-                const colCount = columns();
-                const startIdx = item.index * colCount;
-                const endIdx = Math.min(startIdx + colCount, filtered().length);
-                const rowItems = filtered().slice(startIdx, endIdx);
+                const rowItems = createSuggestedVirtualRowItems(filtered, () => item.index, columns);
 
                 return (
                   <div
@@ -500,10 +492,10 @@ export const FlashcardsSuggested: Component = () => {
                       height: `${CARD_HEIGHT}px`,
                       'margin-bottom': `${CARD_GAP}px`,
                       transform: `translateY(${item.start}px)`,
-                      'grid-template-columns': `repeat(${colCount}, minmax(0, 1fr))`,
+                      'grid-template-columns': `repeat(${columns()}, minmax(0, 1fr))`,
                     }}
                   >
-                    <For each={rowItems}>
+                    <For each={rowItems()}>
                       {(s) => {
                         const checked = () => selected().has(s.id);
                         const levelLabel = formatLevel(s);
@@ -612,6 +604,7 @@ export const FlashcardsSuggested: Component = () => {
             </div>
           </Show>
         </div>
+      </Show>
       </Show>
     </div>
   );

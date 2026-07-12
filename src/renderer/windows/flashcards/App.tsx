@@ -40,6 +40,7 @@ import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from
 import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
+import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
 import { buildBulkExampleUpdate, getCardsNeedingBulkExamples } from '../../utils/flashcardBulkExamples';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
@@ -86,10 +87,10 @@ export const FlashcardsContent: Component = () => {
     addFlashcard,
     updateFlashcardContent,
     updateFlashcard,
+    getSuggestedFlashcardsSync,
     intervalToString,
     generateExampleSentenceWithLLM,
     translateExampleSentence,
-    store,
     isLoading,
   } = useFlashcards();
   const { t } = useLocalization();
@@ -448,9 +449,7 @@ export const FlashcardsContent: Component = () => {
 
   // Queue counts for UI
   const counts = createMemo(() => queueCounts());
-  const suggestedCount = createMemo(() =>
-    Object.values(store.suggestedFlashcards).filter((s) => s.language === settings.language).length
-  );
+  const suggestedCount = createMemo(() => getSuggestedFlashcardBadgeCount(getSuggestedFlashcardsSync));
 
   const handleDeleteCard = async () => {
     const cardId = selectedCard();
