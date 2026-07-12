@@ -8,12 +8,14 @@ type SharedProps = {
   isDisabled?: boolean;
   type?: "email" | "password" | "search" | "text" | "url";
   autoComplete?: string;
+  isRequired?: boolean;
+  minLength?: number;
 };
 
-export function ConsoleTextField({ label, value, onChange, placeholder, isDisabled, type = "text", autoComplete }: SharedProps) {
-  return <TextField value={value} onChange={onChange} isDisabled={isDisabled}>
+export function ConsoleTextField({ label, value, onChange, placeholder, isDisabled, type = "text", autoComplete, isRequired, minLength }: SharedProps) {
+  return <TextField value={value} onChange={onChange} isDisabled={isDisabled} isRequired={isRequired}>
     <Label>{label}</Label>
-    <Input aria-label={label} placeholder={placeholder} type={type} autoComplete={autoComplete} />
+    <Input aria-label={label} placeholder={placeholder} type={type} autoComplete={autoComplete} minLength={minLength} />
   </TextField>;
 }
 
