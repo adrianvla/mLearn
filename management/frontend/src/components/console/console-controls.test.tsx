@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import { ConsoleSelect, ConsoleSwitch, ConsoleTextField } from "./index";
+import { ConsoleDialog, ConsoleSelect, ConsoleSwitch, ConsoleTextField } from "./index";
 
 it("renders HeroUI controls and reports controlled value changes", () => {
   const onTextChange = vi.fn();
@@ -26,4 +26,9 @@ it("renders HeroUI controls and reports controlled value changes", () => {
   expect(onSwitchChange).toHaveBeenCalledWith(true);
   expect(onSelectionChange).toHaveBeenCalledWith("llm");
   expect(screen.getByRole("button", { name: /Rule type/i })).toHaveAttribute("data-slot", "select-trigger");
+});
+
+it("renders an open HeroUI dialog", () => {
+  render(<ConsoleDialog open onOpenChange={vi.fn()} title="Archive group" footer={<button>Confirm</button>}><p>Archived groups lose access.</p></ConsoleDialog>);
+  expect(screen.getByRole("dialog", { name: "Archive group" })).toBeVisible();
 });

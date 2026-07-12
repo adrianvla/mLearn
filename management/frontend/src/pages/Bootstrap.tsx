@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { establishSession } from '../api/client';
 import type { AuthSession } from '../api/types';
+import { ConsoleButton, ConsoleTextField } from '../components/console';
 
 export default function Bootstrap() {
   const navigate = useNavigate();
@@ -45,12 +46,12 @@ export default function Bootstrap() {
           <h1>Create the root administrator</h1>
           <p>The recovery credential is used for this request only and is never stored.</p>
         </header>
-        <label>Recovery credential<input aria-label="Recovery credential" type="password" value={recovery} onChange={(event) => setRecovery(event.currentTarget.value)} required /></label>
-        <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.currentTarget.value)} required /></label>
-        <label>Password<input type="password" autoComplete="new-password" minLength={12} value={password} onChange={(event) => setPassword(event.currentTarget.value)} required /></label>
-        <label>Confirm password<input type="password" autoComplete="new-password" minLength={12} value={confirmPassword} onChange={(event) => setConfirmPassword(event.currentTarget.value)} required /></label>
+        <ConsoleTextField label="Recovery credential" type="password" value={recovery} onChange={setRecovery} isRequired />
+        <ConsoleTextField label="Email" type="email" value={email} onChange={setEmail} isRequired />
+        <ConsoleTextField label="Password" type="password" autoComplete="new-password" minLength={12} value={password} onChange={setPassword} isRequired />
+        <ConsoleTextField label="Confirm password" type="password" autoComplete="new-password" minLength={12} value={confirmPassword} onChange={setConfirmPassword} isRequired />
         {error && <p role="alert">{error}</p>}
-        <button type="submit">Create administrator</button>
+        <ConsoleButton type="submit">Create administrator</ConsoleButton>
         <Link to="/login">Back to sign in</Link>
       </form>
     </main>

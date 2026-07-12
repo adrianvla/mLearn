@@ -8,6 +8,7 @@ vi.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ status: 'signedOut', 
 
 it('submits normal credentials through the session provider', () => {
   render(<MemoryRouter><Login /></MemoryRouter>);
+  expect(screen.getByRole('button', { name: 'Sign in' })).toHaveAttribute('data-slot', 'button');
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'admin@test' } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password' } });
   fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
