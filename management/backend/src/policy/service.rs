@@ -548,6 +548,28 @@ impl PolicyService {
         Ok(PolicyHistoryPage { items, next_cursor })
     }
 
+    pub async fn history_for_policy(
+        &self,
+        principal: &Principal,
+        policy_id: &str,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<PolicyHistoryPage, AppError> {
+        self.policy_group(principal, policy_id, Capability::PoliciesView).await?;
+        let cursor = cursor.map(parse_history_cursor).transpose()?;
+        let cursor_created_at = cursor.as_ref().map(|cursor| cursor.0);
+        let cursor_id = cursor.as_ref().map(|cursor| cursor.1.as_str());
+        let limit = limit.clamp(1, 100);
+        let rows = sqlx::query("SELECT id,policy_id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at FROM policy_versions WHERE policy_id=? AND (? IS NULL OR created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC,id DESC LIMIT ?")
+            .bind(policy_id).bind(cursor_created_at).bind(cursor_created_at).bind(cursor_created_at).bind(cursor_id).bind((limit + 1) as i64)
+            .fetch_all(&self.pool).await.map_err(database_error)?;
+        let mut items = rows.into_iter().map(version_from_row).collect::<Result<Vec<_>, _>>()?;
+        let has_more = items.len() > limit;
+        items.truncate(limit);
+        let next_cursor = has_more.then(|| items.last().map(history_cursor)).flatten();
+        Ok(PolicyHistoryPage { items, next_cursor })
+    }
+
     pub async fn effective_for_group(
         &self,
         principal: &Principal,

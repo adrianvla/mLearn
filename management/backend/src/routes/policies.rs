@@ -43,6 +43,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/groups/{group_id}/policies", get(list_policies).post(create_policy))
         .route("/api/policies/{policy_id}/draft", get(get_policy_draft).put(save_policy_draft))
+        .route("/api/policies/{policy_id}/history", get(policy_history))
         .route("/api/policies/{policy_id}/validate", post(validate_policy_draft))
         .route("/api/policies/{policy_id}/publish", post(publish_policy))
         .route("/api/policy-registry", get(policy_registry))
@@ -79,6 +80,10 @@ async fn create_policy(State(state): State<AppState>, principal: Principal, Path
 
 async fn get_policy_draft(State(state): State<AppState>, principal: Principal, Path(policy_id): Path<String>) -> Result<Json<Option<PolicyDraft>>, AppError> {
     Ok(Json(PolicyService::new(state.db).get_policy_draft(&principal, &policy_id).await?))
+}
+
+async fn policy_history(State(state): State<AppState>, principal: Principal, Path(policy_id): Path<String>, Query(query): Query<HistoryQuery>) -> Result<Json<PolicyHistoryPage>, AppError> {
+    Ok(Json(PolicyService::new(state.db).history_for_policy(&principal, &policy_id, query.cursor.as_deref(), query.limit.unwrap_or(50)).await?))
 }
 
 async fn save_policy_draft(State(state): State<AppState>, principal: Principal, Path(policy_id): Path<String>, Json(request): Json<SaveDraftRequest>) -> Result<Json<PolicyDraft>, AppError> {
