@@ -362,7 +362,7 @@ git commit -m "feat(management): add factual analytics drilldown"
 ### Task 5: Lean governance and console notifications
 
 **Files:**
-- Create: `management/backend/migrations/0017_console_notifications.sql`
+- Create: `management/backend/migrations/0018_console_notifications.sql`
 - Create: `management/backend/src/routes/governance.rs`
 - Modify: `management/backend/src/routes/mod.rs`
 - Modify: `management/backend/src/lib.rs`
@@ -433,7 +433,7 @@ Run: `cargo test --manifest-path management/backend/Cargo.toml governance notifi
 Expected: PASS.
 
 ```bash
-git add management/backend/migrations/0017_console_notifications.sql management/backend/src/routes management/backend/src/lib.rs management/frontend/src/pages/Governance.tsx management/frontend/src/pages/Governance.test.tsx management/frontend/src/components/NotificationMenu.tsx management/frontend/src/Layout.tsx management/frontend/src/App.tsx management/frontend/src/components/AppSidebar.tsx
+git add management/backend/migrations/0018_console_notifications.sql management/backend/src/routes management/backend/src/lib.rs management/frontend/src/pages/Governance.tsx management/frontend/src/pages/Governance.test.tsx management/frontend/src/components/NotificationMenu.tsx management/frontend/src/Layout.tsx management/frontend/src/App.tsx management/frontend/src/components/AppSidebar.tsx
 git commit -m "feat(management): add lean governance notifications"
 ```
 
@@ -556,7 +556,7 @@ git commit -m "feat(management): add authorized global search"
 **Files:**
 - Modify: `management/backend/src/analytics/queries.rs`
 - Modify: `management/backend/src/routes/analytics.rs`
-- Create: `management/backend/migrations/0018_provider_health_history.sql`
+- Create: `management/backend/migrations/0019_provider_health_history.sql`
 - Modify: `management/backend/src/llm/configuration.rs`
 - Modify: `management/frontend/src/pages/Users.tsx`
 - Modify: `management/frontend/src/pages/Users.test.tsx`
@@ -603,14 +603,14 @@ Run: `cargo test --manifest-path management/backend/Cargo.toml user_history prov
 Expected: PASS.
 
 ```bash
-git add management/backend/migrations/0018_provider_health_history.sql management/backend/src/analytics/queries.rs management/backend/src/routes/analytics.rs management/backend/src/llm/configuration.rs management/frontend/src/pages/Users.tsx management/frontend/src/pages/Users.test.tsx management/frontend/src/pages/LlmGateway.tsx management/frontend/src/pages/llm
+git add management/backend/migrations/0019_provider_health_history.sql management/backend/src/analytics/queries.rs management/backend/src/routes/analytics.rs management/backend/src/llm/configuration.rs management/frontend/src/pages/Users.tsx management/frontend/src/pages/Users.test.tsx management/frontend/src/pages/LlmGateway.tsx management/frontend/src/pages/llm
 git commit -m "feat(management): add user and provider history"
 ```
 
 ### Task 9: Saved analytics views and final integration
 
 **Files:**
-- Create: `management/backend/migrations/0019_saved_analytics_views.sql`
+- Create: `management/backend/migrations/0020_saved_analytics_views.sql`
 - Create: `management/backend/src/routes/analytics_views.rs`
 - Modify: `management/backend/src/routes/mod.rs`
 - Create: `management/frontend/src/pages/analytics/SavedViewSelector.tsx`
@@ -676,6 +676,6 @@ Update `design-qa.md` with `final result: passed` only after every check succeed
 - [ ] **Step 7: Commit final integration**
 
 ```bash
-git add management/backend/migrations/0019_saved_analytics_views.sql management/backend/src/routes/analytics_views.rs management/backend/src/routes/mod.rs management/frontend/src/pages/analytics/SavedViewSelector.tsx management/frontend/src/pages/Analytics.tsx management/frontend/src/pages/Analytics.test.tsx management/frontend/src/index.css design-qa.md
+git add management/backend/migrations/0020_saved_analytics_views.sql management/backend/src/routes/analytics_views.rs management/backend/src/routes/mod.rs management/frontend/src/pages/analytics/SavedViewSelector.tsx management/frontend/src/pages/Analytics.tsx management/frontend/src/pages/Analytics.test.tsx management/frontend/src/index.css design-qa.md
 git commit -m "feat(management): finish analytics console product"
 ```

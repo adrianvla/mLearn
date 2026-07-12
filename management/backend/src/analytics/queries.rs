@@ -319,12 +319,15 @@ impl AnalyticsQueryService {
     ) -> Result<Vec<HistoricalBucket>, AppError> {
         let mut buckets = Vec::with_capacity(boundaries.len());
         for &(start, end) in boundaries {
-            let values = aggregate_history_bucket(tx, group, start, end).await?;
+            let partial = start < requested_from || end > requested_to;
+            let from = start.max(requested_from);
+            let to = end.min(requested_to);
+            let values = aggregate_history_bucket(tx, group, from, to, partial).await?;
             let has_recorded_data = values.0 > 0;
-            let coverage = if !has_recorded_data {
-                Coverage::Missing
-            } else if start < requested_from || end > requested_to {
+            let coverage = if partial {
                 Coverage::Partial
+            } else if !has_recorded_data {
+                Coverage::Missing
             } else {
                 Coverage::Complete
             };
@@ -629,13 +632,7 @@ fn history_bucket_boundaries(
         }
         let next = next_bucket_date(date, granularity)?;
         let end = local_day_start(timezone, next)?;
-        if end > to && !boundaries.is_empty() {
-            break;
-        }
         boundaries.push((start, end));
-        if end >= to {
-            break;
-        }
         date = next;
     }
     Ok(boundaries)
@@ -755,9 +752,7 @@ fn previous_year_boundaries(
                     .ok_or_else(|| AppError::Internal("invalid analytics bucket boundary".into()))?
                     .with_timezone(&timezone)
                     .date_naive();
-                let shifted = NaiveDate::from_ymd_opt(date.year() - 1, date.month(), date.day())
-                    .or_else(|| NaiveDate::from_ymd_opt(date.year() - 1, date.month(), 28))
-                    .ok_or_else(|| AppError::Internal("analytics year boundary overflow".into()))?;
+                let shifted = previous_year_date(date)?;
                 local_day_start(timezone, shifted)
             };
             Ok((shift(start)?, shift(end)?))
@@ -765,35 +760,30 @@ fn previous_year_boundaries(
         .collect()
 }
 
+fn previous_year_date(date: NaiveDate) -> Result<NaiveDate, AppError> {
+    NaiveDate::from_ymd_opt(date.year() - 1, date.month(), date.day())
+        // A daily Feb 29 bucket maps to Feb 28 through Mar 1 in a non-leap year,
+        // preserving a positive, bounded comparison interval.
+        .or_else(|| NaiveDate::from_ymd_opt(date.year() - 1, date.month(), 28))
+        .ok_or_else(|| AppError::Internal("analytics year boundary overflow".into()))
+}
+
 async fn aggregate_history_bucket(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     group: &str,
     from: i64,
     to: i64,
+    partial: bool,
 ) -> Result<(i64, AnalyticsSummary), AppError> {
-    let rollup = sqlx::query("SELECT COUNT(*) row_count,COALESCE(SUM(active_learners),0) active_learners,COALESCE(SUM(sessions),0) sessions,COALESCE(SUM(watch_seconds),0) watch_seconds,COALESCE(SUM(completions),0) completions,COALESCE(SUM(reader_pages),0) reader_pages,COALESCE(SUM(flashcard_events),0) flashcard_events FROM analytics_daily_rollups rollup WHERE rollup.group_id=? AND rollup.day_start>=? AND rollup.day_start<?")
+    let (activity_rows, mut values) = if partial {
+        partial_activity_summary(tx, group, from, to).await?
+    } else {
+        total_activity_summary(tx, group, from).await?
+    };
+    let llm = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) row_count,COALESCE(SUM(COALESCE(request.input_tokens,0)),0) input_tokens,COALESCE(SUM(COALESCE(request.output_tokens,0)),0) output_tokens,COALESCE(SUM(COALESCE(request.input_tokens,0)+COALESCE(request.output_tokens,0)),0) total_tokens,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at*1000>=? AND request.created_at*1000<?")
         .bind(group)
         .bind(from)
         .bind(to)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(db)?;
-    let mut values = AnalyticsSummary {
-        active_learners: rollup.get("active_learners"),
-        sessions: rollup.get("sessions"),
-        watch_seconds: rollup.get("watch_seconds"),
-        completions: rollup.get("completions"),
-        reader_pages: rollup.get("reader_pages"),
-        flashcard_events: rollup.get("flashcard_events"),
-        ..AnalyticsSummary::default()
-    };
-    let rollup_rows: i64 = rollup.get("row_count");
-    let seconds_from = from.div_euclid(1000);
-    let seconds_to = to.div_euclid(1000);
-    let llm = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) row_count,COALESCE(SUM(COALESCE(request.input_tokens,0)),0) input_tokens,COALESCE(SUM(COALESCE(request.output_tokens,0)),0) output_tokens,COALESCE(SUM(COALESCE(request.input_tokens,0)+COALESCE(request.output_tokens,0)),0) total_tokens,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at>=? AND request.created_at<?")
-        .bind(group)
-        .bind(seconds_from)
-        .bind(seconds_to)
         .fetch_one(&mut **tx)
         .await
         .map_err(db)?;
@@ -803,14 +793,78 @@ async fn aggregate_history_bucket(
     values.output_tokens = llm.get("output_tokens");
     values.total_tokens = llm.get("total_tokens");
     values.cost_micros = llm.get("cost_micros");
-    values.policy_blocks = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at>=? AND event.created_at<?")
+    values.policy_blocks = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at*1000>=? AND event.created_at*1000<?")
         .bind(group)
-        .bind(seconds_from)
-        .bind(seconds_to)
+        .bind(from)
+        .bind(to)
         .fetch_one(&mut **tx)
         .await
         .map_err(db)?;
-    Ok((rollup_rows + llm_rows + values.policy_blocks, values))
+    Ok((activity_rows + llm_rows + values.policy_blocks, values))
+}
+
+async fn total_activity_summary(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    group: &str,
+    day_start: i64,
+) -> Result<(i64, AnalyticsSummary), AppError> {
+    let total = sqlx::query("SELECT active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events FROM analytics_daily_totals WHERE group_id=? AND day_start=?")
+        .bind(group)
+        .bind(day_start)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(db)?;
+    Ok(total.map_or_else(
+        || (0, AnalyticsSummary::default()),
+        |total| {
+            (
+                1,
+                AnalyticsSummary {
+                    active_learners: total.get("active_learners"),
+                    sessions: total.get("sessions"),
+                    watch_seconds: total.get("watch_seconds"),
+                    completions: total.get("completions"),
+                    reader_pages: total.get("reader_pages"),
+                    flashcard_events: total.get("flashcard_events"),
+                    ..AnalyticsSummary::default()
+                },
+            )
+        },
+    ))
+}
+
+async fn partial_activity_summary(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    group: &str,
+    from: i64,
+    to: i64,
+) -> Result<(i64, AnalyticsSummary), AppError> {
+    let rows = sqlx::query("SELECT e.user_id,e.activity_session_id,e.event_type,e.activity_kind,e.occurred_at,e.content_id,e.language,e.title,e.privacy,e.current_page,e.current_time_millis FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>? ORDER BY e.user_id,e.activity_session_id,e.sequence,e.id")
+        .bind(group)
+        .bind(from)
+        .bind(to)
+        .bind(time::OffsetDateTime::now_utc().unix_timestamp() * 1000)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(db)?;
+    let count = rows.len() as i64;
+    let events = rows
+        .into_iter()
+        .map(|row| Event {
+            user: row.get("user_id"),
+            session: row.get("activity_session_id"),
+            event_type: row.get("event_type"),
+            kind: row.get("activity_kind"),
+            at: row.get("occurred_at"),
+            content: row.get("content_id"),
+            language: row.get("language"),
+            title: row.get("title"),
+            privacy: row.get("privacy"),
+            page: row.get("current_page"),
+            media: row.get("current_time_millis"),
+        })
+        .collect::<Vec<_>>();
+    Ok((count, summarize(&events)))
 }
 
 fn encode_cursor(occurred_at: i64, id: &str) -> String {
@@ -991,9 +1045,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(boundaries.len(), 2);
+        assert_eq!(boundaries.len(), 3);
         assert_eq!(boundaries[0], (1_774_652_400_000, 1_774_738_800_000));
         assert_eq!(boundaries[1], (1_774_738_800_000, 1_774_821_600_000));
+        assert_eq!(boundaries[2], (1_774_821_600_000, 1_774_908_000_000));
         let comparison = previous_period_boundaries(
             "Europe/Paris".parse().unwrap(),
             &boundaries,
@@ -1023,6 +1078,31 @@ mod tests {
             validate_history_range(0, 366 * 86_400_000 + 1),
             Err(AppError::BadRequest(_))
         ));
+    }
+
+    #[test]
+    fn history_keeps_the_trailing_partial_calendar_bucket() {
+        let boundaries = history_bucket_boundaries(
+            chrono_tz::UTC,
+            3_600_000,
+            90_000_000,
+            AnalyticsGranularity::Daily,
+        )
+        .unwrap();
+
+        assert_eq!(boundaries, vec![(0, 86_400_000), (86_400_000, 172_800_000)]);
+    }
+
+    #[test]
+    fn previous_year_leap_day_bucket_has_a_positive_interval() {
+        let primary = vec![(
+            1_709_164_800_000, // 2024-02-29T00:00:00Z
+            1_709_251_200_000, // 2024-03-01T00:00:00Z
+        )];
+        let previous = previous_year_boundaries(chrono_tz::UTC, &primary).unwrap();
+
+        assert_eq!(previous, vec![(1_677_542_400_000, 1_677_628_800_000)]);
+        assert!(previous[0].1 > previous[0].0);
     }
 
     async fn insert_video_pair(
@@ -1098,6 +1178,18 @@ mod tests {
             20,
             &["root", "b"],
             millis,
+        )
+        .await;
+        // This pair shares the selected calendar day but lies beyond the requested
+        // trailing partial range. The history query must not include its ten seconds.
+        insert_video_pair(
+            &pool,
+            "learner-b",
+            "b",
+            "watch-outside-range",
+            10,
+            &["root", "b"],
+            millis + 90_000,
         )
         .await;
         let event_ids: Vec<i64> = sqlx::query_scalar("SELECT id FROM activity_events ORDER BY id")
