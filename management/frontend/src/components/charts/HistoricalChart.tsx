@@ -77,22 +77,36 @@ export function HistoricalChart({ title, series }: HistoricalChartProps) {
           {selectedSeries.map((item) => <span key={`${item.key}-${item.kind}`}><i className={`historical-chart__legend-key historical-chart__legend-key--${item.kind}`} />{item.kind === 'primary' ? 'Current period' : 'Previous period'}</span>)}
         </div>
       </figure>
+      <CoverageAnnotation series={selectedSeries} />
       <ExactDataTable title={title} series={selectedSeries} visible={showExactData} />
     </Card.Content>
   </Card>;
 }
 
 export function ExactDataTable({ title, series, visible }: ExactDataTableProps) {
-  const rows = getTableRows(series);
+  const rowCount = Math.max(0, ...series.map((item) => item.values.length));
   return <div className={`historical-chart__table-wrap${visible ? '' : ' sr-only'}`}>
     <table aria-label={`${title} data`}>
       <caption>{title} data</caption>
-      <thead><tr><th scope="col">Period</th>{series.map((item) => <th key={`${item.key}-${item.kind}`} scope="col">{item.kind === 'primary' ? 'Current period' : 'Previous period'}</th>)}</tr></thead>
-      <tbody>{rows.map((row, index) => <tr key={`${row.start}-${index}`}>
-        <th scope="row">{formatPeriod(row.start, row.end)}</th>
-        {series.map((item) => <td key={`${item.key}-${item.kind}`}>{formatDatum(item.values[index])}</td>)}
+      <thead><tr><th scope="col">Aligned bucket</th>{series.map((item) => <th key={`${item.key}-${item.kind}`} scope="col">{item.label} — {item.kind === 'primary' ? 'Current period' : 'Previous period'}</th>)}</tr></thead>
+      <tbody>{Array.from({ length: rowCount }, (_, index) => <tr key={index}>
+        <th scope="row">Bucket {index + 1}</th>
+        {series.map((item) => <td key={`${item.key}-${item.kind}`}>{formatExactDatum(item.values[index])}</td>)}
       </tr>)}</tbody>
     </table>
+  </div>;
+}
+
+export function CoverageAnnotation({ series }: { series: ChartSeries[] }) {
+  const counts = new Map<string, number>();
+  for (const datum of series.flatMap((item) => item.values)) {
+    if (datum.coverage !== 'complete') counts.set(datum.coverage, (counts.get(datum.coverage) ?? 0) + 1);
+  }
+  if (counts.size === 0) return null;
+
+  return <div className="historical-chart__coverage" role="status">
+    <strong>Coverage notice</strong>
+    <span>{[...counts].map(([coverage, count]) => `${count} ${count === 1 ? 'bucket' : 'buckets'}: ${formatCoverageLabel(coverage)}`).join('; ')}</span>
   </div>;
 }
 
@@ -127,19 +141,19 @@ function toPath(values: ChartDatum[], maximum: number): string {
   }, '');
 }
 
-function getTableRows(series: ChartSeries[]): ChartDatum[] {
-  const longest = Math.max(0, ...series.map((item) => item.values.length));
-  return Array.from({ length: longest }, (_, index) => series.find((item) => item.values[index])?.values[index] ?? {
-    start: 0,
-    end: 0,
-    coverage: 'missing',
-    value: null,
-  });
+function formatPeriod(start: number, end: number): string {
+  return `${new Date(start).toLocaleDateString()} – ${new Date(end).toLocaleDateString()}`;
 }
 
-function formatPeriod(start: number, end: number): string {
-  if (start === 0 && end === 0) return 'No period recorded';
-  return `${new Date(start).toLocaleDateString()} – ${new Date(end).toLocaleDateString()}`;
+function formatExactDatum(datum: ChartDatum | undefined): string {
+  if (!datum) return 'No bucket recorded';
+  return `${formatPeriod(datum.start, datum.end)}: ${formatDatum(datum)}`;
+}
+
+function formatCoverageLabel(coverage: string): string {
+  if (coverage === 'partial') return 'Partial coverage';
+  if (coverage === 'rawExpired') return 'Raw detail expired';
+  return 'No recorded data';
 }
 
 function isChartSeries(value: ChartSeries | undefined): value is ChartSeries {
