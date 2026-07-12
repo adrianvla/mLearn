@@ -22,10 +22,11 @@ it("lists named local and inherited policies and only shows rules that were adde
   expect(screen.getByRole("button", { name: /Exam restrictions/ })).toBeVisible();
   expect(screen.getByText("Student defaults")).toBeVisible();
   expect(screen.getByText("School · read only")).toBeVisible();
-  expect(await screen.findByLabelText(/Reader text size/i)).toHaveValue(20);
+  expect(await screen.findByLabelText(/Reader text size/i)).toHaveValue("20");
   expect(screen.queryByLabelText("Conversation retention days")).not.toBeInTheDocument();
   expect(screen.getByText("Validate this draft before publishing")).toBeVisible();
-  fireEvent.change(screen.getByLabelText("App setting"), { target: { value: "theme" } });
+  fireEvent.click(screen.getByRole("button", { name: /App setting/i }));
+  fireEvent.click(await screen.findByRole("option", { name: "Theme" }));
   fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
   expect(screen.getByText("Save draft before validating or publishing")).toBeVisible();
 });

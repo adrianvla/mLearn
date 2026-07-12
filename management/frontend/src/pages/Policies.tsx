@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ApiClient } from "../api/client";
+import { ConsoleButton, ConsoleNumberField, ConsoleSelect, ConsoleSwitch, ConsoleTextField } from "../components/console";
 import { PageToolbar } from "../components/PageToolbar";
 import { useGroupScope } from "../groups/GroupScopeProvider";
 
@@ -251,7 +252,7 @@ export default function Policies() {
         <aside className="policy-list" aria-label="Policies">
           <h2>Policies in this group</h2>
           {collection.local.map((policy) => (
-            <button
+            <ConsoleButton
               type="button"
               key={policy.id}
               className={
@@ -269,22 +270,21 @@ export default function Policies() {
                     ? "Saved draft"
                     : "Draft"}
               </span>
-            </button>
+            </ConsoleButton>
           ))}
           <div className="policy-create">
-            <label htmlFor="new-policy-name">New policy name</label>
-            <input
-              id="new-policy-name"
+            <ConsoleTextField
+              label="New policy name"
               value={newName}
-              onChange={(event) => setNewName(event.currentTarget.value)}
+              onChange={setNewName}
             />
-            <button
+            <ConsoleButton
               className="secondary-action"
-              disabled={!editable || busy || !newName.trim()}
+              isDisabled={!editable || busy || !newName.trim()}
               onClick={() => void create()}
             >
               Create policy
-            </button>
+            </ConsoleButton>
           </div>
           <h2>Inherited policies</h2>
           {collection.inherited.length ? (
@@ -320,75 +320,45 @@ export default function Policies() {
                 </div>
               </header>
               <section className="policy-actions">
-                <button
+                <ConsoleButton
                   className="secondary-action"
-                  disabled={!editable || busy || !dirty}
+                  isDisabled={!editable || busy || !dirty}
                   onClick={() => void save()}
                 >
                   Save draft
-                </button>
-                <button
+                </ConsoleButton>
+                <ConsoleButton
                   className="secondary-action"
-                  disabled={!editable || busy || dirty || !savedHash}
+                  isDisabled={!editable || busy || dirty || !savedHash}
                   onClick={() => void validate()}
                 >
                   Validate
-                </button>
-                <label>
-                  Publish summary
-                  <input
-                    value={summary}
-                    onChange={(event) => setSummary(event.currentTarget.value)}
-                    placeholder="Describe this change"
-                  />
-                </label>
-                <button
+                </ConsoleButton>
+                <ConsoleTextField label="Publish summary" value={summary} onChange={setSummary} placeholder="Describe this change" />
+                <ConsoleButton
                   className="primary-action"
-                  disabled={!publishable || busy || Boolean(nextStep)}
+                  isDisabled={!publishable || busy || Boolean(nextStep)}
                   onClick={() => void publish()}
                 >
                   Publish
-                </button>
+                </ConsoleButton>
                 {nextStep && <p className="policy-next-step">{nextStep}</p>}
               </section>
               <section className="policy-rule-picker">
                 <h3>Add rule</h3>
-                <select
-                  aria-label="Rule type"
-                  value={ruleKind}
-                  onChange={(event) =>
-                    setRuleKind(event.currentTarget.value as typeof ruleKind)
-                  }
-                >
-                  <option value="setting">Lock app setting</option>
-                  <option value="llm">Enable LLM access</option>
-                  <option value="retention">Set retention</option>
-                </select>
+                <ConsoleSelect label="Rule type" selectedKey={ruleKind} onSelectionChange={(value) => setRuleKind(value as typeof ruleKind)} options={[{ key: "setting", label: "Lock app setting" }, { key: "llm", label: "Enable LLM access" }, { key: "retention", label: "Set retention" }]} />
                 {ruleKind === "setting" && (
-                  <select
-                    aria-label="App setting"
-                    value={settingKey}
-                    onChange={(event) =>
-                      setSettingKey(event.currentTarget.value)
-                    }
-                  >
-                    <option value="">Choose a setting</option>
-                    {available.map((entry) => (
-                      <option key={entry.key} value={entry.key}>
-                        {label(entry.key)}
-                      </option>
-                    ))}
-                  </select>
+                  <ConsoleSelect label="App setting" selectedKey={settingKey} onSelectionChange={setSettingKey} placeholder="Choose a setting" options={available.map((entry) => ({ key: entry.key, label: label(entry.key) }))} />
                 )}
-                <button
+                <ConsoleButton
                   className="secondary-action"
-                  disabled={
+                  isDisabled={
                     !editable || (ruleKind === "setting" && !settingKey)
                   }
                   onClick={addRule}
                 >
                   Add rule
-                </button>
+                </ConsoleButton>
               </section>
               <section className="policy-rules">
                 <h3>Rules</h3>
@@ -429,17 +399,16 @@ export default function Policies() {
                       }))
                     }
                   >
-                    <input
-                      aria-label="LLM enabled"
-                      type="checkbox"
-                      checked={Boolean(draft.llm.enabled)}
-                      disabled={!editable}
-                      onChange={(event) =>
+                    <ConsoleSwitch
+                      label="LLM enabled"
+                      isSelected={Boolean(draft.llm.enabled)}
+                      isDisabled={!editable}
+                      onChange={(value) =>
                         setDraft((current) => ({
                           ...current,
                           llm: {
                             ...current.llm,
-                            enabled: event.currentTarget.checked,
+                            enabled: value,
                           },
                         }))
                       }
@@ -460,48 +429,26 @@ export default function Policies() {
                       }))
                     }
                   >
-                    <label>
-                      Activity days
-                      <input
-                        aria-label="Activity retention days"
-                        type="number"
-                        min="1"
-                        max="90"
-                        value={draft.governance.activityRetentionDays}
-                        disabled={!editable}
-                        onChange={(event) =>
+                    <ConsoleNumberField label="Activity retention days" value={draft.governance.activityRetentionDays} min={1} max={90} isDisabled={!editable} onChange={(value) =>
                           setDraft((current) => ({
                             ...current,
                             governance: {
                               ...current.governance,
                               activityRetentionDays:
-                                event.currentTarget.valueAsNumber,
+                                value,
                             },
                           }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Conversation days
-                      <input
-                        aria-label="Conversation retention days"
-                        type="number"
-                        min="1"
-                        max="90"
-                        value={draft.governance.conversationRetentionDays}
-                        disabled={!editable}
-                        onChange={(event) =>
+                        } />
+                    <ConsoleNumberField label="Conversation retention days" value={draft.governance.conversationRetentionDays} min={1} max={90} isDisabled={!editable} onChange={(value) =>
                           setDraft((current) => ({
                             ...current,
                             governance: {
                               ...current.governance,
                               conversationRetentionDays:
-                                event.currentTarget.valueAsNumber,
+                                value,
                             },
                           }))
-                        }
-                      />
-                    </label>
+                        } />
                   </RuleCard>
                 )}
                 {!Object.keys(draft.settings ?? {}).length &&
@@ -548,46 +495,16 @@ function SettingCard({
   const title = label(name);
   return (
     <RuleCard title={`Lock ${title}`} onRemove={onRemove}>
-      <label>
-        {title}
-        {entry?.valueType === "boolean" ? (
-          <input
-            aria-label={title}
-            type="checkbox"
-            checked={Boolean(rule.value)}
-            disabled={disabled}
-            onChange={(event) => onChange(event.currentTarget.checked)}
-          />
-        ) : entry?.valueType === "select" ? (
-          <select
-            aria-label={title}
-            value={String(rule.value)}
-            disabled={disabled}
-            onChange={(event) => onChange(event.currentTarget.value)}
-          >
-            {entry.allowedValues.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        ) : (
-          <input
-            aria-label={title}
-            type={entry?.valueType === "number" ? "number" : "text"}
-            value={String(rule.value ?? "")}
-            disabled={disabled}
-            onChange={(event) =>
-              onChange(
-                entry?.valueType === "number"
-                  ? event.currentTarget.valueAsNumber
-                  : event.currentTarget.value,
-              )
-            }
-          />
-        )}
-      </label>
-      <label>
-        <input type="checkbox" checked disabled /> Lock this setting
-      </label>
+      {entry?.valueType === "boolean" ? (
+        <ConsoleSwitch label={title} isSelected={Boolean(rule.value)} isDisabled={disabled} onChange={onChange} />
+      ) : entry?.valueType === "select" ? (
+        <ConsoleSelect label={title} selectedKey={String(rule.value)} isDisabled={disabled} onSelectionChange={onChange} options={entry.allowedValues.map((value) => ({ key: value, label: value }))} />
+      ) : entry?.valueType === "number" ? (
+        <ConsoleNumberField label={title} value={Number(rule.value ?? 0)} isDisabled={disabled} onChange={onChange} />
+      ) : (
+        <ConsoleTextField label={title} value={String(rule.value ?? "")} isDisabled={disabled} onChange={onChange} />
+      )}
+      <ConsoleSwitch label="Lock this setting" isSelected onChange={() => undefined} isDisabled />
     </RuleCard>
   );
 }
@@ -604,9 +521,9 @@ function RuleCard({
     <article className="policy-rule-card">
       <header>
         <strong>{title}</strong>
-        <button type="button" className="text-action" onClick={onRemove}>
+        <ConsoleButton type="button" className="text-action" onClick={onRemove}>
           Remove
-        </button>
+        </ConsoleButton>
       </header>
       {children}
     </article>
