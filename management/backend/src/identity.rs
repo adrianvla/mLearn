@@ -144,6 +144,35 @@ impl IdentityService {
         Ok((user, session))
     }
 
+    pub async fn recover_root_password(
+        &self,
+        recovery_token: &str,
+        email: &str,
+        password: &str,
+    ) -> Result<(), AppError> {
+        let expected_hash = self.bootstrap_hash.ok_or(AppError::Unauthorized)?;
+        if !verify_token(recovery_token, &expected_hash) {
+            return Err(AppError::Unauthorized);
+        }
+        validate_email_and_password(email, password)?;
+        let mut transaction = self.pool.begin().await.map_err(database_error)?;
+        let user_id: String = sqlx::query_scalar("SELECT id FROM users WHERE normalized_email = ? AND is_root = 1 AND status = 'active'")
+            .bind(normalize_email(email))
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(database_error)?
+            .ok_or(AppError::Unauthorized)?;
+        let now = now_timestamp();
+        let password_hash = hash_password(password)?;
+        sqlx::query("UPDATE password_credentials SET password_hash = ?, updated_at = ? WHERE user_id = ?")
+            .bind(password_hash).bind(now).bind(&user_id).execute(&mut *transaction).await.map_err(database_error)?;
+        sqlx::query("UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
+            .bind(now).bind(&user_id).execute(&mut *transaction).await.map_err(database_error)?;
+        sqlx::query("UPDATE refresh_tokens SET revoked_at = ? WHERE revoked_at IS NULL AND session_id IN (SELECT id FROM sessions WHERE user_id = ?)")
+            .bind(now).bind(&user_id).execute(&mut *transaction).await.map_err(database_error)?;
+        transaction.commit().await.map_err(database_error)
+    }
+
     async fn bootstrap_root_in_transaction(
         &self,
         transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
