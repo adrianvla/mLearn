@@ -31,3 +31,14 @@ CREATE TABLE analytics_group_daily_sessions (
 
 CREATE INDEX analytics_group_daily_sessions_bucket_idx
   ON analytics_group_daily_sessions(group_id, day_start);
+
+CREATE TABLE analytics_daily_totals_backfill_state (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  completed_at INTEGER NOT NULL
+);
+
+CREATE TABLE analytics_raw_retention_watermarks (
+  group_id TEXT PRIMARY KEY NOT NULL REFERENCES groups(id) ON DELETE RESTRICT,
+  retained_from INTEGER NOT NULL CHECK(retained_from >= 0),
+  updated_at INTEGER NOT NULL
+);

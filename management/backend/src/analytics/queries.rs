@@ -192,6 +192,24 @@ impl AnalyticsQueryService {
             ));
         }
         sqlx::query("INSERT OR IGNORE INTO analytics_retention_delete_queue(event_row_id) SELECT e.id FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.retained_until<=? ORDER BY e.retained_until,e.id LIMIT ?").bind(group).bind(time::OffsetDateTime::now_utc().unix_timestamp()*1000).bind(limit).execute(&mut *tx).await.map_err(db)?;
+        let watermarks = sqlx::query("SELECT a.group_id,MAX(e.occurred_at) latest_deleted_at FROM activity_events e JOIN analytics_retention_delete_queue q ON q.event_row_id=e.id JOIN activity_event_ancestry a ON a.event_row_id=e.id GROUP BY a.group_id")
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?;
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        for watermark in watermarks {
+            let group_id: String = watermark.get("group_id");
+            let retained_from: i64 = watermark
+                .get::<i64, _>("latest_deleted_at")
+                .saturating_add(1);
+            sqlx::query("INSERT INTO analytics_raw_retention_watermarks(group_id,retained_from,updated_at) VALUES(?,?,?) ON CONFLICT(group_id) DO UPDATE SET retained_from=MAX(analytics_raw_retention_watermarks.retained_from,excluded.retained_from),updated_at=excluded.updated_at")
+                .bind(group_id)
+                .bind(retained_from)
+                .bind(now)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+        }
         let count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM analytics_retention_delete_queue")
                 .fetch_one(&mut *tx)
@@ -869,7 +887,14 @@ async fn partial_activity_summary(
         .await
         .map_err(db)?;
     let now = time::OffsetDateTime::now_utc().unix_timestamp() * 1000;
-    let mut raw_expired = to <= now - 90 * 86_400_000;
+    let retained_from: Option<i64> = sqlx::query_scalar(
+        "SELECT retained_from FROM analytics_raw_retention_watermarks WHERE group_id=?",
+    )
+    .bind(group)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(db)?;
+    let mut raw_expired = retained_from.is_some_and(|cutoff| from < cutoff);
     let events = rows
         .into_iter()
         .filter_map(|row| {
@@ -878,17 +903,17 @@ async fn partial_activity_summary(
                 return None;
             }
             Some(Event {
-            user: row.get("user_id"),
-            session: row.get("activity_session_id"),
-            event_type: row.get("event_type"),
-            kind: row.get("activity_kind"),
-            at: row.get("occurred_at"),
-            content: row.get("content_id"),
-            language: row.get("language"),
-            title: row.get("title"),
-            privacy: row.get("privacy"),
-            page: row.get("current_page"),
-            media: row.get("current_time_millis"),
+                user: row.get("user_id"),
+                session: row.get("activity_session_id"),
+                event_type: row.get("event_type"),
+                kind: row.get("activity_kind"),
+                at: row.get("occurred_at"),
+                content: row.get("content_id"),
+                language: row.get("language"),
+                title: row.get("title"),
+                privacy: row.get("privacy"),
+                page: row.get("current_page"),
+                media: row.get("current_time_millis"),
             })
         })
         .collect::<Vec<_>>();
@@ -1150,11 +1175,9 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        for (day_start, watch_seconds) in [
-            (0_i64, 10_i64),
-            (86_400_000, 20_i64),
-            (172_800_000, 30_i64),
-        ] {
+        for (day_start, watch_seconds) in
+            [(0_i64, 10_i64), (86_400_000, 20_i64), (172_800_000, 30_i64)]
+        {
             sqlx::query("INSERT INTO analytics_daily_totals(group_id,day_start,active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events,updated_at) VALUES('root',?,1,1,?,0,0,0,1)")
                 .bind(day_start)
                 .bind(watch_seconds)
@@ -1183,10 +1206,9 @@ mod tests {
         assert_eq!(summary.active_learners, 1);
         assert_eq!(summary.sessions, 1);
         assert_eq!(summary.watch_seconds, 30);
-        let (_, monthly_summary) =
-            total_activity_summary(&mut transaction, "root", 0, 259_200_000)
-                .await
-                .unwrap();
+        let (_, monthly_summary) = total_activity_summary(&mut transaction, "root", 0, 259_200_000)
+            .await
+            .unwrap();
         assert_eq!(monthly_summary.active_learners, 1);
         assert_eq!(monthly_summary.sessions, 1);
         assert_eq!(monthly_summary.watch_seconds, 60);
@@ -1213,13 +1235,29 @@ mod tests {
             .await
             .unwrap()
             .last_insert_rowid();
-        sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'root')")
+        sqlx::query(
+            "INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'root')",
+        )
+        .bind(event_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
             .bind(event_id)
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+        sqlx::query("INSERT INTO analytics_retention_delete_queue(event_row_id) VALUES(?)")
             .bind(event_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM activity_events WHERE id=?")
+            .bind(event_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO analytics_raw_retention_watermarks(group_id,retained_from,updated_at) VALUES('root',2,1)")
             .execute(&pool)
             .await
             .unwrap();
