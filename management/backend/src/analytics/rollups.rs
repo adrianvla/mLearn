@@ -26,6 +26,10 @@ pub async fn backfill_daily_totals(pool: &SqlitePool) -> Result<(), AppError> {
     for event_id in event_ids {
         rebuild_daily_rollups_in_transaction(&mut tx, event_id).await?;
     }
+    sqlx::query("INSERT INTO analytics_daily_totals_backfill_state(id,completed_at) VALUES(1,unixepoch()) ON CONFLICT(id) DO UPDATE SET completed_at=excluded.completed_at")
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
     tx.commit().await.map_err(db)
 }
 
@@ -211,13 +215,15 @@ async fn rebuild_daily_total(
         .await
         .map_err(db)?;
     for user in &users {
-        sqlx::query("INSERT INTO analytics_group_daily_learners(group_id,day_start,user_id) VALUES(?,?,?)")
-            .bind(group)
-            .bind(start)
-            .bind(user)
-            .execute(&mut **tx)
-            .await
-            .map_err(db)?;
+        sqlx::query(
+            "INSERT INTO analytics_group_daily_learners(group_id,day_start,user_id) VALUES(?,?,?)",
+        )
+        .bind(group)
+        .bind(start)
+        .bind(user)
+        .execute(&mut **tx)
+        .await
+        .map_err(db)?;
     }
     for (user, session) in &sessions {
         sqlx::query("INSERT INTO analytics_group_daily_sessions(group_id,day_start,user_id,activity_session_id) VALUES(?,?,?,?)")

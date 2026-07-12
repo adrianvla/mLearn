@@ -14,15 +14,17 @@ pub async fn connect_database(config: &Config) -> Result<SqlitePool, AppError> {
         .connect_with(options)
         .await
         .map_err(database_error)?;
-    let needs_daily_total_backfill: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='analytics_daily_totals')")
-        .fetch_one(&pool)
-        .await
-        .map_err(database_error)?;
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .map_err(|error| AppError::Internal(format!("database migration failed: {error}")))?;
-    if needs_daily_total_backfill == 0 {
+    let backfill_complete: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM analytics_daily_totals_backfill_state WHERE id=1)",
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(database_error)?;
+    if backfill_complete == 0 {
         crate::analytics::rollups::backfill_daily_totals(&pool).await?;
     }
     Ok(pool)
@@ -74,6 +76,67 @@ mod tests {
                 .unwrap(),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn daily_total_backfill_retries_after_marker_is_removed() {
+        let path =
+            std::env::temp_dir().join(format!("mlearn-backfill-{}.db", uuid::Uuid::now_v7()));
+        let mut config = Config::from_env();
+        config.management_db_path = path.to_string_lossy().into_owned();
+        let pool = connect_database(&config).await.unwrap();
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('learner','l@test','l@test','Learner','active','learner',0,1,1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('root',NULL,'Root','root','active',1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let event_id = sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,retention_days,retained_until,ancestry_state) VALUES('prior','learner','root','policy','hash',1,'activity.started','flashcards','progress-only','session','source',1,1,1,90,7776000001,'building')")
+            .execute(&pool)
+            .await
+            .unwrap()
+            .last_insert_rowid();
+        sqlx::query(
+            "INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'root')",
+        )
+        .bind(event_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+            .bind(event_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM analytics_daily_totals_backfill_state")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+
+        let restarted = connect_database(&config).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM analytics_daily_totals WHERE group_id='root'"
+            )
+            .fetch_one(&restarted)
+            .await
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM analytics_daily_totals_backfill_state WHERE id=1"
+            )
+            .fetch_one(&restarted)
+            .await
+            .unwrap(),
+            1
+        );
+        restarted.close().await;
+        let _ = std::fs::remove_file(path);
     }
 
     #[tokio::test]
