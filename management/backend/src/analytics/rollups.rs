@@ -12,6 +12,23 @@ pub async fn rebuild_daily_rollups(pool: &SqlitePool, event_row_id: i64) -> Resu
     Ok(())
 }
 
+/// Rebuilds canonical school-calendar totals from finalized history. This is
+/// idempotent and runs as one transaction when the daily-total migration is first applied.
+pub async fn backfill_daily_totals(pool: &SqlitePool) -> Result<(), AppError> {
+    let mut connection = pool.acquire().await.map_err(db)?;
+    let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+    let event_ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM activity_events WHERE ancestry_state='finalized' ORDER BY id",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(db)?;
+    for event_id in event_ids {
+        rebuild_daily_rollups_in_transaction(&mut tx, event_id).await?;
+    }
+    tx.commit().await.map_err(db)
+}
+
 pub async fn rebuild_daily_rollups_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     event_row_id: i64,
@@ -181,6 +198,37 @@ async fn rebuild_daily_total(
         }
         previous.insert((user, session), (occurred_at, media, page));
     }
+    sqlx::query("DELETE FROM analytics_group_daily_learners WHERE group_id=? AND day_start=?")
+        .bind(group)
+        .bind(start)
+        .execute(&mut **tx)
+        .await
+        .map_err(db)?;
+    sqlx::query("DELETE FROM analytics_group_daily_sessions WHERE group_id=? AND day_start=?")
+        .bind(group)
+        .bind(start)
+        .execute(&mut **tx)
+        .await
+        .map_err(db)?;
+    for user in &users {
+        sqlx::query("INSERT INTO analytics_group_daily_learners(group_id,day_start,user_id) VALUES(?,?,?)")
+            .bind(group)
+            .bind(start)
+            .bind(user)
+            .execute(&mut **tx)
+            .await
+            .map_err(db)?;
+    }
+    for (user, session) in &sessions {
+        sqlx::query("INSERT INTO analytics_group_daily_sessions(group_id,day_start,user_id,activity_session_id) VALUES(?,?,?,?)")
+            .bind(group)
+            .bind(start)
+            .bind(user)
+            .bind(session)
+            .execute(&mut **tx)
+            .await
+            .map_err(db)?;
+    }
     sqlx::query("INSERT INTO analytics_daily_totals(group_id,day_start,active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events,updated_at) VALUES(?,?,?,?,?,?,?,?,unixepoch()) ON CONFLICT(group_id,day_start) DO UPDATE SET active_learners=excluded.active_learners,sessions=excluded.sessions,watch_seconds=excluded.watch_seconds,completions=excluded.completions,reader_pages=excluded.reader_pages,flashcard_events=excluded.flashcard_events,updated_at=excluded.updated_at")
         .bind(group)
         .bind(start)
@@ -206,7 +254,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
     #[tokio::test]
-    async fn rebuild_is_idempotent_and_matches_raw_metrics_for_every_ancestor() {
+    async fn migration_backfill_is_idempotent_for_existing_finalized_history() {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -261,16 +309,8 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let event_ids: Vec<i64> = sqlx::query_scalar("SELECT id FROM activity_events ORDER BY id")
-            .fetch_all(&pool)
-            .await
-            .unwrap();
-        for event_id in &event_ids {
-            rebuild_daily_rollups(&pool, *event_id).await.unwrap();
-        }
-        for event_id in event_ids {
-            rebuild_daily_rollups(&pool, event_id).await.unwrap();
-        }
+        backfill_daily_totals(&pool).await.unwrap();
+        backfill_daily_totals(&pool).await.unwrap();
         let rows = sqlx::query("SELECT group_id,active_learners,sessions,watch_seconds FROM analytics_daily_rollups WHERE activity_kind='video' ORDER BY group_id").fetch_all(&pool).await.unwrap();
         assert_eq!(rows.len(), 2);
         for row in rows {

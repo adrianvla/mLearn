@@ -324,7 +324,9 @@ impl AnalyticsQueryService {
             let to = end.min(requested_to);
             let values = aggregate_history_bucket(tx, group, from, to, partial).await?;
             let has_recorded_data = values.0 > 0;
-            let coverage = if partial {
+            let coverage = if values.2 {
+                Coverage::RawExpired
+            } else if partial {
                 Coverage::Partial
             } else if !has_recorded_data {
                 Coverage::Missing
@@ -335,7 +337,7 @@ impl AnalyticsQueryService {
                 start,
                 end,
                 coverage,
-                values: has_recorded_data.then_some(values.1),
+                values: (!values.2 && has_recorded_data).then_some(values.1),
             });
         }
         Ok(buckets)
@@ -774,11 +776,12 @@ async fn aggregate_history_bucket(
     from: i64,
     to: i64,
     partial: bool,
-) -> Result<(i64, AnalyticsSummary), AppError> {
-    let (activity_rows, mut values) = if partial {
+) -> Result<(i64, AnalyticsSummary, bool), AppError> {
+    let (activity_rows, mut values, raw_expired) = if partial {
         partial_activity_summary(tx, group, from, to).await?
     } else {
-        total_activity_summary(tx, group, from).await?
+        let (rows, values) = total_activity_summary(tx, group, from, to).await?;
+        (rows, values, false)
     };
     let llm = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) row_count,COALESCE(SUM(COALESCE(request.input_tokens,0)),0) input_tokens,COALESCE(SUM(COALESCE(request.output_tokens,0)),0) output_tokens,COALESCE(SUM(COALESCE(request.input_tokens,0)+COALESCE(request.output_tokens,0)),0) total_tokens,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at*1000>=? AND request.created_at*1000<?")
         .bind(group)
@@ -800,35 +803,54 @@ async fn aggregate_history_bucket(
         .fetch_one(&mut **tx)
         .await
         .map_err(db)?;
-    Ok((activity_rows + llm_rows + values.policy_blocks, values))
+    Ok((
+        activity_rows + llm_rows + values.policy_blocks,
+        values,
+        raw_expired,
+    ))
 }
 
 async fn total_activity_summary(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     group: &str,
-    day_start: i64,
+    from: i64,
+    to: i64,
 ) -> Result<(i64, AnalyticsSummary), AppError> {
-    let total = sqlx::query("SELECT active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events FROM analytics_daily_totals WHERE group_id=? AND day_start=?")
+    let total = sqlx::query("SELECT COUNT(*) row_count,COALESCE(SUM(watch_seconds),0) watch_seconds,COALESCE(SUM(completions),0) completions,COALESCE(SUM(reader_pages),0) reader_pages,COALESCE(SUM(flashcard_events),0) flashcard_events FROM analytics_daily_totals WHERE group_id=? AND day_start>=? AND day_start<?")
         .bind(group)
-        .bind(day_start)
-        .fetch_optional(&mut **tx)
+        .bind(from)
+        .bind(to)
+        .fetch_one(&mut **tx)
         .await
         .map_err(db)?;
-    Ok(total.map_or_else(
-        || (0, AnalyticsSummary::default()),
-        |total| {
-            (
-                1,
-                AnalyticsSummary {
-                    active_learners: total.get("active_learners"),
-                    sessions: total.get("sessions"),
-                    watch_seconds: total.get("watch_seconds"),
-                    completions: total.get("completions"),
-                    reader_pages: total.get("reader_pages"),
-                    flashcard_events: total.get("flashcard_events"),
-                    ..AnalyticsSummary::default()
-                },
-            )
+    let rows: i64 = total.get("row_count");
+    if rows == 0 {
+        return Ok((0, AnalyticsSummary::default()));
+    }
+    let active_learners: i64 = sqlx::query_scalar("SELECT COUNT(DISTINCT user_id) FROM analytics_group_daily_learners WHERE group_id=? AND day_start>=? AND day_start<?")
+        .bind(group)
+        .bind(from)
+        .bind(to)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db)?;
+    let sessions: i64 = sqlx::query_scalar("SELECT COUNT(DISTINCT user_id || char(0) || activity_session_id) FROM analytics_group_daily_sessions WHERE group_id=? AND day_start>=? AND day_start<?")
+        .bind(group)
+        .bind(from)
+        .bind(to)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db)?;
+    Ok((
+        rows,
+        AnalyticsSummary {
+            active_learners,
+            sessions,
+            watch_seconds: total.get("watch_seconds"),
+            completions: total.get("completions"),
+            reader_pages: total.get("reader_pages"),
+            flashcard_events: total.get("flashcard_events"),
+            ..AnalyticsSummary::default()
         },
     ))
 }
@@ -838,19 +860,24 @@ async fn partial_activity_summary(
     group: &str,
     from: i64,
     to: i64,
-) -> Result<(i64, AnalyticsSummary), AppError> {
-    let rows = sqlx::query("SELECT e.user_id,e.activity_session_id,e.event_type,e.activity_kind,e.occurred_at,e.content_id,e.language,e.title,e.privacy,e.current_page,e.current_time_millis FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>? ORDER BY e.user_id,e.activity_session_id,e.sequence,e.id")
+) -> Result<(i64, AnalyticsSummary, bool), AppError> {
+    let rows = sqlx::query("SELECT e.user_id,e.activity_session_id,e.event_type,e.activity_kind,e.occurred_at,e.content_id,e.language,e.title,e.privacy,e.current_page,e.current_time_millis,e.retained_until FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? ORDER BY e.user_id,e.activity_session_id,e.sequence,e.id")
         .bind(group)
         .bind(from)
         .bind(to)
-        .bind(time::OffsetDateTime::now_utc().unix_timestamp() * 1000)
         .fetch_all(&mut **tx)
         .await
         .map_err(db)?;
-    let count = rows.len() as i64;
+    let now = time::OffsetDateTime::now_utc().unix_timestamp() * 1000;
+    let mut raw_expired = to <= now - 90 * 86_400_000;
     let events = rows
         .into_iter()
-        .map(|row| Event {
+        .filter_map(|row| {
+            if row.get::<i64, _>("retained_until") <= now {
+                raw_expired = true;
+                return None;
+            }
+            Some(Event {
             user: row.get("user_id"),
             session: row.get("activity_session_id"),
             event_type: row.get("event_type"),
@@ -862,9 +889,11 @@ async fn partial_activity_summary(
             privacy: row.get("privacy"),
             page: row.get("current_page"),
             media: row.get("current_time_millis"),
+            })
         })
         .collect::<Vec<_>>();
-    Ok((count, summarize(&events)))
+    let count = events.len() as i64;
+    Ok((count, summarize(&events), raw_expired))
 }
 
 fn encode_cursor(occurred_at: i64, id: &str) -> String {
@@ -1103,6 +1132,103 @@ mod tests {
 
         assert_eq!(previous, vec![(1_677_542_400_000, 1_677_628_800_000)]);
         assert!(previous[0].1 > previous[0].0);
+    }
+
+    #[tokio::test]
+    async fn canonical_totals_keep_weekly_and_monthly_distinct_counts_across_days() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('root',NULL,'Root','root','active',1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('learner','l@test','l@test','Learner','active','learner',0,1,1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (day_start, watch_seconds) in [
+            (0_i64, 10_i64),
+            (86_400_000, 20_i64),
+            (172_800_000, 30_i64),
+        ] {
+            sqlx::query("INSERT INTO analytics_daily_totals(group_id,day_start,active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events,updated_at) VALUES('root',?,1,1,?,0,0,0,1)")
+                .bind(day_start)
+                .bind(watch_seconds)
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO analytics_group_daily_learners(group_id,day_start,user_id) VALUES('root',?,?)")
+                .bind(day_start)
+                .bind("learner")
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO analytics_group_daily_sessions(group_id,day_start,user_id,activity_session_id) VALUES('root',?,?,?)")
+                .bind(day_start)
+                .bind("learner")
+                .bind("session")
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let mut transaction = pool.begin().await.unwrap();
+        let (_, summary) = total_activity_summary(&mut transaction, "root", 0, 172_800_000)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.active_learners, 1);
+        assert_eq!(summary.sessions, 1);
+        assert_eq!(summary.watch_seconds, 30);
+        let (_, monthly_summary) =
+            total_activity_summary(&mut transaction, "root", 0, 259_200_000)
+                .await
+                .unwrap();
+        assert_eq!(monthly_summary.active_learners, 1);
+        assert_eq!(monthly_summary.sessions, 1);
+        assert_eq!(monthly_summary.watch_seconds, 60);
+    }
+
+    #[tokio::test]
+    async fn partial_history_marks_expired_raw_data() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('learner','l@test','l@test','Learner','active','learner',0,1,1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('root',NULL,'Root','root','active',1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let event_id = sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,retention_days,retained_until,ancestry_state) VALUES('expired','learner','root','policy','hash',1,'activity.started','flashcards','progress-only','session','source',1,1,1,1,0,'building')")
+            .execute(&pool)
+            .await
+            .unwrap()
+            .last_insert_rowid();
+        sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'root')")
+            .bind(event_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+            .bind(event_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let mut transaction = pool.begin().await.unwrap();
+        let (_, _, raw_expired) = partial_activity_summary(&mut transaction, "root", 0, 10)
+            .await
+            .unwrap();
+
+        assert!(raw_expired);
     }
 
     async fn insert_video_pair(
