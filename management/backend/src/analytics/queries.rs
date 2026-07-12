@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use chrono::{TimeZone, Utc};
-use serde::Serialize;
+use chrono::{Datelike, NaiveDate, TimeZone, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{Connection, Row, SqlitePool};
 use std::collections::{HashMap, HashSet};
 
@@ -25,6 +25,79 @@ pub struct AnalyticsSummary {
     pub total_tokens: i64,
     pub cost_micros: i64,
     pub policy_blocks: i64,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AnalyticsMetric {
+    ActiveLearners,
+    Sessions,
+    WatchSeconds,
+    Completions,
+    ReaderPages,
+    FlashcardEvents,
+    LlmRequests,
+    InputTokens,
+    OutputTokens,
+    TotalTokens,
+    CostMicros,
+    PolicyBlocks,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AnalyticsGranularity {
+    Daily,
+    Weekly,
+    Monthly,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ComparisonMode {
+    None,
+    PreviousPeriod,
+    PreviousYear,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum Coverage {
+    Complete,
+    Partial,
+    Missing,
+    RawExpired,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoricalAnalyticsQuery {
+    pub from: i64,
+    pub to: i64,
+    pub granularity: AnalyticsGranularity,
+    #[serde(default)]
+    pub metrics: Vec<AnalyticsMetric>,
+    pub comparison: ComparisonMode,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoricalBucket {
+    pub start: i64,
+    pub end: i64,
+    pub coverage: Coverage,
+    pub values: Option<AnalyticsSummary>,
+}
+
+pub type PeriodComparison = Vec<HistoricalBucket>;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoricalSeries {
+    pub timezone: String,
+    pub granularity: AnalyticsGranularity,
+    pub primary: Vec<HistoricalBucket>,
+    pub comparison: Option<PeriodComparison>,
 }
 #[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -185,6 +258,84 @@ impl AnalyticsQueryService {
         self.add_llm(principal, group, from, to, &mut result)
             .await?;
         Ok(result)
+    }
+
+    pub async fn history(
+        &self,
+        principal: &Principal,
+        group: &str,
+        query: HistoricalAnalyticsQuery,
+    ) -> Result<HistoricalSeries, AppError> {
+        validate_history_range(query.from, query.to)?;
+
+        let mut connection = self.pool.acquire().await.map_err(db)?;
+        let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+        ensure_live_principal(&mut tx, principal).await?;
+        AuthorizationService::new(self.pool.clone())
+            .require_in_transaction(&mut tx, principal, group, Capability::AnalyticsView)
+            .await?;
+
+        let timezone = school_timezone(&mut tx, group).await?;
+        let primary_boundaries =
+            history_bucket_boundaries(timezone, query.from, query.to, query.granularity)?;
+        let primary = self
+            .history_buckets(&mut tx, group, &primary_boundaries, query.from, query.to)
+            .await?;
+        let comparison = match query.comparison {
+            ComparisonMode::None => None,
+            ComparisonMode::PreviousPeriod => {
+                let boundaries =
+                    previous_period_boundaries(timezone, &primary_boundaries, query.granularity)?;
+                Some(
+                    self.history_buckets(&mut tx, group, &boundaries, i64::MIN, i64::MAX)
+                        .await?,
+                )
+            }
+            ComparisonMode::PreviousYear => {
+                let boundaries = previous_year_boundaries(timezone, &primary_boundaries)?;
+                Some(
+                    self.history_buckets(&mut tx, group, &boundaries, i64::MIN, i64::MAX)
+                        .await?,
+                )
+            }
+        };
+        tx.commit().await.map_err(db)?;
+
+        Ok(HistoricalSeries {
+            timezone: timezone.name().to_string(),
+            granularity: query.granularity,
+            primary,
+            comparison,
+        })
+    }
+
+    async fn history_buckets(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        group: &str,
+        boundaries: &[(i64, i64)],
+        requested_from: i64,
+        requested_to: i64,
+    ) -> Result<Vec<HistoricalBucket>, AppError> {
+        let mut buckets = Vec::with_capacity(boundaries.len());
+        for &(start, end) in boundaries {
+            let values = aggregate_history_bucket(tx, group, start, end).await?;
+            let has_recorded_data = values.0 > 0;
+            let coverage = if !has_recorded_data {
+                Coverage::Missing
+            } else if start < requested_from || end > requested_to {
+                Coverage::Partial
+            } else {
+                Coverage::Complete
+            };
+            buckets.push(HistoricalBucket {
+                start,
+                end,
+                coverage,
+                values: has_recorded_data.then_some(values.1),
+            });
+        }
+        Ok(buckets)
     }
     pub async fn llm_summary(
         &self,
@@ -428,6 +579,240 @@ impl AnalyticsQueryService {
     }
 }
 
+fn validate_history_range(from: i64, to: i64) -> Result<(), AppError> {
+    let duration = to.checked_sub(from).ok_or_else(|| {
+        AppError::BadRequest("analytics date range must be positive and at most 366 days".into())
+    })?;
+    if from < 0 || duration <= 0 || duration > 366 * 86_400_000 {
+        return Err(AppError::BadRequest(
+            "analytics date range must be positive and at most 366 days".into(),
+        ));
+    }
+    Ok(())
+}
+
+async fn school_timezone(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    group: &str,
+) -> Result<chrono_tz::Tz, AppError> {
+    let timezone: Option<String> = sqlx::query_scalar("WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM groups WHERE id=? UNION ALL SELECT g.id,g.parent_id FROM groups g JOIN ancestors a ON a.parent_id=g.id) SELECT c.timezone FROM ancestors a JOIN school_quota_calendars c ON c.root_group_id=a.id WHERE a.parent_id IS NULL")
+        .bind(group)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(db)?;
+    timezone
+        .as_deref()
+        .unwrap_or("UTC")
+        .parse()
+        .map_err(|_| AppError::Internal("invalid school timezone".into()))
+}
+
+fn history_bucket_boundaries(
+    timezone: chrono_tz::Tz,
+    from: i64,
+    to: i64,
+    granularity: AnalyticsGranularity,
+) -> Result<Vec<(i64, i64)>, AppError> {
+    validate_history_range(from, to)?;
+    let first = Utc
+        .timestamp_millis_opt(from)
+        .single()
+        .ok_or_else(|| AppError::BadRequest("invalid analytics range start".into()))?
+        .with_timezone(&timezone)
+        .date_naive();
+    let mut date = bucket_date(first, granularity)?;
+    let mut boundaries = Vec::new();
+    loop {
+        let start = local_day_start(timezone, date)?;
+        if start >= to {
+            break;
+        }
+        let next = next_bucket_date(date, granularity)?;
+        let end = local_day_start(timezone, next)?;
+        if end > to && !boundaries.is_empty() {
+            break;
+        }
+        boundaries.push((start, end));
+        if end >= to {
+            break;
+        }
+        date = next;
+    }
+    Ok(boundaries)
+}
+
+fn bucket_date(date: NaiveDate, granularity: AnalyticsGranularity) -> Result<NaiveDate, AppError> {
+    match granularity {
+        AnalyticsGranularity::Daily => Ok(date),
+        AnalyticsGranularity::Weekly => date
+            .checked_sub_signed(chrono::Duration::days(
+                date.weekday().num_days_from_monday().into(),
+            ))
+            .ok_or_else(|| AppError::Internal("analytics week boundary overflow".into())),
+        AnalyticsGranularity::Monthly => NaiveDate::from_ymd_opt(date.year(), date.month(), 1)
+            .ok_or_else(|| AppError::Internal("analytics month boundary overflow".into())),
+    }
+}
+
+fn next_bucket_date(
+    date: NaiveDate,
+    granularity: AnalyticsGranularity,
+) -> Result<NaiveDate, AppError> {
+    match granularity {
+        AnalyticsGranularity::Daily => date
+            .succ_opt()
+            .ok_or_else(|| AppError::Internal("analytics day boundary overflow".into())),
+        AnalyticsGranularity::Weekly => date
+            .checked_add_signed(chrono::Duration::days(7))
+            .ok_or_else(|| AppError::Internal("analytics week boundary overflow".into())),
+        AnalyticsGranularity::Monthly => {
+            let (year, month) = if date.month() == 12 {
+                (date.year() + 1, 1)
+            } else {
+                (date.year(), date.month() + 1)
+            };
+            NaiveDate::from_ymd_opt(year, month, 1)
+                .ok_or_else(|| AppError::Internal("analytics month boundary overflow".into()))
+        }
+    }
+}
+
+fn local_day_start(timezone: chrono_tz::Tz, date: NaiveDate) -> Result<i64, AppError> {
+    let midnight = date
+        .and_hms_opt(0, 0, 0)
+        .ok_or_else(|| AppError::Internal("invalid school calendar day".into()))?;
+    timezone
+        .from_local_datetime(&midnight)
+        .earliest()
+        .map(|instant| instant.timestamp_millis())
+        .ok_or_else(|| AppError::Internal("school timezone has no day boundary".into()))
+}
+
+fn previous_period_boundaries(
+    timezone: chrono_tz::Tz,
+    primary: &[(i64, i64)],
+    granularity: AnalyticsGranularity,
+) -> Result<Vec<(i64, i64)>, AppError> {
+    let Some(&(first_start, _)) = primary.first() else {
+        return Ok(Vec::new());
+    };
+    let first_date = Utc
+        .timestamp_millis_opt(first_start)
+        .single()
+        .ok_or_else(|| AppError::Internal("invalid analytics bucket boundary".into()))?
+        .with_timezone(&timezone)
+        .date_naive();
+    let mut date = first_date;
+    for _ in 0..primary.len() {
+        date = previous_bucket_date(date, granularity)?;
+    }
+    let mut out = Vec::with_capacity(primary.len());
+    for _ in primary {
+        let end_date = next_bucket_date(date, granularity)?;
+        out.push((
+            local_day_start(timezone, date)?,
+            local_day_start(timezone, end_date)?,
+        ));
+        date = end_date;
+    }
+    Ok(out)
+}
+
+fn previous_bucket_date(
+    date: NaiveDate,
+    granularity: AnalyticsGranularity,
+) -> Result<NaiveDate, AppError> {
+    match granularity {
+        AnalyticsGranularity::Daily => date
+            .pred_opt()
+            .ok_or_else(|| AppError::Internal("analytics day boundary overflow".into())),
+        AnalyticsGranularity::Weekly => date
+            .checked_sub_signed(chrono::Duration::days(7))
+            .ok_or_else(|| AppError::Internal("analytics week boundary overflow".into())),
+        AnalyticsGranularity::Monthly => {
+            let (year, month) = if date.month() == 1 {
+                (date.year() - 1, 12)
+            } else {
+                (date.year(), date.month() - 1)
+            };
+            NaiveDate::from_ymd_opt(year, month, 1)
+                .ok_or_else(|| AppError::Internal("analytics month boundary overflow".into()))
+        }
+    }
+}
+
+fn previous_year_boundaries(
+    timezone: chrono_tz::Tz,
+    primary: &[(i64, i64)],
+) -> Result<Vec<(i64, i64)>, AppError> {
+    primary
+        .iter()
+        .map(|&(start, end)| {
+            let shift = |timestamp| -> Result<i64, AppError> {
+                let date = Utc
+                    .timestamp_millis_opt(timestamp)
+                    .single()
+                    .ok_or_else(|| AppError::Internal("invalid analytics bucket boundary".into()))?
+                    .with_timezone(&timezone)
+                    .date_naive();
+                let shifted = NaiveDate::from_ymd_opt(date.year() - 1, date.month(), date.day())
+                    .or_else(|| NaiveDate::from_ymd_opt(date.year() - 1, date.month(), 28))
+                    .ok_or_else(|| AppError::Internal("analytics year boundary overflow".into()))?;
+                local_day_start(timezone, shifted)
+            };
+            Ok((shift(start)?, shift(end)?))
+        })
+        .collect()
+}
+
+async fn aggregate_history_bucket(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    group: &str,
+    from: i64,
+    to: i64,
+) -> Result<(i64, AnalyticsSummary), AppError> {
+    let rollup = sqlx::query("SELECT COUNT(*) row_count,COALESCE(SUM(active_learners),0) active_learners,COALESCE(SUM(sessions),0) sessions,COALESCE(SUM(watch_seconds),0) watch_seconds,COALESCE(SUM(completions),0) completions,COALESCE(SUM(reader_pages),0) reader_pages,COALESCE(SUM(flashcard_events),0) flashcard_events FROM analytics_daily_rollups rollup WHERE rollup.group_id=? AND rollup.day_start>=? AND rollup.day_start<?")
+        .bind(group)
+        .bind(from)
+        .bind(to)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db)?;
+    let mut values = AnalyticsSummary {
+        active_learners: rollup.get("active_learners"),
+        sessions: rollup.get("sessions"),
+        watch_seconds: rollup.get("watch_seconds"),
+        completions: rollup.get("completions"),
+        reader_pages: rollup.get("reader_pages"),
+        flashcard_events: rollup.get("flashcard_events"),
+        ..AnalyticsSummary::default()
+    };
+    let rollup_rows: i64 = rollup.get("row_count");
+    let seconds_from = from.div_euclid(1000);
+    let seconds_to = to.div_euclid(1000);
+    let llm = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) row_count,COALESCE(SUM(COALESCE(request.input_tokens,0)),0) input_tokens,COALESCE(SUM(COALESCE(request.output_tokens,0)),0) output_tokens,COALESCE(SUM(COALESCE(request.input_tokens,0)+COALESCE(request.output_tokens,0)),0) total_tokens,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at>=? AND request.created_at<?")
+        .bind(group)
+        .bind(seconds_from)
+        .bind(seconds_to)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db)?;
+    let llm_rows: i64 = llm.get("row_count");
+    values.llm_requests = llm_rows;
+    values.input_tokens = llm.get("input_tokens");
+    values.output_tokens = llm.get("output_tokens");
+    values.total_tokens = llm.get("total_tokens");
+    values.cost_micros = llm.get("cost_micros");
+    values.policy_blocks = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at>=? AND event.created_at<?")
+        .bind(group)
+        .bind(seconds_from)
+        .bind(seconds_to)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db)?;
+    Ok((rollup_rows + llm_rows + values.policy_blocks, values))
+}
+
 fn encode_cursor(occurred_at: i64, id: &str) -> String {
     URL_SAFE_NO_PAD.encode(format!("{occurred_at}\0{id}"))
 }
@@ -596,6 +981,50 @@ mod tests {
         assert!(decode_cursor(Some(&URL_SAFE_NO_PAD.encode("42\0bad\n"))).is_err());
     }
 
+    #[tokio::test]
+    async fn history_uses_school_days_across_the_paris_dst_transition() {
+        let boundaries = history_bucket_boundaries(
+            "Europe/Paris".parse().unwrap(),
+            1_774_656_000_000,
+            1_774_828_800_000,
+            AnalyticsGranularity::Daily,
+        )
+        .unwrap();
+
+        assert_eq!(boundaries.len(), 2);
+        assert_eq!(boundaries[0], (1_774_652_400_000, 1_774_738_800_000));
+        assert_eq!(boundaries[1], (1_774_738_800_000, 1_774_821_600_000));
+        let comparison = previous_period_boundaries(
+            "Europe/Paris".parse().unwrap(),
+            &boundaries,
+            AnalyticsGranularity::Daily,
+        )
+        .unwrap();
+        assert_eq!(comparison.len(), boundaries.len());
+        assert_eq!(comparison.last().unwrap().1, boundaries[0].0);
+    }
+
+    #[test]
+    fn history_query_keeps_missing_coverage_distinct_from_zero_values() {
+        let bucket = HistoricalBucket {
+            start: 0,
+            end: 86_400_000,
+            coverage: Coverage::Missing,
+            values: None,
+        };
+
+        assert_eq!(bucket.coverage, Coverage::Missing);
+        assert!(bucket.values.is_none());
+    }
+
+    #[test]
+    fn history_rejects_ranges_over_366_days() {
+        assert!(matches!(
+            validate_history_range(0, 366 * 86_400_000 + 1),
+            Err(AppError::BadRequest(_))
+        ));
+    }
+
     async fn insert_video_pair(
         pool: &SqlitePool,
         user: &str,
@@ -619,7 +1048,7 @@ mod tests {
         }
     }
     #[tokio::test]
-    async fn parent_sums_descendants_child_isolated_archived_history_and_revocation_fail_closed() {
+    async fn history_scopes_descendants_and_denies_sibling_groups() {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -671,6 +1100,15 @@ mod tests {
             millis,
         )
         .await;
+        let event_ids: Vec<i64> = sqlx::query_scalar("SELECT id FROM activity_events ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        for event_id in event_ids {
+            crate::analytics::rollups::rebuild_daily_rollups(&pool, event_id)
+                .await
+                .unwrap();
+        }
         let principal = |user: &str, session: &str, group: &str| Principal {
             user_id: user.into(),
             service_key_id: None,
@@ -681,6 +1119,47 @@ mod tests {
             is_root: false,
         };
         let service = AnalyticsQueryService::new(pool.clone());
+        let history_query = || HistoricalAnalyticsQuery {
+            from: millis - 1,
+            to: millis + 60_001,
+            granularity: AnalyticsGranularity::Daily,
+            metrics: vec![AnalyticsMetric::WatchSeconds],
+            comparison: ComparisonMode::None,
+        };
+        assert_eq!(
+            service
+                .history(
+                    &principal("manager", "s-root", "root"),
+                    "root",
+                    history_query()
+                )
+                .await
+                .unwrap()
+                .primary[0]
+                .values
+                .as_ref()
+                .unwrap()
+                .watch_seconds,
+            50
+        );
+        assert_eq!(
+            service
+                .history(&principal("a-teacher", "s-a", "a"), "a", history_query())
+                .await
+                .unwrap()
+                .primary[0]
+                .values
+                .as_ref()
+                .unwrap()
+                .watch_seconds,
+            30
+        );
+        assert!(matches!(
+            service
+                .history(&principal("a-teacher", "s-a", "a"), "b", history_query())
+                .await,
+            Err(AppError::Forbidden(_))
+        ));
         assert_eq!(
             service
                 .summary(

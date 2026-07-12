@@ -339,6 +339,25 @@ export interface AnalyticsSummary {
   readerPages: number; flashcardEvents: number; llmRequests: number; inputTokens: number;
   outputTokens: number; totalTokens: number; costMicros: number; policyBlocks: number;
 }
+export type AnalyticsMetric =
+  | 'activeLearners' | 'sessions' | 'watchSeconds' | 'completions'
+  | 'readerPages' | 'flashcardEvents' | 'llmRequests' | 'inputTokens'
+  | 'outputTokens' | 'totalTokens' | 'costMicros' | 'policyBlocks';
+export type AnalyticsGranularity = 'daily' | 'weekly' | 'monthly';
+export type ComparisonMode = 'none' | 'previousPeriod' | 'previousYear';
+export type AnalyticsCoverage = 'complete' | 'partial' | 'missing' | 'rawExpired';
+export interface HistoricalBucket {
+  start: number;
+  end: number;
+  coverage: AnalyticsCoverage;
+  values: AnalyticsSummary | null;
+}
+export interface HistoricalSeries {
+  timezone: string;
+  granularity: AnalyticsGranularity;
+  primary: HistoricalBucket[];
+  comparison: HistoricalBucket[] | null;
+}
 export interface TimeseriesPoint extends AnalyticsSummary { dayStart: number }
 export interface LlmAnalytics { requests: number; inputTokens: number; outputTokens: number; totalTokens: number; costMicros: number }
 export interface LearnerAnalytics extends AnalyticsSummary { learnerId: string; displayName: string; lastActivityAt: number }

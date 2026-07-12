@@ -12,7 +12,8 @@ use time::OffsetDateTime;
 use crate::{
     analytics::ingestion::{AnalyticsIngestionService, IngestionBatch, IngestionResult},
     analytics::queries::{
-        AnalyticsQueryService, AnalyticsSummary, DimensionAnalytics, LearnerAnalytics,
+        AnalyticsGranularity, AnalyticsQueryService, AnalyticsSummary, ComparisonMode,
+        DimensionAnalytics, HistoricalAnalyticsQuery, HistoricalSeries, LearnerAnalytics,
         LlmAnalytics, Page, PolicyBlockAnalytics, TimeseriesPoint,
     },
     dto::AnalyticsDto,
@@ -25,6 +26,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/analytics/events", post(ingest_events))
         .route("/api/analytics/summary", get(summary))
+        .route("/api/analytics/history", get(history))
         .route("/api/analytics/timeseries", get(timeseries))
         .route("/api/analytics/learners", get(learners))
         .route("/api/analytics/content", get(content))
@@ -45,6 +47,16 @@ struct AnalyticsQuery {
     to: Option<i64>,
     limit: Option<i64>,
     cursor: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct HistoryParams {
+    group_id: String,
+    from: i64,
+    to: i64,
+    granularity: AnalyticsGranularity,
+    comparison: ComparisonMode,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -83,6 +95,27 @@ async fn summary(
     Ok(Json(
         AnalyticsQueryService::new(state.db)
             .summary(&principal, &q.group_id, from, to)
+            .await?,
+    ))
+}
+async fn history(
+    State(state): State<AppState>,
+    principal: Principal,
+    Query(query): Query<HistoryParams>,
+) -> Result<Json<HistoricalSeries>, AppError> {
+    Ok(Json(
+        AnalyticsQueryService::new(state.db)
+            .history(
+                &principal,
+                &query.group_id,
+                HistoricalAnalyticsQuery {
+                    from: query.from,
+                    to: query.to,
+                    granularity: query.granularity,
+                    metrics: Vec::new(),
+                    comparison: query.comparison,
+                },
+            )
             .await?,
     ))
 }
@@ -363,6 +396,79 @@ mod tests {
             body,
             json!({"acceptedIds":["event"],"duplicateIds":[],"rejected":[]})
         );
+        let _ = std::fs::remove_file(signing);
+        let _ = std::fs::remove_file(encryption);
+    }
+
+    #[tokio::test]
+    async fn history_route_uses_utc_fallback_and_returns_missing_as_null() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('teacher','t@test','t@test','T','active','teacher',0,?,?)")
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('class',NULL,'Class','class','active',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO group_memberships(id,group_id,user_id,status,created_at) VALUES('membership','class','teacher','active',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO membership_capabilities(membership_id,capability) VALUES('membership','analytics.view')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let signing = std::env::temp_dir().join(format!(
+            "analytics-history-signing-{}",
+            uuid::Uuid::now_v7()
+        ));
+        let encryption = std::env::temp_dir().join(format!(
+            "analytics-history-encryption-{}",
+            uuid::Uuid::now_v7()
+        ));
+        let mut config = crate::config::Config::from_env();
+        config.policy_signing_key_path = signing.to_string_lossy().into();
+        config.encryption_key_path = encryption.to_string_lossy().into();
+        config.encryption_key = None;
+        let state = crate::state::AppState::try_new(
+            bollard::Docker::connect_with_http_defaults().unwrap(),
+            config,
+            pool,
+        )
+        .unwrap();
+        let session = state
+            .identity
+            .issue_session("teacher", Some("device"), Some("class"))
+            .await
+            .unwrap();
+        let response = crate::application_router(state)
+            .oneshot(
+                Request::get("/api/analytics/history?groupId=class&from=0&to=86400000&granularity=daily&comparison=none")
+                    .header(header::AUTHORIZATION, format!("Bearer {}", session.access_token))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(body["timezone"], "UTC");
+        assert_eq!(body["primary"][0]["coverage"], "missing");
+        assert!(body["primary"][0]["values"].is_null());
+        assert!(body["comparison"].is_null());
         let _ = std::fs::remove_file(signing);
         let _ = std::fs::remove_file(encryption);
     }
