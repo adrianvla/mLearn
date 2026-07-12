@@ -217,6 +217,23 @@ impl AnalyticsIngestionService {
         // intentionally independent and survive raw-event expiry.
         sqlx::query("INSERT OR IGNORE INTO analytics_retention_delete_queue(event_row_id) SELECT id FROM activity_events WHERE user_id=? AND retained_until<=? ORDER BY retained_until,id LIMIT 25")
             .bind(&principal.user_id).bind(now.saturating_mul(1_000)).execute(&mut *tx).await.map_err(db)?;
+        let watermarks = sqlx::query("SELECT a.group_id,MAX(e.occurred_at) latest_deleted_at FROM activity_events e JOIN analytics_retention_delete_queue q ON q.event_row_id=e.id JOIN activity_event_ancestry a ON a.event_row_id=e.id GROUP BY a.group_id")
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?;
+        for watermark in watermarks {
+            let group_id: String = watermark.get("group_id");
+            let retained_from = watermark
+                .get::<i64, _>("latest_deleted_at")
+                .saturating_add(1);
+            sqlx::query("INSERT INTO analytics_raw_retention_watermarks(group_id,retained_from,updated_at) VALUES(?,?,?) ON CONFLICT(group_id) DO UPDATE SET retained_from=MAX(analytics_raw_retention_watermarks.retained_from,excluded.retained_from),updated_at=excluded.updated_at")
+                .bind(group_id)
+                .bind(retained_from)
+                .bind(now)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+        }
         sqlx::query("DELETE FROM activity_events WHERE id IN (SELECT event_row_id FROM analytics_retention_delete_queue)").execute(&mut *tx).await.map_err(db)?;
         sqlx::query("DELETE FROM analytics_retention_delete_queue")
             .execute(&mut *tx)
@@ -595,6 +612,10 @@ fn db(error: sqlx::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analytics::queries::{
+        AnalyticsGranularity, AnalyticsQueryService, ComparisonMode, Coverage,
+        HistoricalAnalyticsQuery,
+    };
     use sqlx::sqlite::SqlitePoolOptions;
 
     struct Fixture {
@@ -694,6 +715,56 @@ mod tests {
                 .unwrap(),
             2
         );
+    }
+
+    #[tokio::test]
+    async fn ingestion_cleanup_advances_partial_history_retention_watermark() {
+        let f = Fixture::new().await;
+        sqlx::query("INSERT INTO membership_capabilities(membership_id,capability) VALUES('membership','analytics.view')")
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        let expired_id = sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,retention_days,retained_until,ancestry_state) VALUES('expired','learner','class','policy','expired-hash',1,'activity.started','flashcards','progress-only','expired-session','source',99,1,1,1,0,'building')")
+            .execute(&f.pool)
+            .await
+            .unwrap()
+            .last_insert_rowid();
+        sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'class')")
+            .bind(expired_id)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+            .bind(expired_id)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+
+        f.ingest(vec![f.event("cleanup-trigger", 1)]).await.unwrap();
+
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT retained_from FROM analytics_raw_retention_watermarks WHERE group_id='class'")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap(),
+            2
+        );
+        let history = AnalyticsQueryService::new(f.pool.clone())
+            .history(
+                &f.principal,
+                "class",
+                HistoricalAnalyticsQuery {
+                    from: 0,
+                    to: 10,
+                    granularity: AnalyticsGranularity::Daily,
+                    metrics: Vec::new(),
+                    comparison: ComparisonMode::None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(history.primary[0].coverage, Coverage::RawExpired);
+        assert!(history.primary[0].values.is_none());
     }
 
     #[tokio::test]

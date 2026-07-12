@@ -894,7 +894,8 @@ async fn partial_activity_summary(
     .fetch_optional(&mut **tx)
     .await
     .map_err(db)?;
-    let mut raw_expired = retained_from.is_some_and(|cutoff| from < cutoff);
+    let mut raw_expired =
+        retained_from.is_some_and(|cutoff| from < cutoff) || to <= now - 90 * 86_400_000;
     let events = rows
         .into_iter()
         .filter_map(|row| {
