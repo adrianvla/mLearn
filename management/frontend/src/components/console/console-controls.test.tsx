@@ -20,6 +20,7 @@ it("renders HeroUI controls and reports controlled value changes", () => {
   );
   fireEvent.change(screen.getByLabelText("Policy name"), { target: { value: "Exam defaults" } });
   fireEvent.click(screen.getByRole("switch", { name: "LLM enabled" }));
+  expect(screen.getByRole("button", { name: /Rule type/i })).toHaveTextContent("Lock app setting");
   fireEvent.click(screen.getByRole("button", { name: /Rule type/i }));
   fireEvent.click(screen.getByRole("option", { name: "Enable LLM access" }));
   expect(onTextChange).toHaveBeenCalledWith("Exam defaults");
