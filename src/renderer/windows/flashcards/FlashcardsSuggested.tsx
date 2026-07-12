@@ -47,7 +47,7 @@ import {
   resolveSuggestedLevel,
   suggestedLevelFilterMatches,
 } from './flashcardsSuggestedPreview';
-import { createSuggestedVirtualRowItems } from './flashcardsSuggestedVirtualRows';
+import { createSuggestedVirtualRowItems, getSuggestedCardHeight } from './flashcardsSuggestedVirtualRows';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 
 const log = getLogger("renderer.flashcards.flashcardsSuggested");
@@ -165,15 +165,15 @@ export const FlashcardsSuggested: Component = () => {
     return Math.ceil(filtered().length / c);
   });
 
-  // Card height must cover preview content + context phrase + action buttons.
-  const CARD_HEIGHT = 250;
+  // Narrow cards wrap more text, so denser grids need a taller fixed virtual row.
+  const cardHeight = createMemo(() => getSuggestedCardHeight(columns()));
 
   const virtualizer = createMemo(() => {
     const rows = rowCount();
     return createVirtualizer({
       count: rows,
       getScrollElement: () => virtualScrollRef(),
-      estimateSize: () => CARD_HEIGHT + CARD_GAP,
+      estimateSize: () => cardHeight() + CARD_GAP,
       overscan: 3,
     });
   });
@@ -489,7 +489,7 @@ export const FlashcardsSuggested: Component = () => {
                       top: '0',
                       left: '0',
                       width: '100%',
-                      height: `${CARD_HEIGHT}px`,
+                      height: `${cardHeight()}px`,
                       'margin-bottom': `${CARD_GAP}px`,
                       transform: `translateY(${item.start}px)`,
                       'grid-template-columns': `repeat(${columns()}, minmax(0, 1fr))`,
