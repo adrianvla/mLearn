@@ -1,14 +1,36 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::model::PolicyDocument;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum JsonKind {
+pub enum JsonKind {
     Boolean,
     Number,
     String,
     StringOrNull,
     StringLiterals(&'static [&'static str]),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicySettingDescriptor {
+    pub key: String,
+    pub value_type: String,
+    pub allowed_values: Vec<String>,
+}
+
+pub fn policy_setting_registry() -> Vec<PolicySettingDescriptor> {
+    SETTING_REGISTRY.iter().map(|(key, kind)| {
+        let (value_type, allowed_values) = match kind {
+            JsonKind::Boolean => ("boolean", Vec::new()),
+            JsonKind::Number => ("number", Vec::new()),
+            JsonKind::String => ("string", Vec::new()),
+            JsonKind::StringOrNull => ("stringOrNull", Vec::new()),
+            JsonKind::StringLiterals(values) => ("select", values.iter().map(|value| (*value).into()).collect()),
+        };
+        PolicySettingDescriptor { key: (*key).into(), value_type: value_type.into(), allowed_values }
+    }).collect()
 }
 
 const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
