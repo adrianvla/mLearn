@@ -12,7 +12,8 @@ use crate::{
     identity::Principal,
     policy::{
         compiler::compile_in_transaction, signing::PolicyPublicKey, CompiledPolicy,
-        DraftValidation, PolicyDraft, PolicyHistoryPage, PolicyService, PolicyVersion,
+        policy_setting_registry, CreatePolicy, DraftValidation, PolicyCollection, PolicyDraft, PolicyHistoryPage,
+        PolicyService, PolicySummary, PolicyVersion,
     },
     state::AppState,
 };
@@ -20,6 +21,15 @@ use crate::{
 #[derive(Deserialize)]
 struct PublishRequest {
     summary: String,
+    #[serde(default)]
+    validated_document_hash: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveDraftRequest {
+    document: Value,
+    expected_document_hash: Option<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -31,6 +41,11 @@ struct HistoryQuery {
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
+        .route("/api/groups/{group_id}/policies", get(list_policies).post(create_policy))
+        .route("/api/policies/{policy_id}/draft", get(get_policy_draft).put(save_policy_draft))
+        .route("/api/policies/{policy_id}/validate", post(validate_policy_draft))
+        .route("/api/policies/{policy_id}/publish", post(publish_policy))
+        .route("/api/policy-registry", get(policy_registry))
         .route(
             "/api/groups/{group_id}/policy/draft",
             get(get_draft).put(save_draft),
@@ -45,6 +60,38 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/api/policy/me", get(effective_for_session))
         .route("/api/policy/public-key", get(public_key))
         .with_state(state)
+}
+
+async fn policy_registry(principal: Principal) -> Result<Json<Vec<crate::policy::PolicySettingDescriptor>>, AppError> {
+    if principal.service_key_id.is_some() {
+        return Err(AppError::Forbidden("policy registry requires a human session".into()));
+    }
+    Ok(Json(policy_setting_registry()))
+}
+
+async fn list_policies(State(state): State<AppState>, principal: Principal, Path(group_id): Path<String>) -> Result<Json<PolicyCollection>, AppError> {
+    Ok(Json(PolicyService::new(state.db).list_policies(&principal, &group_id).await?))
+}
+
+async fn create_policy(State(state): State<AppState>, principal: Principal, Path(group_id): Path<String>, Json(input): Json<CreatePolicy>) -> Result<Json<PolicySummary>, AppError> {
+    Ok(Json(PolicyService::new(state.db).create_policy(&principal, &group_id, input).await?))
+}
+
+async fn get_policy_draft(State(state): State<AppState>, principal: Principal, Path(policy_id): Path<String>) -> Result<Json<Option<PolicyDraft>>, AppError> {
+    Ok(Json(PolicyService::new(state.db).get_policy_draft(&principal, &policy_id).await?))
+}
+
+async fn save_policy_draft(State(state): State<AppState>, principal: Principal, Path(policy_id): Path<String>, Json(request): Json<SaveDraftRequest>) -> Result<Json<PolicyDraft>, AppError> {
+    Ok(Json(PolicyService::new(state.db).save_policy_draft(&principal, &policy_id, request.document, request.expected_document_hash.as_deref()).await?))
+}
+
+async fn validate_policy_draft(State(state): State<AppState>, principal: Principal, Path(policy_id): Path<String>) -> Result<Json<DraftValidation>, AppError> {
+    Ok(Json(PolicyService::new(state.db).validate_policy_draft(&principal, &policy_id).await?))
+}
+
+async fn publish_policy(State(state): State<AppState>, principal: Principal, Path(policy_id): Path<String>, Json(request): Json<PublishRequest>) -> Result<Json<PolicyVersion>, AppError> {
+    let hash = request.validated_document_hash.ok_or_else(|| AppError::BadRequest("validatedDocumentHash is required".into()))?;
+    Ok(Json(PolicyService::new(state.db).publish_policy(&principal, &policy_id, &request.summary, &hash).await?))
 }
 
 const POLICY_SNAPSHOT_LIFETIME: Duration = Duration::minutes(15);
