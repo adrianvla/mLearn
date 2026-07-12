@@ -9,6 +9,7 @@ export function ConsoleDialog({ open, onOpenChange, title, children, footer }: {
   footer?: ReactNode;
 }) {
   const state = useOverlayState({ isOpen: open, onOpenChange });
+  if (!open) return null;
   return <Modal state={state}>
     <Modal.Backdrop>
       <Modal.Container>

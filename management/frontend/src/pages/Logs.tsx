@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Search } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { ApiClient } from '../api/client';
 import type { ConversationDetailDto, ConversationSummary } from '../api/types';
 import { ConversationDetail } from '../components/ConversationDetail';
 import { DataTableShell } from '../components/DataTableShell';
+import { DatePickerField } from '../components/DatePickerField';
+import { ConsoleButton, ConsoleDialog, ConsoleSelect, ConsoleTextField } from '../components/console';
 import { PageToolbar } from '../components/PageToolbar';
 import { useGroupScope } from '../groups/GroupScopeProvider';
 
@@ -61,31 +63,26 @@ export default function Logs() {
       title="Conversation Logs"
       description="Encrypted governed conversations within the selected group and descendants."
       actions={scope.status === 'ready' && scope.can('conversations.export')
-        ? <button className="secondary-action" onClick={() => setConfirmExport(true)}><Download />Export CSV</button>
+        ? <ConsoleButton className="secondary-action" onClick={() => setConfirmExport(true)}><Download />Export CSV</ConsoleButton>
         : undefined}
     />
     <DataTableShell label="Conversation logs" controls={<div className="filter-stack">
       <div className="filter-row">
-        <label className="search-field"><Search /><input aria-label="Search conversations" value={search} onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Search loaded results" /></label>
-        <input aria-label="Learner" value={learner} onChange={(event) => setLearner(event.currentTarget.value)} placeholder="Learner ID" />
-        <select aria-label="Descendant group" value={group} onChange={(event) => setGroup(event.currentTarget.value)}>
-          <option value="">Selected group and descendants</option>
-          {scope.status === 'ready' && scope.groups.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
-        </select>
-        <input aria-label="Provider" value={provider} onChange={(event) => setProvider(event.currentTarget.value)} placeholder="Provider ID" />
-        <input aria-label="Model" value={model} onChange={(event) => setModel(event.currentTarget.value)} placeholder="Model ID" />
+        <ConsoleTextField label="Search conversations" value={search} onChange={setSearch} placeholder="Search loaded results" />
+        <ConsoleTextField label="Learner" value={learner} onChange={setLearner} placeholder="Learner ID" />
+        <ConsoleSelect label="Descendant group" selectedKey={group} onSelectionChange={setGroup} placeholder="Selected group and descendants" options={scope.status === 'ready' ? scope.groups.map((candidate) => ({ key: candidate.id, label: candidate.name })) : []} />
+        <ConsoleTextField label="Provider" value={provider} onChange={setProvider} placeholder="Provider ID" />
+        <ConsoleTextField label="Model" value={model} onChange={setModel} placeholder="Model ID" />
       </div>
       <div className="filter-row">
-        <label>From <input aria-label="From date" type="date" value={from} onChange={(event) => setFrom(event.currentTarget.value)} /></label>
-        <label>To <input aria-label="To date" type="date" value={to} onChange={(event) => setTo(event.currentTarget.value)} /></label>
-        <select aria-label="Conversation status" value={status} onChange={(event) => setStatus(event.currentTarget.value)}>
-          <option value="">All statuses</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="truncated">Truncated</option><option value="policy-blocked">Policy blocked</option>
-        </select>
+        <DatePickerField label="From date" value={from} onChange={setFrom} />
+        <DatePickerField label="To date" value={to} onChange={setTo} />
+        <ConsoleSelect label="Conversation status" selectedKey={status} onSelectionChange={setStatus} placeholder="All statuses" options={[{ key: 'completed', label: 'Completed' }, { key: 'failed', label: 'Failed' }, { key: 'truncated', label: 'Truncated' }, { key: 'policy-blocked', label: 'Policy blocked' }]} />
       </div>
     </div>}>
-      {filtered.length ? <div className="table-scroll"><table><caption className="sr-only">Conversation logs</caption><thead><tr><th>Learner</th><th>Group</th><th>Provider / model</th><th>Status</th><th>Tokens</th><th>Cost</th><th>Started</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><th><button className="table-link" onClick={() => void open(item.id)}>{item.learnerUserId}</button></th><td>{item.groupId}</td><td>{item.providerId} / {item.modelId}</td><td>{item.status}</td><td>{(item.inputTokens ?? 0) + (item.outputTokens ?? 0)}</td><td>{((item.costMicros ?? 0) / 1_000_000).toFixed(4)}</td><td>{new Date(item.createdAt * 1000).toLocaleString()}</td></tr>)}</tbody></table></div> : undefined}
+      {filtered.length ? <div className="table-scroll"><table><caption className="sr-only">Conversation logs</caption><thead><tr><th>Learner</th><th>Group</th><th>Provider / model</th><th>Status</th><th>Tokens</th><th>Cost</th><th>Started</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><th><ConsoleButton className="table-link" onClick={() => void open(item.id)}>{item.learnerUserId}</ConsoleButton></th><td>{item.groupId}</td><td>{item.providerId} / {item.modelId}</td><td>{item.status}</td><td>{(item.inputTokens ?? 0) + (item.outputTokens ?? 0)}</td><td>{((item.costMicros ?? 0) / 1_000_000).toFixed(4)}</td><td>{new Date(item.createdAt * 1000).toLocaleString()}</td></tr>)}</tbody></table></div> : undefined}
     </DataTableShell>
     {detail && <ConversationDetail detail={detail} onClose={() => setDetail(null)} />}
-    {confirmExport && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-label="Export conversations?" className="console-dialog"><h2>Export conversations?</h2><p>The effective school policy must allow this export. The scoped export is recorded in the audit log.</p><footer><button onClick={() => setConfirmExport(false)}>Cancel</button><button onClick={exportCsv}>Confirm export</button></footer></section></div>}
+    <ConsoleDialog open={confirmExport} onOpenChange={setConfirmExport} title="Export conversations?" footer={<><ConsoleButton onClick={() => setConfirmExport(false)}>Cancel</ConsoleButton><ConsoleButton onClick={exportCsv}>Confirm export</ConsoleButton></>}><p>The effective school policy must allow this export. The scoped export is recorded in the audit log.</p></ConsoleDialog>
   </div>;
 }

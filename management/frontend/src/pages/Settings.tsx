@@ -4,6 +4,8 @@ import { ApiClient } from '../api/client';
 import type { GroupNode } from '../api/types';
 import { useAuth } from '../auth/AuthProvider';
 import { PageToolbar } from '../components/PageToolbar';
+import { DatePickerField } from '../components/DatePickerField';
+import { ConsoleButton, ConsoleTextField } from '../components/console';
 import Config from './Config';
 
 const api = new ApiClient();
@@ -47,5 +49,5 @@ function RootCalendarSettings() {
       setStatus(error instanceof Error ? error.message : 'School calendar update failed.');
     }
   };
-  return <div className="settings-form"><p>Changing an active calendar schedules the next term safely when accounting data already exists.</p><label>School timezone<input aria-label="School timezone" value={timezone} onChange={(event) => setTimezone(event.currentTarget.value)} placeholder="Europe/Zurich" /></label><label>Term starts<input aria-label="Term starts" type="date" value={termStarts} onChange={(event) => setTermStarts(event.currentTarget.value)} /></label><label>Term ends<input aria-label="Term ends" type="date" value={termEnds} onChange={(event) => setTermEnds(event.currentTarget.value)} /></label><button className="primary-action" disabled={!rootGroupId || !timezone.trim() || !termStarts || !termEnds || termEnds <= termStarts} onClick={() => void save()}>Save school calendar</button>{status ? <p role="status">{status}</p> : null}</div>;
+  return <div className="settings-form"><p>Changing an active calendar schedules the next term safely when accounting data already exists.</p><ConsoleTextField label="School timezone" value={timezone} onChange={setTimezone} placeholder="Europe/Zurich" /><DatePickerField label="Term starts" value={termStarts} onChange={setTermStarts} /><DatePickerField label="Term ends" value={termEnds} onChange={setTermEnds} /><ConsoleButton className="primary-action" isDisabled={!rootGroupId || !timezone.trim() || !termStarts || !termEnds || termEnds <= termStarts} onClick={() => void save()}>Save school calendar</ConsoleButton>{status ? <p role="status">{status}</p> : null}</div>;
 }

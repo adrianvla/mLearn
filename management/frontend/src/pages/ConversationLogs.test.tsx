@@ -14,6 +14,13 @@ vi.mock('../groups/GroupScopeProvider', () => ({
     can: (capability: string) => capabilities.includes(capability),
   }),
 }));
+vi.mock('../components/DatePickerField', () => ({
+  DatePickerField: ({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) => <input aria-label={label} value={value} onChange={(event) => onChange(event.currentTarget.value)} />,
+}));
+vi.mock('../components/console', async () => {
+  const actual = await vi.importActual<typeof import('../components/console')>('../components/console');
+  return { ...actual, ConsoleSelect: ({ label, selectedKey, onSelectionChange, options }: { label: string; selectedKey: string; onSelectionChange(value: string): void; options: Array<{ key: string; label: string }> }) => <select aria-label={label} value={selectedKey} onChange={(event) => onSelectionChange(event.currentTarget.value)}><option value="" />{options.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select> };
+});
 
 beforeEach(() => {
   capabilities = ['conversations.view', 'conversations.export'];

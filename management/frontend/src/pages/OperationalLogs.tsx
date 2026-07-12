@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ApiClient } from '../api/client';
 import type { LogsDto, ServiceDto } from '../api/types';
 import { ErrorState, LoadingState, PageContainer, PageHeader } from '../components/shared';
+import { ConsoleSelect } from '../components/console';
 
 const api = new ApiClient();
 
@@ -45,7 +46,7 @@ export default function OperationalLogs() {
 
   return <PageContainer>
     <PageHeader title="Operational Logs" subtitle="Redacted container output for the selected mLearn service." />
-    {services.length > 0 && <label className="search-field">Service<select aria-label="Service" value={selectedId} onChange={(event) => setSelectedId(event.currentTarget.value)}>{services.map((service) => <option key={service.id} value={service.id}>{service.service_name ?? service.container_name}</option>)}</select></label>}
+    {services.length > 0 && <ConsoleSelect label="Service" selectedKey={selectedId} onSelectionChange={setSelectedId} options={services.map((service) => ({ key: service.id, label: service.service_name ?? service.container_name }))} />}
     {loading && !logs && <LoadingState label="Loading operational logs…" />}
     {!loading && error && <ErrorState message={error} />}
     {!loading && !error && services.length === 0 && <p className="table-state">No mLearn containers are available.</p>}

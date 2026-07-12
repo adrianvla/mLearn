@@ -6,6 +6,9 @@ import Settings from './Settings';
 let isRoot = false;
 vi.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ status: 'authenticated', user: { isRoot } }) }));
 vi.mock('./Config', () => ({ default: () => <div>Redacted deployment configuration</div> }));
+vi.mock('../components/DatePickerField', () => ({
+  DatePickerField: ({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) => <input aria-label={label} value={value} onChange={(event) => onChange(event.currentTarget.value)} />,
+}));
 
 beforeEach(() => { isRoot = false; });
 
