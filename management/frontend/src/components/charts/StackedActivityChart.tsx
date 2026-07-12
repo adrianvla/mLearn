@@ -1,6 +1,6 @@
 import { Button, Card, Tooltip } from '@heroui/react';
 import type { AnalyticsCoverage } from '../../api/types';
-import { ExactDataTable } from './HistoricalChart';
+import { CoverageAnnotation, ExactDataTable } from './HistoricalChart';
 import type { ChartSeries } from './chartTypes';
 
 const CHART_WIDTH = 640;
@@ -36,6 +36,7 @@ export function StackedActivityChart({ title, series }: StackedActivityChartProp
           {Array.from({ length: bucketCount }, (_, index) => <StackedBar key={index} index={index} series={activitySeries} maximum={maximum} />)}
         </svg>
       </figure>
+      <CoverageAnnotation series={activitySeries} />
       <ExactDataTable title={title} series={activitySeries} visible={false} />
     </Card.Content>
   </Card>;
@@ -46,9 +47,10 @@ function StackedBar({ index, series, maximum }: { index: number; series: ChartSe
   const coverage = bucketCoverage(values.map((value) => value?.coverage));
   const innerWidth = CHART_WIDTH - CHART_PADDING * 2;
   const innerHeight = CHART_HEIGHT - CHART_PADDING * 2;
-  const gap = Math.max(4, innerWidth / Math.max(values.length, 1) * 0.18);
-  const barWidth = Math.max(2, innerWidth / Math.max(values.length, 1) - gap);
-  const x = CHART_PADDING + index * innerWidth / Math.max(values.length, 1) + gap / 2;
+  const bucketCount = Math.max(...series.map((item) => item.values.length), 1);
+  const gap = Math.max(4, innerWidth / bucketCount * 0.18);
+  const barWidth = Math.max(2, innerWidth / bucketCount - gap);
+  const x = CHART_PADDING + index * innerWidth / bucketCount + gap / 2;
   let currentY = CHART_HEIGHT - CHART_PADDING;
 
   return <g data-testid={`stacked-bar-${index}`} data-coverage={coverage}>

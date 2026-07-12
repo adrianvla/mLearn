@@ -30,8 +30,13 @@ it('renders primary and comparison values in an accessible table', () => {
 
   expect(screen.getByRole('img', { name: 'Sessions history' })).toBeVisible();
   expect(screen.getByRole('table', { name: 'Sessions data' })).toHaveTextContent('Previous period');
+  expect(screen.getByRole('table', { name: 'Sessions data' })).toHaveTextContent('Sessions — Current period');
+  expect(screen.getByRole('table', { name: 'Sessions data' })).toHaveTextContent('Sessions — Previous period');
+  expect(screen.getByRole('table', { name: 'Sessions data' })).toHaveTextContent(new Date(fixtureSeries[1].values[0].start).toLocaleDateString());
   expect(screen.getByRole('table', { name: 'Sessions data' })).toHaveTextContent('No recorded data');
   expect(screen.getByRole('table', { name: 'Sessions data' })).toHaveTextContent('Raw detail expired');
+  expect(screen.getByRole('status')).toBeVisible();
+  expect(screen.getByRole('status')).toHaveTextContent('No recorded data');
 });
 
 it('keeps a gap between recorded values instead of drawing through missing coverage', () => {
@@ -53,6 +58,7 @@ it('uses metric tabs and a HeroUI button to reveal the exact table', () => {
   expect(screen.getByRole('tab', { name: 'Sessions' })).toHaveAttribute('aria-selected', 'true');
   fireEvent.click(screen.getByRole('tab', { name: 'Completions' }));
   expect(screen.getByRole('img', { name: 'Learning activity history' })).toHaveTextContent('Completions');
+  expect(screen.getByRole('status')).toHaveTextContent('Partial coverage');
   fireEvent.click(screen.getByRole('button', { name: 'Show exact data' }));
   expect(screen.getByRole('table', { name: 'Learning activity data' })).toBeVisible();
 });
@@ -65,5 +71,31 @@ it('renders activity categories as stacked segments without converting unavailab
 
   expect(screen.getByRole('img', { name: 'Activity history' })).toBeVisible();
   expect(screen.getByRole('table', { name: 'Activity data' })).toHaveTextContent('No recorded data');
+  expect(screen.getByRole('table', { name: 'Activity data' })).toHaveTextContent('Reader pages — Current period');
+  expect(screen.getByRole('table', { name: 'Activity data' })).toHaveTextContent('Flashcard events — Current period');
   expect(screen.getByTestId('stacked-bar-1')).toHaveAttribute('data-coverage', 'missing');
+  expect(screen.getByRole('status')).toBeVisible();
+  expect(screen.getByRole('status')).toHaveTextContent('No recorded data');
+});
+
+it('sizes stacked bars by time bucket so all categories remain within the chart view', () => {
+  const buckets = Array.from({ length: 6 }, (_, index) => ({
+    start: 1_700_000_000_000 + index * 86_400_000,
+    end: 1_700_086_400_000 + index * 86_400_000,
+    coverage: 'complete' as const,
+  }));
+  render(<StackedActivityChart title="Six days" series={[
+    { key: 'readerPages', label: 'Reader pages', kind: 'primary', values: buckets.map((bucket, index) => ({ ...bucket, value: index + 1 })) },
+    { key: 'flashcardEvents', label: 'Flashcard events', kind: 'primary', values: buckets.map((bucket, index) => ({ ...bucket, value: index + 2 })) },
+  ]} />);
+
+  const rectangles = [...document.querySelectorAll<SVGRectElement>('.stacked-activity-chart__segment')];
+  expect(rectangles).toHaveLength(12);
+  expect(new Set(rectangles.map((rectangle) => rectangle.getAttribute('x'))).size).toBe(6);
+  for (const rectangle of rectangles) {
+    const x = Number(rectangle.getAttribute('x'));
+    const width = Number(rectangle.getAttribute('width'));
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x + width).toBeLessThanOrEqual(640);
+  }
 });

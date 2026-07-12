@@ -147,6 +147,8 @@ button, a, select { outline-offset: 3px; }
 .historical-chart__legend span, .stacked-activity-chart__figure figcaption span { display: inline-flex; align-items: center; gap: 6px; }
 .historical-chart__legend-key, .stacked-activity-chart__legend-key { width: 14px; height: 3px; display: inline-block; border-radius: 999px; background: var(--foreground); }
 .historical-chart__legend-key--comparison { background: repeating-linear-gradient(to right, var(--muted) 0 5px, transparent 5px 8px); }
+.historical-chart__coverage { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 10px 12px; border-left: 3px solid var(--warning); background: var(--surface-secondary); color: var(--muted); font-size: 12px; }
+.historical-chart__coverage strong { color: var(--foreground); }
 .historical-chart__table-wrap { overflow-x: auto; border-top: 1px solid var(--border); padding-top: 12px; }
 .historical-chart__table-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .historical-chart__table-wrap caption { margin-bottom: 8px; color: var(--muted); text-align: left; }
