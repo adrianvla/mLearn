@@ -895,7 +895,7 @@ async fn partial_activity_summary(
     .await
     .map_err(db)?;
     let mut raw_expired =
-        retained_from.is_some_and(|cutoff| from < cutoff) || to <= now - 90 * 86_400_000;
+        retained_from.is_some_and(|cutoff| from < cutoff) || from < now - 90 * 86_400_000;
     let events = rows
         .into_iter()
         .filter_map(|row| {
@@ -1266,6 +1266,32 @@ mod tests {
         let (_, _, raw_expired) = partial_activity_summary(&mut transaction, "root", 0, 10)
             .await
             .unwrap();
+
+        assert!(raw_expired);
+    }
+
+    #[tokio::test]
+    async fn partial_history_straddling_max_raw_age_fails_closed_without_watermark() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('root',NULL,'Root','root','active',1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp() * 1_000;
+        let mut transaction = pool.begin().await.unwrap();
+        let (_, _, raw_expired) = partial_activity_summary(
+            &mut transaction,
+            "root",
+            now - 90 * 86_400_000 - 1,
+            now - 90 * 86_400_000 + 1,
+        )
+        .await
+        .unwrap();
 
         assert!(raw_expired);
     }
