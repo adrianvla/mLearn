@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
+import { ConsoleButton } from './components/console';
 import { useEffect, useRef, useState } from 'react';
 import { AppSidebar } from './components/AppSidebar';
 import { GroupSwitcher } from './components/GroupSwitcher';
@@ -14,8 +15,8 @@ export default function Layout() {
   };
   return (
     <div className="console-shell">
-      <button ref={triggerRef} className="mobile-nav-trigger" aria-label="Open navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu /></button>
-      {mobileOpen && <button className="mobile-backdrop" aria-label="Close navigation" onClick={closeNavigation} />}
+      <ConsoleButton ref={triggerRef} className="mobile-nav-trigger" aria-label="Open navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu /></ConsoleButton>
+      {mobileOpen && <ConsoleButton className="mobile-backdrop" aria-label="Close navigation" onClick={closeNavigation}>Close navigation</ConsoleButton>}
       <AppSidebar mobileOpen={mobileOpen} onNavigate={closeNavigation} />
       <section className="console-workspace">
         <header className="console-topbar"><GroupSwitcher /></header>

@@ -10,6 +10,7 @@ import type {
 import { LineChart } from "../components/LineChart";
 import { MetricCard } from "../components/MetricCard";
 import { PageToolbar } from "../components/PageToolbar";
+import { ConsoleButton, ConsoleSelect } from "../components/console";
 import { RecentActivityTable } from "../components/RecentActivityTable";
 import { useGroupScope } from "../groups/GroupScopeProvider";
 
@@ -77,20 +78,16 @@ export default function Overview() {
         title="Dashboard"
         description={`Learning, policy, and AI activity for ${scope.status === "ready" ? (scope.selectedGroup?.name ?? "the selected group") : "your school"}.`}
         actions={
-          <button className="secondary-action" onClick={retry}>
+          <ConsoleButton className="secondary-action" onClick={retry}>
             <RefreshCw /> Refresh
-          </button>
+          </ConsoleButton>
         }
       />
       <div className="dashboard-tabs" aria-label="Dashboard view">
-        <button className={view === "overview" ? "active" : undefined} onClick={() => setView("overview")}>Overview</button>
-        <button className={view === "usage" ? "active" : undefined} onClick={() => setView("usage")}>Usage</button>
-        <button className={view === "security" ? "active" : undefined} onClick={() => setView("security")}>Security</button>
-        <select aria-label="Date period" value={periodDays} onChange={(event) => setPeriodDays(Number(event.currentTarget.value))}>
-          <option value="7">7 days</option>
-          <option value="30">30 days</option>
-          <option value="90">90 days</option>
-        </select>
+        <ConsoleButton className={view === "overview" ? "active" : undefined} onClick={() => setView("overview")}>Overview</ConsoleButton>
+        <ConsoleButton className={view === "usage" ? "active" : undefined} onClick={() => setView("usage")}>Usage</ConsoleButton>
+        <ConsoleButton className={view === "security" ? "active" : undefined} onClick={() => setView("security")}>Security</ConsoleButton>
+        <ConsoleSelect label="Date period" selectedKey={String(periodDays)} onSelectionChange={(value) => setPeriodDays(Number(value))} options={[{ key: "7", label: "7 days" }, { key: "30", label: "30 days" }, { key: "90", label: "90 days" }]} />
       </div>
       <section className="metric-grid" aria-label="School metrics">
         <MetricCard

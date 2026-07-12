@@ -6,6 +6,8 @@ import { GroupTree } from "../components/GroupTree";
 import { PageToolbar } from "../components/PageToolbar";
 import { Link } from "react-router-dom";
 import { useGroupScope } from "../groups/GroupScopeProvider";
+import { ConsoleButton, ConsoleDialog, ConsoleTextField } from "../components/console";
+import { Tabs } from "@heroui/react";
 const api = new ApiClient();
 export default function Groups() {
   const scope = useGroupScope();
@@ -103,11 +105,11 @@ export default function Groups() {
       <PageToolbar
         title="Groups"
         description="The authorized school hierarchy, memberships, and delegated authority."
-        actions={canManage && selected ? <div className="toolbar-actions"><button className="secondary-action" onClick={() => openEditor('edit')}>Edit group</button><button className="primary-action" onClick={() => openEditor('create')}>Create child group</button></div> : undefined}
+        actions={canManage && selected ? <div className="toolbar-actions"><ConsoleButton className="secondary-action" onClick={() => openEditor('edit')}>Edit group</ConsoleButton><ConsoleButton className="primary-action" onClick={() => openEditor('create')}>Create child group</ConsoleButton></div> : undefined}
       />
       <div className="group-workspace">
         <aside>
-          <input aria-label="Search groups" placeholder="Search groups" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
+          <ConsoleTextField label="Search groups" placeholder="Search groups" value={search} onChange={setSearch} />
           <GroupTree
             groups={filteredGroups}
             selectedId={selectedId}
@@ -124,27 +126,10 @@ export default function Groups() {
                     {selected.slug} · {selected.status}
                   </p>
                 </div>
-                {canManage && selected.parentId !== null ? <button className="table-link" onClick={() => setArchiveConfirm(true)}>Archive group</button> : null}
+                {canManage && selected.parentId !== null ? <ConsoleButton className="table-link" onClick={() => setArchiveConfirm(true)}>Archive group</ConsoleButton> : null}
               </header>
               {mutationError ? <p role="alert">{mutationError}</p> : null}
-              <div className="detail-tabs" role="tablist">
-                {[
-                  "overview",
-                  "members",
-                  "permissions",
-                  "policy",
-                  "analytics",
-                ].map((name) => (
-                  <button
-                    key={name}
-                    role="tab"
-                    aria-selected={tab === name}
-                    onClick={() => setTab(name)}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
+              <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Group detail">{["overview", "members", "permissions", "policy", "analytics"].map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
               {tab === "overview" && (
                 <dl>
                   <div>
@@ -176,7 +161,7 @@ export default function Groups() {
                           </th>
                           <td>{membership.status}</td>
                           <td>{membership.capabilities.length}</td>
-                          <td><button className="table-link" onClick={() => { setSelectedMembershipId(membership.id); setTab("permissions"); }}>Edit {membership.userId ?? membership.invitedEmail} permissions</button></td>
+                          <td><ConsoleButton className="table-link" onClick={() => { setSelectedMembershipId(membership.id); setTab("permissions"); }}>Edit {membership.userId ?? membership.invitedEmail} permissions</ConsoleButton></td>
                         </tr>
                       ))}
                     </tbody>
@@ -203,8 +188,8 @@ export default function Groups() {
           )}
         </section>
       </div>
-      {editor && selected ? <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="group-editor-title" className="console-dialog"><h2 id="group-editor-title">{editor === 'create' ? `Create child of ${selected.name}` : `Edit ${selected.name}`}</h2><label>Group name<input aria-label="Group name" value={name} onChange={(event) => setName(event.currentTarget.value)} /></label><label>Slug<input aria-label="Group slug" value={slug} onChange={(event) => setSlug(event.currentTarget.value)} /></label><footer><button onClick={() => setEditor(null)}>Cancel</button><button disabled={!name.trim() || !slug.trim()} onClick={() => void saveGroup()}>{editor === 'create' ? 'Create group' : 'Save group'}</button></footer></section></div> : null}
-      {archiveConfirm && selected ? <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="archive-group-title" className="console-dialog"><h2 id="archive-group-title">Archive {selected.name}?</h2><p>Archived groups and their active memberships stop granting access immediately.</p><footer><button onClick={() => setArchiveConfirm(false)}>Cancel</button><button onClick={() => void archiveGroup()}>Confirm archive</button></footer></section></div> : null}
+      <ConsoleDialog open={Boolean(editor && selected)} onOpenChange={(open) => { if (!open) setEditor(null); }} title={editor === 'create' && selected ? `Create child of ${selected.name}` : 'Edit group'} footer={<><ConsoleButton onClick={() => setEditor(null)}>Cancel</ConsoleButton><ConsoleButton isDisabled={!name.trim() || !slug.trim()} onClick={() => void saveGroup()}>{editor === 'create' ? 'Create group' : 'Save group'}</ConsoleButton></>}><ConsoleTextField label="Group name" value={name} onChange={setName}/><ConsoleTextField label="Group slug" value={slug} onChange={setSlug}/></ConsoleDialog>
+      <ConsoleDialog open={Boolean(archiveConfirm && selected)} onOpenChange={setArchiveConfirm} title={selected ? `Archive ${selected.name}?` : 'Archive group'} footer={<><ConsoleButton onClick={() => setArchiveConfirm(false)}>Cancel</ConsoleButton><ConsoleButton onClick={() => void archiveGroup()}>Confirm archive</ConsoleButton></>}><p>Archived groups and their active memberships stop granting access immediately.</p></ConsoleDialog>
     </div>
   );
 }
