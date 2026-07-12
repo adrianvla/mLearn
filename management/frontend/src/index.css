@@ -178,6 +178,18 @@ button, a, select { outline-offset: 3px; }
 .dashboard-period { width:180px; }
 .metric-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
 .dashboard-primary-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.analytics-page { gap: 20px; }
+.analytics-toolbar-actions { align-items: end; }
+.analytics-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.analytics-filters [data-slot="select"], .analytics-filters [data-slot="date-picker"] { min-width: 156px; }
+.analytics-overview { display: grid; gap: 16px; }
+.analytics-panel { display: grid; gap: 16px; min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: calc(var(--radius) + .25rem); background: var(--surface); }
+.analytics-panel__heading h2 { margin: 0; font-size: 18px; }
+.analytics-panel__heading p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.analytics-series-controls { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; padding: 0; border: 0; }
+.analytics-series-controls legend { width: 100%; margin-bottom: 2px; color: var(--muted); font-size: 12px; }
+.analytics-series-controls [data-slot="switch"] { min-width: 190px; }
+.analytics-history-table { border-radius: var(--radius); }
 .dashboard-panel { min-width: 0; min-height:0; padding:20px; background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--radius) + .25rem); }
 .dashboard-panel[data-slot="card"] { padding:0; }
 .dashboard-analysis .dashboard-panel, .chart-panel { min-height:380px; }
@@ -264,5 +276,9 @@ button, a, select { outline-offset: 3px; }
   .detail-tabs { overflow-x:auto; }
   .detail-tabs [data-slot="tabs-list"] { min-width:520px; }
   .filter-row, .toolbar-actions { width:100%; align-items:stretch; flex-direction:column; }
+  .analytics-toolbar-actions, .analytics-filters { align-items: stretch; }
+  .analytics-filters [data-slot="select"], .analytics-filters [data-slot="date-picker"] { width: 100%; min-width: 0; }
+  .analytics-panel { padding: 16px; }
+  .analytics-series-controls { display: grid; grid-template-columns: 1fr; }
   .page-toolbar { align-items: start; flex-direction: column; }
 }
