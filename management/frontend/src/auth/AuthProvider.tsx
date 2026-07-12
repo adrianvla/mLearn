@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AUTH_SIGNED_OUT_EVENT, ApiClient, ApiError } from '../api/client';
+import { AUTH_SESSION_UPDATED_EVENT, AUTH_SIGNED_OUT_EVENT, ApiClient, ApiError } from '../api/client';
 import type { AuthorizedUser } from '../api/types';
 
 export interface AuthApi {
@@ -44,8 +44,13 @@ export function AuthProvider({ children, api = defaultApi }: { children: ReactNo
 
   useEffect(() => {
     const signedOut = () => setState({ status: 'signedOut', user: null, error: null });
+    const sessionUpdated = () => setRetryKey((key) => key + 1);
     window.addEventListener(AUTH_SIGNED_OUT_EVENT, signedOut);
-    return () => window.removeEventListener(AUTH_SIGNED_OUT_EVENT, signedOut);
+    window.addEventListener(AUTH_SESSION_UPDATED_EVENT, sessionUpdated);
+    return () => {
+      window.removeEventListener(AUTH_SIGNED_OUT_EVENT, signedOut);
+      window.removeEventListener(AUTH_SESSION_UPDATED_EVENT, sessionUpdated);
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

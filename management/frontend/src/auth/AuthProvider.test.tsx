@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { AuthorizedUser } from '../api/types';
+import { ApiError } from '../api/client';
 import { AuthProvider, useAuth, type AuthApi } from './AuthProvider';
 
 const USER: AuthorizedUser = { id: 'user-1', email: 'teacher@example.com', groups: [] };
@@ -37,4 +38,18 @@ it('never accepts a bootstrap recovery credential into session state', async () 
   await screen.findByText(USER.email);
   expect(sessionStorage.getItem('recovery-token')).toBeNull();
   await waitFor(() => expect(api.me).toHaveBeenCalledOnce());
+});
+
+it('restores authentication when bootstrap creates a session', async () => {
+  const me = vi.fn()
+    .mockRejectedValueOnce(new ApiError(401, 'Unauthorized', null))
+    .mockResolvedValueOnce(USER);
+  const api: AuthApi = { me, login: vi.fn(), logout: vi.fn(), clearSession: vi.fn() };
+  render(<AuthProvider api={api}><Probe /></AuthProvider>);
+
+  expect(await screen.findByText('signedOut')).toBeVisible();
+  window.dispatchEvent(new Event('mlearn-management-session-updated'));
+
+  expect(await screen.findByText(USER.email)).toBeVisible();
+  expect(me).toHaveBeenCalledTimes(2);
 });

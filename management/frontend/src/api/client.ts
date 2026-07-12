@@ -8,6 +8,7 @@ type ServiceAction = 'start' | 'stop' | 'restart';
 type RequestOptions = Omit<RequestInit, 'headers'> & { headers?: HeadersInit };
 
 export const AUTH_SIGNED_OUT_EVENT = 'mlearn-management-signed-out';
+export const AUTH_SESSION_UPDATED_EVENT = 'mlearn-management-session-updated';
 export const AUTH_ERROR_EVENT = AUTH_SIGNED_OUT_EVENT;
 export const SESSION_KEY = 'mlearn-management-session';
 export const TOKEN_KEY = SESSION_KEY;
@@ -58,6 +59,11 @@ export class ApiError extends Error {
 }
 
 const defaultStore = createSessionStore();
+
+export function establishSession(session: AuthSession): void {
+  defaultStore.set(session);
+  window.dispatchEvent(new Event(AUTH_SESSION_UPDATED_EVENT));
+}
 
 export class ApiClient {
   private readonly baseUrl: string;
