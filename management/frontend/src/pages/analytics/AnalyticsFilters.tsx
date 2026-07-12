@@ -13,7 +13,7 @@ export interface AnalyticsFilterValue {
 }
 
 export function analyticsRangeError(value: Pick<AnalyticsFilterValue, 'from' | 'to'>): string | null {
-  if (value.from >= value.to || value.to - value.from > 366 * DAY) return 'Choose a range from one to 366 days.';
+  if (value.from < 0 || value.to < 0 || value.from >= value.to || value.to - value.from > 366 * DAY) return 'Choose a range from one to 366 days.';
   return null;
 }
 

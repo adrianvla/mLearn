@@ -8,3 +8,8 @@ it('accepts at most 366 days and rejects reversed or longer custom ranges', () =
   expect(analyticsRangeError({ from: 1_700_000_000_000, to: 1_700_000_000_000 })).toBe('Choose a range from one to 366 days.');
   expect(analyticsRangeError({ from: 1_700_000_000_000, to: 1_700_000_000_000 + 366 * day + 1 })).toBe('Choose a range from one to 366 days.');
 });
+
+it('rejects pre-1970 boundaries even when the range is otherwise valid', () => {
+  expect(analyticsRangeError({ from: -86_400_000, to: 86_400_000 })).toBe('Choose a range from one to 366 days.');
+  expect(analyticsRangeError({ from: 0, to: -1 })).toBe('Choose a range from one to 366 days.');
+});
