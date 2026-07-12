@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { ApiClient } from "../api/client";
 import type { ScopedManagedUser } from "../api/types";
 import { CsvImportDialog } from "../components/CsvImportDialog";
 import { DataTableShell } from "../components/DataTableShell";
 import { PageToolbar } from "../components/PageToolbar";
+import { ConsoleButton, ConsoleDialog, ConsoleSelect, ConsoleTextField } from "../components/console";
 import { useGroupScope } from "../groups/GroupScopeProvider";
 
 const api = new ApiClient();
@@ -207,7 +208,7 @@ export default function Users() {
       `/api/users/${encodeURIComponent(detail.user.id)}/status?groupId=${encodeURIComponent(groupId)}`,
       { method: "PATCH", body: JSON.stringify({ status }) },
     );
-    setDetail({ ...detail, user });
+    setDetail((current) => current ? { ...current, user } : current);
     setUsers((items) =>
       items.map((item) => (item.id === user.id ? user : item)),
     );
@@ -227,19 +228,18 @@ export default function Users() {
                 groupId={groupId}
                 onImported={() => setRevision((value) => value + 1)}
               />
-              <button
-                className="secondary-action"
+              <ConsoleButton
                 onClick={() => setInviteOpen(true)}
               >
                 Invite user
-              </button>
-              <button
-                className="primary-action"
+              </ConsoleButton>
+              <ConsoleButton
+                variant="primary"
                 onClick={() => setCreateOpen(true)}
               >
                 <UserPlus />
                 Create user
-              </button>
+              </ConsoleButton>
             </>
           ) : undefined
         }
@@ -251,34 +251,9 @@ export default function Users() {
         onRetry={() => setRevision((value) => value + 1)}
         controls={
           <div className="filter-row">
-            <label className="search-field">
-              <Search />
-              <span className="sr-only">Search users</span>
-              <input
-                placeholder="Search users"
-                value={search}
-                onChange={(event) => setSearch(event.currentTarget.value)}
-              />
-            </label>
-            <select
-              aria-label="Identity type filter"
-              value={typeFilter}
-              onChange={(event) => setTypeFilter(event.currentTarget.value)}
-            >
-              <option value="">All identity types</option>
-              <option value="admin">Administrators</option>
-              <option value="teacher">Teachers</option>
-              <option value="learner">Learners</option>
-            </select>
-            <select
-              aria-label="Status filter"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.currentTarget.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-            </select>
+            <ConsoleTextField label="Search users" placeholder="Search users" type="search" value={search} onChange={setSearch} />
+            <ConsoleSelect label="Identity type filter" selectedKey={typeFilter} onSelectionChange={setTypeFilter} options={[{key:'',label:'All identity types'},{key:'admin',label:'Administrators'},{key:'teacher',label:'Teachers'},{key:'learner',label:'Learners'}]} />
+            <ConsoleSelect label="Status filter" selectedKey={statusFilter} onSelectionChange={setStatusFilter} options={[{key:'',label:'All statuses'},{key:'active',label:'Active'},{key:'suspended',label:'Suspended'}]} />
           </div>
         }
       >
@@ -308,12 +283,12 @@ export default function Users() {
                     <td>{user.status}</td>
                     <td>{user.groupIds.length}</td>
                     <td>
-                      <button
-                        className="table-link"
+                      <ConsoleButton
+                        variant="ghost"
                         onClick={() => void openUser(user)}
                       >
                         Open {user.displayName}
-                      </button>
+                      </ConsoleButton>
                     </td>
                   </tr>
                 ))}
@@ -323,114 +298,35 @@ export default function Users() {
         ) : undefined}
         {nextCursor && (
           <div className="table-controls">
-            <button
-              className="secondary-action"
+            <ConsoleButton
               onClick={() => void loadMore()}
             >
               Load more users
-            </button>
+            </ConsoleButton>
           </div>
         )}
       </DataTableShell>
-      {createOpen && (
-        <Dialog title="Create user" onClose={() => setCreateOpen(false)}>
-          <label>
-            User email
-            <input
-              aria-label="User email"
-              type="email"
-              value={createEmail}
-              onChange={(event) => setCreateEmail(event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Display name
-            <input
-              aria-label="Display name"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Identity type
-            <select
-              aria-label="Identity type"
-              value={identityType}
-              onChange={(event) => setIdentityType(event.currentTarget.value)}
-            >
-              <option value="learner">Learner</option>
-              <option value="teacher">Teacher</option>
-              <option value="admin">Administrator</option>
-            </select>
-          </label>
-          <footer>
-            <button onClick={() => setCreateOpen(false)}>Cancel</button>
-            <button
-              disabled={!createEmail.trim() || !displayName.trim()}
-              onClick={() => void createUser()}
-            >
-              Create account
-            </button>
-          </footer>
-        </Dialog>
-      )}
-      {inviteOpen && (
-        <Dialog
-          title="Invite user"
-          onClose={() => {
-            setInviteOpen(false);
-            setInvitationSecret(null);
-          }}
-        >
+      <ConsoleDialog open={createOpen} onOpenChange={setCreateOpen} title="Create user" footer={<><ConsoleButton onClick={() => setCreateOpen(false)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={!createEmail.trim() || !displayName.trim()} onClick={() => void createUser()}>Create account</ConsoleButton></>}>
+        <ConsoleTextField label="User email" type="email" value={createEmail} onChange={setCreateEmail} />
+        <ConsoleTextField label="Display name" value={displayName} onChange={setDisplayName} />
+        <ConsoleSelect label="Identity type" selectedKey={identityType} onSelectionChange={setIdentityType} options={[{key:'learner',label:'Learner'},{key:'teacher',label:'Teacher'},{key:'admin',label:'Administrator'}]} />
+      </ConsoleDialog>
+      <ConsoleDialog open={inviteOpen} onOpenChange={(open) => { setInviteOpen(open); if (!open) setInvitationSecret(null); }} title="Invite user" footer={invitationSecret ? <ConsoleButton variant="primary" onClick={() => { setInviteOpen(false); setInvitationSecret(null); }}>Done</ConsoleButton> : <><ConsoleButton onClick={() => setInviteOpen(false)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={!inviteEmail.trim()} onClick={() => void invite()}>Create invitation</ConsoleButton></>}>
           <p>Create a one-time governed invitation for this group.</p>
           {invitationSecret ? (
             <>
               <p>Copy this secret now. It will not be shown again.</p>
               <code>{invitationSecret}</code>
-              <footer>
-                <button
-                  onClick={() => {
-                    setInviteOpen(false);
-                    setInvitationSecret(null);
-                  }}
-                >
-                  Done
-                </button>
-              </footer>
             </>
           ) : (
             <>
-              <label>
-                Email address
-                <input
-                  type="email"
-                  aria-label="Invitation email"
-                  value={inviteEmail}
-                  onChange={(event) =>
-                    setInviteEmail(event.currentTarget.value)
-                  }
-                />
-              </label>
+              <ConsoleTextField label="Invitation email" type="email" value={inviteEmail} onChange={setInviteEmail} />
               {mutationError && <p role="alert">{mutationError}</p>}
-              <footer>
-                <button onClick={() => setInviteOpen(false)}>Cancel</button>
-                <button
-                  disabled={!inviteEmail.trim()}
-                  onClick={() => void invite()}
-                >
-                  Create invitation
-                </button>
-              </footer>
             </>
           )}
-        </Dialog>
-      )}
-      {detail && (
-        <Dialog
-          title={detail.user.displayName}
-          onClose={() => setDetail(null)}
-          wide
-        >
+        </ConsoleDialog>
+      <ConsoleDialog open={detail !== null} onOpenChange={(open) => { if (!open) setDetail(null); }} title={detail?.user.displayName ?? "User detail"} footer={detail && canManage ? <><ConsoleButton onClick={() => setDetail(null)}>Close</ConsoleButton><ConsoleButton variant="primary" onClick={() => void toggleStatus()}>{detail.user.status === "active" ? "Suspend user" : "Reactivate user"}</ConsoleButton></> : undefined}>
+        {detail && <>
           <p>
             {detail.user.email} · {detail.user.identityType} ·{" "}
             {detail.user.status}
@@ -481,59 +377,18 @@ export default function Users() {
                     : `Active until ${new Date(session.expiresAt * 1000).toLocaleString()}`}
                 </span>
                 {!session.revokedAt && canManage && (
-                  <button
-                    className="table-link"
+                  <ConsoleButton
+                    variant="ghost"
                     onClick={() => void revokeSession(session.id)}
                   >
                     Revoke session {session.id}
-                  </button>
+                  </ConsoleButton>
                 )}
               </div>
             ))}
           </section>
-          {canManage && (
-            <footer>
-              <button onClick={() => setDetail(null)}>Close</button>
-              <button onClick={() => void toggleStatus()}>
-                {detail.user.status === "active"
-                  ? "Suspend user"
-                  : "Reactivate user"}
-              </button>
-            </footer>
-          )}
-        </Dialog>
-      )}
-    </div>
-  );
-}
-
-function Dialog({
-  title,
-  onClose,
-  wide = false,
-  children,
-}: {
-  title: string;
-  onClose(): void;
-  wide?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="dialog-backdrop">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={`console-dialog ${wide ? "conversation-detail" : ""}`}
-      >
-        <header>
-          <h2>{title}</h2>
-          <button aria-label={`Close ${title}`} onClick={onClose}>
-            ×
-          </button>
-        </header>
-        {children}
-      </section>
+        </>}
+      </ConsoleDialog>
     </div>
   );
 }

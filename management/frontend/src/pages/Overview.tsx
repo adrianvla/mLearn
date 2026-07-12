@@ -13,6 +13,7 @@ import { PageToolbar } from "../components/PageToolbar";
 import { ConsoleButton, ConsoleSelect } from "../components/console";
 import { RecentActivityTable } from "../components/RecentActivityTable";
 import { useGroupScope } from "../groups/GroupScopeProvider";
+import { Card, Tabs } from "@heroui/react";
 
 const api = new ApiClient();
 interface DashboardData {
@@ -83,11 +84,11 @@ export default function Overview() {
           </ConsoleButton>
         }
       />
-      <div className="dashboard-tabs" aria-label="Dashboard view">
-        <ConsoleButton className={view === "overview" ? "active" : undefined} onClick={() => setView("overview")}>Overview</ConsoleButton>
-        <ConsoleButton className={view === "usage" ? "active" : undefined} onClick={() => setView("usage")}>Usage</ConsoleButton>
-        <ConsoleButton className={view === "security" ? "active" : undefined} onClick={() => setView("security")}>Security</ConsoleButton>
-        <ConsoleSelect label="Date period" selectedKey={String(periodDays)} onSelectionChange={(value) => setPeriodDays(Number(value))} options={[{ key: "7", label: "7 days" }, { key: "30", label: "30 days" }, { key: "90", label: "90 days" }]} />
+      <div className="dashboard-toolbar">
+        <Tabs selectedKey={view} onSelectionChange={(key) => setView(String(key) as typeof view)}>
+          <Tabs.ListContainer className="dashboard-tabs"><Tabs.List aria-label="Dashboard view">{(["overview", "usage", "security"] as const).map((name) => <Tabs.Tab id={name} key={name}>{name[0].toUpperCase() + name.slice(1)}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer>
+        </Tabs>
+        <div className="dashboard-period"><ConsoleSelect label="Date period" selectedKey={String(periodDays)} onSelectionChange={(value) => setPeriodDays(Number(value))} options={[{ key: "7", label: "7 days" }, { key: "30", label: "30 days" }, { key: "90", label: "90 days" }]} /></div>
       </div>
       <section className="metric-grid" aria-label="School metrics">
         <MetricCard
@@ -111,19 +112,20 @@ export default function Overview() {
           detail="Requests stopped by policy"
         />
       </section>
-      {view === "overview" && <><section className="dashboard-primary-grid">
-        <article className="dashboard-panel">
-          <header>
+      {view === "overview" && <><section className="dashboard-primary-grid" aria-label="Dashboard analysis">
+        <Card className="dashboard-panel">
+          <Card.Header>
             <div>
-              <h2>LLM usage</h2>
-              <p>Requests across the selected group and descendants</p>
+              <Card.Title>LLM usage</Card.Title>
+              <Card.Description>Requests across the selected group and descendants</Card.Description>
             </div>
             <strong>
               {data?.llm.costMicros === undefined
                 ? "—"
                 : `${(data.llm.costMicros / 1_000_000).toFixed(2)} cost`}
             </strong>
-          </header>
+          </Card.Header>
+          <Card.Content>
           <LineChart
             title="LLM requests"
             data={(data?.timeseries ?? []).map((point) => ({
@@ -131,15 +133,17 @@ export default function Overview() {
               value: point.llmRequests,
             }))}
           />
-        </article>
-        <article className="dashboard-panel controls-panel">
-          <header>
+          </Card.Content>
+        </Card>
+        <Card className="dashboard-panel controls-panel">
+          <Card.Header>
             <div>
-              <h2>School controls</h2>
-              <p>Effective safeguards for this scope</p>
+              <Card.Title>School controls</Card.Title>
+              <Card.Description>Effective safeguards for this scope</Card.Description>
             </div>
             <ShieldCheck />
-          </header>
+          </Card.Header>
+          <Card.Content>
           <dl>
             <div>
               <dt>Group scope</dt>
@@ -162,7 +166,8 @@ export default function Overview() {
               </dd>
             </div>
           </dl>
-        </article>
+          </Card.Content>
+        </Card>
       </section>
       <RecentActivityTable
         learners={data?.learners ?? []}
@@ -170,8 +175,8 @@ export default function Overview() {
         error={error ?? undefined}
         onRetry={retry}
       /></>}
-      {view === "usage" && <section className="dashboard-primary-grid"><article className="dashboard-panel"><header><div><h2>Token usage</h2><p>Input and output tokens across the selected subtree</p></div><strong>{((data?.llm.costMicros ?? 0) / 1_000_000).toFixed(4)} cost</strong></header><LineChart title="Total tokens" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.totalTokens }))} /></article><article className="dashboard-panel controls-panel"><header><div><h2>Usage summary</h2><p>Governed provider activity</p></div></header><dl><div><dt>Requests</dt><dd>{data?.llm.requests ?? 0}</dd></div><div><dt>Input tokens</dt><dd>{(data?.llm.inputTokens ?? 0).toLocaleString()}</dd></div><div><dt>Output tokens</dt><dd>{(data?.llm.outputTokens ?? 0).toLocaleString()}</dd></div></dl></article></section>}
-      {view === "security" && <section className="dashboard-primary-grid"><article className="dashboard-panel controls-panel"><header><div><h2>Policy enforcement</h2><p>Requests stopped before provider execution</p></div><ShieldCheck /></header><dl><div><dt>Policy blocks</dt><dd>{summary?.policyBlocks ?? 0}</dd></div><div><dt>Effective scope</dt><dd>{scope.status === "ready" ? scope.selectedGroup?.name : "Loading"}</dd></div><div><dt>Conversation governance</dt><dd>Signed policy active</dd></div></dl></article><article className="dashboard-panel"><header><div><h2>Security activity</h2><p>Policy blocks over the selected period</p></div></header><LineChart title="Policy blocks" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.policyBlocks }))} /></article></section>}
+      {view === "usage" && <section className="dashboard-primary-grid"><Card className="dashboard-panel"><Card.Header><div><Card.Title>Token usage</Card.Title><Card.Description>Input and output tokens across the selected subtree</Card.Description></div><strong>{((data?.llm.costMicros ?? 0) / 1_000_000).toFixed(4)} cost</strong></Card.Header><Card.Content><LineChart title="Total tokens" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.totalTokens }))} /></Card.Content></Card><Card className="dashboard-panel controls-panel"><Card.Header><div><Card.Title>Usage summary</Card.Title><Card.Description>Governed provider activity</Card.Description></div></Card.Header><Card.Content><dl><div><dt>Requests</dt><dd>{data?.llm.requests ?? 0}</dd></div><div><dt>Input tokens</dt><dd>{(data?.llm.inputTokens ?? 0).toLocaleString()}</dd></div><div><dt>Output tokens</dt><dd>{(data?.llm.outputTokens ?? 0).toLocaleString()}</dd></div></dl></Card.Content></Card></section>}
+      {view === "security" && <section className="dashboard-primary-grid"><Card className="dashboard-panel controls-panel"><Card.Header><div><Card.Title>Policy enforcement</Card.Title><Card.Description>Requests stopped before provider execution</Card.Description></div><ShieldCheck /></Card.Header><Card.Content><dl><div><dt>Policy blocks</dt><dd>{summary?.policyBlocks ?? 0}</dd></div><div><dt>Effective scope</dt><dd>{scope.status === "ready" ? scope.selectedGroup?.name : "Loading"}</dd></div><div><dt>Conversation governance</dt><dd>Signed policy active</dd></div></dl></Card.Content></Card><Card className="dashboard-panel"><Card.Header><div><Card.Title>Security activity</Card.Title><Card.Description>Policy blocks over the selected period</Card.Description></div></Card.Header><Card.Content><LineChart title="Policy blocks" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.policyBlocks }))} /></Card.Content></Card></section>}
     </div>
   );
 }
