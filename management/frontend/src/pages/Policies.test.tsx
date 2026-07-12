@@ -14,6 +14,7 @@ it("lists named local and inherited policies and only shows rules that were adde
     if (url.endsWith("/groups/child/policies")) return json({ local: [{ id: "exam", groupId: "child", groupName: "German A", name: "Exam restrictions", enabled: true, activeVersionId: null, draftHash: "hash" }], inherited: [{ id: "school", groupId: "root", groupName: "School", name: "Student defaults", enabled: true, activeVersionId: "version", draftHash: null }] });
     if (url.endsWith("/policy-registry")) return json([{ key: "readerTextSize", valueType: "number", allowedValues: [] }, { key: "theme", valueType: "select", allowedValues: ["light", "dark"] }]);
     if (url.endsWith("/policies/exam/draft")) return json({ document: { settings: { readerTextSize: { value: 20, locked: true } }, features: {}, llm: { quotas: [] }, governance: {} }, documentHash: "hash" });
+    if (url.endsWith("/policies/exam/history")) return json({ items: [] });
     return json({});
   }));
   render(<Policies />);
