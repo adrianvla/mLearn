@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import Users from "./Users";
 vi.mock("../groups/GroupScopeProvider", () => ({
@@ -155,6 +155,8 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
     expect.stringContaining("/status?"),
     expect.objectContaining({ method: "PATCH" }),
   );
+  expect(await screen.findByRole("button", { name: "Reactivate user" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
   fireEvent.click(screen.getByRole("button", { name: "Create user" }));
   fireEvent.change(screen.getByLabelText("User email"), {
     target: { value: "new@test" },
@@ -167,6 +169,7 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
     "/api/users",
     expect.objectContaining({ method: "POST" }),
   );
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Create user" })).not.toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "Invite user" }));
   fireEvent.change(screen.getByLabelText("Invitation email"), {
     target: { value: "invite@test" },

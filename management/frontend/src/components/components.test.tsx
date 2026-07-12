@@ -15,7 +15,7 @@ beforeEach(() => { isRoot = false; can.mockImplementation((capability) => capabi
 
 it('shows only authorized navigation and keeps group scope visible', () => {
   render(<MemoryRouter><AppSidebar /></MemoryRouter>);
-  expect(screen.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+  expect(screen.getByRole('navigation', { name: 'Primary' })).toHaveAttribute('data-console-navigation');
   expect(screen.getByRole('link', { name: 'Analytics' })).toBeVisible();
   expect(screen.queryByRole('link', { name: 'LLM Gateway' })).not.toBeInTheDocument();
   expect(screen.getByText('German A')).toBeVisible();

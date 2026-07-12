@@ -25,7 +25,7 @@ it("lists named local and inherited policies and only shows rules that were adde
   expect(await screen.findByLabelText(/Reader text size/i)).toHaveValue("20");
   expect(screen.queryByLabelText("Conversation retention days")).not.toBeInTheDocument();
   expect(screen.getByText("Validate this draft before publishing")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: /App setting/i }));
+  fireEvent.click(screen.getByLabelText("App setting"));
   fireEvent.click(await screen.findByRole("option", { name: "Theme" }));
   fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
   expect(screen.getByText("Save draft before validating or publishing")).toBeVisible();

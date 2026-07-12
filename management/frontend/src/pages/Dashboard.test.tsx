@@ -17,6 +17,8 @@ beforeEach(() => {
 it('renders the selected-group school dashboard without operational diagnostics', async () => {
   render(<Overview />);
   expect(await screen.findByText('Ada Learner')).toBeVisible();
+  expect(screen.getAllByTestId('dashboard-metric')).toHaveLength(4);
+  expect(screen.getByRole('region', { name: 'Dashboard analysis' })).toBeVisible();
   expect(screen.getByText('Active learners')).toBeVisible();
   expect(screen.getAllByText('LLM requests').length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText('Policy blocks')).toBeVisible();
@@ -24,9 +26,10 @@ it('renders the selected-group school dashboard without operational diagnostics'
   expect(screen.getByRole('img', { name: 'LLM requests' })).toBeVisible();
   expect(screen.getByText('School controls')).toBeVisible();
   expect(screen.queryByText('Container logs')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Usage' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Usage' }));
+  expect(screen.getByRole('tab', { name: 'Usage' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByRole('heading', { name: 'Token usage' })).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Security' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
   expect(screen.getByRole('heading', { name: 'Policy enforcement' })).toBeVisible();
   expect(fetch).toHaveBeenCalledWith(expect.stringContaining('groupId=german'), expect.objectContaining({ signal: expect.any(AbortSignal) }));
   fireEvent.change(screen.getByLabelText('Date period'), { target: { value: '7' } });
