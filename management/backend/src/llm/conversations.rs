@@ -497,6 +497,7 @@ impl ConversationRecorder {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn insert_message(
     cipher: &SecretCipher,
     tx: &mut Transaction<'_, Sqlite>,
@@ -538,6 +539,7 @@ async fn insert_message(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn insert_raw_message(
     cipher: &SecretCipher,
     tx: &mut Transaction<'_, Sqlite>,

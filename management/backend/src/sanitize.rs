@@ -474,13 +474,15 @@ mod tests {
             ..Default::default()
         };
 
-        let mut state = ContainerState::default();
-        state.running = Some(true);
-        state.started_at = Some("2000-01-01T00:00:00Z".to_string());
-        state.health = Some(Health {
-            status: Some(HealthStatusEnum::HEALTHY),
+        let state = ContainerState {
+            running: Some(true),
+            started_at: Some("2000-01-01T00:00:00Z".to_string()),
+            health: Some(Health {
+                status: Some(HealthStatusEnum::HEALTHY),
+                ..Default::default()
+            }),
             ..Default::default()
-        });
+        };
 
         let inspect = ContainerInspectResponse {
             state: Some(state),

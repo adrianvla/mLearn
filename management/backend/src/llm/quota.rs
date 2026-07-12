@@ -253,14 +253,12 @@ impl QuotaService {
                 sqlx::query("UPDATE school_quota_calendars SET timezone = ?, term_starts_at = ?, term_ends_at = ?, version = ?, pending_timezone = NULL, pending_term_starts_at = NULL, pending_term_ends_at = NULL, pending_effective_at = NULL, pending_version = NULL WHERE root_group_id = ?")
                     .bind(&current.timezone).bind(current.term_starts_at).bind(current.term_ends_at).bind(current.version).bind(root_group_id).execute(&mut *tx).await.map_err(database_error)?;
             }
-            if current.timezone == timezone
+            if (current.timezone == timezone
                 && current.term_starts_at == term_starts_at
-                && current.term_ends_at == term_ends_at
-            {
-                current
-            } else if row.get::<Option<String>, _>("pending_timezone").as_deref() == Some(timezone)
-                && row.get::<Option<i64>, _>("pending_term_starts_at") == Some(term_starts_at)
-                && row.get::<Option<i64>, _>("pending_term_ends_at") == Some(term_ends_at)
+                && current.term_ends_at == term_ends_at)
+                || (row.get::<Option<String>, _>("pending_timezone").as_deref() == Some(timezone)
+                    && row.get::<Option<i64>, _>("pending_term_starts_at") == Some(term_starts_at)
+                    && row.get::<Option<i64>, _>("pending_term_ends_at") == Some(term_ends_at))
             {
                 current
             } else if term_starts_at > timestamp {

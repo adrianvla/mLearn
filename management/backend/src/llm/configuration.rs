@@ -158,6 +158,7 @@ impl LlmConfigurationService {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_provider(
         &self,
         principal: &Principal,
@@ -317,6 +318,7 @@ impl LlmConfigurationService {
         self.provider(principal, provider_id).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_provider_metadata(
         &self,
         principal: &Principal,
