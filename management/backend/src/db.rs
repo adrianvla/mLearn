@@ -14,10 +14,17 @@ pub async fn connect_database(config: &Config) -> Result<SqlitePool, AppError> {
         .connect_with(options)
         .await
         .map_err(database_error)?;
+    let needs_daily_total_backfill: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='analytics_daily_totals')")
+        .fetch_one(&pool)
+        .await
+        .map_err(database_error)?;
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .map_err(|error| AppError::Internal(format!("database migration failed: {error}")))?;
+    if needs_daily_total_backfill == 0 {
+        crate::analytics::rollups::backfill_daily_totals(&pool).await?;
+    }
     Ok(pool)
 }
 

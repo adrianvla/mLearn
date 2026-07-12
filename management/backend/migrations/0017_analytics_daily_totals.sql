@@ -13,3 +13,21 @@ CREATE TABLE analytics_daily_totals (
 
 CREATE INDEX analytics_daily_totals_group_day_idx
   ON analytics_daily_totals(group_id, day_start);
+
+CREATE TABLE analytics_group_daily_learners (
+  group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE RESTRICT,
+  day_start INTEGER NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  PRIMARY KEY(group_id, day_start, user_id)
+);
+
+CREATE TABLE analytics_group_daily_sessions (
+  group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE RESTRICT,
+  day_start INTEGER NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  activity_session_id TEXT NOT NULL,
+  PRIMARY KEY(group_id, day_start, user_id, activity_session_id)
+);
+
+CREATE INDEX analytics_group_daily_sessions_bucket_idx
+  ON analytics_group_daily_sessions(group_id, day_start);
