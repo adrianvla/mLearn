@@ -39,6 +39,7 @@ struct ActiveDefinition {
 }
 
 pub(crate) struct CandidatePolicyVersion<'a> {
+    pub policy_id: String,
     pub version_id: &'a str,
     pub document: &'a PolicyDraftDocument,
     pub created_at: i64,
@@ -64,6 +65,32 @@ async fn compile_with_candidate_in_transaction(
     group_id: &str,
     candidate: Option<CandidatePolicyVersion<'_>>,
 ) -> Result<CompiledPolicy, AppError> {
+    let ancestor_rows = sqlx::query(
+        "WITH RECURSIVE ancestors(id, parent_id, name, depth) AS (
+            SELECT id, parent_id, name, 0 FROM groups WHERE id = ? AND status != 'archived'
+            UNION ALL
+            SELECT parent.id, parent.parent_id, parent.name, child.depth + 1
+            FROM groups parent JOIN ancestors child ON child.parent_id = parent.id
+            WHERE parent.status != 'archived'
+        )
+        SELECT id AS group_id, name AS group_name, depth FROM ancestors
+        ORDER BY ancestors.depth DESC",
+    )
+    .bind(group_id)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(database_error)?;
+    if ancestor_rows.is_empty() {
+        return Err(AppError::BadRequest("group is missing or archived".into()));
+    }
+
+    let ancestry = ancestor_rows
+        .iter()
+        .map(|row| PolicyAncestryEntry {
+            id: row.get("group_id"),
+            name: row.get("group_name"),
+        })
+        .collect::<Vec<_>>();
     let rows = sqlx::query(
         "WITH RECURSIVE ancestors(id, parent_id, name, depth) AS (
             SELECT id, parent_id, name, 0 FROM groups WHERE id = ? AND status != 'archived'
@@ -72,47 +99,35 @@ async fn compile_with_candidate_in_transaction(
             FROM groups parent JOIN ancestors child ON child.parent_id = parent.id
             WHERE parent.status != 'archived'
         )
-        SELECT ancestors.id AS group_id, ancestors.name AS group_name,
-               version.id AS version_id, version.document_json, version.created_at
-        FROM ancestors
-        LEFT JOIN active_policies active ON active.group_id = ancestors.id
-        LEFT JOIN policy_versions version ON version.id = active.policy_version_id
-        ORDER BY ancestors.depth DESC",
+        SELECT ancestors.id AS group_id, ancestors.name AS group_name, policy.id AS policy_id,
+               version.id AS version_id, version.document_json, version.created_at, policy.priority, ancestors.depth AS depth
+        FROM ancestors JOIN policies policy ON policy.group_id = ancestors.id AND policy.enabled = 1
+        JOIN policy_active_versions active ON active.policy_id = policy.id
+        JOIN policy_versions version ON version.id = active.policy_version_id
+        UNION ALL
+        SELECT ancestors.id AS group_id, ancestors.name AS group_name, 'legacy-' || ancestors.id AS policy_id,
+               version.id AS version_id, version.document_json, version.created_at, 0 AS priority, ancestors.depth AS depth
+        FROM ancestors JOIN active_policies active ON active.group_id = ancestors.id
+        JOIN policy_versions version ON version.id = active.policy_version_id
+        WHERE NOT EXISTS (SELECT 1 FROM policy_active_versions named WHERE named.policy_version_id = version.id)
+        ORDER BY depth DESC, priority ASC, policy_id ASC",
     )
     .bind(group_id)
     .fetch_all(&mut **transaction)
     .await
     .map_err(database_error)?;
-    if rows.is_empty() {
-        return Err(AppError::BadRequest("group is missing or archived".into()));
-    }
-
-    let ancestry = rows
-        .iter()
-        .map(|row| PolicyAncestryEntry {
-            id: row.get("group_id"),
-            name: row.get("group_name"),
-        })
-        .collect::<Vec<_>>();
     let mut definitions = Vec::new();
     for row in rows {
         let row_group_id: String = row.get("group_id");
         let group_name: String = row.get("group_name");
-        if row_group_id == group_id {
-            if let Some(candidate) = &candidate {
-                definitions.push(ActiveDefinition {
-                    group_id: row_group_id,
-                    group_name,
-                    version_id: candidate.version_id.to_string(),
-                    document: candidate.document.clone(),
-                    created_at: candidate.created_at,
-                });
-                continue;
-            }
-        }
-        let Some(version_id) = row.get::<Option<String>, _>("version_id") else {
+        let policy_id: String = row.get("policy_id");
+        if candidate
+            .as_ref()
+            .is_some_and(|candidate| row_group_id == group_id && candidate.policy_id == policy_id)
+        {
             continue;
-        };
+        }
+        let version_id: String = row.get("version_id");
         let document_json: String = row.get("document_json");
         let document = serde_json::from_str(&document_json).map_err(|error| {
             AppError::Internal(format!("invalid stored policy version: {error}"))
@@ -123,6 +138,19 @@ async fn compile_with_candidate_in_transaction(
             version_id,
             document,
             created_at: row.get("created_at"),
+        });
+    }
+    if let Some(candidate) = candidate {
+        let group_name = ancestry
+            .last()
+            .map(|entry| entry.name.clone())
+            .unwrap_or_default();
+        definitions.push(ActiveDefinition {
+            group_id: group_id.to_string(),
+            group_name,
+            version_id: candidate.version_id.to_string(),
+            document: candidate.document.clone(),
+            created_at: candidate.created_at,
         });
     }
 

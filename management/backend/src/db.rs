@@ -515,4 +515,69 @@ mod tests {
             );
         }
     }
+
+    #[tokio::test]
+    async fn legacy_policy_rows_migrate_to_named_policy_without_changing_history() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        for migration in [
+            include_str!("../migrations/0001_identity.sql"),
+            include_str!("../migrations/0002_identity_hardening.sql"),
+            include_str!("../migrations/0003_groups.sql"),
+            include_str!("../migrations/0004_group_invariants.sql"),
+            include_str!("../migrations/0005_provisioning.sql"),
+            include_str!("../migrations/0006_policies.sql"),
+        ] {
+            sqlx::raw_sql(migration).execute(&pool).await.unwrap();
+        }
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('author','author@test.invalid','author@test.invalid','Author','active','admin',1,1,1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('class',NULL,'Class','class','active',1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO policy_drafts(group_id,document_json,document_hash,author_user_id,updated_at) VALUES('class','{\"settings\":{}}','draft-hash','author',12)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES('v1','class','{\"settings\":{}}','version-hash','compiled-hash','author','Initial policy','[]',11)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO active_policies(group_id,policy_version_id,activated_at) VALUES('class','v1',13)")
+            .execute(&pool).await.unwrap();
+
+        sqlx::raw_sql(include_str!("../migrations/0016_named_policies.sql"))
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM policies WHERE id='legacy-class' AND group_id='class' AND name='Group policy'"
+            ).fetch_one(&pool).await.unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT policy_id FROM policy_drafts WHERE group_id='class'"
+            ).fetch_one(&pool).await.unwrap(),
+            "legacy-class"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT document_hash FROM policy_versions WHERE id='v1'"
+            ).fetch_one(&pool).await.unwrap(),
+            "version-hash"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT policy_version_id FROM policy_active_versions WHERE policy_id='legacy-class'"
+            ).fetch_one(&pool).await.unwrap(),
+            "v1"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT summary FROM policy_set_revisions WHERE group_id='class'"
+            ).fetch_one(&pool).await.unwrap(),
+            "Migrated legacy group policy"
+        );
+    }
 }
