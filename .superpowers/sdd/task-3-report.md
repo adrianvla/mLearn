@@ -23,3 +23,16 @@ Complete.
 - `cd management/frontend && npm test` — 20 files, 55 tests passed.
 - `cd management/frontend && npm run typecheck` — passed.
 - `git diff --check` — passed.
+
+## Review remediation
+
+- The stacked activity chart now renders paired current and comparison stacks, with period keys and exact-table values from both periods.
+- Comparison metadata carries `Previous period` or `Previous year` into chart legends and both exact history tables; each cell includes its own bucket dates.
+- Restored the scoped `Active learners` summary metric through the existing summary endpoint.
+- Custom ranges now share one validation rule: ranges must be positive and at most 366 days. Invalid values show an error, disable CSV export, skip data requests, and retain already-loaded learner/content state.
+
+### Review verification
+
+- Focused analytics/chart tests: 12 passed.
+- Full management frontend suite: 21 files, 59 tests passed.
+- Typecheck and `git diff --check` passed.

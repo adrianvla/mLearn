@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button, Card, Tabs, Tooltip } from '@heroui/react';
 import type { ChartDatum, ChartSeries } from './chartTypes';
-import { formatDatum } from './chartTypes';
+import { formatDatum, formatPeriodLabel } from './chartTypes';
 
 const CHART_WIDTH = 640;
 const CHART_HEIGHT = 220;
@@ -74,7 +74,7 @@ export function HistoricalChart({ title, series }: HistoricalChartProps) {
           />)}
         </svg>
         <div className="historical-chart__legend" aria-label="Chart legend">
-          {selectedSeries.map((item) => <span key={`${item.key}-${item.kind}`}><i className={`historical-chart__legend-key historical-chart__legend-key--${item.kind}`} />{item.kind === 'primary' ? 'Current period' : 'Previous period'}</span>)}
+          {selectedSeries.map((item) => <span key={`${item.key}-${item.kind}`}><i className={`historical-chart__legend-key historical-chart__legend-key--${item.kind}`} />{formatPeriodLabel(item)}</span>)}
         </div>
       </figure>
       <CoverageAnnotation series={selectedSeries} />
@@ -88,7 +88,7 @@ export function ExactDataTable({ title, series, visible }: ExactDataTableProps) 
   return <div className={`historical-chart__table-wrap${visible ? '' : ' sr-only'}`}>
     <table aria-label={`${title} data`}>
       <caption>{title} data</caption>
-      <thead><tr><th scope="col">Aligned bucket</th>{series.map((item) => <th key={`${item.key}-${item.kind}`} scope="col">{item.label} — {item.kind === 'primary' ? 'Current period' : 'Previous period'}</th>)}</tr></thead>
+      <thead><tr><th scope="col">Aligned bucket</th>{series.map((item) => <th key={`${item.key}-${item.kind}`} scope="col">{item.label} — {formatPeriodLabel(item)}</th>)}</tr></thead>
       <tbody>{Array.from({ length: rowCount }, (_, index) => <tr key={index}>
         <th scope="row">Bucket {index + 1}</th>
         {series.map((item) => <td key={`${item.key}-${item.kind}`}>{formatExactDatum(item.values[index])}</td>)}

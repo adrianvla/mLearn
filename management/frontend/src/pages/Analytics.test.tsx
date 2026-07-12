@@ -1,16 +1,19 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import Analytics from './Analytics';
 
 vi.mock('../groups/GroupScopeProvider', () => ({
   useGroupScope: () => ({ status: 'ready', selectedGroup: { id: 'german', name: 'German' }, can: () => true }),
 }));
+vi.mock('../components/DatePickerField', () => ({
+  DatePickerField: ({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) => <input aria-label={label} value={value} onChange={(event) => onChange(event.currentTarget.value)} />,
+}));
 
 const values = { activeLearners: 2, sessions: 3, watchSeconds: 120, completions: 1, readerPages: 2, flashcardEvents: 3, llmRequests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000, policyBlocks: 1 };
 const history = { timezone: 'UTC', granularity: 'daily', primary: [{ start: 1_700_000_000_000, end: 1_700_086_400_000, coverage: 'complete' as const, values }], comparison: null };
 
 function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks', Response>> = {}) {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/api/analytics/history')) return overrides.history?.clone() ?? json(history);
     if (url.includes('/api/analytics/llm')) return overrides.llm?.clone() ?? json({ requests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000 });
@@ -19,14 +22,18 @@ function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks', Re
     if (url.includes('/learners')) return json({ items: [{ ...values, learnerId: 'u', displayName: 'Learner', lastActivityAt: 1_700_000_000_000 }] });
     if (url.includes('/content')) return json({ items: [{ ...values, key: 'content-1', title: 'First video', lastActivityAt: 1_700_000_000_000 }] });
     return json(values);
-  }));
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
 }
 
 it('renders every scoped analytics view and requires export confirmation', async () => {
   installFetch();
   render(<Analytics />);
 
-  expect(await screen.findByRole('img', { name: 'Activity history' })).toBeVisible();
+  expect(await screen.findByText('Active learners')).toBeVisible();
+  expect(screen.getByText('2')).toBeVisible();
+  expect(screen.getByRole('img', { name: 'Activity history' })).toBeVisible();
   fireEvent.click(screen.getByRole('tab', { name: 'learners' }));
   expect((await screen.findAllByText('Learner')).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText('0.0010')).toBeVisible();
@@ -50,6 +57,36 @@ it('loads a previous-period comparison and keeps chart and table values aligned'
 
   expect(await screen.findByRole('img', { name: 'Activity history' })).toBeVisible();
   expect(screen.getByRole('table', { name: 'Activity history data' })).toHaveTextContent('Previous period');
+});
+
+it('renders previous-year activity alongside the current period with each period date', async () => {
+  const comparison = [{ start: 1_670_000_000_000, end: 1_670_086_400_000, coverage: 'complete', values }];
+  installFetch({ history: json({ ...history, comparison }) });
+  render(<Analytics />);
+  fireEvent.click(await screen.findByRole('button', { name: /Comparison/i }));
+  fireEvent.click(screen.getByRole('option', { name: 'Previous year' }));
+
+  expect(await screen.findByTestId('stacked-bar-0-comparison')).toBeVisible();
+  const table = screen.getByRole('table', { name: 'Activity history data' });
+  expect(table).toHaveTextContent('Previous year');
+  expect(table).toHaveTextContent(new Date(comparison[0].start).toLocaleDateString());
+});
+
+it('rejects an invalid custom range without replacing the loaded learner data', async () => {
+  const fetchMock = installFetch();
+  render(<Analytics />);
+  await screen.findByRole('img', { name: 'Activity history' });
+  fireEvent.click(screen.getByRole('tab', { name: 'learners' }));
+  expect((await screen.findAllByText('Learner')).length).toBeGreaterThanOrEqual(1);
+  fireEvent.click(screen.getByRole('button', { name: /Date range/ }));
+  fireEvent.click(screen.getByRole('option', { name: 'Custom range' }));
+  const requestCount = fetchMock.mock.calls.length;
+  fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2020-01-01' } });
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Choose a range from one to 366 days.');
+  expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(requestCount));
+  expect(screen.getAllByText('Learner').length).toBeGreaterThanOrEqual(1);
 });
 
 it('keeps activity history visible when the LLM usage panel fails', async () => {

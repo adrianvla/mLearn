@@ -11,7 +11,12 @@ export interface ChartSeries {
   key: string;
   label: string;
   kind: 'primary' | 'comparison';
+  comparisonLabel?: string;
   values: ChartDatum[];
+}
+
+export function formatPeriodLabel(series: ChartSeries): string {
+  return series.kind === 'primary' ? 'Current period' : series.comparisonLabel ?? 'Previous period';
 }
 
 export function normalizeHistoricalMetric(

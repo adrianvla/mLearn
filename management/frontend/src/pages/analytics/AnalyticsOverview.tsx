@@ -3,12 +3,14 @@ import { ConsoleSwitch } from '../../components/console';
 import { HistoricalChart } from '../../components/charts/HistoricalChart';
 import { StackedActivityChart } from '../../components/charts/StackedActivityChart';
 import type { ChartSeries } from '../../components/charts/chartTypes';
-import type { AnalyticsSummary, HistoricalSeries, LlmAnalytics, PolicyBlockAnalytics } from '../../api/types';
+import type { AnalyticsSummary, ComparisonMode, HistoricalSeries, LlmAnalytics, PolicyBlockAnalytics } from '../../api/types';
 import { AnalyticsHistoryTable } from './AnalyticsHistoryTable';
 import { MetricCard } from '../../components/MetricCard';
 
 interface AnalyticsOverviewProps {
+  summary: AnalyticsSummary | null;
   history: HistoricalSeries | null;
+  comparison: ComparisonMode;
   activityError: string | null;
   llm: LlmAnalytics | null;
   llmError: string | null;
@@ -22,21 +24,22 @@ const activityDefinitions: ReadonlyArray<{ key: keyof AnalyticsSummary; label: s
   { key: 'flashcardEvents', label: 'Flashcard sessions' },
 ] as const;
 
-export function AnalyticsOverview({ history, activityError, llm, llmError, blocks, policyError }: AnalyticsOverviewProps) {
+export function AnalyticsOverview({ summary, history, comparison, activityError, llm, llmError, blocks, policyError }: AnalyticsOverviewProps) {
   const [visible, setVisible] = useState<Set<string>>(() => new Set(activityDefinitions.map((item) => item.key)));
   const activitySeries = useMemo(() => history === null ? [] : activityDefinitions.flatMap((definition) => {
     if (!visible.has(definition.key)) return [];
-    return [toSeries(history, definition.key, definition.label, 'primary', definition.transform), ...(history.comparison === null ? [] : [toSeries(history, definition.key, definition.label, 'comparison', definition.transform)])];
-  }), [history, visible]);
+    return [toSeries(history, definition.key, definition.label, 'primary', undefined, definition.transform), ...(history.comparison === null ? [] : [toSeries(history, definition.key, definition.label, 'comparison', comparisonLabel(comparison), definition.transform)])];
+  }), [comparison, history, visible]);
   const learningSeries = useMemo(() => history === null ? [] : [
     toSeries(history, 'sessions', 'Sessions recorded', 'primary'),
     toSeries(history, 'completions', 'Completions recorded', 'primary'),
-    ...(history.comparison === null ? [] : [toSeries(history, 'sessions', 'Sessions recorded', 'comparison'), toSeries(history, 'completions', 'Completions recorded', 'comparison')]),
-  ], [history]);
+    ...(history.comparison === null ? [] : [toSeries(history, 'sessions', 'Sessions recorded', 'comparison', comparisonLabel(comparison)), toSeries(history, 'completions', 'Completions recorded', 'comparison', comparisonLabel(comparison))]),
+  ], [comparison, history]);
 
   return <div className="analytics-overview">
     <section className="analytics-panel" aria-labelledby="activity-history-heading">
       <div className="analytics-panel__heading"><div><h2 id="activity-history-heading">Activity history</h2><p>Recorded reader, video, and flashcard activity for the selected range.</p></div></div>
+      <div className="metric-grid analytics-summary-metric"><MetricCard label="Active learners" value={summary?.activeLearners ?? '—'} /></div>
       <fieldset className="analytics-series-controls"><legend>Visible activity series</legend>{activityDefinitions.map((definition) => <ConsoleSwitch key={definition.key} label={definition.label} isSelected={visible.has(definition.key)} onChange={(selected) => setVisible((current) => {
         const next = new Set(current);
         if (selected) next.add(definition.key); else next.delete(definition.key);
@@ -59,9 +62,15 @@ export function AnalyticsOverview({ history, activityError, llm, llmError, block
   </div>;
 }
 
-function toSeries(history: HistoricalSeries, key: keyof NonNullable<HistoricalSeries['primary'][number]['values']>, label: string, kind: ChartSeries['kind'], transform: (value: number) => number = (value) => value): ChartSeries {
+function toSeries(history: HistoricalSeries, key: keyof NonNullable<HistoricalSeries['primary'][number]['values']>, label: string, kind: ChartSeries['kind'], comparisonLabel?: string, transform: (value: number) => number = (value) => value): ChartSeries {
   const buckets = kind === 'primary' ? history.primary : history.comparison ?? [];
-  return { key, label, kind, values: buckets.map((bucket) => ({ start: bucket.start, end: bucket.end, coverage: bucket.coverage, value: bucket.values === null ? null : transform(bucket.values[key]) })) };
+  return { key, label, kind, comparisonLabel, values: buckets.map((bucket) => ({ start: bucket.start, end: bucket.end, coverage: bucket.coverage, value: bucket.values === null ? null : transform(bucket.values[key]) })) };
+}
+
+function comparisonLabel(mode: ComparisonMode): string | undefined {
+  if (mode === 'previousYear') return 'Previous year';
+  if (mode === 'previousPeriod') return 'Previous period';
+  return undefined;
 }
 
 function PanelLoading({ title }: { title: string }) {

@@ -12,12 +12,18 @@ export interface AnalyticsFilterValue {
   granularity: AnalyticsGranularity | 'auto';
 }
 
+export function analyticsRangeError(value: Pick<AnalyticsFilterValue, 'from' | 'to'>): string | null {
+  if (value.from >= value.to || value.to - value.from > 366 * DAY) return 'Choose a range from one to 366 days.';
+  return null;
+}
+
 interface AnalyticsFiltersProps {
   value: AnalyticsFilterValue;
   onChange(value: AnalyticsFilterValue): void;
 }
 
 export function AnalyticsFilters({ value, onChange }: AnalyticsFiltersProps) {
+  const rangeError = analyticsRangeError(value);
   const updatePreset = (preset: AnalyticsFilterValue['preset']) => {
     if (preset === 'custom') {
       onChange({ ...value, preset });
@@ -43,6 +49,7 @@ export function AnalyticsFilters({ value, onChange }: AnalyticsFiltersProps) {
     <ConsoleSelect label="Granularity" selectedKey={value.granularity} onSelectionChange={(granularity) => onChange({ ...value, granularity: granularity as AnalyticsFilterValue['granularity'] })} options={[
       { key: 'auto', label: 'Automatic' }, { key: 'daily', label: 'Daily' }, { key: 'weekly', label: 'Weekly' }, { key: 'monthly', label: 'Monthly' },
     ]} />
+    {rangeError ? <p className="analytics-filters__error" role="alert">{rangeError}</p> : null}
   </div>;
 }
 

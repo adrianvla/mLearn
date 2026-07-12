@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Tabs } from '@heroui/react';
 import { ApiClient } from '../api/client';
-import type { AnalyticsGranularity, DimensionAnalytics, HistoricalSeries, LearnerAnalytics, LlmAnalytics, PolicyBlockAnalytics } from '../api/types';
+import type { AnalyticsGranularity, AnalyticsSummary, DimensionAnalytics, HistoricalSeries, LearnerAnalytics, LlmAnalytics, PolicyBlockAnalytics } from '../api/types';
 import { MetricCard } from '../components/MetricCard';
 import { PageToolbar } from '../components/PageToolbar';
 import { ConsoleButton, ConsoleDialog } from '../components/console';
 import { useGroupScope } from '../groups/GroupScopeProvider';
-import { AnalyticsFilters, type AnalyticsFilterValue } from './analytics/AnalyticsFilters';
+import { AnalyticsFilters, analyticsRangeError, type AnalyticsFilterValue } from './analytics/AnalyticsFilters';
 import { AnalyticsOverview } from './analytics/AnalyticsOverview';
 
 const api = new ApiClient();
@@ -19,6 +19,7 @@ export default function Analytics() {
   const groupId = scope.status === 'ready' ? scope.selectedGroup?.id : null;
   const [tab, setTab] = useState<Tab>('overview');
   const [filters, setFilters] = useState<AnalyticsFilterValue>(() => defaultFilters());
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [history, setHistory] = useState<HistoricalSeries | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [learners, setLearners] = useState<LearnerAnalytics[]>([]);
@@ -31,14 +32,19 @@ export default function Analytics() {
   const [confirm, setConfirm] = useState(false);
   const granularity = useMemo(() => resolveGranularity(filters), [filters]);
   const query = useMemo(() => toQuery(groupId, filters), [groupId, filters]);
+  const rangeError = analyticsRangeError(filters);
 
   useEffect(() => {
-    setHistory(null); setActivityError(null); setLearners([]); setContent([]); setLlm(null); setLlmError(null); setBlocks(null); setPolicyError(null); setQuotaRemaining({});
+    if (rangeError !== null) return;
+    setSummary(null); setHistory(null); setActivityError(null); setLearners([]); setContent([]); setLlm(null); setLlmError(null); setBlocks(null); setPolicyError(null); setQuotaRemaining({});
     if (groupId === undefined || groupId === null) return;
     const controller = new AbortController();
     const options = { signal: controller.signal };
     const historyQuery = `${query}&granularity=${granularity}&comparison=${filters.comparison}`;
 
+    void api.get<AnalyticsSummary>(`/api/analytics/summary?${query}`, options)
+      .then((next) => { if (!controller.signal.aborted) setSummary(next); })
+      .catch(() => undefined);
     void api.get<HistoricalSeries>(`/api/analytics/history?${historyQuery}`, options)
       .then((next) => { if (!controller.signal.aborted) setHistory(next); })
       .catch((error: unknown) => { if (!controller.signal.aborted) setActivityError(errorMessage(error)); });
@@ -58,18 +64,18 @@ export default function Analytics() {
       .then((usage) => { if (!controller.signal.aborted) setQuotaRemaining(toRemainingQuota(usage.buckets)); })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [filters.comparison, granularity, groupId, query]);
+  }, [filters.comparison, granularity, groupId, query, rangeError]);
 
   const exportCsv = () => {
-    if (groupId !== undefined && groupId !== null) {
+    if (rangeError === null && groupId !== undefined && groupId !== null) {
       window.location.assign(`/api/analytics/export.csv?${toQuery(groupId, filters)}&limit=200`);
     }
   };
 
   return <div className="resource-page analytics-page">
-    <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} onChange={setFilters} />{scope.status === 'ready' && scope.can('analytics.view') ? <ConsoleButton className="secondary-action" onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton> : null}</div>} />
+    <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} onChange={setFilters} />{scope.status === 'ready' && scope.can('analytics.view') ? <ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton> : null}</div>} />
     <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key) as Tab)}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
-    {tab === 'overview' ? <AnalyticsOverview history={history} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} /> : null}
+    {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} /> : null}
     {tab === 'learners' ? <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} /> : null}
     {tab === 'content' ? <AnalyticsTable label="Content analytics" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} /> : null}
     {tab === 'llm usage' ? <section className="metric-grid" aria-label="LLM usage">{llmError ? <p role="alert">Unable to load LLM usage. {llmError}</p> : <><MetricCard label="Requests" value={llm?.requests ?? '—'} /><MetricCard label="Input tokens" value={(llm?.inputTokens ?? 0).toLocaleString()} /><MetricCard label="Output tokens" value={(llm?.outputTokens ?? 0).toLocaleString()} /><MetricCard label="Cost" value={((llm?.costMicros ?? 0) / 1_000_000).toFixed(4)} /></>}</section> : null}
