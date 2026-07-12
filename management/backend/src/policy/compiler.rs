@@ -121,7 +121,10 @@ async fn compile_with_candidate_in_transaction(
         let row_group_id: String = row.get("group_id");
         let group_name: String = row.get("group_name");
         let policy_id: String = row.get("policy_id");
-        if candidate.as_ref().is_some_and(|candidate| row_group_id == group_id && candidate.policy_id == policy_id) {
+        if candidate
+            .as_ref()
+            .is_some_and(|candidate| row_group_id == group_id && candidate.policy_id == policy_id)
+        {
             continue;
         }
         let version_id: String = row.get("version_id");
@@ -138,7 +141,10 @@ async fn compile_with_candidate_in_transaction(
         });
     }
     if let Some(candidate) = candidate {
-        let group_name = ancestry.last().map(|entry| entry.name.clone()).unwrap_or_default();
+        let group_name = ancestry
+            .last()
+            .map(|entry| entry.name.clone())
+            .unwrap_or_default();
         definitions.push(ActiveDefinition {
             group_id: group_id.to_string(),
             group_name,

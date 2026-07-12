@@ -6,8 +6,11 @@ pub mod signing;
 
 pub use compiler::{CompiledPolicy, RuleProvenance};
 pub use model::{FeatureRule, GovernancePolicy, LlmPolicy, PolicyDocument, QuotaRule, SettingRule};
-pub use registry::{policy_setting_registry, validate_policy_document, validate_setting_rule, PolicySettingDescriptor};
+pub use registry::{
+    policy_setting_registry, validate_policy_document, validate_setting_rule,
+    PolicySettingDescriptor,
+};
 pub use service::{
-    CreatePolicy, DraftValidation, PolicyCollection, PolicyDraft, PolicyHistoryPage,
-    PolicyService, PolicySummary, PolicyVersion,
+    CreatePolicy, DraftValidation, PolicyCollection, PolicyDraft, PolicyHistoryPage, PolicyService,
+    PolicySummary, PolicyVersion,
 };
