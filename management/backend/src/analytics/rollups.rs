@@ -18,7 +18,8 @@ pub async fn rebuild_daily_rollups(pool: &SqlitePool, event_row_id: i64) -> Resu
             .bind(&group_id).bind(day_start).bind(&kind).bind(&content_id).bind(&language).fetch_all(&mut *tx).await.map_err(db)?;
         let mut users = HashSet::new();
         let mut sessions = HashSet::new();
-        let mut previous: HashMap<(String, String), (i64, Option<i64>, Option<i64>)> =
+        type PreviousEvent = (i64, Option<i64>, Option<i64>);
+        let mut previous: HashMap<(String, String), PreviousEvent> =
             HashMap::new();
         let (mut watch_seconds, mut completions, mut reader_pages, mut flashcard_events) =
             (0_i64, 0_i64, 0_i64, 0_i64);

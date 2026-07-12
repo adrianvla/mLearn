@@ -1,0 +1,39 @@
+name: Management Backend Lint
+
+on:
+  pull_request:
+    paths:
+      - 'management/backend/**'
+      - 'management/frontend/**'
+      - '.github/workflows/management-lint.yml'
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'management/backend/**'
+      - 'management/frontend/**'
+      - '.github/workflows/management-lint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Build the embedded management console
+        working-directory: management/frontend
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Lint every management backend target
+        run: npm run lint:management

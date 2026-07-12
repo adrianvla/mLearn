@@ -255,7 +255,7 @@ mod tests {
                 .is_err(),
             "0013 constraints prevent duplicate ordinals"
         );
-        assert_eq!(missing > 0, true);
+        assert!(missing > 0);
 
         sqlx::raw_sql(include_str!("../migrations/0014_analytics_hardening.sql"))
             .execute(&pool)

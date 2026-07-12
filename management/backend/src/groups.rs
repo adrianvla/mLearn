@@ -301,7 +301,7 @@ impl GroupService {
             principal,
             "membership.capabilities_delegated",
             "group_membership",
-            &membership_id,
+            membership_id,
             None,
         )
         .await?;

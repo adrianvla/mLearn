@@ -204,9 +204,7 @@ fn find_bearer_token(value: &str, from: usize) -> Option<(usize, usize)> {
     let mut search_from = from;
 
     while search_from < value.len() {
-        let Some(relative_index) = value[search_from..].find("Bearer ") else {
-            return None;
-        };
+        let relative_index = value[search_from..].find("Bearer ")?;
         let start = search_from + relative_index;
         let token_start = start + "Bearer ".len();
         let token_len = take_while_len(&value[token_start..], |character| {
@@ -251,9 +249,7 @@ fn find_database_url_for_scheme(value: &str, from: usize, scheme: &str) -> Optio
     let mut search_from = from;
 
     while search_from < value.len() {
-        let Some(relative_index) = value[search_from..].find(scheme) else {
-            return None;
-        };
+        let relative_index = value[search_from..].find(scheme)?;
         let start = search_from + relative_index;
         let credentials_start = start + scheme.len();
         let url_len = take_while_len(&value[start..], |character| !character.is_whitespace());

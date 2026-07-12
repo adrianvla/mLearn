@@ -414,7 +414,8 @@ async fn governed_gateway_isolated_accounted_encrypted_and_wire_compatible() {
     .await
     .unwrap();
     assert_eq!(qualities, vec!["estimated", "exact"]);
-    let completed: Vec<(String, String, String, String, i64, i64, i64, String)> = sqlx::query_as(
+    type CompletedRequest = (String, String, String, String, i64, i64, i64, String);
+    let completed: Vec<CompletedRequest> = sqlx::query_as(
         "SELECT r.reservation_id,q.learner_user_id,q.direct_group_id,r.usage_quality,r.input_tokens,r.output_tokens,r.cost_micros,r.price_version_id FROM llm_requests r JOIN quota_reservations q ON q.id=r.reservation_id WHERE r.status='completed' ORDER BY r.usage_quality",
     )
     .fetch_all(&fixture.pool)

@@ -321,6 +321,7 @@ impl AnalyticsQueryService {
             .flatten();
         Ok(Page { items, next_cursor })
     }
+    #[allow(clippy::too_many_arguments)]
     pub async fn dimensions(
         &self,
         principal: &Principal,
@@ -485,7 +486,8 @@ fn summarize(events: &[Event]) -> AnalyticsSummary {
     let mut s = AnalyticsSummary::default();
     let mut users = HashSet::new();
     let mut sessions = HashSet::new();
-    let mut previous: HashMap<(&str, &str), (i64, Option<i64>, Option<i64>)> = HashMap::new();
+    type PreviousEvent = (i64, Option<i64>, Option<i64>);
+    let mut previous: HashMap<(&str, &str), PreviousEvent> = HashMap::new();
     for e in events {
         users.insert(&e.user);
         sessions.insert((&e.user, &e.session));
@@ -604,7 +606,7 @@ mod tests {
         now: i64,
     ) {
         for (sequence, media) in [(1, 0), (2, seconds * 1000)] {
-            let result=sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,current_time_millis,duration_millis,retention_days,retained_until) VALUES(?,?,?,?,?,1,'activity.progressed','video','progress-only',?,'video',?,?,?,?,?,90,?)").bind(format!("{session}-{sequence}")).bind(user).bind(group).bind("policy").bind(format!("hash-{session}-{sequence}")).bind(session).bind(sequence).bind(now+(sequence-1)*seconds*1000).bind(now/1000).bind(media).bind(3600_000).bind(now+90*86_400_000).execute(pool).await.unwrap();
+            let result=sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,current_time_millis,duration_millis,retention_days,retained_until) VALUES(?,?,?,?,?,1,'activity.progressed','video','progress-only',?,'video',?,?,?,?,?,90,?)").bind(format!("{session}-{sequence}")).bind(user).bind(group).bind("policy").bind(format!("hash-{session}-{sequence}")).bind(session).bind(sequence).bind(now+(sequence-1)*seconds*1000).bind(now/1000).bind(media).bind(3_600_000).bind(now+90*86_400_000).execute(pool).await.unwrap();
             let id = result.last_insert_rowid();
             for (ordinal, g) in ancestry.iter().enumerate() {
                 sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,?,?)").bind(id).bind(ordinal as i64).bind(g).execute(pool).await.unwrap();
