@@ -89,6 +89,24 @@ it('rejects an invalid custom range without replacing the loaded learner data', 
   expect(screen.getAllByText('Learner').length).toBeGreaterThanOrEqual(1);
 });
 
+it('rejects a pre-1970 custom start without replacing loaded learner data or fetching analytics', async () => {
+  const fetchMock = installFetch();
+  render(<Analytics />);
+  await screen.findByRole('img', { name: 'Activity history' });
+  fireEvent.click(screen.getByRole('tab', { name: 'learners' }));
+  expect((await screen.findAllByText('Learner')).length).toBeGreaterThanOrEqual(1);
+  fireEvent.click(screen.getByRole('button', { name: /Date range/ }));
+  fireEvent.click(screen.getByRole('option', { name: 'Custom range' }));
+  fireEvent.change(screen.getByLabelText('From date'), { target: { value: '1969-12-31' } });
+  const requestCount = fetchMock.mock.calls.length;
+  fireEvent.change(screen.getByLabelText('To date'), { target: { value: '1970-01-01' } });
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Choose a range from one to 366 days.');
+  expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(requestCount));
+  expect(screen.getAllByText('Learner').length).toBeGreaterThanOrEqual(1);
+});
+
 it('keeps activity history visible when the LLM usage panel fails', async () => {
   installFetch({ llm: new Response(JSON.stringify({ error: 'LLM usage is unavailable.' }), { status: 503, headers: { 'Content-Type': 'application/json' } }) });
   render(<Analytics />);

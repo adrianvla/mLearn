@@ -36,3 +36,13 @@ Complete.
 - Focused analytics/chart tests: 12 passed.
 - Full management frontend suite: 21 files, 59 tests passed.
 - Typecheck and `git diff --check` passed.
+
+## Pre-1970 validation correction
+
+- Shared custom-range validation now rejects negative `from` or `to` timestamps as well as invalid ordering and duration.
+- Regression coverage selects a pre-1970 custom start, confirms the shared error and disabled export, verifies no analytics requests are issued, and retains loaded learner rows.
+
+### Correction verification
+
+- Focused Analytics and filter tests: 8 passed.
+- Typecheck and `git diff --check` passed.
