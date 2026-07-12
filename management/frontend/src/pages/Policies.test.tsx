@@ -1,3 +1,31 @@
-import { fireEvent,render,screen } from '@testing-library/react';import { expect,it,vi } from 'vitest';import Policies from './Policies';
-vi.mock('../groups/GroupScopeProvider',()=>({useGroupScope:()=>({status:'ready',selectedGroup:{id:'child',name:'Child',capabilities:['policies.view','policies.edit','policies.publish']},can:()=>true})}));
-it('labels and disables inherited hard deny while leaving every local policy family editable',async()=>{vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL)=>{const url=String(input);const body=url.endsWith('/draft')?null:{document:{ancestry:[{id:'root',name:'School'},{id:'child',name:'Child'}],settings:{language_profile:{value:'de',sourceGroupId:'child',sourceGroupName:'Child',locked:false}},features:{cloud_llm:{enabled:false,sourceGroupId:'root',hard:true}},llm:{enabled:true,requestsPerMinute:60,maxConcurrentStreams:4,allowedProviders:['provider'],allowedModels:['model'],promptProfileId:'profile',quotas:[{metric:'totalTokens',period:'monthly',limit:1000,sourceGroupId:'root',hard:true}]},governance:{activityRetentionDays:60,conversationRetentionDays:30,teacherAnalyticsExport:false,teacherConversationExport:false}}};return new Response(JSON.stringify(body),{status:200,headers:{'Content-Type':'application/json'}})}));render(<Policies/>);expect(await screen.findByText('Constrained by School')).toBeVisible();expect(screen.getByRole('group',{name:'cloud_llm value'})).toBeDisabled();const localInput=screen.getByRole('group',{name:'language_profile value'}).querySelector('input');expect(localInput).toBeEnabled();expect(screen.getByLabelText('Allowed providers')).toHaveValue('provider');expect(screen.getByLabelText('Conversation retention days')).toHaveValue(30);expect(screen.getByLabelText('Teacher analytics export')).not.toBeChecked();expect(screen.getByRole('button',{name:'Publish'})).toBeDisabled();fireEvent.change(localInput!,{target:{value:'de-CH'}})});
+import { fireEvent, render, screen } from "@testing-library/react";
+import { vi } from "vitest";
+import Policies from "./Policies";
+
+vi.mock("../groups/GroupScopeProvider", () => ({
+  useGroupScope: () => ({ status: "ready", selectedGroup: { id: "child", name: "German A" }, can: () => true }),
+}));
+
+function json(value: unknown) { return new Response(JSON.stringify(value), { status: 200, headers: { "Content-Type": "application/json" } }); }
+
+it("lists named local and inherited policies and only shows rules that were added", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/groups/child/policies")) return json({ local: [{ id: "exam", groupId: "child", groupName: "German A", name: "Exam restrictions", enabled: true, activeVersionId: null, draftHash: "hash" }], inherited: [{ id: "school", groupId: "root", groupName: "School", name: "Student defaults", enabled: true, activeVersionId: "version", draftHash: null }] });
+    if (url.endsWith("/policy-registry")) return json([{ key: "readerTextSize", valueType: "number", allowedValues: [] }, { key: "theme", valueType: "select", allowedValues: ["light", "dark"] }]);
+    if (url.endsWith("/policies/exam/draft")) return json({ document: { settings: { readerTextSize: { value: 20, locked: true } }, features: {}, llm: { quotas: [] }, governance: {} }, documentHash: "hash" });
+    if (url.endsWith("/policies/exam/history")) return json({ items: [] });
+    return json({});
+  }));
+  render(<Policies />);
+  expect(await screen.findByRole("heading", { name: "Policies for German A" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /Exam restrictions/ })).toBeVisible();
+  expect(screen.getByText("Student defaults")).toBeVisible();
+  expect(screen.getByText("School · read only")).toBeVisible();
+  expect(await screen.findByLabelText(/Reader text size/i)).toHaveValue(20);
+  expect(screen.queryByLabelText("Conversation retention days")).not.toBeInTheDocument();
+  expect(screen.getByText("Validate this draft before publishing")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("App setting"), { target: { value: "theme" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
+  expect(screen.getByText("Save draft before validating or publishing")).toBeVisible();
+});
