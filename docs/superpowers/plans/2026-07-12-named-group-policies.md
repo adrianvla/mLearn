@@ -25,7 +25,7 @@
 ### Task 1: Persist Named Policies Without Losing Legacy History
 
 **Files:**
-- Create: `management/backend/migrations/0013_named_policies.sql`
+- Create: `management/backend/migrations/0016_named_policies.sql`
 - Modify: `management/backend/src/db.rs`
 - Test: `management/backend/src/db.rs`
 
@@ -53,7 +53,7 @@ assert_eq!(sqlx::query_scalar::<_, String>(
 
 Run: `cargo test --manifest-path management/backend/Cargo.toml db::tests::legacy_policy_rows_migrate_to_named_policy -- --exact`
 
-Expected: FAIL because migration `0013_named_policies.sql` and table `policies` do not exist.
+Expected: FAIL because migration `0016_named_policies.sql` and table `policies` do not exist.
 
 - [ ] **Step 3: Add the migration**
 
@@ -111,7 +111,7 @@ Expected: all DB tests PASS, including legacy migration preservation and immutab
 - [ ] **Step 5: Commit**
 
 ```bash
-git add management/backend/migrations/0013_named_policies.sql management/backend/src/db.rs
+git add management/backend/migrations/0016_named_policies.sql management/backend/src/db.rs
 git commit -m "feat(management): migrate policies to named containers"
 ```
 
@@ -586,7 +586,7 @@ Expected: all Rust, main-app, and console tests PASS.
 
 Run: `git diff --check`
 
-Start a backend against a copy of a pre-0013 database and verify the migrated effective snapshot has identical setting, feature, LLM, quota, and governance behavior. Create two policies in one group, add and lock a setting rule, save, validate, publish, activate, and confirm `/api/policy/me` contains the required value and full source provenance.
+Start a backend against a copy of a pre-0016 database and verify the migrated effective snapshot has identical setting, feature, LLM, quota, and governance behavior. Create two policies in one group, add and lock a setting rule, save, validate, publish, activate, and confirm `/api/policy/me` contains the required value and full source provenance.
 
 Expected: no whitespace errors; legacy behavior matches; the end-to-end named-policy workflow succeeds without 4xx/5xx responses.
 
