@@ -1,78 +1,112 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
+import { Tabs } from '@heroui/react';
 import { ApiClient } from '../api/client';
-import type { AnalyticsSummary, DimensionAnalytics, LearnerAnalytics, LlmAnalytics, PolicyBlockAnalytics, TimeseriesPoint } from '../api/types';
-import { LineChart } from '../components/LineChart';
+import type { AnalyticsGranularity, DimensionAnalytics, HistoricalSeries, LearnerAnalytics, LlmAnalytics, PolicyBlockAnalytics } from '../api/types';
 import { MetricCard } from '../components/MetricCard';
 import { PageToolbar } from '../components/PageToolbar';
-import { ConsoleButton, ConsoleDialog, ConsoleSelect } from '../components/console';
-import { Tabs } from '@heroui/react';
+import { ConsoleButton, ConsoleDialog } from '../components/console';
 import { useGroupScope } from '../groups/GroupScopeProvider';
+import { AnalyticsFilters, type AnalyticsFilterValue } from './analytics/AnalyticsFilters';
+import { AnalyticsOverview } from './analytics/AnalyticsOverview';
 
 const api = new ApiClient();
+const DAY = 86_400_000;
 type Tab = 'overview' | 'learners' | 'content' | 'llm usage' | 'policy blocks';
 
 export default function Analytics() {
   const scope = useGroupScope();
   const groupId = scope.status === 'ready' ? scope.selectedGroup?.id : null;
   const [tab, setTab] = useState<Tab>('overview');
-  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
-  const [series, setSeries] = useState<TimeseriesPoint[]>([]);
+  const [filters, setFilters] = useState<AnalyticsFilterValue>(() => defaultFilters());
+  const [history, setHistory] = useState<HistoricalSeries | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const [learners, setLearners] = useState<LearnerAnalytics[]>([]);
   const [content, setContent] = useState<DimensionAnalytics[]>([]);
   const [llm, setLlm] = useState<LlmAnalytics | null>(null);
+  const [llmError, setLlmError] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<PolicyBlockAnalytics | null>(null);
+  const [policyError, setPolicyError] = useState<string | null>(null);
   const [quotaRemaining, setQuotaRemaining] = useState<Record<string, number | null>>({});
   const [confirm, setConfirm] = useState(false);
-  const [periodDays, setPeriodDays] = useState(30);
+  const granularity = useMemo(() => resolveGranularity(filters), [filters]);
+  const query = useMemo(() => toQuery(groupId, filters), [groupId, filters]);
 
   useEffect(() => {
-    setSummary(null); setSeries([]); setLearners([]); setContent([]); setLlm(null); setBlocks(null); setQuotaRemaining({});
-    if (!groupId) return;
+    setHistory(null); setActivityError(null); setLearners([]); setContent([]); setLlm(null); setLlmError(null); setBlocks(null); setPolicyError(null); setQuotaRemaining({});
+    if (groupId === undefined || groupId === null) return;
     const controller = new AbortController();
-    const to = Date.now();
-    const from = to - periodDays * 86_400_000;
-    const query = `groupId=${encodeURIComponent(groupId)}&from=${from}&to=${to}`;
-    Promise.all([
-      api.get<AnalyticsSummary>(`/api/analytics/summary?${query}`, { signal: controller.signal }),
-      api.get<TimeseriesPoint[]>(`/api/analytics/timeseries?${query}`, { signal: controller.signal }),
-      api.get<{ items: LearnerAnalytics[] }>(`/api/analytics/learners?${query}`, { signal: controller.signal }),
-      api.get<{ items: DimensionAnalytics[] }>(`/api/analytics/content?${query}`, { signal: controller.signal }),
-      api.get<LlmAnalytics>(`/api/analytics/llm?${query}`, { signal: controller.signal }),
-      api.get<PolicyBlockAnalytics>(`/api/analytics/policy-blocks?${query}`, { signal: controller.signal }),
-      api.get<{ buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }> }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`, { signal: controller.signal }).catch(() => ({ buckets: [] })),
-    ]).then(([nextSummary, nextSeries, nextLearners, nextContent, nextLlm, nextBlocks, usage]) => {
-      if (controller.signal.aborted) return;
-      setSummary(nextSummary); setSeries(nextSeries); setLearners(nextLearners.items); setContent(nextContent.items); setLlm(nextLlm); setBlocks(nextBlocks);
-      const remaining: Record<string, number | null> = {};
-      for (const bucket of usage.buckets.filter((item) => item.scopeKind === 'user')) {
-        const current = remaining[bucket.scopeId];
-        if (bucket.remaining !== null && (current === undefined || current === null || bucket.remaining < current)) remaining[bucket.scopeId] = bucket.remaining;
-        else if (current === undefined) remaining[bucket.scopeId] = null;
-      }
-      setQuotaRemaining(remaining);
-    });
+    const options = { signal: controller.signal };
+    const historyQuery = `${query}&granularity=${granularity}&comparison=${filters.comparison}`;
+
+    void api.get<HistoricalSeries>(`/api/analytics/history?${historyQuery}`, options)
+      .then((next) => { if (!controller.signal.aborted) setHistory(next); })
+      .catch((error: unknown) => { if (!controller.signal.aborted) setActivityError(errorMessage(error)); });
+    void api.get<LlmAnalytics>(`/api/analytics/llm?${query}`, options)
+      .then((next) => { if (!controller.signal.aborted) setLlm(next); })
+      .catch((error: unknown) => { if (!controller.signal.aborted) setLlmError(errorMessage(error)); });
+    void api.get<PolicyBlockAnalytics>(`/api/analytics/policy-blocks?${query}`, options)
+      .then((next) => { if (!controller.signal.aborted) setBlocks(next); })
+      .catch((error: unknown) => { if (!controller.signal.aborted) setPolicyError(errorMessage(error)); });
+    void api.get<{ items: LearnerAnalytics[] }>(`/api/analytics/learners?${query}`, options)
+      .then((next) => { if (!controller.signal.aborted) setLearners(next.items); })
+      .catch(() => undefined);
+    void api.get<{ items: DimensionAnalytics[] }>(`/api/analytics/content?${query}`, options)
+      .then((next) => { if (!controller.signal.aborted) setContent(next.items); })
+      .catch(() => undefined);
+    void api.get<{ buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }> }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`, options)
+      .then((usage) => { if (!controller.signal.aborted) setQuotaRemaining(toRemainingQuota(usage.buckets)); })
+      .catch(() => undefined);
     return () => controller.abort();
-  }, [groupId, periodDays]);
+  }, [filters.comparison, granularity, groupId, query]);
 
   const exportCsv = () => {
-    if (groupId) {
-      const to = Date.now();
-      const from = to - periodDays * 86_400_000;
-      window.location.assign(`/api/analytics/export.csv?groupId=${encodeURIComponent(groupId)}&from=${from}&to=${to}&limit=200`);
+    if (groupId !== undefined && groupId !== null) {
+      window.location.assign(`/api/analytics/export.csv?${toQuery(groupId, filters)}&limit=200`);
     }
   };
 
-  return <div className="resource-page">
-    <PageToolbar title="Analytics" description="Scoped learning, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions"><ConsoleSelect label="Analytics date period" selectedKey={String(periodDays)} onSelectionChange={(value) => setPeriodDays(Number(value))} options={[{ key: '7', label: '7 days' }, { key: '30', label: '30 days' }, { key: '90', label: '90 days' }]} />{scope.status === 'ready' && scope.can('analytics.view') ? <ConsoleButton className="secondary-action" onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton> : null}</div>} />
+  return <div className="resource-page analytics-page">
+    <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} onChange={setFilters} />{scope.status === 'ready' && scope.can('analytics.view') ? <ConsoleButton className="secondary-action" onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton> : null}</div>} />
     <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key) as Tab)}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
-    {tab === 'overview' && <><section className="metric-grid"><MetricCard label="Active learners" value={summary?.activeLearners ?? '—'} /><MetricCard label="Content watched" value={`${Math.round((summary?.watchSeconds ?? 0) / 60)} min`} /><MetricCard label="LLM cost" value={((summary?.costMicros ?? 0) / 1_000_000).toFixed(2)} /><MetricCard label="Policy blocks" value={summary?.policyBlocks ?? '—'} /></section><section className="dashboard-panel"><LineChart title="Learning sessions" data={series.map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.sessions }))} /></section></>}
-    {tab === 'learners' && <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} />}
-    {tab === 'content' && <AnalyticsTable label="Content analytics" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} />}
-    {tab === 'llm usage' && <section className="metric-grid" aria-label="LLM usage"><MetricCard label="Requests" value={llm?.requests ?? '—'} /><MetricCard label="Input tokens" value={(llm?.inputTokens ?? 0).toLocaleString()} /><MetricCard label="Output tokens" value={(llm?.outputTokens ?? 0).toLocaleString()} /><MetricCard label="Cost" value={((llm?.costMicros ?? 0) / 1_000_000).toFixed(4)} /></section>}
-    {tab === 'policy blocks' && <section className="metric-grid" aria-label="Policy block analytics"><MetricCard label="Blocked requests" value={blocks?.blocks ?? '—'} detail="Requests rejected before provider execution" /></section>}
+    {tab === 'overview' ? <AnalyticsOverview history={history} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} /> : null}
+    {tab === 'learners' ? <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} /> : null}
+    {tab === 'content' ? <AnalyticsTable label="Content analytics" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} /> : null}
+    {tab === 'llm usage' ? <section className="metric-grid" aria-label="LLM usage">{llmError ? <p role="alert">Unable to load LLM usage. {llmError}</p> : <><MetricCard label="Requests" value={llm?.requests ?? '—'} /><MetricCard label="Input tokens" value={(llm?.inputTokens ?? 0).toLocaleString()} /><MetricCard label="Output tokens" value={(llm?.outputTokens ?? 0).toLocaleString()} /><MetricCard label="Cost" value={((llm?.costMicros ?? 0) / 1_000_000).toFixed(4)} /></>}</section> : null}
+    {tab === 'policy blocks' ? <section className="metric-grid" aria-label="Policy block analytics">{policyError ? <p role="alert">Unable to load policy blocks. {policyError}</p> : <MetricCard label="Blocked requests" value={blocks?.blocks ?? '—'} detail="Requests rejected before provider execution" />}</section> : null}
     <ConsoleDialog open={confirm} onOpenChange={setConfirm} title="Export learner analytics?" footer={<><ConsoleButton onClick={() => setConfirm(false)}>Cancel</ConsoleButton><ConsoleButton onClick={exportCsv}>Confirm export</ConsoleButton></>}><p>This export is policy-controlled and recorded in the audit log.</p></ConsoleDialog>
   </div>;
+}
+
+function defaultFilters(): AnalyticsFilterValue {
+  const to = Date.now();
+  return { from: to - 30 * DAY, to, preset: '30', comparison: 'none', granularity: 'auto' };
+}
+
+function resolveGranularity(value: AnalyticsFilterValue): AnalyticsGranularity {
+  if (value.granularity !== 'auto') return value.granularity;
+  const days = (value.to - value.from) / DAY;
+  if (days <= 31) return 'daily';
+  if (days <= 120) return 'weekly';
+  return 'monthly';
+}
+
+function toQuery(groupId: string | undefined | null, filters: Pick<AnalyticsFilterValue, 'from' | 'to'>): string {
+  return `groupId=${encodeURIComponent(groupId ?? '')}&from=${filters.from}&to=${filters.to}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'The request did not complete.';
+}
+
+function toRemainingQuota(buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }>): Record<string, number | null> {
+  const remaining: Record<string, number | null> = {};
+  for (const bucket of buckets.filter((item) => item.scopeKind === 'user')) {
+    const current = remaining[bucket.scopeId];
+    if (bucket.remaining !== null && (current === undefined || current === null || bucket.remaining < current)) remaining[bucket.scopeId] = bucket.remaining;
+    else if (current === undefined) remaining[bucket.scopeId] = null;
+  }
+  return remaining;
 }
 
 function formatRemaining(values: Record<string, number | null>, learnerId: string): string | number {
