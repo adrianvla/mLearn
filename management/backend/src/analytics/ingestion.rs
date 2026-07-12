@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
+    analytics::rollups::rebuild_daily_rollups_in_transaction,
     error::AppError,
     identity::{IdentityType, Principal},
 };
@@ -584,8 +585,7 @@ async fn insert_event(
         .execute(&mut **tx)
         .await
         .map_err(db)?;
-    sqlx::query("WITH target AS (SELECT a.group_id,(e.occurred_at/86400000)*86400000 day_start,e.activity_kind,COALESCE(e.content_id,'') content_id,COALESCE(e.language,'') language FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE e.id=?), scoped AS (SELECT t.group_id scope_group,e.*,LAG(e.occurred_at) OVER(PARTITION BY t.group_id,e.user_id,e.activity_session_id ORDER BY e.sequence,e.id) prev_at,LAG(e.current_time_millis) OVER(PARTITION BY t.group_id,e.user_id,e.activity_session_id ORDER BY e.sequence,e.id) prev_media,LAG(e.current_page) OVER(PARTITION BY t.group_id,e.user_id,e.activity_session_id ORDER BY e.sequence,e.id) prev_page FROM target t JOIN activity_event_ancestry a ON a.group_id=t.group_id JOIN activity_events e ON e.id=a.event_row_id AND (e.occurred_at/86400000)=t.day_start AND e.activity_kind=t.activity_kind AND COALESCE(e.content_id,'')=t.content_id AND COALESCE(e.language,'')=t.language) INSERT INTO analytics_daily_rollups(group_id,day_start,activity_kind,content_id,language,active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events,updated_at) SELECT t.group_id,t.day_start,t.activity_kind,t.content_id,t.language,COUNT(DISTINCT s.user_id),COUNT(DISTINCT s.user_id||char(0)||s.activity_session_id),COALESCE(SUM(CASE WHEN s.activity_kind='video' AND s.prev_at IS NOT NULL AND s.occurred_at-s.prev_at BETWEEN 1 AND 300000 AND s.current_time_millis-s.prev_media>0 AND s.current_time_millis-s.prev_media<=s.occurred_at-s.prev_at+2000 THEN MIN(s.current_time_millis-s.prev_media,s.occurred_at-s.prev_at)/1000 ELSE 0 END),0),SUM(CASE WHEN s.event_type='activity.completed' THEN 1 ELSE 0 END),COALESCE(SUM(CASE WHEN s.activity_kind='reader' AND s.prev_at IS NOT NULL AND s.occurred_at-s.prev_at BETWEEN 1 AND 300000 THEN MAX(s.current_page-s.prev_page,0) ELSE 0 END),0),SUM(CASE WHEN s.activity_kind='flashcards' AND s.event_type='activity.completed' THEN 1 ELSE 0 END),? FROM target t JOIN scoped s ON s.scope_group=t.group_id GROUP BY t.group_id,t.day_start,t.activity_kind,t.content_id,t.language ON CONFLICT(group_id,day_start,activity_kind,content_id,language) DO UPDATE SET active_learners=excluded.active_learners,sessions=excluded.sessions,watch_seconds=excluded.watch_seconds,completions=excluded.completions,reader_pages=excluded.reader_pages,flashcard_events=excluded.flashcard_events,updated_at=excluded.updated_at")
-        .bind(row_id).bind(now).execute(&mut **tx).await.map_err(db)?;
+    rebuild_daily_rollups_in_transaction(tx, row_id).await?;
     Ok(InsertOutcome::Accepted)
 }
 fn db(error: sqlx::Error) -> AppError {
