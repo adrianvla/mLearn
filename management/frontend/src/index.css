@@ -63,7 +63,7 @@ button, a, select { outline-offset: 3px; }
 .dashboard-tabs { display: flex; align-items: center; gap: 3px; border-bottom: 1px solid #292b2e; }
 .dashboard-tabs button { padding: 11px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: #8f959d; cursor: pointer; }
 .dashboard-tabs button.active { border-color: #4b91f7; color: white; }
-.dashboard-tabs select { height: 34px; margin: 0 0 8px auto; padding: 0 28px 0 10px; border: 1px solid #34373b; border-radius: 6px; background: #191a1c; color: #dce0e5; }
+.dashboard-tabs [data-slot="select"] { width: 180px; margin: 0 0 8px auto; }
 .metric-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
 .dashboard-primary-grid { display: grid; grid-template-columns: minmax(0,2fr) minmax(260px,1fr); gap: 14px; }
 .dashboard-panel { min-width: 0; padding: 20px; background: #191a1c; border: 1px solid #282a2d; border-radius: 10px; }
@@ -113,7 +113,7 @@ button, a, select { outline-offset: 3px; }
 .policy-workspace { display:grid; grid-template-columns:minmax(220px, 300px) minmax(0, 1fr); gap:18px; align-items:start; }
 .policy-list,.policy-builder { border:1px solid #282a2d; border-radius:10px; background:#191a1c; padding:16px; }
 .policy-list h2,.policy-builder h2,.policy-builder h3 { margin:0 0 12px; }
-.policy-list { display:grid; gap:8px; }.policy-list-item { display:grid; gap:3px; text-align:left; border:1px solid #34363a; border-radius:8px; padding:10px; background:#202124; color:inherit; }.policy-list-item span { color:#aaa; font-size:12px; }.policy-list-item.selected { border-color:#7a9de8; background:#263451; }.policy-list-item.inherited { opacity:.78; }.policy-create { display:grid; gap:8px; margin:12px 0; padding:12px 0; border-top:1px solid #34363a; border-bottom:1px solid #34363a; }
+.policy-list { display:grid; gap:8px; }.policy-list-item { display:grid; width:100%; justify-content:start; gap:3px; text-align:left; font:inherit; border:1px solid #34363a; border-radius:8px; padding:10px; background:#202124; color:inherit; }.policy-list-item span { color:#aaa; font-size:12px; }.policy-list-item.selected { border-color:#7a9de8; background:#263451; }.policy-list-item.inherited { opacity:.78; }.policy-create { display:grid; gap:8px; margin:12px 0; padding:12px 0; border-top:1px solid #34363a; border-bottom:1px solid #34363a; }
 .policy-actions,.policy-rule-picker { display:flex; flex-wrap:wrap; gap:10px; align-items:end; border-bottom:1px solid #34363a; padding:0 0 14px; margin:0 0 16px; }.policy-actions label,.policy-rule-picker label { display:grid; gap:4px; font-size:12px; }.policy-next-step { width:100%; margin:0; color:#d8c27a; }.policy-rules { display:grid; gap:10px; }.policy-rule-card { border:1px solid #34363a; border-radius:8px; padding:12px; display:grid; gap:10px; }.policy-rule-card header { display:flex; justify-content:space-between; gap:12px; }.policy-rule-card label { display:grid; gap:5px; }.text-action { border:0; background:transparent; color:#e78c8c; padding:0; }.policy-builder-header { display:flex; justify-content:space-between; gap:12px; }.policy-builder-header p { margin:0; color:#aebee5; }
 .policy-history { display:grid; gap:8px; margin-top:18px; border-top:1px solid #34363a; padding-top:14px; }.policy-history h3 { margin:0; }.policy-history div { display:flex; justify-content:space-between; gap:12px; color:#bbb; }.policy-history span { font-size:12px; }
 @media (max-width:800px) { .policy-workspace { grid-template-columns:1fr; } }

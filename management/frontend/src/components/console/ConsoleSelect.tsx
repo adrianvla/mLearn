@@ -12,7 +12,7 @@ export function ConsoleSelect({ label, selectedKey, onSelectionChange, options, 
 }) {
   return <Select selectedKey={selectedKey || null} onSelectionChange={(key) => onSelectionChange(key === null ? "" : String(key))} isDisabled={isDisabled}>
     <Label>{label}</Label>
-    <Select.Trigger aria-label={label}><Select.Value>{({ selectedText }) => selectedText || placeholder}</Select.Value><Select.Indicator /></Select.Trigger>
-    <Select.Popover><ListBox>{options.map((option) => <ListBoxItem id={option.key} key={option.key}>{option.label}</ListBoxItem>)}</ListBox></Select.Popover>
+    <Select.Trigger aria-label={label}><Select.Value>{options.find((option) => option.key === selectedKey)?.label ?? placeholder}</Select.Value><Select.Indicator /></Select.Trigger>
+    <Select.Popover><ListBox>{options.map((option) => <ListBoxItem id={option.key} key={option.key} textValue={option.label}>{option.label}</ListBoxItem>)}</ListBox></Select.Popover>
   </Select>;
 }
