@@ -143,19 +143,24 @@
 .flashcards-suggested-grid-row {
   display: grid;
   gap: var(--spacing-4);
+  min-height: 0;
 }
 
 .flashcards-suggested-tooltip-wrapper {
   display: flex;
   width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
 }
 
 .flashcards-suggested-card {
   height: 100%;
+  max-height: 100%;
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
+  min-height: 0;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -168,6 +173,7 @@
 
 .flashcards-suggested-card .flashcard-translation {
   flex: 1;
+  min-height: 0;
   margin-bottom: var(--spacing-4);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
@@ -179,6 +185,7 @@
 }
 
 .flashcards-suggested-translation {
+  flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -186,6 +193,7 @@
 }
 
 .flashcards-suggested-context {
+  flex-shrink: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -194,6 +202,7 @@
 }
 
 .flashcards-suggested-meta {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -212,6 +221,7 @@
 
 .flashcards-suggested-card .flashcard-footer {
   display: flex;
+  flex-shrink: 0;
   gap: var(--spacing-2);
   justify-content: space-between;
   width: 100%;
