@@ -5,6 +5,8 @@ import type { AnalyticsSummary, DimensionAnalytics, LearnerAnalytics, LlmAnalyti
 import { LineChart } from '../components/LineChart';
 import { MetricCard } from '../components/MetricCard';
 import { PageToolbar } from '../components/PageToolbar';
+import { ConsoleButton, ConsoleDialog, ConsoleSelect } from '../components/console';
+import { Tabs } from '@heroui/react';
 import { useGroupScope } from '../groups/GroupScopeProvider';
 
 const api = new ApiClient();
@@ -62,14 +64,14 @@ export default function Analytics() {
   };
 
   return <div className="resource-page">
-    <PageToolbar title="Analytics" description="Scoped learning, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions"><select aria-label="Analytics date period" value={periodDays} onChange={(event) => setPeriodDays(Number(event.currentTarget.value))}><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select>{scope.status === 'ready' && scope.can('analytics.view') ? <button className="secondary-action" onClick={() => setConfirm(true)}><Download />Export CSV</button> : null}</div>} />
-    <div className="detail-tabs" role="tablist">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <button key={name} role="tab" aria-selected={tab === name} onClick={() => setTab(name)}>{name}</button>)}</div>
+    <PageToolbar title="Analytics" description="Scoped learning, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions"><ConsoleSelect label="Analytics date period" selectedKey={String(periodDays)} onSelectionChange={(value) => setPeriodDays(Number(value))} options={[{ key: '7', label: '7 days' }, { key: '30', label: '30 days' }, { key: '90', label: '90 days' }]} />{scope.status === 'ready' && scope.can('analytics.view') ? <ConsoleButton className="secondary-action" onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton> : null}</div>} />
+    <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key) as Tab)}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
     {tab === 'overview' && <><section className="metric-grid"><MetricCard label="Active learners" value={summary?.activeLearners ?? '—'} /><MetricCard label="Content watched" value={`${Math.round((summary?.watchSeconds ?? 0) / 60)} min`} /><MetricCard label="LLM cost" value={((summary?.costMicros ?? 0) / 1_000_000).toFixed(2)} /><MetricCard label="Policy blocks" value={summary?.policyBlocks ?? '—'} /></section><section className="dashboard-panel"><LineChart title="Learning sessions" data={series.map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.sessions }))} /></section></>}
     {tab === 'learners' && <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} />}
     {tab === 'content' && <AnalyticsTable label="Content analytics" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} />}
     {tab === 'llm usage' && <section className="metric-grid" aria-label="LLM usage"><MetricCard label="Requests" value={llm?.requests ?? '—'} /><MetricCard label="Input tokens" value={(llm?.inputTokens ?? 0).toLocaleString()} /><MetricCard label="Output tokens" value={(llm?.outputTokens ?? 0).toLocaleString()} /><MetricCard label="Cost" value={((llm?.costMicros ?? 0) / 1_000_000).toFixed(4)} /></section>}
     {tab === 'policy blocks' && <section className="metric-grid" aria-label="Policy block analytics"><MetricCard label="Blocked requests" value={blocks?.blocks ?? '—'} detail="Requests rejected before provider execution" /></section>}
-    {confirm && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="export-title" className="console-dialog"><h2 id="export-title">Export learner analytics?</h2><p>This export is policy-controlled and recorded in the audit log.</p><footer><button onClick={() => setConfirm(false)}>Cancel</button><button onClick={exportCsv}>Confirm export</button></footer></section></div>}
+    <ConsoleDialog open={confirm} onOpenChange={setConfirm} title="Export learner analytics?" footer={<><ConsoleButton onClick={() => setConfirm(false)}>Cancel</ConsoleButton><ConsoleButton onClick={exportCsv}>Confirm export</ConsoleButton></>}><p>This export is policy-controlled and recorded in the audit log.</p></ConsoleDialog>
   </div>;
 }
 
