@@ -93,6 +93,7 @@ struct DesktopRequestData {
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/auth/bootstrap", post(bootstrap))
+        .route("/api/auth/recover-root", post(recover_root))
         .route("/api/auth/login", post(login))
         .route("/api/auth/desktop/init", post(desktop_init))
         .route("/api/auth/desktop/approve", post(desktop_approve))
@@ -114,6 +115,19 @@ async fn bootstrap(
         .bootstrap_root_with_session(recovery_token, &request.email, &request.password)
         .await?;
     Ok(Json(auth_response(user, session)))
+}
+
+async fn recover_root(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<BootstrapRequest>,
+) -> Result<StatusCode, AppError> {
+    let recovery_token = bearer_from_headers(&headers)?;
+    state
+        .identity
+        .recover_root_password(recovery_token, &request.email, &request.password)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn login(
@@ -703,6 +717,44 @@ mod tests {
             .unwrap();
         let retried = bootstrap(&app, &bootstrap_token).await;
         assert!(retried["session"]["accessToken"].is_string());
+    }
+
+    #[tokio::test]
+    async fn recovery_credential_resets_the_existing_root_password_and_revokes_sessions() {
+        let (app, bootstrap_token, _) = fixture().await;
+        let bootstrapped = bootstrap(&app, &bootstrap_token).await;
+        let old_access_token = bootstrapped["session"]["accessToken"].as_str().unwrap();
+
+        let (reset_status, reset_body) = json_request(
+            &app,
+            "POST",
+            "/api/auth/recover-root",
+            json!({ "email": "admin@school.test", "password": "A New Correct Horse Battery Staple" }),
+            Some(&bootstrap_token),
+        )
+        .await;
+        assert_eq!(reset_status, StatusCode::NO_CONTENT, "{reset_body}");
+
+        let (old_login_status, _) = json_request(
+            &app,
+            "POST",
+            "/api/auth/login",
+            json!({ "email": "admin@school.test", "password": "Correct Horse Battery Staple" }),
+            None,
+        )
+        .await;
+        assert_eq!(old_login_status, StatusCode::UNAUTHORIZED);
+        let (new_login_status, _) = json_request(
+            &app,
+            "POST",
+            "/api/auth/login",
+            json!({ "email": "admin@school.test", "password": "A New Correct Horse Battery Staple" }),
+            None,
+        )
+        .await;
+        assert_eq!(new_login_status, StatusCode::OK);
+        let (old_session_status, _) = json_request(&app, "GET", "/api/auth/me", Value::Null, Some(old_access_token)).await;
+        assert_eq!(old_session_status, StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
