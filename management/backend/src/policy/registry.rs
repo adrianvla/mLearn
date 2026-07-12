@@ -21,16 +21,26 @@ pub struct PolicySettingDescriptor {
 }
 
 pub fn policy_setting_registry() -> Vec<PolicySettingDescriptor> {
-    SETTING_REGISTRY.iter().map(|(key, kind)| {
-        let (value_type, allowed_values) = match kind {
-            JsonKind::Boolean => ("boolean", Vec::new()),
-            JsonKind::Number => ("number", Vec::new()),
-            JsonKind::String => ("string", Vec::new()),
-            JsonKind::StringOrNull => ("stringOrNull", Vec::new()),
-            JsonKind::StringLiterals(values) => ("select", values.iter().map(|value| (*value).into()).collect()),
-        };
-        PolicySettingDescriptor { key: (*key).into(), value_type: value_type.into(), allowed_values }
-    }).collect()
+    SETTING_REGISTRY
+        .iter()
+        .map(|(key, kind)| {
+            let (value_type, allowed_values) = match kind {
+                JsonKind::Boolean => ("boolean", Vec::new()),
+                JsonKind::Number => ("number", Vec::new()),
+                JsonKind::String => ("string", Vec::new()),
+                JsonKind::StringOrNull => ("stringOrNull", Vec::new()),
+                JsonKind::StringLiterals(values) => (
+                    "select",
+                    values.iter().map(|value| (*value).into()).collect(),
+                ),
+            };
+            PolicySettingDescriptor {
+                key: (*key).into(),
+                value_type: value_type.into(),
+                allowed_values,
+            }
+        })
+        .collect()
 }
 
 const SETTING_REGISTRY: &[(&str, JsonKind)] = &[

@@ -233,7 +233,11 @@ impl PolicyService {
         let mut inherited = Vec::new();
         for row in rows {
             let summary = policy_summary_from_row(row)?;
-            if summary.group_id == group_id { local.push(summary); } else { inherited.push(summary); }
+            if summary.group_id == group_id {
+                local.push(summary);
+            } else {
+                inherited.push(summary);
+            }
         }
         Ok(PolicyCollection { local, inherited })
     }
@@ -247,20 +251,55 @@ impl PolicyService {
         require_human(principal)?;
         let name = normalize_policy_name(&input.name)?;
         if input.description.len() > 1_000 {
-            return Err(AppError::BadRequest("policy description must be at most 1000 characters".into()));
+            return Err(AppError::BadRequest(
+                "policy description must be at most 1000 characters".into(),
+            ));
         }
         let now = now();
         let id = Uuid::now_v7().to_string();
         let mut transaction = self.pool.begin().await.map_err(database_error)?;
-        self.authorization.require_in_transaction(&mut transaction, principal, group_id, Capability::PoliciesEdit).await?;
-        let priority: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(priority),-1)+1 FROM policies WHERE group_id=?")
-            .bind(group_id).fetch_one(&mut *transaction).await.map_err(database_error)?;
+        self.authorization
+            .require_in_transaction(
+                &mut transaction,
+                principal,
+                group_id,
+                Capability::PoliciesEdit,
+            )
+            .await?;
+        let priority: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(priority),-1)+1 FROM policies WHERE group_id=?",
+        )
+        .bind(group_id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error)?;
         sqlx::query("INSERT INTO policies(id,group_id,name,description,enabled,priority,created_by_user_id,created_at,updated_at,revision) VALUES(?,?,?,?,1,?,?,?, ?,1)")
             .bind(&id).bind(group_id).bind(&name).bind(input.description.trim()).bind(priority).bind(&principal.user_id).bind(now).bind(now)
             .execute(&mut *transaction).await.map_err(database_error)?;
-        insert_policy_audit(&mut transaction, principal, "policy.created", &id, group_id, serde_json::json!({"name":name})).await?;
+        insert_policy_audit(
+            &mut transaction,
+            principal,
+            "policy.created",
+            &id,
+            group_id,
+            serde_json::json!({"name":name}),
+        )
+        .await?;
         transaction.commit().await.map_err(database_error)?;
-        Ok(PolicySummary { id, group_id: group_id.into(), group_name: String::new(), name, description: input.description.trim().into(), enabled: true, priority, revision: 1, inherited: false, active_version_id: None, draft_hash: None, updated_at: now })
+        Ok(PolicySummary {
+            id,
+            group_id: group_id.into(),
+            group_name: String::new(),
+            name,
+            description: input.description.trim().into(),
+            enabled: true,
+            priority,
+            revision: 1,
+            inherited: false,
+            active_version_id: None,
+            draft_hash: None,
+            updated_at: now,
+        })
     }
 
     pub async fn get_policy_draft(
@@ -268,11 +307,18 @@ impl PolicyService {
         principal: &Principal,
         policy_id: &str,
     ) -> Result<Option<PolicyDraft>, AppError> {
-        let group_id = self.policy_group(principal, policy_id, Capability::PoliciesView).await?;
+        let group_id = self
+            .policy_group(principal, policy_id, Capability::PoliciesView)
+            .await?;
         let row = sqlx::query("SELECT policy_id,group_id,document_json,document_hash,author_user_id,updated_at FROM policy_drafts WHERE policy_id=?")
             .bind(policy_id).fetch_optional(&self.pool).await.map_err(database_error)?;
         let draft = row.map(draft_from_row).transpose()?;
-        if draft.as_ref().is_some_and(|draft| draft.group_id != group_id) { return Err(AppError::Internal("policy draft ownership mismatch".into())); }
+        if draft
+            .as_ref()
+            .is_some_and(|draft| draft.group_id != group_id)
+        {
+            return Err(AppError::Internal("policy draft ownership mismatch".into()));
+        }
         Ok(draft)
     }
 
@@ -287,19 +333,53 @@ impl PolicyService {
         let (_, normalized, hash) = normalize_and_validate(document)?;
         let now = now();
         let mut transaction = self.pool.begin().await.map_err(database_error)?;
-        let group_id = self.policy_group_in_transaction(&mut transaction, principal, policy_id, Capability::PoliciesEdit).await?;
-        let current = sqlx::query_scalar::<_, String>("SELECT document_hash FROM policy_drafts WHERE policy_id=?")
-            .bind(policy_id).fetch_optional(&mut *transaction).await.map_err(database_error)?;
+        let group_id = self
+            .policy_group_in_transaction(
+                &mut transaction,
+                principal,
+                policy_id,
+                Capability::PoliciesEdit,
+            )
+            .await?;
+        let current = sqlx::query_scalar::<_, String>(
+            "SELECT document_hash FROM policy_drafts WHERE policy_id=?",
+        )
+        .bind(policy_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(database_error)?;
         if current.as_deref() != expected_document_hash {
-            return Err(AppError::Conflict("policy draft changed by another administrator; reload before saving".into()));
+            return Err(AppError::Conflict(
+                "policy draft changed by another administrator; reload before saving".into(),
+            ));
         }
         sqlx::query("INSERT INTO policy_drafts(policy_id,group_id,document_json,document_hash,author_user_id,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(policy_id) DO UPDATE SET document_json=excluded.document_json,document_hash=excluded.document_hash,author_user_id=excluded.author_user_id,updated_at=excluded.updated_at")
             .bind(policy_id).bind(&group_id).bind(&normalized).bind(&hash).bind(&principal.user_id).bind(now)
             .execute(&mut *transaction).await.map_err(database_error)?;
-        sqlx::query("DELETE FROM policy_draft_validations WHERE policy_id=? AND document_hash!=?").bind(policy_id).bind(&hash).execute(&mut *transaction).await.map_err(database_error)?;
-        insert_policy_audit(&mut transaction, principal, "policy.draft_saved", policy_id, &group_id, serde_json::json!({"documentHash":hash})).await?;
+        sqlx::query("DELETE FROM policy_draft_validations WHERE policy_id=? AND document_hash!=?")
+            .bind(policy_id)
+            .bind(&hash)
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error)?;
+        insert_policy_audit(
+            &mut transaction,
+            principal,
+            "policy.draft_saved",
+            policy_id,
+            &group_id,
+            serde_json::json!({"documentHash":hash}),
+        )
+        .await?;
         transaction.commit().await.map_err(database_error)?;
-        Ok(PolicyDraft { policy_id: policy_id.into(), group_id, document: serde_json::from_str(&normalized).map_err(json_error)?, document_hash: hash, author_user_id: principal.user_id.clone(), updated_at: now })
+        Ok(PolicyDraft {
+            policy_id: policy_id.into(),
+            group_id,
+            document: serde_json::from_str(&normalized).map_err(json_error)?,
+            document_hash: hash,
+            author_user_id: principal.user_id.clone(),
+            updated_at: now,
+        })
     }
 
     pub async fn validate_policy_draft(
@@ -308,20 +388,32 @@ impl PolicyService {
         policy_id: &str,
     ) -> Result<DraftValidation, AppError> {
         require_human(principal)?;
-        let group_id = self.policy_group(principal, policy_id, Capability::PoliciesEdit).await?;
-        let row = sqlx::query("SELECT document_json,document_hash FROM policy_drafts WHERE policy_id=?")
-            .bind(policy_id).fetch_optional(&self.pool).await.map_err(database_error)?
-            .ok_or_else(|| AppError::BadRequest("policy draft does not exist".into()))?;
-        let document: Value = serde_json::from_str(row.get::<String, _>("document_json").as_str()).map_err(json_error)?;
+        let group_id = self
+            .policy_group(principal, policy_id, Capability::PoliciesEdit)
+            .await?;
+        let row =
+            sqlx::query("SELECT document_json,document_hash FROM policy_drafts WHERE policy_id=?")
+                .bind(policy_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(database_error)?
+                .ok_or_else(|| AppError::BadRequest("policy draft does not exist".into()))?;
+        let document: Value = serde_json::from_str(row.get::<String, _>("document_json").as_str())
+            .map_err(json_error)?;
         let (_, _, document_hash) = normalize_and_validate(document)?;
         if document_hash != row.get::<String, _>("document_hash") {
-            return Err(AppError::Conflict("stored policy draft failed canonical integrity verification".into()));
+            return Err(AppError::Conflict(
+                "stored policy draft failed canonical integrity verification".into(),
+            ));
         }
         let now = now();
         sqlx::query("INSERT INTO policy_draft_validations(policy_id,document_hash,validated_by_user_id,validated_at) VALUES(?,?,?,?) ON CONFLICT(policy_id) DO UPDATE SET document_hash=excluded.document_hash,validated_by_user_id=excluded.validated_by_user_id,validated_at=excluded.validated_at")
             .bind(policy_id).bind(&document_hash).bind(&principal.user_id).bind(now).execute(&self.pool).await.map_err(database_error)?;
         let _ = group_id;
-        Ok(DraftValidation { valid: true, document_hash })
+        Ok(DraftValidation {
+            valid: true,
+            document_hash,
+        })
     }
 
     pub async fn publish_policy(
@@ -332,24 +424,74 @@ impl PolicyService {
         validated_document_hash: &str,
     ) -> Result<PolicyVersion, AppError> {
         require_human(principal)?;
-        if summary.trim().is_empty() { return Err(AppError::BadRequest("publish summary must not be empty".into())); }
-        let mut transaction = self.pool.begin_with("BEGIN IMMEDIATE").await.map_err(database_error)?;
-        let group_id = self.policy_group_in_transaction(&mut transaction, principal, policy_id, Capability::PoliciesPublish).await?;
-        let draft = sqlx::query("SELECT document_json,document_hash FROM policy_drafts WHERE policy_id=?")
-            .bind(policy_id).fetch_optional(&mut *transaction).await.map_err(database_error)?
-            .ok_or_else(|| AppError::BadRequest("policy draft does not exist".into()))?;
+        if summary.trim().is_empty() {
+            return Err(AppError::BadRequest(
+                "publish summary must not be empty".into(),
+            ));
+        }
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
+        let group_id = self
+            .policy_group_in_transaction(
+                &mut transaction,
+                principal,
+                policy_id,
+                Capability::PoliciesPublish,
+            )
+            .await?;
+        let draft =
+            sqlx::query("SELECT document_json,document_hash FROM policy_drafts WHERE policy_id=?")
+                .bind(policy_id)
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(database_error)?
+                .ok_or_else(|| AppError::BadRequest("policy draft does not exist".into()))?;
         let stored_hash: String = draft.get("document_hash");
-        if stored_hash != validated_document_hash { return Err(AppError::Conflict("save and validate the current draft before publishing".into())); }
-        let validation: Option<String> = sqlx::query_scalar("SELECT document_hash FROM policy_draft_validations WHERE policy_id=?")
-            .bind(policy_id).fetch_optional(&mut *transaction).await.map_err(database_error)?;
-        if validation.as_deref() != Some(validated_document_hash) { return Err(AppError::Conflict("validate the current draft before publishing".into())); }
-        let document: Value = serde_json::from_str(draft.get::<String, _>("document_json").as_str()).map_err(json_error)?;
+        if stored_hash != validated_document_hash {
+            return Err(AppError::Conflict(
+                "save and validate the current draft before publishing".into(),
+            ));
+        }
+        let validation: Option<String> = sqlx::query_scalar(
+            "SELECT document_hash FROM policy_draft_validations WHERE policy_id=?",
+        )
+        .bind(policy_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        if validation.as_deref() != Some(validated_document_hash) {
+            return Err(AppError::Conflict(
+                "validate the current draft before publishing".into(),
+            ));
+        }
+        let document: Value =
+            serde_json::from_str(draft.get::<String, _>("document_json").as_str())
+                .map_err(json_error)?;
         let (typed, normalized, hash) = normalize_and_validate(document)?;
-        if hash != stored_hash { return Err(AppError::Conflict("stored policy draft failed canonical integrity verification".into())); }
+        if hash != stored_hash {
+            return Err(AppError::Conflict(
+                "stored policy draft failed canonical integrity verification".into(),
+            ));
+        }
         let id = Uuid::now_v7().to_string();
         let created_at = now();
-        let compiled = compile_candidate_in_transaction(&mut transaction, &group_id, CandidatePolicyVersion { policy_id: policy_id.into(), version_id: &id, document: &typed, created_at }).await?;
-        let compiled_hash = hex::encode(Sha256::digest(serde_json::to_vec(&compiled).map_err(json_error)?));
+        let compiled = compile_candidate_in_transaction(
+            &mut transaction,
+            &group_id,
+            CandidatePolicyVersion {
+                policy_id: policy_id.into(),
+                version_id: &id,
+                document: &typed,
+                created_at,
+            },
+        )
+        .await?;
+        let compiled_hash = hex::encode(Sha256::digest(
+            serde_json::to_vec(&compiled).map_err(json_error)?,
+        ));
         let parent_version_ids = compiled.parent_versions;
         sqlx::query("INSERT INTO policy_versions(id,policy_id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
             .bind(&id).bind(policy_id).bind(&group_id).bind(&normalized).bind(&hash).bind(&compiled_hash).bind(&principal.user_id).bind(summary.trim()).bind(serde_json::to_string(&parent_version_ids).map_err(json_error)?).bind(created_at)
@@ -358,7 +500,18 @@ impl PolicyService {
             .bind(policy_id).bind(&id).bind(created_at).execute(&mut *transaction).await.map_err(database_error)?;
         insert_policy_audit(&mut transaction, principal, "policy.published", &id, &group_id, serde_json::json!({"policyId":policy_id,"summary":summary.trim(),"documentHash":hash,"compiledHash":compiled_hash})).await?;
         transaction.commit().await.map_err(database_error)?;
-        Ok(PolicyVersion { id, policy_id: policy_id.into(), group_id, document: serde_json::from_str(&normalized).map_err(json_error)?, document_hash: hash, compiled_hash, author_user_id: principal.user_id.clone(), summary: summary.trim().into(), parent_version_ids, created_at })
+        Ok(PolicyVersion {
+            id,
+            policy_id: policy_id.into(),
+            group_id,
+            document: serde_json::from_str(&normalized).map_err(json_error)?,
+            document_hash: hash,
+            compiled_hash,
+            author_user_id: principal.user_id.clone(),
+            summary: summary.trim().into(),
+            parent_version_ids,
+            created_at,
+        })
     }
 
     pub async fn save_draft(
@@ -555,7 +708,8 @@ impl PolicyService {
         cursor: Option<&str>,
         limit: usize,
     ) -> Result<PolicyHistoryPage, AppError> {
-        self.policy_group(principal, policy_id, Capability::PoliciesView).await?;
+        self.policy_group(principal, policy_id, Capability::PoliciesView)
+            .await?;
         let cursor = cursor.map(parse_history_cursor).transpose()?;
         let cursor_created_at = cursor.as_ref().map(|cursor| cursor.0);
         let cursor_id = cursor.as_ref().map(|cursor| cursor.1.as_str());
@@ -563,7 +717,10 @@ impl PolicyService {
         let rows = sqlx::query("SELECT id,policy_id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at FROM policy_versions WHERE policy_id=? AND (? IS NULL OR created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC,id DESC LIMIT ?")
             .bind(policy_id).bind(cursor_created_at).bind(cursor_created_at).bind(cursor_created_at).bind(cursor_id).bind((limit + 1) as i64)
             .fetch_all(&self.pool).await.map_err(database_error)?;
-        let mut items = rows.into_iter().map(version_from_row).collect::<Result<Vec<_>, _>>()?;
+        let mut items = rows
+            .into_iter()
+            .map(version_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
         let has_more = items.len() > limit;
         items.truncate(limit);
         let next_cursor = has_more.then(|| items.last().map(history_cursor)).flatten();
@@ -596,9 +753,14 @@ impl PolicyService {
         capability: Capability,
     ) -> Result<String, AppError> {
         let group_id: String = sqlx::query_scalar("SELECT group_id FROM policies WHERE id=?")
-            .bind(policy_id).fetch_optional(&self.pool).await.map_err(database_error)?
+            .bind(policy_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(database_error)?
             .ok_or_else(|| AppError::NotFound("policy not found".into()))?;
-        self.authorization.require(principal, &group_id, capability).await?;
+        self.authorization
+            .require(principal, &group_id, capability)
+            .await?;
         Ok(group_id)
     }
 
@@ -610,9 +772,14 @@ impl PolicyService {
         capability: Capability,
     ) -> Result<String, AppError> {
         let group_id: String = sqlx::query_scalar("SELECT group_id FROM policies WHERE id=?")
-            .bind(policy_id).fetch_optional(&mut **transaction).await.map_err(database_error)?
+            .bind(policy_id)
+            .fetch_optional(&mut **transaction)
+            .await
+            .map_err(database_error)?
             .ok_or_else(|| AppError::NotFound("policy not found".into()))?;
-        self.authorization.require_in_transaction(transaction, principal, &group_id, capability).await?;
+        self.authorization
+            .require_in_transaction(transaction, principal, &group_id, capability)
+            .await?;
         Ok(group_id)
     }
 }
@@ -733,7 +900,9 @@ fn require_safe_identifier(kind: &str, value: &str) -> Result<(), AppError> {
 fn normalize_policy_name(value: &str) -> Result<String, AppError> {
     let name = value.trim();
     if !(1..=120).contains(&name.chars().count()) {
-        return Err(AppError::BadRequest("policy name must contain 1 to 120 characters".into()));
+        return Err(AppError::BadRequest(
+            "policy name must contain 1 to 120 characters".into(),
+        ));
     }
     Ok(name.into())
 }
