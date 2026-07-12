@@ -78,6 +78,20 @@ it('renders activity categories as stacked segments without converting unavailab
   expect(screen.getByRole('status')).toHaveTextContent('No recorded data');
 });
 
+it('renders current and previous activity stacks with the selected comparison label', () => {
+  const previousStart = 1_669_913_600_000;
+  render(<StackedActivityChart title="Activity" series={[
+    { key: 'readerPages', label: 'Reader pages', kind: 'primary', values: [{ start: 1_700_000_000_000, end: 1_700_086_400_000, value: 5, coverage: 'complete' }] },
+    { key: 'readerPages', label: 'Reader pages', kind: 'comparison', comparisonLabel: 'Previous year', values: [{ start: previousStart, end: 1_700_000_000_000, value: 4, coverage: 'complete' }] },
+  ]} />);
+
+  expect(screen.getByTestId('stacked-bar-0-primary')).toBeVisible();
+  expect(screen.getByTestId('stacked-bar-0-comparison')).toBeVisible();
+  const table = screen.getByRole('table', { name: 'Activity data' });
+  expect(table).toHaveTextContent('Previous year');
+  expect(table).toHaveTextContent(new Date(previousStart).toLocaleDateString());
+});
+
 it('sizes stacked bars by time bucket so all categories remain within the chart view', () => {
   const buckets = Array.from({ length: 6 }, (_, index) => ({
     start: 1_700_000_000_000 + index * 86_400_000,
