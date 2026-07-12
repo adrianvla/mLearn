@@ -16,12 +16,12 @@ const School = lazy(() => import('./pages/School'));
 const Users = lazy(() => import('./pages/Users'));
 const Groups = lazy(() => import('./pages/Groups'));
 const Policies = lazy(() => import('./pages/Policies'));
-const Distribution = lazy(() => import('./pages/Distribution'));
 const LlmGateway = lazy(() => import('./pages/LlmGateway'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Bootstrap = lazy(() => import('./pages/Bootstrap'));
 const Diagnostics = lazy(() => import('./pages/Diagnostics'));
+const OperationalLogs = lazy(() => import('./pages/OperationalLogs'));
 
 function PageLoader() {
   return (
@@ -42,7 +42,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<Suspense fallback={<PageLoader />}><Overview /></Suspense>} />
         <Route path="/services" element={<RootOnly><Suspense fallback={<PageLoader />}><Services /></Suspense></RootOnly>} />
-        <Route path="/logs" element={<RootOnly><Suspense fallback={<PageLoader />}><Logs /></Suspense></RootOnly>} />
+        <Route path="/settings/diagnostics/logs" element={<RootOnly><Suspense fallback={<PageLoader />}><OperationalLogs /></Suspense></RootOnly>} />
         <Route path="/conversations" element={<Suspense fallback={<PageLoader />}><Logs /></Suspense>} />
         <Route path="/config" element={<RootOnly><Suspense fallback={<PageLoader />}><Config /></Suspense></RootOnly>} />
         <Route path="/storage" element={<RootOnly><Suspense fallback={<PageLoader />}><Storage /></Suspense></RootOnly>} />
@@ -51,7 +51,6 @@ export default function App() {
         <Route path="/users" element={<Suspense fallback={<PageLoader />}><Users /></Suspense>} />
         <Route path="/groups" element={<Suspense fallback={<PageLoader />}><Groups /></Suspense>} />
         <Route path="/policies" element={<Suspense fallback={<PageLoader />}><Policies /></Suspense>} />
-        <Route path="/distribution" element={<RootOnly><Suspense fallback={<PageLoader />}><Distribution /></Suspense></RootOnly>} />
         <Route path="/llm-gateway" element={<Suspense fallback={<PageLoader />}><LlmGateway /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />

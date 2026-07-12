@@ -47,15 +47,6 @@ pub fn application_router(state: AppState) -> Router {
         .route("/api/storage", get(routes::storage::get_storage))
         .route("/api/ai-status", get(routes::ai_status::get_ai_status))
         .route("/api/school", get(routes::school::get_school_status))
-        .route(
-            "/api/distribution",
-            get(routes::distribution::get_distribution),
-        )
-        .route(
-            "/api/llm-gateway",
-            get(routes::llm_gateway::get_llm_gateway),
-        )
-        .route("/api/analytics", get(routes::analytics::get_analytics))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             root_auth_middleware,
