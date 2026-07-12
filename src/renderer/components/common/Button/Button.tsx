@@ -117,7 +117,7 @@ const ButtonIcon: Component<{
         ? { transform: `rotate(${props.rotation}deg)` } 
         : {};
       return (
-        <span class={`${props.class || ''}`} style={style}>
+        <span class={`btn-icon-content ${props.class || ''}`} style={style}>
           <Icon 
             icon={props.icon} 
             color={props.color || 'currentColor'} 
@@ -132,12 +132,12 @@ const ButtonIcon: Component<{
       ? { transform: `rotate(${props.rotation}deg)` } 
       : {};
     return (
-      <span class={`${props.class || ''}`}>
+      <span class={`btn-icon-content ${props.class || ''}`}>
         <img src={props.icon} alt="" style={style} />
       </span>
     );
   }
-  return <span class={`${props.class || ''}`}>{props.icon}</span>;
+  return <span class={`btn-icon-content ${props.class || ''}`}>{props.icon}</span>;
 };
 
 // ============ Main Button Component ============

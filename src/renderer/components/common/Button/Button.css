@@ -211,6 +211,12 @@
   height: 20px;
 }
 
+.btn-pill > .btn-icon-content {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+}
+
 /* Pill color variants */
 .btn-pill.btn-red {
   color: var(--pill-level-1-text);

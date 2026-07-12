@@ -290,6 +290,7 @@ type FlashcardCtx = {
   removeSuggestedFlashcard: (id: string) => void;
   removeSuggestedFlashcards: (ids: string[]) => void;
   cleanupKnownSuggestions: () => Promise<number>;
+  garbageCollectSuggestedFlashcards: () => Promise<number>;
   promoteSuggestedFlashcards: (ids: string[], options?: { useLLM?: boolean; useTts?: boolean; onProgress?: (done: number, total: number) => void }) => Promise<number>;
   generateExampleSentenceWithLLM: (word: string, definition: string, language: string) => Promise<{ sentence: string; meaning: string }>;
   translateExampleSentence: (sentence: string, sourceLanguage: string, language?: string) => Promise<string>;
@@ -3248,7 +3249,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('cleanupKnownSuggestions preserves hidden non-dictionary suggestions when unknown words are disabled', async () => {
+  it('getSuggestedFlashcardsSync keeps stored suggestions visible while dictionary eligibility is unresolved', async () => {
     mockSettings.autoSuggestUnknownWords = false;
     mockBackend.translate.mockResolvedValue({ data: [] });
     const { ctx, dispose } = await mountProvider();
@@ -3262,13 +3263,13 @@ describe('FlashcardProvider', () => {
 
     expect(removed).toBe(0);
     expect(mockBackend.translate).not.toHaveBeenCalled();
-    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
     expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(1);
     expect(ctx.store.suggestedFlashcards['ja:hash-nuu']?.word).toBe('ヌウ');
     dispose();
   });
 
-  it('cleanupKnownSuggestions preserves suggestions when auto-suggest is disabled', async () => {
+  it('getSuggestedFlashcardsSync keeps stored suggestions visible when capture is disabled', async () => {
     mockSettings.autoSuggestFlashcards = false;
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore({
@@ -3280,8 +3281,26 @@ describe('FlashcardProvider', () => {
     const removed = await ctx.cleanupKnownSuggestions();
 
     expect(removed).toBe(0);
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
     expect(Object.values(ctx.store.suggestedFlashcards)).toHaveLength(1);
     expect(ctx.store.suggestedFlashcards['ja:hash-preserved']?.word).toBe('保存');
+    dispose();
+  });
+
+  it('garbageCollectSuggestedFlashcards removes entries made ineligible by current settings', async () => {
+    mockSettings.learningLanguageLevels = { ja: 3 };
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      suggestedFlashcards: {
+        'ja:eligible': { id: 's-eligible', word: '適切', level: 3, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
+        'ja:too-hard': { id: 's-too-hard', word: '困難', level: 1, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
+      },
+    }));
+
+    const removed = await ctx.garbageCollectSuggestedFlashcards();
+
+    expect(removed).toBe(1);
+    expect(Object.values(ctx.store.suggestedFlashcards).map((suggestion) => suggestion.id)).toEqual(['s-eligible']);
     dispose();
   });
 

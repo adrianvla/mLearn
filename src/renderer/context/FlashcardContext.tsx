@@ -32,7 +32,7 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
-import { shouldKeepSuggestion } from '../utils/suggestedFlashcards';
+import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
@@ -249,6 +249,8 @@ interface FlashcardContextValue {
   removeSuggestedFlashcards: (ids: string[]) => void;
   /** Remove suggested flashcards whose words have become known. Returns count removed. */
   cleanupKnownSuggestions: () => Promise<number>;
+  /** Remove current-language suggestions invalidated by current settings or knowledge state. */
+  garbageCollectSuggestedFlashcards: () => Promise<number>;
   /** Promote suggestions into full flashcards (runs translation + optional LLM/TTS). Returns number promoted. */
   promoteSuggestedFlashcards: (
     ids: string[],
@@ -1648,7 +1650,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
         const keep = shouldKeepSuggestion(
           { word: s.word, reading: s.reading, pos: s.pos, level, language: s.language },
-          settings,
+          { ...settings, autoSuggestFlashcards: true, autoSuggestUnknownWords: true },
           known,
           userLevel,
           comprehensiveStatus,
@@ -1813,6 +1815,50 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (idsToRemove.length > 0) {
       removeSuggestedFlashcards(idsToRemove);
     }
+    return idsToRemove.length;
+  };
+
+  const garbageCollectSuggestedFlashcards = async (): Promise<number> => {
+    const lang = settings.language;
+    const suggestions = Object.values(store.suggestedFlashcards).filter((suggestion) => suggestion.language === lang);
+    const suggestionLanguageData = languageDataFor(lang);
+    const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
+
+    if (!(settings.autoSuggestUnknownWords ?? DEFAULT_SETTINGS.autoSuggestUnknownWords)) {
+      await warmDictionaryStatus(
+        suggestions.map((suggestion) => suggestion.word),
+        lang,
+        {
+          getWordForms: (word) => getWordFormsForLanguage(word, lang),
+          dictionaryTargetLanguage,
+          languageData: suggestionLanguageData,
+        },
+      );
+    }
+
+    const known = knownWordSet();
+    const userLevel = getLearningLanguageLevelForLanguage(settings, lang);
+    const idsToRemove = suggestions
+      .filter((suggestion) => {
+        if (findUnpopulatedFlashcardForWord(suggestion.word, lang)) return false;
+        const level = getSuggestedFlashcardLevel(suggestion);
+        return !shouldKeepSuggestion(
+          { word: suggestion.word, reading: suggestion.reading, pos: suggestion.pos, level, language: lang },
+          settings,
+          known,
+          userLevel,
+          getComprehensiveWordStatusSync(suggestion.word, lang),
+          suggestionLanguageData,
+          {
+            getWordForms: (word) => getWordFormsForLanguage(word, lang),
+            dictionaryTargetLanguage,
+            languageData: suggestionLanguageData,
+          },
+        );
+      })
+      .map((suggestion) => suggestion.id);
+
+    if (idsToRemove.length > 0) removeSuggestedFlashcards(idsToRemove);
     return idsToRemove.length;
   };
 
@@ -3241,6 +3287,7 @@ Translation: [${targetLang} translation]`;
     removeSuggestedFlashcard,
     removeSuggestedFlashcards,
     cleanupKnownSuggestions,
+    garbageCollectSuggestedFlashcards,
     promoteSuggestedFlashcards,
     addLevelStudyFlashcards,
     trackWordSeen,

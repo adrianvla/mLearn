@@ -4,6 +4,15 @@
   background: var(--bg-opaque);
 }
 
+.flashcards-suggested-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: var(--flashcards-suggested-header-height, 0px);
+  color: var(--text-secondary);
+}
+
 .flashcards-suggested > .collapsible-sticky-header {
   position: absolute;
   top: 0;
@@ -145,6 +154,7 @@
 .flashcards-suggested-card {
   height: 100%;
   width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   position: relative;
   display: flex;
