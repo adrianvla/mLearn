@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@internationalized/date": "^3.12.2",
     "@heroui/react": "^3.2.2",
     "@heroui/styles": "^3.2.2",
     "lucide-react": "^0.468.0",
