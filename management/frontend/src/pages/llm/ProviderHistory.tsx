@@ -52,18 +52,27 @@ export function ProviderHistory({ open, onOpenChange, groupId, providerId, provi
 }
 
 export function toUsageSeries(usage: ProviderHistoryData['usage']): ChartSeries[] {
-  const aggregate = (metric: 'requests' | 'costMicros' | 'latencyMs' | 'errors') => usage.map((day) => ({
-    start: day.start,
-    end: day.end,
-    coverage: day.coverage,
-    value: day.values === null ? null : day.values.reduce((total, value) => total + value[metric], 0),
-  }));
-  return [
-    { key: 'requests', label: 'Provider requests', kind: 'primary' as const, values: aggregate('requests') },
-    { key: 'cost', label: 'Provider cost micros', kind: 'primary' as const, values: aggregate('costMicros') },
-    { key: 'latency', label: 'Recorded latency (ms)', kind: 'primary' as const, values: aggregate('latencyMs') },
-    { key: 'errors', label: 'Recorded errors', kind: 'primary' as const, values: aggregate('errors') },
+  const models = new Map<string, { id: string; groupId: string; label: string }>();
+  for (const day of usage) for (const model of day.values ?? []) {
+    models.set(`${model.modelId}:${model.groupId}`, { id: model.modelId, groupId: model.groupId, label: `${model.modelKey} · ${model.groupId}` });
+  }
+  const metrics: ReadonlyArray<{ key: 'requests' | 'costMicros' | 'latencyMs' | 'errors'; label: string }> = [
+    { key: 'requests', label: 'Requests' },
+    { key: 'costMicros', label: 'Cost micros' },
+    { key: 'latencyMs', label: 'Recorded latency (ms)' },
+    { key: 'errors', label: 'Recorded errors' },
   ];
+  return [...models.values()].flatMap((model) => metrics.map((metric) => ({
+    key: `${metric.key}:${model.id}:${model.groupId}`,
+    label: `${model.label} ${metric.label}`,
+    kind: 'primary' as const,
+    values: usage.map((day) => ({
+      start: day.start,
+      end: day.end,
+      coverage: day.coverage,
+      value: day.values === null ? null : day.values.find((value) => value.modelId === model.id && value.groupId === model.groupId)?.[metric.key] ?? 0,
+    })),
+  })));
 }
 
 function ProviderUsageTable({ usage, timezone }: { usage: ProviderHistoryData['usage']; timezone: string }) {
