@@ -21,7 +21,7 @@ function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks' | '
       return typeof response === 'function' ? response(url) : response?.clone() ?? json({ from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 1, items: [{ id: 'activity:1', occurredAt: history.primary[0].start, learnerId: 'u', activityKind: 'reader', eventType: 'activity.progressed', contentTitle: 'First reader', readerPage: 4, videoTimeMillis: null }], nextCursor: null });
     }
     if (url.includes('/api/analytics/history')) return overrides.history?.clone() ?? json(history);
-    if (url.includes('/api/analytics/llm')) return overrides.llm?.clone() ?? json({ requests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000 });
+    if (url.includes('/api/analytics/llm')) return overrides.llm?.clone() ?? json({ requests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000, latencyMs: 42, errors: 1, breakdown: [{ providerId: 'provider-a', modelId: 'model-a', groupId: 'german', requests: 4, costMicros: 1000, latencyMs: 42, errors: 1 }] });
     if (url.includes('/api/analytics/policy-blocks')) return overrides.blocks?.clone() ?? json({ blocks: 1 });
     if (url.includes('/api/llm/usage')) return json({ buckets: [{ scopeKind: 'user', scopeId: 'u', remaining: 75 }] });
     if (url.includes('/learners')) return overrides.learners?.clone() ?? json({ items: [{ ...values, learnerId: 'u', displayName: 'Learner', lastActivityAt: 1_700_000_000_000 }] });
@@ -66,6 +66,15 @@ it('restores a saved view as one analytics state including filters, tab, metrics
   expect(savedViewLabel.parentElement).toHaveTextContent('Learner focus');
   expect(screen.getByRole('heading', { name: 'Learner breakdown' })).toBeVisible();
   expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/analytics/learners?groupId=german&from=1700000000000&to=1700086400000'), expect.anything());
+});
+
+it('renders factual recorded latency errors and provider model group values', async () => {
+  installFetch();
+  render(<Analytics />);
+  fireEvent.click(await screen.findByRole('tab', { name: 'llm usage' }));
+  expect((await screen.findAllByText('Recorded latency')).length).toBeGreaterThan(0);
+  expect(screen.getByRole('table', { name: 'LLM provider model group breakdown' })).toHaveTextContent('provider-a');
+  expect(screen.getByRole('table', { name: 'LLM provider model group breakdown' })).toHaveTextContent('42 ms');
 });
 
 it('renders a factual workspace for each breakdown selection', async () => {

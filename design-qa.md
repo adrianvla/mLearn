@@ -2,7 +2,9 @@
 
 Reference: the supplied stock HeroUI dark dashboard screenshot and theme tokens.
 
-Validated in the live embedded management server at 1280x720 and 390x844:
+Previous visual checks were completed before the final historical-data and
+timezone corrections. They must be rerun against the final embedded server at
+1280x720 and 390x844 before this document can record a pass.
 
 - Shell uses the requested restrained HeroUI palette, bordered sidebar, compact top bar, and pill navigation.
 - Dashboard retains all metrics and controls while matching the reference composition: four equal metric cards, two balanced analysis panels, and activity content below.
@@ -14,10 +16,10 @@ Validated in the live embedded management server at 1280x720 and 390x844:
 - Dashboard tab selection and the policy rule selector were exercised successfully.
 - Browser console errors: none.
 
-Unresolved P0 issues: none.
+Unresolved P0 issues: final live inspection pending.
 
-Unresolved P1 issues: none.
+Unresolved P1 issues: final live inspection pending.
 
-Unresolved P2 issues: none.
+Unresolved P2 issues: final live inspection pending.
 
-final result: passed
+final result: pending final browser QA

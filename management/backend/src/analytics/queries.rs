@@ -25,6 +25,11 @@ pub struct AnalyticsSummary {
     pub total_tokens: i64,
     pub cost_micros: i64,
     pub policy_blocks: i64,
+    /// Sum of request latency only for terminal requests that recorded it.
+    /// This is intentionally not an inferred duration.
+    pub latency_ms: i64,
+    /// Requests with a recorded terminal error code.
+    pub llm_errors: i64,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -42,6 +47,8 @@ pub enum AnalyticsMetric {
     TotalTokens,
     CostMicros,
     PolicyBlocks,
+    LatencyMs,
+    LlmErrors,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -107,6 +114,21 @@ pub struct LlmAnalytics {
     pub output_tokens: i64,
     pub total_tokens: i64,
     pub cost_micros: i64,
+    pub latency_ms: i64,
+    pub errors: i64,
+    pub breakdown: Vec<LlmUsageBreakdown>,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmUsageBreakdown {
+    pub provider_id: String,
+    pub model_id: String,
+    pub group_id: String,
+    pub requests: i64,
+    pub cost_micros: i64,
+    pub latency_ms: i64,
+    pub errors: i64,
 }
 #[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -205,6 +227,28 @@ pub struct UserDailyActivityValues {
 pub struct UserDailyHistory {
     pub timezone: String,
     pub daily: Vec<UserDailyActivity>,
+    pub devices: Vec<UserDeviceHistory>,
+    pub membership_changes: Vec<UserMembershipHistory>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDeviceHistory {
+    pub id: String,
+    pub name: String,
+    pub platform: String,
+    pub first_recorded_at: i64,
+    pub last_seen_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserMembershipHistory {
+    pub membership_id: String,
+    pub group_id: String,
+    pub group_name: String,
+    pub action: String,
+    pub occurred_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -221,8 +265,11 @@ pub struct ProviderUsageDay {
 pub struct ProviderModelUsage {
     pub model_id: String,
     pub model_key: String,
+    pub group_id: String,
     pub requests: i64,
     pub cost_micros: i64,
+    pub latency_ms: i64,
+    pub errors: i64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -251,6 +298,18 @@ pub struct AnalyticsQueryService {
 impl AnalyticsQueryService {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
+    }
+
+    pub async fn timezone(&self, principal: &Principal, group: &str) -> Result<String, AppError> {
+        let mut connection = self.pool.acquire().await.map_err(db)?;
+        let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+        ensure_live_principal(&mut tx, principal).await?;
+        AuthorizationService::new(self.pool.clone())
+            .require_in_transaction(&mut tx, principal, group, Capability::GroupView)
+            .await?;
+        let timezone = school_timezone(&mut tx, group).await?.name().to_string();
+        tx.commit().await.map_err(db)?;
+        Ok(timezone)
     }
     pub async fn run_retention(
         &self,
@@ -366,11 +425,30 @@ impl AnalyticsQueryService {
         from: i64,
         to: i64,
     ) -> Result<AnalyticsSummary, AppError> {
-        let events = self.authorized_events(principal, group, from, to).await?;
-        let mut result = summarize(&events);
-        self.add_llm(principal, group, from, to, &mut result)
+        // Aggregate cards and CSV must use the same durable daily material used by
+        // the historical charts. Raw events are only used for a selected partial
+        // school day, where a rollup cannot represent the requested boundary.
+        let history = self
+            .history(
+                principal,
+                group,
+                HistoricalAnalyticsQuery {
+                    from,
+                    to,
+                    granularity: AnalyticsGranularity::Daily,
+                    metrics: Vec::new(),
+                    comparison: ComparisonMode::None,
+                },
+            )
             .await?;
-        Ok(result)
+        Ok(history
+            .primary
+            .iter()
+            .filter_map(|bucket| bucket.values.as_ref())
+            .fold(AnalyticsSummary::default(), |mut aggregate, values| {
+                add_summary(&mut aggregate, values);
+                aggregate
+            }))
     }
 
     pub async fn history(
@@ -652,10 +730,18 @@ impl AnalyticsQueryService {
                 values: (!raw_expired).then_some(values).flatten(),
             });
         }
+        let devices = sqlx::query("SELECT id,name,platform,created_at,last_seen_at FROM devices WHERE user_id=? AND (created_at*1000<? OR last_seen_at*1000>=?) ORDER BY created_at DESC,id DESC")
+            .bind(user_id).bind(to).bind(from).fetch_all(&mut *tx).await.map_err(db)?
+            .into_iter().map(|row| UserDeviceHistory { id: row.get("id"), name: row.get("name"), platform: row.get("platform"), first_recorded_at: row.get("created_at"), last_seen_at: row.get("last_seen_at") }).collect();
+        let membership_changes = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT event.target_id membership_id,membership.group_id,groups.name group_name,event.action,event.created_at FROM audit_events event JOIN group_memberships membership ON membership.id=event.target_id JOIN groups ON groups.id=membership.group_id JOIN descendants d ON d.id=membership.group_id WHERE event.target_type='group_membership' AND membership.user_id=? AND event.created_at>=? AND event.created_at<? ORDER BY event.created_at DESC,event.id DESC")
+            .bind(group).bind(user_id).bind(from.div_euclid(1000)).bind(to.div_euclid(1000)).fetch_all(&mut *tx).await.map_err(db)?
+            .into_iter().map(|row| UserMembershipHistory { membership_id: row.get("membership_id"), group_id: row.get("group_id"), group_name: row.get("group_name"), action: row.get("action"), occurred_at: row.get("created_at") }).collect();
         tx.commit().await.map_err(db)?;
         Ok(UserDailyHistory {
             timezone: timezone.name().to_string(),
             daily,
+            devices,
+            membership_changes,
         })
     }
 
@@ -686,7 +772,7 @@ impl AnalyticsQueryService {
             ));
         }
         let timezone = school_timezone(&mut tx, group).await?;
-        let usage_rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT request.created_at,request.model_id,COALESCE(model.model_key,request.model_id) model_key,COUNT(*) requests,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id LEFT JOIN llm_models model ON model.id=request.model_id WHERE request.provider_id=? AND request.created_at*1000>=? AND request.created_at*1000<? GROUP BY request.created_at,request.model_id,model.model_key ORDER BY request.created_at,request.model_id")
+        let usage_rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT request.created_at,request.model_id,COALESCE(model.model_key,request.model_id) model_key,conversation.owner_group_id group_id,COUNT(*) requests,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros,COALESCE(SUM(request.latency_ms),0) latency_ms,COALESCE(SUM(CASE WHEN request.error_code IS NOT NULL THEN 1 ELSE 0 END),0) errors FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id LEFT JOIN llm_models model ON model.id=request.model_id WHERE request.provider_id=? AND request.created_at*1000>=? AND request.created_at*1000<? GROUP BY request.created_at,request.model_id,model.model_key,conversation.owner_group_id ORDER BY request.created_at,request.model_id,conversation.owner_group_id")
             .bind(group)
             .bind(provider_id)
             .bind(from)
@@ -701,15 +787,24 @@ impl AnalyticsQueryService {
             let model_id: String = row.get("model_id");
             let model_key: String = row.get("model_key");
             let usage = usage_by_day.entry(day_start).or_default();
-            if let Some(model) = usage.iter_mut().find(|model| model.model_id == model_id) {
+            let group_id: String = row.get("group_id");
+            if let Some(model) = usage
+                .iter_mut()
+                .find(|model| model.model_id == model_id && model.group_id == group_id)
+            {
                 model.requests += row.get::<i64, _>("requests");
                 model.cost_micros += row.get::<i64, _>("cost_micros");
+                model.latency_ms += row.get::<i64, _>("latency_ms");
+                model.errors += row.get::<i64, _>("errors");
             } else {
                 usage.push(ProviderModelUsage {
                     model_id,
                     model_key,
+                    group_id,
                     requests: row.get("requests"),
                     cost_micros: row.get("cost_micros"),
+                    latency_ms: row.get("latency_ms"),
+                    errors: row.get("errors"),
                 });
             }
         }
@@ -792,6 +887,9 @@ impl AnalyticsQueryService {
             output_tokens: s.output_tokens,
             total_tokens: s.total_tokens,
             cost_micros: s.cost_micros,
+            latency_ms: s.latency_ms,
+            errors: s.llm_errors,
+            breakdown: self.llm_breakdown(principal, group, from, to).await?,
         })
     }
     pub async fn policy_blocks(
@@ -819,39 +917,29 @@ impl AnalyticsQueryService {
         from: i64,
         to: i64,
     ) -> Result<Vec<TimeseriesPoint>, AppError> {
-        let events = self.authorized_events(principal, group, from, to).await?;
-        let timezone:Option<String>=sqlx::query_scalar("WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM groups WHERE id=? UNION ALL SELECT g.id,g.parent_id FROM groups g JOIN ancestors a ON a.parent_id=g.id) SELECT c.timezone FROM ancestors a JOIN school_quota_calendars c ON c.root_group_id=a.id WHERE a.parent_id IS NULL").bind(group).fetch_optional(&self.pool).await.map_err(db)?;
-        let timezone: chrono_tz::Tz = timezone
-            .as_deref()
-            .unwrap_or("UTC")
-            .parse()
-            .map_err(|_| AppError::Internal("invalid school timezone".into()))?;
-        let mut days: HashMap<i64, Vec<Event>> = HashMap::new();
-        for e in events {
-            let instant = Utc
-                .timestamp_millis_opt(e.at)
-                .single()
-                .ok_or_else(|| AppError::Internal("invalid analytics timestamp".into()))?;
-            let date = instant.with_timezone(&timezone).date_naive();
-            let local_midnight = date
-                .and_hms_opt(0, 0, 0)
-                .ok_or_else(|| AppError::Internal("invalid school calendar day".into()))?;
-            let day_start = timezone
-                .from_local_datetime(&local_midnight)
-                .earliest()
-                .ok_or_else(|| AppError::Internal("school timezone has no day boundary".into()))?
-                .timestamp_millis();
-            days.entry(day_start).or_default().push(e);
-        }
-        let mut out: Vec<_> = days
+        let history = self
+            .history(
+                principal,
+                group,
+                HistoricalAnalyticsQuery {
+                    from,
+                    to,
+                    granularity: AnalyticsGranularity::Daily,
+                    metrics: Vec::new(),
+                    comparison: ComparisonMode::None,
+                },
+            )
+            .await?;
+        Ok(history
+            .primary
             .into_iter()
-            .map(|(day_start, events)| TimeseriesPoint {
-                day_start,
-                summary: summarize(&events),
+            .filter_map(|bucket| {
+                bucket.values.map(|summary| TimeseriesPoint {
+                    day_start: bucket.start,
+                    summary,
+                })
             })
-            .collect();
-        out.sort_by_key(|p| p.day_start);
-        Ok(out)
+            .collect())
     }
     pub async fn learners(
         &self,
@@ -1009,8 +1097,42 @@ impl AnalyticsQueryService {
         }
         s.policy_blocks=sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) FROM llm_policy_block_events e JOIN descendants d ON d.id=e.owner_group_id WHERE e.created_at>=? AND e.created_at<? AND (? IS NULL OR e.learner_user_id=?)")
             .bind(group).bind(from.div_euclid(1000)).bind(to.div_euclid(1000)).bind(learner).bind(learner).fetch_one(&mut *tx).await.map_err(db)?;
+        let recorded = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COALESCE(SUM(request.latency_ms),0) latency_ms,COALESCE(SUM(CASE WHEN request.error_code IS NOT NULL THEN 1 ELSE 0 END),0) errors FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at>=? AND request.created_at<? AND (? IS NULL OR conversation.learner_user_id=?)")
+            .bind(group).bind(from.div_euclid(1000)).bind(to.div_euclid(1000)).bind(learner).bind(learner).fetch_one(&mut *tx).await.map_err(db)?;
+        s.latency_ms = recorded.get("latency_ms");
+        s.llm_errors = recorded.get("errors");
         tx.commit().await.map_err(db)?;
         Ok(())
+    }
+
+    async fn llm_breakdown(
+        &self,
+        principal: &Principal,
+        group: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<LlmUsageBreakdown>, AppError> {
+        let mut connection = self.pool.acquire().await.map_err(db)?;
+        let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+        ensure_live_principal(&mut tx, principal).await?;
+        AuthorizationService::new(self.pool.clone())
+            .require_in_transaction(&mut tx, principal, group, Capability::AnalyticsView)
+            .await?;
+        let rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT request.provider_id,request.model_id,conversation.owner_group_id group_id,COUNT(*) requests,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros,COALESCE(SUM(request.latency_ms),0) latency_ms,COALESCE(SUM(CASE WHEN request.error_code IS NOT NULL THEN 1 ELSE 0 END),0) errors FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at*1000>=? AND request.created_at*1000<? GROUP BY request.provider_id,request.model_id,conversation.owner_group_id ORDER BY request.provider_id,request.model_id,conversation.owner_group_id")
+            .bind(group).bind(from).bind(to).fetch_all(&mut *tx).await.map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| LlmUsageBreakdown {
+                provider_id: row.get("provider_id"),
+                model_id: row.get("model_id"),
+                group_id: row.get("group_id"),
+                requests: row.get("requests"),
+                cost_micros: row.get("cost_micros"),
+                latency_ms: row.get("latency_ms"),
+                errors: row.get("errors"),
+            })
+            .collect())
     }
 }
 
@@ -1262,7 +1384,7 @@ async fn aggregate_history_bucket(
         let (rows, values) = total_activity_summary(tx, group, from, to).await?;
         (rows, values, false)
     };
-    let llm = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) row_count,COALESCE(SUM(COALESCE(request.input_tokens,0)),0) input_tokens,COALESCE(SUM(COALESCE(request.output_tokens,0)),0) output_tokens,COALESCE(SUM(COALESCE(request.input_tokens,0)+COALESCE(request.output_tokens,0)),0) total_tokens,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at*1000>=? AND request.created_at*1000<?")
+    let llm = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) row_count,COALESCE(SUM(COALESCE(request.input_tokens,0)),0) input_tokens,COALESCE(SUM(COALESCE(request.output_tokens,0)),0) output_tokens,COALESCE(SUM(COALESCE(request.input_tokens,0)+COALESCE(request.output_tokens,0)),0) total_tokens,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros,COALESCE(SUM(request.latency_ms),0) latency_ms,COALESCE(SUM(CASE WHEN request.error_code IS NOT NULL THEN 1 ELSE 0 END),0) errors FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at*1000>=? AND request.created_at*1000<?")
         .bind(group)
         .bind(from)
         .bind(to)
@@ -1275,6 +1397,8 @@ async fn aggregate_history_bucket(
     values.output_tokens = llm.get("output_tokens");
     values.total_tokens = llm.get("total_tokens");
     values.cost_micros = llm.get("cost_micros");
+    values.latency_ms = llm.get("latency_ms");
+    values.llm_errors = llm.get("errors");
     values.policy_blocks = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT COUNT(*) FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at*1000>=? AND event.created_at*1000<?")
         .bind(group)
         .bind(from)
@@ -1514,6 +1638,23 @@ fn summarize(events: &[Event]) -> AnalyticsSummary {
     s.active_learners = users.len() as i64;
     s.sessions = sessions.len() as i64;
     s
+}
+
+fn add_summary(target: &mut AnalyticsSummary, source: &AnalyticsSummary) {
+    target.active_learners += source.active_learners;
+    target.sessions += source.sessions;
+    target.watch_seconds += source.watch_seconds;
+    target.completions += source.completions;
+    target.reader_pages += source.reader_pages;
+    target.flashcard_events += source.flashcard_events;
+    target.llm_requests += source.llm_requests;
+    target.input_tokens += source.input_tokens;
+    target.output_tokens += source.output_tokens;
+    target.total_tokens += source.total_tokens;
+    target.cost_micros += source.cost_micros;
+    target.policy_blocks += source.policy_blocks;
+    target.latency_ms += source.latency_ms;
+    target.llm_errors += source.llm_errors;
 }
 fn db(e: sqlx::Error) -> AppError {
     AppError::Internal(format!("analytics database error: {e}"))

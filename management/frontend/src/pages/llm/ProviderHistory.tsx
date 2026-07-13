@@ -41,7 +41,7 @@ export function ProviderHistory({ open, onOpenChange, groupId, providerId, provi
     {history !== null ? <>
       <section aria-labelledby="provider-usage-heading">
         <h3 id="provider-usage-heading">Provider and model usage</h3>
-        {usageSeries.length === 0 ? <p role="status">No provider requests were recorded in this period.</p> : <><HistoricalChart title="Provider usage chart" series={usageSeries} /><AnalyticsHistoryTable title="Provider usage" series={usageSeries} /></>}
+        {usageSeries.length === 0 ? <p role="status">No provider requests were recorded in this period.</p> : <><HistoricalChart title="Provider usage chart" series={usageSeries} timezone={history.timezone} /><AnalyticsHistoryTable title="Provider usage" series={usageSeries} timezone={history.timezone} /><ProviderUsageTable usage={history.usage} timezone={history.timezone} /></>}
       </section>
       <section aria-labelledby="provider-health-heading">
         <h3 id="provider-health-heading">Recorded configuration checks</h3>
@@ -52,8 +52,8 @@ export function ProviderHistory({ open, onOpenChange, groupId, providerId, provi
 }
 
 function toUsageSeries(usage: ProviderHistoryData['usage']): ChartSeries[] {
-  const models = new Map<string, { id: string; key: string }>();
-  for (const day of usage) for (const model of day.values ?? []) models.set(model.modelId, { id: model.modelId, key: model.modelKey });
+  const models = new Map<string, { id: string; groupId: string; key: string }>();
+  for (const day of usage) for (const model of day.values ?? []) models.set(`${model.modelId}:${model.groupId}`, { id: model.modelId, groupId: model.groupId, key: `${model.modelKey} · ${model.groupId}` });
   if (models.size === 0 && usage.length > 0) return [{
     key: 'requests',
     label: 'Provider requests',
@@ -61,14 +61,20 @@ function toUsageSeries(usage: ProviderHistoryData['usage']): ChartSeries[] {
     values: usage.map((day) => ({ start: day.start, end: day.end, value: null, coverage: day.coverage })),
   }];
   return [...models.values()].flatMap((model) => [{
-    key: `requests-${model.id}`,
+    key: `requests-${model.id}-${model.key}`,
     label: `${model.key} requests`,
     kind: 'primary' as const,
-    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id)?.requests ?? 0, coverage: day.coverage })),
+    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id && value.groupId === model.groupId)?.requests ?? 0, coverage: day.coverage })),
   }, {
-    key: `cost-${model.id}`,
+    key: `cost-${model.id}-${model.key}`,
     label: `${model.key} cost micros`,
     kind: 'primary' as const,
-    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id)?.costMicros ?? 0, coverage: day.coverage })),
+    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id && value.groupId === model.groupId)?.costMicros ?? 0, coverage: day.coverage })),
   }]);
+}
+
+function ProviderUsageTable({ usage, timezone }: { usage: ProviderHistoryData['usage']; timezone: string }) {
+  const rows = usage.flatMap((day) => (day.values ?? []).map((value) => ({ day, value })));
+  if (rows.length === 0) return null;
+  return <div className="table-scroll"><table aria-label="Provider model group usage"><caption className="sr-only">Exact provider, model, and group usage</caption><thead><tr><th>Period</th><th>Model</th><th>Group</th><th>Requests</th><th>Cost</th><th>Recorded latency</th><th>Errors</th></tr></thead><tbody>{rows.map(({ day, value }) => <tr key={`${day.start}:${value.modelId}:${value.groupId}`}><td>{new Intl.DateTimeFormat(undefined, { timeZone: timezone }).format(new Date(day.start))}</td><th>{value.modelKey}</th><td>{value.groupId}</td><td>{value.requests}</td><td>{(value.costMicros / 1_000_000).toFixed(4)}</td><td>{value.latencyMs} ms</td><td>{value.errors}</td></tr>)}</tbody></table></div>;
 }

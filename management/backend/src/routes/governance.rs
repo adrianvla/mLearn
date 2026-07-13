@@ -63,8 +63,12 @@ struct GovernanceSummary {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GovernancePolicy {
-    name: String,
-    status: String,
+    group_id: String,
+    group_name: String,
+    active_policy_count: i64,
+    policy_scope: String,
+    has_unpublished_draft: bool,
+    last_published_at: Option<i64>,
     href: String,
 }
 
@@ -423,7 +427,7 @@ async fn unavailable_providers(
     .fetch_all(&state.db)
     .await
     .map_err(database_error)?;
-    Ok(rows
+    let mut notifications = rows
         .into_iter()
         .map(|row| {
             let id: String = row.get("id");
@@ -438,7 +442,41 @@ async fn unavailable_providers(
                 created_at: row.get("updated_at"),
             }
         })
-        .collect())
+        .collect::<Vec<_>>();
+    let failed_checks = sqlx::query(
+        "WITH RECURSIVE scope(id) AS (
+            SELECT id FROM groups WHERE id=? AND status!='archived'
+            UNION ALL SELECT child.id FROM groups child JOIN scope parent ON child.parent_id=parent.id WHERE child.status!='archived'
+         ), latest AS (
+            SELECT provider_id,MAX(created_at) created_at FROM provider_health_checks GROUP BY provider_id
+         )
+         SELECT provider.id,provider.group_id,provider.name,check_row.id check_id,check_row.outcome,check_row.created_at
+         FROM scope JOIN llm_providers provider ON provider.group_id=scope.id
+         JOIN latest ON latest.provider_id=provider.id
+         JOIN provider_health_checks check_row ON check_row.provider_id=latest.provider_id AND check_row.created_at=latest.created_at
+         WHERE check_row.outcome!='healthy' ORDER BY check_row.created_at DESC,check_row.id DESC",
+    )
+    .bind(group_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(database_error)?;
+    notifications.extend(failed_checks.into_iter().map(|row| {
+        let check_id: String = row.get("check_id");
+        let outcome: String = row.get("outcome");
+        DerivedNotification {
+            fingerprint: format!("provider-health-failed:{check_id}"),
+            kind: "providerUnavailable",
+            severity: "warning",
+            group_id: row.get("group_id"),
+            message: format!(
+                "Provider '{}' recorded a failed health check ({outcome})",
+                row.get::<String, _>("name")
+            ),
+            href: "/llm-gateway",
+            created_at: row.get("created_at"),
+        }
+    }));
+    Ok(notifications)
 }
 
 async fn expiring_keys(
@@ -491,11 +529,17 @@ async fn governance_policies(
             SELECT id FROM groups WHERE id=? AND status!='archived'
             UNION ALL SELECT child.id FROM groups child JOIN scope parent ON child.parent_id=parent.id WHERE child.status!='archived'
          )
-         SELECT policy.name,active.policy_version_id,draft.document_hash
-         FROM scope JOIN policies policy ON policy.group_id=scope.id
+         SELECT scope.id group_id,scope_group.name group_name,
+           COALESCE(SUM(CASE WHEN policy.enabled=1 AND active.policy_version_id IS NOT NULL THEN 1 ELSE 0 END),0) active_policy_count,
+           MAX(CASE WHEN draft.document_hash IS NOT NULL AND (version.document_hash IS NULL OR version.document_hash!=draft.document_hash) THEN 1 ELSE 0 END) has_unpublished_draft,
+           MAX(version.created_at) last_published_at,
+           EXISTS(SELECT 1 FROM policies local_policy JOIN policy_active_versions local_active ON local_active.policy_id=local_policy.id WHERE local_policy.group_id=scope.id AND local_policy.enabled=1 AND local_active.policy_version_id IS NOT NULL) has_local
+         FROM scope JOIN groups scope_group ON scope_group.id=scope.id
+         LEFT JOIN policies policy ON policy.group_id=scope.id
          LEFT JOIN policy_active_versions active ON active.policy_id=policy.id
+         LEFT JOIN policy_versions version ON version.id=active.policy_version_id
          LEFT JOIN policy_drafts draft ON draft.policy_id=policy.id
-         WHERE policy.enabled=1 ORDER BY policy.priority,policy.id",
+         GROUP BY scope.id,scope_group.name ORDER BY scope_group.name,scope.id",
     )
     .bind(group_id)
     .fetch_all(&state.db)
@@ -504,14 +548,16 @@ async fn governance_policies(
     Ok(rows
         .into_iter()
         .map(|row| GovernancePolicy {
-            name: row.get("name"),
-            status: if row.get::<Option<String>, _>("policy_version_id").is_some() {
-                "Published".into()
-            } else if row.get::<Option<String>, _>("document_hash").is_some() {
-                "Draft".into()
+            group_id: row.get("group_id"),
+            group_name: row.get("group_name"),
+            active_policy_count: row.get("active_policy_count"),
+            policy_scope: if row.get::<i64, _>("has_local") != 0 {
+                "Local".into()
             } else {
-                "Unpublished".into()
+                "Inherited".into()
             },
+            has_unpublished_draft: row.get::<i64, _>("has_unpublished_draft") != 0,
+            last_published_at: row.get("last_published_at"),
             href: "/policies".into(),
         })
         .collect())

@@ -6,6 +6,7 @@ import { DatePickerField } from '../components/DatePickerField';
 import { PageToolbar } from '../components/PageToolbar';
 import { ConsoleButton, ConsoleDialog, ConsoleTextField } from '../components/console';
 import { useGroupScope } from '../groups/GroupScopeProvider';
+import { formatSchoolDate, schoolDayStart, schoolNextDayStart } from '../utils/schoolTime';
 
 const api = new ApiClient();
 export default function ActivityLog() {
@@ -23,19 +24,31 @@ export default function ActivityLog() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [selected, setSelected] = useState<AuditEvent | null>(null);
+  const [timezone, setTimezone] = useState<string | null>(null);
   const clearFilters = () => { setActorUserId(''); setAction(''); setTargetType(''); setTargetId(''); setFrom(''); setTo(''); };
   const filtersApplied = Boolean(actorUserId || action || targetType || targetId || from || to);
   const query = useMemo(() => {
     if (!groupId) return null;
     const params = new URLSearchParams({ groupId });
-    if (from) params.set('from', String(Math.floor(Date.parse(`${from}T00:00:00Z`) / 1000)));
-    if (to) params.set('to', String(Math.floor(Date.parse(`${to}T23:59:59Z`) / 1000)));
+    const zone = timezone ?? 'UTC';
+    if (from) { const start = schoolDayStart(from, zone); if (start !== null) params.set('from', String(Math.floor(start / 1000))); }
+    if (to) { const end = schoolNextDayStart(to, zone); if (end !== null) params.set('to', String(Math.floor((end - 1) / 1000))); }
     if (actorUserId) params.set('actorUserId', actorUserId);
     if (action) params.set('action', action);
     if (targetType) params.set('targetType', targetType);
     if (targetId) params.set('targetId', targetId);
     return params;
-  }, [action, actorUserId, from, groupId, targetId, targetType, to]);
+  }, [action, actorUserId, from, groupId, targetId, targetType, timezone, to]);
+
+  useEffect(() => {
+    setTimezone(null);
+    if (!groupId) return;
+    const controller = new AbortController();
+    void api.get<{ timezone: string }>(`/api/analytics/timezone?groupId=${encodeURIComponent(groupId)}`, { signal: controller.signal })
+      .then((value) => { if (!controller.signal.aborted) setTimezone(value.timezone); })
+      .catch(() => { if (!controller.signal.aborted) setTimezone('UTC'); });
+    return () => controller.abort();
+  }, [groupId]);
 
   useEffect(() => {
     setEvents([]); setNextCursor(null); setError(null); setLoading(query !== null);
@@ -64,7 +77,7 @@ export default function ActivityLog() {
       <ConsoleTextField label="Target type" value={targetType} onChange={setTargetType} placeholder="Exact target type" />
       <ConsoleTextField label="Target ID" value={targetId} onChange={setTargetId} placeholder="Target ID" />
     </div></div>}>
-      {events.length ? <div className="table-scroll"><table><caption className="sr-only">Administrative activity</caption><thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>Group</th><th>When</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><th><ConsoleButton className="table-link" onClick={() => setSelected(event)}>{event.action}</ConsoleButton></th><td>{event.actor ?? 'System'}</td><td>{event.targetType ?? '—'}{event.targetId ? ` / ${event.targetId}` : ''}</td><td>{event.authorizedGroupId}</td><td>{new Date(event.timestamp * 1000).toLocaleString()}</td></tr>)}</tbody></table></div> : undefined}
+      {events.length ? <div className="table-scroll"><table><caption className="sr-only">Administrative activity</caption><thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>Group</th><th>When</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><th><ConsoleButton className="table-link" onClick={() => setSelected(event)}>{event.action}</ConsoleButton></th><td>{event.actor ?? 'System'}</td><td>{event.targetType ?? '—'}{event.targetId ? ` / ${event.targetId}` : ''}</td><td>{event.authorizedGroupId}</td><td>{formatSchoolDate(event.timestamp * 1000, timezone ?? 'UTC', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>)}</tbody></table></div> : undefined}
     </DataTableShell>
     {nextCursor && <ConsoleButton className="secondary-action" onClick={() => void loadMore()}>Load more</ConsoleButton>}
     {selected && <ConsoleDialog open onOpenChange={(open) => { if (!open) setSelected(null); }} title="Activity event" footer={<ConsoleButton onClick={() => setSelected(null)}>Close</ConsoleButton>}><dl><div><dt>Action</dt><dd>{selected.action}</dd></div><div><dt>Actor</dt><dd>{selected.actor ?? 'System'}</dd></div><div><dt>Target</dt><dd>{selected.targetType ?? '—'}{selected.targetId ? ` / ${selected.targetId}` : ''}</dd></div><div><dt>Group</dt><dd>{selected.authorizedGroupId}</dd></div><div><dt>Request</dt><dd>{selected.requestId ?? '—'}</dd></div></dl>{selected.metadata !== null && <pre aria-label="Redacted event metadata">{JSON.stringify(selected.metadata, null, 2)}</pre>}</ConsoleDialog>}

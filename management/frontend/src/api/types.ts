@@ -338,11 +338,12 @@ export interface AnalyticsSummary {
   activeLearners: number; sessions: number; watchSeconds: number; completions: number;
   readerPages: number; flashcardEvents: number; llmRequests: number; inputTokens: number;
   outputTokens: number; totalTokens: number; costMicros: number; policyBlocks: number;
+  latencyMs: number; llmErrors: number;
 }
 export type AnalyticsMetric =
   | 'activeLearners' | 'sessions' | 'watchSeconds' | 'completions'
   | 'readerPages' | 'flashcardEvents' | 'llmRequests' | 'inputTokens'
-  | 'outputTokens' | 'totalTokens' | 'costMicros' | 'policyBlocks';
+  | 'outputTokens' | 'totalTokens' | 'costMicros' | 'policyBlocks' | 'latencyMs' | 'llmErrors';
 export type AnalyticsGranularity = 'daily' | 'weekly' | 'monthly';
 export type ComparisonMode = 'none' | 'previousPeriod' | 'previousYear';
 export type AnalyticsTab = 'overview' | 'learners' | 'content' | 'llm usage' | 'policy blocks';
@@ -396,7 +397,11 @@ export interface UserDailyActivityValues {
 export interface UserDailyHistory {
   timezone: string;
   daily: UserDailyActivity[];
+  devices: UserDeviceHistory[];
+  membershipChanges: UserMembershipHistory[];
 }
+export interface UserDeviceHistory { id: string; name: string; platform: string; firstRecordedAt: number; lastSeenAt: number }
+export interface UserMembershipHistory { membershipId: string; groupId: string; groupName: string; action: string; occurredAt: number }
 export interface ProviderUsageDay {
   start: number;
   end: number;
@@ -406,8 +411,11 @@ export interface ProviderUsageDay {
 export interface ProviderModelUsage {
   modelId: string;
   modelKey: string;
+  groupId: string;
   requests: number;
   costMicros: number;
+  latencyMs: number;
+  errors: number;
 }
 export interface ProviderHealthCheckHistory {
   id: string;
@@ -439,7 +447,8 @@ export interface HistoryEventPage extends CursorPage<HistoryEvent> {
   total: number;
 }
 export interface TimeseriesPoint extends AnalyticsSummary { dayStart: number }
-export interface LlmAnalytics { requests: number; inputTokens: number; outputTokens: number; totalTokens: number; costMicros: number }
+export interface LlmUsageBreakdown { providerId: string; modelId: string; groupId: string; requests: number; costMicros: number; latencyMs: number; errors: number }
+export interface LlmAnalytics { requests: number; inputTokens: number; outputTokens: number; totalTokens: number; costMicros: number; latencyMs: number; errors: number; breakdown?: LlmUsageBreakdown[] }
 export interface LearnerAnalytics extends AnalyticsSummary { learnerId: string; displayName: string; lastActivityAt: number }
 export interface DimensionAnalytics extends AnalyticsSummary { key: string; title: string | null; lastActivityAt: number }
 export interface PolicyBlockAnalytics { blocks: number }

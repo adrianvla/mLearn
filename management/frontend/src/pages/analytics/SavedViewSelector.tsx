@@ -8,7 +8,7 @@ const api = new ApiClient();
 interface SavedViewSelectorProps {
   groupId: string | null;
   definition: SavedAnalyticsViewDefinition;
-  onApply(definition: SavedAnalyticsViewDefinition): void;
+  onApply(definition: SavedAnalyticsViewDefinition): Promise<void>;
 }
 
 export function SavedViewSelector({ groupId, definition, onApply }: SavedViewSelectorProps) {
@@ -22,16 +22,12 @@ export function SavedViewSelector({ groupId, definition, onApply }: SavedViewSel
 
   useEffect(() => {
     setSelectedId(null);
-    if (groupId === null) {
-      setViews([]);
-      return;
-    }
     const controller = new AbortController();
-    void api.get<{ items: SavedAnalyticsView[] }>(`/api/analytics/views?groupId=${encodeURIComponent(groupId)}`, { signal: controller.signal })
-      .then((response) => { if (!controller.signal.aborted) setViews(response.items); })
+    void api.get<{ items?: SavedAnalyticsView[] }>(`/api/analytics/views?groupId=${encodeURIComponent(groupId ?? '')}`, { signal: controller.signal })
+      .then((response) => { if (!controller.signal.aborted) setViews(response.items ?? []); })
       .catch((cause: unknown) => { if (!controller.signal.aborted) setError(errorMessage(cause)); });
     return () => controller.abort();
-  }, [groupId]);
+  }, []);
 
   const saveNew = async () => {
     if (name.trim().length === 0 || name.length > 80) return;
@@ -61,7 +57,7 @@ export function SavedViewSelector({ groupId, definition, onApply }: SavedViewSel
       const id = key === null ? null : String(key);
       setSelectedId(id);
       const view = views.find((item) => item.id === id);
-      if (view !== undefined) onApply(view.definition);
+      if (view !== undefined) void onApply(view.definition).catch((cause: unknown) => setError(errorMessage(cause)));
     }}>
       <Label>Saved view</Label>
       <Select.Trigger aria-label="Saved view"><Select.Value>{selectedView?.name ?? 'Choose saved view'}</Select.Value><Select.Indicator /></Select.Trigger>

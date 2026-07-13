@@ -4,9 +4,10 @@ import { formatDatum, formatPeriodLabel } from '../../components/charts/chartTyp
 interface AnalyticsHistoryTableProps {
   title: string;
   series: ChartSeries[];
+  timezone?: string;
 }
 
-export function AnalyticsHistoryTable({ title, series }: AnalyticsHistoryTableProps) {
+export function AnalyticsHistoryTable({ title, series, timezone = 'UTC' }: AnalyticsHistoryTableProps) {
   const rows = Math.max(0, ...series.map((item) => item.values.length));
   if (rows === 0) return null;
 
@@ -17,19 +18,20 @@ export function AnalyticsHistoryTable({ title, series }: AnalyticsHistoryTablePr
       <tbody>{Array.from({ length: rows }, (_, index) => {
         const bucket = series.find((item) => item.values[index])?.values[index];
         return <tr key={index}>
-          <th scope="row">{bucket ? formatPeriod(bucket.start, bucket.end) : `Bucket ${index + 1}`}</th>
-          {series.map((item) => <td key={`${item.key}-${item.kind}`}>{formatExactDatum(item.values[index])}</td>)}
+          <th scope="row">{bucket ? formatPeriod(bucket.start, bucket.end, timezone) : `Bucket ${index + 1}`}</th>
+          {series.map((item) => <td key={`${item.key}-${item.kind}`}>{formatExactDatum(item.values[index], timezone)}</td>)}
         </tr>;
       })}</tbody>
     </table>
   </div>;
 }
 
-function formatPeriod(start: number, end: number): string {
-  return `${new Date(start).toLocaleDateString()} – ${new Date(end).toLocaleDateString()}`;
+function formatPeriod(start: number, end: number, timezone: string): string {
+  const formatter = new Intl.DateTimeFormat(undefined, { timeZone: timezone });
+  return `${formatter.format(new Date(start))} – ${formatter.format(new Date(end))}`;
 }
 
-function formatExactDatum(datum: ChartSeries['values'][number] | undefined): string {
+function formatExactDatum(datum: ChartSeries['values'][number] | undefined, timezone: string): string {
   if (!datum) return 'No bucket recorded';
-  return `${formatPeriod(datum.start, datum.end)}: ${formatDatum(datum)}`;
+  return `${formatPeriod(datum.start, datum.end, timezone)}: ${formatDatum(datum)}`;
 }

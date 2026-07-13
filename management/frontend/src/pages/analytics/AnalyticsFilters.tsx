@@ -1,6 +1,7 @@
 import type { AnalyticsGranularity, ComparisonMode } from '../../api/types';
 import { DatePickerField } from '../../components/DatePickerField';
 import { ConsoleSelect } from '../../components/console';
+import { schoolDateInput, schoolDayStart } from '../../utils/schoolTime';
 
 const DAY = 86_400_000;
 
@@ -19,22 +20,29 @@ export function analyticsRangeError(value: Pick<AnalyticsFilterValue, 'from' | '
 
 interface AnalyticsFiltersProps {
   value: AnalyticsFilterValue;
+  timezone: string | null;
   onChange(value: AnalyticsFilterValue): void;
 }
 
-export function AnalyticsFilters({ value, onChange }: AnalyticsFiltersProps) {
+export function AnalyticsFilters({ value, timezone, onChange }: AnalyticsFiltersProps) {
   const rangeError = analyticsRangeError(value);
   const updatePreset = (preset: AnalyticsFilterValue['preset']) => {
     if (preset === 'custom') {
       onChange({ ...value, preset });
       return;
     }
-    const to = Date.now();
-    onChange({ ...value, preset, from: to - Number(preset) * DAY, to });
+    const now = Date.now();
+    const zone = timezone ?? 'UTC';
+    const today = schoolDateInput(now, zone);
+    const startDate = new Date(`${today}T00:00:00.000Z`);
+    startDate.setUTCDate(startDate.getUTCDate() - Number(preset));
+    const from = schoolDayStart(startDate.toISOString().slice(0, 10), zone) ?? now;
+    onChange({ ...value, preset, from, to: now });
   };
   const updateBoundary = (boundary: 'from' | 'to', date: string) => {
-    const start = Date.parse(`${date}T00:00:00.000Z`);
-    if (Number.isNaN(start)) return;
+    if (timezone === null) return;
+    const start = schoolDayStart(date, timezone);
+    if (start === null) return;
     onChange({ ...value, preset: 'custom', [boundary]: boundary === 'from' ? start : start + DAY });
   };
 
@@ -42,7 +50,7 @@ export function AnalyticsFilters({ value, onChange }: AnalyticsFiltersProps) {
     <ConsoleSelect label="Date range" selectedKey={value.preset} onSelectionChange={(key) => updatePreset(key as AnalyticsFilterValue['preset'])} options={[
       { key: '7', label: 'Last 7 days' }, { key: '30', label: 'Last 30 days' }, { key: '90', label: 'Last 90 days' }, { key: '365', label: 'Last 365 days' }, { key: 'custom', label: 'Custom range' },
     ]} />
-    {value.preset === 'custom' ? <><DatePickerField label="From date" value={toDateInput(value.from)} onChange={(date) => updateBoundary('from', date)} /><DatePickerField label="To date" value={toDateInput(value.to - DAY)} onChange={(date) => updateBoundary('to', date)} /></> : null}
+    {value.preset === 'custom' ? <><DatePickerField label="From date" value={toDateInput(value.from, timezone)} onChange={(date) => updateBoundary('from', date)} /><DatePickerField label="To date" value={toDateInput(value.to - DAY, timezone)} onChange={(date) => updateBoundary('to', date)} /></> : null}
     <ConsoleSelect label="Comparison" selectedKey={value.comparison} onSelectionChange={(comparison) => onChange({ ...value, comparison: comparison as ComparisonMode })} options={[
       { key: 'none', label: 'No comparison' }, { key: 'previousPeriod', label: 'Previous period' }, { key: 'previousYear', label: 'Previous year' },
     ]} />
@@ -53,6 +61,6 @@ export function AnalyticsFilters({ value, onChange }: AnalyticsFiltersProps) {
   </div>;
 }
 
-function toDateInput(timestamp: number): string {
-  return new Date(timestamp).toISOString().slice(0, 10);
+function toDateInput(timestamp: number, timezone: string | null): string {
+  return schoolDateInput(timestamp, timezone ?? 'UTC');
 }
