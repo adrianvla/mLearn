@@ -12,10 +12,13 @@ vi.mock('../components/DatePickerField', () => ({
 const values = { activeLearners: 2, sessions: 3, watchSeconds: 120, completions: 1, readerPages: 2, flashcardEvents: 3, llmRequests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000, policyBlocks: 1 };
 const history = { timezone: 'UTC', granularity: 'daily', primary: [{ start: 1_700_000_000_000, end: 1_700_086_400_000, coverage: 'complete' as const, values }], comparison: null };
 
-function installFetch(overrides: Partial<Record<'history' | 'historyEvents' | 'llm' | 'blocks', Response>> = {}) {
+function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks', Response>> & { historyEvents?: Response | ((url: string) => Response) } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.includes('/api/analytics/history/events')) return overrides.historyEvents?.clone() ?? json({ from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 1, items: [{ id: 'activity:1', occurredAt: history.primary[0].start, learnerId: 'u', activityKind: 'reader', eventType: 'activity.progressed', contentTitle: 'First reader', readerPage: 4, videoTimeMillis: null }], nextCursor: null });
+    if (url.includes('/api/analytics/history/events')) {
+      const response = overrides.historyEvents;
+      return typeof response === 'function' ? response(url) : response?.clone() ?? json({ from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 1, items: [{ id: 'activity:1', occurredAt: history.primary[0].start, learnerId: 'u', activityKind: 'reader', eventType: 'activity.progressed', contentTitle: 'First reader', readerPage: 4, videoTimeMillis: null }], nextCursor: null });
+    }
     if (url.includes('/api/analytics/history')) return overrides.history?.clone() ?? json(history);
     if (url.includes('/api/analytics/llm')) return overrides.llm?.clone() ?? json({ requests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000 });
     if (url.includes('/api/analytics/policy-blocks')) return overrides.blocks?.clone() ?? json({ blocks: 1 });
@@ -75,19 +78,25 @@ it('renders previous-year activity alongside the current period with each period
 
 it('opens the factual event history drawer for a chart bucket and follows its cursor', async () => {
   const first = { id: 'activity:1', occurredAt: history.primary[0].start, learnerId: 'u', activityKind: 'reader', eventType: 'activity.progressed', contentTitle: 'First reader', readerPage: 4, videoTimeMillis: null };
-  const second = { ...first, id: 'activity:2', occurredAt: history.primary[0].start - 1, contentTitle: null, readerPage: null };
+  const second = { ...first, id: 'activity:2', occurredAt: history.primary[0].start - 1, eventType: 'activity.completed', contentTitle: 'Second reader', readerPage: null };
   installFetch({
-    historyEvents: json({ from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 2, items: [first], nextCursor: 'next-page' }),
+    historyEvents: (url) => json(url.includes('cursor=next-page')
+      ? { from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 2, items: [second], nextCursor: null }
+      : { from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 2, items: [first], nextCursor: 'next-page' }),
   });
   render(<Analytics />);
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Open event history for this period' }));
+  const periodName = `Open event history for ${new Date(history.primary[0].start).toLocaleDateString()} to ${new Date(history.primary[0].end).toLocaleDateString()}`;
+  expect(document.querySelector('svg [role="button"]')).toBeNull();
+  fireEvent.click(await screen.findByRole('button', { name: periodName }));
   expect(await screen.findByRole('dialog', { name: 'Recorded events' })).toBeVisible();
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/analytics/history/events'), expect.anything()));
   expect(await screen.findByText(/First reader/)).toBeVisible();
   expect(screen.getByText('1 of 2 recorded events')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Load more events' }));
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('cursor=next-page'), expect.anything()));
+  expect(await screen.findByText(/Second reader/)).toBeVisible();
+  expect(screen.getByText(/First reader/)).toBeVisible();
 });
 
 it('rejects an invalid custom range without replacing the loaded learner data', async () => {

@@ -372,7 +372,6 @@ impl AnalyticsQueryService {
         }
         let cursor = decode_cursor(cursor)?;
         let now_millis = time::OffsetDateTime::now_utc().unix_timestamp() * 1_000;
-        let now_seconds = now_millis.div_euclid(1_000);
         let mut connection = self.pool.acquire().await.map_err(db)?;
         let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
         ensure_live_principal(&mut tx, principal).await?;
@@ -381,32 +380,30 @@ impl AnalyticsQueryService {
             .await?;
 
         let coverage = raw_history_coverage(&mut tx, group, from, now_millis).await?;
-        let total: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT (SELECT COUNT(*) FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>?) + (SELECT COUNT(*) FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at>=? AND request.created_at<? AND conversation.retained_until>?) + (SELECT COUNT(*) FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at>=? AND event.created_at<?)")
+        let total: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT (SELECT COUNT(*) FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>?) + (SELECT COUNT(*) FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at*1000>=? AND request.created_at*1000<?) + (SELECT COUNT(*) FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at*1000>=? AND event.created_at*1000<?)")
             .bind(group)
             .bind(group)
             .bind(from)
             .bind(to)
             .bind(now_millis)
-            .bind(from.div_euclid(1_000))
-            .bind(to.div_euclid(1_000))
-            .bind(now_seconds)
-            .bind(from.div_euclid(1_000))
-            .bind(to.div_euclid(1_000))
+            .bind(from)
+            .bind(to)
+            .bind(from)
+            .bind(to)
             .fetch_one(&mut *tx)
             .await
             .map_err(db)?;
         let (cursor_at, cursor_id) = cursor.unwrap_or((i64::MAX, "~".into()));
-        let rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id), events AS (SELECT 'activity:' || e.id id,e.occurred_at,e.user_id learner_id,e.activity_kind,e.event_type,CASE WHEN e.privacy='title-and-progress' THEN e.title ELSE NULL END content_title,e.current_page reader_page,e.current_time_millis video_time_millis FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>? UNION ALL SELECT 'llm:' || request.id,request.created_at*1000,conversation.learner_user_id,'llm','llm.request',NULL,NULL,NULL FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at>=? AND request.created_at<? AND conversation.retained_until>? UNION ALL SELECT 'policy-block:' || event.id,event.created_at*1000,event.learner_user_id,'llm','llm.policyBlocked',NULL,NULL,NULL FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at>=? AND event.created_at<?) SELECT id,occurred_at,learner_id,activity_kind,event_type,content_title,reader_page,video_time_millis FROM events WHERE occurred_at<? OR (occurred_at=? AND id<?) ORDER BY occurred_at DESC,id DESC LIMIT ?")
+        let rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id), events AS (SELECT 'activity:' || e.id id,e.occurred_at,e.user_id learner_id,e.activity_kind,e.event_type,CASE WHEN e.privacy='title-and-progress' THEN e.title ELSE NULL END content_title,e.current_page reader_page,e.current_time_millis video_time_millis FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>? UNION ALL SELECT 'llm:' || request.id,request.created_at*1000,conversation.learner_user_id,'llm','llm.request',NULL,NULL,NULL FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at*1000>=? AND request.created_at*1000<? UNION ALL SELECT 'policy-block:' || event.id,event.created_at*1000,event.learner_user_id,'llm','llm.policyBlocked',NULL,NULL,NULL FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at*1000>=? AND event.created_at*1000<?) SELECT id,occurred_at,learner_id,activity_kind,event_type,content_title,reader_page,video_time_millis FROM events WHERE occurred_at<? OR (occurred_at=? AND id<?) ORDER BY occurred_at DESC,id DESC LIMIT ?")
             .bind(group)
             .bind(group)
             .bind(from)
             .bind(to)
             .bind(now_millis)
-            .bind(from.div_euclid(1_000))
-            .bind(to.div_euclid(1_000))
-            .bind(now_seconds)
-            .bind(from.div_euclid(1_000))
-            .bind(to.div_euclid(1_000))
+            .bind(from)
+            .bind(to)
+            .bind(from)
+            .bind(to)
             .bind(cursor_at)
             .bind(cursor_at)
             .bind(cursor_id)
@@ -1505,6 +1502,176 @@ mod tests {
         assert_eq!(page.coverage, Coverage::RawExpired);
         assert!(page.items.is_empty());
         assert_eq!(page.total, 0);
+    }
+
+    #[tokio::test]
+    async fn history_drilldown_keeps_redacted_llm_metadata_in_millisecond_range_and_pages_without_duplicates(
+    ) {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        let boundary = (now + 1) * 1_000;
+        let from = now * 1_000 + 1;
+        let to = boundary + 1;
+        for (id, identity_type) in [("teacher", "teacher"), ("learner", "learner")] {
+            sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES(?,?,?,?,'active',?,0,?,?)")
+                .bind(id)
+                .bind(format!("{id}@test"))
+                .bind(format!("{id}@test"))
+                .bind(id)
+                .bind(identity_type)
+                .bind(now)
+                .bind(now)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('class',NULL,'Class','class','active',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (id, user) in [
+            ("teacher-membership", "teacher"),
+            ("learner-membership", "learner"),
+        ] {
+            sqlx::query("INSERT INTO group_memberships(id,group_id,user_id,status,created_at) VALUES(?,'class',?,'active',?)")
+                .bind(id)
+                .bind(user)
+                .bind(now)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO membership_capabilities(membership_id,capability) VALUES('teacher-membership','analytics.view')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO sessions(id,user_id,expires_at,created_at,last_seen_at,active_group_id) VALUES('session','teacher',?,?,?,'class')")
+            .bind(now + 3_600)
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO llm_providers(id,group_id,name,provider_kind,base_url,status,created_by_user_id,created_at,updated_at) VALUES('provider','class','Provider','ollama','http://ollama','active','teacher',?,?)")
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO llm_models(id,group_id,provider_id,model_key,upstream_model,status,created_by_user_id,created_at,updated_at) VALUES('model','class','provider','balanced','model-v1','active','teacher',?,?)")
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO provider_price_versions(id,group_id,provider_id,model_id,currency,unit,input_cost_micros,output_cost_micros,idempotency_key,created_by_user_id,created_at) VALUES('price','class','provider','model','CHF','perMillionTokens',1,1,'price','teacher',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (suffix, created_at) in [("stale", now), ("boundary", now + 1)] {
+            sqlx::query("INSERT INTO quota_reservations(id,request_id,learner_user_id,direct_group_id,provider_id,model_id,price_version_id,payload_hash,status,expires_at,accounting_at,finalized,created_at,reconciled_at,reconcile_hash) VALUES(?,?,'learner','class','provider','model','price',zeroblob(32),'reconciled',?,?,1,?,?,zeroblob(32))")
+                .bind(format!("reservation-{suffix}"))
+                .bind(format!("request-{suffix}"))
+                .bind(now + 3_600)
+                .bind(created_at)
+                .bind(created_at)
+                .bind(created_at)
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO conversations(id,owner_group_id,learner_user_id,created_at,updated_at,retained_until,status) VALUES(?,'class','learner',?,?,0,'pending')")
+                .bind(format!("conversation-{suffix}"))
+                .bind(created_at)
+                .bind(created_at)
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO llm_requests(id,conversation_id,reservation_id,provider_id,model_id,price_version_id,status,created_at) VALUES(?,?,?,'provider','model','price','completed',?)")
+                .bind(format!("request-{suffix}"))
+                .bind(format!("conversation-{suffix}"))
+                .bind(format!("reservation-{suffix}"))
+                .bind(created_at)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO conversation_messages(id,conversation_id,request_id,sequence,role,encrypted_content,content_bytes,truncated,retained,created_at) VALUES('redacted-message','conversation-boundary','request-boundary',0,'user',NULL,0,0,0,?)")
+            .bind(now + 1)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO llm_policy_block_events(id,owner_group_id,learner_user_id,policy_version_id,policy_compiled_hash,error_code,created_at) VALUES('policy-boundary','class','learner','policy','hash','policy_denied',?)")
+            .bind(now + 1)
+            .execute(&pool)
+            .await
+            .unwrap();
+        insert_video_pair(
+            &pool,
+            "learner",
+            "class",
+            "same-time",
+            0,
+            &["class"],
+            boundary,
+        )
+        .await;
+        let principal = Principal {
+            user_id: "teacher".into(),
+            service_key_id: None,
+            session_id: "session".into(),
+            device_id: "device".into(),
+            active_group_id: Some("class".into()),
+            identity_type: IdentityType::Teacher,
+            is_root: false,
+        };
+        let service = AnalyticsQueryService::new(pool);
+
+        let first = service
+            .history_events(&principal, "class", from, to, 2, None)
+            .await
+            .unwrap();
+        let second = service
+            .history_events(
+                &principal,
+                "class",
+                from,
+                to,
+                2,
+                first.next_cursor.as_deref(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(first.total, 4);
+        assert_eq!(
+            first
+                .items
+                .iter()
+                .map(|event| event.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["policy-block:policy-boundary", "llm:request-boundary"]
+        );
+        assert_eq!(
+            second
+                .items
+                .iter()
+                .map(|event| event.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["activity:2", "activity:1"]
+        );
+        assert!(second.next_cursor.is_none());
+        assert!(first
+            .items
+            .iter()
+            .chain(&second.items)
+            .all(|event| event.id != "llm:request-stale"));
     }
 
     async fn insert_video_pair(

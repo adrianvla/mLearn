@@ -8,7 +8,7 @@ const api = new ApiClient();
 interface HistoryDrawerProps {
   open: boolean;
   onOpenChange(open: boolean): void;
-  groupId: string | null;
+  groupId: string | null | undefined;
   from: number;
   to: number;
 }
@@ -20,7 +20,7 @@ export function HistoryDrawer({ open, onOpenChange, groupId, from, to }: History
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (cursor?: string, append = false, signal?: AbortSignal) => {
-    if (groupId === null) return;
+    if (groupId === null || groupId === undefined) return;
     setLoading(true);
     setError(null);
     const query = new URLSearchParams({ groupId, from: String(from), to: String(to), limit: '50' });
@@ -60,7 +60,7 @@ export function HistoryDrawer({ open, onOpenChange, groupId, from, to }: History
               <p>{loaded} of {page.total} recorded event{page.total === 1 ? '' : 's'}</p>
               {page.coverage === 'rawExpired' ? <p role="status">Some raw activity events have expired under the retention policy. This drawer only shows the factual events that remain available.</p> : null}
               {page.items.length === 0 ? <p role="status">No retained factual events are available for this period.</p> : <div className="table-scroll"><table aria-label="Recorded event details"><thead><tr><th scope="col">Occurred</th><th scope="col">Kind</th><th scope="col">Event</th><th scope="col">Learner</th><th scope="col">Recorded context</th></tr></thead><tbody>{page.items.map((event) => <tr key={event.id}><td>{formatDate(event.occurredAt)}</td><td>{event.activityKind}</td><td>{event.eventType}</td><td>{event.learnerId ?? 'Not recorded'}</td><td>{formatContext(event)}</td></tr>)}</tbody></table></div>}
-              {page.nextCursor !== null ? <Button isDisabled={loading} onPress={() => void load(page.nextCursor, true)} aria-label="Load more events">Load more events</Button> : null}
+              {page.nextCursor !== null ? <Button isDisabled={loading} onPress={() => void load(page.nextCursor ?? undefined, true)} aria-label="Load more events">Load more events</Button> : null}
             </> : null}
             {loading ? <p role="status">Loading recorded events.</p> : null}
             {error !== null ? <p role="alert">Unable to load recorded events. {error}</p> : null}
