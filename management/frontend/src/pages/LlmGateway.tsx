@@ -3,6 +3,7 @@ import { ApiClient } from "../api/client";
 import { PageToolbar } from "../components/PageToolbar";
 import { ConsoleButton, ConsoleDialog, ConsoleNumberField, ConsoleSelect, ConsoleTextArea, ConsoleTextField } from "../components/console";
 import { useGroupScope } from "../groups/GroupScopeProvider";
+import { ProviderHistory } from "./llm/ProviderHistory";
 const api = new ApiClient();
 interface Provider {
   id: string;
@@ -48,6 +49,7 @@ export default function LlmGateway() {
   const [secret, setSecret] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [health, setHealth] = useState<string | null>(null);
+  const [historyProvider, setHistoryProvider] = useState<Provider | null>(null);
   const [providerEditor, setProviderEditor] = useState(false);
   const [providerName, setProviderName] = useState('');
   const [providerKind, setProviderKind] = useState('openaiCompatible');
@@ -198,6 +200,9 @@ export default function LlmGateway() {
                       <ConsoleButton variant="ghost" onClick={() => void test(provider.id)}>
                         Test
                       </ConsoleButton>
+                      <ConsoleButton variant="ghost" onClick={() => setHistoryProvider(provider)}>
+                        Provider history
+                      </ConsoleButton>
                     </td>
                   </tr>
                 ))}
@@ -253,6 +258,7 @@ export default function LlmGateway() {
         <p>Stored plaintext is never returned. Enter a replacement value.</p>
         <ConsoleTextField label="New provider secret" type="password" value={secret} onChange={setSecret} />
       </ConsoleDialog>
+      <ProviderHistory open={historyProvider !== null} onOpenChange={(open) => { if (!open) setHistoryProvider(null); }} groupId={groupId ?? null} providerId={historyProvider?.id ?? null} providerName={historyProvider?.name ?? null} />
       <ConsoleDialog open={providerEditor} onOpenChange={setProviderEditor} title="Add provider" footer={<><ConsoleButton onClick={() => { setProviderEditor(false); setProviderSecret(''); }}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={!providerName.trim() || !providerEndpoint.trim()} onClick={() => void createProvider()}>Create provider</ConsoleButton></>}>
         <p>The secret is encrypted at rest and never returned by the API.</p>
         <ConsoleTextField label="Provider name" value={providerName} onChange={setProviderName} />

@@ -358,6 +358,34 @@ export interface HistoricalSeries {
   primary: HistoricalBucket[];
   comparison: HistoricalBucket[] | null;
 }
+export interface UserDailyActivity {
+  dayStart: number;
+  sessions: number;
+  readerPages: number;
+  videoSeconds: number;
+  flashcardSessions: number;
+  llmRequests: number;
+  costMicros: number;
+  policyBlocks: number;
+}
+export interface ProviderUsageDay {
+  dayStart: number;
+  modelId: string;
+  modelKey: string;
+  requests: number;
+  costMicros: number;
+}
+export interface ProviderHealthCheckHistory {
+  actorUserId: string;
+  configurationValid: boolean;
+  networkCheckPerformed: boolean;
+  outcome: 'healthy' | 'configuration_error' | 'network_error';
+  createdAt: number;
+}
+export interface ProviderHistory {
+  usage: ProviderUsageDay[];
+  healthChecks: ProviderHealthCheckHistory[];
+}
 export interface HistoryEvent {
   id: string;
   occurredAt: number;

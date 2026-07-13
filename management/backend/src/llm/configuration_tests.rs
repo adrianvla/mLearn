@@ -1,3 +1,4 @@
+use sqlx::Row;
 use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc};
 
 use crate::{
@@ -894,6 +895,72 @@ async fn swapping_provider_ciphertext_fails_entity_authentication() {
         .provider_health(&fixture.german_a_teacher, &ids[0])
         .await
         .is_err());
+}
+
+#[tokio::test]
+async fn provider_health_history_records_safe_configuration_outcomes_without_secrets() {
+    let (fixture, service) = fixture_service().await;
+    let provider = service
+        .create_provider(
+            &fixture.german_a_teacher,
+            &fixture.german_a,
+            "Recorded provider",
+            ProviderKind::OpenAiCompatible,
+            "https://api.openai.com/v1",
+            Some("plaintext-provider-secret"),
+            "recorded-provider",
+        )
+        .await
+        .unwrap();
+
+    service
+        .provider_health(&fixture.german_a_teacher, &provider.id)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE llm_providers SET base_url='not-a-url' WHERE id=?")
+        .bind(&provider.id)
+        .execute(&fixture.pool)
+        .await
+        .unwrap();
+    assert!(service
+        .provider_health(&fixture.german_a_teacher, &provider.id)
+        .await
+        .is_err());
+
+    let rows = sqlx::query("SELECT provider_id,actor_user_id,configuration_valid,network_check_performed,outcome,created_at FROM provider_health_checks WHERE provider_id=? ORDER BY created_at,id")
+        .bind(&provider.id)
+        .fetch_all(&fixture.pool)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].get::<String, _>("provider_id"), provider.id);
+    assert_eq!(
+        rows[0].get::<String, _>("actor_user_id"),
+        fixture.german_a_teacher.user_id
+    );
+    assert_eq!(rows[0].get::<i64, _>("configuration_valid"), 1);
+    assert_eq!(rows[0].get::<i64, _>("network_check_performed"), 0);
+    assert_eq!(rows[0].get::<String, _>("outcome"), "healthy");
+    assert_eq!(rows[1].get::<i64, _>("configuration_valid"), 0);
+    assert_eq!(rows[1].get::<i64, _>("network_check_performed"), 0);
+    assert_eq!(rows[1].get::<String, _>("outcome"), "configuration_error");
+    let columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('provider_health_checks')")
+            .fetch_all(&fixture.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        columns,
+        vec![
+            "id",
+            "provider_id",
+            "actor_user_id",
+            "configuration_valid",
+            "network_check_performed",
+            "outcome",
+            "created_at"
+        ]
+    );
 }
 
 #[tokio::test]
