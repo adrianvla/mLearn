@@ -59,6 +59,7 @@ pub fn application_router(state: AppState) -> Router {
         )
         .merge(routes::auth::router(state.clone()))
         .merge(routes::groups::router(state.clone()))
+        .merge(routes::governance::router(state.clone()))
         .merge(routes::users::router(state.clone()))
         .merge(routes::api_keys::router(state.clone()))
         .merge(routes::audit::router(state.clone()))

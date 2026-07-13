@@ -4,8 +4,11 @@ import { ConsoleButton } from './components/console';
 import { useEffect, useRef, useState } from 'react';
 import { AppSidebar } from './components/AppSidebar';
 import { GroupSwitcher } from './components/GroupSwitcher';
+import { NotificationMenu } from './components/NotificationMenu';
+import { useGroupScope } from './groups/GroupScopeProvider';
 
 export default function Layout() {
+  const scope = useGroupScope();
   const [mobileOpen, setMobileOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   useDialogFocusManagement();
@@ -19,7 +22,7 @@ export default function Layout() {
       {mobileOpen && <ConsoleButton className="mobile-backdrop" aria-label="Close navigation" onClick={closeNavigation}>Close navigation</ConsoleButton>}
       <AppSidebar mobileOpen={mobileOpen} onNavigate={closeNavigation} />
       <section className="console-workspace">
-        <header className="console-topbar"><GroupSwitcher /></header>
+        <header className="console-topbar"><NotificationMenu groupId={scope.status === 'ready' ? scope.selectedGroup?.id ?? null : null} /><GroupSwitcher /></header>
         <main className="console-main"><Outlet /></main>
       </section>
     </div>
