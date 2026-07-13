@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Header, ListBoxSection } from 'react-aria-components';
 import { useNavigate } from 'react-router-dom';
 import { ApiClient } from '../api/client';
+import { useGroupScope } from '../groups/GroupScopeProvider';
 import './GlobalSearch.css';
 
 type SearchKind = 'user' | 'group' | 'policy';
@@ -28,13 +29,19 @@ const groups: Array<{ kind: SearchKind; label: string }> = [
 
 export function GlobalSearch() {
   const navigate = useNavigate();
+  const scope = useGroupScope();
   const requestId = useRef(0);
   const selecting = useRef(false);
+  const preserveQueryAfterFailedSelection = useRef(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const loadResults = (value: string) => {
+    if (preserveQueryAfterFailedSelection.current) {
+      preserveQueryAfterFailedSelection.current = false;
+      return;
+    }
     selecting.current = false;
     setQuery(value);
     const normalized = value.trim();
@@ -58,66 +65,72 @@ export function GlobalSearch() {
       });
   };
 
-  const selectResult = (key: React.Key | null) => {
+  const selectResult = async (key: React.Key | null) => {
     if (key === null || selecting.current) return;
     const result = results.find((item) => resultKey(item) === key);
     if (!result) return;
     selecting.current = true;
     requestId.current += 1;
-    setQuery('');
-    setResults([]);
-    setError(null);
-    navigate(result.href);
+    try {
+      if (scope.status !== 'ready') throw new Error('Group scope is unavailable');
+      await scope.selectGroup(result.groupId, { preserveCurrentScope: true });
+      setQuery('');
+      setResults([]);
+      setError(null);
+      navigate(result.href);
+    } catch {
+      selecting.current = false;
+      preserveQueryAfterFailedSelection.current = true;
+      setError('Unable to switch to the selected group');
+    }
   };
 
   return (
-    <ComboBox
-      className="global-search"
-      allowsEmptyCollection
-      defaultFilter={() => true}
-      inputValue={query}
-      menuTrigger="focus"
-      onInputChange={loadResults}
-      onSelectionChange={selectResult}
-    >
-      <Label className="sr-only">Search users, groups, and policies</Label>
-      <ComboBox.InputGroup>
-        <Search aria-hidden="true" size={16} />
-        <Input placeholder="Search" />
-      </ComboBox.InputGroup>
-      <ComboBox.Popover className="global-search-popover">
-        {error ? <p className="global-search-error" role="alert">{error}</p> : null}
-        {!error && results.length > 0 ? (
-          <ListBox
-            aria-label="Search results"
-            className="global-search-results"
-            onSelectionChange={(keys) => {
-              if (keys === 'all') return;
-              selectResult(keys.values().next().value ?? null);
-            }}
-            selectionMode="single"
-          >
-            {groups.map(({ kind, label }) => {
-              const items = results.filter((item) => item.kind === kind);
-              if (items.length === 0) return null;
-              return (
-                <ListBoxSection key={kind} id={kind}>
-                  <Header><h2 className="global-search-results__heading">{label}</h2></Header>
-                  {items.map((item) => (
-                    <ListBoxItem key={resultKey(item)} id={resultKey(item)} aria-label={`${item.title}, ${item.subtitle}`} textValue={item.title}>
-                      <div className="global-search-result">
-                        <strong>{item.title}</strong>
-                        <span>{item.subtitle}</span>
-                      </div>
-                    </ListBoxItem>
-                  ))}
-                </ListBoxSection>
-              );
-            })}
-          </ListBox>
-        ) : null}
-      </ComboBox.Popover>
-    </ComboBox>
+    <div className="global-search">
+      <ComboBox
+        allowsEmptyCollection
+        defaultFilter={() => true}
+        inputValue={query}
+        menuTrigger="focus"
+        onInputChange={loadResults}
+        onSelectionChange={(key) => void selectResult(key)}
+        selectedKey={null}
+      >
+        <Label className="sr-only">Search users, groups, and policies</Label>
+        <ComboBox.InputGroup>
+          <Search aria-hidden="true" size={16} />
+          <Input placeholder="Search" />
+        </ComboBox.InputGroup>
+        <ComboBox.Popover className="global-search-popover">
+          {error ? <p className="global-search-error" role="alert">{error}</p> : null}
+          {results.length > 0 ? (
+            <ListBox
+              aria-label="Search results"
+              className="global-search-results"
+              selectionMode="single"
+            >
+              {groups.map(({ kind, label }) => {
+                const items = results.filter((item) => item.kind === kind);
+                if (items.length === 0) return null;
+                return (
+                  <ListBoxSection key={kind} id={kind}>
+                    <Header><h2 className="global-search-results__heading">{label}</h2></Header>
+                    {items.map((item) => (
+                      <ListBoxItem key={resultKey(item)} id={resultKey(item)} aria-label={`${item.title}, ${item.subtitle}`} textValue={item.title}>
+                        <div className="global-search-result">
+                          <strong>{item.title}</strong>
+                          <span>{item.subtitle}</span>
+                        </div>
+                      </ListBoxItem>
+                    ))}
+                  </ListBoxSection>
+                );
+              })}
+            </ListBox>
+          ) : null}
+        </ComboBox.Popover>
+      </ComboBox>
+    </div>
   );
 }
 

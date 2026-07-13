@@ -71,9 +71,15 @@ async fn search_results(
     }
     let pattern = format!("%{}%", escape_like(&normalized));
     let limit = limit.clamp(1, MAX_LIMIT);
-    let mut results = search_users(pool, principal, &pattern).await?;
-    results.extend(search_groups(pool, principal, &pattern).await?);
-    results.extend(search_policies(pool, principal, &pattern).await?);
+    let mut results = search_users(pool, principal, &pattern, limit).await?;
+    results.extend(search_groups(pool, principal, &pattern, limit).await?);
+    results.extend(search_policies(pool, principal, &pattern, limit).await?);
+    results.sort_by(|left, right| {
+        result_kind_rank(&left.kind)
+            .cmp(&result_kind_rank(&right.kind))
+            .then_with(|| left.title.to_lowercase().cmp(&right.title.to_lowercase()))
+            .then_with(|| left.id.cmp(&right.id))
+    });
     results.truncate(limit);
     Ok(results)
 }
@@ -82,6 +88,7 @@ async fn search_users(
     pool: &SqlitePool,
     principal: &Principal,
     pattern: &str,
+    limit: usize,
 ) -> Result<Vec<SearchResult>, AppError> {
     let rows = sqlx::query(
         r#"WITH RECURSIVE roots(id) AS (
@@ -115,7 +122,8 @@ async fn search_users(
               AND (lower(trim(user.display_name)) LIKE ? ESCAPE '\'
                    OR user.normalized_email LIKE ? ESCAPE '\')
             GROUP BY user.id, user.display_name, user.email
-            ORDER BY lower(trim(user.display_name)), user.id"#,
+            ORDER BY lower(trim(user.display_name)), user.id
+            LIMIT ?"#,
     )
     .bind(&principal.service_key_id)
     .bind(&principal.user_id)
@@ -124,6 +132,7 @@ async fn search_users(
     .bind(Capability::MembersView.as_str())
     .bind(pattern)
     .bind(pattern)
+    .bind(limit as i64)
     .fetch_all(pool)
     .await
     .map_err(database_error)?;
@@ -137,7 +146,7 @@ async fn search_users(
                 group_id: group_id.clone(),
                 title: row.get("display_name"),
                 subtitle: row.get("email"),
-                href: format!("/users?groupId={group_id}"),
+                href: "/users".into(),
             }
         })
         .collect())
@@ -147,6 +156,7 @@ async fn search_groups(
     pool: &SqlitePool,
     principal: &Principal,
     pattern: &str,
+    limit: usize,
 ) -> Result<Vec<SearchResult>, AppError> {
     let rows = sqlx::query(
         r#"WITH RECURSIVE visible(id) AS (
@@ -172,7 +182,8 @@ async fn search_groups(
             FROM groups JOIN visible ON visible.id = groups.id
             WHERE lower(trim(groups.name)) LIKE ? ESCAPE '\'
                OR lower(trim(groups.slug)) LIKE ? ESCAPE '\'
-            ORDER BY lower(trim(groups.name)), groups.id"#,
+            ORDER BY lower(trim(groups.name)), groups.id
+            LIMIT ?"#,
     )
     .bind(&principal.service_key_id)
     .bind(&principal.user_id)
@@ -181,6 +192,7 @@ async fn search_groups(
     .bind(Capability::GroupView.as_str())
     .bind(pattern)
     .bind(pattern)
+    .bind(limit as i64)
     .fetch_all(pool)
     .await
     .map_err(database_error)?;
@@ -194,7 +206,7 @@ async fn search_groups(
                 group_id: id.clone(),
                 title: row.get("name"),
                 subtitle: row.get("slug"),
-                href: format!("/groups?groupId={id}"),
+                href: "/groups".into(),
             }
         })
         .collect())
@@ -204,6 +216,7 @@ async fn search_policies(
     pool: &SqlitePool,
     principal: &Principal,
     pattern: &str,
+    limit: usize,
 ) -> Result<Vec<SearchResult>, AppError> {
     let rows = sqlx::query(
         r#"WITH RECURSIVE policy_roots(id) AS (
@@ -254,7 +267,8 @@ async fn search_policies(
             JOIN groups ON groups.id = policy.group_id
             WHERE lower(trim(policy.name)) LIKE ? ESCAPE '\'
                OR lower(trim(policy.description)) LIKE ? ESCAPE '\'
-            ORDER BY lower(trim(policy.name)), policy.id"#,
+            ORDER BY lower(trim(policy.name)), policy.id
+            LIMIT ?"#,
     )
     .bind(&principal.service_key_id)
     .bind(&principal.user_id)
@@ -268,6 +282,7 @@ async fn search_policies(
     .bind(Capability::GroupView.as_str())
     .bind(pattern)
     .bind(pattern)
+    .bind(limit as i64)
     .fetch_all(pool)
     .await
     .map_err(database_error)?;
@@ -281,10 +296,19 @@ async fn search_policies(
                 group_id: group_id.clone(),
                 title: row.get("name"),
                 subtitle: row.get("group_name"),
-                href: format!("/policies?groupId={group_id}"),
+                href: "/policies".into(),
             }
         })
         .collect())
+}
+
+fn result_kind_rank(kind: &str) -> u8 {
+    match kind {
+        "user" => 0,
+        "group" => 1,
+        "policy" => 2,
+        _ => 3,
+    }
 }
 
 fn escape_like(value: &str) -> String {
@@ -300,7 +324,10 @@ fn database_error(error: sqlx::Error) -> AppError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{groups::tests::GroupFixture, routes::search::search_results};
+    use crate::{
+        groups::tests::GroupFixture,
+        routes::search::{search_groups, search_policies, search_results, search_users},
+    };
 
     #[tokio::test]
     async fn search_scopes_users_groups_and_policies_to_the_authorized_subtree() {
@@ -375,6 +402,14 @@ mod tests {
             .iter()
             .any(|result| result.group_id == fixture.german_b));
         assert!(results.iter().all(|result| !result.href.is_empty()));
+        assert_eq!(
+            results
+                .iter()
+                .find(|result| result.id == "visible-user")
+                .unwrap()
+                .href,
+            "/users",
+        );
     }
 
     #[tokio::test]
@@ -420,6 +455,81 @@ mod tests {
         assert_eq!(results[0].id, "wild-user");
     }
 
+    #[tokio::test]
+    async fn search_limits_each_authorized_source_before_materializing_results() {
+        let fixture = GroupFixture::german_tree().await;
+        sqlx::query(
+            "INSERT INTO membership_capabilities (membership_id, capability) VALUES ('membership-a', 'policies.view')",
+        )
+        .execute(&fixture.pool)
+        .await
+        .unwrap();
+        for index in 0..3 {
+            let user_id = format!("bounded-user-{index}");
+            insert_user(
+                &fixture.pool,
+                &user_id,
+                &format!("Bounded learner {index}"),
+                &format!("bounded-{index}@example.test"),
+            )
+            .await;
+            insert_membership(
+                &fixture.pool,
+                &format!("bounded-membership-{index}"),
+                &fixture.project_1,
+                &user_id,
+            )
+            .await;
+            sqlx::query("INSERT INTO groups (id, parent_id, name, slug, status, created_at, archived_at) VALUES (?, ?, ?, ?, 'active', 1, NULL)")
+                .bind(format!("bounded-group-{index}"))
+                .bind(&fixture.german_a)
+                .bind(format!("Bounded group {index}"))
+                .bind(format!("bounded-group-{index}"))
+                .execute(&fixture.pool)
+                .await
+                .unwrap();
+            insert_policy_with_priority(
+                &fixture.pool,
+                &format!("bounded-policy-{index}"),
+                &fixture.german_a,
+                &format!("Bounded policy {index}"),
+                &fixture.german_a_teacher.user_id,
+                index,
+            )
+            .await;
+        }
+
+        let pattern = "%bounded%";
+        assert_eq!(
+            search_users(&fixture.pool, &fixture.german_a_teacher, pattern, 1)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            search_groups(&fixture.pool, &fixture.german_a_teacher, pattern, 1)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            search_policies(&fixture.pool, &fixture.german_a_teacher, pattern, 1)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            search_results(&fixture.pool, &fixture.german_a_teacher, "bounded", 1)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
     async fn insert_user(pool: &sqlx::SqlitePool, id: &str, display_name: &str, email: &str) {
         sqlx::query("INSERT INTO users (id, email, normalized_email, display_name, status, identity_type, is_root, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 'learner', 0, 1, 1)")
             .bind(id)
@@ -448,10 +558,22 @@ mod tests {
         name: &str,
         author_id: &str,
     ) {
-        sqlx::query("INSERT INTO policies (id, group_id, name, description, enabled, priority, created_by_user_id, created_at, updated_at, revision) VALUES (?, ?, ?, '', 1, 0, ?, 1, 1, 1)")
+        insert_policy_with_priority(pool, id, group_id, name, author_id, 0).await;
+    }
+
+    async fn insert_policy_with_priority(
+        pool: &sqlx::SqlitePool,
+        id: &str,
+        group_id: &str,
+        name: &str,
+        author_id: &str,
+        priority: i32,
+    ) {
+        sqlx::query("INSERT INTO policies (id, group_id, name, description, enabled, priority, created_by_user_id, created_at, updated_at, revision) VALUES (?, ?, ?, '', 1, ?, ?, 1, 1, 1)")
             .bind(id)
             .bind(group_id)
             .bind(name)
+            .bind(priority)
             .bind(author_id)
             .execute(pool)
             .await
