@@ -1,4 +1,4 @@
-import { Button, ListBox, ListBoxItem, Popover } from '@heroui/react';
+import { Button, Popover } from '@heroui/react';
 import { Bell, Check, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -63,17 +63,17 @@ export function NotificationMenu({ groupId }: { groupId: string | null }) {
             <Button isIconOnly variant="ghost" aria-label="Refresh notifications" onPress={() => void refresh()}><RefreshCw /></Button>
           </div>
           {error ? <p role="alert">{error}</p> : null}
-          <ListBox aria-label="Notifications" className="notification-list">
-            {visible.map((item) => <ListBoxItem id={item.fingerprint} key={item.fingerprint} textValue={item.message}>
-              <div className="notification-item">
+          <ul aria-label="Notifications" className="notification-list">
+            {visible.map((item) => <li key={item.fingerprint}>
+              <article className="notification-item">
                 <Link to={item.href} onClick={() => void update(item.fingerprint, { read: true })}>{item.message}</Link>
                 <div className="notification-item__actions">
                   {!item.read ? <Button isIconOnly variant="ghost" aria-label="Mark notification as read" onPress={() => void update(item.fingerprint, { read: true })}><Check /></Button> : null}
                   <Button isIconOnly variant="ghost" aria-label="Dismiss notification" onPress={() => void update(item.fingerprint, { dismissed: true })}><X /></Button>
                 </div>
-              </div>
-            </ListBoxItem>)}
-          </ListBox>
+              </article>
+            </li>)}
+          </ul>
           {visible.length === 0 ? <p className="notification-empty">No current notifications.</p> : null}
           <Link className="notification-view-all" to="/governance">View all</Link>
         </Popover.Dialog>

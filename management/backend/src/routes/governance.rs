@@ -13,10 +13,10 @@ use crate::{
     authorization::{AuthorizationService, Capability},
     error::AppError,
     identity::Principal,
+    llm::quota::{QuotaScopeKind, QuotaService, UsageBucket},
     state::AppState,
 };
 
-const LOW_QUOTA_PERCENT: i64 = 10;
 const EXPIRING_KEY_SECONDS: i64 = 7 * 24 * 60 * 60;
 
 #[derive(Deserialize)]
@@ -95,17 +95,6 @@ struct DerivedNotification {
     created_at: i64,
 }
 
-#[derive(Clone)]
-struct QuotaStatus {
-    group_id: String,
-    id: String,
-    metric: String,
-    used: i64,
-    limit: i64,
-    period_starts_at: i64,
-    period_ends_at: i64,
-}
-
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/governance/summary", get(summary))
@@ -138,15 +127,7 @@ async fn summary(
         .await
         .is_ok()
     {
-        quota_statuses(&state, &group_id)
-            .await?
-            .into_iter()
-            .map(|quota| GovernanceUsage {
-                label: quota.metric,
-                detail: format!("{} of {} used", quota.used, quota.limit),
-                href: "/llm-gateway".into(),
-            })
-            .collect()
+        governance_usage(&canonical_usage_buckets(&state, &principal, &group_id).await?)
     } else {
         Vec::new()
     };
@@ -243,7 +224,10 @@ async fn notifications_for(
         .await
         .is_ok()
     {
-        derived.extend(low_quota_conditions(state, group_id).await?);
+        derived.extend(low_quota_conditions(
+            &canonical_usage_buckets(state, principal, group_id).await?,
+            group_id,
+        ));
     }
     if authorization
         .require(principal, group_id, Capability::LlmConfigure)
@@ -351,71 +335,75 @@ async fn unpublished_drafts(
         .collect())
 }
 
-async fn quota_statuses(state: &AppState, group_id: &str) -> Result<Vec<QuotaStatus>, AppError> {
-    let rows = sqlx::query(
-        "WITH RECURSIVE scope(id) AS (
-            SELECT id FROM groups WHERE id=? AND status!='archived'
-            UNION ALL SELECT child.id FROM groups child JOIN scope parent ON child.parent_id=parent.id WHERE child.status!='archived'
-         )
-         SELECT definition.id,definition.owner_group_id,definition.metric,definition.limit_value,
-                COALESCE(SUM(ledger.value),0) AS used,
-                COALESCE(MIN(ledger.period_starts_at),0) AS period_starts_at,
-                COALESCE(MAX(ledger.period_ends_at),0) AS period_ends_at
-         FROM quota_definitions definition
-         JOIN scope ON scope.id=definition.owner_group_id
-         LEFT JOIN usage_ledger ledger ON ledger.scope_kind=definition.subject_kind
-             AND ledger.scope_id=definition.subject_id AND ledger.metric=definition.metric
-             AND ledger.period_starts_at<=unixepoch() AND ledger.period_ends_at>unixepoch()
-         WHERE definition.status='active'
-         GROUP BY definition.id
-         ORDER BY definition.owner_group_id,definition.metric,definition.id",
-    )
-    .bind(group_id)
-    .fetch_all(&state.db)
-    .await
-    .map_err(database_error)?;
-    Ok(rows
-        .into_iter()
-        .map(|row| QuotaStatus {
-            group_id: row.get("owner_group_id"),
-            id: row.get("id"),
-            metric: row.get("metric"),
-            used: row.get("used"),
-            limit: row.get("limit_value"),
-            period_starts_at: row.get("period_starts_at"),
-            period_ends_at: row.get("period_ends_at"),
-        })
-        .collect())
+async fn canonical_usage_buckets(
+    state: &AppState,
+    principal: &Principal,
+    group_id: &str,
+) -> Result<Vec<UsageBucket>, AppError> {
+    Ok(QuotaService::new(state.db.clone())
+        .usage_summary(principal, group_id, None, 100)
+        .await?
+        .buckets)
 }
 
-async fn low_quota_conditions(
-    state: &AppState,
-    group_id: &str,
-) -> Result<Vec<DerivedNotification>, AppError> {
-    Ok(quota_statuses(state, group_id)
-        .await?
-        .into_iter()
-        .filter(|quota| {
-            quota.limit > 0
-                && quota.used >= quota.limit - (quota.limit * LOW_QUOTA_PERCENT / 100).max(1)
+fn governance_usage(buckets: &[UsageBucket]) -> Vec<GovernanceUsage> {
+    buckets
+        .iter()
+        .filter_map(|bucket| {
+            bucket.limit.map(|limit| GovernanceUsage {
+                label: bucket.metric.as_str().into(),
+                detail: format!(
+                    "{} used, {} reserved, {} remaining of {}",
+                    bucket.used,
+                    bucket.reserved,
+                    bucket.remaining.unwrap_or_default(),
+                    limit
+                ),
+                href: "/llm-gateway".into(),
+            })
         })
-        .map(|quota| DerivedNotification {
+        .collect()
+}
+
+fn low_quota_conditions_from_buckets(
+    buckets: &[UsageBucket],
+    group_id: &str,
+) -> Vec<DerivedNotification> {
+    buckets
+        .iter()
+        .filter(|bucket| bucket.warning && bucket.remaining.is_some())
+        .map(|bucket| DerivedNotification {
             fingerprint: format!(
-                "low-quota:{}:{}:{}",
-                quota.id, quota.period_starts_at, quota.period_ends_at
+                "low-quota:{}:{}:{}:{}:{}",
+                quota_scope_name(bucket.scope_kind),
+                bucket.scope_id,
+                bucket.metric.as_str(),
+                bucket.period_starts_at,
+                bucket.period_ends_at
             ),
             kind: "lowQuota",
             severity: "warning",
-            group_id: quota.group_id,
+            group_id: group_id.into(),
             message: format!(
                 "{} quota has {} remaining",
-                quota.metric,
-                (quota.limit - quota.used).max(0)
+                bucket.metric.as_str(),
+                bucket.remaining.expect("filtered above")
             ),
             href: "/llm-gateway",
-            created_at: quota.period_starts_at,
+            created_at: bucket.period_starts_at,
         })
-        .collect())
+        .collect()
+}
+
+fn low_quota_conditions(buckets: &[UsageBucket], group_id: &str) -> Vec<DerivedNotification> {
+    low_quota_conditions_from_buckets(buckets, group_id)
+}
+
+fn quota_scope_name(scope: QuotaScopeKind) -> &'static str {
+    match scope {
+        QuotaScopeKind::User => "user",
+        QuotaScopeKind::Group => "group",
+    }
 }
 
 async fn unavailable_providers(
@@ -550,7 +538,7 @@ async fn recent_activity(
         .map(|row| GovernanceActivity {
             action: row.get("action"),
             timestamp: row.get("created_at"),
-            href: "/analytics".into(),
+            href: "/activity".into(),
         })
         .collect())
 }
@@ -582,7 +570,7 @@ mod tests {
     async fn low_quota_notification_has_a_stable_fingerprint_and_user_specific_dismissal() {
         let fixture = GroupFixture::german_tree().await;
         grant(&fixture.pool, "membership-a", Capability::AnalyticsView).await;
-        insert_low_quota(&fixture.pool, &fixture.german_a).await;
+        insert_low_quota(&fixture.pool, &fixture.german_a_teacher, &fixture.german_a).await;
         let (app, state) = app(&fixture).await;
 
         let first = notifications(&app, &state, &fixture.german_a_teacher, &fixture.german_a).await;
@@ -642,6 +630,35 @@ mod tests {
         assert!(listed.is_empty());
     }
 
+    #[test]
+    fn low_quota_conditions_keep_canonical_warning_remaining_and_period() {
+        let buckets = vec![crate::llm::quota::UsageBucket {
+            scope_kind: crate::llm::quota::QuotaScopeKind::Group,
+            scope_id: "visible-group".into(),
+            metric: crate::policy::model::QuotaMetric::Requests,
+            used: 71,
+            reserved: 9,
+            limit: Some(100),
+            remaining: Some(20),
+            warning: true,
+            inherited: true,
+            source_visible: false,
+            constraint_state: "exact".into(),
+            period_starts_at: 100,
+            period_ends_at: 200,
+        }];
+
+        let conditions = super::low_quota_conditions_from_buckets(&buckets, "requested-group");
+
+        assert_eq!(conditions.len(), 1);
+        assert_eq!(conditions[0].group_id, "requested-group");
+        assert_eq!(
+            conditions[0].fingerprint,
+            "low-quota:group:visible-group:requests:100:200"
+        );
+        assert!(conditions[0].message.contains("20 remaining"));
+    }
+
     async fn grant(pool: &sqlx::SqlitePool, membership: &str, capability: Capability) {
         sqlx::query("INSERT INTO membership_capabilities(membership_id,capability) VALUES(?,?)")
             .bind(membership)
@@ -651,8 +668,31 @@ mod tests {
             .unwrap();
     }
 
-    async fn insert_low_quota(pool: &sqlx::SqlitePool, group_id: &str) {
+    async fn insert_low_quota(
+        pool: &sqlx::SqlitePool,
+        principal: &crate::identity::Principal,
+        group_id: &str,
+    ) {
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp();
+        sqlx::query("INSERT INTO group_memberships(id,group_id,user_id,status,created_at) VALUES('calendar-admin','german',?,'active',1)")
+            .bind(&principal.user_id).execute(pool).await.unwrap();
+        grant(pool, "calendar-admin", Capability::LlmConfigure).await;
+        crate::llm::quota::QuotaService::new(pool.clone())
+            .configure_calendar(
+                principal,
+                "german",
+                "UTC",
+                timestamp - 86_400,
+                timestamp + 86_400,
+            )
+            .await
+            .unwrap();
+        let (calendar_version, period_starts_at, period_ends_at): (i64, i64, i64) = sqlx::query_as("SELECT calendar.version,instance.period_starts_at,instance.period_ends_at FROM school_quota_calendars calendar JOIN school_quota_period_instances instance ON instance.root_group_id=calendar.root_group_id AND instance.calendar_version=calendar.version WHERE calendar.root_group_id='german' AND instance.quota_period='daily' AND instance.period_starts_at<=? AND instance.period_ends_at>?")
+            .bind(timestamp).bind(timestamp).fetch_one(pool).await.unwrap();
+        sqlx::query("INSERT INTO quota_definitions(id,owner_group_id,subject_kind,subject_id,metric,period,limit_value,status,created_by_user_id,created_at,updated_at) VALUES('low-quota',?,'group',?,'requests','daily',10,'active','teacher-a',?,?)")
+            .bind(group_id).bind(group_id).bind(timestamp).bind(timestamp).execute(pool).await.unwrap();
+        sqlx::query("INSERT INTO quota_definition_periods(definition_id,root_group_id,calendar_version,quota_period,period_starts_at,period_ends_at,limit_value,created_at) VALUES('low-quota','german',?,'daily',?,?,10,?)")
+            .bind(calendar_version).bind(period_starts_at).bind(period_ends_at).bind(timestamp).execute(pool).await.unwrap();
         sqlx::query("INSERT INTO llm_providers(id,group_id,name,provider_kind,base_url,status,created_by_user_id,created_at,updated_at) VALUES('provider',?,'Provider','ollama','http://provider.test','active','teacher-a',1,1)")
             .bind(group_id).execute(pool).await.unwrap();
         sqlx::query("INSERT INTO llm_models(id,group_id,provider_id,model_key,upstream_model,status,created_by_user_id,created_at,updated_at) VALUES('model',?,'provider','default','model','active','teacher-a',1,1)")
@@ -671,24 +711,20 @@ mod tests {
         }
         sqlx::query("INSERT INTO quota_reservation_metrics(reservation_id,metric,reserved_value,required) VALUES('reservation','requests',1,1)")
             .execute(pool).await.unwrap();
-        for (kind, id) in [
-            ("user", "teacher-a"),
-            ("group", group_id),
-            ("group", "german"),
-        ] {
+        for (kind, id) in [("user", "teacher-a"), ("group", "german")] {
             sqlx::query("INSERT INTO quota_reservation_periods(reservation_id,scope_kind,scope_id,metric,quota_period,period_starts_at,period_ends_at,limit_value,definition_id,calendar_version,is_primary) VALUES('reservation',?,?, 'requests','event',?,?,NULL,NULL,NULL,1)")
                 .bind(kind).bind(id).bind(timestamp).bind(timestamp + 1).execute(pool).await.unwrap();
         }
+        sqlx::query("INSERT INTO quota_reservation_periods(reservation_id,scope_kind,scope_id,metric,quota_period,period_starts_at,period_ends_at,limit_value,definition_id,calendar_version,is_primary) VALUES('reservation','group',?,'requests','daily',?,?,10,'low-quota',?,1)")
+            .bind(group_id).bind(period_starts_at).bind(period_ends_at).bind(calendar_version).execute(pool).await.unwrap();
         sqlx::query(
             "UPDATE quota_reservations SET status='open',finalized=1 WHERE id='reservation'",
         )
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO usage_ledger(id,reservation_id,scope_kind,scope_id,metric,value,period_starts_at,period_ends_at,quota_period,provider_id,model_id,price_version_id,learner_user_id,direct_group_id,created_at) VALUES('usage','reservation','group',?,'requests',10,?,?,'event','provider','model','price','teacher-a',?,?)")
-            .bind(group_id).bind(timestamp).bind(timestamp + 1).bind(group_id).bind(timestamp).execute(pool).await.unwrap();
-        sqlx::query("INSERT INTO quota_definitions(id,owner_group_id,subject_kind,subject_id,metric,period,limit_value,status,created_by_user_id,created_at,updated_at) VALUES('low-quota',?,'group',?,'requests','daily',10,'active','teacher-a',1,1)")
-            .bind(group_id).bind(group_id).execute(pool).await.unwrap();
+        sqlx::query("INSERT INTO usage_ledger(id,reservation_id,scope_kind,scope_id,metric,value,period_starts_at,period_ends_at,quota_period,provider_id,model_id,price_version_id,learner_user_id,direct_group_id,created_at) VALUES('usage','reservation','group',?,'requests',10,?,?,'daily','provider','model','price','teacher-a',?,?)")
+            .bind(group_id).bind(period_starts_at).bind(period_ends_at).bind(group_id).bind(timestamp).execute(pool).await.unwrap();
     }
 
     async fn second_teacher(fixture: &GroupFixture) -> crate::identity::Principal {
