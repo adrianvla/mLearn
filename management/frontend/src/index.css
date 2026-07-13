@@ -299,7 +299,7 @@ button, a, select { outline-offset: 3px; }
   .policy-row,.quota-row,.policy-diff>div { grid-template-columns: 1fr; }
   .metric-grid { grid-template-columns: 1fr; }
   .governance-page { grid-template-columns: 1fr; }
-  .detail-tabs { overflow-x:auto; }
+  .detail-tabs { width:100%; min-width:0; max-width:100%; overflow-x:auto; overscroll-behavior-inline:contain; }
   .detail-tabs [data-slot="tabs-list"] { min-width:520px; }
   .filter-row, .toolbar-actions { width:100%; min-width:0; align-items:stretch; flex-direction:column; }
   .analytics-toolbar-actions, .analytics-filters, .saved-view-selector { align-items: stretch; }
