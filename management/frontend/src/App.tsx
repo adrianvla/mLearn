@@ -18,6 +18,7 @@ const Groups = lazy(() => import('./pages/Groups'));
 const Policies = lazy(() => import('./pages/Policies'));
 const LlmGateway = lazy(() => import('./pages/LlmGateway'));
 const Analytics = lazy(() => import('./pages/Analytics'));
+const Governance = lazy(() => import('./pages/Governance'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Bootstrap = lazy(() => import('./pages/Bootstrap'));
 const Diagnostics = lazy(() => import('./pages/Diagnostics'));
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/policies" element={<Suspense fallback={<PageLoader />}><Policies /></Suspense>} />
         <Route path="/llm-gateway" element={<Suspense fallback={<PageLoader />}><LlmGateway /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
+        <Route path="/governance" element={<Suspense fallback={<PageLoader />}><Governance /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
         <Route path="/settings/diagnostics" element={<RootOnly><Suspense fallback={<PageLoader />}><Diagnostics /></Suspense></RootOnly>} />
         <Route path="*" element={<Navigate to="/" replace />} />
