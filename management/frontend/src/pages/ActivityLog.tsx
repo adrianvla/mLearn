@@ -4,21 +4,10 @@ import type { AuditEvent, AuditPage } from '../api/types';
 import { DataTableShell } from '../components/DataTableShell';
 import { DatePickerField } from '../components/DatePickerField';
 import { PageToolbar } from '../components/PageToolbar';
-import { ConsoleButton, ConsoleDialog, ConsoleSelect, ConsoleTextField } from '../components/console';
+import { ConsoleButton, ConsoleDialog, ConsoleTextField } from '../components/console';
 import { useGroupScope } from '../groups/GroupScopeProvider';
 
 const api = new ApiClient();
-const actionOptions = [
-  { key: 'policy.published', label: 'Policy published' }, { key: 'policy.saved', label: 'Policy saved' },
-  { key: 'group.created', label: 'Group created' }, { key: 'group.updated', label: 'Group updated' },
-  { key: 'group.archived', label: 'Group archived' }, { key: 'membership.created', label: 'Membership created' },
-  { key: 'analytics.exported', label: 'Analytics exported' }, { key: 'conversations.exported', label: 'Conversations exported' },
-];
-const targetTypeOptions = [
-  { key: 'policy', label: 'Policy' }, { key: 'group', label: 'Group' }, { key: 'user', label: 'User' },
-  { key: 'group_membership', label: 'Membership' }, { key: 'conversation', label: 'Conversation' }, { key: 'api_key', label: 'API key' },
-];
-
 export default function ActivityLog() {
   const scope = useGroupScope();
   const groupId = scope.status === 'ready' ? scope.selectedGroup?.id ?? null : null;
@@ -34,6 +23,8 @@ export default function ActivityLog() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [selected, setSelected] = useState<AuditEvent | null>(null);
+  const clearFilters = () => { setActorUserId(''); setAction(''); setTargetType(''); setTargetId(''); setFrom(''); setTo(''); };
+  const filtersApplied = Boolean(actorUserId || action || targetType || targetId || from || to);
   const query = useMemo(() => {
     if (!groupId) return null;
     const params = new URLSearchParams({ groupId });
@@ -65,12 +56,12 @@ export default function ActivityLog() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Activity log could not be loaded'); }
   };
 
-  return <div className="resource-page"><PageToolbar title="Activity Log" description="Immutable administrative activity for the selected group and its descendants." />
+  return <div className="resource-page"><PageToolbar title="Activity Log" description="Immutable administrative activity for the selected group and its descendants." actions={<ConsoleButton className="secondary-action" isDisabled={!filtersApplied} onClick={clearFilters}>Clear filters</ConsoleButton>} />
     <DataTableShell label="Activity log" loading={loading} error={error ?? undefined} onRetry={() => setRevision((value) => value + 1)} controls={<div className="filter-stack"><div className="filter-row">
       <DatePickerField label="From date" value={from} onChange={setFrom} /><DatePickerField label="To date" value={to} onChange={setTo} />
       <ConsoleTextField label="Actor user ID" value={actorUserId} onChange={setActorUserId} placeholder="User ID" />
-      <ConsoleSelect label="Action" selectedKey={action} onSelectionChange={setAction} placeholder="All actions" options={actionOptions} />
-      <ConsoleSelect label="Target type" selectedKey={targetType} onSelectionChange={setTargetType} placeholder="All targets" options={targetTypeOptions} />
+      <ConsoleTextField label="Action" value={action} onChange={setAction} placeholder="Exact action" />
+      <ConsoleTextField label="Target type" value={targetType} onChange={setTargetType} placeholder="Exact target type" />
       <ConsoleTextField label="Target ID" value={targetId} onChange={setTargetId} placeholder="Target ID" />
     </div></div>}>
       {events.length ? <div className="table-scroll"><table><caption className="sr-only">Administrative activity</caption><thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>Group</th><th>When</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><th><ConsoleButton className="table-link" onClick={() => setSelected(event)}>{event.action}</ConsoleButton></th><td>{event.actor ?? 'System'}</td><td>{event.targetType ?? '—'}{event.targetId ? ` / ${event.targetId}` : ''}</td><td>{event.authorizedGroupId}</td><td>{new Date(event.timestamp * 1000).toLocaleString()}</td></tr>)}</tbody></table></div> : undefined}

@@ -543,4 +543,59 @@ mod tests {
             Some(format!("api_key:{}", created.id).as_str())
         );
     }
+
+    #[tokio::test]
+    async fn audit_pagination_is_newest_first_and_redacts_metadata() {
+        let fixture = GroupFixture::german_tree().await;
+        for (id, timestamp, metadata) in [
+            ("old", 10, r#"{"note":"old"}"#),
+            ("middle", 20, r#"{"nested":{"refreshToken":"secret"}}"#),
+            ("newest", 30, r#"{"apiKey":"secret","note":"new"}"#),
+        ] {
+            sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at, authorized_group_id, request_id) VALUES (?, ?, 'test.event', 'group', ?, ?, ?, ?, NULL)")
+                .bind(id).bind(&fixture.german_a_teacher.user_id).bind(&fixture.german_a).bind(metadata).bind(timestamp).bind(&fixture.german_a)
+                .execute(&fixture.pool).await.unwrap();
+        }
+
+        let service = super::AuditQueryService::new(fixture.pool);
+        let first = service
+            .list(&fixture.german_a_teacher, &fixture.german_a, None, 2)
+            .await
+            .unwrap();
+        assert_eq!(
+            first
+                .events
+                .iter()
+                .map(|event| event.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["newest", "middle"]
+        );
+        assert_eq!(
+            first.events[0].metadata.as_ref().unwrap()["apiKey"],
+            "[REDACTED]"
+        );
+        assert_eq!(
+            first.events[1].metadata.as_ref().unwrap()["nested"]["refreshToken"],
+            "[REDACTED]"
+        );
+
+        let second = service
+            .list(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                first.next_cursor.as_deref(),
+                2,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            second
+                .events
+                .iter()
+                .map(|event| event.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["old"]
+        );
+        assert_eq!(second.next_cursor, None);
+    }
 }

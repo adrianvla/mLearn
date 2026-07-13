@@ -2,9 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Overview from './Overview';
 
-vi.mock('../groups/GroupScopeProvider', () => ({ useGroupScope: () => ({ status: 'ready', selectedGroup: { id: 'german', name: 'German', capabilities: ['analytics.view'] }, groups: [], can: () => true }) }));
+const scope = vi.hoisted(() => ({ canGroupView: true }));
+vi.mock('../groups/GroupScopeProvider', () => ({ useGroupScope: () => ({ status: 'ready', selectedGroup: { id: 'german', name: 'German', capabilities: ['analytics.view'] }, groups: [], can: (capability: string) => capability !== 'group.view' || scope.canGroupView }) }));
 
 beforeEach(() => {
+  scope.canGroupView = true;
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/summary')) return response({ activeLearners: 12, sessions: 18, watchSeconds: 600, completions: 3, readerPages: 8, flashcardEvents: 4, llmRequests: 24, inputTokens: 400, outputTokens: 200, totalTokens: 600, costMicros: 120000, policyBlocks: 2 });
@@ -13,6 +15,15 @@ beforeEach(() => {
     if (url.includes('/api/audit/events')) return response({ events: [{ id: 'audit-1', actor: 'teacher', action: 'policy.published', targetType: 'policy', targetId: 'reading', authorizedGroupId: 'german', timestamp: 1_700_000_000, requestId: null, metadata: null }], nextCursor: null });
     return response({ items: [{ learnerId: 'learner', displayName: 'Ada Learner', lastActivityAt: 1_700_000_000_000, activeLearners: 1, sessions: 2, watchSeconds: 120, completions: 1, readerPages: 2, flashcardEvents: 1, llmRequests: 3, inputTokens: 20, outputTokens: 10, totalTokens: 30, costMicros: 1000, policyBlocks: 0 }] });
   }));
+});
+
+it('keeps dashboard analytics available without group-view access and skips the audit request', async () => {
+  scope.canGroupView = false;
+  render(<Overview />);
+
+  expect(await screen.findByText('Active learners')).toBeVisible();
+  expect(screen.queryByRole('heading', { name: 'Recent administrative activity' })).not.toBeInTheDocument();
+  expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/audit/events'), expect.anything());
 });
 
 it('renders the selected-group school dashboard without operational diagnostics', async () => {
