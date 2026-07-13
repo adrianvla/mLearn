@@ -106,14 +106,15 @@ async fn search_users(
                 WHERE key.id = ? AND key.status = 'active'
                   AND (key.expires_at IS NULL OR key.expires_at > unixepoch())
                   AND capability.capability = ? AND source.status != 'archived'
-            ), subtree(id) AS (
-                SELECT id FROM roots
+            ), subtree(id, scope_group_id) AS (
+                SELECT id, id FROM roots
                 UNION
-                SELECT child.id FROM groups child JOIN subtree parent ON child.parent_id = parent.id
+                SELECT child.id, parent.scope_group_id
+                FROM groups child JOIN subtree parent ON child.parent_id = parent.id
                 WHERE child.status != 'archived'
             )
             SELECT user.id, user.display_name, user.email,
-                   MIN(membership.group_id) AS group_id, MIN(groups.name) AS group_name
+                   MIN(subtree.scope_group_id) AS group_id
             FROM users user
             JOIN group_memberships membership ON membership.user_id = user.id
             JOIN subtree ON subtree.id = membership.group_id
@@ -453,6 +454,43 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "wild-user");
+    }
+
+    #[tokio::test]
+    async fn user_results_use_the_activatable_members_view_root_for_descendants() {
+        let fixture = GroupFixture::german_tree().await;
+        sqlx::query(
+            "DELETE FROM membership_capabilities WHERE membership_id = 'membership-a' AND capability = 'group.view'",
+        )
+        .execute(&fixture.pool)
+        .await
+        .unwrap();
+        insert_user(
+            &fixture.pool,
+            "descendant-user",
+            "Descendant learner",
+            "descendant@example.test",
+        )
+        .await;
+        insert_membership(
+            &fixture.pool,
+            "descendant-user-membership",
+            &fixture.project_1,
+            "descendant-user",
+        )
+        .await;
+
+        let results = search_results(&fixture.pool, &fixture.german_a_teacher, "descendant", 10)
+            .await
+            .unwrap();
+        let result = results
+            .iter()
+            .find(|result| result.id == "descendant-user")
+            .unwrap();
+
+        assert_eq!(result.kind, "user");
+        assert_eq!(result.group_id, fixture.german_a);
+        assert_eq!(result.href, "/users");
     }
 
     #[tokio::test]
