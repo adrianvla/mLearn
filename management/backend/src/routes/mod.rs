@@ -14,6 +14,7 @@ pub mod logs;
 pub mod overview;
 pub mod policies;
 pub mod quotas;
+pub mod search;
 pub mod school;
 pub mod services;
 pub mod storage;
