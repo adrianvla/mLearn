@@ -30,7 +30,10 @@ export default function Analytics() {
   const [history, setHistory] = useState<HistoricalSeries | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [learners, setLearners] = useState<LearnerAnalytics[]>([]);
+  const [learnersError, setLearnersError] = useState<string | null>(null);
   const [content, setContent] = useState<DimensionAnalytics[]>([]);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [breakdownLoading, setBreakdownLoading] = useState({ learners: false, content: false });
   const [llm, setLlm] = useState<LlmAnalytics | null>(null);
   const [llmError, setLlmError] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<PolicyBlockAnalytics | null>(null);
@@ -50,7 +53,7 @@ export default function Analytics() {
 
   useEffect(() => {
     if (rangeError !== null) return;
-    setSummary(null); setHistory(null); setActivityError(null); setLearners([]); setContent([]); setLlm(null); setLlmError(null); setBlocks(null); setPolicyError(null); setQuotaRemaining({});
+    setSummary(null); setHistory(null); setActivityError(null); setLearners([]); setLearnersError(null); setContent([]); setContentError(null); setBreakdownLoading({ learners: true, content: true }); setLlm(null); setLlmError(null); setBlocks(null); setPolicyError(null); setQuotaRemaining({});
     if (groupId === undefined || groupId === null) return;
     const controller = new AbortController();
     const options = { signal: controller.signal };
@@ -69,11 +72,11 @@ export default function Analytics() {
       .then((next) => { if (!controller.signal.aborted) setBlocks(next); })
       .catch((error: unknown) => { if (!controller.signal.aborted) setPolicyError(errorMessage(error)); });
     void api.get<{ items: LearnerAnalytics[] }>(`/api/analytics/learners?${query}`, options)
-      .then((next) => { if (!controller.signal.aborted) setLearners(next.items); })
-      .catch(() => undefined);
+      .then((next) => { if (!controller.signal.aborted) { setLearners(next.items); setBreakdownLoading((current) => ({ ...current, learners: false })); } })
+      .catch((error: unknown) => { if (!controller.signal.aborted) { setLearnersError(errorMessage(error)); setBreakdownLoading((current) => ({ ...current, learners: false })); } });
     void api.get<{ items: DimensionAnalytics[] }>(`/api/analytics/content?${query}`, options)
-      .then((next) => { if (!controller.signal.aborted) setContent(next.items); })
-      .catch(() => undefined);
+      .then((next) => { if (!controller.signal.aborted) { setContent(next.items); setBreakdownLoading((current) => ({ ...current, content: false })); } })
+      .catch((error: unknown) => { if (!controller.signal.aborted) { setContentError(errorMessage(error)); setBreakdownLoading((current) => ({ ...current, content: false })); } });
     void api.get<{ buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }> }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`, options)
       .then((usage) => { if (!controller.signal.aborted) setQuotaRemaining(toRemainingQuota(usage.buckets)); })
       .catch(() => undefined);
@@ -82,19 +85,20 @@ export default function Analytics() {
 
   const exportCsv = () => {
     if (rangeError === null && groupId !== undefined && groupId !== null) {
-      window.location.assign(`/api/analytics/export.csv?${toQuery(groupId, filters)}&limit=200`);
+      window.location.assign(`/api/analytics/export.csv?${toQuery(groupId, filters)}&breakdown=${encodeURIComponent(breakdown)}&limit=200`);
     }
   };
 
   return <div className="resource-page analytics-page">
     <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} onChange={(next) => setAnalyticsState((current) => ({ ...current, filters: next }))} />{scope.status === 'ready' && scope.can('analytics.view') ? <><ConsoleSelect label="Breakdown" selectedKey={breakdown} onSelectionChange={(next) => setAnalyticsState((current) => ({ ...current, breakdown: next as AnalyticsBreakdown }))} options={[{ key: 'none', label: 'No breakdown' }, { key: 'learners', label: 'Learners' }, { key: 'content', label: 'Content' }]} /><SavedViewSelector groupId={groupId} definition={toSavedDefinition(analyticsState)} onApply={(definition) => setAnalyticsState(fromSavedDefinition(definition))} /><ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton></> : null}</div>} />
     <Tabs selectedKey={tab} onSelectionChange={(key) => setAnalyticsState((current) => ({ ...current, tab: String(key) as AnalyticsTab }))}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
+    <BreakdownPanel breakdown={breakdown} learners={learners} learnersError={learnersError} learnersLoading={breakdownLoading.learners} content={content} contentError={contentError} contentLoading={breakdownLoading.content} quotaRemaining={quotaRemaining} />
     {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} visibleMetrics={visibleMetrics} onVisibleMetricsChange={(next) => setAnalyticsState((current) => ({ ...current, visibleMetrics: next }))} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} onBucketClick={(from, to) => setDrilldown({ from, to })} /> : null}
     {tab === 'learners' ? <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} /> : null}
     {tab === 'content' ? <AnalyticsTable label="Content analytics" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} /> : null}
     {tab === 'llm usage' ? <section className="metric-grid" aria-label="LLM usage">{llmError ? <p role="alert">Unable to load LLM usage. {llmError}</p> : <><MetricCard label="Requests" value={llm?.requests ?? '—'} /><MetricCard label="Input tokens" value={(llm?.inputTokens ?? 0).toLocaleString()} /><MetricCard label="Output tokens" value={(llm?.outputTokens ?? 0).toLocaleString()} /><MetricCard label="Cost" value={((llm?.costMicros ?? 0) / 1_000_000).toFixed(4)} /></>}</section> : null}
     {tab === 'policy blocks' ? <section className="metric-grid" aria-label="Policy block analytics">{policyError ? <p role="alert">Unable to load policy blocks. {policyError}</p> : <MetricCard label="Blocked requests" value={blocks?.blocks ?? '—'} detail="Requests rejected before provider execution" />}</section> : null}
-    <ConsoleDialog open={confirm} onOpenChange={setConfirm} title="Export learner analytics?" footer={<><ConsoleButton onClick={() => setConfirm(false)}>Cancel</ConsoleButton><ConsoleButton onClick={exportCsv}>Confirm export</ConsoleButton></>}><p>This export is policy-controlled and recorded in the audit log.</p></ConsoleDialog>
+    <ConsoleDialog open={confirm} onOpenChange={setConfirm} title="Export analytics?" footer={<><ConsoleButton onClick={() => setConfirm(false)}>Cancel</ConsoleButton><ConsoleButton onClick={exportCsv}>Confirm export</ConsoleButton></>}><p>This export matches the selected breakdown, is policy-controlled, and is recorded in the audit log.</p></ConsoleDialog>
     {drilldown !== null ? <HistoryDrawer open onOpenChange={(open) => { if (!open) setDrilldown(null); }} groupId={groupId} from={drilldown.from} to={drilldown.to} /> : null}
   </div>;
 }
@@ -152,6 +156,12 @@ function formatRemaining(values: Record<string, number | null>, learnerId: strin
   const value = values[learnerId];
   if (value === undefined) return 'No individual quota';
   return value === null ? 'Governed' : value;
+}
+
+function BreakdownPanel({ breakdown, learners, learnersError, learnersLoading, content, contentError, contentLoading, quotaRemaining }: { breakdown: AnalyticsBreakdown; learners: LearnerAnalytics[]; learnersError: string | null; learnersLoading: boolean; content: DimensionAnalytics[]; contentError: string | null; contentLoading: boolean; quotaRemaining: Record<string, number | null> }) {
+  if (breakdown === 'none') return <section className="analytics-breakdown" aria-label="Analytics breakdown"><p>No breakdown selected.</p></section>;
+  if (breakdown === 'learners') return <section className="analytics-breakdown" aria-labelledby="learner-breakdown-heading"><h2 id="learner-breakdown-heading">Learner breakdown</h2>{learnersError ? <p role="alert">Unable to load learner breakdown. {learnersError}</p> : learnersLoading ? <p role="status">Loading learner breakdown.</p> : learners.length === 0 ? <p role="status">No learner analytics recorded for the selected range.</p> : <AnalyticsTable label="Learner breakdown" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} />}</section>;
+  return <section className="analytics-breakdown" aria-labelledby="content-breakdown-heading"><h2 id="content-breakdown-heading">Content breakdown</h2>{contentError ? <p role="alert">Unable to load content breakdown. {contentError}</p> : contentLoading ? <p role="status">Loading content breakdown.</p> : content.length === 0 ? <p role="status">No content analytics recorded for the selected range.</p> : <AnalyticsTable label="Content breakdown" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} />}</section>;
 }
 
 function AnalyticsTable({ label, headings, rows }: { label: string; headings: string[]; rows: Array<Array<string | number>> }) {
