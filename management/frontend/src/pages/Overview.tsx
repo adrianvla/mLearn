@@ -28,6 +28,7 @@ export default function Overview() {
   const scope = useGroupScope();
   const groupId =
     scope.status === "ready" ? (scope.selectedGroup?.id ?? null) : null;
+  const canViewActivity = scope.status === "ready" && scope.can("group.view");
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -57,7 +58,9 @@ export default function Overview() {
         `/api/analytics/learners?${query}&limit=8`,
         { signal: controller.signal },
       ),
-      api.get<AuditPage>(`/api/audit/events?groupId=${encodeURIComponent(groupId)}&limit=5`, { signal: controller.signal }),
+      canViewActivity
+        ? api.get<AuditPage>(`/api/audit/events?groupId=${encodeURIComponent(groupId)}&limit=5`, { signal: controller.signal })
+        : Promise.resolve<AuditPage>({ events: [], nextCursor: null }),
     ])
       .then(([summary, timeseries, llm, learners, activity]) => {
         if (!controller.signal.aborted)
@@ -72,7 +75,7 @@ export default function Overview() {
           );
       });
     return () => controller.abort();
-  }, [groupId, periodDays, revision]);
+  }, [canViewActivity, groupId, periodDays, revision]);
 
   const summary = data?.summary;
   return (
@@ -171,12 +174,12 @@ export default function Overview() {
           </Card.Content>
         </Card>
       </section>
-      <RecentActivityTable
+      {canViewActivity && <RecentActivityTable
         events={data?.activity ?? []}
         loading={groupId !== null && data === null && error === null}
         error={error ?? undefined}
         onRetry={retry}
-      /></>}
+      />}</>}
       {view === "usage" && <section className="dashboard-primary-grid"><Card className="dashboard-panel"><Card.Header><div><Card.Title>Token usage</Card.Title><Card.Description>Input and output tokens across the selected subtree</Card.Description></div><strong>{((data?.llm.costMicros ?? 0) / 1_000_000).toFixed(4)} cost</strong></Card.Header><Card.Content><LineChart title="Total tokens" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.totalTokens }))} /></Card.Content></Card><Card className="dashboard-panel controls-panel"><Card.Header><div><Card.Title>Usage summary</Card.Title><Card.Description>Governed provider activity</Card.Description></div></Card.Header><Card.Content><dl><div><dt>Requests</dt><dd>{data?.llm.requests ?? 0}</dd></div><div><dt>Input tokens</dt><dd>{(data?.llm.inputTokens ?? 0).toLocaleString()}</dd></div><div><dt>Output tokens</dt><dd>{(data?.llm.outputTokens ?? 0).toLocaleString()}</dd></div></dl></Card.Content></Card></section>}
       {view === "security" && <section className="dashboard-primary-grid"><Card className="dashboard-panel controls-panel"><Card.Header><div><Card.Title>Policy enforcement</Card.Title><Card.Description>Requests stopped before provider execution</Card.Description></div><ShieldCheck /></Card.Header><Card.Content><dl><div><dt>Policy blocks</dt><dd>{summary?.policyBlocks ?? 0}</dd></div><div><dt>Effective scope</dt><dd>{scope.status === "ready" ? scope.selectedGroup?.name : "Loading"}</dd></div><div><dt>Conversation governance</dt><dd>Signed policy active</dd></div></dl></Card.Content></Card><Card className="dashboard-panel"><Card.Header><div><Card.Title>Security activity</Card.Title><Card.Description>Policy blocks over the selected period</Card.Description></div></Card.Header><Card.Content><LineChart title="Policy blocks" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.policyBlocks }))} /></Card.Content></Card></section>}
     </div>
