@@ -64,6 +64,7 @@ pub fn application_router(state: AppState) -> Router {
         .merge(routes::api_keys::router(state.clone()))
         .merge(routes::audit::router(state.clone()))
         .merge(routes::policies::router(state.clone()))
+        .merge(routes::search::router(state.clone()))
         .merge(routes::llm_configuration::router(state.clone()))
         .merge(routes::quotas::router(state.clone()))
         .merge(routes::llm_gateway::router(state.clone()))
