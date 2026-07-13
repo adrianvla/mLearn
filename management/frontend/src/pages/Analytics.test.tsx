@@ -12,7 +12,7 @@ vi.mock('../components/DatePickerField', () => ({
 const values = { activeLearners: 2, sessions: 3, watchSeconds: 120, completions: 1, readerPages: 2, flashcardEvents: 3, llmRequests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000, policyBlocks: 1 };
 const history = { timezone: 'UTC', granularity: 'daily', primary: [{ start: 1_700_000_000_000, end: 1_700_086_400_000, coverage: 'complete' as const, values }], comparison: null };
 
-function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks', Response>> & { historyEvents?: Response | ((url: string) => Response) } = {}) {
+function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks' | 'learners' | 'content', Response>> & { historyEvents?: Response | ((url: string) => Response) } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/api/analytics/views?')) return json({ items: [{ id: 'saved-learner-focus', name: 'Learner focus', definition: { groupId: 'german', from: history.primary[0].start, to: history.primary[0].end, preset: 'custom', comparison: 'none', granularity: 'daily', tab: 'learners', visibleMetrics: ['flashcardEvents'], breakdown: 'learners' }, createdAt: 1, updatedAt: 1 }] });
@@ -24,8 +24,8 @@ function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks', Re
     if (url.includes('/api/analytics/llm')) return overrides.llm?.clone() ?? json({ requests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000 });
     if (url.includes('/api/analytics/policy-blocks')) return overrides.blocks?.clone() ?? json({ blocks: 1 });
     if (url.includes('/api/llm/usage')) return json({ buckets: [{ scopeKind: 'user', scopeId: 'u', remaining: 75 }] });
-    if (url.includes('/learners')) return json({ items: [{ ...values, learnerId: 'u', displayName: 'Learner', lastActivityAt: 1_700_000_000_000 }] });
-    if (url.includes('/content')) return json({ items: [{ ...values, key: 'content-1', title: 'First video', lastActivityAt: 1_700_000_000_000 }] });
+    if (url.includes('/learners')) return overrides.learners?.clone() ?? json({ items: [{ ...values, learnerId: 'u', displayName: 'Learner', lastActivityAt: 1_700_000_000_000 }] });
+    if (url.includes('/content')) return overrides.content?.clone() ?? json({ items: [{ ...values, key: 'content-1', title: 'First video', lastActivityAt: 1_700_000_000_000 }] });
     return json(values);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -50,7 +50,7 @@ it('renders every scoped analytics view and requires export confirmation', async
   fireEvent.click(screen.getByRole('tab', { name: 'policy blocks' }));
   expect(screen.getByText('Blocked requests')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
-  expect(screen.getByRole('dialog', { name: 'Export learner analytics?' })).toBeVisible();
+  expect(screen.getByRole('dialog', { name: 'Export analytics?' })).toBeVisible();
   expect(fetch).toHaveBeenCalledWith(expect.stringContaining('groupId=german'), expect.anything());
 });
 
@@ -64,7 +64,33 @@ it('restores a saved view as one analytics state including filters, tab, metrics
 
   expect((await screen.findAllByText('Learner')).length).toBeGreaterThanOrEqual(1);
   expect(savedViewLabel.parentElement).toHaveTextContent('Learner focus');
+  expect(screen.getByRole('heading', { name: 'Learner breakdown' })).toBeVisible();
   expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/analytics/learners?groupId=german&from=1700000000000&to=1700086400000'), expect.anything());
+});
+
+it('renders a factual workspace for each breakdown selection', async () => {
+  installFetch();
+  render(<Analytics />);
+
+  expect(await screen.findByText('No breakdown selected.')).toBeVisible();
+  fireEvent.click(breakdownButton());
+  fireEvent.click(screen.getByRole('option', { name: 'Learners' }));
+  expect(await screen.findByRole('heading', { name: 'Learner breakdown' })).toBeVisible();
+  expect(screen.getByRole('table', { name: 'Learner breakdown' })).toHaveTextContent('Learner');
+  fireEvent.click(breakdownButton());
+  fireEvent.click(screen.getByRole('option', { name: 'Content' }));
+  expect(await screen.findByRole('heading', { name: 'Content breakdown' })).toBeVisible();
+  expect(screen.getByRole('table', { name: 'Content breakdown' })).toHaveTextContent('First video');
+});
+
+it('shows a factual breakdown error instead of an empty learner table', async () => {
+  installFetch({ learners: new Response(JSON.stringify({ error: 'Learner analytics is unavailable.' }), { status: 503, headers: { 'Content-Type': 'application/json' } }) });
+  render(<Analytics />);
+
+  await screen.findByText('Breakdown');
+  fireEvent.click(breakdownButton());
+  fireEvent.click(screen.getByRole('option', { name: 'Learners' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load learner breakdown. Learner analytics is unavailable.');
 });
 
 it('requires explicit confirmation before overwriting the selected saved view', async () => {
@@ -174,4 +200,8 @@ it('keeps activity history visible when the LLM usage panel fails', async () => 
 
 function json(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+}
+
+function breakdownButton(): HTMLButtonElement {
+  return screen.getByText('Breakdown').parentElement?.querySelector('button') as HTMLButtonElement;
 }

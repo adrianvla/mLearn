@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 use time::OffsetDateTime;
 
@@ -54,6 +54,15 @@ struct AnalyticsQuery {
     to: Option<i64>,
     limit: Option<i64>,
     cursor: Option<String>,
+    breakdown: Option<AnalyticsBreakdown>,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+enum AnalyticsBreakdown {
+    None,
+    Learners,
+    Content,
 }
 
 #[derive(Deserialize)]
@@ -275,50 +284,43 @@ async fn export_csv(
     if limit > 10_000 {
         return Err(AppError::BadRequest("export row limit exceeded".into()));
     }
-    let page = AnalyticsQueryService::new(state.db.clone())
-        .learners(
-            &principal,
-            &q.group_id,
-            from,
-            to,
-            limit,
-            q.cursor.as_deref(),
-        )
-        .await?;
     let mut writer = csv::Writer::from_writer(vec![]);
-    writer
-        .write_record([
-            "learner_id",
-            "display_name",
-            "sessions",
-            "watch_seconds",
-            "llm_requests",
-            "total_tokens",
-            "cost_micros",
-        ])
-        .map_err(|_| AppError::Internal("csv export failed".into()))?;
-    for row in page.items {
-        let safe = |v: String| {
-            if matches!(
-                v.as_bytes().first(),
-                Some(b'=') | Some(b'+') | Some(b'-') | Some(b'@')
-            ) {
-                format!("'{v}")
-            } else {
-                v
-            }
-        };
-        writer
-            .write_record([
-                safe(row.learner_id),
-                safe(row.display_name),
-                row.summary.sessions.to_string(),
-                row.summary.watch_seconds.to_string(),
-                row.summary.llm_requests.to_string(),
-                row.summary.total_tokens.to_string(),
-                row.summary.cost_micros.to_string(),
-            ])
-            .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    let breakdown = q.breakdown.unwrap_or(AnalyticsBreakdown::None);
+    let service = AnalyticsQueryService::new(state.db.clone());
+    match breakdown {
+        AnalyticsBreakdown::None => write_summary_csv(
+            &mut writer,
+            service.summary(&principal, &q.group_id, from, to).await?,
+        )?,
+        AnalyticsBreakdown::Learners => write_learner_csv(
+            &mut writer,
+            service
+                .learners(
+                    &principal,
+                    &q.group_id,
+                    from,
+                    to,
+                    limit,
+                    q.cursor.as_deref(),
+                )
+                .await?
+                .items,
+        )?,
+        AnalyticsBreakdown::Content => write_content_csv(
+            &mut writer,
+            service
+                .dimensions(
+                    &principal,
+                    &q.group_id,
+                    from,
+                    to,
+                    false,
+                    limit,
+                    q.cursor.as_deref(),
+                )
+                .await?
+                .items,
+        )?,
     }
     let mut connection = state
         .db
@@ -344,7 +346,7 @@ async fn export_csv(
         )
         .await?;
     sqlx::query("INSERT INTO audit_events(id,actor_user_id,action,target_type,target_id,metadata_json,created_at,authorized_group_id,request_id,actor_api_key_id) VALUES(?,?,'analytics.exported','group',?,?,unixepoch(),?,NULL,?)")
-        .bind(uuid::Uuid::now_v7().to_string()).bind(&principal.user_id).bind(&q.group_id).bind(serde_json::json!({"from":from,"to":to,"rows":limit}).to_string()).bind(&q.group_id).bind(&principal.service_key_id).execute(&mut *tx).await.map_err(|e|AppError::Internal(format!("analytics database error: {e}")))?;
+        .bind(uuid::Uuid::now_v7().to_string()).bind(&principal.user_id).bind(&q.group_id).bind(serde_json::json!({"from":from,"to":to,"rows":limit,"breakdown":breakdown}).to_string()).bind(&q.group_id).bind(&principal.service_key_id).execute(&mut *tx).await.map_err(|e|AppError::Internal(format!("analytics database error: {e}")))?;
     tx.commit()
         .await
         .map_err(|e| AppError::Internal(format!("analytics database error: {e}")))?;
@@ -361,6 +363,105 @@ async fn export_csv(
         "attachment; filename=analytics.csv".parse().unwrap(),
     );
     Ok((headers, bytes))
+}
+
+fn write_summary_csv(
+    writer: &mut csv::Writer<Vec<u8>>,
+    summary: AnalyticsSummary,
+) -> Result<(), AppError> {
+    writer
+        .write_record(["metric", "value"])
+        .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    for (metric, value) in [
+        ("active_learners", summary.active_learners),
+        ("sessions", summary.sessions),
+        ("watch_seconds", summary.watch_seconds),
+        ("completions", summary.completions),
+        ("reader_pages", summary.reader_pages),
+        ("flashcard_events", summary.flashcard_events),
+        ("llm_requests", summary.llm_requests),
+        ("input_tokens", summary.input_tokens),
+        ("output_tokens", summary.output_tokens),
+        ("total_tokens", summary.total_tokens),
+        ("cost_micros", summary.cost_micros),
+        ("policy_blocks", summary.policy_blocks),
+    ] {
+        writer
+            .write_record([metric, &value.to_string()])
+            .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    }
+    Ok(())
+}
+
+fn write_learner_csv(
+    writer: &mut csv::Writer<Vec<u8>>,
+    rows: Vec<LearnerAnalytics>,
+) -> Result<(), AppError> {
+    writer
+        .write_record([
+            "learner_id",
+            "display_name",
+            "sessions",
+            "watch_seconds",
+            "llm_requests",
+            "total_tokens",
+            "cost_micros",
+        ])
+        .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    for row in rows {
+        writer
+            .write_record([
+                safe_csv_field(row.learner_id),
+                safe_csv_field(row.display_name),
+                row.summary.sessions.to_string(),
+                row.summary.watch_seconds.to_string(),
+                row.summary.llm_requests.to_string(),
+                row.summary.total_tokens.to_string(),
+                row.summary.cost_micros.to_string(),
+            ])
+            .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    }
+    Ok(())
+}
+
+fn write_content_csv(
+    writer: &mut csv::Writer<Vec<u8>>,
+    rows: Vec<DimensionAnalytics>,
+) -> Result<(), AppError> {
+    writer
+        .write_record([
+            "content_id",
+            "content_title",
+            "sessions",
+            "watch_seconds",
+            "completions",
+            "active_learners",
+        ])
+        .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    for row in rows {
+        writer
+            .write_record([
+                safe_csv_field(row.key),
+                safe_csv_field(row.title.unwrap_or_default()),
+                row.summary.sessions.to_string(),
+                row.summary.watch_seconds.to_string(),
+                row.summary.completions.to_string(),
+                row.summary.active_learners.to_string(),
+            ])
+            .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    }
+    Ok(())
+}
+
+fn safe_csv_field(value: String) -> String {
+    if matches!(
+        value.as_bytes().first(),
+        Some(b'=') | Some(b'+') | Some(b'-') | Some(b'@')
+    ) {
+        format!("'{value}")
+    } else {
+        value
+    }
 }
 
 async fn ingest_events(
@@ -383,6 +484,7 @@ pub async fn get_analytics() -> Result<Json<AnalyticsDto>, AppError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::analytics::queries::{AnalyticsSummary, DimensionAnalytics, LearnerAnalytics};
     use axum::{
         body::{to_bytes, Body},
         http::{header, Request, StatusCode},
@@ -392,6 +494,49 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use time::OffsetDateTime;
     use tower::ServiceExt;
+
+    #[test]
+    fn breakdown_csvs_use_distinct_factual_rows_and_escape_formula_cells() {
+        let summary = AnalyticsSummary {
+            active_learners: 2,
+            sessions: 3,
+            ..AnalyticsSummary::default()
+        };
+        let mut summary_writer = csv::Writer::from_writer(Vec::new());
+        super::write_summary_csv(&mut summary_writer, summary.clone()).unwrap();
+        let summary_csv = String::from_utf8(summary_writer.into_inner().unwrap()).unwrap();
+        assert!(summary_csv.starts_with("metric,value\nactive_learners,2\nsessions,3\n"));
+
+        let mut learner_writer = csv::Writer::from_writer(Vec::new());
+        super::write_learner_csv(
+            &mut learner_writer,
+            vec![LearnerAnalytics {
+                learner_id: "=learner".into(),
+                display_name: "+Display".into(),
+                last_activity_at: 1,
+                summary: summary.clone(),
+            }],
+        )
+        .unwrap();
+        let learner_csv = String::from_utf8(learner_writer.into_inner().unwrap()).unwrap();
+        assert!(learner_csv.starts_with("learner_id,display_name,sessions"));
+        assert!(learner_csv.contains("'=learner,'+Display,3"));
+
+        let mut content_writer = csv::Writer::from_writer(Vec::new());
+        super::write_content_csv(
+            &mut content_writer,
+            vec![DimensionAnalytics {
+                key: "content-1".into(),
+                title: Some("Recorded video".into()),
+                last_activity_at: 1,
+                summary,
+            }],
+        )
+        .unwrap();
+        let content_csv = String::from_utf8(content_writer.into_inner().unwrap()).unwrap();
+        assert!(content_csv.starts_with("content_id,content_title,sessions"));
+        assert!(content_csv.contains("content-1,Recorded video,3"));
+    }
 
     #[tokio::test]
     async fn production_route_authenticates_learner_and_returns_exact_shape() {
