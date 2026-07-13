@@ -38,6 +38,20 @@ export function AnalyticsOverview({ summary, history, comparison, visibleMetrics
     toSeries(history, 'completions', 'Completions recorded', 'primary'),
     ...(history.comparison === null ? [] : [toSeries(history, 'sessions', 'Sessions recorded', 'comparison', comparisonLabel(comparison)), toSeries(history, 'completions', 'Completions recorded', 'comparison', comparisonLabel(comparison))]),
   ], [comparison, history]);
+  const llmSeries = useMemo(() => history === null ? [] : [
+    toSeries(history, 'llmRequests', 'LLM requests', 'primary'),
+    toSeries(history, 'latencyMs', 'Recorded latency (ms)', 'primary'),
+    toSeries(history, 'llmErrors', 'Recorded errors', 'primary'),
+    ...(history.comparison === null ? [] : [
+      toSeries(history, 'llmRequests', 'LLM requests', 'comparison', comparisonLabel(comparison)),
+      toSeries(history, 'latencyMs', 'Recorded latency (ms)', 'comparison', comparisonLabel(comparison)),
+      toSeries(history, 'llmErrors', 'Recorded errors', 'comparison', comparisonLabel(comparison)),
+    ]),
+  ], [comparison, history]);
+  const policySeries = useMemo(() => history === null ? [] : [
+    toSeries(history, 'policyBlocks', 'Policy blocks', 'primary'),
+    ...(history.comparison === null ? [] : [toSeries(history, 'policyBlocks', 'Policy blocks', 'comparison', comparisonLabel(comparison))]),
+  ], [comparison, history]);
 
   return <div className="analytics-overview">
     <section className="analytics-panel" aria-labelledby="activity-history-heading">
@@ -52,11 +66,11 @@ export function AnalyticsOverview({ summary, history, comparison, visibleMetrics
     </section>
     <section className="analytics-panel" aria-labelledby="llm-usage-heading">
       <div className="analytics-panel__heading"><div><h2 id="llm-usage-heading">LLM usage</h2><p>Provider requests and recorded token totals for the selected range.</p></div></div>
-      {llmError ? <PanelError title="LLM usage" message={llmError} /> : llm === null ? <PanelLoading title="LLM usage" /> : <><div className="metric-grid"><MetricCard label="Requests" value={llm.requests} /><MetricCard label="Input tokens" value={llm.inputTokens.toLocaleString()} /><MetricCard label="Output tokens" value={llm.outputTokens.toLocaleString()} /><MetricCard label="Cost" value={(llm.costMicros / 1_000_000).toFixed(4)} /><MetricCard label="Recorded latency" value={`${llm.latencyMs ?? 0} ms`} /><MetricCard label="Recorded errors" value={llm.errors ?? 0} /></div>{(llm.breakdown?.length ?? 0) > 0 ? <div className="data-table-shell table-scroll"><table aria-label="LLM provider model group breakdown"><caption className="sr-only">LLM provider, model, and group breakdown</caption><thead><tr><th>Provider</th><th>Model</th><th>Group</th><th>Requests</th><th>Cost</th><th>Recorded latency</th><th>Errors</th></tr></thead><tbody>{llm.breakdown?.map((row) => <tr key={`${row.providerId}:${row.modelId}:${row.groupId}`}><th>{row.providerId}</th><td>{row.modelId}</td><td>{row.groupId}</td><td>{row.requests}</td><td>{(row.costMicros / 1_000_000).toFixed(4)}</td><td>{row.latencyMs} ms</td><td>{row.errors}</td></tr>)}</tbody></table></div> : <p role="status">No provider, model, or group usage was recorded in this period.</p>}</>}
+      {llmError ? <PanelError title="LLM usage" message={llmError} /> : llm === null || history === null ? <PanelLoading title="LLM usage" /> : <><div className="metric-grid"><MetricCard label="Requests" value={llm.requests} /><MetricCard label="Input tokens" value={llm.inputTokens.toLocaleString()} /><MetricCard label="Output tokens" value={llm.outputTokens.toLocaleString()} /><MetricCard label="Cost" value={(llm.costMicros / 1_000_000).toFixed(4)} /><MetricCard label="Recorded latency" value={`${llm.latencyMs ?? 0} ms`} /><MetricCard label="Recorded errors" value={llm.errors ?? 0} /></div><HistoricalChart title="LLM usage" series={llmSeries} timezone={history.timezone} /><AnalyticsHistoryTable title="LLM usage" series={llmSeries} timezone={history.timezone} />{(llm.breakdown?.length ?? 0) > 0 ? <div className="data-table-shell table-scroll"><table aria-label="LLM provider model group breakdown"><caption className="sr-only">LLM provider, model, and group breakdown</caption><thead><tr><th>Provider</th><th>Model</th><th>Group</th><th>Requests</th><th>Cost</th><th>Recorded latency</th><th>Errors</th></tr></thead><tbody>{llm.breakdown?.map((row) => <tr key={`${row.providerId}:${row.modelId}:${row.groupId}`}><th>{row.providerId}</th><td>{row.modelId}</td><td>{row.groupId}</td><td>{row.requests}</td><td>{(row.costMicros / 1_000_000).toFixed(4)}</td><td>{row.latencyMs} ms</td><td>{row.errors}</td></tr>)}</tbody></table></div> : <p role="status">No provider, model, or group usage was recorded in this period.</p>}</>}
     </section>
     <section className="analytics-panel" aria-labelledby="policy-blocks-heading">
       <div className="analytics-panel__heading"><div><h2 id="policy-blocks-heading">Policy blocks</h2><p>Requests blocked before provider execution in the selected range.</p></div></div>
-      {policyError ? <PanelError title="Policy blocks" message={policyError} /> : blocks === null ? <PanelLoading title="Policy blocks" /> : <div className="metric-grid"><MetricCard label="Blocked requests" value={blocks.blocks} detail="Requests rejected before provider execution" /></div>}
+      {policyError ? <PanelError title="Policy blocks" message={policyError} /> : blocks === null || history === null ? <PanelLoading title="Policy blocks" /> : <><div className="metric-grid"><MetricCard label="Blocked requests" value={blocks.blocks} detail="Requests rejected before provider execution" /></div><HistoricalChart title="Policy blocks" series={policySeries} timezone={history.timezone} /><AnalyticsHistoryTable title="Policy blocks" series={policySeries} timezone={history.timezone} /></>}
     </section>
   </div>;
 }

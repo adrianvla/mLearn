@@ -14,6 +14,7 @@ import { SavedViewSelector } from './analytics/SavedViewSelector';
 
 const api = new ApiClient();
 const DAY = 86_400_000;
+const PENDING_SAVED_VIEW_KEY = 'mlearn-management-pending-analytics-view';
 interface AnalyticsState {
   groupId: string | null;
   filters: AnalyticsFilterValue;
@@ -90,7 +91,14 @@ export default function Analytics() {
   };
 
   return <div className="resource-page analytics-page">
-    <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} timezone={history?.timezone ?? null} onChange={(next) => setAnalyticsState((current) => ({ ...current, filters: next }))} />{scope.status === 'ready' && scope.can('analytics.view') ? <><ConsoleSelect label="Breakdown" selectedKey={breakdown} onSelectionChange={(next) => setAnalyticsState((current) => ({ ...current, breakdown: next as AnalyticsBreakdown }))} options={[{ key: 'none', label: 'No breakdown' }, { key: 'learners', label: 'Learners' }, { key: 'content', label: 'Content' }]} /><SavedViewSelector groupId={groupId} definition={toSavedDefinition(analyticsState)} onApply={async (definition) => { if ('selectGroup' in scope) await scope.selectGroup(definition.groupId); setAnalyticsState(fromSavedDefinition(definition)); }} /><ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton></> : null}</div>} />
+    <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} timezone={history?.timezone ?? null} onChange={(next) => setAnalyticsState((current) => ({ ...current, filters: next }))} />{scope.status === 'ready' && scope.can('analytics.view') ? <><ConsoleSelect label="Breakdown" selectedKey={breakdown} onSelectionChange={(next) => setAnalyticsState((current) => ({ ...current, breakdown: next as AnalyticsBreakdown }))} options={[{ key: 'none', label: 'No breakdown' }, { key: 'learners', label: 'Learners' }, { key: 'content', label: 'Content' }]} /><SavedViewSelector groupId={groupId} definition={toSavedDefinition(analyticsState)} onApply={async (definition) => {
+      if (definition.groupId !== scopedGroupId) {
+        persistPendingSavedDefinition(definition);
+        await scope.selectGroup(definition.groupId);
+        return;
+      }
+      setAnalyticsState(fromSavedDefinition(definition));
+    }} /><ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton></> : null}</div>} />
     <Tabs selectedKey={tab} onSelectionChange={(key) => setAnalyticsState((current) => ({ ...current, tab: String(key) as AnalyticsTab }))}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
     <BreakdownPanel breakdown={breakdown} learners={learners} learnersError={learnersError} learnersLoading={breakdownLoading.learners} content={content} contentError={contentError} contentLoading={breakdownLoading.content} quotaRemaining={quotaRemaining} />
     {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} visibleMetrics={visibleMetrics} onVisibleMetricsChange={(next) => setAnalyticsState((current) => ({ ...current, visibleMetrics: next }))} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} onBucketClick={(from, to) => setDrilldown({ from, to })} /> : null}
@@ -109,7 +117,25 @@ function defaultFilters(): AnalyticsFilterValue {
 }
 
 function defaultAnalyticsState(groupId: string | null): AnalyticsState {
+  const pending = takePendingSavedDefinition(groupId);
+  if (pending !== null) return fromSavedDefinition(pending);
   return { groupId, filters: defaultFilters(), tab: 'overview', visibleMetrics: ['readerPages', 'watchSeconds', 'flashcardEvents'], breakdown: 'none' };
+}
+
+function persistPendingSavedDefinition(definition: SavedAnalyticsViewDefinition): void {
+  sessionStorage.setItem(PENDING_SAVED_VIEW_KEY, JSON.stringify(definition));
+}
+
+function takePendingSavedDefinition(groupId: string | null): SavedAnalyticsViewDefinition | null {
+  const serialized = sessionStorage.getItem(PENDING_SAVED_VIEW_KEY);
+  if (serialized === null) return null;
+  sessionStorage.removeItem(PENDING_SAVED_VIEW_KEY);
+  try {
+    const definition = JSON.parse(serialized) as SavedAnalyticsViewDefinition;
+    return definition.groupId === groupId ? definition : null;
+  } catch {
+    return null;
+  }
 }
 
 function toSavedDefinition(state: AnalyticsState): SavedAnalyticsViewDefinition {

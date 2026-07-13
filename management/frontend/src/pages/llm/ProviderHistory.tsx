@@ -51,26 +51,19 @@ export function ProviderHistory({ open, onOpenChange, groupId, providerId, provi
   </ConsoleDialog>;
 }
 
-function toUsageSeries(usage: ProviderHistoryData['usage']): ChartSeries[] {
-  const models = new Map<string, { id: string; groupId: string; key: string }>();
-  for (const day of usage) for (const model of day.values ?? []) models.set(`${model.modelId}:${model.groupId}`, { id: model.modelId, groupId: model.groupId, key: `${model.modelKey} · ${model.groupId}` });
-  if (models.size === 0 && usage.length > 0) return [{
-    key: 'requests',
-    label: 'Provider requests',
-    kind: 'primary',
-    values: usage.map((day) => ({ start: day.start, end: day.end, value: null, coverage: day.coverage })),
-  }];
-  return [...models.values()].flatMap((model) => [{
-    key: `requests-${model.id}-${model.key}`,
-    label: `${model.key} requests`,
-    kind: 'primary' as const,
-    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id && value.groupId === model.groupId)?.requests ?? 0, coverage: day.coverage })),
-  }, {
-    key: `cost-${model.id}-${model.key}`,
-    label: `${model.key} cost micros`,
-    kind: 'primary' as const,
-    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id && value.groupId === model.groupId)?.costMicros ?? 0, coverage: day.coverage })),
-  }]);
+export function toUsageSeries(usage: ProviderHistoryData['usage']): ChartSeries[] {
+  const aggregate = (metric: 'requests' | 'costMicros' | 'latencyMs' | 'errors') => usage.map((day) => ({
+    start: day.start,
+    end: day.end,
+    coverage: day.coverage,
+    value: day.values === null ? null : day.values.reduce((total, value) => total + value[metric], 0),
+  }));
+  return [
+    { key: 'requests', label: 'Provider requests', kind: 'primary' as const, values: aggregate('requests') },
+    { key: 'cost', label: 'Provider cost micros', kind: 'primary' as const, values: aggregate('costMicros') },
+    { key: 'latency', label: 'Recorded latency (ms)', kind: 'primary' as const, values: aggregate('latencyMs') },
+    { key: 'errors', label: 'Recorded errors', kind: 'primary' as const, values: aggregate('errors') },
+  ];
 }
 
 function ProviderUsageTable({ usage, timezone }: { usage: ProviderHistoryData['usage']; timezone: string }) {
