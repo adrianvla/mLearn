@@ -147,7 +147,7 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
   expect(await screen.findByText("Browser · web")).toBeVisible();
   expect(screen.getByRole("tab", { name: "Activity" })).toBeVisible();
   fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
-  expect(await screen.findByRole("table", { name: "Daily user activity data" })).toBeVisible();
+  expect(await screen.findByRole("table", { name: "Daily user activity chart data" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("tab", { name: "Profile" }));
   expect(screen.getByRole("heading", { name: "Usage summary" })).toBeVisible();
   expect(screen.getByText("80 remaining")).toBeVisible();

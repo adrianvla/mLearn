@@ -69,7 +69,7 @@ export default function ActivityLog() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Activity log could not be loaded'); }
   };
 
-  return <div className="resource-page"><PageToolbar title="Activity Log" description="Immutable administrative activity for the selected group and its descendants." actions={<ConsoleButton className="secondary-action" isDisabled={!filtersApplied} onClick={clearFilters}>Clear filters</ConsoleButton>} />
+  return <div className="resource-page"><PageToolbar title="Activity Log" description="Immutable administrative activity for the selected group and its descendants." actions={<ConsoleButton variant="secondary" isDisabled={!filtersApplied} onClick={clearFilters}>Clear filters</ConsoleButton>} />
     <DataTableShell label="Activity log" loading={loading} error={error ?? undefined} onRetry={() => setRevision((value) => value + 1)} controls={<div className="filter-stack"><div className="filter-row">
       <DatePickerField label="From date" value={from} onChange={setFrom} /><DatePickerField label="To date" value={to} onChange={setTo} />
       <ConsoleTextField label="Actor user ID" value={actorUserId} onChange={setActorUserId} placeholder="User ID" />
@@ -77,9 +77,9 @@ export default function ActivityLog() {
       <ConsoleTextField label="Target type" value={targetType} onChange={setTargetType} placeholder="Exact target type" />
       <ConsoleTextField label="Target ID" value={targetId} onChange={setTargetId} placeholder="Target ID" />
     </div></div>}>
-      {events.length ? <div className="table-scroll"><table><caption className="sr-only">Administrative activity</caption><thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>Group</th><th>When</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><th><ConsoleButton className="table-link" onClick={() => setSelected(event)}>{event.action}</ConsoleButton></th><td>{event.actor ?? 'System'}</td><td>{event.targetType ?? '—'}{event.targetId ? ` / ${event.targetId}` : ''}</td><td>{event.authorizedGroupId}</td><td>{formatSchoolDate(event.timestamp * 1000, timezone ?? 'UTC', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>)}</tbody></table></div> : undefined}
+      {events.length ? <div className="table-scroll"><table><caption className="sr-only">Administrative activity</caption><thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>Group</th><th>When</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><th><ConsoleButton variant="ghost" onClick={() => setSelected(event)}>{event.action}</ConsoleButton></th><td>{event.actor ?? 'System'}</td><td>{event.targetType ?? '—'}{event.targetId ? ` / ${event.targetId}` : ''}</td><td>{event.authorizedGroupId}</td><td>{formatSchoolDate(event.timestamp * 1000, timezone ?? 'UTC', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>)}</tbody></table></div> : undefined}
     </DataTableShell>
-    {nextCursor && <ConsoleButton className="secondary-action" onClick={() => void loadMore()}>Load more</ConsoleButton>}
+    {nextCursor && <ConsoleButton variant="secondary" onClick={() => void loadMore()}>Load more</ConsoleButton>}
     {selected && <ConsoleDialog open onOpenChange={(open) => { if (!open) setSelected(null); }} title="Activity event" footer={<ConsoleButton onClick={() => setSelected(null)}>Close</ConsoleButton>}><dl><div><dt>Action</dt><dd>{selected.action}</dd></div><div><dt>Actor</dt><dd>{selected.actor ?? 'System'}</dd></div><div><dt>Target</dt><dd>{selected.targetType ?? '—'}{selected.targetId ? ` / ${selected.targetId}` : ''}</dd></div><div><dt>Group</dt><dd>{selected.authorizedGroupId}</dd></div><div><dt>Request</dt><dd>{selected.requestId ?? '—'}</dd></div></dl>{selected.metadata !== null && <pre aria-label="Redacted event metadata">{JSON.stringify(selected.metadata, null, 2)}</pre>}</ConsoleDialog>}
   </div>;
 }

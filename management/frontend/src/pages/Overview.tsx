@@ -84,7 +84,7 @@ export default function Overview() {
         title="Dashboard"
         description={`Learning, policy, and AI activity for ${scope.status === "ready" ? (scope.selectedGroup?.name ?? "the selected group") : "your school"}.`}
         actions={
-          <ConsoleButton className="secondary-action" onClick={retry}>
+          <ConsoleButton variant="secondary" onClick={retry}>
             <RefreshCw /> Refresh
           </ConsoleButton>
         }

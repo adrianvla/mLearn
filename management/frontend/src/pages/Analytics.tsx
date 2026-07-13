@@ -98,7 +98,7 @@ export default function Analytics() {
         return;
       }
       setAnalyticsState(fromSavedDefinition(definition));
-    }} /><ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton></> : null}</div>} />
+    }} /><ConsoleButton variant="secondary" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton></> : null}</div>} />
     <Tabs selectedKey={tab} onSelectionChange={(key) => setAnalyticsState((current) => ({ ...current, tab: String(key) as AnalyticsTab }))}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
     <BreakdownPanel breakdown={breakdown} learners={learners} learnersError={learnersError} learnersLoading={breakdownLoading.learners} content={content} contentError={contentError} contentLoading={breakdownLoading.content} quotaRemaining={quotaRemaining} />
     {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} visibleMetrics={visibleMetrics} onVisibleMetricsChange={(next) => setAnalyticsState((current) => ({ ...current, visibleMetrics: next }))} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} onBucketClick={(from, to) => setDrilldown({ from, to })} /> : null}

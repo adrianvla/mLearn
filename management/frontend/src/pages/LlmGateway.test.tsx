@@ -137,7 +137,7 @@ it("shows an exact provider health-history table without exposing provider respo
   render(<LlmGateway />);
   fireEvent.click(await screen.findByRole("button", { name: "Provider history" }));
   expect(await screen.findByRole("table", { name: "Provider health history" })).toBeVisible();
-  expect(screen.getByRole("table", { name: "Provider usage data" })).toBeVisible();
+  expect(screen.getByRole("table", { name: "Provider usage chart data" })).toBeInTheDocument();
   expect(screen.getAllByText(/No recorded data/).length).toBeGreaterThan(0);
   expect(screen.getByTestId("provider-health-check-check")).toBeVisible();
   expect(screen.getByText("healthy")).toBeVisible();

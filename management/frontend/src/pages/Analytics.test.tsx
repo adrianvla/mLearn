@@ -83,9 +83,9 @@ it('renders historical LLM and policy-block charts with their exact tables', asy
   render(<Analytics />);
 
   expect(await screen.findByRole('img', { name: 'LLM usage history' })).toBeVisible();
-  expect(screen.getAllByRole('table', { name: 'LLM usage data' }).length).toBeGreaterThanOrEqual(2);
+  expect(screen.getAllByRole('table', { name: 'LLM usage data' })).toHaveLength(1);
   expect(screen.getByRole('img', { name: 'Policy blocks history' })).toBeVisible();
-  expect(screen.getAllByRole('table', { name: 'Policy blocks data' }).length).toBeGreaterThanOrEqual(2);
+  expect(screen.getAllByRole('table', { name: 'Policy blocks data' })).toHaveLength(1);
 });
 
 it('hands a cross-group saved view to the destination analytics mount', async () => {
@@ -155,7 +155,20 @@ it('loads a previous-period comparison and keeps chart and table values aligned'
   fireEvent.click(screen.getByRole('option', { name: 'Previous period' }));
 
   expect(await screen.findByRole('img', { name: 'Activity history' })).toBeVisible();
-  expect(screen.getByRole('table', { name: 'Activity history data' })).toHaveTextContent('Previous period');
+  expect(screen.getByRole('table', { name: 'Activity data' })).toHaveTextContent('Previous period');
+});
+
+it('keeps activity exact data collapsed until it is requested', async () => {
+  installFetch();
+  render(<Analytics />);
+
+  const exactData = await screen.findByRole('table', { name: 'Activity data' });
+  expect(exactData.parentElement).toHaveClass('sr-only');
+  const toggle = screen.getByRole('button', { name: 'Show exact activity data' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  fireEvent.click(toggle);
+  expect(exactData.parentElement).not.toHaveClass('sr-only');
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
 });
 
 it('renders previous-year activity alongside the current period with each period date', async () => {
@@ -166,7 +179,7 @@ it('renders previous-year activity alongside the current period with each period
   fireEvent.click(screen.getByRole('option', { name: 'Previous year' }));
 
   expect(await screen.findByTestId('stacked-bar-0-comparison')).toBeVisible();
-  const table = screen.getByRole('table', { name: 'Activity history data' });
+  const table = screen.getByRole('table', { name: 'Activity data' });
   expect(table).toHaveTextContent('Previous year');
   expect(table).toHaveTextContent(new Date(comparison[0].start).toLocaleDateString());
 });
@@ -181,9 +194,11 @@ it('opens the factual event history drawer for a chart bucket and follows its cu
   });
   render(<Analytics />);
 
-  const periodName = `Open event history for ${new Date(history.primary[0].start).toLocaleDateString()} to ${new Date(history.primary[0].end).toLocaleDateString()}`;
   expect(document.querySelector('svg [role="button"]')).toBeNull();
-  fireEvent.click(await screen.findByRole('button', { name: periodName }));
+  expect(await screen.findByText('Event history period')).toBeVisible();
+  expect(screen.getAllByRole('button', { name: 'Open event history' })).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: /Open event history for/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Open event history' }));
   expect(await screen.findByRole('dialog', { name: 'Recorded events' })).toBeVisible();
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/analytics/history/events'), expect.anything()));
   expect(await screen.findByText(/First reader/)).toBeVisible();

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Button, Card, Tooltip } from '@heroui/react';
 import type { AnalyticsCoverage } from '../../api/types';
+import { ConsoleSelect } from '../console';
 import { CoverageAnnotation, ExactDataTable } from './HistoricalChart';
 import { formatPeriodLabel, type ChartSeries } from './chartTypes';
 
@@ -15,12 +17,15 @@ interface StackedActivityChartProps {
 }
 
 export function StackedActivityChart({ title, series, onBucketClick, timezone = 'UTC' }: StackedActivityChartProps) {
+  const [showExactData, setShowExactData] = useState(false);
+  const [selectedBucketKey, setSelectedBucketKey] = useState('');
   const primarySeries = series.filter((item) => item.kind === 'primary');
   const comparisonSeries = series.filter((item) => item.kind === 'comparison');
   const periodSeries = [{ kind: 'primary' as const, series: primarySeries }, ...(comparisonSeries.length === 0 ? [] : [{ kind: 'comparison' as const, series: comparisonSeries }])];
   const bucketCount = Math.max(0, ...periodSeries.flatMap((period) => period.series.map((item) => item.values.length)));
   const maximum = Math.max(1, ...periodSeries.flatMap((period) => Array.from({ length: bucketCount }, (_, index) => totalAt(period.series, index))));
-  const drilldownBuckets = onBucketClick === undefined ? [] : periodSeries.flatMap((period) => (period.series[0]?.values ?? []).map((bucket) => ({ key: `${period.kind}-${bucket.start}-${bucket.end}`, start: bucket.start, end: bucket.end })));
+  const drilldownBuckets = onBucketClick === undefined ? [] : (primarySeries[0]?.values ?? []).map((bucket) => ({ key: `${bucket.start}:${bucket.end}`, start: bucket.start, end: bucket.end, label: formatBucketRange(bucket.start, bucket.end, timezone) }));
+  const selectedBucket = drilldownBuckets.find((bucket) => bucket.key === selectedBucketKey) ?? drilldownBuckets[0];
 
   return <Card className="stacked-activity-chart">
     <Card.Header>
@@ -28,10 +33,15 @@ export function StackedActivityChart({ title, series, onBucketClick, timezone = 
         <Card.Title>{title}</Card.Title>
         <Card.Description>Recorded activity categories by time bucket.</Card.Description>
       </div>
-      <Tooltip>
-        <Tooltip.Trigger><Button size="sm" variant="secondary">Coverage</Button></Tooltip.Trigger>
-        <Tooltip.Content>Unavailable values remain unavailable; the chart does not replace them with zero.</Tooltip.Content>
-      </Tooltip>
+      <div className="historical-chart__actions">
+        <Tooltip>
+          <Tooltip.Trigger><Button size="sm" variant="secondary">Coverage</Button></Tooltip.Trigger>
+          <Tooltip.Content>Unavailable values remain unavailable; the chart does not replace them with zero.</Tooltip.Content>
+        </Tooltip>
+        <Button size="sm" variant="secondary" aria-expanded={showExactData} aria-label={`${showExactData ? 'Hide' : 'Show'} exact activity data`} onPress={() => setShowExactData((visible) => !visible)}>
+          {showExactData ? 'Hide exact data' : 'Show exact data'}
+        </Button>
+      </div>
     </Card.Header>
     <Card.Content>
       <figure className="stacked-activity-chart__figure">
@@ -41,9 +51,12 @@ export function StackedActivityChart({ title, series, onBucketClick, timezone = 
           {periodSeries.flatMap((period, periodIndex) => Array.from({ length: bucketCount }, (_, index) => <StackedBar key={`${period.kind}-${index}`} index={index} bucketCount={bucketCount} kind={period.kind} periodIndex={periodIndex} periodCount={periodSeries.length} series={period.series} maximum={maximum} />))}
         </svg>
       </figure>
-      {drilldownBuckets.length > 0 ? <div className="stacked-activity-chart__bucket-controls" aria-label={`${title} event history periods`}>{drilldownBuckets.map((bucket) => <Button key={bucket.key} size="sm" variant="secondary" aria-label={`Open event history for ${formatBucketRange(bucket.start, bucket.end, timezone)}`} onPress={() => onBucketClick?.(bucket.start, bucket.end)}>{formatBucketRange(bucket.start, bucket.end, timezone)}</Button>)}</div> : null}
+      {selectedBucket ? <div className="stacked-activity-chart__drilldown" aria-label={`${title} event history`}>
+        <ConsoleSelect label="Event history period" selectedKey={selectedBucket.key} onSelectionChange={setSelectedBucketKey} options={drilldownBuckets.map((bucket) => ({ key: bucket.key, label: bucket.label }))} />
+        <Button size="sm" variant="secondary" onPress={() => onBucketClick?.(selectedBucket.start, selectedBucket.end)}>Open event history</Button>
+      </div> : null}
       <CoverageAnnotation series={series} />
-      <ExactDataTable title={title} series={series} visible={false} timezone={timezone} />
+      <ExactDataTable title={title} series={series} visible={showExactData} timezone={timezone} />
     </Card.Content>
   </Card>;
 }

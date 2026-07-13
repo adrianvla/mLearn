@@ -63,7 +63,7 @@ export default function Logs() {
       title="Conversation Logs"
       description="Encrypted governed conversations within the selected group and descendants."
       actions={scope.status === 'ready' && scope.can('conversations.export')
-        ? <ConsoleButton className="secondary-action" onClick={() => setConfirmExport(true)}><Download />Export CSV</ConsoleButton>
+        ? <ConsoleButton variant="secondary" onClick={() => setConfirmExport(true)}><Download />Export CSV</ConsoleButton>
         : undefined}
     />
     <DataTableShell label="Conversation logs" controls={<div className="filter-stack">
@@ -80,7 +80,7 @@ export default function Logs() {
         <ConsoleSelect label="Conversation status" selectedKey={status} onSelectionChange={setStatus} placeholder="All statuses" options={[{ key: 'completed', label: 'Completed' }, { key: 'failed', label: 'Failed' }, { key: 'truncated', label: 'Truncated' }, { key: 'policy-blocked', label: 'Policy blocked' }]} />
       </div>
     </div>}>
-      {filtered.length ? <div className="table-scroll"><table><caption className="sr-only">Conversation logs</caption><thead><tr><th>Learner</th><th>Group</th><th>Provider / model</th><th>Status</th><th>Tokens</th><th>Cost</th><th>Started</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><th><ConsoleButton className="table-link" onClick={() => void open(item.id)}>{item.learnerUserId}</ConsoleButton></th><td>{item.groupId}</td><td>{item.providerId} / {item.modelId}</td><td>{item.status}</td><td>{(item.inputTokens ?? 0) + (item.outputTokens ?? 0)}</td><td>{((item.costMicros ?? 0) / 1_000_000).toFixed(4)}</td><td>{new Date(item.createdAt * 1000).toLocaleString()}</td></tr>)}</tbody></table></div> : undefined}
+      {filtered.length ? <div className="table-scroll"><table><caption className="sr-only">Conversation logs</caption><thead><tr><th>Learner</th><th>Group</th><th>Provider / model</th><th>Status</th><th>Tokens</th><th>Cost</th><th>Started</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><th><ConsoleButton variant="ghost" onClick={() => void open(item.id)}>{item.learnerUserId}</ConsoleButton></th><td>{item.groupId}</td><td>{item.providerId} / {item.modelId}</td><td>{item.status}</td><td>{(item.inputTokens ?? 0) + (item.outputTokens ?? 0)}</td><td>{((item.costMicros ?? 0) / 1_000_000).toFixed(4)}</td><td>{new Date(item.createdAt * 1000).toLocaleString()}</td></tr>)}</tbody></table></div> : undefined}
     </DataTableShell>
     {detail && <ConversationDetail detail={detail} onClose={() => setDetail(null)} />}
     <ConsoleDialog open={confirmExport} onOpenChange={setConfirmExport} title="Export conversations?" footer={<><ConsoleButton onClick={() => setConfirmExport(false)}>Cancel</ConsoleButton><ConsoleButton onClick={exportCsv}>Confirm export</ConsoleButton></>}><p>The effective school policy must allow this export. The scoped export is recorded in the audit log.</p></ConsoleDialog>
