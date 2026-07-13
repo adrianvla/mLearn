@@ -1,7 +1,7 @@
 # Named Group Policies and Rule Builder Design
 
-**Status:** Approved direction, implementation design  
-**Date:** 2026-07-12  
+**Status:** Approved direction, implementation design
+**Date:** 2026-07-12
 **Supersedes:** The single-draft/single-active-policy-per-group restriction in section 6.1 of `2026-07-09-school-management-platform-design.md`
 
 ## 1. Problem
