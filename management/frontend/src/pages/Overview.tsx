@@ -103,17 +103,17 @@ export default function Overview() {
         />
         <MetricCard
           label="Active learners"
-          value={summary?.activeLearners ?? "—"}
-          detail={`${summary?.sessions ?? 0} learning sessions`}
+          value={aggregateValue(summary, summary?.activeLearners)}
+          detail={summary?.coverage && summary.coverage !== "complete" ? `Coverage: ${summary.coverage}` : `${summary?.sessions ?? 0} learning sessions`}
         />
         <MetricCard
           label="LLM requests"
-          value={summary?.llmRequests ?? "—"}
+          value={aggregateValue(summary, summary?.llmRequests)}
           detail={`${(summary?.totalTokens ?? 0).toLocaleString()} tokens`}
         />
         <MetricCard
           label="Policy blocks"
-          value={summary?.policyBlocks ?? "—"}
+          value={aggregateValue(summary, summary?.policyBlocks)}
           detail="Requests stopped by policy"
         />
       </section>
@@ -184,4 +184,9 @@ export default function Overview() {
       {view === "security" && <section className="dashboard-primary-grid"><Card className="dashboard-panel controls-panel"><Card.Header><div><Card.Title>Policy enforcement</Card.Title><Card.Description>Requests stopped before provider execution</Card.Description></div><ShieldCheck /></Card.Header><Card.Content><dl><div><dt>Policy blocks</dt><dd>{summary?.policyBlocks ?? 0}</dd></div><div><dt>Effective scope</dt><dd>{scope.status === "ready" ? scope.selectedGroup?.name : "Loading"}</dd></div><div><dt>Conversation governance</dt><dd>Signed policy active</dd></div></dl></Card.Content></Card><Card className="dashboard-panel"><Card.Header><div><Card.Title>Security activity</Card.Title><Card.Description>Policy blocks over the selected period</Card.Description></div></Card.Header><Card.Content><LineChart title="Policy blocks" data={(data?.timeseries ?? []).map((point) => ({ label: new Date(point.dayStart).toLocaleDateString(), value: point.policyBlocks }))} /></Card.Content></Card></section>}
     </div>
   );
+}
+
+function aggregateValue(summary: AnalyticsSummary | undefined, value: number | undefined): number | string {
+  if (summary?.coverage === "missing" || summary?.coverage === "rawExpired") return "No recorded data";
+  return value ?? "—";
 }

@@ -339,6 +339,7 @@ export interface AnalyticsSummary {
   readerPages: number; flashcardEvents: number; llmRequests: number; inputTokens: number;
   outputTokens: number; totalTokens: number; costMicros: number; policyBlocks: number;
   latencyMs: number; llmErrors: number;
+  coverage?: AnalyticsCoverage;
 }
 export type AnalyticsMetric =
   | 'activeLearners' | 'sessions' | 'watchSeconds' | 'completions'

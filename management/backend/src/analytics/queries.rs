@@ -30,6 +30,8 @@ pub struct AnalyticsSummary {
     pub latency_ms: i64,
     /// Requests with a recorded terminal error code.
     pub llm_errors: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<Coverage>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -441,14 +443,16 @@ impl AnalyticsQueryService {
                 },
             )
             .await?;
-        Ok(history
+        let mut summary = history
             .primary
             .iter()
             .filter_map(|bucket| bucket.values.as_ref())
             .fold(AnalyticsSummary::default(), |mut aggregate, values| {
                 add_summary(&mut aggregate, values);
                 aggregate
-            }))
+            });
+        summary.coverage = Some(summary_coverage(&history.primary));
+        Ok(summary)
     }
 
     pub async fn history(
@@ -1655,6 +1659,27 @@ fn add_summary(target: &mut AnalyticsSummary, source: &AnalyticsSummary) {
     target.policy_blocks += source.policy_blocks;
     target.latency_ms += source.latency_ms;
     target.llm_errors += source.llm_errors;
+}
+
+fn summary_coverage(buckets: &[HistoricalBucket]) -> Coverage {
+    if buckets
+        .iter()
+        .any(|bucket| bucket.coverage == Coverage::RawExpired)
+    {
+        Coverage::RawExpired
+    } else if buckets
+        .iter()
+        .any(|bucket| bucket.coverage == Coverage::Partial)
+    {
+        Coverage::Partial
+    } else if buckets
+        .iter()
+        .any(|bucket| bucket.coverage == Coverage::Missing)
+    {
+        Coverage::Missing
+    } else {
+        Coverage::Complete
+    }
 }
 fn db(e: sqlx::Error) -> AppError {
     AppError::Internal(format!("analytics database error: {e}"))
