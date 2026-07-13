@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ConsoleSwitch } from '../../components/console';
 import { HistoricalChart } from '../../components/charts/HistoricalChart';
 import { StackedActivityChart } from '../../components/charts/StackedActivityChart';
 import type { ChartSeries } from '../../components/charts/chartTypes';
-import type { AnalyticsSummary, ComparisonMode, HistoricalSeries, LlmAnalytics, PolicyBlockAnalytics } from '../../api/types';
+import type { AnalyticsMetric, AnalyticsSummary, ComparisonMode, HistoricalSeries, LlmAnalytics, PolicyBlockAnalytics } from '../../api/types';
 import { AnalyticsHistoryTable } from './AnalyticsHistoryTable';
 import { MetricCard } from '../../components/MetricCard';
 
@@ -11,6 +11,8 @@ interface AnalyticsOverviewProps {
   summary: AnalyticsSummary | null;
   history: HistoricalSeries | null;
   comparison: ComparisonMode;
+  visibleMetrics: AnalyticsMetric[];
+  onVisibleMetricsChange(metrics: AnalyticsMetric[]): void;
   activityError: string | null;
   llm: LlmAnalytics | null;
   llmError: string | null;
@@ -25,8 +27,8 @@ const activityDefinitions: ReadonlyArray<{ key: keyof AnalyticsSummary; label: s
   { key: 'flashcardEvents', label: 'Flashcard sessions' },
 ] as const;
 
-export function AnalyticsOverview({ summary, history, comparison, activityError, llm, llmError, blocks, policyError, onBucketClick }: AnalyticsOverviewProps) {
-  const [visible, setVisible] = useState<Set<string>>(() => new Set(activityDefinitions.map((item) => item.key)));
+export function AnalyticsOverview({ summary, history, comparison, visibleMetrics, onVisibleMetricsChange, activityError, llm, llmError, blocks, policyError, onBucketClick }: AnalyticsOverviewProps) {
+  const visible = useMemo(() => new Set(visibleMetrics), [visibleMetrics]);
   const activitySeries = useMemo(() => history === null ? [] : activityDefinitions.flatMap((definition) => {
     if (!visible.has(definition.key)) return [];
     return [toSeries(history, definition.key, definition.label, 'primary', undefined, definition.transform), ...(history.comparison === null ? [] : [toSeries(history, definition.key, definition.label, 'comparison', comparisonLabel(comparison), definition.transform)])];
@@ -41,11 +43,7 @@ export function AnalyticsOverview({ summary, history, comparison, activityError,
     <section className="analytics-panel" aria-labelledby="activity-history-heading">
       <div className="analytics-panel__heading"><div><h2 id="activity-history-heading">Activity history</h2><p>Recorded reader, video, and flashcard activity for the selected range.</p></div></div>
       <div className="metric-grid analytics-summary-metric"><MetricCard label="Active learners" value={summary?.activeLearners ?? '—'} /></div>
-      <fieldset className="analytics-series-controls"><legend>Visible activity series</legend>{activityDefinitions.map((definition) => <ConsoleSwitch key={definition.key} label={definition.label} isSelected={visible.has(definition.key)} onChange={(selected) => setVisible((current) => {
-        const next = new Set(current);
-        if (selected) next.add(definition.key); else next.delete(definition.key);
-        return next;
-      })} />)}</fieldset>
+      <fieldset className="analytics-series-controls"><legend>Visible activity series</legend>{activityDefinitions.map((definition) => <ConsoleSwitch key={definition.key} label={definition.label} isSelected={visible.has(definition.key)} onChange={(selected) => onVisibleMetricsChange(selected ? [...visibleMetrics, definition.key] : visibleMetrics.filter((metric) => metric !== definition.key))} />)}</fieldset>
       {activityError ? <PanelError title="Activity history" message={activityError} /> : history === null ? <PanelLoading title="Activity history" /> : activitySeries.length === 0 ? <p role="status">Select an activity series to display recorded values.</p> : <><StackedActivityChart title="Activity" series={activitySeries} onBucketClick={onBucketClick} /><AnalyticsHistoryTable title="Activity history" series={activitySeries} /></>}
     </section>
     <section className="analytics-panel" aria-labelledby="learning-history-heading">

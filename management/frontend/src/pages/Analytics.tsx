@@ -2,24 +2,30 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Tabs } from '@heroui/react';
 import { ApiClient } from '../api/client';
-import type { AnalyticsGranularity, AnalyticsSummary, DimensionAnalytics, HistoricalSeries, LearnerAnalytics, LlmAnalytics, PolicyBlockAnalytics } from '../api/types';
+import type { AnalyticsBreakdown, AnalyticsGranularity, AnalyticsMetric, AnalyticsSummary, AnalyticsTab, DimensionAnalytics, HistoricalSeries, LearnerAnalytics, LlmAnalytics, PolicyBlockAnalytics, SavedAnalyticsViewDefinition } from '../api/types';
 import { MetricCard } from '../components/MetricCard';
 import { PageToolbar } from '../components/PageToolbar';
-import { ConsoleButton, ConsoleDialog } from '../components/console';
+import { ConsoleButton, ConsoleDialog, ConsoleSelect } from '../components/console';
 import { useGroupScope } from '../groups/GroupScopeProvider';
 import { AnalyticsFilters, analyticsRangeError, type AnalyticsFilterValue } from './analytics/AnalyticsFilters';
 import { AnalyticsOverview } from './analytics/AnalyticsOverview';
 import { HistoryDrawer } from './analytics/HistoryDrawer';
+import { SavedViewSelector } from './analytics/SavedViewSelector';
 
 const api = new ApiClient();
 const DAY = 86_400_000;
-type Tab = 'overview' | 'learners' | 'content' | 'llm usage' | 'policy blocks';
+interface AnalyticsState {
+  groupId: string | null;
+  filters: AnalyticsFilterValue;
+  tab: AnalyticsTab;
+  visibleMetrics: AnalyticsMetric[];
+  breakdown: AnalyticsBreakdown;
+}
 
 export default function Analytics() {
   const scope = useGroupScope();
-  const groupId = scope.status === 'ready' ? scope.selectedGroup?.id : null;
-  const [tab, setTab] = useState<Tab>('overview');
-  const [filters, setFilters] = useState<AnalyticsFilterValue>(() => defaultFilters());
+  const scopedGroupId = scope.status === 'ready' ? scope.selectedGroup?.id ?? null : null;
+  const [analyticsState, setAnalyticsState] = useState<AnalyticsState>(() => defaultAnalyticsState(scopedGroupId));
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [history, setHistory] = useState<HistoricalSeries | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
@@ -32,9 +38,15 @@ export default function Analytics() {
   const [quotaRemaining, setQuotaRemaining] = useState<Record<string, number | null>>({});
   const [confirm, setConfirm] = useState(false);
   const [drilldown, setDrilldown] = useState<{ from: number; to: number } | null>(null);
+  const groupId = analyticsState.groupId;
+  const { filters, tab, visibleMetrics, breakdown } = analyticsState;
   const granularity = useMemo(() => resolveGranularity(filters), [filters]);
   const query = useMemo(() => toQuery(groupId, filters), [groupId, filters]);
   const rangeError = analyticsRangeError(filters);
+
+  useEffect(() => {
+    setAnalyticsState((current) => current.groupId === scopedGroupId ? current : { ...current, groupId: scopedGroupId });
+  }, [scopedGroupId]);
 
   useEffect(() => {
     if (rangeError !== null) return;
@@ -75,9 +87,9 @@ export default function Analytics() {
   };
 
   return <div className="resource-page analytics-page">
-    <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} onChange={setFilters} />{scope.status === 'ready' && scope.can('analytics.view') ? <ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton> : null}</div>} />
-    <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key) as Tab)}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
-    {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} onBucketClick={(from, to) => setDrilldown({ from, to })} /> : null}
+    <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} onChange={(next) => setAnalyticsState((current) => ({ ...current, filters: next }))} />{scope.status === 'ready' && scope.can('analytics.view') ? <><ConsoleSelect label="Breakdown" selectedKey={breakdown} onSelectionChange={(next) => setAnalyticsState((current) => ({ ...current, breakdown: next as AnalyticsBreakdown }))} options={[{ key: 'none', label: 'No breakdown' }, { key: 'learners', label: 'Learners' }, { key: 'content', label: 'Content' }]} /><SavedViewSelector groupId={groupId} definition={toSavedDefinition(analyticsState)} onApply={(definition) => setAnalyticsState(fromSavedDefinition(definition))} /><ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton></> : null}</div>} />
+    <Tabs selectedKey={tab} onSelectionChange={(key) => setAnalyticsState((current) => ({ ...current, tab: String(key) as AnalyticsTab }))}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
+    {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} visibleMetrics={visibleMetrics} onVisibleMetricsChange={(next) => setAnalyticsState((current) => ({ ...current, visibleMetrics: next }))} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} onBucketClick={(from, to) => setDrilldown({ from, to })} /> : null}
     {tab === 'learners' ? <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} /> : null}
     {tab === 'content' ? <AnalyticsTable label="Content analytics" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} /> : null}
     {tab === 'llm usage' ? <section className="metric-grid" aria-label="LLM usage">{llmError ? <p role="alert">Unable to load LLM usage. {llmError}</p> : <><MetricCard label="Requests" value={llm?.requests ?? '—'} /><MetricCard label="Input tokens" value={(llm?.inputTokens ?? 0).toLocaleString()} /><MetricCard label="Output tokens" value={(llm?.outputTokens ?? 0).toLocaleString()} /><MetricCard label="Cost" value={((llm?.costMicros ?? 0) / 1_000_000).toFixed(4)} /></>}</section> : null}
@@ -90,6 +102,24 @@ export default function Analytics() {
 function defaultFilters(): AnalyticsFilterValue {
   const to = Date.now();
   return { from: to - 30 * DAY, to, preset: '30', comparison: 'none', granularity: 'auto' };
+}
+
+function defaultAnalyticsState(groupId: string | null): AnalyticsState {
+  return { groupId, filters: defaultFilters(), tab: 'overview', visibleMetrics: ['readerPages', 'watchSeconds', 'flashcardEvents'], breakdown: 'none' };
+}
+
+function toSavedDefinition(state: AnalyticsState): SavedAnalyticsViewDefinition {
+  return { groupId: state.groupId ?? '', ...state.filters, tab: state.tab, visibleMetrics: state.visibleMetrics, breakdown: state.breakdown };
+}
+
+function fromSavedDefinition(definition: SavedAnalyticsViewDefinition): AnalyticsState {
+  return {
+    groupId: definition.groupId,
+    filters: { from: definition.from, to: definition.to, preset: definition.preset, comparison: definition.comparison, granularity: definition.granularity },
+    tab: definition.tab,
+    visibleMetrics: definition.visibleMetrics,
+    breakdown: definition.breakdown,
+  };
 }
 
 function resolveGranularity(value: AnalyticsFilterValue): AnalyticsGranularity {

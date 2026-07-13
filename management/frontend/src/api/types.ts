@@ -345,6 +345,26 @@ export type AnalyticsMetric =
   | 'outputTokens' | 'totalTokens' | 'costMicros' | 'policyBlocks';
 export type AnalyticsGranularity = 'daily' | 'weekly' | 'monthly';
 export type ComparisonMode = 'none' | 'previousPeriod' | 'previousYear';
+export type AnalyticsTab = 'overview' | 'learners' | 'content' | 'llm usage' | 'policy blocks';
+export type AnalyticsBreakdown = 'none' | 'learners' | 'content';
+export interface SavedAnalyticsViewDefinition {
+  groupId: string;
+  from: number;
+  to: number;
+  preset: '7' | '30' | '90' | '365' | 'custom';
+  comparison: ComparisonMode;
+  granularity: AnalyticsGranularity | 'auto';
+  tab: AnalyticsTab;
+  visibleMetrics: AnalyticsMetric[];
+  breakdown: AnalyticsBreakdown;
+}
+export interface SavedAnalyticsView {
+  id: string;
+  name: string;
+  definition: SavedAnalyticsViewDefinition;
+  createdAt: number;
+  updatedAt: number;
+}
 export type AnalyticsCoverage = 'complete' | 'partial' | 'missing' | 'rawExpired';
 export interface HistoricalBucket {
   start: number;
