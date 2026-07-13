@@ -10,12 +10,14 @@ const CHART_PADDING = 28;
 interface HistoricalChartProps {
   title: string;
   series: ChartSeries[];
+  timezone?: string;
 }
 
 interface ExactDataTableProps {
   title: string;
   series: ChartSeries[];
   visible: boolean;
+  timezone?: string;
 }
 
 interface MetricGroup {
@@ -25,7 +27,7 @@ interface MetricGroup {
   comparison?: ChartSeries;
 }
 
-export function HistoricalChart({ title, series }: HistoricalChartProps) {
+export function HistoricalChart({ title, series, timezone = 'UTC' }: HistoricalChartProps) {
   const metrics = useMemo(() => groupMetrics(series), [series]);
   const [selectedKey, setSelectedKey] = useState(() => metrics[0]?.key ?? '');
   const [showExactData, setShowExactData] = useState(false);
@@ -78,12 +80,12 @@ export function HistoricalChart({ title, series }: HistoricalChartProps) {
         </div>
       </figure>
       <CoverageAnnotation series={selectedSeries} />
-      <ExactDataTable title={title} series={selectedSeries} visible={showExactData} />
+      <ExactDataTable title={title} series={selectedSeries} visible={showExactData} timezone={timezone} />
     </Card.Content>
   </Card>;
 }
 
-export function ExactDataTable({ title, series, visible }: ExactDataTableProps) {
+export function ExactDataTable({ title, series, visible, timezone = 'UTC' }: ExactDataTableProps) {
   const rowCount = Math.max(0, ...series.map((item) => item.values.length));
   return <div className={`historical-chart__table-wrap${visible ? '' : ' sr-only'}`}>
     <table aria-label={`${title} data`}>
@@ -91,7 +93,7 @@ export function ExactDataTable({ title, series, visible }: ExactDataTableProps) 
       <thead><tr><th scope="col">Aligned bucket</th>{series.map((item) => <th key={`${item.key}-${item.kind}`} scope="col">{item.label} — {formatPeriodLabel(item)}</th>)}</tr></thead>
       <tbody>{Array.from({ length: rowCount }, (_, index) => <tr key={index}>
         <th scope="row">Bucket {index + 1}</th>
-        {series.map((item) => <td key={`${item.key}-${item.kind}`}>{formatExactDatum(item.values[index])}</td>)}
+        {series.map((item) => <td key={`${item.key}-${item.kind}`}>{formatExactDatum(item.values[index], timezone)}</td>)}
       </tr>)}</tbody>
     </table>
   </div>;
@@ -141,13 +143,14 @@ function toPath(values: ChartDatum[], maximum: number): string {
   }, '');
 }
 
-function formatPeriod(start: number, end: number): string {
-  return `${new Date(start).toLocaleDateString()} – ${new Date(end).toLocaleDateString()}`;
+function formatPeriod(start: number, end: number, timezone: string): string {
+  const formatter = new Intl.DateTimeFormat(undefined, { timeZone: timezone });
+  return `${formatter.format(new Date(start))} – ${formatter.format(new Date(end))}`;
 }
 
-function formatExactDatum(datum: ChartDatum | undefined): string {
+function formatExactDatum(datum: ChartDatum | undefined, timezone: string): string {
   if (!datum) return 'No bucket recorded';
-  return `${formatPeriod(datum.start, datum.end)}: ${formatDatum(datum)}`;
+  return `${formatPeriod(datum.start, datum.end, timezone)}: ${formatDatum(datum)}`;
 }
 
 function formatCoverageLabel(coverage: string): string {

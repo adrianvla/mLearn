@@ -31,7 +31,7 @@ pub fn router(state: AppState) -> Router<AppState> {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ListViewsQuery {
-    group_id: String,
+    group_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -117,21 +117,31 @@ async fn list_views(
     principal: Principal,
     Query(query): Query<ListViewsQuery>,
 ) -> Result<Json<SavedAnalyticsViewsResponse>, AppError> {
-    require_group_access(&state.db, &principal, &query.group_id).await?;
+    // Retain strict validation of an explicit caller-provided scope, while the
+    // collection itself remains cross-group for all currently authorized views.
+    if let Some(group_id) = query.group_id.as_deref() {
+        require_group_access(&state.db, &principal, group_id).await?;
+    }
     let rows = sqlx::query(
-        "SELECT id,name,definition_json,created_at,updated_at FROM saved_analytics_views WHERE owner_user_id=? AND json_extract(definition_json, '$.groupId')=? ORDER BY updated_at DESC,id DESC",
+        "SELECT id,name,definition_json,created_at,updated_at FROM saved_analytics_views WHERE owner_user_id=? ORDER BY updated_at DESC,id DESC",
     )
     .bind(&principal.user_id)
-    .bind(&query.group_id)
     .fetch_all(&state.db)
     .await
     .map_err(database_error)?;
-    Ok(Json(SavedAnalyticsViewsResponse {
-        items: rows
-            .into_iter()
-            .map(saved_view_from_row)
-            .collect::<Result<Vec<_>, _>>()?,
-    }))
+    let mut items = Vec::new();
+    for row in rows {
+        let view = saved_view_from_row(row)?;
+        // Ownership alone is not visibility. A view disappears from the list as
+        // soon as the caller loses its stored group capability.
+        if require_group_access(&state.db, &principal, &view.definition.group_id)
+            .await
+            .is_ok()
+        {
+            items.push(view);
+        }
+    }
+    Ok(Json(SavedAnalyticsViewsResponse { items }))
 }
 
 async fn create_view(

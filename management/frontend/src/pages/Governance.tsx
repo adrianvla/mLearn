@@ -5,7 +5,7 @@ import { PageToolbar } from '../components/PageToolbar';
 import { useGroupScope } from '../groups/GroupScopeProvider';
 
 type GovernanceSummary = {
-  policies: Array<{ name: string; status: string; href: string }>;
+  policies: Array<{ groupId?: string; groupName?: string; activePolicyCount?: number; policyScope?: string; hasUnpublishedDraft?: boolean; lastPublishedAt?: number | null; name?: string; status?: string; href: string }>;
   usage: Array<{ label: string; detail: string; href: string }>;
   activity: Array<{ action: string; timestamp: number; href: string }>;
 };
@@ -29,7 +29,7 @@ export default function Governance() {
     <PageToolbar title="Governance" description={group ? `Canonical policy, usage, and activity for ${group.name}.` : 'Canonical policy, usage, and activity.'} />
     {error ? <p role="alert">{error}</p> : null}
     <GovernanceSection title="Policies">
-      {summary?.policies.length ? summary.policies.map((item) => <Link className="governance-row" key={item.name} to={item.href}><strong>{item.name}</strong><span>{item.status}</span></Link>) : <p>No policies are available in this scope.</p>}
+      {summary?.policies.length ? summary.policies.map((item) => <Link className="governance-row" key={item.groupId ?? item.name ?? item.href} to={item.groupId === undefined ? item.href : `${item.href}?groupId=${encodeURIComponent(item.groupId)}`}><strong>{item.groupName ?? item.name}</strong><span>{item.groupId === undefined ? item.status : <>{item.activePolicyCount ?? 0} active · {item.policyScope ?? 'Inherited'}{item.hasUnpublishedDraft ? ' · Draft changes' : ''}{item.lastPublishedAt == null ? ' · No publication yet' : ` · Published ${new Date(item.lastPublishedAt * 1000).toLocaleString()}`}</>}</span></Link>) : <p>No policies are available in this scope.</p>}
     </GovernanceSection>
     <GovernanceSection title="Usage and limits">
       {summary?.usage.length ? summary.usage.map((item) => <Link className="governance-row" key={`${item.label}:${item.detail}`} to={item.href}><strong>{item.label}</strong><span>{item.detail}</span></Link>) : <p>No usage limits are available in this scope.</p>}

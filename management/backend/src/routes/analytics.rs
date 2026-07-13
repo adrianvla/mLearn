@@ -27,6 +27,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/analytics/events", post(ingest_events))
         .route("/api/analytics/summary", get(summary))
+        .route("/api/analytics/timezone", get(timezone))
         .route("/api/analytics/history", get(history))
         .route("/api/analytics/history/events", get(history_events))
         .route("/api/analytics/users/{user_id}/history", get(user_history))
@@ -113,6 +114,17 @@ async fn summary(
             .summary(&principal, &q.group_id, from, to)
             .await?,
     ))
+}
+async fn timezone(
+    State(state): State<AppState>,
+    principal: Principal,
+    Query(q): Query<AnalyticsQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Ok(Json(serde_json::json!({
+        "timezone": AnalyticsQueryService::new(state.db)
+            .timezone(&principal, &q.group_id)
+            .await?
+    })))
 }
 async fn history(
     State(state): State<AppState>,

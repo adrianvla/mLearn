@@ -11,9 +11,10 @@ interface StackedActivityChartProps {
   title: string;
   series: ChartSeries[];
   onBucketClick?: (start: number, end: number) => void;
+  timezone?: string;
 }
 
-export function StackedActivityChart({ title, series, onBucketClick }: StackedActivityChartProps) {
+export function StackedActivityChart({ title, series, onBucketClick, timezone = 'UTC' }: StackedActivityChartProps) {
   const primarySeries = series.filter((item) => item.kind === 'primary');
   const comparisonSeries = series.filter((item) => item.kind === 'comparison');
   const periodSeries = [{ kind: 'primary' as const, series: primarySeries }, ...(comparisonSeries.length === 0 ? [] : [{ kind: 'comparison' as const, series: comparisonSeries }])];
@@ -40,9 +41,9 @@ export function StackedActivityChart({ title, series, onBucketClick }: StackedAc
           {periodSeries.flatMap((period, periodIndex) => Array.from({ length: bucketCount }, (_, index) => <StackedBar key={`${period.kind}-${index}`} index={index} bucketCount={bucketCount} kind={period.kind} periodIndex={periodIndex} periodCount={periodSeries.length} series={period.series} maximum={maximum} />))}
         </svg>
       </figure>
-      {drilldownBuckets.length > 0 ? <div className="stacked-activity-chart__bucket-controls" aria-label={`${title} event history periods`}>{drilldownBuckets.map((bucket) => <Button key={bucket.key} size="sm" variant="secondary" aria-label={`Open event history for ${formatBucketRange(bucket.start, bucket.end)}`} onPress={() => onBucketClick?.(bucket.start, bucket.end)}>{formatBucketRange(bucket.start, bucket.end)}</Button>)}</div> : null}
+      {drilldownBuckets.length > 0 ? <div className="stacked-activity-chart__bucket-controls" aria-label={`${title} event history periods`}>{drilldownBuckets.map((bucket) => <Button key={bucket.key} size="sm" variant="secondary" aria-label={`Open event history for ${formatBucketRange(bucket.start, bucket.end, timezone)}`} onPress={() => onBucketClick?.(bucket.start, bucket.end)}>{formatBucketRange(bucket.start, bucket.end, timezone)}</Button>)}</div> : null}
       <CoverageAnnotation series={series} />
-      <ExactDataTable title={title} series={series} visible={false} />
+      <ExactDataTable title={title} series={series} visible={false} timezone={timezone} />
     </Card.Content>
   </Card>;
 }
@@ -69,8 +70,9 @@ function StackedBar({ index, bucketCount, kind, periodIndex, periodCount, series
   </g>;
 }
 
-function formatBucketRange(start: number, end: number): string {
-  return `${new Date(start).toLocaleDateString()} to ${new Date(end).toLocaleDateString()}`;
+function formatBucketRange(start: number, end: number, timezone: string): string {
+  const formatter = new Intl.DateTimeFormat(undefined, { timeZone: timezone });
+  return `${formatter.format(new Date(start))} to ${formatter.format(new Date(end))}`;
 }
 
 function totalAt(series: ChartSeries[], index: number): number {
