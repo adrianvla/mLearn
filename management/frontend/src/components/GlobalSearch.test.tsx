@@ -83,6 +83,23 @@ it('activates a result group before routing so the destination sees that scope',
   expect(screen.getByTestId('location')).toHaveTextContent('/users');
 });
 
+it('uses a user result\'s supplied members-view ancestor scope before opening users', async () => {
+  const activateGroup = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('fetch', vi.fn(async () => response({
+    results: [{ kind: 'user', id: 'descendant-user', groupId: 'g1', title: 'Descendant learner', subtitle: 'descendant@example.test', href: '/users' }],
+  })));
+
+  renderSearch({ groups: [GERMAN_A], groupApi: { activateGroup } });
+  await waitFor(() => expect(screen.getByTestId('selected-group')).toHaveTextContent('German A'));
+  const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
+  act(() => input.focus());
+  fireEvent.change(input, { target: { value: 'de' } });
+  fireEvent.click(await screen.findByRole('option', { name: /Descendant learner/ }));
+
+  await waitFor(() => expect(activateGroup).toHaveBeenLastCalledWith('g1', undefined));
+  await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/users'));
+});
+
 it('does not navigate when activating the result group is denied', async () => {
   const activateGroup = vi.fn((id: string) => id === 'g2'
     ? Promise.reject(new Error('forbidden'))
