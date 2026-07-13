@@ -451,8 +451,73 @@ impl AnalyticsQueryService {
                 add_summary(&mut aggregate, values);
                 aggregate
             });
+        let (active_learners, sessions) = self
+            .summary_distinct_activity_counts(group, from, to, &history.primary)
+            .await?;
+        summary.active_learners = active_learners;
+        summary.sessions = sessions;
         summary.coverage = Some(summary_coverage(&history.primary));
         Ok(summary)
+    }
+
+    /// Daily totals are additive, but learner and session identities are not.  Keep
+    /// the summary card truthful over a multi-day range by deduplicating identities
+    /// across the materialized full days and the raw partial-day edges.
+    async fn summary_distinct_activity_counts(
+        &self,
+        group: &str,
+        requested_from: i64,
+        requested_to: i64,
+        buckets: &[HistoricalBucket],
+    ) -> Result<(i64, i64), AppError> {
+        let mut users = HashSet::new();
+        let mut sessions = HashSet::new();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp() * 1_000;
+        let mut connection = self.pool.acquire().await.map_err(db)?;
+
+        for bucket in buckets {
+            if bucket.coverage == Coverage::Partial {
+                let rows = sqlx::query("SELECT e.user_id,e.activity_session_id FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>?")
+                    .bind(group)
+                    .bind(bucket.start.max(requested_from))
+                    .bind(bucket.end.min(requested_to))
+                    .bind(now)
+                    .fetch_all(&mut *connection)
+                    .await
+                    .map_err(db)?;
+                for row in rows {
+                    let user: String = row.get("user_id");
+                    let session: String = row.get("activity_session_id");
+                    users.insert(user.clone());
+                    sessions.insert((user, session));
+                }
+                continue;
+            }
+            if bucket.coverage == Coverage::RawExpired {
+                continue;
+            }
+            let learner_rows = sqlx::query("SELECT user_id FROM analytics_group_daily_learners WHERE group_id=? AND day_start>=? AND day_start<?")
+                .bind(group)
+                .bind(bucket.start)
+                .bind(bucket.end)
+                .fetch_all(&mut *connection)
+                .await
+                .map_err(db)?;
+            for row in learner_rows {
+                users.insert(row.get("user_id"));
+            }
+            let session_rows = sqlx::query("SELECT user_id,activity_session_id FROM analytics_group_daily_sessions WHERE group_id=? AND day_start>=? AND day_start<?")
+                .bind(group)
+                .bind(bucket.start)
+                .bind(bucket.end)
+                .fetch_all(&mut *connection)
+                .await
+                .map_err(db)?;
+            for row in session_rows {
+                sessions.insert((row.get("user_id"), row.get("activity_session_id")));
+            }
+        }
+        Ok((users.len() as i64, sessions.len() as i64))
     }
 
     pub async fn history(
@@ -1672,10 +1737,10 @@ fn summary_coverage(buckets: &[HistoricalBucket]) -> Coverage {
         .any(|bucket| bucket.coverage == Coverage::Partial)
     {
         Coverage::Partial
-    } else if buckets
-        .iter()
-        .any(|bucket| bucket.coverage == Coverage::Missing)
-    {
+    // A quiet day is still factual zero within a range that has materialized
+    // data on other days.  Only call the aggregate missing when there is no
+    // usable bucket at all.
+    } else if !buckets.iter().any(|bucket| bucket.values.is_some()) {
         Coverage::Missing
     } else {
         Coverage::Complete
@@ -1878,6 +1943,71 @@ mod tests {
         assert_eq!(monthly_summary.active_learners, 1);
         assert_eq!(monthly_summary.sessions, 1);
         assert_eq!(monthly_summary.watch_seconds, 60);
+    }
+
+    #[test]
+    fn summary_coverage_keeps_a_multiday_aggregate_when_one_day_is_quiet() {
+        let recorded = AnalyticsSummary {
+            sessions: 1,
+            ..AnalyticsSummary::default()
+        };
+        let buckets = vec![
+            HistoricalBucket {
+                start: 0,
+                end: 86_400_000,
+                coverage: Coverage::Complete,
+                values: Some(recorded),
+            },
+            HistoricalBucket {
+                start: 86_400_000,
+                end: 172_800_000,
+                coverage: Coverage::Missing,
+                values: None,
+            },
+        ];
+        assert_eq!(summary_coverage(&buckets), Coverage::Complete);
+    }
+
+    #[tokio::test]
+    async fn summary_distinct_counts_are_range_wide_not_the_sum_of_daily_counts() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('root',NULL,'Root','root','active',1)")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('learner','learner@test','learner@test','Learner','active','learner',0,1,1)")
+            .execute(&pool).await.unwrap();
+        for day in [0_i64, 86_400_000] {
+            sqlx::query("INSERT INTO analytics_group_daily_learners(group_id,day_start,user_id) VALUES('root',?,'learner')")
+                .bind(day).execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO analytics_group_daily_sessions(group_id,day_start,user_id,activity_session_id) VALUES('root',?,'learner','same-session')")
+                .bind(day).execute(&pool).await.unwrap();
+        }
+        let service = AnalyticsQueryService::new(pool);
+        let buckets = [
+            HistoricalBucket {
+                start: 0,
+                end: 86_400_000,
+                coverage: Coverage::Complete,
+                values: Some(AnalyticsSummary::default()),
+            },
+            HistoricalBucket {
+                start: 86_400_000,
+                end: 172_800_000,
+                coverage: Coverage::Complete,
+                values: Some(AnalyticsSummary::default()),
+            },
+        ];
+        assert_eq!(
+            service
+                .summary_distinct_activity_counts("root", 0, 172_800_000, &buckets)
+                .await
+                .unwrap(),
+            (1, 1)
+        );
     }
 
     #[tokio::test]

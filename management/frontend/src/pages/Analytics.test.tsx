@@ -2,20 +2,21 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import Analytics from './Analytics';
 
+let groupScope: { status: 'ready'; selectedGroup: { id: string; name: string }; can(): boolean; selectGroup?(id: string): Promise<void> } = { status: 'ready', selectedGroup: { id: 'german', name: 'German' }, can: () => true };
 vi.mock('../groups/GroupScopeProvider', () => ({
-  useGroupScope: () => ({ status: 'ready', selectedGroup: { id: 'german', name: 'German' }, can: () => true }),
+  useGroupScope: () => groupScope,
 }));
 vi.mock('../components/DatePickerField', () => ({
   DatePickerField: ({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) => <input aria-label={label} value={value} onChange={(event) => onChange(event.currentTarget.value)} />,
 }));
 
-const values = { activeLearners: 2, sessions: 3, watchSeconds: 120, completions: 1, readerPages: 2, flashcardEvents: 3, llmRequests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000, policyBlocks: 1 };
+const values = { activeLearners: 2, sessions: 3, watchSeconds: 120, completions: 1, readerPages: 2, flashcardEvents: 3, llmRequests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000, policyBlocks: 1, latencyMs: 42, llmErrors: 1 };
 const history = { timezone: 'UTC', granularity: 'daily', primary: [{ start: 1_700_000_000_000, end: 1_700_086_400_000, coverage: 'complete' as const, values }], comparison: null };
 
-function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks' | 'learners' | 'content', Response>> & { historyEvents?: Response | ((url: string) => Response) } = {}) {
+function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks' | 'learners' | 'content', Response>> & { historyEvents?: Response | ((url: string) => Response); savedDefinition?: Record<string, unknown> } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.includes('/api/analytics/views?')) return json({ items: [{ id: 'saved-learner-focus', name: 'Learner focus', definition: { groupId: 'german', from: history.primary[0].start, to: history.primary[0].end, preset: 'custom', comparison: 'none', granularity: 'daily', tab: 'learners', visibleMetrics: ['flashcardEvents'], breakdown: 'learners' }, createdAt: 1, updatedAt: 1 }] });
+    if (url.includes('/api/analytics/views?')) return json({ items: [{ id: 'saved-learner-focus', name: 'Learner focus', definition: overrides.savedDefinition ?? { groupId: 'german', from: history.primary[0].start, to: history.primary[0].end, preset: 'custom', comparison: 'none', granularity: 'daily', tab: 'learners', visibleMetrics: ['flashcardEvents'], breakdown: 'learners' }, createdAt: 1, updatedAt: 1 }] });
     if (url.includes('/api/analytics/history/events')) {
       const response = overrides.historyEvents;
       return typeof response === 'function' ? response(url) : response?.clone() ?? json({ from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 1, items: [{ id: 'activity:1', occurredAt: history.primary[0].start, learnerId: 'u', activityKind: 'reader', eventType: 'activity.progressed', contentTitle: 'First reader', readerPage: 4, videoTimeMillis: null }], nextCursor: null });
@@ -75,6 +76,36 @@ it('renders factual recorded latency errors and provider model group values', as
   expect((await screen.findAllByText('Recorded latency')).length).toBeGreaterThan(0);
   expect(screen.getByRole('table', { name: 'LLM provider model group breakdown' })).toHaveTextContent('provider-a');
   expect(screen.getByRole('table', { name: 'LLM provider model group breakdown' })).toHaveTextContent('42 ms');
+});
+
+it('renders historical LLM and policy-block charts with their exact tables', async () => {
+  installFetch();
+  render(<Analytics />);
+
+  expect(await screen.findByRole('img', { name: 'LLM usage history' })).toBeVisible();
+  expect(screen.getAllByRole('table', { name: 'LLM usage data' }).length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByRole('img', { name: 'Policy blocks history' })).toBeVisible();
+  expect(screen.getAllByRole('table', { name: 'Policy blocks data' }).length).toBeGreaterThanOrEqual(2);
+});
+
+it('hands a cross-group saved view to the destination analytics mount', async () => {
+  sessionStorage.clear();
+  const selectGroup = vi.fn().mockResolvedValue(undefined);
+  groupScope = { status: 'ready', selectedGroup: { id: 'german', name: 'German' }, can: () => true, selectGroup };
+  installFetch({ savedDefinition: { groupId: 'spanish', from: history.primary[0].start, to: history.primary[0].end, preset: 'custom', comparison: 'none', granularity: 'daily', tab: 'content', visibleMetrics: ['readerPages'], breakdown: 'content' } });
+  const first = render(<Analytics />);
+
+  const savedViewLabel = await screen.findByText('Saved view');
+  fireEvent.click(savedViewLabel.parentElement?.querySelector('button') as HTMLButtonElement);
+  fireEvent.click(screen.getByRole('option', { name: 'Learner focus' }));
+  await waitFor(() => expect(selectGroup).toHaveBeenCalledWith('spanish'));
+
+  first.unmount();
+  groupScope = { status: 'ready', selectedGroup: { id: 'spanish', name: 'Spanish' }, can: () => true, selectGroup };
+  render(<Analytics />);
+  expect((await screen.findAllByText('First video')).length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByRole('heading', { name: 'Content breakdown' })).toBeVisible();
+  expect(sessionStorage.getItem('mlearn-management-pending-analytics-view')).toBeNull();
 });
 
 it('renders a factual workspace for each breakdown selection', async () => {

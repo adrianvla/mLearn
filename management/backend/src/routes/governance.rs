@@ -448,12 +448,15 @@ async fn unavailable_providers(
             SELECT id FROM groups WHERE id=? AND status!='archived'
             UNION ALL SELECT child.id FROM groups child JOIN scope parent ON child.parent_id=parent.id WHERE child.status!='archived'
          ), latest AS (
-            SELECT provider_id,MAX(created_at) created_at FROM provider_health_checks GROUP BY provider_id
+            SELECT provider_id,id FROM (
+                SELECT provider_id,id,ROW_NUMBER() OVER (PARTITION BY provider_id ORDER BY created_at DESC,id DESC) position
+                FROM provider_health_checks
+            ) WHERE position=1
          )
          SELECT provider.id,provider.group_id,provider.name,check_row.id check_id,check_row.outcome,check_row.created_at
          FROM scope JOIN llm_providers provider ON provider.group_id=scope.id
          JOIN latest ON latest.provider_id=provider.id
-         JOIN provider_health_checks check_row ON check_row.provider_id=latest.provider_id AND check_row.created_at=latest.created_at
+         JOIN provider_health_checks check_row ON check_row.id=latest.id
          WHERE check_row.outcome!='healthy' ORDER BY check_row.created_at DESC,check_row.id DESC",
     )
     .bind(group_id)
@@ -674,6 +677,34 @@ mod tests {
         let listed =
             notifications(&app, &state, &fixture.german_a_teacher, &fixture.german_a).await;
         assert!(listed.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_newer_same_second_healthy_provider_check_suppresses_an_older_failure() {
+        let fixture = GroupFixture::german_tree().await;
+        sqlx::query("INSERT INTO llm_providers(id,group_id,name,provider_kind,base_url,status,created_by_user_id,created_at,updated_at) VALUES('provider-health',?,'Provider health','ollama','http://provider.test','active',?,1,1)")
+            .bind(&fixture.german_a)
+            .bind(&fixture.german_a_teacher.user_id)
+            .execute(&fixture.pool)
+            .await
+            .unwrap();
+        for (id, outcome) in [("a-failure", "network_error"), ("z-healthy", "healthy")] {
+            sqlx::query("INSERT INTO provider_health_checks(id,provider_id,actor_user_id,configuration_valid,network_check_performed,outcome,created_at) VALUES(?,'provider-health',?,1,1,?,100)")
+                .bind(id)
+                .bind(&fixture.german_a_teacher.user_id)
+                .bind(outcome)
+                .execute(&fixture.pool)
+                .await
+                .unwrap();
+        }
+        let (app, state) = app(&fixture).await;
+        let listed =
+            notifications(&app, &state, &fixture.german_a_teacher, &fixture.german_a).await;
+        assert!(
+            !listed
+                .iter()
+                .any(|item| item["fingerprint"] == "provider-health-failed:a-failure")
+        );
     }
 
     #[test]
