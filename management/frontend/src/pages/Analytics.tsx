@@ -9,6 +9,7 @@ import { ConsoleButton, ConsoleDialog } from '../components/console';
 import { useGroupScope } from '../groups/GroupScopeProvider';
 import { AnalyticsFilters, analyticsRangeError, type AnalyticsFilterValue } from './analytics/AnalyticsFilters';
 import { AnalyticsOverview } from './analytics/AnalyticsOverview';
+import { HistoryDrawer } from './analytics/HistoryDrawer';
 
 const api = new ApiClient();
 const DAY = 86_400_000;
@@ -30,6 +31,7 @@ export default function Analytics() {
   const [policyError, setPolicyError] = useState<string | null>(null);
   const [quotaRemaining, setQuotaRemaining] = useState<Record<string, number | null>>({});
   const [confirm, setConfirm] = useState(false);
+  const [drilldown, setDrilldown] = useState<{ from: number; to: number } | null>(null);
   const granularity = useMemo(() => resolveGranularity(filters), [filters]);
   const query = useMemo(() => toQuery(groupId, filters), [groupId, filters]);
   const rangeError = analyticsRangeError(filters);
@@ -75,12 +77,13 @@ export default function Analytics() {
   return <div className="resource-page analytics-page">
     <PageToolbar title="Analytics" description="Recorded learning activity, content, LLM usage, and policy outcomes." actions={<div className="toolbar-actions analytics-toolbar-actions"><AnalyticsFilters value={filters} onChange={setFilters} />{scope.status === 'ready' && scope.can('analytics.view') ? <ConsoleButton className="secondary-action" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton> : null}</div>} />
     <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key) as Tab)}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
-    {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} /> : null}
+    {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} onBucketClick={(from, to) => setDrilldown({ from, to })} /> : null}
     {tab === 'learners' ? <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} /> : null}
     {tab === 'content' ? <AnalyticsTable label="Content analytics" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} /> : null}
     {tab === 'llm usage' ? <section className="metric-grid" aria-label="LLM usage">{llmError ? <p role="alert">Unable to load LLM usage. {llmError}</p> : <><MetricCard label="Requests" value={llm?.requests ?? '—'} /><MetricCard label="Input tokens" value={(llm?.inputTokens ?? 0).toLocaleString()} /><MetricCard label="Output tokens" value={(llm?.outputTokens ?? 0).toLocaleString()} /><MetricCard label="Cost" value={((llm?.costMicros ?? 0) / 1_000_000).toFixed(4)} /></>}</section> : null}
     {tab === 'policy blocks' ? <section className="metric-grid" aria-label="Policy block analytics">{policyError ? <p role="alert">Unable to load policy blocks. {policyError}</p> : <MetricCard label="Blocked requests" value={blocks?.blocks ?? '—'} detail="Requests rejected before provider execution" />}</section> : null}
     <ConsoleDialog open={confirm} onOpenChange={setConfirm} title="Export learner analytics?" footer={<><ConsoleButton onClick={() => setConfirm(false)}>Cancel</ConsoleButton><ConsoleButton onClick={exportCsv}>Confirm export</ConsoleButton></>}><p>This export is policy-controlled and recorded in the audit log.</p></ConsoleDialog>
+    {drilldown !== null ? <HistoryDrawer open onOpenChange={(open) => { if (!open) setDrilldown(null); }} groupId={groupId} from={drilldown.from} to={drilldown.to} /> : null}
   </div>;
 }
 
