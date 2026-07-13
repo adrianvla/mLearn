@@ -4,7 +4,6 @@ import type { ProviderHistory as ProviderHistoryData } from '../../api/types';
 import { ConsoleDialog } from '../../components/console';
 import { HistoricalChart } from '../../components/charts/HistoricalChart';
 import type { ChartSeries } from '../../components/charts/chartTypes';
-import { AnalyticsHistoryTable } from '../analytics/AnalyticsHistoryTable';
 
 const api = new ApiClient();
 const DAY = 86_400_000;
@@ -41,7 +40,7 @@ export function ProviderHistory({ open, onOpenChange, groupId, providerId, provi
     {history !== null ? <>
       <section aria-labelledby="provider-usage-heading">
         <h3 id="provider-usage-heading">Provider and model usage</h3>
-        {usageSeries.length === 0 ? <p role="status">No provider requests were recorded in this period.</p> : <><HistoricalChart title="Provider usage chart" series={usageSeries} timezone={history.timezone} /><AnalyticsHistoryTable title="Provider usage" series={usageSeries} timezone={history.timezone} /><ProviderUsageTable usage={history.usage} timezone={history.timezone} /></>}
+        {usageSeries.length === 0 ? <p role="status">No provider requests were recorded in this period.</p> : <><HistoricalChart title="Provider usage chart" series={usageSeries} timezone={history.timezone} /><ProviderUsageTable usage={history.usage} timezone={history.timezone} /></>}
       </section>
       <section aria-labelledby="provider-health-heading">
         <h3 id="provider-health-heading">Recorded configuration checks</h3>

@@ -4,10 +4,9 @@ import type { GroupNode, Membership } from "../api/types";
 import { CapabilityEditor } from "../components/CapabilityEditor";
 import { GroupTree } from "../components/GroupTree";
 import { PageToolbar } from "../components/PageToolbar";
-import { Link } from "react-router-dom";
 import { useGroupScope } from "../groups/GroupScopeProvider";
 import { ConsoleButton, ConsoleDialog, ConsoleTextField } from "../components/console";
-import { Tabs } from "@heroui/react";
+import { Link, Tabs } from "@heroui/react";
 const api = new ApiClient();
 export default function Groups() {
   const scope = useGroupScope();
@@ -105,7 +104,7 @@ export default function Groups() {
       <PageToolbar
         title="Groups"
         description="The authorized school hierarchy, memberships, and delegated authority."
-        actions={canManage && selected ? <div className="toolbar-actions"><ConsoleButton className="secondary-action" onClick={() => openEditor('edit')}>Edit group</ConsoleButton><ConsoleButton className="primary-action" onClick={() => openEditor('create')}>Create child group</ConsoleButton></div> : undefined}
+        actions={canManage && selected ? <div className="toolbar-actions"><ConsoleButton variant="secondary" onClick={() => openEditor('edit')}>Edit group</ConsoleButton><ConsoleButton variant="primary" onClick={() => openEditor('create')}>Create child group</ConsoleButton></div> : undefined}
       />
       <div className="group-workspace">
         <aside>
@@ -126,7 +125,7 @@ export default function Groups() {
                     {selected.slug} · {selected.status}
                   </p>
                 </div>
-                {canManage && selected.parentId !== null ? <ConsoleButton className="table-link" onClick={() => setArchiveConfirm(true)}>Archive group</ConsoleButton> : null}
+                {canManage && selected.parentId !== null ? <ConsoleButton variant="ghost" onClick={() => setArchiveConfirm(true)}>Archive group</ConsoleButton> : null}
               </header>
               {mutationError ? <p role="alert">{mutationError}</p> : null}
               <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Group detail">{["overview", "members", "permissions", "policy", "analytics"].map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
@@ -161,7 +160,7 @@ export default function Groups() {
                           </th>
                           <td>{membership.status}</td>
                           <td>{membership.capabilities.length}</td>
-                          <td><ConsoleButton className="table-link" onClick={() => { setSelectedMembershipId(membership.id); setTab("permissions"); }}>Edit {membership.userId ?? membership.invitedEmail} permissions</ConsoleButton></td>
+                          <td><ConsoleButton variant="ghost" onClick={() => { setSelectedMembershipId(membership.id); setTab("permissions"); }}>Edit {membership.userId ?? membership.invitedEmail} permissions</ConsoleButton></td>
                         </tr>
                       ))}
                     </tbody>
@@ -180,8 +179,8 @@ export default function Groups() {
                   />
                 </>
               )}
-              {tab === "policy" && <section className="table-state"><p>Review the local draft, inherited constraints, and published history for this group.</p><Link className="table-link" to="/policies">Open policy editor</Link></section>}
-              {tab === "analytics" && <section className="table-state"><p>Learning, content, LLM, and policy outcomes use this selected group as their scope.</p><Link className="table-link" to="/analytics">Open scoped analytics</Link></section>}
+              {tab === "policy" && <section className="table-state"><p>Review the local draft, inherited constraints, and published history for this group.</p><Link href="/policies">Open policy editor</Link></section>}
+              {tab === "analytics" && <section className="table-state"><p>Learning, content, LLM, and policy outcomes use this selected group as their scope.</p><Link href="/analytics">Open scoped analytics</Link></section>}
             </>
           ) : (
             <p>Select a group.</p>

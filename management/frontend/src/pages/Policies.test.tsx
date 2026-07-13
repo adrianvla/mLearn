@@ -19,7 +19,11 @@ it("lists named local and inherited policies and only shows rules that were adde
   }));
   render(<Policies />);
   expect(await screen.findByRole("heading", { name: "Policies for German A" })).toBeVisible();
-  expect(screen.getByRole("button", { name: /Exam restrictions/ })).toBeVisible();
+  const policyButton = screen.getByRole("button", { name: /Exam restrictions/ });
+  expect(policyButton).toBeVisible();
+  expect(policyButton).toHaveAttribute("data-slot", "button");
+  expect(screen.getByRole("heading", { name: "Policies in this group" }).closest('[data-slot="card"]')).not.toBeNull();
+  expect(screen.getByRole("heading", { name: "Exam restrictions" }).closest('[data-slot="card"]')).not.toBeNull();
   expect(screen.getByText("Student defaults")).toBeVisible();
   expect(screen.getByText("School · read only")).toBeVisible();
   expect(await screen.findByLabelText(/Reader text size/i)).toHaveValue("20");

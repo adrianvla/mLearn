@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Card, Chip } from "@heroui/react";
 import { ApiClient } from "../api/client";
 import { ConsoleButton, ConsoleNumberField, ConsoleSelect, ConsoleSwitch, ConsoleTextField } from "../components/console";
 import { PageToolbar } from "../components/PageToolbar";
@@ -249,27 +250,25 @@ export default function Policies() {
       />
       {error && <p role="alert">{error}</p>}
       <div className="policy-workspace">
-        <aside className="policy-list" aria-label="Policies">
-          <h2>Policies in this group</h2>
+        <Card className="policy-list" aria-label="Policies">
+          <Card.Header><h2>Policies in this group</h2></Card.Header>
+          <Card.Content className="policy-list__content">
           {collection.local.map((policy) => (
             <ConsoleButton
               type="button"
               key={policy.id}
-              className={
-                policy.id === selectedId
-                  ? "policy-list-item selected"
-                  : "policy-list-item"
-              }
+              className="policy-list-choice"
+              variant={policy.id === selectedId ? "primary" : "ghost"}
               onClick={() => setSelectedId(policy.id)}
             >
               <strong>{policy.name}</strong>
-              <span>
+              <Chip size="sm" variant="soft">
                 {policy.activeVersionId
                   ? "Published"
                   : policy.draftHash
                     ? "Saved draft"
                     : "Draft"}
-              </span>
+              </Chip>
             </ConsoleButton>
           ))}
           <div className="policy-create">
@@ -279,7 +278,7 @@ export default function Policies() {
               onChange={setNewName}
             />
             <ConsoleButton
-              className="secondary-action"
+              variant="secondary"
               isDisabled={!editable || busy || !newName.trim()}
               onClick={() => void create()}
             >
@@ -289,16 +288,18 @@ export default function Policies() {
           <h2>Inherited policies</h2>
           {collection.inherited.length ? (
             collection.inherited.map((policy) => (
-              <div className="policy-list-item inherited" key={policy.id}>
+              <Card className="policy-inherited" key={policy.id}><Card.Content>
                 <strong>{policy.name}</strong>
                 <span>{policy.groupName} · read only</span>
-              </div>
+              </Card.Content></Card>
             ))
           ) : (
             <p>No inherited policies.</p>
           )}
-        </aside>
-        <main className="policy-builder">
+          </Card.Content>
+        </Card>
+        <Card className="policy-builder">
+          <Card.Content>
           {!selected ? (
             <p>Select or create a policy to begin.</p>
           ) : (
@@ -321,14 +322,14 @@ export default function Policies() {
               </header>
               <section className="policy-actions">
                 <ConsoleButton
-                  className="secondary-action"
+                  variant="secondary"
                   isDisabled={!editable || busy || !dirty}
                   onClick={() => void save()}
                 >
                   Save draft
                 </ConsoleButton>
                 <ConsoleButton
-                  className="secondary-action"
+                  variant="secondary"
                   isDisabled={!editable || busy || dirty || !savedHash}
                   onClick={() => void validate()}
                 >
@@ -336,7 +337,7 @@ export default function Policies() {
                 </ConsoleButton>
                 <ConsoleTextField label="Publish summary" value={summary} onChange={setSummary} placeholder="Describe this change" />
                 <ConsoleButton
-                  className="primary-action"
+                  variant="primary"
                   isDisabled={!publishable || busy || Boolean(nextStep)}
                   onClick={() => void publish()}
                 >
@@ -351,7 +352,7 @@ export default function Policies() {
                   <ConsoleSelect label="App setting" selectedKey={settingKey} onSelectionChange={setSettingKey} placeholder="Choose a setting" options={available.map((entry) => ({ key: entry.key, label: label(entry.key) }))} />
                 )}
                 <ConsoleButton
-                  className="secondary-action"
+                  variant="secondary"
                   isDisabled={
                     !editable || (ruleKind === "setting" && !settingKey)
                   }
@@ -471,7 +472,8 @@ export default function Policies() {
               </section>
             </>
           )}
-        </main>
+          </Card.Content>
+        </Card>
       </div>
     </div>
   );
@@ -518,15 +520,15 @@ function RuleCard({
   onRemove(): void;
 }) {
   return (
-    <article className="policy-rule-card">
-      <header>
+    <Card className="policy-rule-card">
+      <Card.Header>
         <strong>{title}</strong>
-        <ConsoleButton type="button" className="text-action" onClick={onRemove}>
+        <ConsoleButton type="button" variant="ghost" onClick={onRemove}>
           Remove
         </ConsoleButton>
-      </header>
-      {children}
-    </article>
+      </Card.Header>
+      <Card.Content>{children}</Card.Content>
+    </Card>
   );
 }
 function initial(entry?: Setting): unknown {

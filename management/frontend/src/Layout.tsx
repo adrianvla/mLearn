@@ -19,8 +19,8 @@ export default function Layout() {
   };
   return (
     <div className="console-shell">
-      <ConsoleButton ref={triggerRef} className="mobile-nav-trigger" aria-label="Open navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu /></ConsoleButton>
-      {mobileOpen && <ConsoleButton className="mobile-backdrop" aria-label="Close navigation" onClick={closeNavigation}>Close navigation</ConsoleButton>}
+      <ConsoleButton ref={triggerRef} variant="secondary" isIconOnly className="mobile-nav-trigger" aria-label="Open navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu /></ConsoleButton>
+      {mobileOpen && <ConsoleButton variant="ghost" className="mobile-backdrop" aria-label="Close navigation" onClick={closeNavigation}>Close navigation</ConsoleButton>}
       <AppSidebar mobileOpen={mobileOpen} onNavigate={closeNavigation} />
       <section className="console-workspace">
         <header className="console-topbar"><GlobalSearch /><NotificationMenu groupId={scope.status === 'ready' ? scope.selectedGroup?.id ?? null : null} /><GroupSwitcher /></header>
