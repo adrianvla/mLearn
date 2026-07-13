@@ -130,13 +130,15 @@ it("shows an exact provider health-history table without exposing provider respo
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/providers?")) return json({ items: [{ id: "p", name: "Provider", providerKind: "ollama", baseUrl: "http://ollama", status: "active", hasSecret: false }] });
-      if (url.includes("/analytics/providers/p/history")) return json({ usage: [], healthChecks: [{ id: "check", actorUserId: "teacher", configurationValid: true, networkCheckPerformed: false, outcome: "healthy", createdAt: 1 }] });
+      if (url.includes("/analytics/providers/p/history")) return json({ timezone: "Europe/Paris", usage: [{ start: 1774652400000, end: 1774735200000, coverage: "complete", values: [{ modelId: "m", modelKey: "Model", requests: 1, costMicros: 0 }] }, { start: 1774735200000, end: 1774821600000, coverage: "missing", values: null }], healthChecks: [{ id: "check", actorUserId: "teacher", configurationValid: true, networkCheckPerformed: false, outcome: "healthy", createdAt: 1 }] });
       return json(url.includes("/usage?") ? { buckets: [] } : url.includes("/api-keys") ? { apiKeys: [] } : { items: [] });
     }),
   );
   render(<LlmGateway />);
   fireEvent.click(await screen.findByRole("button", { name: "Provider history" }));
   expect(await screen.findByRole("table", { name: "Provider health history" })).toBeVisible();
+  expect(screen.getByRole("table", { name: "Provider usage data" })).toBeVisible();
+  expect(screen.getAllByText(/No recorded data/).length).toBeGreaterThan(0);
   expect(screen.getByTestId("provider-health-check-check")).toBeVisible();
   expect(screen.getByText("healthy")).toBeVisible();
   expect(screen.queryByText(/response body/i)).not.toBeInTheDocument();

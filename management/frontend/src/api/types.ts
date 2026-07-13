@@ -378,7 +378,12 @@ export interface UserDailyHistory {
   daily: UserDailyActivity[];
 }
 export interface ProviderUsageDay {
-  dayStart: number;
+  start: number;
+  end: number;
+  coverage: AnalyticsCoverage;
+  values: ProviderModelUsage[] | null;
+}
+export interface ProviderModelUsage {
   modelId: string;
   modelKey: string;
   requests: number;
@@ -393,6 +398,7 @@ export interface ProviderHealthCheckHistory {
   createdAt: number;
 }
 export interface ProviderHistory {
+  timezone: string;
   usage: ProviderUsageDay[];
   healthChecks: ProviderHealthCheckHistory[];
 }

@@ -52,20 +52,23 @@ export function ProviderHistory({ open, onOpenChange, groupId, providerId, provi
 }
 
 function toUsageSeries(usage: ProviderHistoryData['usage']): ChartSeries[] {
-  const byModel = new Map<string, ProviderHistoryData['usage']>();
-  for (const row of usage) byModel.set(row.modelId, [...(byModel.get(row.modelId) ?? []), row]);
-  return [...byModel.values()].flatMap((rows) => {
-    const model = rows[0];
-    return [{
-      key: `requests-${model.modelId}`,
-      label: `${model.modelKey} requests`,
-      kind: 'primary' as const,
-      values: rows.map((row) => ({ start: row.dayStart, end: row.dayStart + DAY, value: row.requests, coverage: 'complete' as const })),
-    }, {
-      key: `cost-${model.modelId}`,
-      label: `${model.modelKey} cost micros`,
-      kind: 'primary' as const,
-      values: rows.map((row) => ({ start: row.dayStart, end: row.dayStart + DAY, value: row.costMicros, coverage: 'complete' as const })),
-    }];
-  });
+  const models = new Map<string, { id: string; key: string }>();
+  for (const day of usage) for (const model of day.values ?? []) models.set(model.modelId, { id: model.modelId, key: model.modelKey });
+  if (models.size === 0 && usage.length > 0) return [{
+    key: 'requests',
+    label: 'Provider requests',
+    kind: 'primary',
+    values: usage.map((day) => ({ start: day.start, end: day.end, value: null, coverage: day.coverage })),
+  }];
+  return [...models.values()].flatMap((model) => [{
+    key: `requests-${model.id}`,
+    label: `${model.key} requests`,
+    kind: 'primary' as const,
+    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id)?.requests ?? 0, coverage: day.coverage })),
+  }, {
+    key: `cost-${model.id}`,
+    label: `${model.key} cost micros`,
+    kind: 'primary' as const,
+    values: usage.map((day) => ({ start: day.start, end: day.end, value: day.values === null ? null : day.values.find((value) => value.modelId === model.id)?.costMicros ?? 0, coverage: day.coverage })),
+  }]);
 }
