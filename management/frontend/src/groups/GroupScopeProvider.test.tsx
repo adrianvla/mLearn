@@ -11,7 +11,7 @@ function Probe() {
   const scope = useGroupScope();
   if (scope.status !== 'ready') return <div>{scope.status}</div>;
   return <><div>{scope.selectedGroup?.name ?? 'none'}</div><div>{scope.can('analytics.view') ? 'can analytics' : 'cannot analytics'}</div>
-    <button onClick={() => void scope.selectGroup('german-b')}>Select B</button></>;
+    <button onClick={() => void scope.selectGroup('german-b').catch(() => undefined)}>Select B</button></>;
 }
 
 function Providers({ user, groupApi }: { user: AuthorizedUser; groupApi: GroupScopeApi }) {
@@ -66,4 +66,18 @@ it('does not render stale old-scope children while activating a new group', asyn
   await act(async () => finishSwitch());
   expect(await screen.findByText('German B')).toBeVisible();
   await waitFor(() => expect(localStorage.getItem(GROUP_STORAGE_KEY)).toBe('german-b'));
+});
+
+it('restores the prior ready scope after selecting a group is denied', async () => {
+  const activateGroup = vi.fn((id: string) => id === 'german-b'
+    ? Promise.reject(new Error('forbidden'))
+    : Promise.resolve());
+  render(<Providers user={{ id: 'u', email: 'a@b.c', groups: [GERMAN_A, GERMAN_B] }} groupApi={{ activateGroup }} />);
+  await screen.findByText('German A');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Select B' }));
+
+  expect(await screen.findByText('German A')).toBeVisible();
+  expect(screen.getByText('can analytics')).toBeVisible();
+  expect(localStorage.getItem(GROUP_STORAGE_KEY)).toBe('german-a');
 });
