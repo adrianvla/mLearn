@@ -36,6 +36,16 @@ pub struct AuditPage {
     pub next_cursor: Option<String>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct AuditFilters {
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+    pub actor_user_id: Option<String>,
+    pub action: Option<String>,
+    pub target_type: Option<String>,
+    pub target_id: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct AuditQueryService {
     pool: SqlitePool,
@@ -57,6 +67,18 @@ impl AuditQueryService {
         cursor: Option<&str>,
         limit: usize,
     ) -> Result<AuditPage, AppError> {
+        self.list_with_filters(principal, group_id, AuditFilters::default(), cursor, limit)
+            .await
+    }
+
+    pub async fn list_with_filters(
+        &self,
+        principal: &Principal,
+        group_id: &str,
+        filters: AuditFilters,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<AuditPage, AppError> {
         self.authorization
             .require(principal, group_id, Capability::GroupView)
             .await?;
@@ -74,10 +96,28 @@ impl AuditQueryService {
                    event.action, event.target_type, event.target_id,
                    event.authorized_group_id, event.created_at, event.request_id, event.metadata_json
             FROM audit_events event JOIN subtree ON subtree.id = event.authorized_group_id
-            WHERE (? IS NULL OR event.created_at < ? OR (event.created_at = ? AND event.id < ?))
+            WHERE (? IS NULL OR event.created_at >= ?)
+              AND (? IS NULL OR event.created_at <= ?)
+              AND (? IS NULL OR event.actor_user_id = ?)
+              AND (? IS NULL OR event.action = ?)
+              AND (? IS NULL OR event.target_type = ?)
+              AND (? IS NULL OR event.target_id = ?)
+              AND (? IS NULL OR event.created_at < ? OR (event.created_at = ? AND event.id < ?))
             ORDER BY event.created_at DESC, event.id DESC LIMIT ?",
         )
         .bind(group_id)
+        .bind(filters.from)
+        .bind(filters.from)
+        .bind(filters.to)
+        .bind(filters.to)
+        .bind(filters.actor_user_id.as_deref())
+        .bind(filters.actor_user_id.as_deref())
+        .bind(filters.action.as_deref())
+        .bind(filters.action.as_deref())
+        .bind(filters.target_type.as_deref())
+        .bind(filters.target_type.as_deref())
+        .bind(filters.target_id.as_deref())
+        .bind(filters.target_id.as_deref())
         .bind(cursor_time)
         .bind(cursor_time)
         .bind(cursor_time)
@@ -110,6 +150,12 @@ impl AuditQueryService {
 #[serde(rename_all = "camelCase")]
 struct AuditQuery {
     group_id: Option<String>,
+    from: Option<i64>,
+    to: Option<i64>,
+    actor_user_id: Option<String>,
+    action: Option<String>,
+    target_type: Option<String>,
+    target_id: Option<String>,
     cursor: Option<String>,
     limit: Option<usize>,
 }
@@ -131,9 +177,17 @@ async fn list_events(
         .ok_or_else(|| AppError::BadRequest("groupId or an active group is required".into()))?;
     Ok(Json(
         AuditQueryService::new(state.db)
-            .list(
+            .list_with_filters(
                 &principal,
                 &group_id,
+                AuditFilters {
+                    from: query.from,
+                    to: query.to,
+                    actor_user_id: query.actor_user_id,
+                    action: query.action,
+                    target_type: query.target_type,
+                    target_id: query.target_id,
+                },
                 query.cursor.as_deref(),
                 query.limit.unwrap_or(50),
             )
@@ -204,11 +258,8 @@ fn database_error(error: sqlx::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use crate::{
-        api_keys::ApiKeyService,
-        auth::hash_token,
-        authorization::Capability,
-        groups::tests::GroupFixture,
-        identity::IdentityService,
+        api_keys::ApiKeyService, auth::hash_token, authorization::Capability,
+        groups::tests::GroupFixture, identity::IdentityService,
     };
 
     #[tokio::test]
@@ -245,6 +296,111 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(parent.events.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn audit_filters_limit_results_without_widening_descendant_scope() {
+        let fixture = GroupFixture::german_tree().await;
+        let matching_actor = fixture.german_a_teacher.user_id.clone();
+        let other_actor = fixture.other_teacher.user_id.clone();
+        for (id, actor, action, target_type, target_id, timestamp, group_id) in [
+            (
+                "matching",
+                matching_actor.as_str(),
+                "policy.published",
+                "policy",
+                "reading",
+                20,
+                &fixture.german_a,
+            ),
+            (
+                "before",
+                matching_actor.as_str(),
+                "policy.published",
+                "policy",
+                "reading",
+                9,
+                &fixture.german_a,
+            ),
+            (
+                "after",
+                matching_actor.as_str(),
+                "policy.published",
+                "policy",
+                "reading",
+                31,
+                &fixture.german_a,
+            ),
+            (
+                "actor",
+                other_actor.as_str(),
+                "policy.published",
+                "policy",
+                "reading",
+                20,
+                &fixture.german_a,
+            ),
+            (
+                "action",
+                matching_actor.as_str(),
+                "policy.saved",
+                "policy",
+                "reading",
+                20,
+                &fixture.german_a,
+            ),
+            (
+                "type",
+                matching_actor.as_str(),
+                "policy.published",
+                "group",
+                "reading",
+                20,
+                &fixture.german_a,
+            ),
+            (
+                "target",
+                matching_actor.as_str(),
+                "policy.published",
+                "policy",
+                "other",
+                20,
+                &fixture.german_a,
+            ),
+            (
+                "sibling",
+                matching_actor.as_str(),
+                "policy.published",
+                "policy",
+                "reading",
+                20,
+                &fixture.german_b,
+            ),
+        ] {
+            sqlx::query("INSERT INTO audit_events (id, actor_user_id, action, target_type, target_id, metadata_json, created_at, authorized_group_id, request_id) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)")
+                .bind(id).bind(actor).bind(action).bind(target_type).bind(target_id).bind(timestamp).bind(group_id)
+                .execute(&fixture.pool).await.unwrap();
+        }
+
+        let page = super::AuditQueryService::new(fixture.pool)
+            .list_with_filters(
+                &fixture.german_a_teacher,
+                &fixture.german_a,
+                super::AuditFilters {
+                    from: Some(10),
+                    to: Some(30),
+                    actor_user_id: Some(matching_actor),
+                    action: Some("policy.published".into()),
+                    target_type: Some("policy".into()),
+                    target_id: Some("reading".into()),
+                },
+                None,
+                50,
+            )
+            .await
+            .unwrap();
+        let ids: Vec<_> = page.events.iter().map(|event| event.id.as_str()).collect();
+        assert_eq!(ids, vec!["matching"]);
     }
 
     #[tokio::test]
@@ -353,8 +509,7 @@ mod tests {
             .unwrap();
 
         assert!(page.events.iter().any(|event| {
-            event.action == "group.archived"
-                && event.authorized_group_id == fixture.german_a
+            event.action == "group.archived" && event.authorized_group_id == fixture.german_a
         }));
     }
 
@@ -383,6 +538,9 @@ mod tests {
             .iter()
             .find(|event| event.id == "service-event")
             .unwrap();
-        assert_eq!(event.actor.as_deref(), Some(format!("api_key:{}", created.id).as_str()));
+        assert_eq!(
+            event.actor.as_deref(),
+            Some(format!("api_key:{}", created.id).as_str())
+        );
     }
 }
