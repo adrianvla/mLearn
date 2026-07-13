@@ -1,15 +1,8 @@
 use axum::{extract::State, Json};
 
-use crate::{
-    config::DeploymentMode,
-    dto::SchoolDto,
-    error::AppError,
-    state::AppState,
-};
+use crate::{config::DeploymentMode, dto::SchoolDto, error::AppError, state::AppState};
 
-pub async fn get_school_status(
-    State(state): State<AppState>,
-) -> Result<Json<SchoolDto>, AppError> {
+pub async fn get_school_status(State(state): State<AppState>) -> Result<Json<SchoolDto>, AppError> {
     let mode_str = match state.config.deployment_mode {
         DeploymentMode::LocalOnly => "local-only",
         DeploymentMode::SelfHosted => "self-hosted",

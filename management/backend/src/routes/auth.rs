@@ -753,7 +753,14 @@ mod tests {
         )
         .await;
         assert_eq!(new_login_status, StatusCode::OK);
-        let (old_session_status, _) = json_request(&app, "GET", "/api/auth/me", Value::Null, Some(old_access_token)).await;
+        let (old_session_status, _) = json_request(
+            &app,
+            "GET",
+            "/api/auth/me",
+            Value::Null,
+            Some(old_access_token),
+        )
+        .await;
         assert_eq!(old_session_status, StatusCode::UNAUTHORIZED);
     }
 

@@ -7,9 +7,7 @@ use crate::{
     state::AppState,
 };
 
-pub async fn get_ai_status(
-    State(state): State<AppState>,
-) -> Result<Json<AiStatusDto>, AppError> {
+pub async fn get_ai_status(State(state): State<AppState>) -> Result<Json<AiStatusDto>, AppError> {
     let cloud_enabled = state.config.cloud_ai_enabled;
     let not_cloud_connected = state.config.deployment_mode != DeploymentMode::CloudConnected;
 
@@ -41,9 +39,8 @@ pub async fn get_ai_status(
     }
 
     if !state.config.local_ai_enabled {
-        warnings.push(
-            "No local AI configured. Some features will be unavailable offline.".to_string(),
-        );
+        warnings
+            .push("No local AI configured. Some features will be unavailable offline.".to_string());
     }
 
     Ok(Json(AiStatusDto {
