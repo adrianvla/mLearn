@@ -21,7 +21,7 @@ interface AnalyticsOverviewProps {
   onBucketClick(start: number, end: number): void;
 }
 
-const activityDefinitions: ReadonlyArray<{ key: keyof AnalyticsSummary; label: string; transform?: (value: number) => number }> = [
+const activityDefinitions: ReadonlyArray<{ key: AnalyticsMetric; label: string; transform?: (value: number) => number }> = [
   { key: 'readerPages', label: 'Reader pages recorded' },
   { key: 'watchSeconds', label: 'Video minutes recorded', transform: (value: number) => value / 60 },
   { key: 'flashcardEvents', label: 'Flashcard sessions' },
@@ -42,7 +42,7 @@ export function AnalyticsOverview({ summary, history, comparison, visibleMetrics
   return <div className="analytics-overview">
     <section className="analytics-panel" aria-labelledby="activity-history-heading">
       <div className="analytics-panel__heading"><div><h2 id="activity-history-heading">Activity history</h2><p>Recorded reader, video, and flashcard activity for the selected range.</p></div></div>
-      <div className="metric-grid analytics-summary-metric"><MetricCard label="Active learners" value={summary?.activeLearners ?? '—'} /></div>
+      <div className="metric-grid analytics-summary-metric"><MetricCard label="Active learners" value={aggregateValue(summary, summary?.activeLearners)} detail={summary?.coverage && summary.coverage !== 'complete' ? `Coverage: ${summary.coverage}` : undefined} /></div>
       <fieldset className="analytics-series-controls"><legend>Visible activity series</legend>{activityDefinitions.map((definition) => <ConsoleSwitch key={definition.key} label={definition.label} isSelected={visible.has(definition.key)} onChange={(selected) => onVisibleMetricsChange(selected ? [...visibleMetrics, definition.key] : visibleMetrics.filter((metric) => metric !== definition.key))} />)}</fieldset>
       {activityError ? <PanelError title="Activity history" message={activityError} /> : history === null ? <PanelLoading title="Activity history" /> : activitySeries.length === 0 ? <p role="status">Select an activity series to display recorded values.</p> : <><StackedActivityChart title="Activity" series={activitySeries} onBucketClick={onBucketClick} timezone={history.timezone} /><AnalyticsHistoryTable title="Activity history" series={activitySeries} timezone={history.timezone} /></>}
     </section>
@@ -61,7 +61,7 @@ export function AnalyticsOverview({ summary, history, comparison, visibleMetrics
   </div>;
 }
 
-function toSeries(history: HistoricalSeries, key: keyof NonNullable<HistoricalSeries['primary'][number]['values']>, label: string, kind: ChartSeries['kind'], comparisonLabel?: string, transform: (value: number) => number = (value) => value): ChartSeries {
+function toSeries(history: HistoricalSeries, key: AnalyticsMetric, label: string, kind: ChartSeries['kind'], comparisonLabel?: string, transform: (value: number) => number = (value) => value): ChartSeries {
   const buckets = kind === 'primary' ? history.primary : history.comparison ?? [];
   return { key, label, kind, comparisonLabel, values: buckets.map((bucket) => ({ start: bucket.start, end: bucket.end, coverage: bucket.coverage, value: bucket.values === null ? null : transform(bucket.values[key]) })) };
 }
@@ -70,6 +70,11 @@ function comparisonLabel(mode: ComparisonMode): string | undefined {
   if (mode === 'previousYear') return 'Previous year';
   if (mode === 'previousPeriod') return 'Previous period';
   return undefined;
+}
+
+function aggregateValue(summary: AnalyticsSummary | null, value: number | undefined): number | string {
+  if (summary?.coverage === 'missing' || summary?.coverage === 'rawExpired') return 'No recorded data';
+  return value ?? '—';
 }
 
 function PanelLoading({ title }: { title: string }) {

@@ -397,9 +397,16 @@ fn write_summary_csv(
         ("total_tokens", summary.total_tokens),
         ("cost_micros", summary.cost_micros),
         ("policy_blocks", summary.policy_blocks),
+        ("latency_ms", summary.latency_ms),
+        ("llm_errors", summary.llm_errors),
     ] {
         writer
             .write_record([metric, &value.to_string()])
+            .map_err(|_| AppError::Internal("csv export failed".into()))?;
+    }
+    if let Some(coverage) = summary.coverage {
+        writer
+            .write_record(["coverage", &format!("{coverage:?}").to_ascii_lowercase()])
             .map_err(|_| AppError::Internal("csv export failed".into()))?;
     }
     Ok(())
