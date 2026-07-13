@@ -149,6 +149,34 @@ pub struct Page<T> {
     pub next_cursor: Option<String>,
 }
 
+/// A retention-aware, factual event record for analytics drill-downs.
+///
+/// This deliberately excludes conversation messages, prompts, tool payloads, and
+/// provider request metadata beyond the fact that a request or policy block occurred.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEvent {
+    pub id: String,
+    pub occurred_at: i64,
+    pub learner_id: Option<String>,
+    pub activity_kind: String,
+    pub event_type: String,
+    pub content_title: Option<String>,
+    pub reader_page: Option<i64>,
+    pub video_time_millis: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEventPage {
+    pub from: i64,
+    pub to: i64,
+    pub coverage: Coverage,
+    pub total: i64,
+    pub items: Vec<HistoryEvent>,
+    pub next_cursor: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct AnalyticsQueryService {
     pool: SqlitePool,
@@ -324,6 +352,99 @@ impl AnalyticsQueryService {
             granularity: query.granularity,
             primary,
             comparison,
+        })
+    }
+
+    pub async fn history_events(
+        &self,
+        principal: &Principal,
+        group: &str,
+        from: i64,
+        to: i64,
+        limit: i64,
+        cursor: Option<&str>,
+    ) -> Result<HistoryEventPage, AppError> {
+        validate_history_range(from, to)?;
+        if !(1..=200).contains(&limit) {
+            return Err(AppError::BadRequest(
+                "analytics limit must be between 1 and 200".into(),
+            ));
+        }
+        let cursor = decode_cursor(cursor)?;
+        let now_millis = time::OffsetDateTime::now_utc().unix_timestamp() * 1_000;
+        let now_seconds = now_millis.div_euclid(1_000);
+        let mut connection = self.pool.acquire().await.map_err(db)?;
+        let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+        ensure_live_principal(&mut tx, principal).await?;
+        AuthorizationService::new(self.pool.clone())
+            .require_in_transaction(&mut tx, principal, group, Capability::AnalyticsView)
+            .await?;
+
+        let coverage = raw_history_coverage(&mut tx, group, from, now_millis).await?;
+        let total: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT (SELECT COUNT(*) FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>?) + (SELECT COUNT(*) FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at>=? AND request.created_at<? AND conversation.retained_until>?) + (SELECT COUNT(*) FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at>=? AND event.created_at<?)")
+            .bind(group)
+            .bind(group)
+            .bind(from)
+            .bind(to)
+            .bind(now_millis)
+            .bind(from.div_euclid(1_000))
+            .bind(to.div_euclid(1_000))
+            .bind(now_seconds)
+            .bind(from.div_euclid(1_000))
+            .bind(to.div_euclid(1_000))
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
+        let (cursor_at, cursor_id) = cursor.unwrap_or((i64::MAX, "~".into()));
+        let rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id), events AS (SELECT 'activity:' || e.id id,e.occurred_at,e.user_id learner_id,e.activity_kind,e.event_type,CASE WHEN e.privacy='title-and-progress' THEN e.title ELSE NULL END content_title,e.current_page reader_page,e.current_time_millis video_time_millis FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>? UNION ALL SELECT 'llm:' || request.id,request.created_at*1000,conversation.learner_user_id,'llm','llm.request',NULL,NULL,NULL FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE request.created_at>=? AND request.created_at<? AND conversation.retained_until>? UNION ALL SELECT 'policy-block:' || event.id,event.created_at*1000,event.learner_user_id,'llm','llm.policyBlocked',NULL,NULL,NULL FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.created_at>=? AND event.created_at<?) SELECT id,occurred_at,learner_id,activity_kind,event_type,content_title,reader_page,video_time_millis FROM events WHERE occurred_at<? OR (occurred_at=? AND id<?) ORDER BY occurred_at DESC,id DESC LIMIT ?")
+            .bind(group)
+            .bind(group)
+            .bind(from)
+            .bind(to)
+            .bind(now_millis)
+            .bind(from.div_euclid(1_000))
+            .bind(to.div_euclid(1_000))
+            .bind(now_seconds)
+            .bind(from.div_euclid(1_000))
+            .bind(to.div_euclid(1_000))
+            .bind(cursor_at)
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .bind(limit + 1)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)?;
+
+        let has_more = rows.len() > limit as usize;
+        let items: Vec<HistoryEvent> = rows
+            .into_iter()
+            .take(limit as usize)
+            .map(|row| HistoryEvent {
+                id: row.get("id"),
+                occurred_at: row.get("occurred_at"),
+                learner_id: row.get("learner_id"),
+                activity_kind: row.get("activity_kind"),
+                event_type: row.get("event_type"),
+                content_title: row.get("content_title"),
+                reader_page: row.get("reader_page"),
+                video_time_millis: row.get("video_time_millis"),
+            })
+            .collect();
+        let next_cursor = has_more
+            .then(|| {
+                items
+                    .last()
+                    .map(|event| encode_cursor(event.occurred_at, &event.id))
+            })
+            .flatten();
+        Ok(HistoryEventPage {
+            from,
+            to,
+            coverage,
+            total,
+            items,
+            next_cursor,
         })
     }
 
@@ -922,6 +1043,26 @@ async fn partial_activity_summary(
     Ok((count, summarize(&events), raw_expired))
 }
 
+async fn raw_history_coverage(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    group: &str,
+    from: i64,
+    now_millis: i64,
+) -> Result<Coverage, AppError> {
+    let retained_from: Option<i64> = sqlx::query_scalar(
+        "SELECT retained_from FROM analytics_raw_retention_watermarks WHERE group_id=?",
+    )
+    .bind(group)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(db)?;
+    if retained_from.is_some_and(|cutoff| from < cutoff) || from < now_millis - 90 * 86_400_000 {
+        Ok(Coverage::RawExpired)
+    } else {
+        Ok(Coverage::Complete)
+    }
+}
+
 fn encode_cursor(occurred_at: i64, id: &str) -> String {
     URL_SAFE_NO_PAD.encode(format!("{occurred_at}\0{id}"))
 }
@@ -1296,6 +1437,76 @@ mod tests {
         assert!(raw_expired);
     }
 
+    #[tokio::test]
+    async fn history_drilldown_reports_expired_raw_coverage_without_fabricating_events() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        let from = (now - 91 * 86_400) * 1_000;
+        let to = from + 86_400_000;
+        sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES('teacher','teacher@test','teacher@test','Teacher','active','teacher',0,?,?)")
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('class',NULL,'Class','class','active',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO group_memberships(id,group_id,user_id,status,created_at) VALUES('membership','class','teacher','active',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO membership_capabilities(membership_id,capability) VALUES('membership','analytics.view')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO sessions(id,user_id,expires_at,created_at,last_seen_at,active_group_id) VALUES('session','teacher',?,?,?,'class')")
+            .bind(now + 3_600)
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO analytics_daily_totals(group_id,day_start,active_learners,sessions,watch_seconds,completions,reader_pages,flashcard_events,updated_at) VALUES('class',?,1,1,60,0,0,0,?)")
+            .bind(from)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO analytics_raw_retention_watermarks(group_id,retained_from,updated_at) VALUES('class',?,?)")
+            .bind(to)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let principal = Principal {
+            user_id: "teacher".into(),
+            service_key_id: None,
+            session_id: "session".into(),
+            device_id: "device".into(),
+            active_group_id: Some("class".into()),
+            identity_type: IdentityType::Teacher,
+            is_root: false,
+        };
+
+        let page = AnalyticsQueryService::new(pool)
+            .history_events(&principal, "class", from, to, 50, None)
+            .await
+            .unwrap();
+
+        assert_eq!(page.coverage, Coverage::RawExpired);
+        assert!(page.items.is_empty());
+        assert_eq!(page.total, 0);
+    }
+
     async fn insert_video_pair(
         pool: &SqlitePool,
         user: &str,
@@ -1440,6 +1651,35 @@ mod tests {
         assert!(matches!(
             service
                 .history(&principal("a-teacher", "s-a", "a"), "b", history_query())
+                .await,
+            Err(AppError::Forbidden(_))
+        ));
+        assert_eq!(
+            service
+                .history_events(
+                    &principal("a-teacher", "s-a", "a"),
+                    "a",
+                    millis - 1,
+                    millis + 60_001,
+                    50,
+                    None,
+                )
+                .await
+                .unwrap()
+                .items
+                .len(),
+            2
+        );
+        assert!(matches!(
+            service
+                .history_events(
+                    &principal("a-teacher", "s-a", "a"),
+                    "b",
+                    millis - 1,
+                    millis + 60_001,
+                    50,
+                    None,
+                )
                 .await,
             Err(AppError::Forbidden(_))
         ));

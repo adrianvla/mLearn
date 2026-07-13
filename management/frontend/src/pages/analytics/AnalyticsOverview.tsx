@@ -16,6 +16,7 @@ interface AnalyticsOverviewProps {
   llmError: string | null;
   blocks: PolicyBlockAnalytics | null;
   policyError: string | null;
+  onBucketClick(start: number, end: number): void;
 }
 
 const activityDefinitions: ReadonlyArray<{ key: keyof AnalyticsSummary; label: string; transform?: (value: number) => number }> = [
@@ -24,7 +25,7 @@ const activityDefinitions: ReadonlyArray<{ key: keyof AnalyticsSummary; label: s
   { key: 'flashcardEvents', label: 'Flashcard sessions' },
 ] as const;
 
-export function AnalyticsOverview({ summary, history, comparison, activityError, llm, llmError, blocks, policyError }: AnalyticsOverviewProps) {
+export function AnalyticsOverview({ summary, history, comparison, activityError, llm, llmError, blocks, policyError, onBucketClick }: AnalyticsOverviewProps) {
   const [visible, setVisible] = useState<Set<string>>(() => new Set(activityDefinitions.map((item) => item.key)));
   const activitySeries = useMemo(() => history === null ? [] : activityDefinitions.flatMap((definition) => {
     if (!visible.has(definition.key)) return [];
@@ -45,7 +46,7 @@ export function AnalyticsOverview({ summary, history, comparison, activityError,
         if (selected) next.add(definition.key); else next.delete(definition.key);
         return next;
       })} />)}</fieldset>
-      {activityError ? <PanelError title="Activity history" message={activityError} /> : history === null ? <PanelLoading title="Activity history" /> : activitySeries.length === 0 ? <p role="status">Select an activity series to display recorded values.</p> : <><StackedActivityChart title="Activity" series={activitySeries} /><AnalyticsHistoryTable title="Activity history" series={activitySeries} /></>}
+      {activityError ? <PanelError title="Activity history" message={activityError} /> : history === null ? <PanelLoading title="Activity history" /> : activitySeries.length === 0 ? <p role="status">Select an activity series to display recorded values.</p> : <><StackedActivityChart title="Activity" series={activitySeries} onBucketClick={onBucketClick} /><AnalyticsHistoryTable title="Activity history" series={activitySeries} /></>}
     </section>
     <section className="analytics-panel" aria-labelledby="learning-history-heading">
       <div className="analytics-panel__heading"><div><h2 id="learning-history-heading">Recorded sessions</h2><p>Sessions and completions recorded in the selected range.</p></div></div>

@@ -358,6 +358,22 @@ export interface HistoricalSeries {
   primary: HistoricalBucket[];
   comparison: HistoricalBucket[] | null;
 }
+export interface HistoryEvent {
+  id: string;
+  occurredAt: number;
+  learnerId: string | null;
+  activityKind: string;
+  eventType: string;
+  contentTitle: string | null;
+  readerPage: number | null;
+  videoTimeMillis: number | null;
+}
+export interface HistoryEventPage extends CursorPage<HistoryEvent> {
+  from: number;
+  to: number;
+  coverage: AnalyticsCoverage;
+  total: number;
+}
 export interface TimeseriesPoint extends AnalyticsSummary { dayStart: number }
 export interface LlmAnalytics { requests: number; inputTokens: number; outputTokens: number; totalTokens: number; costMicros: number }
 export interface LearnerAnalytics extends AnalyticsSummary { learnerId: string; displayName: string; lastActivityAt: number }

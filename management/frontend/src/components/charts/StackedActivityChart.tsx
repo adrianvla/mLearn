@@ -1,4 +1,5 @@
 import { Button, Card, Tooltip } from '@heroui/react';
+import type { KeyboardEvent } from 'react';
 import type { AnalyticsCoverage } from '../../api/types';
 import { CoverageAnnotation, ExactDataTable } from './HistoricalChart';
 import { formatPeriodLabel, type ChartSeries } from './chartTypes';
@@ -10,9 +11,10 @@ const CHART_PADDING = 28;
 interface StackedActivityChartProps {
   title: string;
   series: ChartSeries[];
+  onBucketClick?: (start: number, end: number) => void;
 }
 
-export function StackedActivityChart({ title, series }: StackedActivityChartProps) {
+export function StackedActivityChart({ title, series, onBucketClick }: StackedActivityChartProps) {
   const primarySeries = series.filter((item) => item.kind === 'primary');
   const comparisonSeries = series.filter((item) => item.kind === 'comparison');
   const periodSeries = [{ kind: 'primary' as const, series: primarySeries }, ...(comparisonSeries.length === 0 ? [] : [{ kind: 'comparison' as const, series: comparisonSeries }])];
@@ -35,7 +37,7 @@ export function StackedActivityChart({ title, series }: StackedActivityChartProp
         <figcaption>{primarySeries.map((item) => <span key={item.key}><i className="stacked-activity-chart__legend-key" data-series-index={primarySeries.indexOf(item)} />{item.label}</span>)}{periodSeries.map((period) => <span key={period.kind}><i className={`stacked-activity-chart__period-key stacked-activity-chart__period-key--${period.kind}`} />{formatPeriodLabel(period.series[0] ?? { key: '', label: '', kind: period.kind, values: [] })}</span>)}</figcaption>
         <svg role="img" aria-label={`${title} history`} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
           <line className="historical-chart__baseline" x1={CHART_PADDING} x2={CHART_WIDTH - CHART_PADDING} y1={CHART_HEIGHT - CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} />
-          {periodSeries.flatMap((period, periodIndex) => Array.from({ length: bucketCount }, (_, index) => <StackedBar key={`${period.kind}-${index}`} index={index} bucketCount={bucketCount} kind={period.kind} periodIndex={periodIndex} periodCount={periodSeries.length} series={period.series} maximum={maximum} />))}
+          {periodSeries.flatMap((period, periodIndex) => Array.from({ length: bucketCount }, (_, index) => <StackedBar key={`${period.kind}-${index}`} index={index} bucketCount={bucketCount} kind={period.kind} periodIndex={periodIndex} periodCount={periodSeries.length} series={period.series} maximum={maximum} onBucketClick={onBucketClick} />))}
         </svg>
       </figure>
       <CoverageAnnotation series={series} />
@@ -44,8 +46,9 @@ export function StackedActivityChart({ title, series }: StackedActivityChartProp
   </Card>;
 }
 
-function StackedBar({ index, bucketCount, kind, periodIndex, periodCount, series, maximum }: { index: number; bucketCount: number; kind: ChartSeries['kind']; periodIndex: number; periodCount: number; series: ChartSeries[]; maximum: number }) {
+function StackedBar({ index, bucketCount, kind, periodIndex, periodCount, series, maximum, onBucketClick }: { index: number; bucketCount: number; kind: ChartSeries['kind']; periodIndex: number; periodCount: number; series: ChartSeries[]; maximum: number; onBucketClick?: (start: number, end: number) => void }) {
   const values = series.map((item) => item.values[index]);
+  const bucket = values.find((value) => value !== undefined);
   const coverage = bucketCoverage(values.map((value) => value?.coverage));
   const innerWidth = CHART_WIDTH - CHART_PADDING * 2;
   const innerHeight = CHART_HEIGHT - CHART_PADDING * 2;
@@ -56,7 +59,7 @@ function StackedBar({ index, bucketCount, kind, periodIndex, periodCount, series
   const x = CHART_PADDING + index * groupWidth + inset + periodIndex * (barWidth + gap);
   let currentY = CHART_HEIGHT - CHART_PADDING;
 
-  return <g data-testid={periodCount === 1 && kind === 'primary' ? `stacked-bar-${index}` : `stacked-bar-${index}-${kind}`} data-coverage={coverage}>
+  return <g data-testid={periodCount === 1 && kind === 'primary' ? `stacked-bar-${index}` : `stacked-bar-${index}-${kind}`} data-coverage={coverage} {...(onBucketClick !== undefined && bucket !== undefined ? { role: 'button', tabIndex: 0, 'aria-label': 'Open event history for this period', onClick: () => onBucketClick(bucket.start, bucket.end), onKeyDown: (event: KeyboardEvent<SVGGElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onBucketClick(bucket.start, bucket.end); } } } : {})}>
     {values.map((datum, seriesIndex) => {
       if (!datum || datum.value === null) return null;
       const height = datum.value / maximum * innerHeight;

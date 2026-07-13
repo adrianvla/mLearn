@@ -13,8 +13,8 @@ use crate::{
     analytics::ingestion::{AnalyticsIngestionService, IngestionBatch, IngestionResult},
     analytics::queries::{
         AnalyticsGranularity, AnalyticsQueryService, AnalyticsSummary, ComparisonMode,
-        DimensionAnalytics, HistoricalAnalyticsQuery, HistoricalSeries, LearnerAnalytics,
-        LlmAnalytics, Page, PolicyBlockAnalytics, TimeseriesPoint,
+        DimensionAnalytics, HistoricalAnalyticsQuery, HistoricalSeries, HistoryEventPage,
+        LearnerAnalytics, LlmAnalytics, Page, PolicyBlockAnalytics, TimeseriesPoint,
     },
     dto::AnalyticsDto,
     error::AppError,
@@ -27,6 +27,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/api/analytics/events", post(ingest_events))
         .route("/api/analytics/summary", get(summary))
         .route("/api/analytics/history", get(history))
+        .route("/api/analytics/history/events", get(history_events))
         .route("/api/analytics/timeseries", get(timeseries))
         .route("/api/analytics/learners", get(learners))
         .route("/api/analytics/content", get(content))
@@ -115,6 +116,25 @@ async fn history(
                     metrics: Vec::new(),
                     comparison: query.comparison,
                 },
+            )
+            .await?,
+    ))
+}
+async fn history_events(
+    State(state): State<AppState>,
+    principal: Principal,
+    Query(q): Query<AnalyticsQuery>,
+) -> Result<Json<HistoryEventPage>, AppError> {
+    let (from, to, limit) = bounds(&q)?;
+    Ok(Json(
+        AnalyticsQueryService::new(state.db)
+            .history_events(
+                &principal,
+                &q.group_id,
+                from,
+                to,
+                limit,
+                q.cursor.as_deref(),
             )
             .await?,
     ))
