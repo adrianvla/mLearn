@@ -210,7 +210,15 @@ pub struct UserDailyHistory {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderUsageDay {
-    pub day_start: i64,
+    pub start: i64,
+    pub end: i64,
+    pub coverage: Coverage,
+    pub values: Option<Vec<ProviderModelUsage>>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelUsage {
     pub model_id: String,
     pub model_key: String,
     pub requests: i64,
@@ -231,6 +239,7 @@ pub struct ProviderHealthCheckHistory {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderHistory {
+    pub timezone: String,
     pub usage: Vec<ProviderUsageDay>,
     pub health_checks: Vec<ProviderHealthCheckHistory>,
 }
@@ -685,30 +694,26 @@ impl AnalyticsQueryService {
             .fetch_all(&mut *tx)
             .await
             .map_err(db)?;
-        let mut usage_by_day: HashMap<(i64, String, String), ProviderUsageDay> = HashMap::new();
+        let mut usage_by_day: HashMap<i64, Vec<ProviderModelUsage>> = HashMap::new();
         for row in usage_rows {
             let day_start =
                 day_start_for_timestamp(timezone, row.get::<i64, _>("created_at") * 1_000)?;
             let model_id: String = row.get("model_id");
             let model_key: String = row.get("model_key");
-            let usage = usage_by_day
-                .entry((day_start, model_id.clone(), model_key.clone()))
-                .or_insert_with(|| ProviderUsageDay {
-                    day_start,
+            let usage = usage_by_day.entry(day_start).or_default();
+            if let Some(model) = usage.iter_mut().find(|model| model.model_id == model_id) {
+                model.requests += row.get::<i64, _>("requests");
+                model.cost_micros += row.get::<i64, _>("cost_micros");
+            } else {
+                usage.push(ProviderModelUsage {
                     model_id,
                     model_key,
-                    requests: 0,
-                    cost_micros: 0,
+                    requests: row.get("requests"),
+                    cost_micros: row.get("cost_micros"),
                 });
-            usage.requests += row.get::<i64, _>("requests");
-            usage.cost_micros += row.get::<i64, _>("cost_micros");
+            }
         }
-        let mut usage: Vec<_> = usage_by_day.into_values().collect();
-        usage.sort_by(|left, right| {
-            left.day_start
-                .cmp(&right.day_start)
-                .then(left.model_id.cmp(&right.model_id))
-        });
+        let usage = provider_usage_buckets(timezone, from, to, &usage_by_day)?;
         let health_checks = sqlx::query("SELECT id,actor_user_id,configuration_valid,network_check_performed,outcome,created_at FROM provider_health_checks WHERE provider_id=? AND created_at*1000>=? AND created_at*1000<? ORDER BY created_at DESC,id DESC")
             .bind(provider_id)
             .bind(from)
@@ -728,6 +733,7 @@ impl AnalyticsQueryService {
             .collect();
         tx.commit().await.map_err(db)?;
         Ok(ProviderHistory {
+            timezone: timezone.name().to_string(),
             usage,
             health_checks,
         })
@@ -1133,6 +1139,33 @@ fn empty_user_values() -> UserDailyActivityValues {
     }
 }
 
+fn provider_usage_buckets(
+    timezone: chrono_tz::Tz,
+    from: i64,
+    to: i64,
+    usage_by_day: &HashMap<i64, Vec<ProviderModelUsage>>,
+) -> Result<Vec<ProviderUsageDay>, AppError> {
+    history_bucket_boundaries(timezone, from, to, AnalyticsGranularity::Daily)?
+        .into_iter()
+        .map(|(start, end)| {
+            let values = usage_by_day.get(&start).cloned();
+            let partial = start < from || end > to;
+            Ok(ProviderUsageDay {
+                start,
+                end,
+                coverage: if partial {
+                    Coverage::Partial
+                } else if values.is_some() {
+                    Coverage::Complete
+                } else {
+                    Coverage::Missing
+                },
+                values,
+            })
+        })
+        .collect()
+}
+
 fn previous_period_boundaries(
     timezone: chrono_tz::Tz,
     primary: &[(i64, i64)],
@@ -1376,7 +1409,7 @@ async fn raw_history_coverage_descendants(
     from: i64,
     now_millis: i64,
 ) -> Result<Coverage, AppError> {
-    let retained_from: Option<i64> = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT MIN(w.retained_from) FROM analytics_raw_retention_watermarks w JOIN descendants d ON d.id=w.group_id")
+    let retained_from: Option<i64> = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT MAX(w.retained_from) FROM analytics_raw_retention_watermarks w JOIN descendants d ON d.id=w.group_id")
         .bind(group)
         .fetch_one(&mut **tx)
         .await
@@ -2418,7 +2451,7 @@ mod tests {
         assert_eq!(values.cost_micros, 0);
         assert_eq!(values.policy_blocks, 1);
 
-        let retention = AnalyticsQueryService::new(pool)
+        let retention = AnalyticsQueryService::new(pool.clone())
             .user_history(
                 &principal,
                 "selected",
@@ -2441,5 +2474,47 @@ mod tests {
                 .as_ref()
                 .is_some_and(|values| values.reader_pages == 0)
         }));
+
+        sqlx::query("INSERT INTO analytics_raw_retention_watermarks(group_id,retained_from,updated_at) VALUES('selected',?,?),('child',?,?)")
+            .bind(millis - 2 * 86_400_000)
+            .bind(now)
+            .bind(millis + 86_400_000)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let child_watermark = AnalyticsQueryService::new(pool)
+            .user_history(
+                &principal,
+                "selected",
+                "learner-a",
+                millis - 86_400_000,
+                millis - 1,
+            )
+            .await
+            .unwrap();
+        assert!(child_watermark
+            .daily
+            .iter()
+            .all(|day| { day.coverage == Coverage::RawExpired && day.values.is_none() }));
+    }
+
+    #[test]
+    fn provider_history_uses_school_day_boundaries_and_keeps_missing_buckets() {
+        let buckets = provider_usage_buckets(
+            "Europe/Paris".parse().unwrap(),
+            1_774_656_000_000,
+            1_774_828_800_000,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(buckets.len(), 3);
+        assert_eq!(buckets[0].start, 1_774_652_400_000);
+        assert_eq!(buckets[0].end, 1_774_738_800_000);
+        assert_eq!(buckets[1].start, 1_774_738_800_000);
+        assert_eq!(buckets[1].end, 1_774_821_600_000);
+        assert_eq!(buckets[1].coverage, Coverage::Missing);
+        assert!(buckets[1].values.is_none());
     }
 }
