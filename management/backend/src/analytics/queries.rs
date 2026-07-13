@@ -177,12 +177,20 @@ pub struct HistoryEventPage {
     pub next_cursor: Option<String>,
 }
 
-/// Daily values recorded for one selected user. These are activity and gateway
-/// facts only; they deliberately contain no learner assessment or inference.
+/// Retention-aware daily activity for one selected user. These are activity and
+/// gateway facts only; they deliberately contain no learner assessment or inference.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UserDailyActivity {
-    pub day_start: i64,
+    pub start: i64,
+    pub end: i64,
+    pub coverage: Coverage,
+    pub values: Option<UserDailyActivityValues>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDailyActivityValues {
     pub sessions: i64,
     pub reader_pages: i64,
     pub video_seconds: i64,
@@ -190,6 +198,13 @@ pub struct UserDailyActivity {
     pub llm_requests: i64,
     pub cost_micros: i64,
     pub policy_blocks: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDailyHistory {
+    pub timezone: String,
+    pub daily: Vec<UserDailyActivity>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -205,6 +220,7 @@ pub struct ProviderUsageDay {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderHealthCheckHistory {
+    pub id: String,
     pub actor_user_id: String,
     pub configuration_valid: bool,
     pub network_check_performed: bool,
@@ -494,7 +510,7 @@ impl AnalyticsQueryService {
         user_id: &str,
         from: i64,
         to: i64,
-    ) -> Result<Vec<UserDailyActivity>, AppError> {
+    ) -> Result<UserDailyHistory, AppError> {
         validate_history_range(from, to)?;
         let now_millis = time::OffsetDateTime::now_utc().unix_timestamp() * 1_000;
         let mut connection = self.pool.acquire().await.map_err(db)?;
@@ -515,20 +531,24 @@ impl AnalyticsQueryService {
             ));
         }
         let timezone = school_timezone(&mut tx, group).await?;
-        let rows = sqlx::query("SELECT e.user_id,e.activity_session_id,e.event_type,e.activity_kind,e.occurred_at,e.content_id,e.language,e.title,e.privacy,e.current_page,e.current_time_millis FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.user_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>? ORDER BY e.activity_session_id,e.sequence,e.id")
+        let rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT e.user_id,e.activity_session_id,e.event_type,e.activity_kind,e.occurred_at,e.content_id,e.language,e.title,e.privacy,e.current_page,e.current_time_millis,e.retained_until FROM activity_events e JOIN descendants d ON d.id=e.group_id WHERE e.user_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? ORDER BY e.activity_session_id,e.sequence,e.id")
             .bind(group)
             .bind(user_id)
             .bind(from)
             .bind(to)
-            .bind(now_millis)
             .fetch_all(&mut *tx)
             .await
             .map_err(db)?;
         let mut activity: HashMap<i64, Vec<Event>> = HashMap::new();
         let mut flashcards: HashMap<i64, HashSet<String>> = HashMap::new();
+        let mut expired_activity_days = HashSet::new();
         for row in rows {
             let at: i64 = row.get("occurred_at");
             let day = day_start_for_timestamp(timezone, at)?;
+            if row.get::<i64, _>("retained_until") <= now_millis {
+                expired_activity_days.insert(day);
+                continue;
+            }
             if row.get::<String, _>("activity_kind") == "flashcards" {
                 flashcards
                     .entry(day)
@@ -549,14 +569,13 @@ impl AnalyticsQueryService {
                 media: row.get("current_time_millis"),
             });
         }
-        let mut days: HashMap<i64, UserDailyActivity> = activity
+        let mut days: HashMap<i64, UserDailyActivityValues> = activity
             .into_iter()
             .map(|(day_start, events)| {
                 let summary = summarize(&events);
                 (
                     day_start,
-                    UserDailyActivity {
-                        day_start,
+                    UserDailyActivityValues {
                         sessions: summary.sessions,
                         reader_pages: summary.reader_pages,
                         video_seconds: summary.watch_seconds,
@@ -580,7 +599,7 @@ impl AnalyticsQueryService {
             .map_err(db)?;
         for row in usage {
             let day = day_start_for_timestamp(timezone, row.get::<i64, _>("created_at") * 1_000)?;
-            let entry = days.entry(day).or_insert_with(|| empty_user_day(day));
+            let entry = days.entry(day).or_insert_with(empty_user_values);
             entry.llm_requests += row.get::<i64, _>("requests");
             entry.cost_micros += row.get::<i64, _>("cost_micros");
         }
@@ -595,13 +614,40 @@ impl AnalyticsQueryService {
         for row in blocks {
             let day = day_start_for_timestamp(timezone, row.get::<i64, _>("created_at") * 1_000)?;
             days.entry(day)
-                .or_insert_with(|| empty_user_day(day))
+                .or_insert_with(empty_user_values)
                 .policy_blocks += row.get::<i64, _>("blocks");
         }
+        let boundaries =
+            history_bucket_boundaries(timezone, from, to, AnalyticsGranularity::Daily)?;
+        let mut daily = Vec::with_capacity(boundaries.len());
+        for (start, end) in boundaries {
+            let partial = start < from || end > to;
+            let raw_expired = expired_activity_days.contains(&start)
+                || raw_history_coverage_descendants(&mut tx, group, start.max(from), now_millis)
+                    .await?
+                    == Coverage::RawExpired;
+            let values = days.remove(&start);
+            let coverage = if raw_expired {
+                Coverage::RawExpired
+            } else if partial {
+                Coverage::Partial
+            } else if values.is_some() {
+                Coverage::Complete
+            } else {
+                Coverage::Missing
+            };
+            daily.push(UserDailyActivity {
+                start,
+                end,
+                coverage,
+                values: (!raw_expired).then_some(values).flatten(),
+            });
+        }
         tx.commit().await.map_err(db)?;
-        let mut history: Vec<_> = days.into_values().collect();
-        history.sort_by_key(|day| day.day_start);
-        Ok(history)
+        Ok(UserDailyHistory {
+            timezone: timezone.name().to_string(),
+            daily,
+        })
     }
 
     pub async fn provider_history(
@@ -663,7 +709,7 @@ impl AnalyticsQueryService {
                 .cmp(&right.day_start)
                 .then(left.model_id.cmp(&right.model_id))
         });
-        let health_checks = sqlx::query("SELECT actor_user_id,configuration_valid,network_check_performed,outcome,created_at FROM provider_health_checks WHERE provider_id=? AND created_at*1000>=? AND created_at*1000<? ORDER BY created_at DESC,id DESC")
+        let health_checks = sqlx::query("SELECT id,actor_user_id,configuration_valid,network_check_performed,outcome,created_at FROM provider_health_checks WHERE provider_id=? AND created_at*1000>=? AND created_at*1000<? ORDER BY created_at DESC,id DESC")
             .bind(provider_id)
             .bind(from)
             .bind(to)
@@ -672,6 +718,7 @@ impl AnalyticsQueryService {
             .map_err(db)?
             .into_iter()
             .map(|row| ProviderHealthCheckHistory {
+                id: row.get("id"),
                 actor_user_id: row.get("actor_user_id"),
                 configuration_valid: row.get::<i64, _>("configuration_valid") != 0,
                 network_check_performed: row.get::<i64, _>("network_check_performed") != 0,
@@ -1074,9 +1121,8 @@ fn day_start_for_timestamp(timezone: chrono_tz::Tz, timestamp: i64) -> Result<i6
     local_day_start(timezone, date)
 }
 
-fn empty_user_day(day_start: i64) -> UserDailyActivity {
-    UserDailyActivity {
-        day_start,
+fn empty_user_values() -> UserDailyActivityValues {
+    UserDailyActivityValues {
         sessions: 0,
         reader_pages: 0,
         video_seconds: 0,
@@ -1317,6 +1363,24 @@ async fn raw_history_coverage(
     .fetch_optional(&mut **tx)
     .await
     .map_err(db)?;
+    if retained_from.is_some_and(|cutoff| from < cutoff) || from < now_millis - 90 * 86_400_000 {
+        Ok(Coverage::RawExpired)
+    } else {
+        Ok(Coverage::Complete)
+    }
+}
+
+async fn raw_history_coverage_descendants(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    group: &str,
+    from: i64,
+    now_millis: i64,
+) -> Result<Coverage, AppError> {
+    let retained_from: Option<i64> = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT MIN(w.retained_from) FROM analytics_raw_retention_watermarks w JOIN descendants d ON d.id=w.group_id")
+        .bind(group)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db)?;
     if retained_from.is_some_and(|cutoff| from < cutoff) || from < now_millis - 90 * 86_400_000 {
         Ok(Coverage::RawExpired)
     } else {
@@ -2220,6 +2284,11 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('child','selected','Child','child','active',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
         for (id, group, user) in [
             ("teacher-membership", "selected", "teacher"),
             ("learner-a-membership", "selected", "learner-a"),
@@ -2252,6 +2321,16 @@ mod tests {
             "video",
             30,
             &["root", "selected"],
+            millis,
+        )
+        .await;
+        insert_video_pair(
+            &pool,
+            "learner-a",
+            "child",
+            "child-video",
+            10,
+            &["root", "selected", "child"],
             millis,
         )
         .await;
@@ -2318,7 +2397,7 @@ mod tests {
             is_root: false,
         };
 
-        let history = AnalyticsQueryService::new(pool)
+        let history = AnalyticsQueryService::new(pool.clone())
             .user_history(
                 &principal,
                 "selected",
@@ -2329,13 +2408,38 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(history.len(), 1);
-        assert_eq!(history[0].sessions, 3);
-        assert_eq!(history[0].reader_pages, 0);
-        assert_eq!(history[0].video_seconds, 30);
-        assert_eq!(history[0].flashcard_sessions, 1);
-        assert_eq!(history[0].llm_requests, 0);
-        assert_eq!(history[0].cost_micros, 0);
-        assert_eq!(history[0].policy_blocks, 1);
+        assert_eq!(history.daily.len(), 1);
+        let values = history.daily[0].values.as_ref().unwrap();
+        assert_eq!(values.sessions, 4);
+        assert_eq!(values.reader_pages, 0);
+        assert_eq!(values.video_seconds, 40);
+        assert_eq!(values.flashcard_sessions, 1);
+        assert_eq!(values.llm_requests, 0);
+        assert_eq!(values.cost_micros, 0);
+        assert_eq!(values.policy_blocks, 1);
+
+        let retention = AnalyticsQueryService::new(pool)
+            .user_history(
+                &principal,
+                "selected",
+                "learner-a",
+                millis - 91 * 86_400_000,
+                millis + 60_000,
+            )
+            .await
+            .unwrap();
+        assert!(retention
+            .daily
+            .iter()
+            .any(|day| { day.coverage == Coverage::RawExpired && day.values.is_none() }));
+        assert!(retention
+            .daily
+            .iter()
+            .any(|day| { day.coverage == Coverage::Missing && day.values.is_none() }));
+        assert!(retention.daily.iter().any(|day| {
+            day.values
+                .as_ref()
+                .is_some_and(|values| values.reader_pages == 0)
+        }));
     }
 }
