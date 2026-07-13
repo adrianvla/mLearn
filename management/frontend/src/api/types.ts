@@ -359,7 +359,12 @@ export interface HistoricalSeries {
   comparison: HistoricalBucket[] | null;
 }
 export interface UserDailyActivity {
-  dayStart: number;
+  start: number;
+  end: number;
+  coverage: AnalyticsCoverage;
+  values: UserDailyActivityValues | null;
+}
+export interface UserDailyActivityValues {
   sessions: number;
   readerPages: number;
   videoSeconds: number;
@@ -367,6 +372,10 @@ export interface UserDailyActivity {
   llmRequests: number;
   costMicros: number;
   policyBlocks: number;
+}
+export interface UserDailyHistory {
+  timezone: string;
+  daily: UserDailyActivity[];
 }
 export interface ProviderUsageDay {
   dayStart: number;
@@ -376,6 +385,7 @@ export interface ProviderUsageDay {
   costMicros: number;
 }
 export interface ProviderHealthCheckHistory {
+  id: string;
   actorUserId: string;
   configurationValid: boolean;
   networkCheckPerformed: boolean;

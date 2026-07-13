@@ -97,7 +97,7 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
       if (url.includes("/analytics/learners"))
         return json({ items: [{ learnerId: "u", sessions: 4, totalTokens: 120, costMicros: 5000, policyBlocks: 1 }] });
       if (url.includes("/analytics/users/u/history"))
-        return json([{ dayStart: 1, sessions: 4, readerPages: 2, videoSeconds: 30, flashcardSessions: 1, llmRequests: 1, costMicros: 5000, policyBlocks: 1 }]);
+        return json({ timezone: "UTC", daily: [{ start: 1, end: 86400001, coverage: "complete", values: { sessions: 4, readerPages: 2, videoSeconds: 30, flashcardSessions: 1, llmRequests: 1, costMicros: 5000, policyBlocks: 1 } }] });
       if (url.includes("/llm/usage"))
         return json({ buckets: [{ scopeKind: "user", scopeId: "u", remaining: 80 }] });
       if (url.includes("/provisioning/invitations"))
@@ -186,6 +186,21 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
     expect.stringContaining("/provisioning/invitations"),
     expect.objectContaining({ method: "POST" }),
   );
+});
+it("shows activity-history request failures instead of treating them as an empty successful result", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/analytics/users/u/history")) return new Response(JSON.stringify({ error: "history unavailable" }), { status: 503, headers: { "Content-Type": "application/json" } });
+    if (url.includes("/users/u?")) return json({ user: { id: "u", email: "learner@test", displayName: "Learner", identityType: "learner", status: "active", groupIds: ["german-a"] }, memberships: [], devices: [], sessions: [] });
+    if (url.includes("/analytics/learners")) return json({ items: [] });
+    if (url.includes("/llm/usage")) return json({ buckets: [] });
+    return json({ users: [{ id: "u", email: "learner@test", displayName: "Learner", identityType: "learner", status: "active", groupIds: ["german-a"] }] });
+  }));
+  render(<Users />);
+  fireEvent.click(await screen.findByRole("button", { name: "Open Learner" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Activity" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load daily activity");
+  expect(screen.queryByText("No daily activity was recorded in this period.")).not.toBeInTheDocument();
 });
 function json(body: unknown) {
   return Promise.resolve(

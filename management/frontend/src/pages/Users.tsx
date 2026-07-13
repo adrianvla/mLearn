@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { UserPlus } from "lucide-react";
 import { Tabs } from "@heroui/react";
 import { ApiClient } from "../api/client";
-import type { ScopedManagedUser, UserDailyActivity } from "../api/types";
+import type { ScopedManagedUser, UserDailyActivity, UserDailyHistory } from "../api/types";
 import { HistoricalChart } from "../components/charts/HistoricalChart";
 import type { ChartSeries } from "../components/charts/chartTypes";
 import { CsvImportDialog } from "../components/CsvImportDialog";
@@ -44,7 +44,8 @@ interface UserDetail {
     activeGroupId: string | null;
   }>;
   usage?: UserUsage;
-  activity?: UserDailyActivity[];
+  activity: UserDailyHistory | null;
+  activityError: string | null;
 }
 
 export default function Users() {
@@ -130,11 +131,13 @@ export default function Users() {
   const openUser = async (user: ScopedManagedUser) => {
     if (!groupId) return;
     const to = Date.now();
-    const [nextDetail, analytics, quota, activity] = await Promise.all([
+    const [nextDetail, analytics, quota, activityResult] = await Promise.all([
       api.get<UserDetail>(`/api/users/${encodeURIComponent(user.id)}?groupId=${encodeURIComponent(groupId)}`),
       api.get<{ items: Array<{ learnerId: string; sessions: number; totalTokens: number; costMicros: number; policyBlocks: number }> }>(`/api/analytics/learners?groupId=${encodeURIComponent(groupId)}&limit=100`).catch(() => ({ items: [] })),
       api.get<{ buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }> }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`).catch(() => ({ buckets: [] })),
-      api.get<UserDailyActivity[]>(`/api/analytics/users/${encodeURIComponent(user.id)}/history?groupId=${encodeURIComponent(groupId)}&from=${to - 30 * 86_400_000}&to=${to}`).catch(() => []),
+      api.get<UserDailyHistory>(`/api/analytics/users/${encodeURIComponent(user.id)}/history?groupId=${encodeURIComponent(groupId)}&from=${to - 30 * 86_400_000}&to=${to}`)
+        .then((activity) => ({ activity, error: null }))
+        .catch((error: unknown) => ({ activity: null, error: error instanceof Error ? error.message : "The request did not complete." })),
     ]);
     const learner = analytics.items.find((item) => item.learnerId === user.id);
     const remaining = quota.buckets
@@ -150,7 +153,8 @@ export default function Users() {
         policyBlocks: learner.policyBlocks,
         quotaRemaining: remaining.length ? Math.min(...remaining) : undefined,
       } : undefined,
-      activity,
+      activity: activityResult.activity,
+      activityError: activityResult.error,
     });
     setDetailTab("profile");
   };
@@ -400,21 +404,22 @@ export default function Users() {
             ))}
           </section>
           </>}
-          {detailTab === "activity" && <UserActivityHistory activity={detail.activity ?? []} />}
+          {detailTab === "activity" && <UserActivityHistory activity={detail.activity} error={detail.activityError} />}
         </>}
       </ConsoleDialog>
     </div>
   );
 }
 
-function UserActivityHistory({ activity }: { activity: UserDailyActivity[] }) {
-  const series = toActivitySeries(activity);
-  return <section aria-labelledby="user-activity-heading"><h3 id="user-activity-heading">Recorded daily activity</h3><p>Sessions, pages, video time, flashcard sessions, LLM usage, cost, and policy blocks recorded in the selected group scope.</p>{series.length === 0 ? <p role="status">No daily activity was recorded in this period.</p> : <><HistoricalChart title="Daily user activity chart" series={series} /><AnalyticsHistoryTable title="Daily user activity" series={series} /></>}</section>;
+function UserActivityHistory({ activity, error }: { activity: UserDailyHistory | null; error: string | null }) {
+  const series = toActivitySeries(activity?.daily ?? []);
+  const noRecordedValues = activity !== null && activity.daily.every((day) => day.values === null);
+  return <section aria-labelledby="user-activity-heading"><h3 id="user-activity-heading">Recorded daily activity</h3><p>Sessions, pages, video time, flashcard sessions, LLM usage, cost, and policy blocks recorded in the selected group scope.</p>{error !== null ? <p role="alert">Unable to load daily activity. {error}</p> : null}{activity === null && error === null ? <p role="status">Loading daily activity.</p> : null}{noRecordedValues ? <p role="status">No daily activity was recorded in this period. Coverage remains explicit below.</p> : null}{series.length > 0 ? <><HistoricalChart title="Daily user activity chart" series={series} /><AnalyticsHistoryTable title="Daily user activity" series={series} /></> : null}</section>;
 }
 
 function toActivitySeries(activity: UserDailyActivity[]): ChartSeries[] {
-  const values = <K extends keyof Omit<UserDailyActivity, "dayStart">>(key: K) => activity.map((day) => ({ start: day.dayStart, end: day.dayStart + 86_400_000, value: day[key], coverage: "complete" as const }));
+  const values = <K extends keyof UserDailyActivity["values"]>(key: K) => activity.map((day) => ({ start: day.start, end: day.end, value: day.values?.[key] ?? null, coverage: day.coverage }));
   return [
     ["sessions", "Sessions", "sessions"], ["readerPages", "Reader pages", "readerPages"], ["videoSeconds", "Video seconds", "videoSeconds"], ["flashcardSessions", "Flashcard sessions", "flashcardSessions"], ["llmRequests", "LLM requests", "llmRequests"], ["costMicros", "Cost micros", "costMicros"], ["policyBlocks", "Policy blocks", "policyBlocks"],
-  ].map(([key, label, field]) => ({ key, label, kind: "primary" as const, values: values(field as keyof Omit<UserDailyActivity, "dayStart">) }));
+  ].map(([key, label, field]) => ({ key, label, kind: "primary" as const, values: values(field as keyof UserDailyActivity["values"]) }));
 }

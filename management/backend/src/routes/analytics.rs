@@ -15,7 +15,7 @@ use crate::{
         AnalyticsGranularity, AnalyticsQueryService, AnalyticsSummary, ComparisonMode,
         DimensionAnalytics, HistoricalAnalyticsQuery, HistoricalSeries, HistoryEventPage,
         LearnerAnalytics, LlmAnalytics, Page, PolicyBlockAnalytics, ProviderHistory,
-        TimeseriesPoint, UserDailyActivity,
+        TimeseriesPoint, UserDailyHistory,
     },
     dto::AnalyticsDto,
     error::AppError,
@@ -150,7 +150,7 @@ async fn user_history(
     principal: Principal,
     axum::extract::Path(user_id): axum::extract::Path<String>,
     Query(q): Query<AnalyticsQuery>,
-) -> Result<Json<Vec<UserDailyActivity>>, AppError> {
+) -> Result<Json<UserDailyHistory>, AppError> {
     let (from, to, _) = bounds(&q)?;
     Ok(Json(
         AnalyticsQueryService::new(state.db)
