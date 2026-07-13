@@ -1,8 +1,10 @@
-import { ComboBox, Input, Label } from '@heroui/react';
+import { ComboBox, Input, Label, ListBox, ListBoxItem } from '@heroui/react';
 import { Search } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { Header, ListBoxSection } from 'react-aria-components';
 import { useNavigate } from 'react-router-dom';
 import { ApiClient } from '../api/client';
+import './GlobalSearch.css';
 
 type SearchKind = 'user' | 'group' | 'policy';
 
@@ -27,11 +29,13 @@ const groups: Array<{ kind: SearchKind; label: string }> = [
 export function GlobalSearch() {
   const navigate = useNavigate();
   const requestId = useRef(0);
+  const selecting = useRef(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const loadResults = (value: string) => {
+    selecting.current = false;
     setQuery(value);
     const normalized = value.trim();
     if (normalized.length < 2 || normalized.length > 100) {
@@ -55,9 +59,11 @@ export function GlobalSearch() {
   };
 
   const selectResult = (key: React.Key | null) => {
-    if (key === null) return;
+    if (key === null || selecting.current) return;
     const result = results.find((item) => resultKey(item) === key);
     if (!result) return;
+    selecting.current = true;
+    requestId.current += 1;
     setQuery('');
     setResults([]);
     setError(null);
@@ -67,39 +73,50 @@ export function GlobalSearch() {
   return (
     <ComboBox
       className="global-search"
+      allowsEmptyCollection
+      defaultFilter={() => true}
       inputValue={query}
       menuTrigger="focus"
       onInputChange={loadResults}
+      onSelectionChange={selectResult}
     >
       <Label className="sr-only">Search users, groups, and policies</Label>
       <ComboBox.InputGroup>
         <Search aria-hidden="true" size={16} />
         <Input placeholder="Search" />
       </ComboBox.InputGroup>
-      {error ? <p role="alert">{error}</p> : null}
-      {!error && results.length > 0 ? (
-        <div className="global-search-overlay">
-          <div aria-label="Search results" role="listbox">
+      <ComboBox.Popover className="global-search-popover">
+        {error ? <p className="global-search-error" role="alert">{error}</p> : null}
+        {!error && results.length > 0 ? (
+          <ListBox
+            aria-label="Search results"
+            className="global-search-results"
+            onSelectionChange={(keys) => {
+              if (keys === 'all') return;
+              selectResult(keys.values().next().value ?? null);
+            }}
+            selectionMode="single"
+          >
             {groups.map(({ kind, label }) => {
               const items = results.filter((item) => item.kind === kind);
               if (items.length === 0) return null;
               return (
-                <section key={kind}>
-                  <h2>{label}</h2>
+                <ListBoxSection key={kind} id={kind}>
+                  <Header><h2 className="global-search-results__heading">{label}</h2></Header>
                   {items.map((item) => (
-                    <button key={resultKey(item)} aria-label={`${item.title}, ${item.subtitle}`} onClick={() => selectResult(resultKey(item))} role="option" type="button">
-                      <div>
+                    <ListBoxItem key={resultKey(item)} id={resultKey(item)} aria-label={`${item.title}, ${item.subtitle}`} textValue={item.title}>
+                      <div className="global-search-result">
                         <strong>{item.title}</strong>
                         <span>{item.subtitle}</span>
                       </div>
-                    </button>
+                    </ListBoxItem>
                   ))}
-                </section>
+                </ListBoxSection>
               );
             })}
-          </div>
-        </div>
-      ) : null}
+          </ListBox>
+        ) : null}
+      </ComboBox.Popover>
     </ComboBox>
   );
 }
