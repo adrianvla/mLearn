@@ -19,7 +19,7 @@ const Policies = lazy(() => import('./pages/Policies'));
 const LlmGateway = lazy(() => import('./pages/LlmGateway'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const Governance = lazy(() => import('./pages/Governance'));
-const Activity = lazy(() => import('./pages/Activity'));
+const ActivityLog = lazy(() => import('./pages/ActivityLog'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Bootstrap = lazy(() => import('./pages/Bootstrap'));
 const Diagnostics = lazy(() => import('./pages/Diagnostics'));
@@ -56,7 +56,7 @@ export default function App() {
         <Route path="/llm-gateway" element={<Suspense fallback={<PageLoader />}><LlmGateway /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
         <Route path="/governance" element={<Suspense fallback={<PageLoader />}><Governance /></Suspense>} />
-        <Route path="/activity" element={<Suspense fallback={<PageLoader />}><Activity /></Suspense>} />
+        <Route path="/activity" element={<Suspense fallback={<PageLoader />}><ActivityLog /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
         <Route path="/settings/diagnostics" element={<RootOnly><Suspense fallback={<PageLoader />}><Diagnostics /></Suspense></RootOnly>} />
         <Route path="*" element={<Navigate to="/" replace />} />

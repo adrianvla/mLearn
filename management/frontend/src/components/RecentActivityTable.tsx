@@ -1,8 +1,8 @@
-import type { LearnerAnalytics } from '../api/types';
+import type { AuditEvent } from '../api/types';
 import { DataTableShell } from './DataTableShell';
 
-export function RecentActivityTable({ learners, loading, error, onRetry }: { learners: LearnerAnalytics[]; loading?: boolean; error?: string; onRetry?: () => void }) {
-  return <DataTableShell label="Recent activity" loading={loading} error={error} onRetry={onRetry} empty="Learning activity will appear after learners begin a session.">
-    {learners.length > 0 ? <div className="table-scroll"><table><caption className="sr-only">Recent learner activity</caption><thead><tr><th>Learner</th><th>Last activity</th><th>Sessions</th><th>Watch time</th><th>LLM requests</th></tr></thead><tbody>{learners.map((learner) => <tr key={learner.learnerId}><th>{learner.displayName}</th><td>{new Date(learner.lastActivityAt).toLocaleString()}</td><td>{learner.sessions}</td><td>{Math.round(learner.watchSeconds / 60)} min</td><td>{learner.llmRequests}</td></tr>)}</tbody></table></div> : undefined}
-  </DataTableShell>;
+export function RecentActivityTable({ events, loading, error, onRetry }: { events: AuditEvent[]; loading?: boolean; error?: string; onRetry?: () => void }) {
+  return <section aria-labelledby="recent-administrative-activity"><div className="section-heading"><h2 id="recent-administrative-activity">Recent administrative activity</h2><a href="/activity">View all activity</a></div><DataTableShell label="Recent administrative activity" loading={loading} error={error} onRetry={onRetry} empty="Administrative activity will appear here.">
+    {events.length > 0 ? <div className="table-scroll"><table><caption className="sr-only">Recent administrative activity</caption><thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>When</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><th>{event.action}</th><td>{event.actor ?? 'System'}</td><td>{event.targetType ?? '—'}{event.targetId ? ` / ${event.targetId}` : ''}</td><td>{new Date(event.timestamp * 1000).toLocaleString()}</td></tr>)}</tbody></table></div> : undefined}
+  </DataTableShell></section>;
 }

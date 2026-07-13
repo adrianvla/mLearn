@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Gauge, LogOut, MessageSquareText, Scale, Settings, ShieldCheck, Users, UsersRound, X, type LucideIcon } from 'lucide-react';
+import { BarChart3, Bot, ClipboardList, Gauge, LogOut, MessageSquareText, Scale, Settings, ShieldCheck, Users, UsersRound, X, type LucideIcon } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import appLogoUrl from '../../../../src/html/assets/icons/logo.png';
 import type { Capability } from '../api/types';
@@ -13,6 +13,7 @@ const ITEMS: NavigationItem[] = [
   { to: '/groups', label: 'Groups', icon: UsersRound, capability: 'group.view' },
   { to: '/policies', label: 'Policies', icon: ShieldCheck, capability: 'policies.view' },
   { to: '/governance', label: 'Governance', icon: Scale, capability: 'group.view' },
+  { to: '/activity', label: 'Activity Log', icon: ClipboardList, capability: 'group.view' },
   { to: '/analytics', label: 'Analytics', icon: BarChart3, capability: 'analytics.view' },
   { to: '/conversations', label: 'Conversation Logs', icon: MessageSquareText, capability: 'conversations.view' },
   { to: '/llm-gateway', label: 'LLM Gateway', icon: Bot, capability: 'llm.configure' },

@@ -386,3 +386,5 @@ export interface CsvPreview { validRows:number;errors:Array<{row:number;message:
 export interface ConversationSummary { id:string;groupId:string;learnerUserId:string;status:string;createdAt:number;providerId:string;modelId:string;inputTokens:number|null;outputTokens:number|null;costMicros:number|null;policyVersionId:string|null;policyCompiledHash:string|null;errorCode:string|null }
 export interface ConversationMessage { role:string;content:string;sequence:number;truncated:boolean;toolData?:unknown }
 export interface ConversationDetailDto { summary:ConversationSummary;messages:ConversationMessage[] }
+export interface AuditEvent { id:string;actor:string|null;action:string;targetType:string|null;targetId:string|null;authorizedGroupId:string;timestamp:number;requestId:string|null;metadata:unknown|null }
+export interface AuditPage { events:AuditEvent[];nextCursor:string|null }

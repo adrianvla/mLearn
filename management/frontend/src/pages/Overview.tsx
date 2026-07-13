@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ShieldCheck } from "lucide-react";
 import { ApiClient } from "../api/client";
 import type {
-  AnalyticsSummary,
+  AnalyticsSummary, AuditEvent, AuditPage,
   LearnerAnalytics,
   LlmAnalytics,
   TimeseriesPoint,
@@ -21,6 +21,7 @@ interface DashboardData {
   timeseries: TimeseriesPoint[];
   llm: LlmAnalytics;
   learners: LearnerAnalytics[];
+  activity: AuditEvent[];
 }
 
 export default function Overview() {
@@ -56,10 +57,11 @@ export default function Overview() {
         `/api/analytics/learners?${query}&limit=8`,
         { signal: controller.signal },
       ),
+      api.get<AuditPage>(`/api/audit/events?groupId=${encodeURIComponent(groupId)}&limit=5`, { signal: controller.signal }),
     ])
-      .then(([summary, timeseries, llm, learners]) => {
+      .then(([summary, timeseries, llm, learners, activity]) => {
         if (!controller.signal.aborted)
-          setData({ summary, timeseries, llm, learners: learners.items });
+          setData({ summary, timeseries, llm, learners: learners.items, activity: activity.events });
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted)
@@ -170,7 +172,7 @@ export default function Overview() {
         </Card>
       </section>
       <RecentActivityTable
-        learners={data?.learners ?? []}
+        events={data?.activity ?? []}
         loading={groupId !== null && data === null && error === null}
         error={error ?? undefined}
         onRetry={retry}
