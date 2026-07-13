@@ -15,6 +15,7 @@ const history = { timezone: 'UTC', granularity: 'daily', primary: [{ start: 1_70
 function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks', Response>> & { historyEvents?: Response | ((url: string) => Response) } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+    if (url.includes('/api/analytics/views?')) return json({ items: [{ id: 'saved-learner-focus', name: 'Learner focus', definition: { groupId: 'german', from: history.primary[0].start, to: history.primary[0].end, preset: 'custom', comparison: 'none', granularity: 'daily', tab: 'learners', visibleMetrics: ['flashcardEvents'], breakdown: 'learners' }, createdAt: 1, updatedAt: 1 }] });
     if (url.includes('/api/analytics/history/events')) {
       const response = overrides.historyEvents;
       return typeof response === 'function' ? response(url) : response?.clone() ?? json({ from: history.primary[0].start, to: history.primary[0].end, coverage: 'complete', total: 1, items: [{ id: 'activity:1', occurredAt: history.primary[0].start, learnerId: 'u', activityKind: 'reader', eventType: 'activity.progressed', contentTitle: 'First reader', readerPage: 4, videoTimeMillis: null }], nextCursor: null });
@@ -51,6 +52,34 @@ it('renders every scoped analytics view and requires export confirmation', async
   fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
   expect(screen.getByRole('dialog', { name: 'Export learner analytics?' })).toBeVisible();
   expect(fetch).toHaveBeenCalledWith(expect.stringContaining('groupId=german'), expect.anything());
+});
+
+it('restores a saved view as one analytics state including filters, tab, metrics, and breakdown', async () => {
+  installFetch();
+  render(<Analytics />);
+
+  const savedViewLabel = await screen.findByText('Saved view');
+  fireEvent.click(savedViewLabel.parentElement?.querySelector('button') as HTMLButtonElement);
+  fireEvent.click(screen.getByRole('option', { name: 'Learner focus' }));
+
+  expect((await screen.findAllByText('Learner')).length).toBeGreaterThanOrEqual(1);
+  expect(savedViewLabel.parentElement).toHaveTextContent('Learner focus');
+  expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/analytics/learners?groupId=german&from=1700000000000&to=1700086400000'), expect.anything());
+});
+
+it('requires explicit confirmation before overwriting the selected saved view', async () => {
+  const fetchMock = installFetch();
+  render(<Analytics />);
+
+  const savedViewLabel = await screen.findByText('Saved view');
+  fireEvent.click(savedViewLabel.parentElement?.querySelector('button') as HTMLButtonElement);
+  fireEvent.click(screen.getByRole('option', { name: 'Learner focus' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save view' }));
+
+  expect(screen.getByRole('dialog', { name: 'Overwrite saved analytics view' })).toBeVisible();
+  expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/analytics/views/saved-learner-focus'), expect.objectContaining({ method: 'PUT' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Overwrite view' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/analytics/views/saved-learner-focus', expect.objectContaining({ method: 'PUT' })));
 });
 
 it('loads a previous-period comparison and keeps chart and table values aligned', async () => {

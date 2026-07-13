@@ -70,6 +70,7 @@ pub fn application_router(state: AppState) -> Router {
         .merge(routes::llm_gateway::router(state.clone()))
         .merge(routes::conversations::router(state.clone()))
         .merge(routes::analytics::router(state.clone()))
+        .merge(routes::analytics_views::router(state.clone()))
         .merge(protected)
         .fallback(static_handler::serve_spa)
         .layer(TraceLayer::new_for_http())

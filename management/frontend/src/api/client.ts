@@ -92,6 +92,15 @@ export class ApiClient {
   getAnalytics(): Promise<AnalyticsDto> { return this.get('/api/analytics'); }
 
   get<T>(path: string, options: RequestOptions = {}): Promise<T> { return this.request(path, options); }
+  post<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+    return this.request(path, { ...options, method: 'POST', body: JSON.stringify(body) });
+  }
+  put<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+    return this.request(path, { ...options, method: 'PUT', body: JSON.stringify(body) });
+  }
+  delete<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    return this.request(path, { ...options, method: 'DELETE' });
+  }
 
   async login(email: string, password: string): Promise<AuthorizedUser> {
     const response = await this.request<AuthResponse>('/api/auth/login', {
