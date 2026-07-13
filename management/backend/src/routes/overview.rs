@@ -1,12 +1,8 @@
 use axum::{extract::State, Json};
 
-use crate::{
-    config::DeploymentMode, dto::OverviewDto, error::AppError, state::AppState,
-};
+use crate::{config::DeploymentMode, dto::OverviewDto, error::AppError, state::AppState};
 
-pub async fn get_overview(
-    State(state): State<AppState>,
-) -> Result<Json<OverviewDto>, AppError> {
+pub async fn get_overview(State(state): State<AppState>) -> Result<Json<OverviewDto>, AppError> {
     let project = state.config.compose_project.clone();
 
     let (containers, docker_available, docker_error) =

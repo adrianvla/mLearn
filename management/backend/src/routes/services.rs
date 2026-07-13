@@ -57,10 +57,12 @@ pub async fn perform_service_action(
     match action {
         "start" => crate::docker::containers::start_container(&state.docker, &id).await?,
         "stop" => crate::docker::containers::stop_container(&state.docker, &id).await?,
-        "restart" => {
-            crate::docker::containers::restart_container(&state.docker, &id).await?
+        "restart" => crate::docker::containers::restart_container(&state.docker, &id).await?,
+        _ => {
+            return Err(AppError::BadRequest(format!(
+                "unsupported action: {action}"
+            )))
         }
-        _ => return Err(AppError::BadRequest(format!("unsupported action: {action}"))),
     }
 
     let inspect = crate::docker::containers::inspect_container(&state.docker, &id).await?;

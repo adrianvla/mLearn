@@ -85,14 +85,11 @@ async fn prepare_stream(
             "learner session required for LLM gateway".into(),
         )));
     }
-    let active_group_id = principal
-        .active_group_id
-        .clone()
-        .ok_or_else(|| {
-            map_preflight_error(AppError::InvalidActiveGroup(
-                "authenticated session has no active group".into(),
-            ))
-        })?;
+    let active_group_id = principal.active_group_id.clone().ok_or_else(|| {
+        map_preflight_error(AppError::InvalidActiveGroup(
+            "authenticated session has no active group".into(),
+        ))
+    })?;
 
     let conversation_service = ConversationService::with_retention_days(
         state.db.clone(),

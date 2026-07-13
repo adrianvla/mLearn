@@ -4,9 +4,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{
-    dto::LogsDto, error::AppError, state::AppState,
-};
+use crate::{dto::LogsDto, error::AppError, state::AppState};
 
 #[derive(Deserialize)]
 pub struct LogsQuery {
