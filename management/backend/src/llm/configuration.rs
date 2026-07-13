@@ -421,22 +421,44 @@ impl LlmConfigurationService {
         principal: &Principal,
         provider_id: &str,
     ) -> Result<ProviderHealth, AppError> {
+        let mut tx = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(database_error)?;
         let row = sqlx::query("SELECT group_id, provider_kind, base_url, secret_envelope FROM llm_providers WHERE id = ?")
-            .bind(provider_id).fetch_optional(&self.pool).await.map_err(database_error)?
+            .bind(provider_id).fetch_optional(&mut *tx).await.map_err(database_error)?
             .ok_or_else(|| AppError::BadRequest("provider not found".into()))?;
         let group_id: String = row.get("group_id");
         self.authorization
-            .require(principal, &group_id, Capability::LlmConfigure)
+            .require_in_transaction(&mut tx, principal, &group_id, Capability::LlmConfigure)
             .await?;
-        let kind = ProviderKind::parse(row.get("provider_kind"))?;
-        validate_base_url(kind, row.get("base_url"))?;
         let envelope: Option<String> = row.get("secret_envelope");
-        if let Some(value) = envelope.as_ref() {
-            let encrypted = EncryptedSecret::parse(value.clone())?;
-            let _plaintext = self
-                .cipher
-                .decrypt(&encrypted, &provider_secret_aad(provider_id))?;
-        }
+        let configuration = (|| {
+            let kind = ProviderKind::parse(row.get("provider_kind"))?;
+            validate_base_url(kind, row.get("base_url"))?;
+            if let Some(value) = envelope.as_ref() {
+                let encrypted = EncryptedSecret::parse(value.clone())?;
+                let _plaintext = self
+                    .cipher
+                    .decrypt(&encrypted, &provider_secret_aad(provider_id))?;
+            }
+            Ok::<(), AppError>(())
+        })();
+        let configuration_valid = configuration.is_ok();
+        sqlx::query("INSERT INTO provider_health_checks(id,provider_id,actor_user_id,configuration_valid,network_check_performed,outcome,created_at) VALUES(?,?,?,?,?,?,?)")
+            .bind(Uuid::now_v7().to_string())
+            .bind(provider_id)
+            .bind(&principal.user_id)
+            .bind(if configuration_valid { 1 } else { 0 })
+            .bind(0)
+            .bind(if configuration_valid { "healthy" } else { "configuration_error" })
+            .bind(now())
+            .execute(&mut *tx)
+            .await
+            .map_err(database_error)?;
+        tx.commit().await.map_err(database_error)?;
+        configuration?;
         Ok(ProviderHealth {
             provider_id: provider_id.into(),
             configuration_valid: true,
@@ -983,9 +1005,9 @@ impl LlmConfigurationService {
             row.get::<String, _>("model_status") == "active"
                 && row.get::<String, _>("provider_status") == "active"
         });
-        let allowed_provider_exists = rows.iter().any(|row| {
-            allowed_providers.contains(&row.get::<String, _>("provider_id"))
-        });
+        let allowed_provider_exists = rows
+            .iter()
+            .any(|row| allowed_providers.contains(&row.get::<String, _>("provider_id")));
         let allowed_model_exists = rows
             .iter()
             .any(|row| allowed_models.contains(&row.get::<String, _>("model_id")));

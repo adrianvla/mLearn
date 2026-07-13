@@ -177,6 +177,48 @@ pub struct HistoryEventPage {
     pub next_cursor: Option<String>,
 }
 
+/// Daily values recorded for one selected user. These are activity and gateway
+/// facts only; they deliberately contain no learner assessment or inference.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDailyActivity {
+    pub day_start: i64,
+    pub sessions: i64,
+    pub reader_pages: i64,
+    pub video_seconds: i64,
+    pub flashcard_sessions: i64,
+    pub llm_requests: i64,
+    pub cost_micros: i64,
+    pub policy_blocks: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUsageDay {
+    pub day_start: i64,
+    pub model_id: String,
+    pub model_key: String,
+    pub requests: i64,
+    pub cost_micros: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderHealthCheckHistory {
+    pub actor_user_id: String,
+    pub configuration_valid: bool,
+    pub network_check_performed: bool,
+    pub outcome: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderHistory {
+    pub usage: Vec<ProviderUsageDay>,
+    pub health_checks: Vec<ProviderHealthCheckHistory>,
+}
+
 #[derive(Clone)]
 pub struct AnalyticsQueryService {
     pool: SqlitePool,
@@ -442,6 +484,205 @@ impl AnalyticsQueryService {
             total,
             items,
             next_cursor,
+        })
+    }
+
+    pub async fn user_history(
+        &self,
+        principal: &Principal,
+        group: &str,
+        user_id: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<UserDailyActivity>, AppError> {
+        validate_history_range(from, to)?;
+        let now_millis = time::OffsetDateTime::now_utc().unix_timestamp() * 1_000;
+        let mut connection = self.pool.acquire().await.map_err(db)?;
+        let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+        ensure_live_principal(&mut tx, principal).await?;
+        AuthorizationService::new(self.pool.clone())
+            .require_in_transaction(&mut tx, principal, group, Capability::AnalyticsView)
+            .await?;
+        let in_scope: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT EXISTS(SELECT 1 FROM group_memberships membership JOIN descendants d ON d.id=membership.group_id WHERE membership.user_id=? AND membership.status='active')")
+            .bind(group)
+            .bind(user_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
+        if in_scope == 0 {
+            return Err(AppError::NotFound(
+                "user not found in selected group".into(),
+            ));
+        }
+        let timezone = school_timezone(&mut tx, group).await?;
+        let rows = sqlx::query("SELECT e.user_id,e.activity_session_id,e.event_type,e.activity_kind,e.occurred_at,e.content_id,e.language,e.title,e.privacy,e.current_page,e.current_time_millis FROM activity_events e JOIN activity_event_ancestry a ON a.event_row_id=e.id WHERE a.group_id=? AND e.user_id=? AND e.ancestry_state='finalized' AND e.occurred_at>=? AND e.occurred_at<? AND e.retained_until>? ORDER BY e.activity_session_id,e.sequence,e.id")
+            .bind(group)
+            .bind(user_id)
+            .bind(from)
+            .bind(to)
+            .bind(now_millis)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?;
+        let mut activity: HashMap<i64, Vec<Event>> = HashMap::new();
+        let mut flashcards: HashMap<i64, HashSet<String>> = HashMap::new();
+        for row in rows {
+            let at: i64 = row.get("occurred_at");
+            let day = day_start_for_timestamp(timezone, at)?;
+            if row.get::<String, _>("activity_kind") == "flashcards" {
+                flashcards
+                    .entry(day)
+                    .or_default()
+                    .insert(row.get("activity_session_id"));
+            }
+            activity.entry(day).or_default().push(Event {
+                user: row.get("user_id"),
+                session: row.get("activity_session_id"),
+                event_type: row.get("event_type"),
+                kind: row.get("activity_kind"),
+                at,
+                content: row.get("content_id"),
+                language: row.get("language"),
+                title: row.get("title"),
+                privacy: row.get("privacy"),
+                page: row.get("current_page"),
+                media: row.get("current_time_millis"),
+            });
+        }
+        let mut days: HashMap<i64, UserDailyActivity> = activity
+            .into_iter()
+            .map(|(day_start, events)| {
+                let summary = summarize(&events);
+                (
+                    day_start,
+                    UserDailyActivity {
+                        day_start,
+                        sessions: summary.sessions,
+                        reader_pages: summary.reader_pages,
+                        video_seconds: summary.watch_seconds,
+                        flashcard_sessions: flashcards
+                            .get(&day_start)
+                            .map_or(0, |sessions| sessions.len() as i64),
+                        llm_requests: 0,
+                        cost_micros: 0,
+                        policy_blocks: 0,
+                    },
+                )
+            })
+            .collect();
+        let usage = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT request.created_at,COUNT(*) requests,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id WHERE conversation.learner_user_id=? AND request.created_at*1000>=? AND request.created_at*1000<? GROUP BY request.created_at")
+            .bind(group)
+            .bind(user_id)
+            .bind(from)
+            .bind(to)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?;
+        for row in usage {
+            let day = day_start_for_timestamp(timezone, row.get::<i64, _>("created_at") * 1_000)?;
+            let entry = days.entry(day).or_insert_with(|| empty_user_day(day));
+            entry.llm_requests += row.get::<i64, _>("requests");
+            entry.cost_micros += row.get::<i64, _>("cost_micros");
+        }
+        let blocks = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT event.created_at,COUNT(*) blocks FROM llm_policy_block_events event JOIN descendants d ON d.id=event.owner_group_id WHERE event.learner_user_id=? AND event.created_at*1000>=? AND event.created_at*1000<? GROUP BY event.created_at")
+            .bind(group)
+            .bind(user_id)
+            .bind(from)
+            .bind(to)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?;
+        for row in blocks {
+            let day = day_start_for_timestamp(timezone, row.get::<i64, _>("created_at") * 1_000)?;
+            days.entry(day)
+                .or_insert_with(|| empty_user_day(day))
+                .policy_blocks += row.get::<i64, _>("blocks");
+        }
+        tx.commit().await.map_err(db)?;
+        let mut history: Vec<_> = days.into_values().collect();
+        history.sort_by_key(|day| day.day_start);
+        Ok(history)
+    }
+
+    pub async fn provider_history(
+        &self,
+        principal: &Principal,
+        group: &str,
+        provider_id: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<ProviderHistory, AppError> {
+        validate_history_range(from, to)?;
+        let mut connection = self.pool.acquire().await.map_err(db)?;
+        let mut tx = connection.begin_with("BEGIN IMMEDIATE").await.map_err(db)?;
+        ensure_live_principal(&mut tx, principal).await?;
+        AuthorizationService::new(self.pool.clone())
+            .require_in_transaction(&mut tx, principal, group, Capability::AnalyticsView)
+            .await?;
+        let provider_in_scope: i64 = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT EXISTS(SELECT 1 FROM llm_providers provider JOIN descendants d ON d.id=provider.group_id WHERE provider.id=?)")
+            .bind(group)
+            .bind(provider_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
+        if provider_in_scope == 0 {
+            return Err(AppError::NotFound(
+                "provider not found in selected group".into(),
+            ));
+        }
+        let timezone = school_timezone(&mut tx, group).await?;
+        let usage_rows = sqlx::query("WITH RECURSIVE descendants(id) AS (SELECT id FROM groups WHERE id=? UNION ALL SELECT g.id FROM groups g JOIN descendants d ON g.parent_id=d.id) SELECT request.created_at,request.model_id,COALESCE(model.model_key,request.model_id) model_key,COUNT(*) requests,COALESCE(SUM(COALESCE(request.cost_micros,0)),0) cost_micros FROM llm_requests request JOIN conversations conversation ON conversation.id=request.conversation_id JOIN descendants d ON d.id=conversation.owner_group_id LEFT JOIN llm_models model ON model.id=request.model_id WHERE request.provider_id=? AND request.created_at*1000>=? AND request.created_at*1000<? GROUP BY request.created_at,request.model_id,model.model_key ORDER BY request.created_at,request.model_id")
+            .bind(group)
+            .bind(provider_id)
+            .bind(from)
+            .bind(to)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?;
+        let mut usage_by_day: HashMap<(i64, String, String), ProviderUsageDay> = HashMap::new();
+        for row in usage_rows {
+            let day_start =
+                day_start_for_timestamp(timezone, row.get::<i64, _>("created_at") * 1_000)?;
+            let model_id: String = row.get("model_id");
+            let model_key: String = row.get("model_key");
+            let usage = usage_by_day
+                .entry((day_start, model_id.clone(), model_key.clone()))
+                .or_insert_with(|| ProviderUsageDay {
+                    day_start,
+                    model_id,
+                    model_key,
+                    requests: 0,
+                    cost_micros: 0,
+                });
+            usage.requests += row.get::<i64, _>("requests");
+            usage.cost_micros += row.get::<i64, _>("cost_micros");
+        }
+        let mut usage: Vec<_> = usage_by_day.into_values().collect();
+        usage.sort_by(|left, right| {
+            left.day_start
+                .cmp(&right.day_start)
+                .then(left.model_id.cmp(&right.model_id))
+        });
+        let health_checks = sqlx::query("SELECT actor_user_id,configuration_valid,network_check_performed,outcome,created_at FROM provider_health_checks WHERE provider_id=? AND created_at*1000>=? AND created_at*1000<? ORDER BY created_at DESC,id DESC")
+            .bind(provider_id)
+            .bind(from)
+            .bind(to)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(db)?
+            .into_iter()
+            .map(|row| ProviderHealthCheckHistory {
+                actor_user_id: row.get("actor_user_id"),
+                configuration_valid: row.get::<i64, _>("configuration_valid") != 0,
+                network_check_performed: row.get::<i64, _>("network_check_performed") != 0,
+                outcome: row.get("outcome"),
+                created_at: row.get("created_at"),
+            })
+            .collect();
+        tx.commit().await.map_err(db)?;
+        Ok(ProviderHistory {
+            usage,
+            health_checks,
         })
     }
 
@@ -821,6 +1062,29 @@ fn local_day_start(timezone: chrono_tz::Tz, date: NaiveDate) -> Result<i64, AppE
         .earliest()
         .map(|instant| instant.timestamp_millis())
         .ok_or_else(|| AppError::Internal("school timezone has no day boundary".into()))
+}
+
+fn day_start_for_timestamp(timezone: chrono_tz::Tz, timestamp: i64) -> Result<i64, AppError> {
+    let date = Utc
+        .timestamp_millis_opt(timestamp)
+        .single()
+        .ok_or_else(|| AppError::Internal("invalid analytics timestamp".into()))?
+        .with_timezone(&timezone)
+        .date_naive();
+    local_day_start(timezone, date)
+}
+
+fn empty_user_day(day_start: i64) -> UserDailyActivity {
+    UserDailyActivity {
+        day_start,
+        sessions: 0,
+        reader_pages: 0,
+        video_seconds: 0,
+        flashcard_sessions: 0,
+        llm_requests: 0,
+        cost_micros: 0,
+        policy_blocks: 0,
+    }
 }
 
 fn previous_period_boundaries(
@@ -1920,5 +2184,158 @@ mod tests {
                 .await,
             Err(AppError::Unauthorized)
         ));
+    }
+
+    #[tokio::test]
+    async fn user_history_is_factual_and_scoped_to_the_selected_group() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        let millis = now * 1_000;
+        for (id, identity_type) in [
+            ("teacher", "teacher"),
+            ("learner-a", "learner"),
+            ("learner-b", "learner"),
+        ] {
+            sqlx::query("INSERT INTO users(id,email,normalized_email,display_name,status,identity_type,is_root,created_at,updated_at) VALUES(?,?,?,?, 'active',?,0,?,?)")
+                .bind(id)
+                .bind(format!("{id}@test"))
+                .bind(id)
+                .bind(id)
+                .bind(identity_type)
+                .bind(now)
+                .bind(now)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO groups(id,parent_id,name,slug,status,created_at) VALUES('root',NULL,'Root','root','active',?),('selected','root','Selected','selected','active',?),('sibling','root','Sibling','sibling','active',?)")
+            .bind(now)
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (id, group, user) in [
+            ("teacher-membership", "selected", "teacher"),
+            ("learner-a-membership", "selected", "learner-a"),
+            ("learner-b-membership", "sibling", "learner-b"),
+        ] {
+            sqlx::query("INSERT INTO group_memberships(id,group_id,user_id,status,created_at) VALUES(?,?,?,'active',?)")
+                .bind(id)
+                .bind(group)
+                .bind(user)
+                .bind(now)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO membership_capabilities(membership_id,capability) VALUES('teacher-membership','analytics.view')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO sessions(id,user_id,expires_at,created_at,last_seen_at,active_group_id) VALUES('teacher-session','teacher',?,?,?,'selected')")
+            .bind(now + 3_600)
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        insert_video_pair(
+            &pool,
+            "learner-a",
+            "selected",
+            "video",
+            30,
+            &["root", "selected"],
+            millis,
+        )
+        .await;
+        insert_video_pair(
+            &pool,
+            "learner-b",
+            "sibling",
+            "other-video",
+            20,
+            &["root", "sibling"],
+            millis,
+        )
+        .await;
+        let event_id = sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,current_page,retention_days,retained_until,ancestry_state) VALUES('reader','learner-a','selected','policy','reader-hash',1,'activity.progressed','reader','progress-only','reader-session','reader',1,?,?,4,90,?,'building')")
+            .bind(millis)
+            .bind(now)
+            .bind(millis + 90 * 86_400_000)
+            .execute(&pool)
+            .await
+            .unwrap()
+            .last_insert_rowid();
+        sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'root'),(?,1,'selected')")
+            .bind(event_id)
+            .bind(event_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+            .bind(event_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let flashcard_id = sqlx::query("INSERT INTO activity_events(event_id,user_id,group_id,policy_version_id,payload_hash,schema_version,event_type,activity_kind,privacy,activity_session_id,source_id,sequence,occurred_at,ingested_at,retention_days,retained_until,ancestry_state) VALUES('flashcards','learner-a','selected','policy','flashcards-hash',1,'activity.started','flashcards','progress-only','flashcard-session','flashcards',1,?,?,90,?,'building')")
+            .bind(millis)
+            .bind(now)
+            .bind(millis + 90 * 86_400_000)
+            .execute(&pool)
+            .await
+            .unwrap()
+            .last_insert_rowid();
+        sqlx::query("INSERT INTO activity_event_ancestry(event_row_id,ordinal,group_id) VALUES(?,0,'root'),(?,1,'selected')")
+            .bind(flashcard_id)
+            .bind(flashcard_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE activity_events SET ancestry_state='finalized' WHERE id=?")
+            .bind(flashcard_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO llm_policy_block_events(id,owner_group_id,learner_user_id,policy_version_id,policy_compiled_hash,error_code,created_at) VALUES('block','selected','learner-a','policy','hash','policy_denied',?)")
+            .bind(now)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let principal = Principal {
+            user_id: "teacher".into(),
+            service_key_id: None,
+            session_id: "teacher-session".into(),
+            device_id: "device".into(),
+            active_group_id: Some("selected".into()),
+            identity_type: IdentityType::Teacher,
+            is_root: false,
+        };
+
+        let history = AnalyticsQueryService::new(pool)
+            .user_history(
+                &principal,
+                "selected",
+                "learner-a",
+                millis - 1,
+                millis + 60_000,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].sessions, 3);
+        assert_eq!(history[0].reader_pages, 0);
+        assert_eq!(history[0].video_seconds, 30);
+        assert_eq!(history[0].flashcard_sessions, 1);
+        assert_eq!(history[0].llm_requests, 0);
+        assert_eq!(history[0].cost_micros, 0);
+        assert_eq!(history[0].policy_blocks, 1);
     }
 }

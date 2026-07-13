@@ -96,6 +96,8 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
         });
       if (url.includes("/analytics/learners"))
         return json({ items: [{ learnerId: "u", sessions: 4, totalTokens: 120, costMicros: 5000, policyBlocks: 1 }] });
+      if (url.includes("/analytics/users/u/history"))
+        return json([{ dayStart: 1, sessions: 4, readerPages: 2, videoSeconds: 30, flashcardSessions: 1, llmRequests: 1, costMicros: 5000, policyBlocks: 1 }]);
       if (url.includes("/llm/usage"))
         return json({ buckets: [{ scopeKind: "user", scopeId: "u", remaining: 80 }] });
       if (url.includes("/provisioning/invitations"))
@@ -143,6 +145,10 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
   render(<Users />);
   fireEvent.click(await screen.findByRole("button", { name: "Open Learner" }));
   expect(await screen.findByText("Browser · web")).toBeVisible();
+  expect(screen.getByRole("tab", { name: "Activity" })).toBeVisible();
+  fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
+  expect(await screen.findByRole("table", { name: "Daily user activity data" })).toBeVisible();
+  fireEvent.click(screen.getByRole("tab", { name: "Profile" }));
   expect(screen.getByRole("heading", { name: "Usage summary" })).toBeVisible();
   expect(screen.getByText("80 remaining")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Revoke session s" }));

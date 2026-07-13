@@ -26,6 +26,8 @@ it("shows the complete governed gateway without exposing stored secrets", async 
               },
             ],
           }
+        : url.includes("/analytics/providers/p/history")
+          ? { usage: [], healthChecks: [] }
         : url.includes("/models?")
           ? { items: [] }
           : url.includes("/prompt-profiles?")
@@ -121,6 +123,22 @@ it("shows the complete governed gateway without exposing stored secrets", async 
   expect(screen.getByText("learner")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Replace secret" }));
   expect(screen.getByLabelText("New provider secret")).toHaveValue("");
+});
+it("shows an exact provider health-history table without exposing provider responses", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/providers?")) return json({ items: [{ id: "p", name: "Provider", providerKind: "ollama", baseUrl: "http://ollama", status: "active", hasSecret: false }] });
+      if (url.includes("/analytics/providers/p/history")) return json({ usage: [], healthChecks: [{ actorUserId: "teacher", configurationValid: true, networkCheckPerformed: false, outcome: "healthy", createdAt: 1 }] });
+      return json(url.includes("/usage?") ? { buckets: [] } : url.includes("/api-keys") ? { apiKeys: [] } : { items: [] });
+    }),
+  );
+  render(<LlmGateway />);
+  fireEvent.click(await screen.findByRole("button", { name: "Provider history" }));
+  expect(await screen.findByRole("table", { name: "Provider health history" })).toBeVisible();
+  expect(screen.getByText("healthy")).toBeVisible();
+  expect(screen.queryByText(/response body/i)).not.toBeInTheDocument();
 });
 it("keeps provider configuration visible when the quota calendar is not configured", async () => {
   vi.stubGlobal(

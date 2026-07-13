@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { UserPlus } from "lucide-react";
+import { Tabs } from "@heroui/react";
 import { ApiClient } from "../api/client";
-import type { ScopedManagedUser } from "../api/types";
+import type { ScopedManagedUser, UserDailyActivity } from "../api/types";
+import { HistoricalChart } from "../components/charts/HistoricalChart";
+import type { ChartSeries } from "../components/charts/chartTypes";
 import { CsvImportDialog } from "../components/CsvImportDialog";
 import { DataTableShell } from "../components/DataTableShell";
 import { PageToolbar } from "../components/PageToolbar";
 import { ConsoleButton, ConsoleDialog, ConsoleSelect, ConsoleTextField } from "../components/console";
 import { useGroupScope } from "../groups/GroupScopeProvider";
+import { AnalyticsHistoryTable } from "./analytics/AnalyticsHistoryTable";
 
 const api = new ApiClient();
 interface UserUsage {
@@ -40,6 +44,7 @@ interface UserDetail {
     activeGroupId: string | null;
   }>;
   usage?: UserUsage;
+  activity?: UserDailyActivity[];
 }
 
 export default function Users() {
@@ -61,6 +66,7 @@ export default function Users() {
   const [displayName, setDisplayName] = useState("");
   const [identityType, setIdentityType] = useState("learner");
   const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [detailTab, setDetailTab] = useState<"profile" | "activity">("profile");
   const [mutationError, setMutationError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -123,10 +129,12 @@ export default function Users() {
   };
   const openUser = async (user: ScopedManagedUser) => {
     if (!groupId) return;
-    const [nextDetail, analytics, quota] = await Promise.all([
+    const to = Date.now();
+    const [nextDetail, analytics, quota, activity] = await Promise.all([
       api.get<UserDetail>(`/api/users/${encodeURIComponent(user.id)}?groupId=${encodeURIComponent(groupId)}`),
       api.get<{ items: Array<{ learnerId: string; sessions: number; totalTokens: number; costMicros: number; policyBlocks: number }> }>(`/api/analytics/learners?groupId=${encodeURIComponent(groupId)}&limit=100`).catch(() => ({ items: [] })),
       api.get<{ buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }> }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`).catch(() => ({ buckets: [] })),
+      api.get<UserDailyActivity[]>(`/api/analytics/users/${encodeURIComponent(user.id)}/history?groupId=${encodeURIComponent(groupId)}&from=${to - 30 * 86_400_000}&to=${to}`).catch(() => []),
     ]);
     const learner = analytics.items.find((item) => item.learnerId === user.id);
     const remaining = quota.buckets
@@ -142,7 +150,9 @@ export default function Users() {
         policyBlocks: learner.policyBlocks,
         quotaRemaining: remaining.length ? Math.min(...remaining) : undefined,
       } : undefined,
+      activity,
     });
+    setDetailTab("profile");
   };
   const createUser = async () => {
     if (!groupId) return;
@@ -331,6 +341,8 @@ export default function Users() {
             {detail.user.email} · {detail.user.identityType} ·{" "}
             {detail.user.status}
           </p>
+          <Tabs selectedKey={detailTab} onSelectionChange={(key) => setDetailTab(String(key) as "profile" | "activity")}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="User detail"><Tabs.Tab id="profile">Profile</Tabs.Tab><Tabs.Tab id="activity">Activity</Tabs.Tab></Tabs.List></Tabs.ListContainer></Tabs>
+          {detailTab === "profile" && <>
           {detail.usage && (
             <section>
               <h3>Usage summary</h3>
@@ -387,8 +399,22 @@ export default function Users() {
               </div>
             ))}
           </section>
+          </>}
+          {detailTab === "activity" && <UserActivityHistory activity={detail.activity ?? []} />}
         </>}
       </ConsoleDialog>
     </div>
   );
+}
+
+function UserActivityHistory({ activity }: { activity: UserDailyActivity[] }) {
+  const series = toActivitySeries(activity);
+  return <section aria-labelledby="user-activity-heading"><h3 id="user-activity-heading">Recorded daily activity</h3><p>Sessions, pages, video time, flashcard sessions, LLM usage, cost, and policy blocks recorded in the selected group scope.</p>{series.length === 0 ? <p role="status">No daily activity was recorded in this period.</p> : <><HistoricalChart title="Daily user activity chart" series={series} /><AnalyticsHistoryTable title="Daily user activity" series={series} /></>}</section>;
+}
+
+function toActivitySeries(activity: UserDailyActivity[]): ChartSeries[] {
+  const values = <K extends keyof Omit<UserDailyActivity, "dayStart">>(key: K) => activity.map((day) => ({ start: day.dayStart, end: day.dayStart + 86_400_000, value: day[key], coverage: "complete" as const }));
+  return [
+    ["sessions", "Sessions", "sessions"], ["readerPages", "Reader pages", "readerPages"], ["videoSeconds", "Video seconds", "videoSeconds"], ["flashcardSessions", "Flashcard sessions", "flashcardSessions"], ["llmRequests", "LLM requests", "llmRequests"], ["costMicros", "Cost micros", "costMicros"], ["policyBlocks", "Policy blocks", "policyBlocks"],
+  ].map(([key, label, field]) => ({ key, label, kind: "primary" as const, values: values(field as keyof Omit<UserDailyActivity, "dayStart">) }));
 }

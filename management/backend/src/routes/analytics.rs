@@ -14,7 +14,8 @@ use crate::{
     analytics::queries::{
         AnalyticsGranularity, AnalyticsQueryService, AnalyticsSummary, ComparisonMode,
         DimensionAnalytics, HistoricalAnalyticsQuery, HistoricalSeries, HistoryEventPage,
-        LearnerAnalytics, LlmAnalytics, Page, PolicyBlockAnalytics, TimeseriesPoint,
+        LearnerAnalytics, LlmAnalytics, Page, PolicyBlockAnalytics, ProviderHistory,
+        TimeseriesPoint, UserDailyActivity,
     },
     dto::AnalyticsDto,
     error::AppError,
@@ -28,6 +29,11 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/api/analytics/summary", get(summary))
         .route("/api/analytics/history", get(history))
         .route("/api/analytics/history/events", get(history_events))
+        .route("/api/analytics/users/{user_id}/history", get(user_history))
+        .route(
+            "/api/analytics/providers/{provider_id}/history",
+            get(provider_history),
+        )
         .route("/api/analytics/timeseries", get(timeseries))
         .route("/api/analytics/learners", get(learners))
         .route("/api/analytics/content", get(content))
@@ -136,6 +142,32 @@ async fn history_events(
                 limit,
                 q.cursor.as_deref(),
             )
+            .await?,
+    ))
+}
+async fn user_history(
+    State(state): State<AppState>,
+    principal: Principal,
+    axum::extract::Path(user_id): axum::extract::Path<String>,
+    Query(q): Query<AnalyticsQuery>,
+) -> Result<Json<Vec<UserDailyActivity>>, AppError> {
+    let (from, to, _) = bounds(&q)?;
+    Ok(Json(
+        AnalyticsQueryService::new(state.db)
+            .user_history(&principal, &q.group_id, &user_id, from, to)
+            .await?,
+    ))
+}
+async fn provider_history(
+    State(state): State<AppState>,
+    principal: Principal,
+    axum::extract::Path(provider_id): axum::extract::Path<String>,
+    Query(q): Query<AnalyticsQuery>,
+) -> Result<Json<ProviderHistory>, AppError> {
+    let (from, to, _) = bounds(&q)?;
+    Ok(Json(
+        AnalyticsQueryService::new(state.db)
+            .provider_history(&principal, &q.group_id, &provider_id, from, to)
             .await?,
     ))
 }
