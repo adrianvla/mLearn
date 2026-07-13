@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 import { GlobalSearch } from './GlobalSearch';
@@ -15,7 +15,7 @@ it('loads grouped results only for valid input and navigates after a selection',
 
   render(<MemoryRouter><GlobalSearch /><Location /></MemoryRouter>);
   const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
-  fireEvent.focus(input);
+  act(() => input.focus());
   fireEvent.change(input, { target: { value: 'a' } });
   expect(fetchMock).not.toHaveBeenCalled();
   expect(screen.getByTestId('location')).toHaveTextContent('/');
@@ -31,6 +31,28 @@ it('loads grouped results only for valid input and navigates after a selection',
   fireEvent.click(screen.getByRole('option', { name: /Ada Learner/ }));
   await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/users?groupId=g1'));
   expect(input).toHaveValue('');
+});
+
+it('navigates with ArrowDown and Enter then closes and clears the result overlay', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response({
+    results: [
+      { kind: 'user', id: 'u1', groupId: 'g1', title: 'Ada Learner', subtitle: 'ada@example.test', href: '/users?groupId=g1' },
+      { kind: 'group', id: 'g1', groupId: 'g1', title: 'German A', subtitle: 'german-a', href: '/groups?groupId=g1' },
+    ],
+  })));
+
+  render(<MemoryRouter><GlobalSearch /><Location /></MemoryRouter>);
+  const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
+  act(() => input.focus());
+  fireEvent.change(input, { target: { value: 'ad' } });
+  await screen.findByRole('option', { name: /Ada Learner/ });
+
+  fireEvent.keyDown(input, { key: 'ArrowDown' });
+  fireEvent.keyDown(input, { key: 'Enter' });
+
+  await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/users?groupId=g1'));
+  expect(input).toHaveValue('');
+  expect(screen.queryByRole('listbox', { name: 'Search results' })).not.toBeInTheDocument();
 });
 
 function Location() {
