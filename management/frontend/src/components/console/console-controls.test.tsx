@@ -27,6 +27,10 @@ it("renders HeroUI controls and reports controlled value changes", () => {
   expect(onSwitchChange).toHaveBeenCalledWith(true);
   expect(onSelectionChange).toHaveBeenCalledWith("llm");
   expect(screen.getByRole("button", { name: /Rule type/i })).toHaveAttribute("data-slot", "select-trigger");
+  screen.getByRole("switch", { name: "LLM enabled" });
+  const switchContent = document.querySelector('[data-slot="switch-content"]');
+  expect(switchContent).not.toBeNull();
+  expect(switchContent?.querySelector('[data-slot="switch-control"]')).not.toBeNull();
 });
 
 it("renders an open HeroUI dialog", () => {

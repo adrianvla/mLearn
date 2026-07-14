@@ -1,4 +1,4 @@
-import { Switch } from "@heroui/react";
+import { Label, Switch } from "@heroui/react";
 
 export function ConsoleSwitch({ label, isSelected, onChange, isDisabled }: {
   label: string;
@@ -6,8 +6,10 @@ export function ConsoleSwitch({ label, isSelected, onChange, isDisabled }: {
   onChange(value: boolean): void;
   isDisabled?: boolean;
 }) {
-  return <Switch isSelected={isSelected} onChange={onChange} isDisabled={isDisabled} aria-label={label}>
-    <Switch.Control><Switch.Thumb /></Switch.Control>
-    <Switch.Content>{label}</Switch.Content>
+  return <Switch isSelected={isSelected} onChange={onChange} isDisabled={isDisabled}>
+    <Switch.Content>
+      <Switch.Control><Switch.Thumb /></Switch.Control>
+      <Label>{label}</Label>
+    </Switch.Content>
   </Switch>;
 }
