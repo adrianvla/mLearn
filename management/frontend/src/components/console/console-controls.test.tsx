@@ -26,6 +26,7 @@ it("renders HeroUI controls and reports controlled value changes", () => {
   expect(onTextChange).toHaveBeenCalledWith("Exam defaults");
   expect(onSwitchChange).toHaveBeenCalledWith(true);
   expect(onSelectionChange).toHaveBeenCalledWith("llm");
+  expect(screen.getByLabelText("Policy name")).toHaveClass("input--secondary");
   expect(screen.getByRole("button", { name: /Rule type/i })).toHaveAttribute("data-slot", "select-trigger");
   screen.getByRole("switch", { name: "LLM enabled" });
   const switchContent = document.querySelector('[data-slot="switch-content"]');

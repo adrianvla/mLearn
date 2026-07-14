@@ -15,14 +15,14 @@ type SharedProps = {
 export function ConsoleTextField({ label, value, onChange, placeholder, isDisabled, type = "text", autoComplete, isRequired, minLength }: SharedProps) {
   return <TextField value={value} onChange={onChange} isDisabled={isDisabled} isRequired={isRequired}>
     <Label>{label}</Label>
-    <Input aria-label={label} placeholder={placeholder} type={type} autoComplete={autoComplete} minLength={minLength} />
+    <Input aria-label={label} placeholder={placeholder} type={type} autoComplete={autoComplete} minLength={minLength} variant="secondary" />
   </TextField>;
 }
 
 export function ConsoleTextArea({ label, value, onChange, placeholder, isDisabled }: Omit<SharedProps, "type" | "autoComplete">) {
   return <TextField value={value} onChange={onChange} isDisabled={isDisabled}>
     <Label>{label}</Label>
-    <TextArea aria-label={label} placeholder={placeholder} />
+    <TextArea aria-label={label} placeholder={placeholder} variant="secondary" />
   </TextField>;
 }
 
