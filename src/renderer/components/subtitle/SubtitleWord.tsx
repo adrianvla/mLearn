@@ -340,7 +340,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
     return (
       <ProsodyOverlay
-        word={overlayTarget.word}
+        word={options.slot === 'reading' ? actualWord() : overlayTarget.word}
         reading={overlayTarget.reading}
         pos={getPos()}
         nextPos={props.lookAheadPos}

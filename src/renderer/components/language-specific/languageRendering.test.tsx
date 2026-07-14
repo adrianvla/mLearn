@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import type { LanguageData } from '../../../shared/types';
 import { JapanesePitchAccentOverlay } from './JapanesePitchAccentOverlay';
@@ -10,6 +11,7 @@ import { WordWithReading } from './WordWithReading';
 let mockActiveLanguageData: LanguageData | null = null;
 let mockLanguageMap: Record<string, LanguageData> = {};
 const mockGetCachedTranslation = vi.fn();
+let getMockCacheVersion = () => 0;
 const mockGetCanonicalFormForLanguage = vi.fn((language: string, word: string) => `${language}:${word}:canonical`);
 const mockGetWordVariantsForLanguage = vi.fn((language: string, word: string) => [`${language}:${word}:variant`]);
 
@@ -30,6 +32,7 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../hooks/useTranslation', () => ({
+  cacheVersion: () => getMockCacheVersion(),
   getCachedTranslation: (...args: unknown[]) => mockGetCachedTranslation(...args),
 }));
 
@@ -122,6 +125,43 @@ describe('language-specific rendering metadata resolution', () => {
       />
     ), container);
 
+    await Promise.resolve();
+
+    expect(container.querySelector('.pitch-accent')).not.toBeNull();
+
+    dispose();
+  });
+
+  it('renders cache-driven pitch when the translation arrives after mount', async () => {
+    mockGetCachedTranslation.mockReturnValue(null);
+    let updateCacheVersion = () => {};
+
+    const CacheUpdatingOverlay = () => {
+      const [cacheVersion, setCacheVersion] = createSignal(0);
+      getMockCacheVersion = cacheVersion;
+      updateCacheVersion = () => setCacheVersion((version) => version + 1);
+
+      return (
+        <JapanesePitchAccentOverlay
+          word="将来"
+          language="ja"
+          mode="overlay"
+        >
+          しょうらい
+        </JapanesePitchAccentOverlay>
+      );
+    };
+
+    const dispose = render(() => (
+      <CacheUpdatingOverlay />
+    ), container);
+
+    expect(container.querySelector('.pitch-accent')).toBeNull();
+
+    mockGetCachedTranslation.mockReturnValue({
+      data: [null, null, { reading: 'しょうらい', pitches: [{ position: 1 }] }],
+    });
+    updateCacheVersion();
     await Promise.resolve();
 
     expect(container.querySelector('.pitch-accent')).not.toBeNull();
