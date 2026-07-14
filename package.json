@@ -1,6 +1,6 @@
 {
   "name": "mlearn",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "description": "A Language-learning app that knows what you know for faster learning by immersion",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -19,8 +19,8 @@
     "bundle:preload": "esbuild dist-electron/electron/preload.js --bundle --platform=node --outfile=dist-electron/electron/preload.js --allow-overwrite --external:electron",
     "build:web": "vite build --mode web",
     "preview": "npm run build && vite preview",
-  "typecheck": "tsc --noEmit && tsc -p src/electron/tsconfig.json --noEmit",
-  "lint:management": "cargo clippy --manifest-path management/backend/Cargo.toml --all-targets -- -D warnings",
+    "typecheck": "tsc --noEmit && tsc -p src/electron/tsconfig.json --noEmit",
+    "lint:management": "cargo clippy --manifest-path management/backend/Cargo.toml --all-targets -- -D warnings",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build:extension && npm run build && electron-builder --mac --universal",
