@@ -21,7 +21,7 @@ import {
   getJapanesePitchAccentInfo,
   getJapaneseMoraCount,
 } from '../../utils/japanesePitchAccent';
-import { getCachedTranslation, type WordLookupCandidateOptions } from '../../hooks/useTranslation';
+import { cacheVersion, getCachedTranslation, type WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { PillLabel } from '../common/Label';
@@ -121,11 +121,12 @@ export const JapanesePitchAccentOverlay: Component<JapanesePitchAccentOverlayPro
     );
   });
 
-  // For cache-based lookup, poll for data arrival
+  // Cache writes publish a version change so every displayed word can update when its lookup completes.
   const [cachedPitch, setCachedPitch] = createSignal<number | null>(null);
   const [cachedReading, setCachedReading] = createSignal<string | null>(null);
 
   createEffect(() => {
+    cacheVersion();
     const word = props.word;
     if (!isEnabled()) return;
     if (props.pitchPosition !== undefined && props.pitchPosition !== null) return;
@@ -146,34 +147,6 @@ export const JapanesePitchAccentOverlay: Component<JapanesePitchAccentOverlayPro
     };
 
     if (checkCache()) return;
-
-    let attempts = 0;
-    const maxAttempts = 20;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-
-    const clearAllTimers = () => {
-      for (const t of timers) {
-        clearTimeout(t);
-      }
-      timers.length = 0;
-    };
-
-    const poll = () => {
-      if (checkCache()) {
-        clearAllTimers();
-        return;
-      }
-      attempts++;
-      if (attempts < maxAttempts) {
-        timers.push(setTimeout(poll, attempts < 10 ? 50 : 100));
-      }
-    };
-
-    timers.push(setTimeout(poll, 50));
-
-    return () => {
-      clearAllTimers();
-    };
   });
 
   // Effective pitch position: explicit prop > cached

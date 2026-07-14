@@ -18,6 +18,7 @@ const mockSettings: Record<string, unknown> = {
 const mockIsWordKnownComprehensiveSync = vi.fn(() => false);
 const mockGetFrequency = vi.fn(() => null as { raw_level: number; level: string } | null);
 const mockGetFreqLevelNames = vi.fn(() => ({} as Record<string, string>));
+const mockGetCachedTranslation = vi.fn();
 let mockLanguageData: LanguageData = {
   name: 'Japanese',
   settings: { fixed: {} },
@@ -60,13 +61,7 @@ vi.mock('../../context', () => ({
 vi.mock('../../hooks/useTranslation', () => ({
   cacheVersion: () => 0,
   getCachedReading: () => null,
-  getCachedTranslation: () => ({
-    data: [
-      { definitions: ['when'], reading: 'いつ' },
-      undefined,
-      { pitches: [{ position: 1 }] },
-    ],
-  }),
+  getCachedTranslation: (...args: unknown[]) => mockGetCachedTranslation(...args),
 }));
 
 describe('SubtitleWord pitch accent reading annotation layout', () => {
@@ -80,6 +75,14 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     mockGetFrequency.mockReturnValue(null);
     mockGetFreqLevelNames.mockReset();
     mockGetFreqLevelNames.mockReturnValue({});
+    mockGetCachedTranslation.mockReset();
+    mockGetCachedTranslation.mockReturnValue({
+      data: [
+        { definitions: ['when'], reading: 'いつ' },
+        undefined,
+        { pitches: [{ position: 1 }] },
+      ],
+    });
     mockSettings.language = 'ja';
     mockLanguageData = {
       name: 'Japanese',
@@ -122,6 +125,37 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     expect(rubyOverlay).not.toBeNull();
     expect(rubyOverlay!.classList.contains('prosody-overlay-wrapper--reading')).toBe(true);
     expect(rubyOverlay!.textContent).toBe('いつ');
+    expect(container.querySelector('rt .pitch-accent')).not.toBeNull();
+
+    dispose();
+  });
+
+  it('looks up ruby prosody by the surface word while drawing it over the reading', () => {
+    mockGetCachedTranslation.mockImplementation((word: string) => (
+      word === '望月'
+        ? {
+            data: [
+              { definitions: ['full moon'], reading: 'もちづき' },
+              undefined,
+              { reading: 'もちづき', pitches: [{ position: 2 }] },
+            ],
+          }
+        : null
+    ));
+    const token: Token = {
+      word: '望月',
+      surface: '望月',
+      actual_word: '望月',
+      reading: 'もちづき',
+      type: '名詞',
+      partOfSpeech: '名詞',
+    };
+
+    const dispose = render(() => (
+      <SubtitleWord token={token} index={0} />
+    ), container);
+
+    expect(mockGetCachedTranslation).toHaveBeenCalledWith('望月', 'ja', expect.anything());
     expect(container.querySelector('rt .pitch-accent')).not.toBeNull();
 
     dispose();

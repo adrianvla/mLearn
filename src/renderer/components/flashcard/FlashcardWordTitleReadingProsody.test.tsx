@@ -44,6 +44,7 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../hooks/useTranslation', () => ({
+  cacheVersion: () => 0,
   getCachedTranslation: (...args: unknown[]) => mockGetCachedTranslation(...args),
 }));
 

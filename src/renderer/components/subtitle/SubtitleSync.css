@@ -83,3 +83,7 @@ body.hide-cursor .subtitle-sync {
   filter: invert(1);
   opacity: 0.7;
 }
+
+.subtitle-sync .panel-header .btn:hover {
+  background: var(--bg-intense);
+}
