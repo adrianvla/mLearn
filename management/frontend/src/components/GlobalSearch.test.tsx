@@ -23,7 +23,7 @@ it('loads grouped results only for valid input and navigates after a selection',
 
   renderSearch();
   await waitFor(() => expect(screen.getByTestId('selected-group')).toHaveTextContent('German A'));
-  const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
+  const input = openSearch();
   act(() => input.focus());
   fireEvent.change(input, { target: { value: 'a' } });
   expect(fetchMock).not.toHaveBeenCalled();
@@ -31,15 +31,12 @@ it('loads grouped results only for valid input and navigates after a selection',
 
   fireEvent.change(input, { target: { value: 'ad' } });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/search?q=ad&limit=10', expect.anything()));
-  expect(await screen.findByRole('heading', { name: 'Users' })).toBeVisible();
-  expect(screen.getByRole('heading', { name: 'Groups' })).toBeVisible();
-  expect(screen.getByRole('heading', { name: 'Policies' })).toBeVisible();
-  expect(screen.getByRole('option', { name: /Ada Learner/ })).toBeVisible();
+  expect(await screen.findByRole('option', { name: /Ada Learner/ })).toBeVisible();
   expect(screen.getByTestId('location')).toHaveTextContent('/');
 
   fireEvent.click(screen.getByRole('option', { name: /Ada Learner/ }));
   await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/users'));
-  expect(screen.getByRole('combobox', { name: 'Search users, groups, and policies' })).toHaveValue('');
+  expect(screen.queryByRole('searchbox', { name: 'Search users, groups, and policies' })).not.toBeInTheDocument();
 });
 
 it('navigates with ArrowDown and Enter then closes and clears the result overlay', async () => {
@@ -52,7 +49,7 @@ it('navigates with ArrowDown and Enter then closes and clears the result overlay
 
   renderSearch();
   await waitFor(() => expect(screen.getByTestId('selected-group')).toHaveTextContent('German A'));
-  const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
+  const input = openSearch();
   act(() => input.focus());
   fireEvent.change(input, { target: { value: 'ad' } });
   await screen.findByRole('option', { name: /Ada Learner/ });
@@ -61,7 +58,7 @@ it('navigates with ArrowDown and Enter then closes and clears the result overlay
   fireEvent.keyDown(input, { key: 'Enter' });
 
   await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/users'));
-  expect(screen.getByRole('combobox', { name: 'Search users, groups, and policies' })).toHaveValue('');
+  expect(screen.queryByRole('searchbox', { name: 'Search users, groups, and policies' })).not.toBeInTheDocument();
   expect(screen.queryByRole('listbox', { name: 'Search results' })).not.toBeInTheDocument();
 });
 
@@ -73,7 +70,7 @@ it('activates a result group before routing so the destination sees that scope',
 
   renderSearch({ groups: [GERMAN_A, GERMAN_B], groupApi: { activateGroup } });
   await waitFor(() => expect(screen.getByTestId('selected-group')).toHaveTextContent('German A'));
-  const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
+  const input = openSearch();
   act(() => input.focus());
   fireEvent.change(input, { target: { value: 'ge' } });
   fireEvent.click(await screen.findByRole('option', { name: /German learner/ }));
@@ -91,7 +88,7 @@ it('uses a user result\'s supplied members-view ancestor scope before opening us
 
   renderSearch({ groups: [GERMAN_A], groupApi: { activateGroup } });
   await waitFor(() => expect(screen.getByTestId('selected-group')).toHaveTextContent('German A'));
-  const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
+  const input = openSearch();
   act(() => input.focus());
   fireEvent.change(input, { target: { value: 'de' } });
   fireEvent.click(await screen.findByRole('option', { name: /Descendant learner/ }));
@@ -110,7 +107,7 @@ it('does not navigate when activating the result group is denied', async () => {
 
   renderSearch({ groups: [GERMAN_A, GERMAN_B], groupApi: { activateGroup } });
   await waitFor(() => expect(screen.getByTestId('selected-group')).toHaveTextContent('German A'));
-  const input = screen.getByRole('combobox', { name: 'Search users, groups, and policies' });
+  const input = openSearch();
   act(() => input.focus());
   fireEvent.change(input, { target: { value: 'ge' } });
   fireEvent.click(await screen.findByRole('option', { name: /German B/ }));
@@ -118,8 +115,26 @@ it('does not navigate when activating the result group is denied', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Unable to switch to the selected group');
   expect(screen.getByTestId('location')).toHaveTextContent('/');
   expect(screen.getByTestId('selected-group')).toHaveTextContent('German A');
-  expect(screen.getByRole('combobox', { name: 'Search users, groups, and policies' })).toHaveValue('ge');
+  expect(screen.getByRole('searchbox', { name: 'Search users, groups, and policies' })).toHaveValue('ge');
 });
+
+it('uses a compact search trigger and explains an empty search', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response({ results: [] })));
+  renderSearch();
+
+  expect(screen.queryByRole('searchbox', { name: 'Search users, groups, and policies' })).not.toBeInTheDocument();
+  const input = openSearch();
+  expect(screen.getByRole('dialog', { name: 'Search the console' })).toBeVisible();
+  fireEvent.change(input, { target: { value: 'nothing' } });
+  expect(await screen.findByRole('status')).toHaveTextContent('No users, groups, or policies found.');
+});
+
+function openSearch(): HTMLInputElement {
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+  const input = screen.getByRole('searchbox', { name: 'Search users, groups, and policies' }) as HTMLInputElement;
+  act(() => input.focus());
+  return input;
+}
 
 function renderSearch({
   groups = [GERMAN_A],
