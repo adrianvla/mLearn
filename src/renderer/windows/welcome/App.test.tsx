@@ -70,10 +70,12 @@ let languageDataCatalog: () => LanguageDataStatus[];
 let setLanguageDataCatalog: (value: LanguageDataStatus[]) => LanguageDataStatus[];
 let installerStateHandler: ((state: { success?: boolean; inProgress?: boolean; waiting?: boolean; options?: { includeLLM?: boolean; includeOCR?: boolean; includeVoice?: boolean } }) => void) | undefined;
 let settingsHandler: ((settings: TestSettings) => void) | undefined;
+let settingsSavedHandler: (() => void) | undefined;
 const saveSettingsMock = vi.fn();
 const updateSettingsMock = vi.fn();
 const installLanguageDataMock = vi.fn();
 const changeLanguageMock = vi.fn();
+const completeInitialSetupMock = vi.fn();
 
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <>{props.children}</>,
@@ -120,10 +122,14 @@ vi.mock('../../../shared/bridges', () => ({
       onServerStatusUpdate: vi.fn(() => cleanup),
       isSuccess: vi.fn(),
       forceRestartApp: vi.fn(),
+      completeInitialSetup: completeInitialSetupMock,
     },
     settings: {
       saveSettings: saveSettingsMock,
-      onSettingsSaved: vi.fn(() => cleanup),
+      onSettingsSaved: vi.fn((callback: typeof settingsSavedHandler) => {
+        settingsSavedHandler = callback;
+        return cleanup;
+      }),
       onSettings: vi.fn((callback: typeof settingsHandler) => {
         settingsHandler = callback;
         return cleanup;
@@ -199,10 +205,12 @@ describe('WelcomeApp', () => {
     ]);
     installerStateHandler = undefined;
     settingsHandler = undefined;
+    settingsSavedHandler = undefined;
     saveSettingsMock.mockReset();
     updateSettingsMock.mockReset();
     installLanguageDataMock.mockReset();
     changeLanguageMock.mockReset();
+    completeInitialSetupMock.mockReset();
     vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 1 as unknown as ReturnType<typeof setInterval>);
     vi.spyOn(globalThis, 'clearInterval').mockImplementation(() => undefined);
     vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 1 as unknown as ReturnType<typeof setTimeout>);
@@ -522,6 +530,38 @@ describe('WelcomeApp', () => {
       }));
     });
 
+    dispose();
+  });
+
+  it('finishes initial setup without relaunching Electron', async () => {
+    let restartCallback: (() => void) | undefined;
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation((callback) => {
+      restartCallback = callback as () => void;
+      return 1 as unknown as ReturnType<typeof setTimeout>;
+    });
+
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+    installerStateHandler?.({ success: true });
+
+    let finishButton: HTMLButtonElement | undefined;
+    await vi.waitFor(() => {
+      finishButton = Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent?.includes('Finish Setup'));
+      expect(finishButton?.disabled).toBe(false);
+    });
+    finishButton?.click();
+
+    expect(updateSettingsMock).toHaveBeenCalled();
+    expect(settingsSavedHandler).toBeDefined();
+    settingsSavedHandler?.();
+    expect(restartCallback).toBeDefined();
+
+    restartCallback?.();
+
+    expect(completeInitialSetupMock).toHaveBeenCalledOnce();
     dispose();
   });
 });

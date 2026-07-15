@@ -1098,6 +1098,10 @@ const serverBridge: ServerBridge = {
     window.location.reload();
   },
 
+  completeInitialSetup() {
+    window.location.reload();
+  },
+
   getVersion() {
     import('@capacitor/app')
       .then(({ App }) => App.getInfo())

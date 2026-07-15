@@ -32,6 +32,15 @@ export function resolveCloudApiUrl(settings: CloudUrlSettings): string {
   return url.replace(/\/+$/, '');
 }
 
+/**
+ * mLearn's legal acceptance applies only to mLearn-hosted cloud services.
+ * A custom provider owns its own legal and consent flow.
+ */
+export function requiresFirstPartyCloudLegalConsent(settings: CloudUrlSettings): boolean {
+  return resolveCloudLoginUrl(settings) === DEFAULT_CLOUD_LOGIN_URL
+    && resolveCloudApiUrl(settings) === DEFAULT_CLOUD_API_URL;
+}
+
 let cached: BackendAdapter | null = null;
 let cachedKey = '';
 

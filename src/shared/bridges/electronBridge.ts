@@ -159,6 +159,7 @@ const serverBridge: ServerBridge = {
   restartApp: () => getIPC().restartApp(),
   forceRestartApp: () => getIPC().forceRestartApp(),
   restartBackend: () => getIPC().restartBackend(),
+  completeInitialSetup: () => getIPC().completeInitialSetup(),
   getVersion: () => getIPC().getVersion(),
   onVersionReceive: (cb) => getIPC().onVersionReceive(cb),
   getLegalDocument: (name) => getIPC().getLegalDocument(name),

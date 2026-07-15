@@ -1660,6 +1660,13 @@
             "Description": "Adjust the empty space around text pages"
           }
         },
+        "ImageAppearance": {
+          "Title": "Image appearance",
+          "Sepia": {
+            "Label": "Sepia",
+            "Description": "Apply a sepia filter to page images and thumbnails"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "Reading annotations",
           "Hide": {

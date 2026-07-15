@@ -2656,6 +2656,9 @@ export const ReaderRoute: Component = () => {
   return (
       <section
           class="reader-route"
+          classList={{
+            'reader-route--sepia': settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!,
+          }}
           aria-label={t('mlearn.Reader.Title')}
           tabIndex={-1}
           onDrop={handleDrop}
@@ -2701,7 +2704,6 @@ export const ReaderRoute: Component = () => {
             onToggleOcrOverlay={toggleOcrOverlay}
             onPrevPage={prevPage}
             onNextPage={nextPage}
-            marginLeft={"60px"}
         />
 
         <Show when={showSidebar() || showWordSidebar()}>
@@ -2723,7 +2725,6 @@ export const ReaderRoute: Component = () => {
               activePageIndices={visiblePageIndices}
               hasOcrForPage={hasOcrForPage}
               onGoToPage={goToPage}
-              onClose={() => setShowSidebar(false)}
           />
         </Show>
 

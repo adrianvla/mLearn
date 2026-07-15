@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BREAKPOINTS } from './ResponsiveContext';
+import { BREAKPOINTS, resolveSidebarLayout } from './ResponsiveContext';
 import type { Breakpoint } from './ResponsiveContext';
 
 function resolveBreakpoint(width: number): Breakpoint {
@@ -60,5 +60,19 @@ describe('resolveBreakpoint', () => {
 
   it('returns xs for width 0', () => {
     expect(resolveBreakpoint(0)).toBe('xs');
+  });
+});
+
+describe('resolveSidebarLayout', () => {
+  it('uses the drawer layout through the shared lg breakpoint', () => {
+    expect(resolveSidebarLayout(BREAKPOINTS.lg, false)).toBe('drawer');
+  });
+
+  it('uses the inline layout above the shared lg breakpoint', () => {
+    expect(resolveSidebarLayout(BREAKPOINTS.lg + 1, false)).toBe('inline');
+  });
+
+  it('always uses the drawer layout on mobile platforms', () => {
+    expect(resolveSidebarLayout(BREAKPOINTS.xl + 1, true)).toBe('drawer');
   });
 });

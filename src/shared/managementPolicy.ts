@@ -126,6 +126,7 @@ const settingRegistry = {
   },
   readerCropMode: 'boolean',
   readerDocumentOcr: 'boolean',
+  readerSepiaEnabled: 'boolean',
   readerWordHoverTrigger: {
     kind: 'string',
     allowedValues: ['hover', 'long-hover', 'key-hover'],

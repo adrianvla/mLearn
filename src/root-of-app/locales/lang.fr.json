@@ -1645,6 +1645,13 @@
             "Description": "Ajuster l'espace autour des pages de texte"
           }
         },
+        "ImageAppearance": {
+          "Title": "Apparence des images",
+          "Sepia": {
+            "Label": "Sépia",
+            "Description": "Appliquer un filtre sépia aux images des pages et aux miniatures"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "Annotations de lecture",
           "Hide": {

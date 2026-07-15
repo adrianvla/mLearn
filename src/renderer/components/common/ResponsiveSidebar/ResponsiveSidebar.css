@@ -1,5 +1,6 @@
 .responsive-sidebar {
   --responsive-sidebar-width: 20rem;
+  --responsive-sidebar-content-padding-block-start: 0px;
   flex-shrink: 0;
   -webkit-backdrop-filter: var(--backdrop-filter);
   backdrop-filter: var(--backdrop-filter);
@@ -10,8 +11,16 @@
   display: none;
 }
 
-@media (max-width: 768px) {
-  .responsive-sidebar__mobile-bar {
+/* Left sidebars reserve the obstructed top edge as a surface concern. Their
+   titles and other children do not need to know where native controls live. */
+.responsive-sidebar.responsive-sidebar--left {
+  padding-block-start: max(
+    var(--responsive-sidebar-content-padding-block-start),
+    var(--window-controls-block-start-inset)
+  );
+}
+
+:root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-bar {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
@@ -27,19 +36,19 @@
     -webkit-backdrop-filter: var(--backdrop-filter);
     backdrop-filter: var(--backdrop-filter);
     -webkit-app-region: drag;
-  }
+}
 
-  .responsive-sidebar__mobile-bar .btn {
+:root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-bar .btn {
     -webkit-app-region: no-drag;
-  }
+}
 
-  .responsive-sidebar__mobile-title {
+:root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-title {
     color: var(--text-primary);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-medium);
-  }
+}
 
-  .responsive-sidebar__backdrop {
+:root[data-sidebar-layout='drawer'] .responsive-sidebar__backdrop {
     display: block;
     position: absolute;
     z-index: var(--z-modal-backdrop);
@@ -50,9 +59,9 @@
     border: 0;
     background: var(--overlay-bg-soft);
     cursor: default;
-  }
+}
 
-  .responsive-sidebar {
+:root[data-sidebar-layout='drawer'] .responsive-sidebar {
     position: absolute;
     z-index: var(--z-modal);
     top: 0;
@@ -64,19 +73,18 @@
     transform: translateX(-100%);
     transition: transform var(--transition-normal);
     will-change: transform;
-  }
+}
 
-  .responsive-sidebar--left {
+:root[data-sidebar-layout='drawer'] .responsive-sidebar--left {
     left: 0;
-  }
+}
 
-  .responsive-sidebar--right {
+:root[data-sidebar-layout='drawer'] .responsive-sidebar--right {
     right: 0;
     transform: translateX(100%);
-  }
+}
 
-  .responsive-sidebar--open {
+:root[data-sidebar-layout='drawer'] .responsive-sidebar--open {
     pointer-events: auto;
     transform: translateX(0);
-  }
 }

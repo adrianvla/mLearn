@@ -4,6 +4,7 @@
  */
 
 import { Component, For, createMemo } from 'solid-js';
+import { Tooltip } from '../../../components/common';
 import './Heatmap.css';
 
 interface HeatmapDay {
@@ -97,11 +98,12 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
               <div class="heatmap-week">
                 <For each={week}>
                   {(day) => (
-                    <div
-                      class="heatmap-cell"
-                      style={{ background: getColor(day.value, grid().maxVal) }}
-                      data-tooltip={formatTooltip(day.date, day.value)}
-                    />
+                    <Tooltip content={formatTooltip(day.date, day.value)} position="top">
+                      <div
+                        class="heatmap-cell"
+                        style={{ background: getColor(day.value, grid().maxVal) }}
+                      />
+                    </Tooltip>
                   )}
                 </For>
               </div>

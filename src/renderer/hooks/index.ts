@@ -29,4 +29,4 @@ export { useCursorVisibility } from './useCursorVisibility';
 export { useWatchTogether } from './useWatchTogether';
 
 export { createVirtualizer } from './useVirtualizer';
-export type { VirtualItem, VirtualizerOptions, Virtualizer } from './useVirtualizer';
+export type { VirtualItem, VirtualizerOptions, Virtualizer, VirtualizerScrollOptions } from './useVirtualizer';

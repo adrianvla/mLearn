@@ -1660,6 +1660,13 @@
             "Description": "调整文本页面周围的留白"
           }
         },
+        "ImageAppearance": {
+          "Title": "图像外观",
+          "Sepia": {
+            "Label": "棕褐色",
+            "Description": "为页面图像和缩略图应用棕褐色滤镜"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "读音注释",
           "Hide": {

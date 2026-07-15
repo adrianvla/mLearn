@@ -211,13 +211,12 @@
   backdrop-filter: var(--backdrop-filter);
 }
 
-@media (max-width: 768px) {
-  .tab-container.vertical.tab-container--responsive-sidebar {
+:root[data-sidebar-layout='drawer'] .tab-container.vertical.tab-container--responsive-sidebar {
     position: relative;
     flex-direction: column;
-  }
+}
 
-  .tab-container--responsive-sidebar .tab-container__mobile-sidebar-bar {
+:root[data-sidebar-layout='drawer'] .tab-container--responsive-sidebar .tab-container__mobile-sidebar-bar {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
@@ -233,19 +232,19 @@
     -webkit-backdrop-filter: var(--backdrop-filter);
     backdrop-filter: var(--backdrop-filter);
     -webkit-app-region: drag;
-  }
+}
 
-  .tab-container--responsive-sidebar .tab-container__mobile-sidebar-bar .btn {
+:root[data-sidebar-layout='drawer'] .tab-container--responsive-sidebar .tab-container__mobile-sidebar-bar .btn {
     -webkit-app-region: no-drag;
-  }
+}
 
-  .tab-container__mobile-sidebar-title {
+:root[data-sidebar-layout='drawer'] .tab-container__mobile-sidebar-title {
     color: var(--text-primary);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-medium);
-  }
+}
 
-  .tab-container--responsive-sidebar .tab-container__responsive-sidebar-backdrop {
+:root[data-sidebar-layout='drawer'] .tab-container--responsive-sidebar .tab-container__responsive-sidebar-backdrop {
     display: block;
     position: absolute;
     z-index: var(--z-modal-backdrop);
@@ -256,9 +255,9 @@
     border: 0;
     background: var(--overlay-bg-soft);
     cursor: default;
-  }
+}
 
-  .tab-container.vertical.tab-container--responsive-sidebar > .tab-list {
+:root[data-sidebar-layout='drawer'] .tab-container.vertical.tab-container--responsive-sidebar > .tab-list {
     position: absolute;
     z-index: var(--z-modal);
     top: 0;
@@ -272,17 +271,16 @@
     transform: translateX(-100%);
     transition: transform var(--transition-normal);
     will-change: transform;
-  }
+}
 
-  .tab-container.vertical.tab-container--responsive-sidebar > .tab-list.tab-list--responsive-sidebar-open {
+:root[data-sidebar-layout='drawer'] .tab-container.vertical.tab-container--responsive-sidebar > .tab-list.tab-list--responsive-sidebar-open {
     pointer-events: auto;
     transform: translateX(0);
-  }
+}
 
-  .tab-container.vertical.tab-container--responsive-sidebar > .tab-content {
+:root[data-sidebar-layout='drawer'] .tab-container.vertical.tab-container--responsive-sidebar > .tab-content {
     width: 100%;
     padding-left: 0;
-  }
 }
 
 /* Tab panel */

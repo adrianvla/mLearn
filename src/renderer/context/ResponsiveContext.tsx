@@ -14,6 +14,7 @@ import {
   useContext,
   ParentComponent,
   createSignal,
+  createEffect,
   onMount,
   onCleanup,
   createMemo,
@@ -34,6 +35,16 @@ export const BREAKPOINTS = {
 } as const;
 
 export type Breakpoint = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type SidebarLayout = 'drawer' | 'inline';
+
+/** Shared responsive token used by every sidebar presentation. */
+export const SIDEBAR_LAYOUT_BREAKPOINT: keyof typeof BREAKPOINTS = 'lg';
+
+export function resolveSidebarLayout(width: number, platformMobile: boolean): SidebarLayout {
+  return platformMobile || width <= BREAKPOINTS[SIDEBAR_LAYOUT_BREAKPOINT]
+    ? 'drawer'
+    : 'inline';
+}
 
 export interface ResponsiveContextValue {
   /** Current viewport width in pixels */
@@ -42,6 +53,8 @@ export interface ResponsiveContextValue {
   viewportHeight: Accessor<number>;
   /** Active breakpoint name: xs | sm | md | lg | xl */
   breakpoint: Accessor<Breakpoint>;
+  /** Shared sidebar presentation used by component and route styles. */
+  sidebarLayout: Accessor<SidebarLayout>;
   /** True when viewport ≤ 480px (small phones) */
   isXs: Accessor<boolean>;
   /** True when viewport ≤ 768px (phones + small tablets) */
@@ -99,15 +112,29 @@ export const ResponsiveProvider: ParentComponent = (props) => {
   });
 
   const breakpoint = createMemo(() => resolveBreakpoint(viewportWidth()));
+  const sidebarLayout = createMemo(() => resolveSidebarLayout(viewportWidth(), isPlatformMobile()));
   const isXs = createMemo(() => viewportWidth() <= BREAKPOINTS.sm);
   const isNarrow = createMemo(() => viewportWidth() <= BREAKPOINTS.md);
   const isMedium = createMemo(() => viewportWidth() <= BREAKPOINTS.lg);
   const isCompact = createMemo(() => isPlatformMobile() || viewportWidth() <= BREAKPOINTS.md);
 
+  createEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.sidebarLayout = sidebarLayout();
+    }
+  });
+
+  onCleanup(() => {
+    if (typeof document !== 'undefined') {
+      delete document.documentElement.dataset.sidebarLayout;
+    }
+  });
+
   const value: ResponsiveContextValue = {
     viewportWidth,
     viewportHeight,
     breakpoint,
+    sidebarLayout,
     isXs,
     isNarrow,
     isMedium,

@@ -4,12 +4,13 @@
  */
 
 import { Component, For, Accessor, Show, createEffect, createSignal, onCleanup, createMemo } from 'solid-js';
-import { Tag, Indicator, Spinner, IconBtn, CloseIcon } from '../../../../components/common';
-import { useLocalization } from '../../../../context';
+import { Tag, Indicator, Spinner } from '../../../../components/common';
+import { createVirtualizer } from '../../../../hooks';
 import './ReaderSidebar.css';
 
 /** Maximum thumbnail width in pixels — keeps images crisp at sidebar size without aliasing */
 const THUMB_MAX_WIDTH = 200;
+const THUMB_ASPECT_RATIO = 3 / 4;
 
 interface PageImage {
   id: string;
@@ -27,16 +28,21 @@ interface ReaderSidebarProps {
   activePageIndices: Accessor<number[]>;
   hasOcrForPage: (pageId: string) => boolean;
   onGoToPage: (index: number) => void;
-  onClose?: () => void;
 }
 
 export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
-  const { t } = useLocalization();
-  const thumbRefs = new Map<number, HTMLDivElement>();
   const thumbUrlCache = new Map<string, string>();
   const [loadedPages, setLoadedPages] = createSignal<Set<number>>(new Set());
+  const [pageListRef, setPageListRef] = createSignal<HTMLDivElement>();
+  const [thumbnailRowSize, setThumbnailRowSize] = createSignal(THUMB_MAX_WIDTH / THUMB_ASPECT_RATIO);
+  const [virtualScrollReady, setVirtualScrollReady] = createSignal(false);
   const activePageIndexSet = createMemo(() => new Set(props.activePageIndices()));
-  let sidebarRef: HTMLElement | undefined;
+  const virtualizer = createVirtualizer({
+    count: () => props.pages().length,
+    getScrollElement: () => pageListRef(),
+    estimateSize: () => thumbnailRowSize(),
+    overscan: 1,
+  });
 
   // Reset loaded state when pages change (new book loaded)
   createEffect(() => {
@@ -48,6 +54,33 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
   onCleanup(() => {
     for (const url of thumbUrlCache.values()) URL.revokeObjectURL(url);
     thumbUrlCache.clear();
+  });
+
+  createEffect(() => {
+    const element = pageListRef();
+    if (!element) return;
+
+    const measureRow = () => {
+      const styles = getComputedStyle(element);
+      const parsedGap = Number.parseFloat(styles.getPropertyValue('--reader-thumbnail-gap'));
+      const gap = Number.isFinite(parsedGap) ? parsedGap : 0;
+      const rowSize = element.clientWidth / THUMB_ASPECT_RATIO + gap;
+      if (rowSize > 0) setThumbnailRowSize(rowSize);
+    };
+
+    measureRow();
+
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(measureRow);
+    resizeObserver?.observe(element);
+
+    if (!resizeObserver) window.addEventListener('resize', measureRow);
+
+    onCleanup(() => {
+      resizeObserver?.disconnect();
+      if (!resizeObserver) window.removeEventListener('resize', measureRow);
+    });
   });
 
   /**
@@ -106,103 +139,73 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
     return preview.replace(/\s+/gu, ' ').trim();
   };
 
-  const scrollToActivePages = (smooth: boolean = true) => {
-    const activePageIndices = props.activePageIndices();
-    const [firstActivePageIndex, secondActivePageIndex] = activePageIndices;
-    const firstThumb = firstActivePageIndex === undefined ? undefined : thumbRefs.get(firstActivePageIndex);
-
-    if (!firstThumb || !sidebarRef) return;
-
-    const behavior = smooth ? 'smooth' : 'instant';
-
-    if (secondActivePageIndex === undefined) {
-      firstThumb.scrollIntoView({ behavior, block: 'center' });
-      return;
-    }
-
-    const secondThumb = thumbRefs.get(secondActivePageIndex);
-    if (secondThumb) {
-      const firstRect = firstThumb.getBoundingClientRect();
-      const secondRect = secondThumb.getBoundingClientRect();
-      const containerRect = sidebarRef.getBoundingClientRect();
-      const midpoint = (firstRect.top + secondRect.bottom) / 2 - containerRect.top + sidebarRef.scrollTop;
-      const targetScroll = midpoint - sidebarRef.clientHeight / 2;
-      sidebarRef.scrollTo({ top: targetScroll, behavior });
-      return;
-    }
-
-    firstThumb.scrollIntoView({ behavior, block: 'center' });
-  };
-
   createEffect(() => {
     const allPages = props.pages();
     const activePageIndices = props.activePageIndices();
+    const element = pageListRef();
+    thumbnailRowSize();
 
-    if (allPages.length === 0 || activePageIndices.length === 0) return;
+    const firstActivePageIndex = activePageIndices[0];
+    if (!element || allPages.length === 0 || firstActivePageIndex === undefined) {
+      setVirtualScrollReady(false);
+      return;
+    }
 
-    requestAnimationFrame(() => {
-      const firstActivePageIndex = activePageIndices[0];
-
-      if (firstActivePageIndex !== undefined && thumbRefs.has(firstActivePageIndex)) {
-        scrollToActivePages(true);
-      } else {
-        requestAnimationFrame(() => {
-          scrollToActivePages(true);
-        });
-      }
-    });
+    virtualizer.scrollToIndex(firstActivePageIndex, { behavior: 'auto', align: 'center' });
+    setVirtualScrollReady(true);
   });
 
   return (
-      <aside class="reader-sidebar panel" ref={sidebarRef}>
-        <div class="reader-sidebar-header">
-          <h2>{t('mlearn.Reader.Sidebar.Pages')}</h2>
-          <Show when={props.onClose}>
-            <IconBtn
-              size="sm"
-              variant="ghost"
-              icon={<CloseIcon size={16} />}
-              aria-label={t('mlearn.Global.Aria.Close')}
-              onClick={() => props.onClose?.()}
-            />
-          </Show>
-        </div>
-        <div class="page-list">
-          <For each={props.pages()}>
-            {(page) => (
-                <div
-                    ref={(el) => thumbRefs.set(page.index, el)}
-                    class={`page-thumb ${isPageActive(page.index) ? 'active' : ''}`}
-                    onClick={() => props.onGoToPage(page.index)}
-                >
-                  <Show when={(page.kind ?? 'image') === 'image' && !loadedPages().has(page.index)}>
-                    <div class="page-thumb-spinner">
-                      <Spinner size={20} />
-                    </div>
-                  </Show>
-                  <Show
-                    when={(page.kind ?? 'image') === 'image' && page.src}
-                    fallback={(
-                      <div class="page-thumb-text">
-                        <span>{textPreview(page)}</span>
+      <aside class="reader-sidebar panel">
+        <div class="page-list" ref={setPageListRef}>
+          <div class="page-list-virtual" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+            <For each={virtualScrollReady() ? virtualizer.getVirtualItems() : []}>
+              {(item) => (
+                <Show when={props.pages()[item.index]} keyed>
+                  {(page) => (
+                    <div
+                      class="page-thumb-virtual-row"
+                      style={{
+                        height: `${item.size}px`,
+                        transform: `translateY(${item.start}px)`,
+                      }}
+                    >
+                      <div
+                        class={`page-thumb ${isPageActive(page.index) ? 'active' : ''}`}
+                        onClick={() => props.onGoToPage(page.index)}
+                      >
+                        <Show when={(page.kind ?? 'image') === 'image' && !loadedPages().has(page.index)}>
+                          <div class="page-thumb-spinner">
+                            <Spinner size={20} />
+                          </div>
+                        </Show>
+                        <Show
+                          when={(page.kind ?? 'image') === 'image' && page.src}
+                          fallback={(
+                            <div class="page-thumb-text">
+                              <span>{textPreview(page)}</span>
+                            </div>
+                          )}
+                        >
+                          {(src) => (
+                            <img
+                              class={loadedPages().has(page.index) ? 'page-thumb-loaded' : 'page-thumb-loading'}
+                              ref={(el) => loadThumbnail(src(), el, page.index)}
+                              alt={page.name}
+                            />
+                          )}
+                        </Show>
+                        <Tag class="page-number">{page.index + 1}</Tag>
+                        <Show when={props.hasOcrForPage(page.id)}>
+                          <Indicator class="ocr-indicator" variant="primary" />
+                        </Show>
                       </div>
-                    )}
-                  >
-                    {(src) => (
-                      <img
-                        class={loadedPages().has(page.index) ? 'page-thumb-loaded' : 'page-thumb-loading'}
-                        ref={(el) => loadThumbnail(src(), el, page.index)}
-                        alt={page.name}
-                      />
-                    )}
-                  </Show>
-                  <Tag class="page-number">{page.index + 1}</Tag>
-                  <Show when={props.hasOcrForPage(page.id)}>
-                    <Indicator class="ocr-indicator" variant="primary" />
-                  </Show>
-                </div>
-            )}
-          </For>
+                    </div>
+                  )}
+                </Show>
+              )}
+            </For>
+          </div>
         </div>
       </aside>
   );

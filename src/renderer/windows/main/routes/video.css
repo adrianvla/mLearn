@@ -109,18 +109,17 @@ body.hide-cursor .video-route > .video-nav > button {
   pointer-events: none;
 }
 
-@media (max-width: 768px) {
-  .video-route.with-word-sidebar {
+:root[data-sidebar-layout='drawer'] .video-route.with-word-sidebar {
     margin-right: 0;
-  }
+}
 
-  .video-unknown-words-sidebar {
+:root[data-sidebar-layout='drawer'] .video-unknown-words-sidebar {
     width: min(20rem, calc(100vw - 3rem));
     box-shadow: var(--shadow-lg);
     z-index: var(--z-modal);
-  }
+}
 
-  .video-word-sidebar-backdrop {
+:root[data-sidebar-layout='drawer'] .video-word-sidebar-backdrop {
     display: block;
     position: absolute;
     z-index: var(--z-modal-backdrop);
@@ -130,5 +129,4 @@ body.hide-cursor .video-route > .video-nav > button {
     padding: 0;
     border: 0;
     background: var(--overlay-bg-soft);
-  }
 }

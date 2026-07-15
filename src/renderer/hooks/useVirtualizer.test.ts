@@ -160,6 +160,50 @@ describe('createVirtualizer', () => {
     });
   });
 
+  it('should jump to a centered index without rendering the traversed range', () => {
+    createRoot((dispose) => {
+      const el = createMockElement({ clientHeight: 300 });
+      const scrollToMock = vi.fn();
+      el.scrollTo = scrollToMock;
+
+      const virtualizer = createVirtualizer({
+        count: 100,
+        getScrollElement: () => el,
+        estimateSize: () => 100,
+        overscan: 0,
+      });
+
+      virtualizer.scrollToIndex(50, { behavior: 'auto', align: 'center' });
+
+      expect(scrollToMock).toHaveBeenCalledWith({ top: 4900, behavior: 'auto' });
+      expect(virtualizer.getVirtualItems().map((item) => item.index)).toEqual([49, 50, 51]);
+
+      dispose();
+    });
+  });
+
+  it('should react when an accessor count changes', () => {
+    createRoot((dispose) => {
+      const el = createMockElement({ clientHeight: 300 });
+      const [count, setCount] = createSignal(0);
+      const virtualizer = createVirtualizer({
+        count,
+        getScrollElement: () => el,
+        estimateSize: () => 100,
+        overscan: 0,
+      });
+
+      expect(virtualizer.getVirtualItems()).toEqual([]);
+
+      setCount(20);
+
+      expect(virtualizer.getTotalSize()).toBe(2000);
+      expect(virtualizer.getVirtualItems().map((item) => item.index)).toEqual([0, 1, 2]);
+
+      dispose();
+    });
+  });
+
   it('should clamp scroll to index within bounds', () => {
     createRoot((dispose) => {
       const el = createMockElement();
@@ -220,7 +264,7 @@ describe('createVirtualizer', () => {
     });
   });
 
-  it('should update when count changes reactively', () => {
+  it('should keep a numeric count fixed', () => {
     createRoot((dispose) => {
       const el = createMockElement({ clientHeight: 300 });
       const [count, setCount] = createSignal(10);
@@ -234,8 +278,7 @@ describe('createVirtualizer', () => {
       expect(virtualizer.getTotalSize()).toBe(1000);
 
       setCount(5);
-      // Note: createVirtualizer uses the initial count value; for truly reactive count,
-      // the caller should recreate the virtualizer when count changes
+      expect(virtualizer.getTotalSize()).toBe(1000);
 
       dispose();
     });

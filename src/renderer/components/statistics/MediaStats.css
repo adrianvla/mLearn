@@ -172,10 +172,10 @@
   font-size: var(--font-size-sm);
 }
 
-@media (max-width: 768px) {
-  .media-stats-panel {
+:root[data-sidebar-layout='drawer'] .media-stats-panel {
     width: min(20rem, calc(100vw - 3rem));
+    padding-block-start: var(--window-controls-block-start-inset);
+    box-sizing: border-box;
     box-shadow: var(--shadow-lg);
     z-index: var(--z-modal);
-  }
 }
