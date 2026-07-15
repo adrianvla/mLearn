@@ -78,6 +78,10 @@ export const SettingsContent: Component = () => {
     })
   );
 
+  const activeTabLabel = createMemo(() => (
+    tabItems().find((tab) => tab.id === activeTab())?.label ?? t('mlearn.Settings.UI.Title')
+  ));
+
   const sidebarSearch = (
     <Input
       type="search"
@@ -149,6 +153,10 @@ export const SettingsContent: Component = () => {
           variant="pills"
           class="settings-tab-container"
           sidebarTop={sidebarSearch}
+          responsiveSidebar
+          responsiveSidebarId="settings-navigation"
+          responsiveSidebarLabel={t('mlearn.Settings.UI.Title')}
+          responsiveSidebarTitle={activeTabLabel()}
         >
           <div class="settings-content">
             <TabPanel tabId="general"><GeneralTab /></TabPanel>

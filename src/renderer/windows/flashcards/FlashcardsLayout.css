@@ -27,6 +27,7 @@
 
 /* Left Sidebar */
 .flashcards-sidebar {
+  --responsive-sidebar-width: 17.5rem;
   display: flex;
   flex-direction: column;
   width: 220px;
@@ -44,7 +45,7 @@
 }
 
 .flashcards-sidebar-header {
-  padding: 0.5rem 0.5rem;
+  padding: calc(0.5rem + var(--window-controls-block-start-inset)) 0.5rem 0.5rem calc(0.5rem + var(--window-controls-inline-start-inset));
 }
 
 .flashcards-title {
@@ -153,55 +154,16 @@
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .flashcards-layout {
+    position: relative;
     flex-direction: column;
   }
 
-  .flashcards-sidebar {
-    width: 100%;
-    min-width: unset;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
-    padding: 0.75rem 1rem;
-    gap: 0.75rem;
-  }
-
-  .flashcards-sidebar-header {
-    padding: 0;
-  }
-
-  .flashcards-title {
-    font-size: 1rem;
-  }
-
   .flashcards-nav {
-    flex: unset;
-  }
-
-  .flashcards-nav .tab-container {
-    flex-direction: row;
-  }
-
-  .flashcards-nav .tab-list {
-    flex-direction: row;
-  }
-
-  .flashcards-nav .tab-item {
-    width: auto;
+    min-height: 0;
   }
 
   .flashcards-sidebar-actions {
-    flex-direction: row;
-    border-top: none;
-    border-left: 1px solid var(--border-color);
-    padding: 0 0 0 0.75rem;
-    margin-left: auto;
-  }
-
-  .flashcards-sidebar-btn {
-    width: auto;
+    margin-top: auto;
   }
 }
 
@@ -212,10 +174,5 @@
 
 /* Mobile: make sidebar sticky with translucent backdrop */
 .mobile-layout .flashcards-sidebar {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-foreground);
   background: var(--bg);
-  -webkit-backdrop-filter: var(--backdrop-filter);
-  backdrop-filter: var(--backdrop-filter);
 }

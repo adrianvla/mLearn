@@ -201,6 +201,90 @@
   padding-left: 1rem;
 }
 
+.tab-container__mobile-sidebar-bar,
+.tab-container__responsive-sidebar-backdrop {
+  display: none;
+}
+
+.tab-container--responsive-sidebar > .tab-list {
+  -webkit-backdrop-filter: var(--backdrop-filter);
+  backdrop-filter: var(--backdrop-filter);
+}
+
+@media (max-width: 768px) {
+  .tab-container.vertical.tab-container--responsive-sidebar {
+    position: relative;
+    flex-direction: column;
+  }
+
+  .tab-container--responsive-sidebar .tab-container__mobile-sidebar-bar {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--spacing-2);
+    min-height: 3rem;
+    padding:
+      var(--spacing-2)
+      var(--spacing-4)
+      var(--spacing-2)
+      calc(var(--spacing-4) + var(--window-controls-inline-start-inset));
+    background: var(--bg);
+    border-bottom: 1px solid var(--border-color);
+    -webkit-backdrop-filter: var(--backdrop-filter);
+    backdrop-filter: var(--backdrop-filter);
+    -webkit-app-region: drag;
+  }
+
+  .tab-container--responsive-sidebar .tab-container__mobile-sidebar-bar .btn {
+    -webkit-app-region: no-drag;
+  }
+
+  .tab-container__mobile-sidebar-title {
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .tab-container--responsive-sidebar .tab-container__responsive-sidebar-backdrop {
+    display: block;
+    position: absolute;
+    z-index: var(--z-modal-backdrop);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--overlay-bg-soft);
+    cursor: default;
+  }
+
+  .tab-container.vertical.tab-container--responsive-sidebar > .tab-list {
+    position: absolute;
+    z-index: var(--z-modal);
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(20rem, calc(100vw - 3rem));
+    min-width: 0;
+    padding-right: 0;
+    box-shadow: var(--shadow-lg);
+    pointer-events: none;
+    transform: translateX(-100%);
+    transition: transform var(--transition-normal);
+    will-change: transform;
+  }
+
+  .tab-container.vertical.tab-container--responsive-sidebar > .tab-list.tab-list--responsive-sidebar-open {
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .tab-container.vertical.tab-container--responsive-sidebar > .tab-content {
+    width: 100%;
+    padding-left: 0;
+  }
+}
+
 /* Tab panel */
 .tab-panel {
   height: 100%;

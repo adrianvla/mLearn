@@ -3,8 +3,9 @@
  * Reusable tab navigation with consistent styling
  */
 
-import { Component, JSX, For, Show, splitProps, mergeProps } from 'solid-js';
+import { Component, JSX, For, Show, splitProps, mergeProps, createSignal } from 'solid-js';
 import { Badge } from '../Label';
+import { IconBtn } from '../Button';
 import './TabContainer.css';
 
 export interface TabItem {
@@ -30,6 +31,14 @@ export interface TabContainerProps {
   /** Custom styles */
   style?: JSX.CSSProperties;
   sidebarTop?: JSX.Element;
+  /** Render the vertical tab rail as an off-canvas drawer on compact widths. */
+  responsiveSidebar?: boolean;
+  /** Stable DOM id for the mobile drawer relationship. */
+  responsiveSidebarId?: string;
+  /** Accessible name for the mobile navigation control and dismissal backdrop. */
+  responsiveSidebarLabel?: string;
+  /** Compact mobile-bar title, normally the active section. */
+  responsiveSidebarTitle?: string;
   /** Render content for each tab */
   children?: JSX.Element;
 }
@@ -51,16 +60,56 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
     'class',
     'style',
     'sidebarTop',
+    'responsiveSidebar',
+    'responsiveSidebarId',
+    'responsiveSidebarLabel',
+    'responsiveSidebarTitle',
     'children',
   ]);
+  const [isResponsiveSidebarOpen, setIsResponsiveSidebarOpen] = createSignal(false);
+  const responsiveSidebarId = () => local.responsiveSidebarId || undefined;
+  const responsiveSidebarLabel = () => local.responsiveSidebarLabel || local.responsiveSidebarTitle || '';
+
+  const handleTabChange = (tabId: string) => {
+    local.onTabChange(tabId);
+    setIsResponsiveSidebarOpen(false);
+  };
   
   return (
     <div
-      class={`tab-container ${local.orientation} ${local.variant} ${local.size} ${local.class || ''}`}
+      class={`tab-container ${local.orientation} ${local.variant} ${local.size} ${local.responsiveSidebar ? 'tab-container--responsive-sidebar' : ''} ${local.class || ''}`}
       style={local.style}
       {...rest}
     >
-      <div class="tab-list" role="tablist" aria-orientation={local.orientation}>
+      <Show when={local.responsiveSidebar}>
+        <div class="tab-container__mobile-sidebar-bar">
+          <IconBtn
+            size="sm"
+            variant="secondary"
+            icon="sidebar"
+            active={isResponsiveSidebarOpen()}
+            aria-label={responsiveSidebarLabel()}
+            aria-controls={responsiveSidebarId()}
+            aria-expanded={isResponsiveSidebarOpen()}
+            onClick={() => setIsResponsiveSidebarOpen((open) => !open)}
+          />
+          <span class="tab-container__mobile-sidebar-title">{local.responsiveSidebarTitle}</span>
+        </div>
+      </Show>
+      <Show when={local.responsiveSidebar && isResponsiveSidebarOpen()}>
+        <button
+          type="button"
+          class="tab-container__responsive-sidebar-backdrop"
+          aria-label={responsiveSidebarLabel()}
+          onClick={() => setIsResponsiveSidebarOpen(false)}
+        />
+      </Show>
+      <div
+        id={responsiveSidebarId()}
+        class={`tab-list ${local.responsiveSidebar && isResponsiveSidebarOpen() ? 'tab-list--responsive-sidebar-open' : ''}`}
+        role="tablist"
+        aria-orientation={local.orientation}
+      >
         <Show when={local.sidebarTop}>
           <div class="tab-list-header">{local.sidebarTop}</div>
         </Show>
@@ -72,7 +121,7 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
               class={`tab-item ${local.activeTab === tab.id ? 'active' : ''} ${tab.badge !== undefined ? 'tab-item--with-badge' : ''}`}
               aria-selected={local.activeTab === tab.id}
               disabled={tab.disabled}
-              onClick={() => !tab.disabled && local.onTabChange(tab.id)}
+              onClick={() => !tab.disabled && handleTabChange(tab.id)}
             >
               <Show when={tab.icon}>
                 <span class="tab-icon">

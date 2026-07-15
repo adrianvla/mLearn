@@ -38,7 +38,7 @@
 .ca-header-title {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  margin-left:var(--navbar-margin-left);
+  margin-left: var(--window-controls-inline-start-inset);
 }
 
 .ca-connection-info {
@@ -113,6 +113,10 @@
   height: 100%;
 }
 
+.ca-history-sidebar-backdrop {
+  display: none;
+}
+
 .ca-history-sidebar {
   width: 280px;
   flex-shrink: 0;
@@ -129,6 +133,34 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .ca-chat-panel {
+    position: relative;
+  }
+
+  .ca-history-sidebar-backdrop {
+    display: block;
+    position: absolute;
+    z-index: var(--z-modal-backdrop);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--overlay-bg-soft);
+  }
+
+  .ca-history-sidebar {
+    position: absolute;
+    z-index: var(--z-modal);
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(17.5rem, calc(100vw - 3rem));
+    box-shadow: var(--shadow-lg);
+  }
 }
 
 /* Voice panel */

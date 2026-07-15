@@ -4,7 +4,7 @@
  */
 
 import { Component, For, Accessor, Show, createEffect, createSignal, onCleanup, createMemo } from 'solid-js';
-import { Tag, Indicator, Spinner } from '../../../../components/common';
+import { Tag, Indicator, Spinner, IconBtn, CloseIcon } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
 import './ReaderSidebar.css';
 
@@ -27,6 +27,7 @@ interface ReaderSidebarProps {
   activePageIndices: Accessor<number[]>;
   hasOcrForPage: (pageId: string) => boolean;
   onGoToPage: (index: number) => void;
+  onClose?: () => void;
 }
 
 export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
@@ -154,7 +155,18 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
 
   return (
       <aside class="reader-sidebar panel" ref={sidebarRef}>
-        <h2>{t('mlearn.Reader.Sidebar.Pages')}</h2>
+        <div class="reader-sidebar-header">
+          <h2>{t('mlearn.Reader.Sidebar.Pages')}</h2>
+          <Show when={props.onClose}>
+            <IconBtn
+              size="sm"
+              variant="ghost"
+              icon={<CloseIcon size={16} />}
+              aria-label={t('mlearn.Global.Aria.Close')}
+              onClick={() => props.onClose?.()}
+            />
+          </Show>
+        </div>
         <div class="page-list">
           <For each={props.pages()}>
             {(page) => (

@@ -23,11 +23,14 @@
 .settings-tab-container.tab-container.vertical > .tab-list {
   min-width: 180px;
   max-width: 200px;
-  padding: var(--spacing-2) var(--spacing-3);
+  padding:
+    calc(var(--spacing-2) + var(--window-controls-block-start-inset))
+    var(--spacing-3)
+    var(--spacing-2)
+    var(--spacing-3);
   border-right: 1px solid var(--border-color);
   overflow-y: auto;
   gap: var(--spacing-1);
-  padding-top:30px;
   app-region:drag;
 }
 .settings-tab-container.tab-container.vertical > .tab-list > button,.settings-tab-container.tab-container.vertical > .tab-list input{
@@ -75,4 +78,18 @@
 
 .settings-tab-panel {
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  .settings-tab-container.tab-container.vertical > .tab-list {
+    width: min(20rem, calc(100vw - 3rem));
+    min-width: 0;
+    max-width: none;
+    padding:
+      calc(var(--spacing-2) + var(--window-controls-block-start-inset))
+      var(--spacing-3)
+      var(--spacing-2)
+      var(--spacing-3);
+    border-right: 1px solid var(--border-color);
+  }
 }

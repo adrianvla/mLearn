@@ -8,6 +8,10 @@
   100% { stroke-dashoffset: -176; }
 }
 
+.window-chrome-inset-provider {
+  display: contents;
+}
+
 .window-loading-overlay {
   position: fixed;
   inset: 0;

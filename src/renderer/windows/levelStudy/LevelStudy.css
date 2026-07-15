@@ -21,7 +21,7 @@
   align-items: center;
   gap: 8px;
   height: 30px;
-  margin-left: 118px;
+  margin-left: var(--window-controls-inline-start-inset);
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);

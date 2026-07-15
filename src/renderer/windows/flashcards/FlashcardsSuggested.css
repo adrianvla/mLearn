@@ -222,6 +222,7 @@
 .flashcards-suggested-card .flashcard-footer {
   display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
   gap: var(--spacing-2);
   justify-content: space-between;
   width: 100%;
@@ -231,6 +232,7 @@
 
 .flashcards-suggested-card .flashcard-state {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-start;
   gap: var(--spacing-2);
   align-items: center;
@@ -238,6 +240,7 @@
 
 .flashcards-suggested-card .flashcard-actions {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-end;
   gap: var(--spacing-2);
   margin-left: auto;
@@ -287,6 +290,69 @@
   padding: var(--spacing-4);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+}
+
+@media (max-width: 768px) {
+  .flashcards-suggested-sticky-controls {
+    gap: var(--spacing-3);
+    padding: var(--spacing-4);
+  }
+
+  .flashcards-suggested-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-2);
+  }
+
+  .flashcards-suggested-search {
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .flashcards-suggested-filter {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .flashcards-suggested-bulkbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-3);
+    padding: var(--spacing-3);
+  }
+
+  .flashcards-suggested-bulkbar-left {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .flashcards-suggested-bulkbar-right {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-2);
+    width: 100%;
+  }
+
+  .flashcards-suggested-bulkbar-right > * {
+    min-width: 0;
+  }
+
+  .flashcards-suggested-bulkbar-right .btn {
+    width: 100%;
+  }
+
+  .flashcards-suggested-scroll {
+    padding-right: var(--spacing-4);
+    padding-left: var(--spacing-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .flashcards-suggested-controls,
+  .flashcards-suggested-bulkbar-right {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .flashcards-suggested-empty,

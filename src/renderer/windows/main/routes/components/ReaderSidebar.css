@@ -16,9 +16,16 @@
   user-select: none;
 }
 
-.reader-sidebar h2 {
+.reader-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 var(--spacing-4);
   margin-bottom: var(--spacing-4);
+}
+
+.reader-sidebar h2 {
+  margin: 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }

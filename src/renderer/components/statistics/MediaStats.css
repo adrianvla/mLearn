@@ -172,7 +172,10 @@
   font-size: var(--font-size-sm);
 }
 
-/* Hide on mobile */
-.mobile-layout .media-stats-panel {
-  display: none;
+@media (max-width: 768px) {
+  .media-stats-panel {
+    width: min(20rem, calc(100vw - 3rem));
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-modal);
+  }
 }

@@ -65,6 +65,9 @@ export {
   type WindowHeaderProps,
 } from './Panel';
 
+// Responsive Sidebar
+export { ResponsiveSidebar, type ResponsiveSidebarProps } from './ResponsiveSidebar';
+
 // Input Components
 export { 
   Input,

@@ -94,4 +94,18 @@ describe('SettingsContent', () => {
 
     dispose();
   });
+
+  it('uses a compact navigation control instead of an inline tab rail at narrow widths', async () => {
+    const { SettingsContent } = await import('./SettingsWindow');
+    const dispose = render(() => SettingsContent({}), container);
+
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-controls="settings-navigation"]');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+
+    toggle?.click();
+
+    expect(container.querySelector('#settings-navigation')?.classList.contains('tab-list--responsive-sidebar-open')).toBe(true);
+
+    dispose();
+  });
 });

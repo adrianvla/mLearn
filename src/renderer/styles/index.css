@@ -284,8 +284,9 @@
   --overlay-bg: rgba(255,255,255, 0.6);
   --overlay-bg-soft: rgba(255,255,255, 0.4);
 
-  /*for OSes*/
-  --navbar-margin-left: 70px;
+  /* Native window controls are applied per window by WindowWrapper. */
+  --window-controls-inline-start-inset: 0px;
+  --window-controls-block-start-inset: 0px;
 
   /* ========== Overlay Specific ========== */
   --overlay-dragover-bg: rgba(0, 0, 0, 0.15);

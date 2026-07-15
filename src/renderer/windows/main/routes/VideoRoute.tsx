@@ -1470,6 +1470,12 @@ export const VideoRoute: Component = () => {
 
       {/* Unknown words sidebar */}
       <Show when={showWordSidebar() && !showDropZone()}>
+        <button
+          type="button"
+          class="video-word-sidebar-backdrop"
+          aria-label={t('mlearn.Global.Aria.Close')}
+          onClick={() => setShowWordSidebar(false)}
+        />
         <VideoUnknownWordsSidebar
           words={visibleUnknownWords}
           addingWordKeys={() => addingSidebarWords()}

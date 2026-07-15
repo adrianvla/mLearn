@@ -2704,6 +2704,18 @@ export const ReaderRoute: Component = () => {
             marginLeft={"60px"}
         />
 
+        <Show when={showSidebar() || showWordSidebar()}>
+          <button
+            type="button"
+            class="reader-sidebar-backdrop"
+            aria-label={t('mlearn.Global.Aria.Close')}
+            onClick={() => {
+              setShowSidebar(false);
+              setShowWordSidebar(false);
+            }}
+          />
+        </Show>
+
         {/* Sidebar */}
         <Show when={showSidebar()}>
           <ReaderSidebar
@@ -2711,6 +2723,7 @@ export const ReaderRoute: Component = () => {
               activePageIndices={visiblePageIndices}
               hasOcrForPage={hasOcrForPage}
               onGoToPage={goToPage}
+              onClose={() => setShowSidebar(false)}
           />
         </Show>
 
@@ -2930,6 +2943,7 @@ export const ReaderRoute: Component = () => {
               onIgnoreWord={handleIgnoreSidebarWord}
               onWordHover={setSidebarHoveredEntry}
               onWordLeave={() => setSidebarHoveredEntry(null)}
+              onClose={() => setShowWordSidebar(false)}
           />
         </Show>
 
