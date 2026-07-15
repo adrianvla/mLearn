@@ -25,6 +25,7 @@ import {
   SparklesIcon,
   PlusIcon,
   ProgressBar,
+  ResponsiveSidebar,
   MicrophoneIcon,
   VoiceSamplePicker,
   CollapsibleStickyHeader,
@@ -99,6 +100,7 @@ export const FlashcardsContent: Component = () => {
   const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
@@ -704,20 +706,36 @@ export const FlashcardsContent: Component = () => {
     },
   ]);
 
+  const activeTabLabel = createMemo(() => (
+    tabs().find((tab) => tab.id === activeTab())?.label ?? t('mlearn.Flashcards.UI.Title')
+  ));
+
+  const handleTabChange = (id: string) => {
+    setActiveTab(id as TabId);
+    setIsMobileSidebarOpen(false);
+  };
+
   return (
     <div class="flashcards-window">
       <div class="flashcards-layout">
         {/* Left Sidebar */}
-        <aside class="flashcards-sidebar">
+        <ResponsiveSidebar
+          id="flashcards-navigation"
+          label={t('mlearn.Flashcards.UI.Title')}
+          title={activeTabLabel()}
+          open={isMobileSidebarOpen()}
+          onOpenChange={setIsMobileSidebarOpen}
+          class="flashcards-sidebar"
+        >
           <div class="flashcards-sidebar-header">
             <h1 class="flashcards-title">{t('mlearn.Flashcards.UI.Title')}</h1>
           </div>
           
-          <nav class="flashcards-nav">
+          <nav id="flashcards-navigation" class="flashcards-nav">
             <TabContainer
               tabs={tabs()}
               activeTab={activeTab()}
-              onTabChange={(id) => setActiveTab(id as TabId)}
+              onTabChange={handleTabChange}
               orientation="vertical"
               variant="pills"
               size="md"
@@ -742,7 +760,7 @@ export const FlashcardsContent: Component = () => {
               {t('mlearn.Flashcards.UI.AddCard')}
             </Btn>
           </div>
-        </aside>
+        </ResponsiveSidebar>
 
         {/* Main Content */}
         <main class="flashcards-main">

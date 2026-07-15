@@ -361,9 +361,7 @@
   margin-left: 0 !important;
 }
 
-/* Hide sidebar toggle and page-mode controls on mobile — always single + fit-width */
-.mobile-layout .reader-nav .sidebar-btn,
-.mobile-layout .reader-nav .sidebar-btn-right,
+/* Hide page-mode controls on mobile — always single + fit-width */
 .mobile-layout .reader-nav .book-title-nav,
 .mobile-layout .reader-nav select {
   display: none;
@@ -371,15 +369,6 @@
 
 /* Hide status bar entirely on mobile — it's a desktop concept */
 .mobile-layout .reader-status {
-  display: none;
-}
-
-/* On mobile, sidebar overlays content instead of pushing it */
-.mobile-layout .reader-sidebar {
-  display: none;
-}
-
-.mobile-layout .reader-unknown-words-sidebar {
   display: none;
 }
 
@@ -454,4 +443,44 @@
 /* Welcome tips grid single-column on mobile */
 .mobile-layout .reader-welcome-grid {
   grid-template-columns: 1fr;
+}
+
+.reader-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .reader-main.with-sidebar,
+  .reader-main.with-word-sidebar {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .reader-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    z-index: var(--z-modal-backdrop);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--overlay-bg-soft);
+  }
+
+  .reader-sidebar,
+  .reader-unknown-words-sidebar {
+    top: 0;
+    height: 100vh;
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-modal);
+  }
+
+  .reader-sidebar {
+    width: min(12rem, calc(100vw - 3rem));
+  }
+
+  .reader-unknown-words-sidebar {
+    width: min(20rem, calc(100vw - 3rem));
+  }
 }

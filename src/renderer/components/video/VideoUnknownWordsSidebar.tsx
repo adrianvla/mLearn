@@ -42,6 +42,7 @@ export const VideoUnknownWordsSidebar: Component<VideoUnknownWordsSidebarProps> 
       defaultSort="subtitle"
       emptyMessage={t('mlearn.Video.Sidebar.UnknownWordsEmpty')}
       class="video-unknown-words-sidebar"
+      onClose={props.onClose}
       onAddAllClick={(entries) => props.onAddAll(entries as VideoWordEntry[])}
     />
   );

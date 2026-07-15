@@ -19,7 +19,7 @@
 .search-input {
   flex: 1;
   min-width: 200px;
-  margin-left: 60px;
+  margin-left: var(--window-controls-inline-start-inset);
 }
 
 .level-select {

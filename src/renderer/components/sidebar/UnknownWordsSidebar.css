@@ -44,6 +44,12 @@
   flex-direction: column;
 }
 
+.unknown-words-sidebar-title-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
 .unknown-words-sidebar-actions {
   display: flex;
   align-items: center;
@@ -165,8 +171,4 @@
 .unknown-words-item-pills .prosody-position-pill__value {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
-}
-
-.mobile-layout .unknown-words-sidebar {
-  display: none;
 }

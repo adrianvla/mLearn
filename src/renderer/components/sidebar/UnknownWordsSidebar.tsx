@@ -1,7 +1,7 @@
 import { Component, For, Show, Accessor, createEffect, createMemo, createSignal, JSX } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
-import { Btn, CollapsibleStickyHeader, PillBtn, PillLabel, Select } from '../common';
+import { Btn, CloseIcon, CollapsibleStickyHeader, IconBtn, PillBtn, PillLabel, Select } from '../common';
 import { ProsodyOverlay, WordWithReading } from '../language-specific';
 import type { WordWithReadingRenderTextOptions } from '../language-specific/WordWithReading';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
@@ -57,6 +57,7 @@ export interface UnknownWordsSidebarProps {
   defaultSort: string;
   emptyMessage: string;
   class?: string;
+  onClose?: () => void;
   onAddAllClick: (addableEntries: SidebarWordEntry[], dictionaryFoundAddable: SidebarWordEntry[]) => void;
   footer?: JSX.Element;
 }
@@ -397,12 +398,23 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
                 {t('mlearn.Sidebar.WordCount', { count: visibleWords().length })}
               </div>
             </div>
-            <Select
-              class="unknown-words-sort-select"
-              value={sortKey()}
-              onChange={(e) => setSortKey(e.currentTarget.value)}
-              options={props.sortOptions()}
-            />
+            <div class="unknown-words-sidebar-title-actions">
+              <Select
+                class="unknown-words-sort-select"
+                value={sortKey()}
+                onChange={(e) => setSortKey(e.currentTarget.value)}
+                options={props.sortOptions()}
+              />
+              <Show when={props.onClose}>
+                <IconBtn
+                  size="sm"
+                  variant="ghost"
+                  icon={<CloseIcon size={16} />}
+                  aria-label={t('mlearn.Global.Aria.Close')}
+                  onClick={() => props.onClose?.()}
+                />
+              </Show>
+            </div>
           </div>
           <div class="unknown-words-sidebar-categories">
             <PillBtn

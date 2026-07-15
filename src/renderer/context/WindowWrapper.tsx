@@ -27,6 +27,7 @@ import { LowPowerGateProvider } from './LowPowerGateContext';
 import { isElectron } from '../../shared/platform';
 import { getBridge } from '../../shared/bridges';
 import { installRendererLogSink } from '../utils/installLogSink';
+import { getWindowControlsInsets } from '../utils/windowChrome';
 import { getLogger } from '../../shared/utils/logger';
 import { activityHub, setActivityPolicyScope } from '../services/activityHubRuntime';
 import { createElectronPluginActivityAdapter } from '../services/electronPluginActivityAdapter';
@@ -408,8 +409,18 @@ const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platfor
 export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean }> = (props) => {
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
   const needsTitleBar = props.showTitleBar && isElectron();
+  const windowControlsInsets = getWindowControlsInsets({
+    isElectron: isElectron(),
+    isMacOS,
+    contentOverlapsNativeControls: !props.showTitleBar,
+  });
+  const windowChromeStyle: JSX.CSSProperties = {
+    '--window-controls-inline-start-inset': windowControlsInsets.inlineStart,
+    '--window-controls-block-start-inset': windowControlsInsets.blockStart,
+  };
 
   return (
+    <div class="window-chrome-inset-provider" style={windowChromeStyle}>
     <ServerProvider>
       <InstallProgressProvider>
       <LocalizationProvider>
@@ -456,6 +467,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
       </LocalizationProvider>
       </InstallProgressProvider>
     </ServerProvider>
+    </div>
   );
 };
 

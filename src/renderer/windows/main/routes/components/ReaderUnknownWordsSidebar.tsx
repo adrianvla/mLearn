@@ -21,6 +21,7 @@ interface ReaderUnknownWordsSidebarProps {
   onIgnoreWord: (entry: ReaderUnknownWordEntry) => void | Promise<void>;
   onWordHover?: (entry: ReaderUnknownWordEntry) => void;
   onWordLeave?: () => void;
+  onClose?: () => void;
 }
 
 export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps> = (props) => {
@@ -51,6 +52,7 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
         defaultSort="ocr"
         emptyMessage={t('mlearn.Reader.Sidebar.UnknownWordsEmpty')}
         class="reader-unknown-words-sidebar"
+        onClose={props.onClose}
         onAddAllClick={(addable, dictAddable) => {
           setModalEntries(addable);
           setModalDictEntries(dictAddable);

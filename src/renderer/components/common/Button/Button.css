@@ -20,6 +20,10 @@
   border-right-color: transparent;
 }
 
+.btn-icon-content {
+  flex: 0 0 auto;
+}
+
 /* ============ Base Button Styles ============ */
 .btn {
   display: inline-flex;
@@ -212,8 +216,8 @@
 }
 
 .btn-pill > .btn-icon-content {
-  flex: 0 0 20px;
-  width: 20px;
+  display: flex;
+  flex: 0 0 auto;
   height: 20px;
 }
 

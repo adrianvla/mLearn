@@ -1815,6 +1815,12 @@ export const ConversationContent: Component = () => {
       <TabPanel tabId="chat" activeTab={activeTab()}>
         <div class="ca-chat-panel">
           <Show when={sidebarVisible()}>
+            <button
+              type="button"
+              class="ca-history-sidebar-backdrop"
+              aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
+              onClick={() => setSidebarVisible(false)}
+            />
             <div class="ca-history-sidebar">
               <ConversationHistoryPanel
                 sessions={sessions()}
