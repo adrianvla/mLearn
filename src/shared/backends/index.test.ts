@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getBackend, resetBackend, resolveCloudLoginUrl, resolveCloudApiUrl } from './index';
+import { getBackend, resetBackend, resolveCloudLoginUrl, resolveCloudApiUrl, requiresFirstPartyCloudLegalConsent } from './index';
 import { HttpBackend } from './httpBackend';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 
@@ -163,5 +163,18 @@ describe('resolveCloudApiUrl', () => {
 
   it('returns DEFAULT_CLOUD_API_URL when overrideCloudEndpointUrl is true but cloudApiUrl is not set', () => {
     expect(resolveCloudApiUrl({ overrideCloudEndpointUrl: true })).toBe(DEFAULT_CLOUD_API_URL);
+  });
+});
+
+describe('requiresFirstPartyCloudLegalConsent', () => {
+  it('requires mLearn legal consent when the resolved cloud API is first-party', () => {
+    expect(requiresFirstPartyCloudLegalConsent({ overrideCloudEndpointUrl: false })).toBe(true);
+  });
+
+  it('does not apply mLearn legal consent to a custom cloud API', () => {
+    expect(requiresFirstPartyCloudLegalConsent({
+      overrideCloudEndpointUrl: true,
+      cloudApiUrl: 'https://cloud.example.com',
+    })).toBe(false);
   });
 });

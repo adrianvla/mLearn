@@ -21,6 +21,7 @@ const testSettings = {
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'Meta',
   readerReadingAnnotationHider: false,
+  readerSepiaEnabled: false,
   readerMagnifierHotkey: 'm',
   readerMagnifierZoom: 2,
   readerMagnifierSize: 200,
@@ -45,6 +46,8 @@ const translations: Record<string, string> = {
   'mlearn.Settings.Reader.ReadingAnnotations.Hide.Description': 'Cover detected reading annotations with white boxes',
   'mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Label': 'Reading annotation detection',
   'mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description': 'Detect and filter reading annotations from OCR results',
+  'mlearn.Settings.Reader.ImageAppearance.Sepia.Label': 'Sepia',
+  'mlearn.Settings.Reader.ImageAppearance.Sepia.Description': 'Apply a sepia filter to page images and thumbnails',
 };
 
 vi.mock('../../../context', () => ({
@@ -145,6 +148,20 @@ describe('reading annotation settings', () => {
     expect(container.textContent).toContain('Hide reading annotations');
     expect(container.textContent).toContain('Show reading annotations');
     expect(container.textContent).not.toContain('Furigana');
+
+    dispose();
+  });
+
+  it('persists the reader sepia toggle through the settings context', async () => {
+    const { ReaderTab } = await import('./ReaderTab');
+    const dispose = render(() => <ReaderTab />, container);
+    const sepiaToggle = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.parentElement?.textContent?.includes('Sepia')) as HTMLButtonElement;
+
+    expect(sepiaToggle).toBeTruthy();
+    sepiaToggle.click();
+
+    expect(updateSettingsMock).toHaveBeenCalledWith({ readerSepiaEnabled: true });
 
     dispose();
   });

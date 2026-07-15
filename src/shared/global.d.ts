@@ -91,6 +91,7 @@ export interface MLearnIPC {
   restartApp: () => void;
   forceRestartApp: () => void;
   restartBackend: () => void;
+  completeInitialSetup: () => void;
   getVersion: () => void;
   onVersionReceive: (callback: (version: string) => void) => () => void;
   getLegalDocument: (name: string) => void;

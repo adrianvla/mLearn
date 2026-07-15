@@ -80,8 +80,7 @@
   width: 100%;
 }
 
-@media (max-width: 768px) {
-  .settings-tab-container.tab-container.vertical > .tab-list {
+:root[data-sidebar-layout='drawer'] .settings-tab-container.tab-container.vertical > .tab-list {
     width: min(20rem, calc(100vw - 3rem));
     min-width: 0;
     max-width: none;
@@ -91,5 +90,4 @@
       var(--spacing-2)
       var(--spacing-3);
     border-right: 1px solid var(--border-color);
-  }
 }

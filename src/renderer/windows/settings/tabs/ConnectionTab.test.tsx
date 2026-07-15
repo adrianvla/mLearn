@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 
+const requiresFirstPartyCloudLegalConsentMock = vi.hoisted(() => vi.fn(() => true));
+const startCloudDesktopLoginMock = vi.hoisted(() => vi.fn());
 const updateSettingMock = vi.fn();
 const cleanupMock = vi.fn();
 
@@ -42,7 +44,9 @@ vi.mock('../../../../shared/backends', () => ({
   DEFAULT_CLOUD_API_URL: 'https://mlearn-cloud.kikan.net',
   DEFAULT_CLOUD_LOGIN_URL: 'https://mlearn.kikan.net',
   getBackend: vi.fn(),
+  requiresFirstPartyCloudLegalConsent: requiresFirstPartyCloudLegalConsentMock,
   resetBackend: vi.fn(),
+  resolveCloudLoginUrl: vi.fn(() => 'https://mlearn.kikan.net'),
 }));
 
 vi.mock('../../../../shared/backends/nodeServerAdapter', () => ({
@@ -61,7 +65,7 @@ vi.mock('../../../../shared/bridges', () => ({
 vi.mock('../../../services/cloudAuthService', () => ({
   exchangeCloudDesktopCode: vi.fn(),
   getCloudDashboardUrl: vi.fn(() => 'https://mlearn.kikan.net/account'),
-  startCloudDesktopLogin: vi.fn(),
+  startCloudDesktopLogin: startCloudDesktopLoginMock,
 }));
 
 vi.mock('../../../services/cloudSessionManager', () => ({
@@ -69,7 +73,7 @@ vi.mock('../../../services/cloudSessionManager', () => ({
 }));
 
 vi.mock('../../../components/common', () => ({
-  Modal: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
+  Modal: (props: { children?: JSX.Element; isOpen?: boolean }) => props.isOpen ? <div>{props.children}</div> : null,
   SettingRow: (props: { children?: JSX.Element; label?: string; description?: string }) => (
     <label>
       <span>{props.label}</span>
@@ -100,6 +104,9 @@ describe('ConnectionTab', () => {
     document.body.appendChild(container);
     updateSettingMock.mockReset();
     cleanupMock.mockReset();
+    requiresFirstPartyCloudLegalConsentMock.mockReset();
+    requiresFirstPartyCloudLegalConsentMock.mockReturnValue(true);
+    startCloudDesktopLoginMock.mockReset();
   });
 
   afterEach(() => {
@@ -118,6 +125,27 @@ describe('ConnectionTab', () => {
     input!.dispatchEvent(new InputEvent('input', { bubbles: true }));
 
     expect(updateSettingMock).toHaveBeenCalledWith('languageCatalogUrl', 'https://pages.example.com/language-catalog.json');
+    dispose();
+  });
+
+  it('does not show mLearn legal consent for a custom cloud provider', async () => {
+    requiresFirstPartyCloudLegalConsentMock.mockReturnValue(false);
+    startCloudDesktopLoginMock.mockResolvedValue({
+      state: 'state',
+      codeVerifier: 'verifier',
+      loginUrl: 'https://cloud.example.com/login',
+    });
+    const { ConnectionTab } = await import('./ConnectionTab');
+    const dispose = render(() => <ConnectionTab />, container);
+
+    const signInButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Connection.SignIn');
+    signInButton?.click();
+
+    await vi.waitFor(() => {
+      expect(startCloudDesktopLoginMock).toHaveBeenCalledWith(testSettings);
+    });
+    expect(container.textContent).not.toContain('Terms of Service');
     dispose();
   });
 });

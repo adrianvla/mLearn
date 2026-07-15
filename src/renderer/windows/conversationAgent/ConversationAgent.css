@@ -135,12 +135,11 @@
   overflow: hidden;
 }
 
-@media (max-width: 768px) {
-  .ca-chat-panel {
+:root[data-sidebar-layout='drawer'] .ca-chat-panel {
     position: relative;
-  }
+}
 
-  .ca-history-sidebar-backdrop {
+:root[data-sidebar-layout='drawer'] .ca-history-sidebar-backdrop {
     display: block;
     position: absolute;
     z-index: var(--z-modal-backdrop);
@@ -150,17 +149,18 @@
     padding: 0;
     border: 0;
     background: var(--overlay-bg-soft);
-  }
+}
 
-  .ca-history-sidebar {
+:root[data-sidebar-layout='drawer'] .ca-history-sidebar {
     position: absolute;
     z-index: var(--z-modal);
     top: 0;
     bottom: 0;
     left: 0;
     width: min(17.5rem, calc(100vw - 3rem));
+    padding-block-start: var(--window-controls-block-start-inset);
+    box-sizing: border-box;
     box-shadow: var(--shadow-lg);
-  }
 }
 
 /* Voice panel */

@@ -1645,6 +1645,13 @@
             "Description": "テキストページ周りの余白を調整"
           }
         },
+        "ImageAppearance": {
+          "Title": "画像の表示",
+          "Sepia": {
+            "Label": "セピア",
+            "Description": "ページ画像とサムネイルにセピアフィルターを適用"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "読み注釈",
           "Hide": {

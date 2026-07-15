@@ -1645,6 +1645,13 @@
             "Description": "Leerraum um Textseiten anpassen"
           }
         },
+        "ImageAppearance": {
+          "Title": "Bilddarstellung",
+          "Sepia": {
+            "Label": "Sepia",
+            "Description": "Sepiafilter auf Seitenbilder und Miniaturansichten anwenden"
+          }
+        },
         "ReadingAnnotations": {
           "Title": "Leseannotationen",
           "Hide": {

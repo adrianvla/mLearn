@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
+import { createSignal, createMemo, createEffect, onCleanup, type Accessor } from 'solid-js';
 
 export interface VirtualItem {
   index: number;
@@ -7,17 +7,22 @@ export interface VirtualItem {
 }
 
 export interface VirtualizerOptions {
-  count: number;
+  count: number | Accessor<number>;
   getScrollElement: () => HTMLElement | null | undefined;
   estimateSize: (index: number) => number;
   overscan?: number;
   measureDynamic?: boolean;
 }
 
+export interface VirtualizerScrollOptions {
+  behavior?: ScrollBehavior;
+  align?: 'start' | 'center' | 'end';
+}
+
 export interface Virtualizer {
   getVirtualItems: () => VirtualItem[];
   getTotalSize: () => number;
-  scrollToIndex: (index: number) => void;
+  scrollToIndex: (index: number, options?: VirtualizerScrollOptions) => void;
   measure: () => void;
   measureElement: (el: HTMLElement | null) => void;
 }
@@ -25,6 +30,9 @@ export interface Virtualizer {
 export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
   const overscan = options.overscan ?? 5;
   const measureDynamic = options.measureDynamic ?? false;
+  const getCount = (): number => typeof options.count === 'function'
+    ? options.count()
+    : options.count;
 
   // Internal measurements cache
   const measurements = new Map<number, number>();
@@ -50,7 +58,7 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
 
   const totalSize = createMemo(() => {
     let total = 0;
-    for (let i = 0; i < options.count; i++) {
+    for (let i = 0; i < getCount(); i++) {
       total += getItemSize(i);
     }
     return total;
@@ -59,7 +67,7 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
   const virtualItems = createMemo(() => {
     const st = scrollTop();
     const ch = containerHeight();
-    const count = options.count;
+    const count = getCount();
 
     if (count === 0 || ch === 0) return [];
 
@@ -147,15 +155,31 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
     setScrollTop((v) => v);
   };
 
-  const scrollToIndex = (index: number) => {
+  const scrollToIndex = (index: number, scrollOptions: VirtualizerScrollOptions = {}) => {
     const el = options.getScrollElement();
-    if (!el || index < 0 || index >= options.count) return;
+    const count = getCount();
+    if (!el || index < 0 || index >= count) return;
 
     let offset = 0;
     for (let i = 0; i < index; i++) {
       offset += getItemSize(i);
     }
-    el.scrollTo({ top: offset, behavior: 'smooth' });
+
+    const itemSize = getItemSize(index);
+    const align = scrollOptions.align ?? 'start';
+    if (align === 'center') {
+      offset -= (el.clientHeight - itemSize) / 2;
+    } else if (align === 'end') {
+      offset -= el.clientHeight - itemSize;
+    }
+
+    const maxOffset = Math.max(0, totalSize() - el.clientHeight);
+    const targetOffset = Math.max(0, Math.min(offset, maxOffset));
+    const behavior = scrollOptions.behavior ?? 'smooth';
+
+    if (behavior !== 'smooth') setScrollTop(targetOffset);
+    setContainerHeight(el.clientHeight);
+    el.scrollTo({ top: targetOffset, behavior });
   };
 
   return {

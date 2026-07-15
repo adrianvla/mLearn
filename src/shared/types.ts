@@ -340,6 +340,8 @@ export interface Settings {
   readerCropMode?: boolean;
   /** For PDFs, render pages to images and OCR instead of using embedded text */
   readerDocumentOcr?: boolean;
+  /** Apply a sepia filter to reader page images and image thumbnails. */
+  readerSepiaEnabled?: boolean;
 
   // Reader word hover settings
   /** How word hover is triggered: 'hover', 'long-hover', 'key-hover' */
@@ -577,6 +579,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ocrProvider: 'local',
   readerCropMode: false,
   readerDocumentOcr: false,
+  readerSepiaEnabled: false,
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'shift',
   readerReadingAnnotationHider: false,

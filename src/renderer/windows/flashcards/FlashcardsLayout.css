@@ -28,13 +28,14 @@
 /* Left Sidebar */
 .flashcards-sidebar {
   --responsive-sidebar-width: 17.5rem;
+  --responsive-sidebar-content-padding-block-start: 1rem;
   display: flex;
   flex-direction: column;
   width: 220px;
   min-width: 220px;
   background: var(--bg);
   border-right: 1px solid var(--border-color);
-  padding: 1rem;
+  padding: var(--responsive-sidebar-content-padding-block-start) 1rem 1rem;
   gap: 1rem;
   user-select: none;
   -webkit-app-region: drag;
@@ -45,7 +46,7 @@
 }
 
 .flashcards-sidebar-header {
-  padding: calc(0.5rem + var(--window-controls-block-start-inset)) 0.5rem 0.5rem calc(0.5rem + var(--window-controls-inline-start-inset));
+  padding: 0.5rem;
 }
 
 .flashcards-title {
@@ -152,19 +153,17 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
-  .flashcards-layout {
+:root[data-sidebar-layout='drawer'] .flashcards-layout {
     position: relative;
     flex-direction: column;
-  }
+}
 
-  .flashcards-nav {
+:root[data-sidebar-layout='drawer'] .flashcards-nav {
     min-height: 0;
-  }
+}
 
-  .flashcards-sidebar-actions {
+:root[data-sidebar-layout='drawer'] .flashcards-sidebar-actions {
     margin-top: auto;
-  }
 }
 
 /* Mobile: hide sidebar header — MobileLayout provides the large title */

@@ -23,6 +23,8 @@ export interface ToggleSwitchProps {
   thumbIcon?: JSX.Element;
   /** Tooltip title */
   title?: string;
+  /** Visual size of the switch */
+  size?: 'sm' | 'md';
 }
 
 export const ToggleSwitch: Component<ToggleSwitchProps> = (props) => {
@@ -31,7 +33,10 @@ export const ToggleSwitch: Component<ToggleSwitchProps> = (props) => {
   };
 
   return (
-    <label class={`toggle-switch ${props.disabled ? 'disabled' : ''} ${props.class || ''}`} title={props.title}>
+    <label
+      class={`toggle-switch toggle-switch--${props.size ?? 'md'} ${props.disabled ? 'disabled' : ''} ${props.class || ''}`}
+      title={props.title}
+    >
       <input
         type="checkbox"
         id={props.id}

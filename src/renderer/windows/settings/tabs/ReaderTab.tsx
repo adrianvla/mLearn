@@ -177,6 +177,20 @@ export const ReaderTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
+      <SettingGroup title={t('mlearn.Settings.Reader.ImageAppearance.Title')}>
+        <SettingRow
+          label={t('mlearn.Settings.Reader.ImageAppearance.Sepia.Label')}
+          description={t('mlearn.Settings.Reader.ImageAppearance.Sepia.Description')}
+          settingKey="readerSepiaEnabled"
+        >
+          <ToggleSwitch
+            size="sm"
+            checked={settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!}
+            onChange={(checked) => updateSettings({ readerSepiaEnabled: checked })}
+          />
+        </SettingRow>
+      </SettingGroup>
+
       <SettingGroup title={t('mlearn.Settings.Reader.OcrSettings.Title')}>
         <SettingRow
           label={t('mlearn.Settings.Reader.OcrSettings.Enable.Label')}

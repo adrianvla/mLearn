@@ -29,7 +29,6 @@ interface ReaderNavProps {
   onToggleOcrOverlay: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
-  marginLeft?: string;
 }
 
 export const ReaderNav: Component<ReaderNavProps> = (props) => {
@@ -43,15 +42,12 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       <Show when={isElectron()}>
         <div class="reader-nav-drag-region" />
       </Show>
-      <div
-        class="nav-group"
-        style={`${props.marginLeft ? `margin-left: ${props.marginLeft}` : ''}`}
-      >
-        <NavBtn onClick={props.onGoHome} title={t('mlearn.Reader.Toolbar.BackToHome')}>
-          {t('mlearn.Reader.Toolbar.Home')}
-        </NavBtn>
+      <div class="nav-group">
         <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
           <Icon icon="sidebar" color={"currentColor"} class={""}/>
+        </NavBtn>
+        <NavBtn onClick={props.onGoHome} title={t('mlearn.Reader.Toolbar.BackToHome')}>
+          {t('mlearn.Reader.Toolbar.Home')}
         </NavBtn>
       </div>
         <div class="nav-group">

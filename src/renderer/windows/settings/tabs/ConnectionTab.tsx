@@ -8,7 +8,14 @@ import { useSettings, useLocalization } from '../../../context';
 import { Modal, SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch, CheckboxCard } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
-import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBackend } from '../../../../shared/backends';
+import {
+  DEFAULT_CLOUD_LOGIN_URL,
+  DEFAULT_CLOUD_API_URL,
+  getBackend,
+  requiresFirstPartyCloudLegalConsent,
+  resetBackend,
+  resolveCloudLoginUrl,
+} from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
 import { getBridge } from '../../../../shared/bridges';
 import { exchangeCloudDesktopCode, getCloudDashboardUrl, startCloudDesktopLogin } from '../../../services/cloudAuthService';
@@ -97,7 +104,8 @@ export const ConnectionTab: Component = () => {
   }
 
   function handleSignInClick() {
-    if (settings.cloudTosAccepted && settings.cloudPrivacyAccepted) {
+    if (!requiresFirstPartyCloudLegalConsent(settings)
+      || (settings.cloudTosAccepted && settings.cloudPrivacyAccepted)) {
       handleCloudSignIn();
     } else {
       setTosChecked(false);
@@ -123,6 +131,12 @@ export const ConnectionTab: Component = () => {
   }
 
   function handleAcceptAndSignIn() {
+    if (!requiresFirstPartyCloudLegalConsent(settings)) {
+      setShowTosModal(false);
+      handleCloudSignIn();
+      return;
+    }
+
     const now = Date.now();
     updateSettings({
       cloudTosAccepted: true,
@@ -420,7 +434,7 @@ export const ConnectionTab: Component = () => {
       >
         <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-4)' }}>
           <p style={{ margin: '0', color: 'var(--text-secondary)', 'font-size': 'var(--font-size-sm)' }}>
-            To use cloud services, you must accept our Terms of Service and Privacy Policy.
+            To use mLearn cloud services, you must accept our Terms of Service and Privacy Policy.
           </p>
           <CheckboxCard
             checked={tosChecked()}
@@ -432,7 +446,7 @@ export const ConnectionTab: Component = () => {
               size="sm"
               onClick={(e: MouseEvent) => {
                 e.stopPropagation();
-                getBridge().window.openExternalUrl('https://mlearn.kikan.net/terms');
+                getBridge().window.openExternalUrl(`${resolveCloudLoginUrl(settings)}/terms`);
               }}
             >
               View Terms of Service
@@ -448,7 +462,7 @@ export const ConnectionTab: Component = () => {
               size="sm"
               onClick={(e: MouseEvent) => {
                 e.stopPropagation();
-                getBridge().window.openExternalUrl('https://mlearn.kikan.net/privacy');
+                getBridge().window.openExternalUrl(`${resolveCloudLoginUrl(settings)}/privacy`);
               }}
             >
               View Privacy Policy

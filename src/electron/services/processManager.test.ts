@@ -25,10 +25,17 @@ vi.mock('electron', () => ({
 
 const mockTerminatePythonBackend = vi.fn();
 const mockIsServerLoaded = vi.fn(() => true);
+const mockRestartPythonBackend = vi.fn();
+const mockCreateMainWindow = vi.fn();
 
 vi.mock('./pythonBackend', () => ({
   terminatePythonBackend: mockTerminatePythonBackend,
   isServerLoaded: mockIsServerLoaded,
+  restartPythonBackend: mockRestartPythonBackend,
+}));
+
+vi.mock('./windowManager', () => ({
+  createMainWindow: mockCreateMainWindow,
 }));
 
 let mod: typeof import('./processManager');
@@ -68,6 +75,21 @@ describe('forceRestartApp', () => {
     mockIsServerLoaded.mockReturnValue(true);
     mod.forceRestartApp();
     expect(mockTerminatePythonBackend).toHaveBeenCalledOnce();
+  });
+});
+
+describe('setup completion', () => {
+  it('opens the main window and restarts only the Python backend', () => {
+    mod.setupKillHandlers();
+    const listeners = mockIpcListeners.get('complete-initial-setup') || [];
+
+    expect(listeners).toHaveLength(1);
+    listeners[0]({});
+
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+    expect(mockCreateMainWindow).toHaveBeenCalledOnce();
+    expect(mockApp.relaunch).not.toHaveBeenCalled();
+    expect(mockApp.exit).not.toHaveBeenCalled();
   });
 });
 

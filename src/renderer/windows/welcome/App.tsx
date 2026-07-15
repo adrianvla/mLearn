@@ -9,7 +9,6 @@ import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallerState, type LanguageDataCatalogStatus, type PipProgress } from '../../../shared/types';
-import { PROXY_SERVER_PORT } from '../../../shared/constants';
 import { Panel, Btn, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
@@ -277,12 +276,7 @@ const WelcomeContent: Component = () => {
       restartTimer = setTimeout(() => {
         clearInterval(countdownInterval);
         setRestartCountdown(null);
-        fetch(`http://127.0.0.1:${PROXY_SERVER_PORT}/quit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-        }).catch(() => { /* ignore */ });
-        bridge.server.forceRestartApp();
+        bridge.server.completeInitialSetup();
       }, 3000);
     });
   };
