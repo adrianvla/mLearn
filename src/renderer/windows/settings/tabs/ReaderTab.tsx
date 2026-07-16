@@ -17,6 +17,8 @@ export const ReaderTab: Component = () => {
   const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { getLanguageFeatures } = useLanguage();
+  const sepiaEnabled = () => settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!;
+  const sharpenEnabled = () => settings.readerSharpenEnabled ?? DEFAULT_SETTINGS.readerSharpenEnabled!;
 
   return (
     <TabContent
@@ -185,8 +187,20 @@ export const ReaderTab: Component = () => {
         >
           <ToggleSwitch
             size="sm"
-            checked={settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!}
+            checked={sepiaEnabled()}
             onChange={(checked) => updateSettings({ readerSepiaEnabled: checked })}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('mlearn.Settings.Reader.ImageAppearance.Sharpen.Label')}
+          description={t('mlearn.Settings.Reader.ImageAppearance.Sharpen.Description')}
+          settingKey="readerSharpenEnabled"
+        >
+          <ToggleSwitch
+            size="sm"
+            checked={sepiaEnabled() || sharpenEnabled()}
+            disabled={sepiaEnabled()}
+            onChange={(checked) => updateSettings({ readerSharpenEnabled: checked })}
           />
         </SettingRow>
       </SettingGroup>

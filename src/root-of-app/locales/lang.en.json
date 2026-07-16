@@ -1665,6 +1665,10 @@
           "Sepia": {
             "Label": "Sepia",
             "Description": "Apply a sepia filter to page images and thumbnails"
+          },
+          "Sharpen": {
+            "Label": "Sharpen",
+            "Description": "Enhances grayscale images only. Automatically enabled while Sepia is active"
           }
         },
         "ReadingAnnotations": {

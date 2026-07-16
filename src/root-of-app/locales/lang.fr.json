@@ -1650,6 +1650,10 @@
           "Sepia": {
             "Label": "Sépia",
             "Description": "Appliquer un filtre sépia aux images des pages et aux miniatures"
+          },
+          "Sharpen": {
+            "Label": "Netteté",
+            "Description": "Améliore uniquement les images en niveaux de gris. S'active automatiquement lorsque le sépia est actif"
           }
         },
         "ReadingAnnotations": {

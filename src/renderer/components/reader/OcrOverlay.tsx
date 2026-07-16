@@ -74,6 +74,20 @@ export interface OcrOverlayProps {
   highlightedOriginalIndices?: Set<number>;
 }
 
+function hasLookupCharacters(text: string): boolean {
+  return /[\p{L}\p{N}]/u.test(text);
+}
+
+function createUntokenizedOcrToken(text: string): Token {
+  const lookupText = text.trim();
+  return {
+    word: lookupText,
+    actual_word: lookupText,
+    surface: text,
+    type: '',
+  };
+}
+
 // Measure a reasonable font size to fit text in the OCR box
 function estimateFontSize(text: string, width: number, height: number, vertical: boolean): number {
   if (!text || width <= 0 || height <= 0) return 12;
@@ -362,8 +376,13 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     props.onWordLeave?.();
   };
 
-  const handleWordEnter = (token: Token, boxIndex: number, e: MouseEvent) => {
-    if (!isTokenTranslatable(token)) return;
+  const handleWordEnter = (
+    token: Token,
+    boxIndex: number,
+    e: MouseEvent,
+    untokenizedFallback = false,
+  ) => {
+    if (!untokenizedFallback && !isTokenTranslatable(token)) return;
     
     const target = e.currentTarget as HTMLElement;
     // Get context phrase from context map (stitched from neighboring boxes)
@@ -555,9 +574,21 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                       fallback={(
                         <For each={fallbackTextSegments()}>
                           {(segment) => (
-                            <span classList={{ 'ocr-vertical-punctuation-cluster': segment.combineUpright }}>
-                              {segment.text}
-                            </span>
+                            <Show
+                              when={segment.combineUpright || !hasLookupCharacters(segment.text)}
+                              fallback={(
+                                <OcrWord
+                                  token={createUntokenizedOcrToken(segment.text)}
+                                  onWordEnter={(token, event) => handleWordEnter(token, index(), event, true)}
+                                  onWordLeave={props.onWordLeave}
+                                  trackPassiveHover={false}
+                                />
+                              )}
+                            >
+                              <span classList={{ 'ocr-vertical-punctuation-cluster': segment.combineUpright }}>
+                                {segment.text}
+                              </span>
+                            </Show>
                           )}
                         </For>
                       )}

@@ -1650,6 +1650,10 @@
           "Sepia": {
             "Label": "セピア",
             "Description": "ページ画像とサムネイルにセピアフィルターを適用"
+          },
+          "Sharpen": {
+            "Label": "シャープ化",
+            "Description": "グレースケール画像のみを強調します。セピアが有効な間は自動的に有効になります"
           }
         },
         "ReadingAnnotations": {

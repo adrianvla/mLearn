@@ -11,6 +11,12 @@
   color: var(--text-primary);
 }
 
+.reader-route--sharpen .page-image,
+.reader-route--sharpen .reader-sidebar .page-thumb img,
+.reader-route--sharpen .reader-sidebar .page-thumb canvas {
+  filter: grayscale(1);
+}
+
 .reader-route--sepia .page-image,
 .reader-route--sepia .reader-sidebar .page-thumb img,
 .reader-route--sepia .reader-sidebar .page-thumb canvas {

@@ -73,4 +73,21 @@ describe('OcrWord', () => {
     expect(mockCancelWordHover).toHaveBeenCalledWith('يكتب', 'ar');
     dispose();
   });
+
+  it('can provide immediate hover without passively tracking an untokenized fallback', () => {
+    const onWordEnter = vi.fn();
+    const dispose = render(() => (
+      <OcrWord
+        token={token}
+        onWordEnter={onWordEnter}
+        trackPassiveHover={false}
+      />
+    ), container);
+
+    container.querySelector('.ocr-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+
+    expect(onWordEnter).toHaveBeenCalledOnce();
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+    dispose();
+  });
 });

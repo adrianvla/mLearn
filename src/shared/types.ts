@@ -342,6 +342,7 @@ export interface Settings {
   readerDocumentOcr?: boolean;
   /** Apply a sepia filter to reader page images and image thumbnails. */
   readerSepiaEnabled?: boolean;
+  readerSharpenEnabled?: boolean;
 
   // Reader word hover settings
   /** How word hover is triggered: 'hover', 'long-hover', 'key-hover' */
@@ -580,6 +581,7 @@ export const DEFAULT_SETTINGS: Settings = {
   readerCropMode: false,
   readerDocumentOcr: false,
   readerSepiaEnabled: false,
+  readerSharpenEnabled: false,
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'shift',
   readerReadingAnnotationHider: false,
