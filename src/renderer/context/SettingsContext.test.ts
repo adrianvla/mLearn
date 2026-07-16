@@ -408,6 +408,43 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('normalizes conflicting persisted reader image appearance settings', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      readerSepiaEnabled: true,
+      readerSharpenEnabled: true,
+      readerSharpenTextEnabled: true,
+    }));
+
+    expect(ctx.settings.readerSepiaEnabled).toBe(true);
+    expect(ctx.settings.readerSharpenEnabled).toBe(false);
+    expect(ctx.settings.readerSharpenTextEnabled).toBe(false);
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      readerSepiaEnabled: true,
+      readerSharpenEnabled: false,
+      readerSharpenTextEnabled: false,
+    }));
+    dispose();
+  });
+
+  it('keeps reader sharpening modes mutually exclusive through settings writes', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ readerSharpenTextEnabled: true }));
+
+    ctx.updateSetting('readerSharpenEnabled', true);
+
+    expect(ctx.settings.readerSepiaEnabled).toBe(false);
+    expect(ctx.settings.readerSharpenEnabled).toBe(true);
+    expect(ctx.settings.readerSharpenTextEnabled).toBe(false);
+
+    ctx.updateSettings({ readerSepiaEnabled: true });
+
+    expect(ctx.settings.readerSepiaEnabled).toBe(true);
+    expect(ctx.settings.readerSharpenEnabled).toBe(false);
+    expect(ctx.settings.readerSharpenTextEnabled).toBe(false);
+    dispose();
+  });
+
   it('updateSetting with backendMode key triggers resetBackend + getBackend', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings());

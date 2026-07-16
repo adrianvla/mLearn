@@ -1668,7 +1668,11 @@
           },
           "Sharpen": {
             "Label": "锐化",
-            "Description": "仅增强灰度图像。棕褐色滤镜启用时会自动开启"
+            "Description": "仅增强灰度图像"
+          },
+          "SharpenText": {
+            "Label": "仅锐化文本",
+            "Description": "在 OCR 文本框后方应用锐化滤镜"
           }
         },
         "ReadingAnnotations": {

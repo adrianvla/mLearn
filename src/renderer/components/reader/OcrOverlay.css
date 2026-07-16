@@ -14,24 +14,26 @@
 .ocr-box {
   position: absolute;
   border: none;
-  background: var(--ocr-overlay-box-bg);
-  color: var(--ocr-overlay-box-text);
+  background-color: transparent;
+  color: transparent;
   border-radius: 0;
   cursor: pointer;
   pointer-events: auto;
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  opacity: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
   overflow: visible;
 }
 
 .ocr-box:hover,
 .ocr-box.hovered {
-  opacity: 1;
+  background-color: var(--ocr-overlay-box-bg);
+  color: var(--ocr-overlay-box-text);
 }
 
 .ocr-box.sidebar-highlighted {
   opacity: 1;
-  background: transparent;
+  background-color: transparent;
+  color: var(--ocr-overlay-box-text);
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
@@ -95,14 +97,15 @@
 .ocr-box.debug-text {
   opacity: 1;
   border: 2px solid rgba(0, 150, 255, 0.6);
-  background: rgba(0, 150, 255, 0.08);
+  background-color: rgba(0, 150, 255, 0.08);
+  color: var(--ocr-overlay-box-text);
 }
 
 /* Debug mode - reading annotation boxes filtered out of OCR text */
 .ocr-box.debug-reading-annotation {
   opacity: 1;
   border: 2px solid rgba(255, 100, 0, 0.6);
-  background: rgba(255, 100, 0, 0.08);
+  background-color: rgba(255, 100, 0, 0.08);
   pointer-events: none;
 }
 

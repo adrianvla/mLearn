@@ -90,6 +90,41 @@ function normalizeSignedOutActiveGroup<T extends Partial<Settings>>(value: T): T
   };
 }
 
+function normalizeReaderImageAppearance<T extends Partial<Settings>>(value: T): T {
+  if (value.readerSepiaEnabled === true) {
+    return {
+      ...value,
+      readerSharpenEnabled: false,
+      readerSharpenTextEnabled: false,
+    };
+  }
+  if (value.readerSharpenEnabled === true && value.readerSharpenTextEnabled === true) {
+    return {
+      ...value,
+      readerSharpenTextEnabled: false,
+    };
+  }
+  return value;
+}
+
+function mergeSettingsWithInvariants(
+  current: Settings,
+  partial: Partial<Settings>,
+): Settings {
+  const next = { ...current, ...partial };
+
+  if (partial.readerSepiaEnabled === true) {
+    next.readerSharpenEnabled = false;
+    next.readerSharpenTextEnabled = false;
+  } else if (partial.readerSharpenEnabled === true) {
+    next.readerSharpenTextEnabled = false;
+  } else if (partial.readerSharpenTextEnabled === true) {
+    next.readerSharpenEnabled = false;
+  }
+
+  return normalizeReaderImageAppearance(normalizeSignedOutActiveGroup(next));
+}
+
 function mergePendingSettings(
   pending: Partial<Settings> | null,
   partial: Partial<Settings>,
@@ -209,6 +244,12 @@ export const SettingsProvider: ParentComponent = (props) => {
         && (mergedSettings.cloudAuthActiveGroupId !== DEFAULT_SETTINGS.cloudAuthActiveGroupId
           || mergedSettings.cloudAuthActiveGroupName !== DEFAULT_SETTINGS.cloudAuthActiveGroupName)) {
         mergedSettings = normalizeSignedOutActiveGroup(mergedSettings);
+        migratedSettings = true;
+      }
+
+      const normalizedReaderAppearance = normalizeReaderImageAppearance(mergedSettings);
+      if (normalizedReaderAppearance !== mergedSettings) {
+        mergedSettings = normalizedReaderAppearance;
         migratedSettings = true;
       }
 
@@ -361,7 +402,9 @@ export const SettingsProvider: ParentComponent = (props) => {
   ) => {
     if (disposed) return;
     const shouldPersist = Boolean(pendingSettingsSnapshot) || migratedSettings;
-    const reconciledSettings = applyManagedSettings(loadedSettings, policy);
+    const managedSettings = applyManagedSettings(loadedSettings, policy);
+    const reconciledSettings = normalizeReaderImageAppearance(managedSettings);
+    const readerAppearanceNormalized = reconciledSettings !== managedSettings;
     managedPolicyScope = policy ? managementPolicyScopeKey(reconciledSettings) : '';
     setManagedPolicy(policy);
     setSettings(reconcile(reconciledSettings));
@@ -378,7 +421,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       authToken: resolveCloudAccessToken(reconciledSettings),
     });
     applySettingsToDOM(reconciledSettings);
-    if (shouldPersist) saveSettingsSnapshot(reconciledSettings, false);
+    if (shouldPersist || readerAppearanceNormalized) saveSettingsSnapshot(reconciledSettings, false);
 
     void refreshManagedPolicy(reconciledSettings, false);
     if (hasSignedInCloudSession(reconciledSettings)) {
@@ -424,7 +467,9 @@ export const SettingsProvider: ParentComponent = (props) => {
     if (managementPolicyScopeKey(currentSettings) !== scope) return;
     managedPolicyScope = scope;
     setManagedPolicy(policy);
-    const nextSettings = normalizeSignedOutActiveGroup(applyManagedSettings(currentSettings, policy));
+    const nextSettings = normalizeReaderImageAppearance(
+      applyManagedSettings(currentSettings, policy),
+    );
     const changedKeys = getChangedKeys(
       currentSettings,
       nextSettings,
@@ -530,25 +575,21 @@ export const SettingsProvider: ParentComponent = (props) => {
     if (!hasLoaded()) {
       const currentSettings = pendingLoadedSettings
         ?? ({ ...serializeSettings(settings as Settings), ...pendingSettingsSnapshot } as Settings);
-      const nextSettings = normalizeSignedOutActiveGroup({
-        ...currentSettings,
-        [key]: value,
-      } as Settings);
-      pendingSettingsSnapshot = mergePendingSettings(
+      const nextSettings = mergeSettingsWithInvariants(currentSettings, { [key]: value });
+      pendingSettingsSnapshot = normalizeReaderImageAppearance(mergePendingSettings(
         pendingSettingsSnapshot,
         { [key]: value } as Partial<Settings>,
         nextSettings.cloudAuthStatus,
-      );
+      ));
       if (pendingLoadedSettings) pendingLoadedSettings = nextSettings;
       return;
     }
     const currentSettings = serializeSettings(settings as Settings);
-    const unguardedSettings = normalizeSignedOutActiveGroup({
-      ...currentSettings,
-      [key]: value,
-    } as Settings);
+    const unguardedSettings = mergeSettingsWithInvariants(currentSettings, { [key]: value });
     resetPolicyForScopeChange(currentSettings, unguardedSettings);
-    const nextSettings = applyManagedSettings(unguardedSettings, applicableManagedPolicy(unguardedSettings));
+    const nextSettings = normalizeReaderImageAppearance(
+      applyManagedSettings(unguardedSettings, applicableManagedPolicy(unguardedSettings)),
+    );
     const changedKeys = getChangedKeys(currentSettings, nextSettings, [key]);
 
     setSettings(reconcile(nextSettings));
@@ -566,25 +607,21 @@ export const SettingsProvider: ParentComponent = (props) => {
     if (!hasLoaded()) {
       const currentSettings = pendingLoadedSettings
         ?? ({ ...serializeSettings(settings as Settings), ...pendingSettingsSnapshot } as Settings);
-      const nextSettings = normalizeSignedOutActiveGroup({
-        ...currentSettings,
-        ...partial,
-      } as Settings);
-      pendingSettingsSnapshot = mergePendingSettings(
+      const nextSettings = mergeSettingsWithInvariants(currentSettings, partial);
+      pendingSettingsSnapshot = normalizeReaderImageAppearance(mergePendingSettings(
         pendingSettingsSnapshot,
         partial,
         nextSettings.cloudAuthStatus,
-      );
+      ));
       if (pendingLoadedSettings) pendingLoadedSettings = nextSettings;
       return;
     }
     const currentSettings = serializeSettings(settings as Settings);
-    const unguardedSettings = normalizeSignedOutActiveGroup({
-      ...currentSettings,
-      ...partial,
-    } as Settings);
+    const unguardedSettings = mergeSettingsWithInvariants(currentSettings, partial);
     resetPolicyForScopeChange(currentSettings, unguardedSettings);
-    const nextSettings = applyManagedSettings(unguardedSettings, applicableManagedPolicy(unguardedSettings));
+    const nextSettings = normalizeReaderImageAppearance(
+      applyManagedSettings(unguardedSettings, applicableManagedPolicy(unguardedSettings)),
+    );
     const changedKeys = getChangedKeys(currentSettings, nextSettings, Object.keys(partial) as (keyof Settings)[]);
 
     setSettings(reconcile(nextSettings));
@@ -599,10 +636,10 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   // Save settings to main process
   const saveSettings = () => {
-    const snapshot = applyManagedSettings(
+    const snapshot = normalizeReaderImageAppearance(applyManagedSettings(
       serializeSettings(settings as Settings),
       applicableManagedPolicy(settings as Settings),
-    );
+    ));
 
     // CRITICAL: Don't save until we've loaded settings from disk
     // This prevents overwriting user settings with defaults during app startup
@@ -627,18 +664,22 @@ export const SettingsProvider: ParentComponent = (props) => {
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
       if (!hasLoaded()) {
-        const incomingSettings = normalizeSignedOutActiveGroup(event.data.settings as Settings);
+        const incomingSettings = normalizeReaderImageAppearance(
+          normalizeSignedOutActiveGroup(event.data.settings as Settings),
+        );
         pendingSettingsSnapshot = { ...incomingSettings };
         if (pendingLoadedSettings) pendingLoadedSettings = incomingSettings;
         return;
       }
       const currentSettings = serializeSettings(settings as Settings);
-      const unguardedSettings = normalizeSignedOutActiveGroup(event.data.settings as Settings);
+      const unguardedSettings = normalizeReaderImageAppearance(
+        normalizeSignedOutActiveGroup(event.data.settings as Settings),
+      );
       resetPolicyForScopeChange(currentSettings, unguardedSettings);
-      const nextSettings = applyManagedSettings(
+      const nextSettings = normalizeReaderImageAppearance(applyManagedSettings(
         unguardedSettings,
         applicableManagedPolicy(unguardedSettings),
-      );
+      ));
       const changedKeys = getChangedKeys(currentSettings, nextSettings, LANGUAGE_RUNTIME_KEYS);
       if (needsLanguageRuntimeRestart(changedKeys)) {
         setIsRuntimeRestartRequired(true);

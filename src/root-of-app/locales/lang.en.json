@@ -1668,7 +1668,11 @@
           },
           "Sharpen": {
             "Label": "Sharpen",
-            "Description": "Enhances grayscale images only. Automatically enabled while Sepia is active"
+            "Description": "Enhances grayscale images only"
+          },
+          "SharpenText": {
+            "Label": "Sharpen text only",
+            "Description": "Apply the sharpening filter behind OCR text boxes"
           }
         },
         "ReadingAnnotations": {

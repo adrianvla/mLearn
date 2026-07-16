@@ -1653,7 +1653,11 @@
           },
           "Sharpen": {
             "Label": "Schärfen",
-            "Description": "Verbessert nur Graustufenbilder. Wird automatisch aktiviert, solange Sepia aktiv ist"
+            "Description": "Verbessert nur Graustufenbilder"
+          },
+          "SharpenText": {
+            "Label": "Nur Text schärfen",
+            "Description": "Den Schärfefilter hinter OCR-Textfeldern anwenden"
           }
         },
         "ReadingAnnotations": {

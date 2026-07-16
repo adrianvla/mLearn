@@ -14,13 +14,17 @@
 .reader-route--sharpen .page-image,
 .reader-route--sharpen .reader-sidebar .page-thumb img,
 .reader-route--sharpen .reader-sidebar .page-thumb canvas {
-  filter: grayscale(1);
+  filter: sepia(1) grayscale(1);
 }
 
 .reader-route--sepia .page-image,
 .reader-route--sepia .reader-sidebar .page-thumb img,
 .reader-route--sepia .reader-sidebar .page-thumb canvas {
   filter: sepia(1);
+}
+
+.reader-route--sharpen-text .ocr-box {
+  backdrop-filter: sepia(1) grayscale(1);
 }
 
 /* On mobile, fill the mobile content area */
