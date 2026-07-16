@@ -22,6 +22,7 @@ const testSettings = {
   readerWordHoverKey: 'Meta',
   readerReadingAnnotationHider: false,
   readerSepiaEnabled: false,
+  readerSharpenEnabled: false,
   readerMagnifierHotkey: 'm',
   readerMagnifierZoom: 2,
   readerMagnifierSize: 200,
@@ -48,6 +49,8 @@ const translations: Record<string, string> = {
   'mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description': 'Detect and filter reading annotations from OCR results',
   'mlearn.Settings.Reader.ImageAppearance.Sepia.Label': 'Sepia',
   'mlearn.Settings.Reader.ImageAppearance.Sepia.Description': 'Apply a sepia filter to page images and thumbnails',
+  'mlearn.Settings.Reader.ImageAppearance.Sharpen.Label': 'Sharpen',
+  'mlearn.Settings.Reader.ImageAppearance.Sharpen.Description': 'Enhances grayscale images only. Automatically enabled while Sepia is active',
 };
 
 vi.mock('../../../context', () => ({
@@ -96,10 +99,11 @@ vi.mock('../../../components/common', () => ({
       {props.children}
     </section>
   ),
-  ToggleSwitch: (props: { checked?: boolean; onChange?: (checked: boolean) => void }) => (
+  ToggleSwitch: (props: { checked?: boolean; disabled?: boolean; onChange?: (checked: boolean) => void }) => (
     <button
       type="button"
       data-checked={props.checked ? 'true' : 'false'}
+      disabled={props.disabled}
       onClick={() => props.onChange?.(!props.checked)}
     />
   ),
@@ -128,6 +132,8 @@ describe('reading annotation settings', () => {
     supportsReadings = true;
     supportsProsody = false;
     prosodyMetadata = { type: 'none' };
+    testSettings.readerSepiaEnabled = false;
+    testSettings.readerSharpenEnabled = false;
   });
 
   afterEach(() => {
@@ -162,6 +168,36 @@ describe('reading annotation settings', () => {
     sepiaToggle.click();
 
     expect(updateSettingsMock).toHaveBeenCalledWith({ readerSepiaEnabled: true });
+
+    dispose();
+  });
+
+  it('shows Sharpen as enabled but unavailable while Sepia is active', async () => {
+    testSettings.readerSepiaEnabled = true;
+
+    const { ReaderTab } = await import('./ReaderTab');
+    const dispose = render(() => <ReaderTab />, container);
+    const sharpenToggle = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.parentElement?.textContent?.includes('Sharpen')) as HTMLButtonElement;
+
+    expect(container.textContent).toContain('Enhances grayscale images only');
+    expect(sharpenToggle).toBeTruthy();
+    expect(sharpenToggle.dataset.checked).toBe('true');
+    expect(sharpenToggle.disabled).toBe(true);
+
+    dispose();
+  });
+
+  it('persists the reader Sharpen preference when Sepia is inactive', async () => {
+    const { ReaderTab } = await import('./ReaderTab');
+    const dispose = render(() => <ReaderTab />, container);
+    const sharpenToggle = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.parentElement?.textContent?.includes('Sharpen')) as HTMLButtonElement;
+
+    expect(sharpenToggle).toBeTruthy();
+    sharpenToggle.click();
+
+    expect(updateSettingsMock).toHaveBeenCalledWith({ readerSharpenEnabled: true });
 
     dispose();
   });

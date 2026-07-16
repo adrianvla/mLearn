@@ -1650,6 +1650,10 @@
           "Sepia": {
             "Label": "Sepia",
             "Description": "Sepiafilter auf Seitenbilder und Miniaturansichten anwenden"
+          },
+          "Sharpen": {
+            "Label": "Schärfen",
+            "Description": "Verbessert nur Graustufenbilder. Wird automatisch aktiviert, solange Sepia aktiv ist"
           }
         },
         "ReadingAnnotations": {

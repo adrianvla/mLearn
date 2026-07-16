@@ -2662,6 +2662,7 @@ export const ReaderRoute: Component = () => {
           class="reader-route"
           classList={{
             'reader-route--sepia': settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!,
+            'reader-route--sharpen': settings.readerSharpenEnabled ?? DEFAULT_SETTINGS.readerSharpenEnabled!,
           }}
           aria-label={t('mlearn.Reader.Title')}
           tabIndex={-1}

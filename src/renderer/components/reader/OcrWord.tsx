@@ -15,6 +15,8 @@ export interface OcrWordProps {
   token: Token;
   onWordEnter?: (token: Token, e: MouseEvent) => void;
   onWordLeave?: () => void;
+  /** Disable passive tracking for temporary, untokenized OCR fallback text. */
+  trackPassiveHover?: boolean;
 }
 
 /** Delay in ms for long-hover mode before triggering */
@@ -64,8 +66,9 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const handleMouseEnter = (e: MouseEvent) => {
     setIsMouseOver(true);
     
-    // Track word hover for passive knowledge
-    flashcardCtx.trackWordHovered(lookupWord(), props.token.reading, settings.language);
+    if (props.trackPassiveHover !== false) {
+      flashcardCtx.trackWordHovered(lookupWord(), props.token.reading, settings.language);
+    }
 
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     
@@ -106,8 +109,9 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     setIsMouseOver(false);
     clearLongHoverTimeout();
     
-    // Cancel hover timer for passive knowledge
-    flashcardCtx.cancelWordHover(lookupWord(), settings.language);
+    if (props.trackPassiveHover !== false) {
+      flashcardCtx.cancelWordHover(lookupWord(), settings.language);
+    }
 
     props.onWordLeave?.();
   };

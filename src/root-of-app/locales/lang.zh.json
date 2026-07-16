@@ -1665,6 +1665,10 @@
           "Sepia": {
             "Label": "棕褐色",
             "Description": "为页面图像和缩略图应用棕褐色滤镜"
+          },
+          "Sharpen": {
+            "Label": "锐化",
+            "Description": "仅增强灰度图像。棕褐色滤镜启用时会自动开启"
           }
         },
         "ReadingAnnotations": {
