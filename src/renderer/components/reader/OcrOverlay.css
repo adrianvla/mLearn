@@ -63,6 +63,12 @@
   overflow: visible;
 }
 
+/* Keep punctuation clusters such as "?!" and "..." in one vertical cell. */
+.ocr-text.vertical .ocr-vertical-punctuation-cluster {
+  display: inline-block;
+  text-combine-upright: all;
+}
+
 /* Vertical box container - ensure proper sizing */
 .ocr-box.vertical-box {
   overflow: visible;
