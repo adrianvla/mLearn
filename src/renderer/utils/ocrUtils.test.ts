@@ -6,6 +6,7 @@ import {
   processOcrBoxes,
   processOcrBoxesForLanguage,
   getBoundingRect,
+  isPageSpanningOcrBox,
 } from '@renderer/utils/ocrUtils';
 import type { BoxMetrics } from '@renderer/utils/ocrUtils';
 import type { OcrBox } from '@renderer/components/reader/OcrOverlay';
@@ -183,6 +184,31 @@ describe('getBoundingRect', () => {
     expect(r.y).toBe(0);
     expect(r.width).toBe(100);
     expect(r.height).toBe(100);
+  });
+});
+
+// ============================================================================
+// isPageSpanningOcrBox
+// ============================================================================
+
+describe('isPageSpanningOcrBox', () => {
+  const pageSize = { width: 1000, height: 1500 };
+
+  it('filters a box spanning essentially the entire page width', () => {
+    expect(isPageSpanningOcrBox(makeBox(20, 500, 960, 80, 'graphic'), pageSize)).toBe(true);
+  });
+
+  it('filters a box spanning essentially the entire page height', () => {
+    expect(isPageSpanningOcrBox(makeBox(400, 20, 80, 1440, 'graphic'), pageSize)).toBe(true);
+  });
+
+  it('keeps regular text regions', () => {
+    expect(isPageSpanningOcrBox(makeBox(100, 200, 700, 800, 'text'), pageSize)).toBe(false);
+  });
+
+  it('keeps boxes when the OCR image dimensions are unavailable', () => {
+    expect(isPageSpanningOcrBox(makeBox(0, 0, 1000, 50, 'text'), undefined)).toBe(false);
+    expect(isPageSpanningOcrBox(makeBox(0, 0, 1000, 50, 'text'), { width: 0, height: 1500 })).toBe(false);
   });
 });
 

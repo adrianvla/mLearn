@@ -54,6 +54,9 @@
 }
 
 .reader-main.fit-width {
+  /* Fit-width pages can be taller than the viewport. Start them at the scroll
+     origin instead of vertically centring the overflow above it. */
+  align-items: flex-start;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -206,6 +209,14 @@
 .fit-height .page-image {
   max-height: calc(100vh - 48px - 30px - 2rem);
   width: auto;
+}
+
+/* A single flex item otherwise shrink-wraps to the image's intrinsic width,
+   leaving fit-width with no viewport-sized percentage reference. */
+.reader-main.fit-width .page-container.single,
+.reader-main.fit-width .page-container.single .page {
+  width: 100%;
+  min-width: 0;
 }
 
 .fit-width .page-image {
