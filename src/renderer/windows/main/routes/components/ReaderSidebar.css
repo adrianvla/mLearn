@@ -52,13 +52,12 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.2s, transform 0.2s;
+  transition: border-color 0.2s;
   position: relative;
 }
 
 .reader-sidebar .page-thumb:hover {
   border-color: var(--border-color-intense);
-  transform: scale(1.02);
 }
 
 .reader-sidebar .page-thumb.active {
