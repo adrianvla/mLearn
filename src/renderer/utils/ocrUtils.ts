@@ -605,3 +605,20 @@ export function getBoundingRect(box: number[][]): { x: number; y: number; width:
     height: maxY - minY,
   };
 }
+
+/**
+ * Whether an OCR region spans essentially an entire source image dimension.
+ * These regions are typically detections of page graphics rather than text
+ * that should create an interactive hover target.
+ */
+export function isPageSpanningOcrBox(
+  box: OcrBox,
+  imageSize: { width: number; height: number } | null | undefined,
+): boolean {
+  if (!imageSize || imageSize.width <= 0 || imageSize.height <= 0) return false;
+
+  const rect = getBoundingRect(box.box);
+  const spansWidth = Number.isFinite(rect.width) && rect.width / imageSize.width >= 0.95;
+  const spansHeight = Number.isFinite(rect.height) && rect.height / imageSize.height >= 0.95;
+  return spansWidth || spansHeight;
+}

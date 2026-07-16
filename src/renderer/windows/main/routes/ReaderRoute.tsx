@@ -52,6 +52,7 @@ import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen 
 import { syncReaderPluginActivity } from './readerPluginActivity';
 import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
 import { getSpreadPageSideClass, getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
+import { scrollReaderToPageStart } from './readerNavigation';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
@@ -681,6 +682,7 @@ export const ReaderRoute: Component = () => {
 
   // References for OCR overlay positioning
   let pageContainerRef: HTMLDivElement | undefined;
+  let readerMainRef: HTMLElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
   const [ocrPageWords, setOcrPageWords] = createStore<Record<string, ReaderPageWordSource[]>>({});
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
@@ -2444,7 +2446,9 @@ export const ReaderRoute: Component = () => {
       newPage = Math.min(newPage, total - 1);
     }
 
+    const pageChanged = newPage !== currentPage();
     setCurrentPage(newPage);
+    if (pageChanged) scrollReaderToPageStart(readerMainRef);
 
     // Persist per-book page position
     const bookId = currentBookId();
@@ -2732,6 +2736,7 @@ export const ReaderRoute: Component = () => {
         <main
           class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}`}
           style={visiblePagesAreText() ? readerTextStyle() : undefined}
+          ref={readerMainRef}
         >
           <Show
               when={pages().length > 0}

@@ -14,7 +14,12 @@ import {
 import { useTokenizer, warmTranslationCache } from '../../hooks';
 import { getTokenizerCacheNamespace } from '../../../shared/languageFeatures';
 import { useLanguage, useSettings } from '../../context';
-import { processOcrBoxesForLanguage, type FilterDebugZone } from '../../utils/ocrUtils';
+import {
+  getBoundingRect,
+  isPageSpanningOcrBox,
+  processOcrBoxesForLanguage,
+  type FilterDebugZone,
+} from '../../utils/ocrUtils';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { OcrWord } from './OcrWord';
@@ -66,27 +71,6 @@ export interface OcrOverlayProps {
   onTokenDataChange?: (entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => void;
   /** Set of original box indices to highlight (e.g. from sidebar hover) */
   highlightedOriginalIndices?: Set<number>;
-}
-
-/**
- * Calculate bounding box from 4 corner points
- */
-function getBoundingRect(box: number[][]): { x: number; y: number; width: number; height: number } {
-  if (!box || box.length < 4) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-  const xs = box.map(p => p[0]);
-  const ys = box.map(p => p[1]);
-  const minX = Math.min(...xs);
-  const minY = Math.min(...ys);
-  const maxX = Math.max(...xs);
-  const maxY = Math.max(...ys);
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  };
 }
 
 // Measure a reasonable font size to fit text in the OCR box
@@ -204,6 +188,16 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     return sentWidth > 0 ? displayedWidth / sentWidth : 1;
   });
 
+  const ocrImageSize = createMemo(() => {
+    const result = props.result;
+    if (!result) return undefined;
+
+    const clientScale = result.client_scale || 1;
+    const width = result.sent_size?.width || (result.original_size?.width || 0) * clientScale;
+    const height = result.sent_size?.height || (result.original_size?.height || 0) * clientScale;
+    return width > 0 && height > 0 ? { width, height } : undefined;
+  });
+
   // Single-pass zone processing: filter reading annotations + build context phrases together
   const processedZones = createMemo(() => {
     const result = props.result;
@@ -230,8 +224,12 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     return { filtered, contextMapByOriginal: ctxMap };
   });
 
-  // The filteredBoxes list drives rendering
-  const filteredBoxes = createMemo(() => processedZones().filtered);
+  // The filteredBoxes list drives rendering. Suppress graphic detections that
+  // cover essentially an entire source-image axis so they never become hover targets.
+  const filteredBoxes = createMemo(() => {
+    const imageSize = ocrImageSize();
+    return processedZones().filtered.filter((box) => !isPageSpanningOcrBox(box, imageSize));
+  });
 
   // Remap context from original indices to filtered-array indices for consumers
   const contextMap = createMemo(() => {
@@ -253,7 +251,9 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     const result = props.result;
     if (!result || !Array.isArray(result.boxes)) return [];
     
-    const filtered = filteredBoxes();
+    // Only boxes removed by reading-annotation processing belong in the hider.
+    // Page-spanning graphic detections are intentionally omitted from both layers.
+    const filtered = processedZones().filtered;
     const filteredIdxSet = new Set(filtered.map(b => b.__originalIdx));
     
     // Return boxes that were filtered out as reading annotations.
