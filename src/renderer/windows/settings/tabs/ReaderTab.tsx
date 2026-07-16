@@ -18,7 +18,11 @@ export const ReaderTab: Component = () => {
   const { t } = useLocalization();
   const { getLanguageFeatures } = useLanguage();
   const sepiaEnabled = () => settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!;
-  const sharpenEnabled = () => settings.readerSharpenEnabled ?? DEFAULT_SETTINGS.readerSharpenEnabled!;
+  const sharpenEnabled = () => !sepiaEnabled()
+    && (settings.readerSharpenEnabled ?? DEFAULT_SETTINGS.readerSharpenEnabled!);
+  const sharpenTextEnabled = () => !sepiaEnabled()
+    && !sharpenEnabled()
+    && (settings.readerSharpenTextEnabled ?? DEFAULT_SETTINGS.readerSharpenTextEnabled!);
 
   return (
     <TabContent
@@ -188,7 +192,13 @@ export const ReaderTab: Component = () => {
           <ToggleSwitch
             size="sm"
             checked={sepiaEnabled()}
-            onChange={(checked) => updateSettings({ readerSepiaEnabled: checked })}
+            onChange={(checked) => updateSettings(checked
+              ? {
+                readerSepiaEnabled: true,
+                readerSharpenEnabled: false,
+                readerSharpenTextEnabled: false,
+              }
+              : { readerSepiaEnabled: false })}
           />
         </SettingRow>
         <SettingRow
@@ -198,9 +208,33 @@ export const ReaderTab: Component = () => {
         >
           <ToggleSwitch
             size="sm"
-            checked={sepiaEnabled() || sharpenEnabled()}
-            disabled={sepiaEnabled()}
-            onChange={(checked) => updateSettings({ readerSharpenEnabled: checked })}
+            checked={sharpenEnabled()}
+            disabled={sepiaEnabled() || sharpenTextEnabled()}
+            onChange={(checked) => updateSettings(checked
+              ? {
+                readerSepiaEnabled: false,
+                readerSharpenEnabled: true,
+                readerSharpenTextEnabled: false,
+              }
+              : { readerSharpenEnabled: false })}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('mlearn.Settings.Reader.ImageAppearance.SharpenText.Label')}
+          description={t('mlearn.Settings.Reader.ImageAppearance.SharpenText.Description')}
+          settingKey="readerSharpenTextEnabled"
+        >
+          <ToggleSwitch
+            size="sm"
+            checked={sharpenTextEnabled()}
+            disabled={sepiaEnabled() || sharpenEnabled()}
+            onChange={(checked) => updateSettings(checked
+              ? {
+                readerSepiaEnabled: false,
+                readerSharpenEnabled: false,
+                readerSharpenTextEnabled: true,
+              }
+              : { readerSharpenTextEnabled: false })}
           />
         </SettingRow>
       </SettingGroup>

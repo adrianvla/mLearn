@@ -1653,7 +1653,11 @@
           },
           "Sharpen": {
             "Label": "Netteté",
-            "Description": "Améliore uniquement les images en niveaux de gris. S'active automatiquement lorsque le sépia est actif"
+            "Description": "Améliore uniquement les images en niveaux de gris"
+          },
+          "SharpenText": {
+            "Label": "Netteté du texte uniquement",
+            "Description": "Appliquer le filtre de netteté derrière les zones de texte OCR"
           }
         },
         "ReadingAnnotations": {

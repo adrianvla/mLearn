@@ -23,6 +23,7 @@ const testSettings = {
   readerReadingAnnotationHider: false,
   readerSepiaEnabled: false,
   readerSharpenEnabled: false,
+  readerSharpenTextEnabled: false,
   readerMagnifierHotkey: 'm',
   readerMagnifierZoom: 2,
   readerMagnifierSize: 200,
@@ -50,7 +51,9 @@ const translations: Record<string, string> = {
   'mlearn.Settings.Reader.ImageAppearance.Sepia.Label': 'Sepia',
   'mlearn.Settings.Reader.ImageAppearance.Sepia.Description': 'Apply a sepia filter to page images and thumbnails',
   'mlearn.Settings.Reader.ImageAppearance.Sharpen.Label': 'Sharpen',
-  'mlearn.Settings.Reader.ImageAppearance.Sharpen.Description': 'Enhances grayscale images only. Automatically enabled while Sepia is active',
+  'mlearn.Settings.Reader.ImageAppearance.Sharpen.Description': 'Enhances grayscale images only',
+  'mlearn.Settings.Reader.ImageAppearance.SharpenText.Label': 'Sharpen text only',
+  'mlearn.Settings.Reader.ImageAppearance.SharpenText.Description': 'Apply the sharpening filter behind OCR text boxes',
 };
 
 vi.mock('../../../context', () => ({
@@ -134,6 +137,7 @@ describe('reading annotation settings', () => {
     prosodyMetadata = { type: 'none' };
     testSettings.readerSepiaEnabled = false;
     testSettings.readerSharpenEnabled = false;
+    testSettings.readerSharpenTextEnabled = false;
   });
 
   afterEach(() => {
@@ -167,28 +171,37 @@ describe('reading annotation settings', () => {
     expect(sepiaToggle).toBeTruthy();
     sepiaToggle.click();
 
-    expect(updateSettingsMock).toHaveBeenCalledWith({ readerSepiaEnabled: true });
+    expect(updateSettingsMock).toHaveBeenCalledWith({
+      readerSepiaEnabled: true,
+      readerSharpenEnabled: false,
+      readerSharpenTextEnabled: false,
+    });
 
     dispose();
   });
 
-  it('shows Sharpen as enabled but unavailable while Sepia is active', async () => {
+  it('disables both sharpening modes while Sepia is active', async () => {
     testSettings.readerSepiaEnabled = true;
 
     const { ReaderTab } = await import('./ReaderTab');
     const dispose = render(() => <ReaderTab />, container);
-    const sharpenToggle = Array.from(container.querySelectorAll('button'))
+    const sharpenToggles = Array.from(container.querySelectorAll('button'))
       .find((button) => button.parentElement?.textContent?.includes('Sharpen')) as HTMLButtonElement;
+    const sharpenTextToggle = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.parentElement?.textContent?.includes('Sharpen text only')) as HTMLButtonElement;
 
     expect(container.textContent).toContain('Enhances grayscale images only');
-    expect(sharpenToggle).toBeTruthy();
-    expect(sharpenToggle.dataset.checked).toBe('true');
-    expect(sharpenToggle.disabled).toBe(true);
+    expect(sharpenToggles).toBeTruthy();
+    expect(sharpenToggles.dataset.checked).toBe('false');
+    expect(sharpenToggles.disabled).toBe(true);
+    expect(sharpenTextToggle).toBeTruthy();
+    expect(sharpenTextToggle.dataset.checked).toBe('false');
+    expect(sharpenTextToggle.disabled).toBe(true);
 
     dispose();
   });
 
-  it('persists the reader Sharpen preference when Sepia is inactive', async () => {
+  it('enables image Sharpen and clears text-only Sharpen', async () => {
     const { ReaderTab } = await import('./ReaderTab');
     const dispose = render(() => <ReaderTab />, container);
     const sharpenToggle = Array.from(container.querySelectorAll('button'))
@@ -197,7 +210,30 @@ describe('reading annotation settings', () => {
     expect(sharpenToggle).toBeTruthy();
     sharpenToggle.click();
 
-    expect(updateSettingsMock).toHaveBeenCalledWith({ readerSharpenEnabled: true });
+    expect(updateSettingsMock).toHaveBeenCalledWith({
+      readerSepiaEnabled: false,
+      readerSharpenEnabled: true,
+      readerSharpenTextEnabled: false,
+    });
+
+    dispose();
+  });
+
+  it('enables text-only Sharpen and clears image Sharpen', async () => {
+    const { ReaderTab } = await import('./ReaderTab');
+    const dispose = render(() => <ReaderTab />, container);
+    const sharpenTextToggle = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.parentElement?.textContent?.includes('Sharpen text only')) as HTMLButtonElement;
+
+    expect(container.textContent).toContain('Apply the sharpening filter behind OCR text boxes');
+    expect(sharpenTextToggle).toBeTruthy();
+    sharpenTextToggle.click();
+
+    expect(updateSettingsMock).toHaveBeenCalledWith({
+      readerSepiaEnabled: false,
+      readerSharpenEnabled: false,
+      readerSharpenTextEnabled: true,
+    });
 
     dispose();
   });

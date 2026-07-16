@@ -1653,7 +1653,11 @@
           },
           "Sharpen": {
             "Label": "シャープ化",
-            "Description": "グレースケール画像のみを強調します。セピアが有効な間は自動的に有効になります"
+            "Description": "グレースケール画像のみを強調します"
+          },
+          "SharpenText": {
+            "Label": "テキストのみシャープ化",
+            "Description": "OCRテキストボックスの背後にシャープ化フィルターを適用"
           }
         },
         "ReadingAnnotations": {

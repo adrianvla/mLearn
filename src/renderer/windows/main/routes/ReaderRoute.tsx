@@ -2656,13 +2656,20 @@ export const ReaderRoute: Component = () => {
   const hasOcrResult = () => false; // Deprecated single result check
   const hasPages = () => pages().length > 0;
   const hasOcrForPage = (pageId: string) => !!ocrResults[pageId];
+  const sepiaEnabled = () => settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!;
+  const imageSharpenEnabled = () => !sepiaEnabled()
+    && (settings.readerSharpenEnabled ?? DEFAULT_SETTINGS.readerSharpenEnabled!);
+  const textSharpenEnabled = () => !sepiaEnabled()
+    && !imageSharpenEnabled()
+    && (settings.readerSharpenTextEnabled ?? DEFAULT_SETTINGS.readerSharpenTextEnabled!);
 
   return (
       <section
           class="reader-route"
           classList={{
-            'reader-route--sepia': settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!,
-            'reader-route--sharpen': settings.readerSharpenEnabled ?? DEFAULT_SETTINGS.readerSharpenEnabled!,
+            'reader-route--sepia': sepiaEnabled(),
+            'reader-route--sharpen': imageSharpenEnabled(),
+            'reader-route--sharpen-text': textSharpenEnabled(),
           }}
           aria-label={t('mlearn.Reader.Title')}
           tabIndex={-1}
