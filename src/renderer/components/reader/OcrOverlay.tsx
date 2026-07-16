@@ -25,6 +25,7 @@ import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTa
 import { OcrWord } from './OcrWord';
 import { ReadingAnnotationHider } from './ReadingAnnotationHider';
 import { getTokenJoinSeparator } from '../../../shared/languageFeatures';
+import { groupVerticalPunctuationRuns, splitVerticalPunctuationRuns } from './verticalText';
 import './OcrOverlay.css';
 
 export interface OcrBox {
@@ -502,6 +503,21 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
               // Only use vertical styling if language supports it
               const useVerticalLayout = () => isVertical && langFeatures().supportsVerticalText;
               const tokens = () => tokenMap().get(index()) || [];
+              const tokenGroups = () => {
+                const currentTokens = tokens();
+                if (!useVerticalLayout()) {
+                  return currentTokens.map((token) => ({ items: [token], combineUpright: false }));
+                }
+                return groupVerticalPunctuationRuns(
+                  currentTokens,
+                  (token) => token.surface ?? token.word ?? '',
+                );
+              };
+              const fallbackTextSegments = () => (
+                useVerticalLayout()
+                  ? splitVerticalPunctuationRuns(box.text || '')
+                  : [{ text: box.text || '', combineUpright: false }]
+              );
               const fontSize = () => estimateFontSize(box.text || '', rect.width * getScale(), rect.height * getScale(), useVerticalLayout());
               
               return (
@@ -534,16 +550,40 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                       'font-size': `${fontSize()}px`,
                     }}
                   >
-                    <Show when={tokens().length > 0} fallback={box.text}>
-                      <For each={tokens()}>
-                        {(token, tokenIndex) => (
+                    <Show
+                      when={tokens().length > 0}
+                      fallback={(
+                        <For each={fallbackTextSegments()}>
+                          {(segment) => (
+                            <span classList={{ 'ocr-vertical-punctuation-cluster': segment.combineUpright }}>
+                              {segment.text}
+                            </span>
+                          )}
+                        </For>
+                      )}
+                    >
+                      <For each={tokenGroups()}>
+                        {(group, groupIndex) => (
                           <>
-                            <Show when={tokenIndex() > 0}>{tokenSeparator()}</Show>
-                            <OcrWord
-                              token={token}
-                              onWordEnter={(t, e) => handleWordEnter(t, index(), e)}
-                              onWordLeave={props.onWordLeave}
-                            />
+                            <Show when={groupIndex() > 0}>{tokenSeparator()}</Show>
+                            <Show
+                              when={group.combineUpright}
+                              fallback={(
+                                <For each={group.items}>
+                                  {(token) => (
+                                    <OcrWord
+                                      token={token}
+                                      onWordEnter={(t, e) => handleWordEnter(t, index(), e)}
+                                      onWordLeave={props.onWordLeave}
+                                    />
+                                  )}
+                                </For>
+                              )}
+                            >
+                              <span class="ocr-vertical-punctuation-cluster">
+                                {group.items.map((token) => token.surface ?? token.word ?? '').join('')}
+                              </span>
+                            </Show>
                           </>
                         )}
                       </For>
