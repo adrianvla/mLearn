@@ -157,4 +157,36 @@ describe('ReaderSidebar', () => {
 
     dispose();
   });
+
+  it('keeps a clicked thumbnail stable while its navigation becomes active', async () => {
+    const { ReaderSidebar } = await import('./ReaderSidebar');
+    const [pages] = createSignal([
+      { id: 'page-0', src: 'cover.jpg', name: 'Cover', index: 0 },
+      { id: 'page-1', src: 'page-1.jpg', name: 'Page 1', index: 1 },
+      { id: 'page-2', src: 'page-2.jpg', name: 'Page 2', index: 2 },
+    ]);
+    const [activePageIndices, setActivePageIndices] = createSignal([0]);
+    const onGoToPage = vi.fn((index: number) => setActivePageIndices([index]));
+
+    const dispose = render(() => (
+      <ReaderSidebar
+        pages={pages}
+        activePageIndices={activePageIndices}
+        hasOcrForPage={() => false}
+        onGoToPage={onGoToPage}
+      />
+    ), container);
+
+    (HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>).mockClear();
+    const secondThumbnail = Array.from(container.querySelectorAll<HTMLElement>('.page-thumb'))
+      .find((thumbnail) => thumbnail.querySelector('.page-number')?.textContent === '2');
+    expect(secondThumbnail).toBeDefined();
+
+    secondThumbnail!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(onGoToPage).toHaveBeenCalledWith(1);
+    expect(HTMLElement.prototype.scrollTo).not.toHaveBeenCalled();
+
+    dispose();
+  });
 });

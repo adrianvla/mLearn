@@ -3,7 +3,7 @@
  * Page thumbnails sidebar
  */
 
-import { Component, For, Accessor, Show, createEffect, createSignal, onCleanup, createMemo } from 'solid-js';
+import { Component, For, Accessor, Show, batch, createEffect, createSignal, onCleanup, createMemo } from 'solid-js';
 import { Tag, Indicator, Spinner } from '../../../../components/common';
 import { createVirtualizer } from '../../../../hooks';
 import './ReaderSidebar.css';
@@ -32,6 +32,7 @@ interface ReaderSidebarProps {
 
 export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
   const thumbUrlCache = new Map<string, string>();
+  let skipNextActivePageSync = false;
   const [loadedPages, setLoadedPages] = createSignal<Set<number>>(new Set());
   const [pageListRef, setPageListRef] = createSignal<HTMLDivElement>();
   const [thumbnailRowSize, setThumbnailRowSize] = createSignal(THUMB_MAX_WIDTH / THUMB_ASPECT_RATIO);
@@ -134,6 +135,15 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
     return activePageIndexSet().has(pageIndex);
   };
 
+  const navigateToPage = (pageIndex: number) => {
+    batch(() => {
+      // The navigation callback synchronously updates activePageIndices. Do not
+      // immediately re-centre the virtual list and move the clicked row away.
+      skipNextActivePageSync = !isPageActive(pageIndex);
+      props.onGoToPage(pageIndex);
+    });
+  };
+
   const textPreview = (page: PageImage): string => {
     const preview = page.previewText || page.text || page.title || page.name;
     return preview.replace(/\s+/gu, ' ').trim();
@@ -148,6 +158,12 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
     const firstActivePageIndex = activePageIndices[0];
     if (!element || allPages.length === 0 || firstActivePageIndex === undefined) {
       setVirtualScrollReady(false);
+      return;
+    }
+
+    if (skipNextActivePageSync) {
+      skipNextActivePageSync = false;
+      setVirtualScrollReady(true);
       return;
     }
 
@@ -172,7 +188,7 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
                     >
                       <div
                         class={`page-thumb ${isPageActive(page.index) ? 'active' : ''}`}
-                        onClick={() => props.onGoToPage(page.index)}
+                        onClick={() => navigateToPage(page.index)}
                       >
                         <Show when={(page.kind ?? 'image') === 'image' && !loadedPages().has(page.index)}>
                           <div class="page-thumb-spinner">
