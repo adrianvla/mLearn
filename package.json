@@ -1,6 +1,6 @@
 {
   "name": "mlearn",
-  "version": "2.6.5",
+  "version": "2.6.6",
   "description": "A Language-learning app that knows what you know for faster learning by immersion",
   "main": "dist-electron/electron/main.js",
   "scripts": {
