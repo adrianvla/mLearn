@@ -49,6 +49,12 @@ describe('getJapanesePitchAccentInfo', () => {
     expect(getJapanesePitchAccentInfo(0, null)).toBeNull();
   });
 
+  it('returns null for invalid accent positions instead of rendering an impossible contour', () => {
+    expect(getJapanesePitchAccentInfo(-1, 'あめ')).toBeNull();
+    expect(getJapanesePitchAccentInfo(Number.NaN, 'あめ')).toBeNull();
+    expect(getJapanesePitchAccentInfo(3, 'あめ')).toBeNull();
+  });
+
   it('heiban (0): あめ → low-high, particleAccent true', () => {
     expect(getJapanesePitchAccentInfo(0, 'あめ')).toEqual({
       accentType: 0,
@@ -334,6 +340,12 @@ describe('getJapanesePitchAccentCategory', () => {
 
   it('returns null when moraCount is negative', () => {
     expect(getJapanesePitchAccentCategory(0, -1)).toBeNull();
+  });
+
+  it('returns null for invalid accent positions', () => {
+    expect(getJapanesePitchAccentCategory(-1, 3)).toBeNull();
+    expect(getJapanesePitchAccentCategory(Number.NaN, 3)).toBeNull();
+    expect(getJapanesePitchAccentCategory(4, 3)).toBeNull();
   });
 
   it('accentType 0 → heiban', () => {
