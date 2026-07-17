@@ -948,14 +948,14 @@ function setupMessageListener(): void {
         message !== null &&
         (message as Record<string, unknown>).type === 'TEXT_MODE_WORD_LOOKUP'
       ) {
-        const { word, x, y, screenX, screenY, contextText } = message as TextModeWordLookupMessage;
+        const { word, x, y, screenX, screenY, contextText, offset } = message as TextModeWordLookupMessage;
         const windowId = _sender.tab?.windowId;
 
         const forwardLookup = (absX: number, absY: number) => {
           fetchWithTimeout(`${MLEARN_BASE_URL}/api/overlay-text-lookup`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word, x: absX, y: absY, contextText }),
+            body: JSON.stringify({ word, x: absX, y: absY, contextText, offset }),
           }).then((resp) => {
             if (!resp.ok && _sender.tab?.id) {
               chrome.tabs.sendMessage(_sender.tab.id, {
