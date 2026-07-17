@@ -127,6 +127,8 @@ function buildAccentPattern(accentType: number, reading: string): boolean[] {
 export function getJapanesePitchAccentInfo(accentType: number | undefined | null, reading: string): JapanesePitchAccentInfo | null {
   if (accentType === undefined || accentType === null) return null;
   if (typeof reading !== "string" || reading.length === 0) return null;
+  const moraCount = getJapaneseMoraCount(reading);
+  if (!Number.isInteger(accentType) || accentType < 0 || accentType > moraCount) return null;
   const pattern = buildAccentPattern(accentType, reading);
   if (pattern.length === 0) return null;
   return {
@@ -202,7 +204,14 @@ export function getJapanesePitchAccentCategory(
   accentType: number | undefined | null,
   moraCount: number,
 ): JapanesePitchAccentCategory | null {
-  if (accentType === undefined || accentType === null || moraCount <= 0) return null;
+  if (
+    accentType === undefined
+    || accentType === null
+    || !Number.isInteger(accentType)
+    || accentType < 0
+    || accentType > moraCount
+    || moraCount <= 0
+  ) return null;
 
   switch (accentType) {
     case 0:
