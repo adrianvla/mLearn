@@ -52,6 +52,8 @@ const {
   cleanupServiceWorker,
 } = await import('./background');
 
+const messageListener = vi.mocked(mockChrome.runtime.onMessage.addListener).mock.calls[0]?.[0];
+
 describe('fetchWithTimeout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -150,6 +152,46 @@ describe('fetchAuthTokenFromDesktop', () => {
       'ECONNREFUSED',
     );
     spy.mockRestore();
+  });
+});
+
+describe('text mode word lookup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('forwards the caret offset with contextual text', async () => {
+    mockFetch.mockResolvedValue(new Response('ok', { status: 200 }));
+    vi.mocked(mockChrome.windows.get).mockResolvedValue({ left: 100, top: 200 });
+
+    expect(messageListener).toBeDefined();
+
+    const sendResponse = vi.fn();
+    messageListener?.({
+      type: 'TEXT_MODE_WORD_LOOKUP',
+      word: '明日までにこの仕事を全部終わらせる',
+      x: 20,
+      y: 30,
+      screenX: 10,
+      screenY: 20,
+      contextText: '明日までにこの仕事を全部終わらせる',
+      offset: 7,
+    }, { tab: { id: 1, windowId: 2 } } as chrome.runtime.MessageSender, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/overlay-text-lookup'),
+        expect.objectContaining({
+          body: JSON.stringify({
+            word: '明日までにこの仕事を全部終わらせる',
+            x: 120,
+            y: 230,
+            contextText: '明日までにこの仕事を全部終わらせる',
+            offset: 7,
+          }),
+        }),
+      );
+    });
   });
 });
 
