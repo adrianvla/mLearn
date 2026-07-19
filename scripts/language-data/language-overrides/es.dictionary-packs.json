@@ -1,0 +1,13 @@
+{
+  "en": {
+    "targetLanguage":"en",
+    "name":"English",
+    "version":"es-en-freedict-inverted-2025.11.23-2026.07.19",
+    "assets":[
+      {"id":"dictionary-en","path":"dictionaries/es/en/dictionary.db","bundledPath":"dictionaries/es/en/dictionary.db","required":true},
+      {"id":"metadata-en","path":"dictionaries/es/en/metadata.json","bundledPath":"dictionaries/es/en/metadata.json","required":true},
+      {"id":"license-en","path":"dictionaries/es/en/LICENSE","bundledPath":"dictionaries/es/en/LICENSE","required":true},
+      {"id":"readme-en","path":"dictionaries/es/en/README.md","bundledPath":"dictionaries/es/en/README.md","required":true}
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type LanguageData, type LanguageDataMap, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap } from './types';
+import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap } from './types';
 import { createProsodyRawPayloadForPosition } from './prosodyPayload';
 import { getReadingExtraCharacters, isTextOnlyInScripts, katakanaToHiragana } from './utils/textUtils';
 import { getResolvedScriptProfile, hasLettersInAnyScript, hasLettersInScript, scriptProfileUsesSegmentlessText, normalizeScriptCodes } from './languageScriptProfile';
@@ -31,6 +31,24 @@ export interface LanguageTokenizerCapabilities {
 export interface ResolvedLanguageFrequencyPayload {
   rows: LanguageFrequencyRow[];
   languageData?: LanguageData | null;
+  providerId?: string;
+  levelSystemId?: string;
+}
+
+export function resolveLanguageContentFontOption(
+  languageData?: LanguageData | null,
+  preferredOptionId?: string,
+): LanguageFontFamilyOption | undefined {
+  if (!preferredOptionId) return undefined;
+  return languageData?.typography?.contentFontOptions?.find((option) => option.id === preferredOptionId);
+}
+
+export function resolveLanguageContentFontFamily(
+  languageData?: LanguageData | null,
+  preferredOptionId?: string,
+): string | undefined {
+  return resolveLanguageContentFontOption(languageData, preferredOptionId)?.fontFamily
+    ?? languageData?.typography?.contentFontFamily;
 }
 
 const LOGOGRAPHIC_SCRIPTS = ['Han'];
@@ -65,7 +83,54 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function resolveLanguageFrequencyPayload(
   languageData?: LanguageData | null,
+  preferredProviderId?: string,
+  preferredLevelSystemId?: string,
 ): ResolvedLanguageFrequencyPayload {
+  const providers = languageData?.frequencyProviders;
+  const providerIds = providers ? Object.keys(providers) : [];
+  if (providers && providerIds.length > 0) {
+    const providerId = [
+      preferredProviderId,
+      languageData?.activeFrequencyProvider,
+      languageData?.defaultFrequencyProvider,
+      providerIds[0],
+    ].find((candidate): candidate is string => (
+      typeof candidate === 'string' && Object.prototype.hasOwnProperty.call(providers, candidate)
+    ));
+    const provider = providerId ? providers[providerId] : undefined;
+    const levelSystems = provider?.levelSystems;
+    const levelSystemIds = levelSystems ? Object.keys(levelSystems) : [];
+    const levelSystemId = levelSystems && levelSystemIds.length > 0
+      ? [
+          preferredLevelSystemId,
+          languageData?.activeFrequencyLevelSystem,
+          provider?.defaultLevelSystem,
+          levelSystemIds[0],
+        ].find((candidate): candidate is string => (
+          typeof candidate === 'string' && Object.prototype.hasOwnProperty.call(levelSystems, candidate)
+        ))
+      : undefined;
+    const rows = Array.isArray(provider?.freq) ? provider.freq : [];
+    const frequencyLevels = levelSystemId
+      ? levelSystems?.[levelSystemId]?.frequencyLevels
+      : provider?.frequencyLevels;
+
+    return {
+      rows,
+      providerId,
+      levelSystemId,
+      languageData: languageData
+        ? {
+            ...languageData,
+            freq: rows,
+            frequencyLevels: frequencyLevels ?? languageData.frequencyLevels,
+            activeFrequencyProvider: providerId,
+            activeFrequencyLevelSystem: levelSystemId,
+          }
+        : languageData,
+    };
+  }
+
   const rawFreq = languageData?.freq as unknown;
   if (Array.isArray(rawFreq)) {
     return {
@@ -1838,8 +1903,8 @@ export function getSubtitleFontFamily(data?: LanguageData | null): string {
   return getScriptFontFamily(data, 'var(--font-family-subtitle)');
 }
 
-export function getContentFontFamily(data?: LanguageData | null): string {
-  const configured = data?.typography?.contentFontFamily?.trim();
+export function getContentFontFamily(data?: LanguageData | null, preferredOptionId?: string): string {
+  const configured = resolveLanguageContentFontFamily(data, preferredOptionId)?.trim();
   if (configured) return configured;
   return getScriptFontFamily(data, 'var(--font-family-content)');
 }

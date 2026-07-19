@@ -1,6 +1,7 @@
 .flashcard-word-title__reading rt,
 .fc-reading-annotation rt {
-  font-size: 0.5em;
+  color: var(--reading-annotation-color);
+  font-size: calc(0.5em * var(--reading-annotation-scale));
   text-align: center;
   ruby-align: center;
   white-space: nowrap;

@@ -5,13 +5,26 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, TabContent, Select, Btn } from '../../../components/common';
+import {
+  SettingRow,
+  SettingGroup,
+  TabContent,
+  Select,
+  Btn,
+  RangeInput,
+  ToggleSwitch,
+} from '../../../components/common';
 import Icon from '../../../components/common/Icons/Icon';
 import type { SubtitleTheme } from '@shared/constants';
 import '../SettingsForm.css';
 import './CustomizationTab.css';
 import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
 import type { ColorCodes, LanguageData } from '@shared/types';
+import { getReadingAnnotationDisplay } from '@shared/languageFeatures';
+import {
+  readingAnnotationMoreContrastEnabled,
+  readingAnnotationSizePercent,
+} from '@shared/readingAnnotationSettings';
 
 /** Labels for CSS variables (user-friendly names) */
 const CSS_VAR_LABELS: Record<string, { label: string; description: string }> = {
@@ -73,7 +86,20 @@ export function buildPartOfSpeechColorEntries(
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { currentLangData } = useLanguage();
+  const { currentLangData, getLanguageFeatures } = useLanguage();
+
+  const readingDisplay = createMemo(() => getReadingAnnotationDisplay(currentLangData()));
+  const supportsReadingAppearance = createMemo(() => (
+    getLanguageFeatures().supportsReadings && readingDisplay() !== 'replace'
+  ));
+  const readingMoreContrast = () => readingAnnotationMoreContrastEnabled(settings);
+  const readingSizePercent = () => readingAnnotationSizePercent(settings);
+  const readingPreviewStyle = (): JSX.CSSProperties => ({
+    '--reading-annotation-color': readingMoreContrast()
+      ? 'var(--text-primary)'
+      : 'var(--text-secondary)',
+    '--reading-annotation-scale': `${readingSizePercent() / 100}`,
+  });
 
   /** Update a single custom color */
   const updateCustomColor = (varName: keyof CustomColorOverrides, value: string | null) => {
@@ -135,6 +161,57 @@ export const CustomizationTab: Component = () => {
       }}
       padding="lg"
     >
+
+      <Show when={supportsReadingAppearance()}>
+        <SettingGroup title={t('mlearn.Settings.Groups.ReadingAppearance')}>
+          <SettingRow
+            label={t('mlearn.Settings.ReadingAppearance.MoreContrast.Label')}
+            description={t('mlearn.Settings.ReadingAppearance.MoreContrast.Description')}
+            settingKey="readingAnnotationMoreContrast"
+          >
+            <ToggleSwitch
+              checked={readingMoreContrast()}
+              onChange={(checked) => updateSettings({ readingAnnotationMoreContrast: checked })}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.ReadingAppearance.Size.Label')}
+            description={t('mlearn.Settings.ReadingAppearance.Size.Description')}
+            settingKey="readingAnnotationSizePercent"
+          >
+            <div class="reading-appearance-size-control">
+              <RangeInput
+                min={60}
+                max={160}
+                step={5}
+                value={readingSizePercent()}
+                onChange={(value) => updateSettings({ readingAnnotationSizePercent: value })}
+              />
+              <output class="reading-appearance-size-value">{readingSizePercent()}%</output>
+            </div>
+          </SettingRow>
+
+          <div class="reading-appearance-preview" style={readingPreviewStyle()}>
+            <Show
+              when={readingDisplay() === 'inline'}
+              fallback={
+                <ruby class="reading-appearance-preview__ruby">
+                  {t('mlearn.Settings.ReadingAppearance.Preview.Surface')}
+                  <rt>{t('mlearn.Settings.ReadingAppearance.Preview.Reading')}</rt>
+                </ruby>
+              }
+            >
+              <span class="reading-appearance-preview__inline">
+                {t('mlearn.Settings.ReadingAppearance.Preview.Surface')}
+                <span class="reading-appearance-preview__inline-reading">
+                  {t('mlearn.Settings.ReadingAppearance.Preview.Reading')}
+                </span>
+              </span>
+            </Show>
+          </div>
+        </SettingGroup>
+      </Show>
 
       <SettingGroup title={t('mlearn.Settings.Groups.SubtitleAppearance')}>
         <SettingRow

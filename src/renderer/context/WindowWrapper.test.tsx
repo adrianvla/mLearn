@@ -6,12 +6,19 @@ import type { JSX } from 'solid-js';
 
 const testSettings = {
   language: 'de',
+  frequencyProviderSelections: { de: 'corpus' },
+  frequencyLevelSystemSelections: { de: 'cefr' },
   cloudAuthStatus: 'signed-out',
   cloudAuthActiveGroupId: '',
 };
 let settingsLoading = false;
 
-const languageProviderMock = vi.fn((props: { language?: string; children?: JSX.Element }) => <>{props.children}</>);
+const languageProviderMock = vi.fn((props: {
+  language?: string;
+  frequencyProviderSelections?: Record<string, string>;
+  frequencyLevelSystemSelections?: Record<string, string>;
+  children?: JSX.Element;
+}) => <>{props.children}</>);
 const activeGroupGateMock = vi.fn((_props?: { showSwitchTrigger?: boolean }) => <div data-testid="active-group-gate" />);
 const pluginAdapterMock = vi.fn(() => vi.fn());
 const policyScopeMock = vi.fn();
@@ -138,6 +145,8 @@ describe('WindowWrapper', () => {
 
     expect(languageProviderMock).toHaveBeenCalled();
     expect(languageProviderMock.mock.calls[0]?.[0]?.language).toBe('de');
+    expect(languageProviderMock.mock.calls[0]?.[0]?.frequencyProviderSelections).toEqual({ de: 'corpus' });
+    expect(languageProviderMock.mock.calls[0]?.[0]?.frequencyLevelSystemSelections).toEqual({ de: 'cefr' });
 
     dispose();
   });

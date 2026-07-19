@@ -74,8 +74,42 @@ export const BehaviourTab: Component = () => {
       .map((level) => [String(level), getFrequencyLevelLabel(level, names, currentLangData())] as [string, string]);
   });
 
-  const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
+  const hasFreqLevels = createMemo(() => (
+    getLanguageFeatures().supportsFrequencyLevels
+    || Object.keys(currentLangData()?.frequencyProviders ?? {}).length > 0
+  ));
   const selectedLearningLanguageLevel = createMemo(() => getLearningLanguageLevelForLanguage(settings, settings.language));
+  const frequencyProviders = createMemo(() => currentLangData()?.frequencyProviders ?? {});
+  const frequencyProviderEntries = createMemo(() => Object.entries(frequencyProviders()));
+  const selectedFrequencyProviderId = createMemo(() => {
+    const languageData = currentLangData();
+    const providers = frequencyProviders();
+    const candidates = [
+      settings.frequencyProviderSelections[settings.language],
+      languageData?.activeFrequencyProvider,
+      languageData?.defaultFrequencyProvider,
+      Object.keys(providers)[0],
+    ];
+    return candidates.find((candidate): candidate is string => (
+      typeof candidate === 'string' && Object.prototype.hasOwnProperty.call(providers, candidate)
+    )) ?? '';
+  });
+  const selectedFrequencyProvider = createMemo(() => frequencyProviders()[selectedFrequencyProviderId()]);
+  const frequencyLevelSystemEntries = createMemo(() => Object.entries(selectedFrequencyProvider()?.levelSystems ?? {}));
+  const selectedFrequencyLevelSystemId = createMemo(() => {
+    const languageData = currentLangData();
+    const provider = selectedFrequencyProvider();
+    const levelSystems = provider?.levelSystems ?? {};
+    const candidates = [
+      settings.frequencyLevelSystemSelections[settings.language],
+      languageData?.activeFrequencyLevelSystem,
+      provider?.defaultLevelSystem,
+      Object.keys(levelSystems)[0],
+    ];
+    return candidates.find((candidate): candidate is string => (
+      typeof candidate === 'string' && Object.prototype.hasOwnProperty.call(levelSystems, candidate)
+    )) ?? '';
+  });
 
   const passiveExposures = (ease: number) => {
     const bump = 0.01;
@@ -361,6 +395,74 @@ export const BehaviourTab: Component = () => {
 
       <Show when={hasFreqLevels()}>
         <SettingGroup title={t('mlearn.Settings.Groups.LanguageProficiency')}>
+          <Show when={frequencyProviderEntries().length > 1}>
+            <SettingRow
+              label={t('mlearn.Settings.Behaviour.FrequencyProvider.Label')}
+              description={t('mlearn.Settings.Behaviour.FrequencyProvider.Description')}
+            >
+              <Select
+                class="setting-select"
+                value={selectedFrequencyProviderId()}
+                onChange={(e) => {
+                  const providerId = e.currentTarget.value;
+                  const provider = frequencyProviders()[providerId];
+                  const nextLevelSystems = { ...settings.frequencyLevelSystemSelections };
+                  const defaultLevelSystem = provider?.defaultLevelSystem;
+                  if (defaultLevelSystem) {
+                    nextLevelSystems[settings.language] = defaultLevelSystem;
+                  } else {
+                    delete nextLevelSystems[settings.language];
+                  }
+                  updateSettings({
+                    frequencyProviderSelections: {
+                      ...settings.frequencyProviderSelections,
+                      [settings.language]: providerId,
+                    },
+                    frequencyLevelSystemSelections: nextLevelSystems,
+                    learningLanguageLevels: {
+                      ...settings.learningLanguageLevels,
+                      [settings.language]: null,
+                    },
+                  });
+                }}
+              >
+                <For each={frequencyProviderEntries()}>
+                  {([providerId, provider]) => (
+                    <option value={providerId} selected={providerId === selectedFrequencyProviderId()}>{provider.name}</option>
+                  )}
+                </For>
+              </Select>
+            </SettingRow>
+          </Show>
+          <Show when={frequencyLevelSystemEntries().length > 1}>
+            <SettingRow
+              label={t('mlearn.Settings.Behaviour.FrequencyLevelSystem.Label')}
+              description={t('mlearn.Settings.Behaviour.FrequencyLevelSystem.Description')}
+            >
+              <Select
+                class="setting-select"
+                value={selectedFrequencyLevelSystemId()}
+                onChange={(e) => {
+                  updateSettings({
+                    frequencyLevelSystemSelections: {
+                      ...settings.frequencyLevelSystemSelections,
+                      [settings.language]: e.currentTarget.value,
+                    },
+                    learningLanguageLevels: {
+                      ...settings.learningLanguageLevels,
+                      [settings.language]: null,
+                    },
+                  });
+                }}
+              >
+                <For each={frequencyLevelSystemEntries()}>
+                  {([levelSystemId, levelSystem]) => (
+                    <option value={levelSystemId} selected={levelSystemId === selectedFrequencyLevelSystemId()}>{levelSystem.name}</option>
+                  )}
+                </For>
+              </Select>
+            </SettingRow>
+          </Show>
           <SettingRow
             label={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Label')}
             description={t('mlearn.Settings.Behaviour.LearningLanguageLevel.Description')}

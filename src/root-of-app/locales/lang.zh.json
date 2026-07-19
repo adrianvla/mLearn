@@ -1454,8 +1454,23 @@
           "Label": "显示词性"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "读音标注使用主要文字颜色",
+          "Label": "提高读音文字的对比度"
+        },
+        "Preview": {
+          "Reading": "读音",
+          "Surface": "文字"
+        },
+        "Size": {
+          "Description": "按默认大小的百分比调整读音标注",
+          "Label": "读音文字大小"
+        }
+      },
       "Groups": {
         "Appearance": "外观",
+        "ReadingAppearance": "读音显示",
         "BlurEffect": "模糊效果",
         "CustomColors": "自定义颜色覆盖",
         "Data": "数据",
@@ -1526,6 +1541,14 @@
         }
       },
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "词频表",
+          "Description": "选择用于等级、学习和 Word Sync 的词汇频率来源。"
+        },
+        "FrequencyLevelSystem": {
+          "Label": "等级体系",
+          "Description": "选择此词频表所使用的等级名称体系。"
+        },
         "LearningLanguageLevel": {
           "Label": "学习语言等级",
           "Description": "设置后，高于此等级的推荐闪卡以及无等级的卡片将不会被保存。同时影响单词同步的难度。",

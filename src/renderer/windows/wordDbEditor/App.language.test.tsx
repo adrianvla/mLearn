@@ -19,6 +19,13 @@ const mockFetchAnkiWordsCache = vi.fn(() => Promise.resolve(new Set<string>()));
 const mockIsAnkiCacheFetched = vi.fn(() => true);
 const mockFindAnkiWordMatchInCache = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
 let mockUseAnki = false;
+let mockWordFrequency: Record<string, { reading: string; raw_level: number; level: string }> = {
+  '赤い': {
+    reading: 'あかい',
+    raw_level: 5,
+    level: 'N5',
+  },
+};
 
 vi.mock('../../hooks/useVirtualizer', () => ({
   createVirtualizer: () => ({
@@ -32,20 +39,8 @@ vi.mock('../../hooks/useVirtualizer', () => ({
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   useLanguage: () => ({
-    wordFrequency: {
-      '赤い': {
-        reading: 'あかい',
-        raw_level: 5,
-        level: 'N5',
-      },
-    },
-    getWordFrequency: () => ({
-      '赤い': {
-        reading: 'あかい',
-        raw_level: 5,
-        level: 'N5',
-      },
-    }),
+    wordFrequency: mockWordFrequency,
+    getWordFrequency: () => mockWordFrequency,
     currentLangData: () => null,
     getFreqLevelNames: () => ({ 5: 'N5' }),
     getCanonicalForm: (word: string) => word,
@@ -153,6 +148,13 @@ describe('WordDbEditorContent', () => {
     mockFindAnkiWordMatchInCache.mockReset();
     mockFindAnkiWordMatchInCache.mockReturnValue(null);
     mockUseAnki = false;
+    mockWordFrequency = {
+      '赤い': {
+        reading: 'あかい',
+        raw_level: 5,
+        level: 'N5',
+      },
+    };
     renderedEntries.length = 0;
     renderedEditDialogs.length = 0;
   });
@@ -255,6 +257,19 @@ describe('WordDbEditorContent', () => {
 
     expect(mockFetchAnkiWordsCache).toHaveBeenCalledOnce();
     expect(renderedEntries.some((entry) => entry.word === '赤い')).toBe(true);
+    dispose();
+  });
+
+  it('shows an empty database instead of loading forever when frequency data is unavailable', async () => {
+    mockWordFrequency = {};
+    const { WordDbEditorContent } = await import('./App');
+
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('mlearn.WordDbEditor.EmptyState');
+    expect(container.textContent).not.toContain('mlearn.WordDbEditor.Loading');
     dispose();
   });
 

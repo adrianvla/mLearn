@@ -83,7 +83,11 @@ type LangCtx = {
   languageDataInstallError: () => { language: string; error: string } | null;
 };
 
-async function mountProvider(props?: { language?: string }) {
+async function mountProvider(props?: {
+  language?: string;
+  frequencyProviderSelections?: Record<string, string>;
+  frequencyLevelSystemSelections?: Record<string, string>;
+}) {
   const { createRoot, createComponent } = await import('solid-js');
   const { LanguageProvider, useLanguage } = await import('./LanguageContext');
   let ctx!: LangCtx;
@@ -92,6 +96,8 @@ async function mountProvider(props?: { language?: string }) {
     dispose = d;
     createComponent(LanguageProvider, {
       language: props?.language,
+      frequencyProviderSelections: props?.frequencyProviderSelections,
+      frequencyLevelSystemSelections: props?.frequencyLevelSystemSelections,
       get children() {
         ctx = useLanguage() as unknown as LangCtx;
         return null;
@@ -510,6 +516,48 @@ describe('LanguageContext - provider behavior', () => {
     expect(ctx.getFrequency('払う')).toMatchObject({ reading: 'はらう', raw_level: 4, level: 'N4' });
     expect(ctx.getFreqLevelNames()).toEqual({ '5': 'N5', '4': 'N4' });
     expect(ctx.getLanguageFeatures().supportsFrequencyLevels).toBe(true);
+    dispose();
+  });
+
+  it('builds frequency state from the selected provider and level system', async () => {
+    const { ctx, dispose } = await mountProvider({
+      language: 'ru',
+      frequencyProviderSelections: { ru: 'smartool' },
+      frequencyLevelSystemSelections: { ru: 'trki' },
+    });
+    langDataCb({
+      ru: {
+        name: 'Russian',
+        defaultFrequencyProvider: 'openrussian',
+        frequencyProviders: {
+          openrussian: {
+            name: 'OpenRussian',
+            freq: [['частый', 'ча́стый', 1]],
+            frequencyLevels: { names: { '1': 'Common' }, rowLevelIndex: 2 },
+          },
+          smartool: {
+            name: 'SMARTool',
+            freq: [['слово', 'слово', 3]],
+            defaultLevelSystem: 'cefr',
+            levelSystems: {
+              cefr: {
+                name: 'CEFR',
+                frequencyLevels: { names: { '3': 'B1' }, rowLevelIndex: 2 },
+              },
+              trki: {
+                name: 'ТРКИ',
+                frequencyLevels: { names: { '3': 'ТРКИ-1' }, rowLevelIndex: 2 },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(ctx.getFrequency('слово')).toMatchObject({ raw_level: 3, level: 'ТРКИ-1' });
+    expect(ctx.getFrequency('частый')).toBeNull();
+    expect(ctx.getFreqLevelNames()).toEqual({ '3': 'ТРКИ-1' });
+    expect((ctx.currentLangData() as { activeFrequencyProvider?: string }).activeFrequencyProvider).toBe('smartool');
     dispose();
   });
 

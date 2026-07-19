@@ -208,6 +208,38 @@ export async function saveSettings(settings: Settings): Promise<void> {
   }
 }
 
+const FONT_MIME_TYPES: Record<string, string> = {
+  '.otf': 'font/otf',
+  '.ttf': 'font/ttf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function hydrateLanguageFontAssets(languageData: LanguageData, dataRoot: string): LanguageData {
+  const options = languageData.typography?.contentFontOptions;
+  if (!options?.length) return languageData;
+  const assets = languageData.languageData?.assets ?? [];
+  const resolvedRoot = path.resolve(dataRoot);
+  const contentFontOptions = options.map((option) => {
+    if (!option.assetId) return option;
+    const asset = assets.find((candidate) => candidate.id === option.assetId);
+    if (!asset) return option;
+    const resolvedPath = path.resolve(dataRoot, asset.path);
+    if (!resolvedPath.startsWith(`${resolvedRoot}${path.sep}`) || !fs.existsSync(resolvedPath)) return option;
+    const mimeType = FONT_MIME_TYPES[path.extname(resolvedPath).toLowerCase()];
+    if (!mimeType) return option;
+    const sourceDataUrl = `data:${mimeType};base64,${fs.readFileSync(resolvedPath).toString('base64')}`;
+    return { ...option, sourceDataUrl };
+  });
+  return {
+    ...languageData,
+    typography: {
+      ...languageData.typography,
+      contentFontOptions,
+    },
+  };
+}
+
 export function loadLangData(): LanguageDataMap {
   const langData: LanguageDataMap = {};
   const candidateDirs = [
@@ -268,6 +300,52 @@ export function loadLangData(): LanguageDataMap {
           log.error(`Failed to load language frequency file ${file}:`, e);
         }
       }
+    }
+
+    for (const [langCode, installedLanguageData] of Object.entries(langData)) {
+      const dataRoot = path.dirname(languagesDirs[0]);
+      const languageData = hydrateLanguageFontAssets(installedLanguageData, dataRoot);
+      const providers = languageData.frequencyProviders;
+      const assets = languageData.languageData?.assets ?? [];
+      if (!providers) {
+        langData[langCode] = languageData;
+        continue;
+      }
+
+      const hydratedProviders = { ...providers };
+      for (const [providerId, provider] of Object.entries(providers)) {
+        const asset = assets.find((candidate) => candidate.id === provider.assetId);
+        if (!asset) continue;
+        const filePath = path.join(dataRoot, asset.path);
+        try {
+          const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          const payload: FrequencyFilePayload = Array.isArray(parsed)
+            ? { freq: parsed }
+            : isRecord(parsed)
+              ? parsed
+              : {};
+          const defaultLevelSystem = provider.defaultLevelSystem
+            ? provider.levelSystems?.[provider.defaultLevelSystem]
+            : undefined;
+          const migrated = migrateFrequencyFileIfNeeded(filePath, payload, {
+            ...languageData,
+            frequencyLevels: provider.frequencyLevels ?? defaultLevelSystem?.frequencyLevels,
+          });
+          hydratedProviders[providerId] = {
+            ...provider,
+            ...(Array.isArray(migrated.freq) ? { freq: migrated.freq } : {}),
+            ...(!provider.levelSystems && migrated.frequencyLevels
+              ? { frequencyLevels: migrated.frequencyLevels }
+              : {}),
+          };
+        } catch (e) {
+          log.error(`Failed to load frequency provider asset ${asset.path}:`, e);
+        }
+      }
+      langData[langCode] = {
+        ...languageData,
+        frequencyProviders: hydratedProviders,
+      };
     }
   } catch (error) {
     log.error('Failed to load language data:', error);

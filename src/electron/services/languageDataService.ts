@@ -163,6 +163,48 @@ function writeInstallReceipt(installKey: string, version?: string): void {
   );
 }
 
+function syncInstalledDictionaryPackMetadata(
+  language: string,
+  langData: LanguageDataMap,
+  dictionaryTargetLanguage: string,
+): void {
+  const languageManifest = langData[language]?.languageData;
+  const dictionaryPack = languageManifest?.dictionaryPacks?.[dictionaryTargetLanguage];
+  const metadataAsset = languageManifest?.assets.find(isLanguageMetadataAsset);
+  if (!dictionaryPack || !metadataAsset) return;
+
+  const metadataPath = getInstalledLanguageAssetPath(metadataAsset);
+  const parsed = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as unknown;
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Installed language metadata is invalid for ${language}`);
+  }
+
+  const metadata = parsed as Record<string, unknown>;
+  const rawLanguageData = metadata.languageData;
+  const installedLanguageData = typeof rawLanguageData === 'object' && rawLanguageData !== null && !Array.isArray(rawLanguageData)
+    ? rawLanguageData as Record<string, unknown>
+    : {};
+  const rawDictionaryPacks = installedLanguageData.dictionaryPacks;
+  const installedDictionaryPacks = typeof rawDictionaryPacks === 'object'
+    && rawDictionaryPacks !== null
+    && !Array.isArray(rawDictionaryPacks)
+    ? rawDictionaryPacks as Record<string, unknown>
+    : {};
+  const updatedMetadata = {
+    ...metadata,
+    languageData: {
+      ...installedLanguageData,
+      dictionaryPacks: {
+        ...installedDictionaryPacks,
+        [dictionaryTargetLanguage]: dictionaryPack,
+      },
+    },
+  };
+  const temporaryPath = `${metadataPath}.installing`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(updatedMetadata, null, 2)}\n`, 'utf-8');
+  fs.renameSync(temporaryPath, metadataPath);
+}
+
 function installReceiptVersionMatches(installKey: string, expectedVersion?: string): boolean {
   if (!expectedVersion) return true;
   const installedVersion = readInstallReceiptVersion(installKey);
@@ -556,6 +598,9 @@ export async function ensureLanguageDataInstalled(
   const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
   const currentStatus = getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
   if (currentStatus.installed) {
+    if (dictionaryTargetLanguage) {
+      syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage);
+    }
     return currentStatus;
   }
   if (!bundle) {
@@ -579,6 +624,9 @@ export async function ensureLanguageDataInstalled(
   inFlightInstalls.set(installKey, installPromise);
   try {
     await installPromise;
+    if (dictionaryTargetLanguage) {
+      syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage);
+    }
     writeInstallReceipt(installKey, expectedVersion);
   } finally {
     if (inFlightInstalls.get(installKey) === installPromise) {

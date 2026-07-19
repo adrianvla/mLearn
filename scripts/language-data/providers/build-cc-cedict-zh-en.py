@@ -13,6 +13,7 @@ import unicodedata
 import zlib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 CEDICT_VERSION = "20260403"
@@ -26,6 +27,8 @@ ROOT_OF_APP_DIR = Path(os.environ.get(
     Path(__file__).resolve().parents[1] / "source" / "root-of-app",
 ))
 ENTRY_PATTERN = re.compile(r"^(\S+)\s+(\S+)\s+\[(.+)]\s+/(.*)/$")
+BRACKETED_TEXT_PATTERN = re.compile(r"\[([^\[\]]+)]")
+NUMBERED_PINYIN_PATTERN = re.compile(r"[A-Za-zÜüVv:]+[1-5]")
 TONE_MARKS = {
     "a": "āáǎàa", "e": "ēéěèe", "i": "īíǐìi", "o": "ōóǒòo",
     "u": "ūúǔùu", "ü": "ǖǘǚǜü",
@@ -82,7 +85,28 @@ def _mark_syllable(syllable: str) -> str:
 
 
 def numeric_pinyin_to_marks(reading: str) -> str:
-    return " ".join(_mark_syllable(part) for part in reading.split())
+    normalized = re.sub(r"([uU])\s*:\s*([1-5])", r"\1:\2", reading)
+    return NUMBERED_PINYIN_PATTERN.sub(lambda match: _mark_syllable(match.group(0)), normalized)
+
+
+def _is_numbered_pinyin(reading: str) -> bool:
+    normalized = re.sub(r"([uU])\s*:\s*([1-5])", r"\1:\2", reading)
+    if not NUMBERED_PINYIN_PATTERN.search(normalized):
+        return False
+    remainder = NUMBERED_PINYIN_PATTERN.sub("", normalized)
+    remainder = re.sub(r"\b[A-Z]{1,5}\b", "", remainder)
+    return re.fullmatch(r"[\s\d,·.'’:/-]*", remainder) is not None
+
+
+def normalize_definition_readings(definition: str) -> str:
+    def replace_reading(match: re.Match[str]) -> str:
+        reading = match.group(1)
+        if not _is_numbered_pinyin(reading):
+            return match.group(0)
+        prefix = "" if match.start() == 0 or definition[match.start() - 1].isspace() else " "
+        return f"{prefix}({numeric_pinyin_to_marks(reading)})"
+
+    return BRACKETED_TEXT_PATTERN.sub(replace_reading, definition)
 
 
 def normalize_pinyin(reading: str) -> str:
@@ -91,12 +115,12 @@ def normalize_pinyin(reading: str) -> str:
     return " ".join(without_marks.replace("u:", "u").replace("ü", "u").split())
 
 
-def _compress(payload: dict) -> bytes:
+def _compress(payload: dict[str, Any]) -> bytes:
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return zlib.compress(raw)
 
 
-def _read_cedict(archive_path: Path, extract_dir: Path) -> list[dict]:
+def _read_cedict(archive_path: Path, extract_dir: Path) -> list[dict[str, Any]]:
     source_path = extract_dir / "cedict_ts.u8"
     with tarfile.open(archive_path, "r:xz") as archive:
         member = next((item for item in archive.getmembers() if Path(item.name).name == "cedict_ts.u8"), None)
@@ -107,7 +131,7 @@ def _read_cedict(archive_path: Path, extract_dir: Path) -> list[dict]:
             raise RuntimeError("CC-CEDICT archive entry is not a regular file")
         source_path.write_bytes(source.read())
 
-    entries: list[dict] = []
+    entries: list[dict[str, Any]] = []
     with source_path.open("r", encoding="utf-8") as handle:
         for line in handle:
             if not line or line.startswith("#"):
@@ -129,7 +153,7 @@ def _read_cedict(archive_path: Path, extract_dir: Path) -> list[dict]:
     return entries
 
 
-def _build_dictionary(entries: list[dict], language: str, built_at: str) -> int:
+def _build_dictionary(entries: list[dict[str, Any]], language: str, built_at: str) -> int:
     canonical_field = "simplified" if language == "zh-Hans" else "traditional"
     alias_field = "traditional" if language == "zh-Hans" else "simplified"
     output_dir = ROOT_OF_APP_DIR / "dictionaries" / language / "en"
@@ -159,11 +183,11 @@ def _build_dictionary(entries: list[dict], language: str, built_at: str) -> int:
                 "value": entry["pinyin"],
                 "numeric": entry["numericPinyin"],
             },
-            "definitions": entry["definitions"],
+            "definitions": [normalize_definition_readings(definition) for definition in entry["definitions"]],
         }
         reading_key = normalize_pinyin(entry["pinyin"])
         for headword in dict.fromkeys([canonical, alias]):
-            batch.append((headword, reading_key, sqlite3.Binary(_compress(payload))))
+            batch.append((headword, reading_key, _compress(payload)))
             inserted += 1
             if len(batch) >= 5000:
                 conn.executemany("INSERT INTO entries VALUES (?, ?, ?)", batch)

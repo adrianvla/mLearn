@@ -396,6 +396,19 @@ describe('windowManager', () => {
     expect(getCurrentWindow()).toBe(main);
   });
 
+  it('closes the welcome window when setup completes with an existing main window', async () => {
+    const { createWelcomeWindow, createMainWindow, getCurrentWindow } = await import('./windowManager');
+    const main = createMainWindow();
+    const welcome = createWelcomeWindow();
+
+    const reusedMain = createMainWindow();
+
+    expect(reusedMain).toBe(main);
+    expect(welcome.close).toHaveBeenCalledOnce();
+    expect(main.focus).toHaveBeenCalledOnce();
+    expect(getCurrentWindow()).toBe(main);
+  });
+
   describe('createChildWindow', () => {
     it('creates a new BrowserWindow for an unknown type', async () => {
       const countBefore = createdWindows.length;

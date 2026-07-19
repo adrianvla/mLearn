@@ -1454,8 +1454,23 @@
           "Label": "Show Part of Speech"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "Use the primary text color for reading annotations",
+          "Label": "More contrast in reading text"
+        },
+        "Preview": {
+          "Reading": "reading",
+          "Surface": "Text"
+        },
+        "Size": {
+          "Description": "Adjust reading annotations relative to their default size",
+          "Label": "Reading size"
+        }
+      },
       "Groups": {
         "Appearance": "Appearance",
+        "ReadingAppearance": "Reading text",
         "BlurEffect": "Blur Effect",
         "CustomColors": "Custom Color Overrides",
         "Data": "Data",
@@ -1526,6 +1541,14 @@
         }
       },
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "Frequency List",
+          "Description": "Choose which vocabulary frequency source is used for levels, study, and Word Sync."
+        },
+        "FrequencyLevelSystem": {
+          "Label": "Level System",
+          "Description": "Choose how this frequency list's levels are named."
+        },
         "LearningLanguageLevel": {
           "Label": "Learning Language Level",
           "Description": "When set, suggested flashcards above this level and cards without a level will not be saved. Also affects Word Sync difficulty.",

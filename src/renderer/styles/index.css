@@ -163,6 +163,8 @@
   --text-primary: #1a1a1a;
   --text-secondary: #444;
   --text-tertiary: rgba(0, 0, 0, 0.4);
+  --reading-annotation-color: var(--text-secondary);
+  --reading-annotation-scale: 1;
   
   /* ========== Additional Color Aliases ========== */
   --color-danger: var(--color-error);

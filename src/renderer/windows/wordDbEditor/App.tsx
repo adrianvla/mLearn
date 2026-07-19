@@ -160,10 +160,15 @@ export const WordDbEditorContent: Component = () => {
     const freqWords = Object.keys(wordFrequency);
     const totalWords = freqWords.length;
     const fcLoading = flashcardsLoading();
-    
-    if (isInitialized() && totalWords > 0 && !fcLoading && !hasLoadedWords() && !isLoading()) {
-      loadAllWords();
+
+    if (!isInitialized() || fcLoading || hasLoadedWords() || isLoading()) return;
+    if (totalWords === 0) {
+      setEntries([]);
+      setFilteredEntries([]);
+      setHasLoadedWords(true);
+      return;
     }
+    loadAllWords();
   });
 
   const buildFilteredEntries = (sourceEntries: WordEntry[]): WordEntry[] => {

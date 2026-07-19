@@ -419,6 +419,34 @@ describe('WelcomeApp', () => {
     dispose();
   });
 
+  it('selects the display-language dictionary when catalog data arrives after settings', async () => {
+    setLanguageDataCatalog([]);
+
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.({ language: 'de', uiLanguage: 'en' });
+    installerStateHandler?.({ success: true });
+    setLanguageDataCatalog([
+      {
+        language: 'de',
+        name: 'German',
+        installed: true,
+        missingRequiredAssets: [],
+        dictionaryPacks: [{ targetLanguage: 'en', name: 'German -> English', installed: true }],
+      },
+    ]);
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Dictionary language: German→English');
+      const finishButton = Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent?.includes('Finish Setup'));
+      expect(finishButton?.disabled).toBe(false);
+    });
+
+    dispose();
+  });
+
   it('opens advanced options and blocks install when the display-language dictionary is unavailable', async () => {
     setLanguageDataCatalog([
       {
