@@ -246,9 +246,15 @@ export function loadLangData(): LanguageDataMap {
         const langCode = file.slice(0, -'.freq.json'.length);
         const filePath = path.join(frequencyDir, file);
         try {
+          const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          const payload: FrequencyFilePayload = Array.isArray(parsed)
+            ? { freq: parsed }
+            : isRecord(parsed)
+              ? parsed
+              : {};
           const data = migrateFrequencyFileIfNeeded(
             filePath,
-            JSON.parse(fs.readFileSync(filePath, 'utf-8')) as FrequencyFilePayload,
+            payload,
             langData[langCode],
           );
           if (Array.isArray(data.freq) && langData[langCode]) {

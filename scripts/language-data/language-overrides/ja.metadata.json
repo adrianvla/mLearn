@@ -1,0 +1,249 @@
+{
+    "textProcessing": {
+        "scriptProfile": {
+            "acceptedScripts": [
+                "Hira",
+                "Kana",
+                "Han"
+            ],
+            "requiredScripts": [
+                "Hira",
+                "Kana",
+                "Han"
+            ],
+            "wordScriptValidation": "contains-required",
+            "sttRejectPureScripts": [
+                "Han"
+            ]
+        },
+        "lexemeNormalization": {
+            "type": "surface-reading",
+            "surfaceScripts": [
+                "Han"
+            ],
+            "readingScripts": [
+                "Hira",
+                "Kana"
+            ],
+            "readingNormalizer": "kana-to-hiragana",
+            "preserveNonPrimaryReadingScript": true
+        },
+        "readingAnnotation": {
+            "type": "script-reading",
+            "annotationScripts": [
+                "Han"
+            ],
+            "surfaceSuffixScripts": [
+                "Hira",
+                "Kana"
+            ],
+            "readingSeparator": "",
+            "stripParentheticalReadings": true
+        },
+        "partOfSpeech": {
+            "translatable": [
+                "名詞",
+                "動詞",
+                "形容詞",
+                "形状詞",
+                "形容動詞",
+                "副詞"
+            ],
+            "colors": {
+                "名詞": "#ebccfd",
+                "動詞": "#d6cefd",
+                "助詞": "#f5d7b8",
+                "助動詞": "#ffefd1",
+                "形状詞": "#def6ff",
+                "副詞": "#b8cdf5",
+                "接尾辞": "#aac8c4",
+                "感動詞": "#eacbcb",
+                "代名詞": "#f1ccfd",
+                "補助記号": "#cccccccc",
+                "連体詞": "#def6ff",
+                "形容詞": "#def6ff",
+                "形容動詞": "#def6ff",
+                "記号": "#cccccccc"
+            }
+        },
+        "subtitle": {
+            "characterNamePrefix": {
+                "enabled": true,
+                "scripts": [
+                    "Han",
+                    "Hira",
+                    "Kana"
+                ],
+                "allowLatinFallback": true,
+                "delimiters": [
+                    ":",
+                    "："
+                ],
+                "bracketPairs": [
+                    [
+                        "(",
+                        ")"
+                    ],
+                    [
+                        "（",
+                        "）"
+                    ],
+                    [
+                        "【",
+                        "】"
+                    ]
+                ]
+            }
+        },
+        "tokenJoinSeparator": ""
+    },
+    "characterStudy": {
+        "enabled": true,
+        "scripts": [
+            "Han"
+        ],
+        "levelOrder": "descending"
+    },
+    "prosody": {
+        "type": "japanese-pitch-accent"
+    },
+    "typography": {
+        "subtitleFontFamily": "'Noto Sans CJK JP', 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif",
+        "contentFontFamily": "'Noto Sans CJK JP', 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif"
+    },
+    "conversation": {
+        "register": {
+            "hasDeferentialForms": true
+        },
+        "tutorPromptGuidelines": [
+            "Do not quiz the learner on character readings; focus quizzes on vocabulary, usage, and grammar."
+        ]
+    },
+    "runtime": {
+        "ocr": {
+            "recognitionEngine": "mangaocr",
+            "rapidLangType": "JAPAN",
+            "paddleLang": "japan",
+            "supportsVerticalText": true,
+            "supportsRamSaver": true
+        },
+        "tts": {
+            "kokoroLangCode": "j",
+            "kokoroVoice": "jf_alpha",
+            "qwen3LanguageName": "japanese"
+        },
+        "stt": {
+            "whisperLanguage": "ja",
+            "hallucinationPhrases": [],
+            "shortAudioMaxSeconds": 1,
+            "shortAudioMinTextLength": 5
+        },
+        "nlp": {
+            "tokenizer": {
+                "type": "sudachi",
+                "required": true,
+                "fallback": "none",
+                "outputReadingNormalizer": "kana-to-hiragana",
+                "ignoredPos": [
+                    "空白"
+                ],
+                "lemmaFallbackRules": [
+                    {
+                        "pos": "動詞",
+                        "suffix": "ける",
+                        "replacement": "く",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "げる",
+                        "replacement": "ぐ",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "せる",
+                        "replacement": "す",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "てる",
+                        "replacement": "つ",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "ねる",
+                        "replacement": "ぬ",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "べる",
+                        "replacement": "ぶ",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "める",
+                        "replacement": "む",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "れる",
+                        "replacement": "る",
+                        "requireDictionaryMatch": true
+                    },
+                    {
+                        "pos": "動詞",
+                        "suffix": "える",
+                        "replacement": "う",
+                        "requireDictionaryMatch": true
+                    }
+                ]
+            },
+            "dictionary": {
+                "type": "sqlite-zlib-json",
+                "schema": "headword-reading-zlib-json",
+                "targetPathTemplate": "dictionaries/{language}/{target}/dictionary.db",
+                "defaultTargetLanguage": "en",
+                "schemaVersion": "1",
+                "renderer": "raw-entry",
+                "prosody": {
+                    "table": "pitch",
+                    "headwordColumn": "headword",
+                    "readingColumn": "reading",
+                    "dataColumn": "data"
+                },
+                "lookup": {
+                    "readingLookup": {
+                        "scripts": [
+                            "Hira",
+                            "Kana"
+                        ]
+                    },
+                    "readingRank": [
+                        {
+                            "type": "script",
+                            "scripts": [
+                                "Hira"
+                            ]
+                        },
+                        {
+                            "type": "script",
+                            "scripts": [
+                                "Hira",
+                                "Kana"
+                            ]
+                        },
+                        "common",
+                        "score-desc",
+                        "short-reading"
+                    ]
+                }
+            }
+        }
+    }
+}

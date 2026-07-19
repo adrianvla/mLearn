@@ -56,6 +56,7 @@ export const WordDbEditorContent: Component = () => {
   const [hasLoadedWords, setHasLoadedWords] = createSignal(false);
   // Track whether Anki word cache is ready (or not needed)
   const [ankiWordsReady, setAnkiWordsReady] = createSignal(false);
+  const ankiEnabled = createMemo(() => settings.use_anki);
 
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
@@ -154,17 +155,13 @@ export const WordDbEditorContent: Component = () => {
     });
   });
 
-  // Auto-load words when wordFrequency data becomes available AND flashcards are loaded
-  // This handles the case where langData and flashcards load asynchronously
   createEffect(() => {
     const wordFrequency = getWordFrequency();
     const freqWords = Object.keys(wordFrequency);
     const totalWords = freqWords.length;
     const fcLoading = flashcardsLoading();
-    const ankiReady = ankiWordsReady();
     
-    // Only auto-load once when we have data, flashcards are ready, anki cache is ready, and haven't loaded yet
-    if (isInitialized() && totalWords > 0 && !fcLoading && ankiReady && !hasLoadedWords() && !isLoading()) {
+    if (isInitialized() && totalWords > 0 && !fcLoading && !hasLoadedWords() && !isLoading()) {
       loadAllWords();
     }
   });
@@ -203,6 +200,29 @@ export const WordDbEditorContent: Component = () => {
   const getWordForms = (word: string): string[] => (
     getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: currentLangData() })
   );
+
+  createEffect(on([ankiWordsReady, hasLoadedWords], ([ankiReady, wordsLoaded]) => {
+    if (!ankiReady || !wordsLoaded || !ankiEnabled()) return;
+
+    setEntries((currentEntries) => currentEntries.map((entry) => {
+      const ankiMatch = findAnkiWordMatchInCache(getWordForms(entry.word), ankiCacheOptions());
+      const tracker = entry.tracker === 'flashcards'
+        ? entry.tracker
+        : ankiMatch
+          ? 'anki'
+          : 'nothing';
+
+      if (tracker === entry.tracker && ankiMatch?.word === entry.ankiLookupWord) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        tracker,
+        ankiLookupWord: ankiMatch?.word,
+      };
+    }));
+  }, { defer: true }));
 
   const mergeReadings = (...groups: Array<string | undefined | null | readonly string[]>): string[] => {
     const readings: string[] = [];
@@ -281,7 +301,9 @@ export const WordDbEditorContent: Component = () => {
         const status = knowledgeStatusToNumeric(word);
         const trackedCard = getCardByWordSync(word, settings.language);
         const isTracked = !!trackedCard || hasWordSync(word, settings.language);
-        const ankiMatch = findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions());
+        const ankiMatch = ankiWordsReady()
+          ? findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())
+          : null;
         const comprehensive = getComprehensiveWordStatusWithSourceSync(word, settings.language);
         const primaryReading = trackedCard?.content?.reading || freqEntry.reading || '';
 
@@ -569,7 +591,6 @@ export const WordDbEditorContent: Component = () => {
     }
   };
 
-  const ankiEnabled = createMemo(() => settings.use_anki);
   const isEntryInAnki = (word: string): boolean => {
     if (!ankiEnabled()) {
       return false;

@@ -370,6 +370,40 @@ describe('language-specific rendering metadata resolution', () => {
     dispose();
   });
 
+  it('replaces a surface form with a same-script pronunciation when metadata requests replacement display', () => {
+    mockActiveLanguageData = makeLanguageData({
+      name: 'Russian',
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Cyrl'] },
+        lexemeNormalization: {
+          type: 'surface-reading',
+          surfaceScripts: ['Cyrl'],
+          readingScripts: ['Cyrl'],
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          display: 'replace',
+          annotationScripts: ['Cyrl'],
+        },
+      },
+    });
+
+    const dispose = render(() => (
+      <WordWithReading
+        word="замок"
+        reading="за́мок"
+        language="ru"
+        languageData={mockActiveLanguageData}
+      />
+    ), container);
+
+    expect(container.querySelector('ruby')).toBeNull();
+    expect(container.textContent).toBe('за́мок');
+    expect(container.textContent).not.toContain('замок');
+
+    dispose();
+  });
+
   it('uses active language metadata for explicit-position prosody when the supplied language matches the active language', () => {
     mockActiveLanguageData = makeLanguageData({
       name: 'Japanese active language',
