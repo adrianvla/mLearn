@@ -566,7 +566,8 @@ describe('SettingsProvider', () => {
     expect(root.style.getPropertyValue('--subtitle-font-size')).toBe('32px');
     expect(root.style.getPropertyValue('--subtitle-font-weight')).toBe('700');
     expect(root.style.getPropertyValue('--word-blur-amount')).toBe('10px');
-    expect(root.style.getPropertyValue('--reading-annotation-color')).toBe('var(--text-primary)');
+    expect(root.style.getPropertyValue('--reading-annotation-color')).toBe('');
+    expect(document.body.style.getPropertyValue('--reading-annotation-color')).toBe('var(--text-primary)');
     expect(root.style.getPropertyValue('--reading-annotation-scale')).toBe('1.3');
     expect(document.body.classList.contains('theme-dark')).toBe(true);
     ctx.updateSetting('theme', 'light');
