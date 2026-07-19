@@ -8,12 +8,14 @@ import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 's
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
 import { LoadingOverlay as BaseLoadingOverlay } from '../../../components/common/Modal/LoadingOverlay';
 import { ErrorModal } from '../../../components/common/Modal/ErrorModal';
+import { Modal } from '../../../components/common/Modal/Modal';
 import { Btn } from '../../../components/common/Button/Button';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getBridge } from '../../../../shared/bridges';
 import { WINDOW_TYPES } from '../../../../shared/constants';
 import { DEFAULT_SETTINGS, type InstallOptions, type LanguageDataCatalogStatus, type Settings } from '../../../../shared/types';
 import { getLogger } from '../../../../shared/utils/logger';
+import './LoadingOverlay.css';
 
 const log = getLogger("renderer.main.loadingOverlay");
 const INSTALLER_REQUIRED_FRAGMENT = 'Python runtime is not installed';
@@ -37,6 +39,29 @@ export function startRequiredComponentRepair(settings: Settings): void {
 export type LanguageSetupRequirement =
   | { required: false }
   | { required: true; reason: 'learning-language' | 'dictionary-language' | 'learning-language-update' | 'dictionary-language-update' };
+
+export interface LanguageDataUpdateTarget {
+  language: string;
+  dictionaryTargetLanguage?: string;
+}
+
+export function getLanguageDataUpdateTarget(
+  settings: Pick<Settings, 'language' | 'dictionaryTargetLanguages'>,
+  requirement: LanguageSetupRequirement,
+): LanguageDataUpdateTarget | null {
+  if (
+    !requirement.required
+    || !settings.language
+    || (requirement.reason !== 'learning-language-update' && requirement.reason !== 'dictionary-language-update')
+  ) {
+    return null;
+  }
+
+  return {
+    language: settings.language,
+    dictionaryTargetLanguage: settings.dictionaryTargetLanguages?.[settings.language],
+  };
+}
 
 export function getLanguageSetupRequirement(
   settings: Pick<Settings, 'language' | 'dictionaryTargetLanguages'>,
@@ -116,6 +141,29 @@ export const LoadingOverlay: Component = () => {
     return requirement.reason === 'dictionary-language'
       ? t('mlearn.LanguageSetup.DictionaryMessage')
       : t('mlearn.LanguageSetup.LanguageMessage');
+  });
+  const languageDataUpdateTarget = createMemo(() => getLanguageDataUpdateTarget(
+    settings.settings,
+    languageSetupRequirement(),
+  ));
+  const isLanguageDataUpdating = createMemo(() => {
+    const target = languageDataUpdateTarget();
+    return Boolean(target && language.isLanguageDataInstalling(
+      target.language,
+      target.dictionaryTargetLanguage,
+    ));
+  });
+  const languageDataUpdateError = createMemo(() => {
+    const target = languageDataUpdateTarget();
+    const error = language.languageDataInstallError();
+    if (!target || !error || error.language !== target.language) return null;
+    if (error.dictionaryTargetLanguage !== target.dictionaryTargetLanguage) return null;
+    return error.error;
+  });
+  const languageDataUpdateMessage = createMemo(() => {
+    if (languageDataUpdateError()) return t('mlearn.LanguageSetup.UpdateFailed');
+    if (isLanguageDataUpdating()) return t('mlearn.LanguageSetup.UpdatingMessage');
+    return languageSetupMessage();
   });
 
   const isLoading = createMemo(
@@ -211,6 +259,12 @@ export const LoadingOverlay: Component = () => {
     getBridge().window.openWindow({ type: WINDOW_TYPES.WELCOME });
   };
 
+  const handleLanguageDataUpdate = () => {
+    const target = languageDataUpdateTarget();
+    if (!target) return;
+    language.installLanguageData(target.language, target.dictionaryTargetLanguage);
+  };
+
   const handleQuit = () => {
     getBridge().window.closeWindow();
   };
@@ -245,22 +299,56 @@ export const LoadingOverlay: Component = () => {
       </Show>
 
       <Show when={!displayedError() && languageSetupRequirement().required}>
-        <ErrorModal
-          isOpen={true}
-          severity="warning"
-          title={t('mlearn.LanguageSetup.Title')}
-          message={languageSetupMessage()}
-          showRetry={false}
-          showQuit={false}
-          actions={(
-            <Btn
-              variant="primary"
-              onClick={handleOpenLanguageSetup}
-            >
-              {t('mlearn.LanguageSetup.OpenSetup')}
-            </Btn>
+        <Show
+          when={languageDataUpdateTarget()}
+          fallback={(
+            <ErrorModal
+              isOpen={true}
+              severity="warning"
+              title={t('mlearn.LanguageSetup.Title')}
+              message={languageSetupMessage()}
+              showRetry={false}
+              showQuit={false}
+              actions={(
+                <Btn
+                  variant="primary"
+                  onClick={handleOpenLanguageSetup}
+                >
+                  {t('mlearn.LanguageSetup.OpenSetup')}
+                </Btn>
+              )}
+            />
           )}
-        />
+        >
+          <Modal
+            isOpen={true}
+            onClose={() => {}}
+            title={t('mlearn.LanguageSetup.UpdateTitle')}
+            size="md"
+            closeOnEscape={false}
+            closeOnOverlay={false}
+            showCloseButton={false}
+            headerDraggable
+            footer={(
+              <Btn
+                variant="primary"
+                onClick={handleLanguageDataUpdate}
+                loading={isLanguageDataUpdating()}
+              >
+                {isLanguageDataUpdating()
+                  ? t('mlearn.LanguageSetup.Updating')
+                  : t('mlearn.LanguageSetup.UpdateNow')}
+              </Btn>
+            )}
+          >
+            <div class="language-data-update-modal__body">
+              <p class="language-data-update-modal__message">{languageDataUpdateMessage()}</p>
+              <Show when={languageDataUpdateError()}>
+                {(error) => <p class="language-data-update-modal__error">{error()}</p>}
+              </Show>
+            </div>
+          </Modal>
+        </Show>
       </Show>
 
       {/* Loading overlay - shown during initialization when no error */}

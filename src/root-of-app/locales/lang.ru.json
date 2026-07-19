@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "Выбранные словарные данные устарели. Откройте настройку языка, чтобы обновить их.",
+      "DictionaryUpdateMessage": "Доступно обновление данных выбранного словаря. Обновите их здесь, чтобы продолжить.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "Языковые данные для изучаемого языка устарели. Откройте настройку языка, чтобы обновить их.",
+      "LanguageUpdateMessage": "Доступно обновление данных изучаемого языка. Обновите их здесь, чтобы продолжить.",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "Не удалось обновить языковые данные. Попробуйте ещё раз.",
+      "UpdateNow": "Обновить сейчас",
+      "UpdateTitle": "Доступно обновление языковых данных",
+      "Updating": "Обновление…",
+      "UpdatingMessage": "Загрузка и установка последних языковых данных."
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
