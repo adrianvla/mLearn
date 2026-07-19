@@ -189,7 +189,15 @@ export const WelcomeRoute: Component = () => {
           <AppLogo size={"2.5rem"}/>
           <h1>{t('mlearn.Home.UI.Title')}</h1>
         </div>
-        <p class="welcome-subtitle">{t('mlearn.Home.UI.TitleDescription')}</p>
+        <div class="welcome-subtitle">
+          <span>
+            {t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}
+            <Show when={currentLangData()?.flagEmoji}>
+              {(flagEmoji) => <> {flagEmoji()}</>}
+            </Show>
+          </span>
+          <Btn variant="ghost" size="sm" onClick={openSettings}>{t('mlearn.Home.UI.ChangeLanguage')}</Btn>
+        </div>
       </header>
 
       {/* Main Actions */}
@@ -297,12 +305,6 @@ export const WelcomeRoute: Component = () => {
         </section>
       </Show>
 
-      {/* Footer */}
-      <footer class="welcome-footer">
-        <span>{t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}</span>
-        <span>•</span>
-        <Btn variant="ghost" size="sm" onClick={openSettings}>{t('mlearn.Home.UI.ChangeLanguage')}</Btn>
-      </footer>
     </div>
   );
 };

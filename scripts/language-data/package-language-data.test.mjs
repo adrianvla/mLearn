@@ -39,6 +39,24 @@ describe('package-language-data', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
+  it('publishes a flag emoji for every supported learning language', () => {
+    const expectedFlags = {
+      de: '🇩🇪',
+      ja: '🇯🇵',
+      ru: '🇷🇺',
+      'zh-Hans': '🇨🇳',
+      'zh-Hant': '🇹🇼',
+    };
+
+    for (const [language, flagEmoji] of Object.entries(expectedFlags)) {
+      const metadata = readJson(path.join(
+        process.cwd(),
+        `scripts/language-data/source/root-of-app/languages/${language}.json`,
+      ));
+      assert.equal(metadata.flagEmoji, flagEmoji);
+    }
+  });
+
   it('declares Japanese runtime Python requirements in language metadata', () => {
     const metadata = readJson(path.join(
       process.cwd(),

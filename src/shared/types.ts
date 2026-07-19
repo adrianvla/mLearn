@@ -1230,6 +1230,7 @@ export interface LanguageRuntimeConfig {
 export interface LanguageData {
   name: string;
   name_translated?: string;
+  flagEmoji?: string;
   /** Settings behavior supplied by the language package. */
   settings?: LanguageSettingsConfig;
   /** Frequency rows as [surface, reading, ...metadata]. Levels are assigned from boundaries unless frequencyLevels.rowLevelIndex is set. */
