@@ -25,6 +25,7 @@ vi.mock('electron', () => ({
   },
   app: {
     getPath: vi.fn(() => '/tmp/test'),
+    getVersion: vi.fn(() => '2.6.7'),
     on: vi.fn(),
     isPackaged: false,
   },
@@ -835,6 +836,7 @@ describe('loadLanguagePackageCatalog', () => {
             name: 'Spanish',
             nameTranslated: 'Español',
             version: 'es-package-v1',
+            minimumAppVersion: '2.7.0',
             bundle: {
               href: './language-data/language-es-package-v1.tar.gz',
               sizeBytes: 456,
@@ -867,6 +869,7 @@ describe('loadLanguagePackageCatalog', () => {
       name_translated: 'Español',
       languageData: {
         version: 'es-package-v1',
+        minimumAppVersion: '2.7.0',
         bundle: {
           url: 'https://pages.example.com/language-data/language-es-package-v1.tar.gz',
           sizeBytes: 456,
@@ -879,6 +882,30 @@ describe('loadLanguagePackageCatalog', () => {
         ],
       },
     });
+  });
+
+  it('rejects catalog entries with an invalid minimum app version', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          bad: {
+            name: 'Bad Version',
+            version: 'bad-package-v1',
+            minimumAppVersion: '2.7',
+            bundle: { href: './language-data/bad.tar.gz' },
+            files: [],
+          },
+        },
+      }),
+    }));
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    });
+
+    expect(langData).toEqual({});
   });
 
   it('loads dictionary packs from language package catalog entries', async () => {

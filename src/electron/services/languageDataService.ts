@@ -13,6 +13,7 @@ import type {
   LanguagePythonRequirementComponent,
 } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
+import { satisfiesMinimumAppVersion } from '../../shared/semanticVersion';
 
 const log = getLogger('electron.languageData');
 const inFlightInstalls = new Map<string, Promise<void>>();
@@ -45,6 +46,7 @@ export interface LanguageDataStatus {
 
 export interface LanguageDataInstallOptions {
   components?: readonly LanguagePythonRequirementComponent[];
+  currentAppVersion?: string;
 }
 
 const CORE_COMPONENT: LanguagePythonRequirementComponent = 'core';
@@ -508,7 +510,7 @@ export function getLanguageDataStatus(
   };
 }
 
-export function getLanguageDataCatalogStatus(langData: LanguageDataMap): LanguageDataCatalogStatus[] {
+export function getLanguageDataCatalogStatus(langData: LanguageDataMap, currentAppVersion: string): LanguageDataCatalogStatus[] {
   return Object.entries(langData)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([language, metadata]) => {
@@ -517,6 +519,8 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
       const bundle = metadata.languageData?.bundle;
       const totalBytes = bundle?.sizeBytes ?? assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0);
       const installedBytes = getInstalledBytes(assets);
+      const minimumAppVersion = metadata.languageData?.minimumAppVersion;
+      const compatible = !minimumAppVersion || satisfiesMinimumAppVersion(currentAppVersion, minimumAppVersion);
       const dictionaryPacks = metadata.languageData?.dictionaryPacks
         ? Object.values(metadata.languageData.dictionaryPacks)
           .sort((left, right) => left.targetLanguage.localeCompare(right.targetLanguage))
@@ -547,6 +551,8 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
         dataRoot: status.dataRoot,
         installed: status.installed,
         outdated: status.outdated,
+        compatible,
+        minimumAppVersion,
         totalBytes,
         installedBytes,
         missingRequiredAssets: status.missingAssets,
@@ -626,6 +632,13 @@ export async function ensureLanguageDataInstalled(
   dictionaryTargetLanguage?: string,
   options?: LanguageDataInstallOptions,
 ): Promise<LanguageDataStatus> {
+  const minimumAppVersion = langData[language]?.languageData?.minimumAppVersion;
+  if (minimumAppVersion) {
+    const currentAppVersion = options?.currentAppVersion;
+    if (!currentAppVersion || !satisfiesMinimumAppVersion(currentAppVersion, minimumAppVersion)) {
+      throw new Error(`${langData[language]?.name ?? language} requires mLearn ${minimumAppVersion} or later`);
+    }
+  }
   const assets = getAssets(language, langData, dictionaryTargetLanguage, options).filter((asset) => asset.required !== false);
   const bundle = getBundle(language, langData, dictionaryTargetLanguage);
   const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;

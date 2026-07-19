@@ -1538,7 +1538,8 @@
           "InstallFailed": "言語データのインストールに失敗しました",
           "Update": "言語データを更新",
           "UpdateRequired": "言語データの更新があります",
-          "MissingRequired": "言語データが必要です"
+          "MissingRequired": "言語データが必要です",
+          "RequiresAppVersion": "mLearn {version} 以降が必要です"
         },
         "DictionaryTarget": {
           "Description": "辞書の定義に使う言語を選択",

@@ -1538,7 +1538,8 @@
           "InstallFailed": "Language data install failed",
           "Update": "Update language data",
           "UpdateRequired": "Language data update available",
-          "MissingRequired": "Language data required"
+          "MissingRequired": "Language data required",
+          "RequiresAppVersion": "Requires mLearn {version} or later"
         },
         "DictionaryTarget": {
           "Description": "Select the language used for dictionary definitions",

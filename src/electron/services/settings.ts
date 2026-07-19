@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
@@ -13,6 +13,7 @@ import { setUILanguage } from './localization';
 import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus, resolveDictionaryTargetLanguage } from './languageDataService';
 import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
 import { getLogger } from '../../shared/utils/logger';
+import { compareSemanticVersions } from '../../shared/semanticVersion';
 
 const log = getLogger('electron.settings');
 const LANGUAGE_CATALOG_FETCH_TIMEOUT_MS = 5000;
@@ -647,10 +648,18 @@ function normalizeCatalogEntry(language: string, value: unknown, catalogUrl: str
   const files = value.files
     .map((asset) => normalizeCatalogAsset(asset))
     .filter((asset): asset is LanguageDataAsset => asset !== null);
+  const minimumAppVersion = value.minimumAppVersion;
+  if (
+    minimumAppVersion !== undefined
+    && (typeof minimumAppVersion !== 'string' || compareSemanticVersions(minimumAppVersion, minimumAppVersion) === undefined)
+  ) {
+    return null;
+  }
   return {
     name: typeof value.name === 'string' ? value.name : language,
     nameTranslated: typeof value.nameTranslated === 'string' ? value.nameTranslated : undefined,
     version: typeof value.version === 'string' ? value.version : `${language}-v1`,
+    minimumAppVersion,
     bundle,
     files,
     dictionaryPacks: normalizeDictionaryPacks(value.dictionaryPacks, catalogUrl),
@@ -663,6 +672,7 @@ function languageDataFromCatalogEntry(entry: LanguageCatalogEntry): LanguageData
     name_translated: entry.nameTranslated,
     languageData: {
       version: entry.version,
+      minimumAppVersion: entry.minimumAppVersion,
       bundle: entry.bundle,
       assets: entry.files,
       dictionaryPacks: entry.dictionaryPacks,
@@ -815,7 +825,7 @@ export function setupSettingsIPC(): void {
 
   ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, async (event) => {
     const langData = await loadLanguagePackageCatalog();
-    event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData));
+    event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData, app.getVersion()));
   });
 
   ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => {
@@ -826,7 +836,8 @@ export function setupSettingsIPC(): void {
       const components = installOptions
         ? getLanguageDataComponentsFromInstallOptions(effectiveInstallOptions)
         : getEnabledLanguageDataComponents(settings);
-      await ensureLanguageDataInstalled(language, langData, undefined, undefined, { components });
+      const currentAppVersion = app.getVersion();
+      await ensureLanguageDataInstalled(language, langData, undefined, undefined, { components, currentAppVersion });
       await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), effectiveInstallOptions, {
         onStatus: (message) => event.reply(IPC_CHANNELS.SERVER_STATUS_UPDATE, message),
       });
@@ -842,9 +853,9 @@ export function setupSettingsIPC(): void {
         );
       }
       if (resolvedDictionaryTarget) {
-        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget);
+        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget, { currentAppVersion });
       }
-      const catalog = getLanguageDataCatalogStatus(await loadLanguagePackageCatalog());
+      const catalog = getLanguageDataCatalogStatus(await loadLanguagePackageCatalog(), currentAppVersion);
       const installedStatus = catalog.find((status) => status.language === language);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);

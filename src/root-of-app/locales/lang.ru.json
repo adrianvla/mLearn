@@ -1538,7 +1538,8 @@
           "InstallFailed": "Не удалось установить языковые данные",
           "Update": "Обновить языковые данные",
           "UpdateRequired": "Доступно обновление языковых данных",
-          "MissingRequired": "Требуются языковые данные"
+          "MissingRequired": "Требуются языковые данные",
+          "RequiresAppVersion": "Требуется mLearn {version} или новее"
         },
         "DictionaryTarget": {
           "Description": "Выберите язык определений в словаре",

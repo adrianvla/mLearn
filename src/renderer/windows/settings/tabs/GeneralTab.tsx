@@ -28,14 +28,25 @@ function assignImportedSetting<K extends keyof Settings>(
 
 type DictionaryPackStatus = NonNullable<LanguageDataCatalogStatus['dictionaryPacks']>[number];
 type InstallableDataStatus = LanguageDataCatalogStatus | DictionaryPackStatus;
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+function isIncompatibleLanguageStatus(status: InstallableDataStatus): status is LanguageDataCatalogStatus {
+  return 'compatible' in status && !status.compatible;
+}
 
 function languageDataStatusClass(status: InstallableDataStatus): string {
+  if (isIncompatibleLanguageStatus(status)) return 'incompatible';
   if (status.installed) return 'installed';
   if (status.outdated) return 'outdated';
   return 'missing';
 }
 
-function languageDataStatusLabel(status: InstallableDataStatus, t: (key: string) => string): string {
+function languageDataStatusLabel(status: InstallableDataStatus, t: Translate): string {
+  if (isIncompatibleLanguageStatus(status)) {
+    return t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
+      version: status.minimumAppVersion ?? '',
+    });
+  }
   if (status.installed) return t('mlearn.Settings.Language.LanguageData.Installed');
   if (status.outdated) return t('mlearn.Settings.Language.LanguageData.UpdateRequired');
   return t('mlearn.Settings.Language.LanguageData.MissingRequired');
@@ -85,7 +96,15 @@ export const GeneralTab: Component = () => {
   });
   const learningLanguageOptions = createMemo(() => availableLanguageCodes().map((code) => ({
     value: code,
-    label: langData[code]?.name_translated ?? getLanguageDataStatus(code)?.nameTranslated ?? getLanguageDataStatus(code)?.name ?? code.toUpperCase(),
+    label: (() => {
+      const status = getLanguageDataStatus(code);
+      const languageName = langData[code]?.name_translated ?? status?.nameTranslated ?? status?.name ?? code.toUpperCase();
+      if (!status || status.compatible) return languageName;
+      return `${languageName} — ${t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
+        version: status.minimumAppVersion ?? '',
+      })}`;
+    })(),
+    disabled: getLanguageDataStatus(code)?.compatible === false && code !== settings.language,
   })));
   const selectedLanguageDataStatus = createMemo(() => getLanguageDataStatus(settings.language));
   const selectedLanguageInstalling = createMemo(() => isLanguageDataInstalling(settings.language));
@@ -259,6 +278,7 @@ export const GeneralTab: Component = () => {
             value={settings.language}
             onChange={async (e) => {
               const language = e.currentTarget.value;
+              if (getLanguageDataStatus(language)?.compatible === false) return;
               updateSettings({ language });
             }}
             options={learningLanguageOptions()}
@@ -271,7 +291,7 @@ export const GeneralTab: Component = () => {
               </span>
             )}
           </Show>
-          <Show when={selectedLanguageDataStatus() && !selectedLanguageDataStatus()?.installed}>
+          <Show when={selectedLanguageDataStatus()?.compatible !== false && selectedLanguageDataStatus() && !selectedLanguageDataStatus()?.installed}>
             <Btn
               size="sm"
               variant="secondary"

@@ -758,6 +758,8 @@ export interface LanguageDictionaryPack {
 export interface LanguageDataManifest {
   /** Data payload version independent from app version. */
   version?: string;
+  /** Oldest semantic mLearn app version that can use this language package. */
+  minimumAppVersion?: string;
   /** Source/component versions that make up this language package. */
   sourceVersions?: Record<string, string>;
   /** Optional archive containing all files listed in assets. */
@@ -1305,6 +1307,7 @@ export interface LanguageCatalogEntry {
   name: string;
   nameTranslated?: string;
   version: string;
+  minimumAppVersion?: string;
   bundle: LanguageDataBundle;
   files: LanguageDataAsset[];
   dictionaryPacks?: Record<string, LanguageDictionaryPack>;
@@ -1336,6 +1339,8 @@ export interface LanguageDataCatalogStatus {
   dataRoot: string;
   installed: boolean;
   outdated: boolean;
+  compatible: boolean;
+  minimumAppVersion?: string;
   totalBytes: number;
   installedBytes: number;
   missingRequiredAssets: string[];

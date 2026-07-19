@@ -24,11 +24,21 @@ interface LanguageOption {
   code: string;
   name: string;
   nativeName: string;
+  compatible: boolean;
+  minimumAppVersion?: string;
 }
 
 type DictionaryPackStatus = NonNullable<LanguageDataCatalogStatus['dictionaryPacks']>[number];
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+function isIncompatibleLanguageStatus(
+  status: LanguageDataCatalogStatus | DictionaryPackStatus,
+): status is LanguageDataCatalogStatus {
+  return 'compatible' in status && !status.compatible;
+}
 
 function languageDataStatusClass(status: LanguageDataCatalogStatus | DictionaryPackStatus): string {
+  if (isIncompatibleLanguageStatus(status)) return 'incompatible';
   if (status.installed) return 'installed';
   if (status.outdated) return 'outdated';
   return 'missing';
@@ -36,8 +46,13 @@ function languageDataStatusClass(status: LanguageDataCatalogStatus | DictionaryP
 
 function languageDataStatusLabel(
   status: LanguageDataCatalogStatus | DictionaryPackStatus,
-  t: (key: string) => string,
+  t: Translate,
 ): string {
+  if (isIncompatibleLanguageStatus(status)) {
+    return t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
+      version: status.minimumAppVersion ?? '',
+    });
+  }
   if (status.installed) return t('mlearn.Settings.Language.LanguageData.Installed');
   if (status.outdated) return t('mlearn.Settings.Language.LanguageData.UpdateRequired');
   return t('mlearn.Settings.Language.LanguageData.MissingRequired');
@@ -86,11 +101,16 @@ const WelcomeContent: Component = () => {
     const catalogCodes = catalogLanguageCodes();
     return uniqueLanguageCodes(catalogCodes, supportedLanguages());
   });
-  const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => ({
-    code,
-    name: langData[code]?.name ?? getLanguageDataStatus(code)?.name ?? code.toUpperCase(),
-    nativeName: langData[code]?.name_translated ?? getLanguageDataStatus(code)?.nameTranslated ?? getLanguageDataStatus(code)?.name ?? code.toUpperCase(),
-  })));
+  const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => {
+    const status = getLanguageDataStatus(code);
+    return {
+      code,
+      name: langData[code]?.name ?? status?.name ?? code.toUpperCase(),
+      nativeName: langData[code]?.name_translated ?? status?.nameTranslated ?? status?.name ?? code.toUpperCase(),
+      compatible: status?.compatible !== false,
+      minimumAppVersion: status?.minimumAppVersion,
+    };
+  }));
   const uiLanguageCodes = getBundledLocaleCodes();
   const uiLanguageOptions = createMemo(() => uiLanguageCodes.map((code) => ({
     value: code,
@@ -216,6 +236,7 @@ const WelcomeContent: Component = () => {
   });
   const isSelectedLanguageDataReady = (languageCode: string): boolean => {
     const status = getLanguageDataStatus(languageCode);
+    if (status?.compatible === false) return false;
     const dictionaryTarget = selectedDictionaryTargetLanguage();
     const dictionaryPack = status?.dictionaryPacks?.find((pack) => pack.targetLanguage === dictionaryTarget);
     return Boolean((!status || status.installed) && hasValidDictionaryTargetSelection() && (!dictionaryTarget || dictionaryPack?.installed));
@@ -232,6 +253,12 @@ const WelcomeContent: Component = () => {
     }
     if (isSelectedLanguageDataReady(selectedLanguage())) {
       return t('mlearn.Installer.Buttons.FinishSetup');
+    }
+    const status = selectedLanguageDataStatus();
+    if (status?.compatible === false) {
+      return t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
+        version: status.minimumAppVersion ?? '',
+      });
     }
     if (selectedLanguageDataNeedsUpdate()) {
       return t('mlearn.Installer.Buttons.UpdateLanguageData');
@@ -595,10 +622,18 @@ const WelcomeContent: Component = () => {
             <Select
               class="welcome-window__sentence-select"
               value={selectedLanguage()}
-              onChange={(event) => setSelectedLanguage(event.currentTarget.value)}
+              onChange={(event) => {
+                if (getLanguageDataStatus(event.currentTarget.value)?.compatible === false) return;
+                setSelectedLanguage(event.currentTarget.value);
+              }}
               options={availableLanguages().map((lang) => ({
                 value: lang.code,
-                label: `${lang.name} (${lang.nativeName})`,
+                label: lang.compatible
+                  ? `${lang.name} (${lang.nativeName})`
+                  : `${lang.name} (${lang.nativeName}) — ${t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
+                    version: lang.minimumAppVersion ?? '',
+                  })}`,
+                disabled: !lang.compatible && lang.code !== selectedLanguage(),
               }))}
             />
             <span>{t('mlearn.Installer.SetupSentence.AppLanguagePrefix')}</span>
@@ -615,6 +650,11 @@ const WelcomeContent: Component = () => {
             <span>{t('mlearn.Installer.Summary.DisplayLanguage', { language: selectedUILanguageLabel() })}</span>
             <span>{t('mlearn.Installer.Summary.DictionaryLanguage', { language: selectedDictionaryRoute() })}</span>
           </div>
+          <Show when={selectedLanguageDataStatus()?.compatible === false}>
+            <p class="welcome-window__dictionary-target-warning">
+              {languageDataStatusLabel(selectedLanguageDataStatus()!, t)}
+            </p>
+          </Show>
           <Show when={dictionaryTargetOptions().length > 0}>
             <details
               class="welcome-window__advanced"
@@ -710,6 +750,7 @@ const WelcomeContent: Component = () => {
               disabled={
                 (installationStarted() && !installationCompleted()) ||
                 !selectedLanguage() ||
+                selectedLanguageDataStatus()?.compatible === false ||
                 !hasValidDictionaryTargetSelection() ||
                 Boolean(pendingLanguageInstall()) ||
                 isFinalizingSetup()
