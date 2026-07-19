@@ -1,0 +1,225 @@
+{
+  "name": "Russian",
+  "name_translated": "Русский",
+  "frequencyLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "boundaries": [1000, 3000, 7000, 15000, 30000],
+    "names": {
+      "1": "Core 1,000",
+      "2": "Common 3,000",
+      "3": "Intermediate 7,000",
+      "4": "Upper 15,000",
+      "5": "Advanced 30,000",
+      "6": "Rare vocabulary"
+    }
+  },
+  "grammarLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "names": {
+      "1": "A1 Foundations",
+      "2": "A2 Elementary",
+      "3": "B1 Intermediate",
+      "4": "B2 Upper intermediate",
+      "5": "C1 Advanced",
+      "6": "C2 Mastery"
+    }
+  },
+  "grammar": [
+    {"pattern":"это + nominative","meaning":"identify or define something with это","level":1,"match":{"type":"text","text":"это"}},
+    {"pattern":"у + genitive + есть","meaning":"express possession: someone has something","level":1,"match":{"type":"token-sequence","tokens":[{"equals":"у"},{"features":{"Case":"Gen"}},{"field":"lemma","equals":"быть"}]}},
+    {"pattern":"нет + genitive","meaning":"express absence or non-possession","level":1,"match":{"type":"token-sequence","tokens":[{"equals":"нет"},{"features":{"Case":"Gen"}}]}},
+    {"pattern":"в/на + prepositional","meaning":"location in or at a place","level":1,"match":{"type":"token-sequence","tokens":[{"oneOf":["в","на"]},{"features":{"Case":"Loc"}}]}},
+    {"pattern":"в/на + accusative","meaning":"movement into or onto a place","level":1,"match":{"type":"token-sequence","tokens":[{"oneOf":["в","на"]},{"features":{"Case":"Acc"}}]}},
+    {"pattern":"из/с + genitive","meaning":"movement out of or from a place","level":1,"match":{"type":"token-sequence","tokens":[{"oneOf":["из","с","со"]},{"features":{"Case":"Gen"}}]}},
+    {"pattern":"к + dative","meaning":"movement toward a person or place","level":1,"match":{"type":"token-sequence","tokens":[{"equals":"к"},{"features":{"Case":"Dat"}}]}},
+    {"pattern":"с + instrumental","meaning":"accompaniment with someone or something","level":1,"match":{"type":"token-sequence","tokens":[{"oneOf":["с","со"]},{"features":{"Case":"Ins"}}]}},
+    {"pattern":"я/ты/он/она + verb","meaning":"present-tense personal verb agreement","level":1,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"pronoun"},{"canonicalPartOfSpeech":"verb"}]}},
+    {"pattern":"не + verb","meaning":"verbal negation","level":1,"match":{"type":"token-sequence","tokens":[{"equals":"не"},{"canonicalPartOfSpeech":"verb"}]}},
+    {"pattern":"adjective + noun agreement","meaning":"adjectives agree with nouns in gender, number and case","level":1,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"adjective"},{"canonicalPartOfSpeech":"noun"}]}},
+    {"pattern":"past tense -л","meaning":"past tense agrees in gender and number","level":1,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Tense":"Past"}}]}},
+    {"pattern":"буду + infinitive","meaning":"compound future for imperfective verbs","level":2,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"быть"},{"features":{"VerbForm":"Inf"}}]}},
+    {"pattern":"perfective future","meaning":"simple future formed with a perfective verb","level":2,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Aspect":"Perf","Tense":"Fut"}}]}},
+    {"pattern":"надо/нужно + infinitive","meaning":"impersonal necessity: need to do something","level":2,"match":{"type":"token-sequence","tokens":[{"oneOf":["надо","нужно"]},{"features":{"VerbForm":"Inf"}}]}},
+    {"pattern":"можно/нельзя + infinitive","meaning":"permission, possibility or prohibition","level":2,"match":{"type":"token-sequence","tokens":[{"oneOf":["можно","нельзя"]},{"features":{"VerbForm":"Inf"}}]}},
+    {"pattern":"хотеть + infinitive","meaning":"want to do something","level":2,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"хотеть"},{"features":{"VerbForm":"Inf"}}]}},
+    {"pattern":"любить + infinitive","meaning":"like doing something habitually","level":2,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"любить"},{"features":{"VerbForm":"Inf"}}]}},
+    {"pattern":"comparative + чем","meaning":"compare two people or things","level":2,"match":{"type":"text","text":"чем"}},
+    {"pattern":"самый + adjective","meaning":"form a superlative","level":2,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"самый"},{"canonicalPartOfSpeech":"adjective"}]}},
+    {"pattern":"dative experiencer","meaning":"impersonal states with the experiencer in dative","level":2,"match":{"type":"token-sequence","tokens":[{"features":{"Case":"Dat"}},{"oneOf":["холодно","жарко","интересно","скучно","нравится"]}]}},
+    {"pattern":"мне нравится","meaning":"express liking with dative experiencer","level":2,"match":{"type":"token-sequence","tokens":[{"features":{"Case":"Dat"}},{"field":"lemma","equals":"нравиться"}]}},
+    {"pattern":"reflexive verbs -ся","meaning":"reflexive, reciprocal, passive or intransitive verb meaning","level":2,"match":{"type":"text","text":"ся"}},
+    {"pattern":"imperative mood","meaning":"commands and requests","level":2,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Mood":"Imp"}}]}},
+    {"pattern":"поэтому","meaning":"state a consequence: therefore","level":2,"match":{"type":"text","text":"поэтому"}},
+    {"pattern":"потому что","meaning":"give a reason: because","level":2,"match":{"type":"text","text":"потому что"}},
+    {"pattern":"если ... то","meaning":"real or possible condition","level":3,"match":[{"type":"text","text":"если"},{"type":"text","text":"то"}]},
+    {"pattern":"когда + clause","meaning":"time clause with when","level":3,"match":{"type":"text","text":"когда"}},
+    {"pattern":"который relative clause","meaning":"relative clause using который with case agreement","level":3,"match":{"type":"text","text":"котор"}},
+    {"pattern":"чтобы + past-form verb","meaning":"purpose, desire or subordinate command","level":3,"match":{"type":"text","text":"чтобы"}},
+    {"pattern":"бы + past tense","meaning":"conditional or hypothetical mood","level":3,"match":{"type":"text","text":"бы"}},
+    {"pattern":"instrumental predicate","meaning":"profession, role or resulting state after linking/change verbs","level":3,"match":{"type":"token-sequence","tokens":[{"oneOf":["быть","стать","работать","являться"]},{"features":{"Case":"Ins"}}]}},
+    {"pattern":"genitive after quantities","meaning":"noun case after numbers and quantity words","level":3,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"number"},{"features":{"Case":"Gen"}}]}},
+    {"pattern":"negative genitive","meaning":"genitive noun under negation or absence","level":3,"match":{"type":"token-sequence","tokens":[{"equals":"не"},{"features":{"Case":"Gen"}}]}},
+    {"pattern":"indefinite -то","meaning":"indefinite pronoun meaning some or a certain","level":3,"match":{"type":"text","text":"-то"}},
+    {"pattern":"indefinite -нибудь","meaning":"indefinite pronoun meaning any or some","level":3,"match":{"type":"text","text":"нибудь"}},
+    {"pattern":"ни- negative pronouns","meaning":"nobody, nothing, nowhere under negation","level":3,"match":{"type":"text","text":"ни"}},
+    {"pattern":"verbs of motion unidirectional","meaning":"motion in one direction or a trip in progress","level":3,"match":{"type":"token-sequence","tokens":[{"oneOf":["идти","ехать","лететь","плыть","нести","вести","везти"]}]}},
+    {"pattern":"verbs of motion multidirectional","meaning":"habitual, repeated or multidirectional motion","level":3,"match":{"type":"token-sequence","tokens":[{"oneOf":["ходить","ездить","летать","плавать","носить","водить","возить"]}]}},
+    {"pattern":"motion verb prefixes","meaning":"direction and path expressed with prefixed motion verbs","level":3,"match":{"type":"text","text":"при"}},
+    {"pattern":"aspect in repeated actions","meaning":"imperfective aspect for process, duration and repetition","level":3,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Aspect":"Imp"}}]}},
+    {"pattern":"aspect in completed actions","meaning":"perfective aspect for bounded completed events","level":3,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Aspect":"Perf"}}]}},
+    {"pattern":"пока не","meaning":"until an event occurs","level":3,"match":{"type":"text","text":"пока не"}},
+    {"pattern":"прежде чем","meaning":"before doing something","level":3,"match":{"type":"text","text":"прежде чем"}},
+    {"pattern":"после того как","meaning":"after something happened","level":3,"match":{"type":"text","text":"после того как"}},
+    {"pattern":"несмотря на + accusative","meaning":"despite something","level":4,"match":{"type":"text","text":"несмотря на"}},
+    {"pattern":"хотя","meaning":"concession: although","level":4,"match":{"type":"text","text":"хотя"}},
+    {"pattern":"однако","meaning":"formal contrast: however","level":4,"match":{"type":"text","text":"однако"}},
+    {"pattern":"чем ... тем","meaning":"correlative comparison: the more, the more","level":4,"match":{"type":"text","text":"тем"}},
+    {"pattern":"не только ... но и","meaning":"not only but also","level":4,"match":{"type":"text","text":"не только"}},
+    {"pattern":"как только","meaning":"as soon as","level":4,"match":{"type":"text","text":"как только"}},
+    {"pattern":"едва","meaning":"barely or no sooner than","level":4,"match":{"type":"text","text":"едва"}},
+    {"pattern":"вряд ли","meaning":"express strong doubt: unlikely","level":4,"match":{"type":"text","text":"вряд ли"}},
+    {"pattern":"должно быть","meaning":"inference: must be or apparently","level":4,"match":{"type":"text","text":"должно быть"}},
+    {"pattern":"оказывается","meaning":"newly discovered or surprising information","level":4,"match":{"type":"text","text":"оказывается"}},
+    {"pattern":"passive -ся","meaning":"imperfective passive construction","level":4,"match":{"type":"text","text":"ся"}},
+    {"pattern":"short passive participle","meaning":"completed passive result","level":4,"match":{"type":"token-sequence","tokens":[{"features":{"Voice":"Pass","Variant":"Short"}}]}},
+    {"pattern":"active participle","meaning":"participial modifier describing an active participant","level":4,"match":{"type":"token-sequence","tokens":[{"features":{"VerbForm":"Part","Voice":"Act"}}]}},
+    {"pattern":"passive participle","meaning":"participial modifier describing an affected participant","level":4,"match":{"type":"token-sequence","tokens":[{"features":{"VerbForm":"Part","Voice":"Pass"}}]}},
+    {"pattern":"adverbial participle","meaning":"secondary simultaneous or prior action","level":4,"match":{"type":"token-sequence","tokens":[{"features":{"VerbForm":"Conv"}}]}},
+    {"pattern":"ли indirect question","meaning":"embedded yes/no question","level":4,"match":{"type":"text","text":"ли"}},
+    {"pattern":"будто/словно","meaning":"comparison or reported appearance: as if","level":5,"match":{"type":"text","text":"будто"}},
+    {"pattern":"поскольку","meaning":"formal causal conjunction: since","level":5,"match":{"type":"text","text":"поскольку"}},
+    {"pattern":"в то время как","meaning":"simultaneous contrast: whereas","level":5,"match":{"type":"text","text":"в то время как"}},
+    {"pattern":"вместо того чтобы","meaning":"instead of doing something","level":5,"match":{"type":"text","text":"вместо того чтобы"}},
+    {"pattern":"при условии что","meaning":"formal condition: provided that","level":5,"match":{"type":"text","text":"при условии"}},
+    {"pattern":"независимо от","meaning":"regardless of","level":5,"match":{"type":"text","text":"независимо от"}},
+    {"pattern":"что касается","meaning":"topic framing: as for","level":5,"match":{"type":"text","text":"что касается"}},
+    {"pattern":"дело в том что","meaning":"explanatory framing: the point is that","level":5,"match":{"type":"text","text":"дело в том"}},
+    {"pattern":"не то чтобы","meaning":"qualified denial: it is not exactly that","level":5,"match":{"type":"text","text":"не то чтобы"}},
+    {"pattern":"как бы ни","meaning":"concessive free-choice construction","level":5,"match":{"type":"text","text":"как бы ни"}},
+    {"pattern":"ни ... ни","meaning":"coordinated negative alternatives","level":5,"match":{"type":"text","text":" ни "}},
+    {"pattern":"бывало","meaning":"literary marker of repeated past situations","level":6,"match":{"type":"text","text":"бывало"}},
+    {"pattern":"дабы","meaning":"formal or literary purpose conjunction","level":6,"match":{"type":"text","text":"дабы"}},
+    {"pattern":"коль скоро","meaning":"formal condition or cause","level":6,"match":{"type":"text","text":"коль скоро"}},
+    {"pattern":"не столько ... сколько","meaning":"correction of degree: not so much as","level":6,"match":{"type":"text","text":"не столько"}},
+    {"pattern":"того и гляди","meaning":"imminent and often undesirable possibility","level":6,"match":{"type":"text","text":"того и гляди"}},
+    {"pattern":"не преминуть + infinitive","meaning":"formal assurance that someone will certainly act","level":6,"match":{"type":"text","text":"не премин"}}
+  ],
+  "textProcessing": {
+    "scriptProfile": {
+      "acceptedScripts": ["Cyrl"],
+      "requiredScripts": ["Cyrl"],
+      "wordScriptValidation": "only-accepted"
+    },
+    "lexemeNormalization": {
+      "type": "surface-reading",
+      "surfaceScripts": ["Cyrl"],
+      "surfaceNormalizers": ["casefold"],
+      "readingScripts": ["Cyrl"],
+      "readingNormalizer": "unicode-nfc"
+    },
+    "readingAnnotation": {
+      "type": "script-reading",
+      "display": "replace",
+      "annotationScripts": ["Cyrl"],
+      "readingSeparator": " "
+    },
+    "partOfSpeech": {
+      "translatable": ["noun", "verb", "adjective", "adverb", "pronoun", "number", "proper noun"],
+      "aliases": {
+        "NOUN": "noun", "PROPN": "proper noun", "VERB": "verb", "AUX": "verb",
+        "ADJ": "adjective", "ADV": "adverb", "PRON": "pronoun", "NUM": "number",
+        "ADP": "preposition", "CCONJ": "conjunction", "SCONJ": "conjunction",
+        "PART": "particle", "INTJ": "interjection", "PUNCT": "punctuation", "SYM": "symbol", "X": "other"
+      },
+      "ignored": ["punctuation", "symbol"],
+      "colors": {
+        "noun": "#d9e8ff", "proper noun": "#c9ddff", "verb": "#d9d2ff",
+        "adjective": "#d9f2e6", "adverb": "#fce8c3", "pronoun": "#f5d5e8",
+        "number": "#e6e6e6", "preposition": "#f6dfc8", "conjunction": "#f8e7bd",
+        "particle": "#f8e7bd", "interjection": "#f2d7d7", "other": "#e2e2e2"
+      }
+    },
+    "subtitle": {
+      "speakerNamePrefix": {"enabled": true, "scripts": ["Cyrl"], "allowLatinFallback": true, "delimiters": [":", "："]},
+      "characterNamePrefix": {"enabled": true, "scripts": ["Cyrl"], "allowLatinFallback": true, "delimiters": [":", "："]}
+    },
+    "sentenceTerminators": [".", "!", "?", "…"],
+    "tokenJoinSeparator": " "
+  },
+  "characterStudy": {"enabled": false, "scripts": []},
+  "typography": {
+    "subtitleFontFamily": "'Noto Sans', 'Arial', sans-serif",
+    "contentFontFamily": "'Noto Sans', 'Arial', sans-serif",
+    "textDirection": "ltr"
+  },
+  "conversation": {
+    "register": {
+      "hasDeferentialForms": true,
+      "casualPromptGuidelines": ["Use ты forms and natural conversational Russian unless the learner requests formal speech."],
+      "correctionPromptGuidelines": ["Preserve valid ты/вы register choices and correct agreement consistently within the chosen register."]
+    },
+    "tutorPromptGuidelines": [
+      "When relevant, explain case choice, verbal aspect, motion-verb direction, and stress placement.",
+      "Use Cyrillic by default; provide transliteration only when the learner explicitly asks for it."
+    ],
+    "correctionPromptGuidelines": [
+      "Treat е and ё as distinct spellings when correcting learner text.",
+      "Mark lexical stress in vocabulary explanations with a combining acute accent."
+    ]
+  },
+  "runtime": {
+    "adapter": {
+      "type": "python-module",
+      "path": "adapters/russian_adapter.py",
+      "config": {"pronunciationPath": "languages/ru.pronunciation.json.gz"}
+    },
+    "python": {
+      "packagesByComponent": {
+        "core": [
+          "spacy>=3.8.0,<3.9.0",
+          "click>=8.1,<9",
+          "silero-stress==1.4",
+          "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.8.0/ru_core_news_sm-3.8.0-py3-none-any.whl"
+        ],
+        "ocr": ["paddlepaddle==3.2.2", "paddleocr>=2.7.3", "opencv-python-headless"]
+      },
+      "importChecksByComponent": {
+        "core": ["spacy", "ru_core_news_sm", "silero_stress"],
+        "ocr": ["paddle", "paddleocr", "cv2"]
+      }
+    },
+    "ocr": {"recognitionEngine": "paddleocr", "paddleLang": "ru", "supportsVerticalText": false, "supportsRamSaver": false},
+    "tts": {"qwen3LanguageName": "russian", "webSpeechLang": "ru-RU", "diagnosticText": "Привет! Как твои дела?"},
+    "stt": {"whisperLanguage": "ru", "hallucinationPhrases": [], "shortAudioMaxSeconds": 1, "shortAudioMinTextLength": 5},
+    "diagnostics": {"sampleText": "Я изучаю русский язык."},
+    "nlp": {
+      "tokenizer": {
+        "type": "spacy", "model": "ru_core_news_sm", "required": true, "fallback": "none",
+        "capabilities": ["segments", "lemmas", "partOfSpeech", "morphology", "readings"],
+        "ignoredPos": ["SPACE"]
+      },
+      "dictionary": {
+        "type": "sqlite-zlib-json", "schema": "headword-reading-zlib-json",
+        "targetPathTemplate": "dictionaries/{language}/{target}/dictionary.db", "defaultTargetLanguage": "en",
+        "schemaVersion": "1", "renderer": "structured-glosses", "readingPath": ["reading"], "definitionsPath": ["definitions"],
+        "lookup": {
+          "seedForms": ["surface", "tokenizer-lemma"], "normalizers": ["casefold"], "normalizerMode": "branching",
+          "readingLookup": "none", "readingRank": ["common", "score-desc", "short-reading"]
+        }
+      }
+    }
+  },
+  "languageData": {
+    "version": "ru-package-2026.07.18",
+    "sourceVersions": {"openRussian": "50e210c4803237779cb562bc1abcea529066031c", "sileroStress": "1.4", "spacyModel": "ru_core_news_sm-3.8.0"},
+    "assets": [
+      {"id": "frequency", "path": "languages/ru.freq.json", "bundledPath": "languages/ru.freq.json", "required": true},
+      {"id": "pronunciation", "path": "languages/ru.pronunciation.json.gz", "bundledPath": "languages/ru.pronunciation.json.gz", "required": true},
+      {"id": "python-adapter", "path": "adapters/russian_adapter.py", "bundledPath": "adapters/russian_adapter.py", "required": true},
+      {"id": "openrussian-license", "path": "licenses/openrussian-LICENSE", "bundledPath": "licenses/openrussian-LICENSE", "required": true},
+      {"id": "openrussian-readme", "path": "licenses/openrussian-README.md", "bundledPath": "licenses/openrussian-README.md", "required": true}
+    ]
+  }
+}

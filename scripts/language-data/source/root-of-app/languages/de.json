@@ -1,0 +1,90 @@
+{
+  "name": "German",
+  "translatable": [
+    "NOUN",
+    "VERB",
+    "ADJ",
+    "ADV"
+  ],
+  "name_translated": "Deutsch",
+  "colour_codes": {
+    "NOUN": "#ebccfd",
+    "PROPN": "#ebccfd",
+    "PRON": "#fdccd3",
+    "VERB": "#ffefd1",
+    "SCONJ": "#f5d7b8",
+    "PART": "#f5d7b8",
+    "DET": "#cef5b8",
+    "ADP": "#b8f5de",
+    "AUX": "#ffefd1",
+    "ADJ": "#def6ff",
+    "ADV": "#b8cdf5",
+    "PUNCT": "#8fc99d"
+  },
+  "fixed_settings": {
+    "showReadingAnnotations": false,
+    "showProsody": false
+  },
+  "languageData": {
+    "version": "de-package-2026.06.29",
+    "sourceVersions": {
+      "dictionary": "freedict-deu-eng-2024.04.21"
+    },
+    "assets": [
+      {
+        "id": "language-metadata",
+        "path": "languages/de.json",
+        "required": true
+      }
+    ],
+    "dictionaryPacks": {
+      "en": {
+        "targetLanguage": "en",
+        "name": "English",
+        "version": "de-en-dictionary-de-package-2026.06.29",
+        "bundle": {
+          "url": "https://mlearn.kikan.net/language-data/v1/de-en/dictionary-de-package-2026.06.29.tar.gz",
+          "sizeBytes": 64575979,
+          "sha256": "b0489edf7da23a579e055b5b32c8cf548839a04500f2efc939aab8e85ec8dee1"
+        },
+        "assets": [
+          {
+            "id": "dictionary",
+            "path": "dictionaries/de/en/dictionary.db",
+            "sizeBytes": 99393536,
+            "sha256": "324715d0e8e9dc20ac574d48ffbb3075e9461acdcc5b5cc7c17318f81641ee81",
+            "required": true
+          },
+          {
+            "id": "metadata",
+            "path": "dictionaries/de/en/metadata.json",
+            "sizeBytes": 239,
+            "sha256": "99206f37fe2b13dfc720d3c01246b8d97b6300eb370e51f338fc6876fb3665ad",
+            "required": true
+          }
+        ]
+      }
+    }
+  },
+    "supportedScripts": [
+        "Latn"
+    ],
+    "runtime": {
+        "nlp": {
+            "tokenizer": {
+                "type": "spacy",
+                "model": "de_core_news_sm",
+                "autoDownload": true,
+                "fallback": "none"
+            },
+            "dictionary": {
+                "type": "sqlite-zlib-json",
+                "schema": "simple-headword-zlib-json",
+                "path": "dictionaries/de/en/dictionary.db",
+                "metadataPath": "dictionaries/de/en/metadata.json",
+                "schemaVersion": "1",
+                "renderer": "simple-glosses"
+            }
+        }
+    }
+}

@@ -1,0 +1,24 @@
+{
+  "en": {
+    "targetLanguage": "en",
+    "name": "English",
+    "version": "ru-en-openrussian-2026.07.18",
+    "assets": [
+      {"id":"dictionary-en","path":"dictionaries/ru/en/dictionary.db","bundledPath":"dictionaries/ru/en/dictionary.db","required":true},
+      {"id":"metadata-en","path":"dictionaries/ru/en/metadata.json","bundledPath":"dictionaries/ru/en/metadata.json","required":true},
+      {"id":"license-en","path":"dictionaries/ru/en/LICENSE","bundledPath":"dictionaries/ru/en/LICENSE","required":true},
+      {"id":"readme-en","path":"dictionaries/ru/en/README.md","bundledPath":"dictionaries/ru/en/README.md","required":true}
+    ]
+  },
+  "de": {
+    "targetLanguage": "de",
+    "name": "German",
+    "version": "ru-de-openrussian-2026.07.18",
+    "assets": [
+      {"id":"dictionary-de","path":"dictionaries/ru/de/dictionary.db","bundledPath":"dictionaries/ru/de/dictionary.db","required":true},
+      {"id":"metadata-de","path":"dictionaries/ru/de/metadata.json","bundledPath":"dictionaries/ru/de/metadata.json","required":true},
+      {"id":"license-de","path":"dictionaries/ru/de/LICENSE","bundledPath":"dictionaries/ru/de/LICENSE","required":true},
+      {"id":"readme-de","path":"dictionaries/ru/de/README.md","bundledPath":"dictionaries/ru/de/README.md","required":true}
+    ]
+  }
+}

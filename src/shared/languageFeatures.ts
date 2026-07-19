@@ -1734,8 +1734,9 @@ export function getReadingAnnotationScripts(data?: LanguageData | null): string[
   return [];
 }
 
-export function getReadingAnnotationDisplay(data?: LanguageData | null): 'ruby' | 'inline' {
+export function getReadingAnnotationDisplay(data?: LanguageData | null): 'ruby' | 'inline' | 'replace' {
   const display = data?.textProcessing?.readingAnnotation?.display;
+  if (display === 'replace') return 'replace';
   return display === 'inline' ? 'inline' : 'ruby';
 }
 

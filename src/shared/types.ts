@@ -851,8 +851,8 @@ export interface LanguageTokenEstimationConfig {
 export interface LanguageReadingAnnotationConfig {
   /** How written forms and readings should be rendered together. */
   type?: 'none' | 'script-reading';
-  /** Visual renderer for the surface and reading. Defaults to ruby for compact annotations. */
-  display?: 'ruby' | 'inline';
+  /** Visual renderer. `replace` shows pronunciation in place of the surface, e.g. Russian stress marks. */
+  display?: 'ruby' | 'inline' | 'replace';
   /** Surface scripts that should receive reading annotations, e.g. ["Han"]. */
   annotationScripts?: string[];
   /** Scripts at the end of a surface form that should remain visible in the displayed reading. */
@@ -1152,6 +1152,8 @@ export interface LanguageAdapterRuntimeConfig {
   type?: 'python-module';
   /** Adapter path under the language-data root. Required when type is 'python-module'. */
   path?: string;
+  /** Package-owned adapter options interpreted only by the downloaded module. */
+  config?: Record<string, unknown>;
 }
 
 export interface LanguageTtsRuntimeConfig {

@@ -107,36 +107,48 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
       }
     >
       <Show
-        when={annotationDisplay() === 'inline'}
+        when={annotationDisplay() !== 'replace'}
         fallback={
-          <ruby class={`ruby-text ${props.class || ''}`} style={contentStyle()}>
-            {props.word}
-            <rp>(</rp>
-            <rt>
+          renderText(displayReading(), {
+            slot: 'word',
+            isReadingScript: true,
+            class: props.class,
+            style: contentStyle(),
+          })
+        }
+      >
+        <Show
+          when={annotationDisplay() === 'inline'}
+          fallback={
+            <ruby class={`ruby-text ${props.class || ''}`} style={contentStyle()}>
+              {props.word}
+              <rp>(</rp>
+              <rt>
+                {renderText(displayReading(), {
+                  slot: 'reading',
+                  isReadingScript: true,
+                  class: 'reading-overlay-wrapper--ruby',
+                })}
+              </rt>
+              <rp>)</rp>
+            </ruby>
+          }
+        >
+          <span class={`ruby-text ruby-text-inline ${props.class || ''}`} style={contentStyle()}>
+            {renderText(props.word, {
+              slot: 'word',
+              isReadingScript: wordUsesReadingScript(),
+              class: 'ruby-text-inline__word',
+            })}
+            <span class="ruby-text-inline__reading" aria-label={displayReading()}>
               {renderText(displayReading(), {
                 slot: 'reading',
                 isReadingScript: true,
-                class: 'reading-overlay-wrapper--ruby',
+                class: 'ruby-text-inline__reading-text',
               })}
-            </rt>
-            <rp>)</rp>
-          </ruby>
-        }
-      >
-        <span class={`ruby-text ruby-text-inline ${props.class || ''}`} style={contentStyle()}>
-          {renderText(props.word, {
-            slot: 'word',
-            isReadingScript: wordUsesReadingScript(),
-            class: 'ruby-text-inline__word',
-          })}
-          <span class="ruby-text-inline__reading" aria-label={displayReading()}>
-            {renderText(displayReading(), {
-              slot: 'reading',
-              isReadingScript: true,
-              class: 'ruby-text-inline__reading-text',
-            })}
+            </span>
           </span>
-        </span>
+        </Show>
       </Show>
     </Show>
   );

@@ -41,6 +41,7 @@ export const thirdPartyTtsLanguage = {
     adapter: {
       type: 'python-module',
       path: 'adapters/arabic_tts.py',
+      config: { pronunciationPath: 'languages/ar.pronunciation.json.gz' },
     },
     tts: {
       engine: 'arabic-tts-adapter',

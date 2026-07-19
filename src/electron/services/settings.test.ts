@@ -590,6 +590,25 @@ describe('loadLangData', () => {
     expect(langData['ja']?.freq).toEqual([['食べる', 'たべる']]);
   });
 
+  it('loads installed frequency files published as a top-level row array', () => {
+    const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(installedFreqDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.json'),
+      JSON.stringify({ name: 'Russian', settings: { fixed: {} } }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.freq.json'),
+      JSON.stringify([['человек', 'челове́к']]),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ru']?.freq).toEqual([['человек', 'челове́к']]);
+  });
+
   it('preserves explicit numeric levels from installed frequency files even when metadata is incomplete', () => {
     const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(installedFreqDir, { recursive: true });

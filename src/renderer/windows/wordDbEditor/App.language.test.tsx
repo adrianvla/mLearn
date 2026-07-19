@@ -15,6 +15,10 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
 }));
 const renderedEntries: WordEntry[] = [];
 const renderedEditDialogs: Array<{ word: string; initialData: unknown }> = [];
+const mockFetchAnkiWordsCache = vi.fn(() => Promise.resolve(new Set<string>()));
+const mockIsAnkiCacheFetched = vi.fn(() => true);
+const mockFindAnkiWordMatchInCache = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
+let mockUseAnki = false;
 
 vi.mock('../../hooks/useVirtualizer', () => ({
   createVirtualizer: () => ({
@@ -64,7 +68,9 @@ vi.mock('../../context', () => ({
   useSettings: () => ({
     settings: {
       language: 'ja',
-      use_anki: false,
+      get use_anki() {
+        return mockUseAnki;
+      },
     },
   }),
 }));
@@ -82,9 +88,9 @@ vi.mock('../../hooks/useAnki', () => ({
 }));
 
 vi.mock('../../services/ankiWordsCache', () => ({
-  fetchAnkiWordsCache: vi.fn(async () => undefined),
-  findAnkiWordMatchInCache: vi.fn(() => null),
-  isAnkiCacheFetched: vi.fn(() => true),
+  fetchAnkiWordsCache: mockFetchAnkiWordsCache,
+  findAnkiWordMatchInCache: mockFindAnkiWordMatchInCache,
+  isAnkiCacheFetched: mockIsAnkiCacheFetched,
   refreshAnkiWordsCache: vi.fn(async () => undefined),
 }));
 
@@ -140,6 +146,13 @@ describe('WordDbEditorContent', () => {
     mockGetCardByWordSync.mockClear();
     mockGetCardByWordSync.mockReturnValue(null);
     mockGetComprehensiveWordStatusWithSourceSync.mockClear();
+    mockFetchAnkiWordsCache.mockReset();
+    mockFetchAnkiWordsCache.mockResolvedValue(new Set<string>());
+    mockIsAnkiCacheFetched.mockReset();
+    mockIsAnkiCacheFetched.mockReturnValue(true);
+    mockFindAnkiWordMatchInCache.mockReset();
+    mockFindAnkiWordMatchInCache.mockReturnValue(null);
+    mockUseAnki = false;
     renderedEntries.length = 0;
     renderedEditDialogs.length = 0;
   });
@@ -225,6 +238,56 @@ describe('WordDbEditorContent', () => {
     expect(renderedEditDialogs.at(-1)).toEqual({
       word: '赤い',
       initialData: null,
+    });
+    dispose();
+  });
+
+  it('loads the base word database while optional Anki enrichment is still pending', async () => {
+    mockUseAnki = true;
+    mockIsAnkiCacheFetched.mockReturnValue(false);
+    mockFetchAnkiWordsCache.mockReturnValue(new Promise<Set<string>>(() => undefined));
+    const { WordDbEditorContent } = await import('./App');
+
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockFetchAnkiWordsCache).toHaveBeenCalledOnce();
+    expect(renderedEntries.some((entry) => entry.word === '赤い')).toBe(true);
+    dispose();
+  });
+
+  it('adds Anki tracking after deferred enrichment completes', async () => {
+    mockUseAnki = true;
+    mockIsAnkiCacheFetched.mockReturnValue(false);
+    let resolveAnkiCache!: (words: Set<string>) => void;
+    mockFetchAnkiWordsCache.mockReturnValue(new Promise<Set<string>>((resolve) => {
+      resolveAnkiCache = resolve;
+    }));
+    const { WordDbEditorContent } = await import('./App');
+
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(renderedEntries.at(-1)).toMatchObject({ word: '赤い', tracker: 'nothing' });
+
+    mockFindAnkiWordMatchInCache.mockReturnValue({
+      word: '赤い',
+      lookupKey: '赤い',
+      cards: [],
+    });
+    resolveAnkiCache(new Set(['赤い']));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(renderedEntries.at(-1)).toMatchObject({
+      word: '赤い',
+      tracker: 'anki',
+      ankiLookupWord: '赤い',
     });
     dispose();
   });

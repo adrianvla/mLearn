@@ -9,6 +9,7 @@ ios
 
 .idea
 src/root-of-app/dictionaries
+scripts/language-data/source/root-of-app/dictionaries/
 .agents
 .sisyphus
 #AGENTS.md
