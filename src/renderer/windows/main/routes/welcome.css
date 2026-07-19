@@ -50,6 +50,10 @@
 }
 
 .welcome-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   color: var(--text-secondary);
   font-size: 1.1rem;
   margin: 0;
@@ -117,20 +121,6 @@
   margin: 0;
 }
 
-/* Footer */
-.welcome-footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding-top: 1rem;
-  color: var(--text-tertiary);
-  font-size: 0.8rem;
-  margin-top:auto;
-}
-
-/* Note: footer-link class removed in favor of Button with ghost variant */
-
 /* Responsive */
 @media (max-width: 500px) {
   .welcome-actions {
@@ -154,8 +144,4 @@
 
 .mobile-layout .welcome-subtitle {
   font-size: var(--font-size-base);
-}
-
-.mobile-layout .welcome-footer {
-  padding-bottom: calc(var(--mobile-tabbar-height, 56px) + env(safe-area-inset-bottom) + var(--spacing-8));
 }

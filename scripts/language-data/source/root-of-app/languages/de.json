@@ -1,5 +1,6 @@
 {
   "name": "German",
+  "flagEmoji": "🇩🇪",
   "translatable": [
     "NOUN",
     "VERB",

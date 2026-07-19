@@ -1,5 +1,6 @@
 {
   "name": "Russian",
+  "flagEmoji": "🇷🇺",
   "name_translated": "Русский",
   "frequencyLevels": {
     "difficulty": "higher-is-harder",
