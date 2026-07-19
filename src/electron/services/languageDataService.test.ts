@@ -263,6 +263,43 @@ describe('languageDataService', () => {
     expect(status.assets[0].validationIssue).toBe('version-mismatch:bundle-v1');
   });
 
+  it('keeps newer installed language metadata current when the remote catalog lags behind', () => {
+    const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(
+      installedMetadataPath,
+      JSON.stringify({
+        name: 'Newer metadata',
+        languageData: { version: 'zz-package-2026.07.19' },
+      }),
+      'utf-8',
+    );
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'zz-package-2026.06.29',
+        bundle: {
+          url: 'https://example.com/language-data/zz.tar.gz',
+        },
+        assets: [
+          {
+            id: 'language-metadata',
+            path: 'languages/zz.json',
+            sizeBytes: 1,
+            sha256: '0'.repeat(64),
+            required: true,
+          },
+        ],
+      },
+    });
+
+    const status = mod.getLanguageDataStatus('zz', langData);
+
+    expect(status.installed).toBe(true);
+    expect(status.outdated).toBe(false);
+    expect(status.missingAssets).toEqual([]);
+  });
+
   it('reports an installed dictionary pack as outdated when its install receipt version is stale', () => {
     const dictionaryPath = path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'fr', 'dictionary.db');
     fs.mkdirSync(path.dirname(dictionaryPath), { recursive: true });

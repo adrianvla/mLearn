@@ -152,6 +152,39 @@ function readInstallReceiptVersion(installKey: string): string | undefined {
   }
 }
 
+function compareStructuredVersions(left: string, right: string): number | undefined {
+  const numericToken = /^\d+$/;
+  const tokenize = (value: string) => value.split(/(\d+)/).filter(Boolean);
+  const leftTokens = tokenize(left);
+  const rightTokens = tokenize(right);
+  if (leftTokens.length !== rightTokens.length) return undefined;
+
+  for (let index = 0; index < leftTokens.length; index += 1) {
+    const leftToken = leftTokens[index];
+    const rightToken = rightTokens[index];
+    const leftIsNumeric = numericToken.test(leftToken);
+    const rightIsNumeric = numericToken.test(rightToken);
+    if (leftIsNumeric !== rightIsNumeric) return undefined;
+    if (!leftIsNumeric) {
+      if (leftToken.toLowerCase() !== rightToken.toLowerCase()) return undefined;
+      continue;
+    }
+
+    const leftNumber = BigInt(leftToken);
+    const rightNumber = BigInt(rightToken);
+    if (leftNumber > rightNumber) return 1;
+    if (leftNumber < rightNumber) return -1;
+  }
+
+  return 0;
+}
+
+function installedVersionSatisfiesExpected(installedVersion: string, expectedVersion: string): boolean {
+  if (installedVersion === expectedVersion) return true;
+  const comparison = compareStructuredVersions(installedVersion, expectedVersion);
+  return comparison !== undefined && comparison >= 0;
+}
+
 function writeInstallReceipt(installKey: string, version?: string): void {
   if (!version) return;
   const receiptPath = getInstallReceiptPath(installKey);
@@ -208,7 +241,7 @@ function syncInstalledDictionaryPackMetadata(
 function installReceiptVersionMatches(installKey: string, expectedVersion?: string): boolean {
   if (!expectedVersion) return true;
   const installedVersion = readInstallReceiptVersion(installKey);
-  return installedVersion === undefined || installedVersion === expectedVersion;
+  return installedVersion === undefined || installedVersionSatisfiesExpected(installedVersion, expectedVersion);
 }
 
 function normalizeInstallComponents(options?: LanguageDataInstallOptions): Set<string> {
@@ -299,7 +332,7 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): Lan
     }
     if (expectedVersion && isLanguageMetadataAsset(asset)) {
       const installedVersion = readInstalledLanguageMetadataVersion(asset, installedPath);
-      if (installedVersion !== undefined && installedVersion === expectedVersion) {
+      if (installedVersion !== undefined && installedVersionSatisfiesExpected(installedVersion, expectedVersion)) {
         return {
           id: asset.id,
           path: installedPath,
