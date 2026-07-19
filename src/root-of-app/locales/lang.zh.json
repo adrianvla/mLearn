@@ -1538,7 +1538,8 @@
           "InstallFailed": "语言数据安装失败",
           "Update": "更新语言数据",
           "UpdateRequired": "有可用的语言数据更新",
-          "MissingRequired": "需要语言数据"
+          "MissingRequired": "需要语言数据",
+          "RequiresAppVersion": "需要 mLearn {version} 或更高版本"
         },
         "DictionaryTarget": {
           "Description": "选择词典释义使用的语言",

@@ -13,6 +13,7 @@ const DEFAULT_OUTPUT_DIR = path.join(publishRoot, 'release', 'language-data', LA
 const DEFAULT_CATALOG_PATH = path.join(publishRoot, 'frontend', 'public', 'language-catalog.json');
 const DEFAULT_OVERRIDES_DIR = path.join(__dirname, 'language-overrides');
 const DEFAULT_ASSET_BASE_URL = `https://mlearn.kikan.net/language-data/${LANGUAGE_DATA_RELEASE_VERSION}/`;
+const SEMANTIC_VERSION_PATTERN = /^(?:v)?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 const TARGET_LANGUAGE_NAMES = {
   en: 'English',
@@ -64,6 +65,19 @@ function readLanguageMetadataOverride(options, language) {
 
 function applyLanguageMetadataOverride(options, language, metadata) {
   return deepMerge(metadata, readLanguageMetadataOverride(options, language));
+}
+
+function validateMinimumAppVersion(language, value) {
+  if (value === undefined) return;
+  if (typeof value !== 'string') {
+    throw new Error(`minimumAppVersion for ${language} must be a semantic version string`);
+  }
+  const match = SEMANTIC_VERSION_PATTERN.exec(value.trim());
+  const prerelease = match?.[4]?.split('.') ?? [];
+  const hasInvalidNumericIdentifier = prerelease.some((identifier) => /^\d+$/.test(identifier) && identifier.length > 1 && identifier.startsWith('0'));
+  if (!match || hasInvalidNumericIdentifier) {
+    throw new Error(`minimumAppVersion for ${language} must use semantic major.minor.patch format`);
+  }
 }
 
 function ensureTrailingSlash(url) {
@@ -403,6 +417,7 @@ async function createArchive({
     language,
     ...(targetLanguage ? { targetLanguage } : {}),
     version,
+    minimumAppVersion: metadata.languageData?.minimumAppVersion,
     name: metadata.name,
     nameTranslated: metadata.name_translated,
     files,
@@ -494,6 +509,7 @@ async function createLanguageBundle(options, language, metadata) {
     sizeBytes: coreArchive.sizeBytes,
     sha256: coreArchive.sha256,
     version,
+    minimumAppVersion: metadata.languageData?.minimumAppVersion,
     name: metadata.name,
     nameTranslated: metadata.name_translated,
     bundle,
@@ -532,6 +548,7 @@ export async function createLanguageDataRelease(options = {}) {
       language,
       readJson(path.join(languagesDir, fileName)),
     );
+    validateMinimumAppVersion(language, metadata.languageData?.minimumAppVersion);
     const releaseBundle = await createLanguageBundle(releaseOptions, language, metadata);
     releaseBundles.push(releaseBundle);
     dictionaryBundles.push(...releaseBundle.dictionaryBundles);
@@ -539,6 +556,7 @@ export async function createLanguageDataRelease(options = {}) {
       name: releaseBundle.name,
       nameTranslated: releaseBundle.nameTranslated,
       version: releaseBundle.version,
+      ...(releaseBundle.minimumAppVersion ? { minimumAppVersion: releaseBundle.minimumAppVersion } : {}),
       bundle: releaseBundle.bundle,
       files: releaseBundle.files,
       dictionaryPacks: releaseBundle.dictionaryPacks,

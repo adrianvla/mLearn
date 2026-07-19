@@ -58,6 +58,29 @@ describe('package-language-data', () => {
     }
   });
 
+  it('rejects a non-semantic minimum app version', async () => {
+    const sourceRoot = path.join(tempDir, 'root-of-app');
+    const languagesDir = path.join(sourceRoot, 'languages');
+    const outputDir = path.join(tempDir, 'frontend', 'public', 'language-data');
+    const catalogPath = path.join(tempDir, 'frontend', 'public', 'language-catalog.json');
+    const overridesDir = path.join(tempDir, 'overrides');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.mkdirSync(overridesDir, { recursive: true });
+    fs.writeFileSync(path.join(languagesDir, 'aa.json'), JSON.stringify({
+      name: 'Alpha',
+      languageData: {
+        version: 'aa-package-v1',
+        minimumAppVersion: '2.7',
+        assets: [],
+      },
+    }), 'utf-8');
+
+    await assert.rejects(
+      createLanguageDataRelease({ sourceRoot, outputDir, catalogPath, overridesDir }),
+      /minimumAppVersion for aa must use semantic major\.minor\.patch format/,
+    );
+  });
+
   it('publishes a ranked German frequency asset without claiming Goethe exam coverage', () => {
     const languagesDir = path.join(
       process.cwd(),
@@ -382,6 +405,7 @@ describe('package-language-data', () => {
       fixed_settings: {},
       languageData: {
         version: 'aa-package-v1',
+        minimumAppVersion: '2.7.0',
         assets: [
           {
             id: 'language-module',
@@ -432,6 +456,7 @@ describe('package-language-data', () => {
 
     const catalog = readJson(catalogPath);
     assert.deepEqual(Object.keys(catalog.languages), ['aa']);
+    assert.equal(catalog.languages.aa.minimumAppVersion, '2.7.0');
     assert.equal(catalog.languages.aa.bundle.url, `https://cdn.example.com/mlearn/language-data/${coreBundleRelativePath}`);
     assert.equal(catalog.languages.aa.files.some((asset) => asset.path === 'dictionaries/aa/dictionary.db'), false);
     assert.equal(catalog.languages.aa.files.some((asset) => asset.path === 'languages/aa.py'), false);
@@ -450,6 +475,7 @@ describe('package-language-data', () => {
     const coreExtractDir = path.join(tempDir, 'core-extract');
     extractTarGz(coreBundlePath, coreExtractDir);
     const coreManifest = readJson(path.join(coreExtractDir, 'manifest.json'));
+    assert.equal(coreManifest.minimumAppVersion, '2.7.0');
     assert.equal(Object.hasOwn(coreManifest, 'targetLanguage'), false);
     assert.equal(coreManifest.files.some((asset) => asset.path === 'dictionaries/aa/dictionary.db'), false);
     assert.equal(coreManifest.files.some((asset) => asset.path === 'languages/aa.py'), false);

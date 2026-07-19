@@ -1538,7 +1538,8 @@
           "InstallFailed": "Échec de l'installation des données linguistiques",
           "Update": "Mettre à jour les données linguistiques",
           "UpdateRequired": "Mise à jour des données linguistiques disponible",
-          "MissingRequired": "Données linguistiques requises"
+          "MissingRequired": "Données linguistiques requises",
+          "RequiresAppVersion": "Nécessite mLearn {version} ou une version ultérieure"
         },
         "DictionaryTarget": {
           "Description": "Choisissez la langue utilisée pour les définitions du dictionnaire",

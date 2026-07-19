@@ -38,7 +38,7 @@ export function startRequiredComponentRepair(settings: Settings): void {
 
 export type LanguageSetupRequirement =
   | { required: false }
-  | { required: true; reason: 'learning-language' | 'dictionary-language' | 'learning-language-update' | 'dictionary-language-update' };
+  | { required: true; reason: 'learning-language' | 'dictionary-language' | 'learning-language-update' | 'dictionary-language-update' | 'app-version' };
 
 export interface LanguageDataUpdateTarget {
   language: string;
@@ -70,6 +70,9 @@ export function getLanguageSetupRequirement(
 ): LanguageSetupRequirement {
   if (!settings.language || !hasCurrentLanguageData) {
     return { required: true, reason: 'learning-language' };
+  }
+  if (activeLanguageStatus?.compatible === false) {
+    return { required: true, reason: 'app-version' };
   }
   if (activeLanguageStatus?.outdated) {
     return { required: true, reason: 'learning-language-update' };
@@ -137,6 +140,12 @@ export const LoadingOverlay: Component = () => {
     }
     if (requirement.reason === 'learning-language-update') {
       return t('mlearn.LanguageSetup.LanguageUpdateMessage');
+    }
+    if (requirement.reason === 'app-version') {
+      const status = language.getLanguageDataStatus(settings.settings.language);
+      return t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
+        version: status?.minimumAppVersion ?? '',
+      });
     }
     return requirement.reason === 'dictionary-language'
       ? t('mlearn.LanguageSetup.DictionaryMessage')

@@ -240,6 +240,7 @@ The catalog is a JSON file with a top-level `languages` object. Each language ha
       "name": "Example Language",
       "nameTranslated": "Example",
       "version": "example-package-2026.07.06",
+      "minimumAppVersion": "2.7.0",
       "bundle": {
         "url": "https://example.com/language-data/v1/example/language-package-2026.07.06.tar.gz",
         "sizeBytes": 123456,
@@ -277,6 +278,8 @@ The catalog is a JSON file with a top-level `languages` object. Each language ha
 ```
 
 `bundle.url` may also be written as a relative `href`; relative links are resolved against the catalog URL. Archive paths must be safe relative paths, and archive contents are extracted under `files/`.
+
+`minimumAppVersion` is optional. When present, it must be a semantic `major.minor.patch` version. Clients compare it numerically, including normal prerelease ordering, and keep incompatible language packages visible but unavailable for installation. Catalog entries without it remain compatible with older clients.
 
 ### Installed file layout
 

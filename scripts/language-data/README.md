@@ -69,6 +69,7 @@ The public catalog points to both:
 {
   "languages": {
     "ja": {
+      "minimumAppVersion": "2.7.0",
       "bundle": { "url": "..." },
       "files": [],
       "dictionaryPacks": {
@@ -82,6 +83,8 @@ The public catalog points to both:
   }
 }
 ```
+
+Set `languageData.minimumAppVersion` in a source language metadata file only when that package depends on app behavior introduced in a particular release. The packager validates semantic `major.minor.patch` syntax and publishes it as the catalog entry's optional `minimumAppVersion`.
 
 Generated archives are written to `../mlearn-website/release/language-data/v1`. From `../mlearn-website`, `npm run upload:language-data` uploads only archives referenced by that directory's `manifest.json`, and `npm run deploy:language-data` packages here before uploading and deploying the frontend catalog.
 

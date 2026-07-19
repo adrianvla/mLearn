@@ -1538,7 +1538,8 @@
           "InstallFailed": "Installation der Sprachdaten fehlgeschlagen",
           "Update": "Sprachdaten aktualisieren",
           "UpdateRequired": "Aktualisierung der Sprachdaten verfügbar",
-          "MissingRequired": "Sprachdaten erforderlich"
+          "MissingRequired": "Sprachdaten erforderlich",
+          "RequiresAppVersion": "Erfordert mLearn {version} oder neuer"
         },
         "DictionaryTarget": {
           "Description": "Wählen Sie die Sprache für Wörterbuchdefinitionen",

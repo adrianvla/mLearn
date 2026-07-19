@@ -331,7 +331,7 @@ describe('languageDataService', () => {
       },
     });
 
-    const status = mod.getLanguageDataCatalogStatus(langData)[0]?.dictionaryPacks?.[0];
+    const status = mod.getLanguageDataCatalogStatus(langData, '2.6.7')[0]?.dictionaryPacks?.[0];
 
     expect(status).toMatchObject({
       targetLanguage: 'fr',
@@ -376,6 +376,7 @@ describe('languageDataService', () => {
       zz: makeLangData({
         name: 'Zulu Test',
         languageData: {
+          minimumAppVersion: '2.7.0',
           assets: [
             {
               id: 'dictionary',
@@ -429,7 +430,7 @@ describe('languageDataService', () => {
       },
     };
 
-    const statuses = mod.getLanguageDataCatalogStatus(langData);
+    const statuses = mod.getLanguageDataCatalogStatus(langData, '2.6.7');
 
     expect(statuses.map((status) => status.language)).toEqual(['aa', 'bb', 'zz']);
     expect(statuses[0]).toMatchObject({
@@ -437,6 +438,7 @@ describe('languageDataService', () => {
       name: 'Afar Test',
       nameTranslated: 'Afar Local',
       installed: true,
+      compatible: true,
       totalBytes: 15,
       installedBytes: 15,
       missingRequiredAssets: [],
@@ -445,6 +447,7 @@ describe('languageDataService', () => {
       language: 'bb',
       name: 'Bare Metadata',
       installed: true,
+      compatible: true,
       totalBytes: 0,
       installedBytes: 0,
       missingRequiredAssets: [],
@@ -453,6 +456,8 @@ describe('languageDataService', () => {
       language: 'zz',
       name: 'Zulu Test',
       installed: false,
+      compatible: false,
+      minimumAppVersion: '2.7.0',
       totalBytes: 120,
       installedBytes: 0,
       missingRequiredAssets: ['dictionary'],
@@ -467,6 +472,25 @@ describe('languageDataService', () => {
         },
       ],
     });
+    expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
+  });
+
+  it('blocks installation when the language requires a newer app version', async () => {
+    const langData = makeLangData({
+      languageData: {
+        minimumAppVersion: '2.7.0',
+        bundle: { url: 'https://example.com/language-data/zz.tar.gz' },
+        assets: [],
+      },
+    });
+
+    await expect(mod.ensureLanguageDataInstalled(
+      'zz',
+      langData,
+      undefined,
+      undefined,
+      { currentAppVersion: '2.6.7' },
+    )).rejects.toThrow('Test Language requires mLearn 2.7.0 or later');
     expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
   });
 

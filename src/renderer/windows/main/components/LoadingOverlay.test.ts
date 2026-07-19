@@ -69,6 +69,7 @@ describe('LoadingOverlay installer helpers', () => {
       dataRoot: '/tmp/language-data',
       installed: true,
       outdated: false,
+      compatible: true,
       totalBytes: 1,
       installedBytes: 1,
       missingRequiredAssets: [],
@@ -101,6 +102,7 @@ describe('LoadingOverlay installer helpers', () => {
       dataRoot: '/tmp/language-data',
       installed: false,
       outdated: true,
+      compatible: true,
       totalBytes: 1,
       installedBytes: 1,
       missingRequiredAssets: [],
@@ -114,6 +116,28 @@ describe('LoadingOverlay installer helpers', () => {
     )).toEqual({ required: true, reason: 'learning-language-update' });
   });
 
+  it('requires a language change when the active package needs a newer app version', () => {
+    const status = {
+      language: 'ja',
+      name: 'Japanese',
+      dataRoot: '/tmp/language-data',
+      installed: true,
+      outdated: false,
+      compatible: false,
+      minimumAppVersion: '3.0.0',
+      totalBytes: 1,
+      installedBytes: 1,
+      missingRequiredAssets: [],
+      assets: [],
+    } satisfies LanguageDataCatalogStatus;
+
+    expect(getLanguageSetupRequirement(
+      { language: 'ja', dictionaryTargetLanguages: {} },
+      true,
+      status,
+    )).toEqual({ required: true, reason: 'app-version' });
+  });
+
   it('requires language setup when the selected dictionary pack is outdated', () => {
     const status = {
       language: 'ja',
@@ -121,6 +145,7 @@ describe('LoadingOverlay installer helpers', () => {
       dataRoot: '/tmp/language-data',
       installed: true,
       outdated: false,
+      compatible: true,
       totalBytes: 1,
       installedBytes: 1,
       missingRequiredAssets: [],
@@ -172,6 +197,7 @@ describe('LoadingOverlay installer helpers', () => {
       dataRoot: '/tmp/language-data',
       installed: true,
       outdated: false,
+      compatible: true,
       totalBytes: 1,
       installedBytes: 1,
       missingRequiredAssets: [],
