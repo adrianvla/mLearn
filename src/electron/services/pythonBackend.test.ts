@@ -1377,6 +1377,75 @@ describe('pythonBackend', () => {
     it('does not throw when called without running process', () => {
       expect(() => mod.restartPythonBackend()).not.toThrow();
     });
+
+    it('restarts after the old process closes without reporting an intentional shutdown as a crash', async () => {
+      vi.useFakeTimers();
+      const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+
+      Object.defineProperty(process, 'resourcesPath', {
+        value: tempDir.tmpDir,
+        writable: true,
+        configurable: true,
+      });
+
+      const closeHandlers: Array<(code: number | null, signal: NodeJS.Signals | null) => void> = [];
+      const firstBackendProcess = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, handler: (code: number | null, signal: NodeJS.Signals | null) => void) => {
+          if (event === 'close') closeHandlers.push(handler);
+        }),
+        kill: vi.fn(),
+        killed: false,
+        exitCode: null,
+      };
+      const secondBackendProcess = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        kill: vi.fn(),
+        killed: false,
+        exitCode: null,
+      };
+      const backendProcesses = [firstBackendProcess, secondBackendProcess];
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        if (args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (code: number) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return backendProcesses.shift();
+      });
+      const webContents = { send: vi.fn() };
+      mockGetMainWindow.mockReturnValue({ webContents });
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+      await mod.findPython();
+
+      mod.restartPythonBackend();
+      expect(firstBackendProcess.kill).toHaveBeenCalledWith('SIGINT');
+
+      closeHandlers[0]?.(0, null);
+      await Promise.resolve();
+
+      expect(mockSpawn.mock.calls.filter((call) => call[0] === '/bin/sh')).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(webContents.send).not.toHaveBeenCalledWith(
+        'server-critical-error',
+        expect.stringContaining('stopped unexpectedly'),
+      );
+      expect(secondBackendProcess.kill).not.toHaveBeenCalled();
+    });
   });
 
   describe('setupPythonBackendIPC', () => {

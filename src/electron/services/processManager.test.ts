@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockIpcListeners = new Map<string, ((...args: unknown[]) => void)[]>();
 
@@ -9,6 +9,11 @@ const mockApp = {
   isPackaged: false,
   on: vi.fn(),
 };
+const mockReloadIgnoringCache = vi.fn();
+const mockGetAllWindows = vi.fn(() => [{
+  isDestroyed: vi.fn(() => false),
+  webContents: { reloadIgnoringCache: mockReloadIgnoringCache },
+}]);
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -21,6 +26,9 @@ vi.mock('electron', () => ({
     removeHandler: vi.fn(),
   },
   app: mockApp,
+  BrowserWindow: {
+    getAllWindows: mockGetAllWindows,
+  },
 }));
 
 const mockTerminatePythonBackend = vi.fn();
@@ -50,6 +58,10 @@ beforeEach(async () => {
   mod = await import('./processManager');
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('restartApp', () => {
   it('calls terminatePythonBackend when server is loaded', () => {
     mockIsServerLoaded.mockReturnValue(true);
@@ -75,6 +87,18 @@ describe('forceRestartApp', () => {
     mockIsServerLoaded.mockReturnValue(true);
     mod.forceRestartApp();
     expect(mockTerminatePythonBackend).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the Vite process alive when applying a forced restart in development', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+
+    mod.forceRestartApp();
+
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+    expect(mockReloadIgnoringCache).toHaveBeenCalledOnce();
+    expect(mockTerminatePythonBackend).not.toHaveBeenCalled();
+    expect(mockApp.relaunch).not.toHaveBeenCalled();
+    expect(mockApp.exit).not.toHaveBeenCalled();
   });
 });
 
