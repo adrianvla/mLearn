@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "Die ausgewählten Wörterbuchdaten sind veraltet. Öffnen Sie die Spracheinrichtung, um sie zu aktualisieren.",
+      "DictionaryUpdateMessage": "Für die ausgewählten Wörterbuchdaten ist eine Aktualisierung verfügbar. Aktualisieren Sie sie hier, um fortzufahren.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "Die Sprachdaten für Ihre Lernsprache sind veraltet. Öffnen Sie die Spracheinrichtung, um sie zu aktualisieren.",
+      "LanguageUpdateMessage": "Für die Daten Ihrer Lernsprache ist eine Aktualisierung verfügbar. Aktualisieren Sie sie hier, um fortzufahren.",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "Die Aktualisierung der Sprachdaten ist fehlgeschlagen. Versuchen Sie es erneut.",
+      "UpdateNow": "Jetzt aktualisieren",
+      "UpdateTitle": "Aktualisierung der Sprachdaten verfügbar",
+      "Updating": "Wird aktualisiert…",
+      "UpdatingMessage": "Die neuesten Sprachdaten werden heruntergeladen und installiert."
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",

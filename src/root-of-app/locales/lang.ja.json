@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "選択した辞書データは古くなっています。言語セットアップを開いて更新してください。",
+      "DictionaryUpdateMessage": "選択した辞書データの更新があります。ここで更新して続行してください。",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "学習言語の言語データは古くなっています。言語セットアップを開いて更新してください。",
+      "LanguageUpdateMessage": "学習言語データの更新があります。ここで更新して続行してください。",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "言語データの更新に失敗しました。もう一度お試しください。",
+      "UpdateNow": "今すぐ更新",
+      "UpdateTitle": "言語データの更新があります",
+      "Updating": "更新中…",
+      "UpdatingMessage": "最新の言語データをダウンロードしてインストールしています。"
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",

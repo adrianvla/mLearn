@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { LanguageDataCatalogStatus, Settings } from '../../../../shared/types';
 import {
   buildInstallOptionsFromSettings,
+  getLanguageDataUpdateTarget,
   getLanguageSetupRequirement,
   isInstallerRequiredError,
   startRequiredComponentRepair,
@@ -143,6 +144,25 @@ describe('LoadingOverlay installer helpers', () => {
       true,
       status,
     )).toEqual({ required: true, reason: 'dictionary-language-update' });
+  });
+
+  it('targets the active language and selected dictionary for an in-place update', () => {
+    expect(getLanguageDataUpdateTarget(
+      { language: 'de', dictionaryTargetLanguages: { de: 'en' } },
+      { required: true, reason: 'learning-language-update' },
+    )).toEqual({ language: 'de', dictionaryTargetLanguage: 'en' });
+
+    expect(getLanguageDataUpdateTarget(
+      { language: 'ja', dictionaryTargetLanguages: { ja: 'fr' } },
+      { required: true, reason: 'dictionary-language-update' },
+    )).toEqual({ language: 'ja', dictionaryTargetLanguage: 'fr' });
+  });
+
+  it('keeps missing data in the setup flow instead of treating it as an update', () => {
+    expect(getLanguageDataUpdateTarget(
+      { language: 'de', dictionaryTargetLanguages: { de: 'en' } },
+      { required: true, reason: 'learning-language' },
+    )).toBeNull();
   });
 
   it('does not require language setup when active language and dictionary are installed', () => {

@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "The selected dictionary data is out of date. Open language setup to update it.",
+      "DictionaryUpdateMessage": "An update is available for the selected dictionary data. Update it here to continue.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "Language data for your learning language is out of date. Open language setup to update it.",
+      "LanguageUpdateMessage": "An update is available for your learning language data. Update it here to continue.",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "The language data update failed. Try again.",
+      "UpdateNow": "Update Now",
+      "UpdateTitle": "Language Data Update Available",
+      "Updating": "Updating…",
+      "UpdatingMessage": "Downloading and installing the latest language data."
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",

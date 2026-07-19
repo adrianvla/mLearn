@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "所选词典数据已过期。打开语言设置以更新它。",
+      "DictionaryUpdateMessage": "所选词典数据有可用更新。请在此更新后继续。",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "学习语言的数据已过期。打开语言设置以更新它。",
+      "LanguageUpdateMessage": "学习语言数据有可用更新。请在此更新后继续。",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "语言数据更新失败。请重试。",
+      "UpdateNow": "立即更新",
+      "UpdateTitle": "语言数据有可用更新",
+      "Updating": "正在更新…",
+      "UpdatingMessage": "正在下载并安装最新的语言数据。"
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
