@@ -1454,8 +1454,23 @@
           "Label": "Afficher la partie du discours"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "Utiliser la couleur de texte principale pour les aides de lecture",
+          "Label": "Plus de contraste pour les aides de lecture"
+        },
+        "Preview": {
+          "Reading": "lecture",
+          "Surface": "Texte"
+        },
+        "Size": {
+          "Description": "Ajuster les aides de lecture par rapport à leur taille par défaut",
+          "Label": "Taille des aides de lecture"
+        }
+      },
       "Groups": {
         "Appearance": "Apparence",
+        "ReadingAppearance": "Aides de lecture",
         "BlurEffect": "Effet de flou",
         "CustomColors": "Surcharges de couleurs personnalisées",
         "Data": "Données",
@@ -2121,6 +2136,14 @@
       },
       "SearchPlaceholder": "Rechercher dans les paramètres...",
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "Liste de fréquence",
+          "Description": "Choisissez la source de fréquence utilisée pour les niveaux, l'étude et Word Sync."
+        },
+        "FrequencyLevelSystem": {
+          "Label": "Système de niveaux",
+          "Description": "Choisissez comment nommer les niveaux de cette liste de fréquence."
+        },
         "LearningLanguageLevel": {
           "Label": "Niveau de langue d'apprentissage",
           "Description": "Lorsqu'il est défini, les cartes suggérées au-dessus de ce niveau et les cartes sans niveau ne seront pas enregistrées. Affecte également la difficulté de Word Sync.",

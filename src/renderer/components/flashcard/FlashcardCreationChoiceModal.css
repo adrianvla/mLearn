@@ -81,8 +81,8 @@
 }
 
 .flashcard-choice__srs-reading {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  font-size: calc(var(--font-size-sm) * var(--reading-annotation-scale));
+  color: var(--reading-annotation-color);
   margin-top: var(--spacing-1);
 }
 

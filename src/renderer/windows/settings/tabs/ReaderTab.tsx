@@ -2,7 +2,7 @@
  * Reader Settings Tab
  */
 
-import { Component, Show } from 'solid-js';
+import { Component, Show, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
@@ -16,7 +16,37 @@ import '../SettingsForm.css';
 export const ReaderTab: Component = () => {
   const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
-  const { getLanguageFeatures } = useLanguage();
+  const { getLanguageFeatures, currentLangData } = useLanguage();
+  const languageFontOptions = createMemo(() => currentLangData()?.typography?.contentFontOptions ?? []);
+  const selectedLanguageFont = () => settings.readerContentFontSelections?.[settings.language];
+  const fontSelectValue = () => {
+    const style = settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!;
+    const selected = selectedLanguageFont();
+    if (style === 'language' && selected && languageFontOptions().some((option) => option.id === selected)) {
+      return `language-font:${selected}`;
+    }
+    return style;
+  };
+  const updateReaderFont = (value: string) => {
+    const optionId = value.startsWith('language-font:') ? value.slice('language-font:'.length) : undefined;
+    if (optionId && languageFontOptions().some((option) => option.id === optionId)) {
+      updateSettings({
+        readerTextFontStyle: 'language',
+        readerContentFontSelections: {
+          ...(settings.readerContentFontSelections ?? DEFAULT_SETTINGS.readerContentFontSelections),
+          [settings.language]: optionId,
+        },
+      });
+      return;
+    }
+    if (value === 'language') {
+      const nextSelections = { ...(settings.readerContentFontSelections ?? DEFAULT_SETTINGS.readerContentFontSelections) };
+      delete nextSelections[settings.language];
+      updateSettings({ readerTextFontStyle: 'language', readerContentFontSelections: nextSelections });
+      return;
+    }
+    updateSettings({ readerTextFontStyle: value as ReaderTextFontStyle });
+  };
   const sepiaEnabled = () => settings.readerSepiaEnabled ?? DEFAULT_SETTINGS.readerSepiaEnabled!;
   const sharpenEnabled = () => !sepiaEnabled()
     && (settings.readerSharpenEnabled ?? DEFAULT_SETTINGS.readerSharpenEnabled!);
@@ -41,10 +71,14 @@ export const ReaderTab: Component = () => {
           settingKey="readerTextFontStyle"
         >
           <Select
-            value={settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!}
-            onChange={(e) => updateSettings({ readerTextFontStyle: e.currentTarget.value as ReaderTextFontStyle })}
+            value={fontSelectValue()}
+            onChange={(e) => updateReaderFont(e.currentTarget.value)}
             options={[
               { value: 'language', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Language') },
+              ...languageFontOptions().map((option) => ({
+                value: `language-font:${option.id}`,
+                label: option.name,
+              })),
               { value: 'sans', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Sans') },
               { value: 'serif', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Serif') },
               { value: 'mono', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Mono') },

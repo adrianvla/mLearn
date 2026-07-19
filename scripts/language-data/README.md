@@ -1,11 +1,13 @@
 # Language Data Builds
 
-This directory is the single source of truth for building German, Japanese, Russian, and Chinese language packages. The website repo publishes the generated archives and catalog; the desktop app installs them on demand.
+This directory is the single source of truth for building Church Slavonic, German, Japanese, Russian, Spanish, and Chinese language packages. The website repo publishes the generated archives and catalog; the desktop app installs them on demand.
 
 ## Commands
 
 ```bash
 npm run build:language:de
+npm run build:language:es
+npm run build:language:cu
 npm run build:language:ja
 npm run build:language:ru
 npm run build:language:zh
@@ -19,6 +21,12 @@ By default the scripts read language sources from `scripts/language-data/source/
 `npm run package:language-data` writes archives to `../mlearn-website/release/language-data/v1` and the public catalog to `../mlearn-website/frontend/public/language-catalog.json`. Set `MLEARN_WEBSITE_ROOT=/path/to/mlearn-website` when the repositories are not siblings. Upload and frontend deployment remain website operations.
 
 Runtime language metadata, frequency lists, dictionaries, and optional adapters live under this directory. Generated dictionary databases and downloaded provider sources are ignored by git; the reproducible provider scripts rebuild them in place.
+
+The Russian build publishes OpenRussian as the default corpus-frequency list and SMARTool as a second provider. SMARTool's A1-B2 rows can be displayed using either CEFR labels or the corresponding ТРКИ labels.
+
+The Spanish build inverts FreeDict's larger English-Spanish release into Spanish lookup rows with English glosses, then combines it with the pinned FrequencyWords list, the `es_core_news_sm` spaCy tokenizer, Spanish PaddleOCR, and Spanish speech metadata.
+
+The Church Slavonic build combines the Wiktionary-derived kaikki.org dictionary, a frequency list built from the public-domain 1757 Elizabeth Bible, generic Cyrillic and Glagolitic tokenization, and Russian-script PaddleOCR. It intentionally does not claim modern Russian TTS or speech recognition as Church Slavonic pronunciation. The core package includes the SIL OFL-licensed Ponomar font as an optional reader content font.
 
 Russian publishes one reading annotation: the normal Cyrillic surface with a combining acute accent on the stressed vowel. Mandarin Chinese publishes tone-marked pinyin as its reading annotation. Neither declares a separate prosody feature; Japanese pitch accent remains a distinct annotation because its pronunciation reading and pitch pattern carry different information.
 

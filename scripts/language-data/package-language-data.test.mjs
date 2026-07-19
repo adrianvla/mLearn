@@ -39,9 +39,10 @@ describe('package-language-data', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('publishes a flag emoji for every supported learning language', () => {
+  it('publishes the expected flag emoji for languages with a country flag', () => {
     const expectedFlags = {
       de: '🇩🇪',
+      es: '🇪🇸',
       ja: '🇯🇵',
       ru: '🇷🇺',
       'zh-Hans': '🇨🇳',
@@ -55,6 +56,75 @@ describe('package-language-data', () => {
       ));
       assert.equal(metadata.flagEmoji, flagEmoji);
     }
+  });
+
+  it('publishes a ranked German frequency asset without claiming Goethe exam coverage', () => {
+    const languagesDir = path.join(
+      process.cwd(),
+      'scripts/language-data/source/root-of-app/languages',
+    );
+    const metadata = readJson(path.join(languagesDir, 'de.json'));
+    const frequency = readJson(path.join(languagesDir, 'de.freq.json'));
+
+    assert.equal(
+      metadata.languageData.assets.some((asset) => asset.path === 'languages/de.freq.json'),
+      true,
+    );
+    assert.deepEqual(metadata.frequencyLevels?.names, {
+      '1': 'Core 1,000',
+      '2': 'Common 3,000',
+      '3': 'Intermediate 7,000',
+      '4': 'Upper 15,000',
+      '5': 'Advanced 30,000',
+    });
+    assert.equal(metadata.languageData.sourceVersions.goethe, undefined);
+    assert.equal(Array.isArray(frequency.freq), true);
+    assert.equal(frequency.freq.length, 30000);
+    assert.deepEqual(frequency.freq.slice(0, 3).map((row) => row[0]), ['ich', 'sie', 'das']);
+  });
+
+  it('declares complete Spanish learning capabilities and a FreeDict pack', () => {
+    const languagesDir = path.join(
+      process.cwd(),
+      'scripts/language-data/source/root-of-app/languages',
+    );
+    const metadata = readJson(path.join(languagesDir, 'es.json'));
+    const frequency = readJson(path.join(languagesDir, 'es.freq.json'));
+    const dictionaryPacks = readJson(path.join(
+      process.cwd(),
+      'scripts/language-data/language-overrides/es.dictionary-packs.json',
+    ));
+
+    assert.equal(metadata.runtime?.nlp?.tokenizer?.model, 'es_core_news_sm');
+    assert.equal(metadata.runtime?.ocr?.paddleLang, 'es');
+    assert.equal(metadata.runtime?.tts?.qwen3LanguageName, 'spanish');
+    assert.equal(metadata.runtime?.stt?.whisperLanguage, 'es');
+    assert.equal(metadata.grammar.length >= 30, true);
+    assert.equal(frequency.freq.length, 30000);
+    assert.equal(dictionaryPacks.en.assets.some((asset) => asset.path === 'dictionaries/es/en/dictionary.db'), true);
+  });
+
+  it('declares Church Slavonic data capabilities and the packaged Ponomar option', () => {
+    const languagesDir = path.join(
+      process.cwd(),
+      'scripts/language-data/source/root-of-app/languages',
+    );
+    const metadata = readJson(path.join(languagesDir, 'cu.json'));
+    const frequency = readJson(path.join(languagesDir, 'cu.freq.json'));
+    const ponomar = metadata.typography?.contentFontOptions?.find((option) => option.id === 'ponomar');
+
+    assert.deepEqual(metadata.supportedScripts, ['Cyrl', 'Glag']);
+    assert.equal(metadata.runtime?.nlp?.tokenizer?.type, 'unicode-word');
+    assert.equal(metadata.runtime?.ocr?.paddleLang, 'ru');
+    assert.equal(metadata.runtime?.tts, undefined);
+    assert.equal(metadata.runtime?.stt, undefined);
+    assert.equal(ponomar?.fontFamily, 'Ponomar');
+    assert.equal(ponomar?.assetId, 'font-ponomar');
+    assert.equal(
+      metadata.languageData.assets.some((asset) => asset.path === 'fonts/cu/Ponomar-Regular.woff2'),
+      true,
+    );
+    assert.equal(frequency.freq.length, 30000);
   });
 
   it('declares Japanese runtime Python requirements in language metadata', () => {
@@ -134,8 +204,30 @@ describe('package-language-data', () => {
     assert.equal(russian.runtime?.ocr?.paddleLang, 'ru');
     assert.equal(russian.runtime?.tts?.qwen3LanguageName, 'russian');
     assert.equal(russian.runtime?.stt?.whisperLanguage, 'ru');
+    assert.equal(russian.defaultFrequencyProvider, 'openrussian');
+    assert.equal(russian.frequencyProviders?.openrussian?.assetId, 'frequency');
+    assert.deepEqual(russian.frequencyProviders?.smartool?.levelSystems?.cefr?.frequencyLevels?.names, {
+      '1': 'A1',
+      '2': 'A2',
+      '3': 'B1',
+      '4': 'B2',
+    });
+    assert.deepEqual(russian.frequencyProviders?.smartool?.levelSystems?.trki?.frequencyLevels?.names, {
+      '1': 'ТЭУ',
+      '2': 'ТБУ',
+      '3': 'ТРКИ-1',
+      '4': 'ТРКИ-2',
+    });
+    const smartoolFrequency = readJson(path.join(languagesDir, 'ru.smartool.freq.json'));
+    assert.equal(smartoolFrequency.freq.length > 3000, true);
+    assert.equal(smartoolFrequency.freq.every((row) => Number.isInteger(row[2]) && row[2] >= 1 && row[2] <= 4), true);
+    assert.equal(smartoolFrequency.freq.some((row) => /deleted/i.test(row[0])), false);
     assert.equal(
       russian.languageData?.assets?.some((asset) => asset.path === 'licenses/openrussian-LICENSE'),
+      true,
+    );
+    assert.equal(
+      russian.languageData?.assets?.some((asset) => asset.path === 'licenses/smartool-LICENSE'),
       true,
     );
 
@@ -152,6 +244,17 @@ describe('package-language-data', () => {
       assert.equal(metadata.runtime?.stt?.whisperLanguage, 'zh');
       assert.equal(metadata.languageData?.assets?.some((asset) => asset.path === `languages/${language}.freq.json`), true);
     }
+
+    const simplifiedPacks = readJson(path.join(
+      process.cwd(),
+      'scripts/language-data/language-overrides/zh-Hans.dictionary-packs.json',
+    ));
+    const traditionalPacks = readJson(path.join(
+      process.cwd(),
+      'scripts/language-data/language-overrides/zh-Hant.dictionary-packs.json',
+    ));
+    assert.equal(simplifiedPacks.en.version, 'zh-Hans-en-cc-cedict-2026.04.03-r2');
+    assert.equal(traditionalPacks.en.version, 'zh-Hant-en-cc-cedict-2026.04.03-r2');
 
     assert.equal(simplified.runtime?.ocr?.paddleLang, 'ch');
     assert.equal(traditional.runtime?.ocr?.paddleLang, 'chinese_cht');

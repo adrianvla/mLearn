@@ -15,6 +15,53 @@
       "6": "Rare vocabulary"
     }
   },
+  "defaultFrequencyProvider": "openrussian",
+  "frequencyProviders": {
+    "openrussian": {
+      "name": "OpenRussian",
+      "assetId": "frequency",
+      "sourceUrl": "https://github.com/Badestrand/russian-dictionary",
+      "frequencyLevels": {
+        "difficulty": "higher-is-harder",
+        "displayOrder": "ascending",
+        "boundaries": [1000, 3000, 7000, 15000, 30000],
+        "names": {
+          "1": "Core 1,000",
+          "2": "Common 3,000",
+          "3": "Intermediate 7,000",
+          "4": "Upper 15,000",
+          "5": "Advanced 30,000",
+          "6": "Rare vocabulary"
+        }
+      }
+    },
+    "smartool": {
+      "name": "SMARTool",
+      "assetId": "frequency-smartool",
+      "sourceUrl": "https://github.com/smartool/data-rus-eng",
+      "defaultLevelSystem": "cefr",
+      "levelSystems": {
+        "cefr": {
+          "name": "CEFR",
+          "frequencyLevels": {
+            "difficulty": "higher-is-harder",
+            "displayOrder": "ascending",
+            "rowLevelIndex": 2,
+            "names": {"1": "A1", "2": "A2", "3": "B1", "4": "B2"}
+          }
+        },
+        "trki": {
+          "name": "ТРКИ",
+          "frequencyLevels": {
+            "difficulty": "higher-is-harder",
+            "displayOrder": "ascending",
+            "rowLevelIndex": 2,
+            "names": {"1": "ТЭУ", "2": "ТБУ", "3": "ТРКИ-1", "4": "ТРКИ-2"}
+          }
+        }
+      }
+    }
+  },
   "grammarLevels": {
     "difficulty": "higher-is-harder",
     "displayOrder": "ascending",
@@ -213,14 +260,17 @@
     }
   },
   "languageData": {
-    "version": "ru-package-2026.07.18",
-    "sourceVersions": {"openRussian": "50e210c4803237779cb562bc1abcea529066031c", "sileroStress": "1.4", "spacyModel": "ru_core_news_sm-3.8.0"},
+    "version": "ru-package-2026.07.19",
+    "sourceVersions": {"openRussian": "50e210c4803237779cb562bc1abcea529066031c", "smartool": "c20223c008c278c9399d8442f52948fae9c82c1c", "sileroStress": "1.4", "spacyModel": "ru_core_news_sm-3.8.0"},
     "assets": [
       {"id": "frequency", "path": "languages/ru.freq.json", "bundledPath": "languages/ru.freq.json", "required": true},
+      {"id": "frequency-smartool", "path": "languages/ru.smartool.freq.json", "bundledPath": "languages/ru.smartool.freq.json", "required": true},
       {"id": "pronunciation", "path": "languages/ru.pronunciation.json.gz", "bundledPath": "languages/ru.pronunciation.json.gz", "required": true},
       {"id": "python-adapter", "path": "adapters/russian_adapter.py", "bundledPath": "adapters/russian_adapter.py", "required": true},
       {"id": "openrussian-license", "path": "licenses/openrussian-LICENSE", "bundledPath": "licenses/openrussian-LICENSE", "required": true},
-      {"id": "openrussian-readme", "path": "licenses/openrussian-README.md", "bundledPath": "licenses/openrussian-README.md", "required": true}
+      {"id": "openrussian-readme", "path": "licenses/openrussian-README.md", "bundledPath": "licenses/openrussian-README.md", "required": true},
+      {"id": "smartool-license", "path": "licenses/smartool-LICENSE", "bundledPath": "licenses/smartool-LICENSE", "required": true},
+      {"id": "smartool-readme", "path": "licenses/smartool-README.md", "bundledPath": "licenses/smartool-README.md", "required": true}
     ]
   }
 }

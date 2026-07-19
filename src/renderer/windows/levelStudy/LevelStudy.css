@@ -348,8 +348,8 @@
 }
 
 .level-detail-word-reading {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: calc(12px * var(--reading-annotation-scale));
+  color: var(--reading-annotation-color);
 }
 
 .level-detail-status-pill {

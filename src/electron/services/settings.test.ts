@@ -609,6 +609,91 @@ describe('loadLangData', () => {
     expect(langData['ru']?.freq).toEqual([['человек', 'челове́к']]);
   });
 
+  it('hydrates every declared frequency provider from its language asset', () => {
+    const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(installedFreqDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.json'),
+      JSON.stringify({
+        name: 'Russian',
+        defaultFrequencyProvider: 'openrussian',
+        frequencyProviders: {
+          openrussian: {
+            name: 'OpenRussian',
+            assetId: 'frequency',
+            frequencyLevels: { names: { '1': 'Common' } },
+          },
+          smartool: {
+            name: 'SMARTool',
+            assetId: 'frequency-smartool',
+            defaultLevelSystem: 'cefr',
+            levelSystems: {
+              cefr: {
+                name: 'CEFR',
+                frequencyLevels: { names: { '1': 'A1' }, rowLevelIndex: 2 },
+              },
+            },
+          },
+        },
+        languageData: {
+          assets: [
+            { id: 'frequency', path: 'languages/ru.freq.json', required: true },
+            { id: 'frequency-smartool', path: 'languages/ru.smartool.freq.json', required: true },
+          ],
+        },
+      }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.freq.json'),
+      JSON.stringify([['человек', 'челове́к']]),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.smartool.freq.json'),
+      JSON.stringify({ freq: [['слово', 'слово', 1]] }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ru']?.frequencyProviders?.openrussian.freq).toEqual([['человек', 'челове́к']]);
+    expect(langData['ru']?.frequencyProviders?.smartool.freq).toEqual([['слово', 'слово', 1]]);
+    expect(langData['ru']?.frequencyProviders?.smartool.levelSystems?.cefr.frequencyLevels.names).toEqual({ '1': 'A1' });
+  });
+
+  it('hydrates declared language fonts from installed package assets', () => {
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    const fontsDir = path.join(tempDir.tmpDir, 'language-data', 'fonts', 'cu');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.mkdirSync(fontsDir, { recursive: true });
+    fs.writeFileSync(path.join(fontsDir, 'Ponomar-Regular.woff2'), Buffer.from('font-data'));
+    fs.writeFileSync(
+      path.join(languagesDir, 'cu.json'),
+      JSON.stringify({
+        name: 'Church Slavonic',
+        typography: {
+          contentFontOptions: [{
+            id: 'ponomar',
+            name: 'Ponomar',
+            fontFamily: 'Ponomar',
+            assetId: 'font-ponomar',
+          }],
+        },
+        languageData: {
+          assets: [{ id: 'font-ponomar', path: 'fonts/cu/Ponomar-Regular.woff2', required: true }],
+        },
+      }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData.cu?.typography?.contentFontOptions?.[0].sourceDataUrl).toBe(
+      `data:font/woff2;base64,${Buffer.from('font-data').toString('base64')}`,
+    );
+  });
+
   it('preserves explicit numeric levels from installed frequency files even when metadata is incomplete', () => {
     const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(installedFreqDir, { recursive: true });

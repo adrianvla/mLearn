@@ -27,14 +27,27 @@
     "showProsody": false
   },
   "languageData": {
-    "version": "de-package-2026.06.29",
+    "version": "de-package-2026.07.19",
     "sourceVersions": {
-      "dictionary": "freedict-deu-eng-2024.04.21"
+      "dictionary": "freedict-deu-eng-2024.04.21",
+      "frequency": "frequencywords-2018-525f9b560de4"
     },
     "assets": [
       {
         "id": "language-metadata",
         "path": "languages/de.json",
+        "required": true
+      },
+      {
+        "id": "frequency",
+        "path": "languages/de.freq.json",
+        "bundledPath": "languages/de.freq.json",
+        "required": true
+      },
+      {
+        "id": "frequencywords-notice",
+        "path": "licenses/frequencywords-README.md",
+        "bundledPath": "licenses/frequencywords-README.md",
         "required": true
       }
     ],
@@ -65,6 +78,24 @@
           }
         ]
       }
+    }
+  },
+  "frequencyLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "boundaries": [
+      1000,
+      3000,
+      7000,
+      15000,
+      30000
+    ],
+    "names": {
+      "1": "Core 1,000",
+      "2": "Common 3,000",
+      "3": "Intermediate 7,000",
+      "4": "Upper 15,000",
+      "5": "Advanced 30,000"
     }
   },
     "supportedScripts": [

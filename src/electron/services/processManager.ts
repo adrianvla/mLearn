@@ -26,24 +26,13 @@ export function restartApp(): void {
 
 // Force restart without checking server status
 export function forceRestartApp(): void {
-  if (process.env.NODE_ENV === 'development') {
-    log.info('Reloading app runtime without exiting development services');
-    restartPythonBackend();
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed()) {
-        window.webContents.reloadIgnoringCache();
-      }
+  log.info('Reloading app runtime without relaunching Electron');
+  restartPythonBackend();
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.reloadIgnoringCache();
     }
-    return;
   }
-
-  terminatePythonBackend();
-  log.info('Force restarting app');
-  
-  setTimeout(() => {
-    app.relaunch();
-    app.exit();
-  }, 1000);
 }
 
 /**

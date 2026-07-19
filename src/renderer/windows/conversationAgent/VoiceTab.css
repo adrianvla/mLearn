@@ -795,8 +795,8 @@
 }
 
 .voice-aftermath-reading {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  color: var(--reading-annotation-color);
+  font-size: calc(var(--font-size-sm) * var(--reading-annotation-scale));
 }
 
 .voice-aftermath-type {

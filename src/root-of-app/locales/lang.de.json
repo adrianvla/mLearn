@@ -1454,8 +1454,23 @@
           "Label": "Wortart anzeigen"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "Für Lesehilfen die primäre Textfarbe verwenden",
+          "Label": "Mehr Kontrast bei Lesehilfen"
+        },
+        "Preview": {
+          "Reading": "Lesung",
+          "Surface": "Text"
+        },
+        "Size": {
+          "Description": "Lesehilfen relativ zu ihrer Standardgröße anpassen",
+          "Label": "Größe der Lesehilfen"
+        }
+      },
       "Groups": {
         "Appearance": "Erscheinungsbild",
+        "ReadingAppearance": "Lesehilfen",
         "BlurEffect": "Unschärfe-Effekt",
         "CustomColors": "Benutzerdefinierte Farb-Überschreibungen",
         "Data": "Daten",
@@ -2121,6 +2136,14 @@
       },
       "SearchPlaceholder": "Einstellungen durchsuchen...",
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "Häufigkeitsliste",
+          "Description": "Wähle, welche Worthäufigkeitsquelle für Niveaus, Lernen und Word Sync verwendet wird."
+        },
+        "FrequencyLevelSystem": {
+          "Label": "Niveausystem",
+          "Description": "Wähle, wie die Niveaus dieser Häufigkeitsliste benannt werden."
+        },
         "LearningLanguageLevel": {
           "Label": "Lernsprachniveau",
           "Description": "Wenn festgelegt, werden vorgeschlagene Lernkarten über diesem Niveau und Karten ohne Niveau nicht gespeichert. Betrifft auch die Word Sync-Schwierigkeit.",

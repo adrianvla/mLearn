@@ -34,12 +34,14 @@ import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import {
+  getContentFontFamily,
   getReaderCollatePagesForLanguage,
   getReaderFirstPageSingleForLanguage,
   getReaderPageModeForLanguage,
   getReaderSpreadDirectionForLanguage,
   resolveCloudOcrEngine,
   getTokenJoinSeparator,
+  resolveLanguageContentFontOption,
 } from '../../../../shared/languageFeatures';
 import { getWordStatus } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -67,6 +69,7 @@ import {
 } from '../../../utils/webkitFileSystem';
 import './reader.css';
 import { getLogger } from '@shared/utils/logger';
+import { ensureLanguageFontLoaded } from '../../../utils/languageFonts';
 
 const log = getLogger("renderer.reader");
 
@@ -518,17 +521,27 @@ export const ReaderRoute: Component = () => {
   const pageMode = () => getReaderPageModeForLanguage(settings, currentLangData());
   const readerSpreadDirection = () => getReaderSpreadDirectionForLanguage(settings, currentLangData());
   const readerTextFontStyle = () => settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!;
+  const selectedLanguageFontId = () => (
+    settings.readerContentFontSelections?.[settings.language]
+    ?? DEFAULT_SETTINGS.readerContentFontSelections[settings.language]
+  );
   const readerTextFontFamily = () => {
     const fontStyle = readerTextFontStyle();
-    const languageFont = currentLangData()?.typography?.contentFontFamily;
     const fontStacks: Record<ReaderTextFontStyle, string> = {
-      language: languageFont || 'var(--font-family-content)',
+      language: getContentFontFamily(currentLangData(), selectedLanguageFontId()),
       sans: 'var(--font-family-sans)',
       serif: 'Georgia, "Times New Roman", serif',
       mono: 'var(--font-family-mono)',
     };
     return fontStacks[fontStyle];
   };
+  createEffect(() => {
+    if (readerTextFontStyle() !== 'language') return;
+    const option = resolveLanguageContentFontOption(currentLangData(), selectedLanguageFontId());
+    void ensureLanguageFontLoaded(option).catch((error: unknown) => {
+      log.warn('Failed to load language content font', error);
+    });
+  });
   const readerTextStyle = (): JSX.CSSProperties => ({
     '--reader-text-font-family': readerTextFontFamily(),
     '--reader-text-font-size': `${settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}rem`,
@@ -856,11 +869,12 @@ export const ReaderRoute: Component = () => {
   createEffect(() => {
     if (!visiblePagesAreText()) return;
     settings.readerTextFontStyle;
+    settings.readerContentFontSelections?.[settings.language];
     settings.readerTextSize;
     settings.readerTextLineHeight;
     settings.readerTextWidth;
     settings.readerTextMargin;
-    currentLangData()?.typography?.contentFontFamily;
+    currentLangData()?.typography;
     queueMicrotask(updateMeasuredTextPageCapacity);
   });
 

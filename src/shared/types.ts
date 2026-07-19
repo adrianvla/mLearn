@@ -145,6 +145,8 @@ export interface Settings {
   show_pos: boolean;
   /** Preferred persisted toggle for reading annotations. Prefer readingAnnotationsEnabled() when reading it. */
   showReadingAnnotations?: boolean;
+  readingAnnotationMoreContrast?: boolean;
+  readingAnnotationSizePercent?: number;
   hideReadingForKnownWords?: boolean;
   /** Preferred persisted toggle for prosody/accent display. Prefer prosodyVisible() when reading it. */
   showProsody: boolean;
@@ -235,6 +237,8 @@ export interface Settings {
    * or frequency buckets independently.
    */
   learningLanguageLevels: Record<string, number | null>;
+  frequencyProviderSelections: Record<string, string>;
+  frequencyLevelSystemSelections: Record<string, string>;
 
   // API URLs
   tokeniserUrl: string;
@@ -360,6 +364,7 @@ export interface Settings {
   readerSpreadDirection?: ReaderSpreadDirection;
   /** Font family style for extracted-text reader pages. */
   readerTextFontStyle?: ReaderTextFontStyle;
+  readerContentFontSelections: Record<string, string>;
   /** Extracted-text reader font size in rem. */
   readerTextSize?: number;
   /** Extracted-text reader line-height multiplier. */
@@ -508,6 +513,8 @@ export const DEFAULT_SETTINGS: Settings = {
   knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
   knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
   showReadingAnnotations: true,
+  readingAnnotationMoreContrast: false,
+  readingAnnotationSizePercent: 100,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,
   flashcard_deck: null,
@@ -566,6 +573,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoSuggestUnknownWords: true,
   learningLanguageLevel: null,
   learningLanguageLevels: {},
+  frequencyProviderSelections: {},
+  frequencyLevelSystemSelections: {},
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,
@@ -592,6 +601,7 @@ export const DEFAULT_SETTINGS: Settings = {
   readerFirstPageSingle: true,
   readerSpreadDirection: 'right-to-left',
   readerTextFontStyle: 'language',
+  readerContentFontSelections: {},
   readerTextSize: 1.05,
   readerTextLineHeight: 1.75,
   readerTextWidth: 64,
@@ -926,11 +936,20 @@ export interface LanguageTextProcessingConfig {
   tokenJoinSeparator?: string;
 }
 
+export interface LanguageFontFamilyOption {
+  id: string;
+  name: string;
+  fontFamily: string;
+  assetId?: string;
+  sourceDataUrl?: string;
+}
+
 export interface LanguageTypographyConfig {
   /** CSS font-family used for subtitle/media text. Defaults are derived from supported scripts. */
   subtitleFontFamily?: string;
   /** CSS font-family used for language content outside subtitles when a surface needs it. */
   contentFontFamily?: string;
+  contentFontOptions?: LanguageFontFamilyOption[];
   /** Text direction for language content. Defaults are derived from supported scripts. */
   textDirection?: 'ltr' | 'rtl' | 'auto';
 }
@@ -1024,6 +1043,21 @@ export interface LanguageFrequencyLevelConfig {
 }
 
 export type LanguageFrequencyRow = [string, string, ...unknown[]];
+
+export interface LanguageFrequencyLevelSystem {
+  name: string;
+  frequencyLevels: LanguageFrequencyLevelConfig;
+}
+
+export interface LanguageFrequencyProvider {
+  name: string;
+  assetId?: string;
+  freq?: LanguageFrequencyRow[];
+  frequencyLevels?: LanguageFrequencyLevelConfig;
+  levelSystems?: Record<string, LanguageFrequencyLevelSystem>;
+  defaultLevelSystem?: string;
+  sourceUrl?: string;
+}
 
 export interface LanguageOcrRuntimeConfig {
   /** RapidOCR LangRec enum name, e.g. "JAPAN", "LATIN", "CYRILLIC". */
@@ -1241,6 +1275,10 @@ export interface LanguageData {
   grammarLevels?: LanguageFrequencyLevelConfig;
   /** Ordering and difficulty semantics for numeric frequency/proficiency levels. */
   frequencyLevels?: LanguageFrequencyLevelConfig;
+  frequencyProviders?: Record<string, LanguageFrequencyProvider>;
+  defaultFrequencyProvider?: string;
+  activeFrequencyProvider?: string;
+  activeFrequencyLevelSystem?: string;
   /** Script validation, lexeme normalization, and indexing behavior for this language. */
   textProcessing?: LanguageTextProcessingConfig;
   /** Optional prosody/accent behavior for this language. */

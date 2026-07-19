@@ -240,9 +240,9 @@
 }
 
 .flashcard-word-reading {
-  font-size: 1rem;
+  font-size: calc(1rem * var(--reading-annotation-scale));
   margin-left: 0.5rem;
-  color: var(--text-secondary);
+  color: var(--reading-annotation-color);
 }
 
 /* Translation/definition */

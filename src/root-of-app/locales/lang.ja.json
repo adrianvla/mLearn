@@ -1454,8 +1454,23 @@
           "Label": "品詞を表示"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "読み仮名にメインの文字色を使用します",
+          "Label": "読みを高コントラストにする"
+        },
+        "Preview": {
+          "Reading": "よみ",
+          "Surface": "文字"
+        },
+        "Size": {
+          "Description": "読みの大きさを標準サイズに対する割合で調整します",
+          "Label": "読みのサイズ"
+        }
+      },
       "Groups": {
         "Appearance": "外観",
+        "ReadingAppearance": "読みの表示",
         "BlurEffect": "ぼかし効果",
         "CustomColors": "カスタムカラー上書き",
         "Data": "データ",
@@ -2121,6 +2136,14 @@
       },
       "SearchPlaceholder": "設定を検索...",
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "頻度リスト",
+          "Description": "レベル、学習、Word Sync に使用する語彙頻度データを選択します。"
+        },
+        "FrequencyLevelSystem": {
+          "Label": "レベル体系",
+          "Description": "この頻度リストのレベル名の体系を選択します。"
+        },
         "LearningLanguageLevel": {
           "Label": "学習言語レベル",
           "Description": "設定した場合、このレベルを超える提案フラッシュカードとレベルのないカードは保存されません。Word Syncの難易度にも影響します。",

@@ -20,12 +20,28 @@
     },
     "freedict": {
       "status": "active",
-      "sourceLanguages": ["de"],
+      "sourceLanguages": ["de", "es"],
       "targetLanguages": ["en"],
-      "defaultPackId": "de-en",
       "sourceUrl": "https://freedict.org/",
       "license": "per-dictionary-tei-header",
-      "notes": "Current German->English source. The existing builder reads the FreeDict TEI header and writes pack-specific license metadata."
+      "notes": "Current German->English source and inverted English->Spanish source for Spanish lookup with English glosses. The shared builder reads each FreeDict TEI header and writes pack-specific license metadata."
+    },
+    "kaikki-wiktionary": {
+      "status": "active",
+      "sourceLanguages": ["cu"],
+      "targetLanguages": ["en"],
+      "defaultPackId": "cu-en",
+      "sourceUrl": "https://kaikki.org/dictionary/Old%20Church%20Slavonic/index.html",
+      "license": "CC-BY-SA-4.0",
+      "notes": "Church Slavonic and Old Church Slavonic headwords, romanizations, inflected forms, and English definitions extracted from English Wiktionary by kaikki.org."
+    },
+    "csl-elizabeth": {
+      "status": "active",
+      "sourceLanguages": ["cu"],
+      "targetLanguages": [],
+      "sourceUrl": "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=CSlElizabeth",
+      "license": "public-domain",
+      "notes": "The 1757 Elizabeth Bible corpus supplies the Church Slavonic frequency ranking."
     },
     "openrussian": {
       "status": "active",

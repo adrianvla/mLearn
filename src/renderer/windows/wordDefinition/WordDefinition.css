@@ -52,8 +52,8 @@
 }
 
 .word-definition__reading {
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
+  color: var(--reading-annotation-color);
+  font-size: calc(var(--font-size-base) * var(--reading-annotation-scale));
   margin-top: 2px;
 }
 

@@ -44,7 +44,11 @@ const LanguageProviderBridge: Component<{ children?: JSX.Element }> = (props) =>
 
   return (
     <Show when={!isLoading()}>
-      <LanguageProvider language={settings.language}>
+      <LanguageProvider
+        language={settings.language}
+        frequencyProviderSelections={settings.frequencyProviderSelections}
+        frequencyLevelSystemSelections={settings.frequencyLevelSystemSelections}
+      >
         {props.children}
       </LanguageProvider>
     </Show>

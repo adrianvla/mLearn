@@ -23,9 +23,6 @@ function makeLangData(overrides: Partial<LanguageDataMap[string]> = {}): Languag
   return {
     zz: {
       name: 'Test Language',
-      translatable: ['NOUN'],
-      colour_codes: {},
-      settings: { fixed: {} },
       languageData: {
         assets: [
           {
@@ -392,9 +389,6 @@ describe('languageDataService', () => {
       }).zz,
       bb: {
         name: 'Bare Metadata',
-        translatable: [],
-        colour_codes: {},
-        settings: { fixed: {} },
       },
     };
 
@@ -655,6 +649,23 @@ describe('languageDataService', () => {
       fs.copyFileSync(archivePath, destPath);
     });
 
+    const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(installedMetadataPath, JSON.stringify({
+      name: 'Zulu Test',
+      languageData: {
+        version: 'core-v1',
+        dictionaryPacks: {
+          fr: {
+            targetLanguage: 'fr',
+            name: 'French',
+            version: 'zz-fr-dictionary-v0',
+            assets: [],
+          },
+        },
+      },
+    }), 'utf-8');
+
     const status = await (mod.ensureLanguageDataInstalled as unknown as (
       language: string,
       langData: LanguageDataMap,
@@ -668,7 +679,13 @@ describe('languageDataService', () => {
           sizeBytes: 1,
           sha256: 'unused',
         },
-        assets: [],
+        assets: [
+          {
+            id: 'language-metadata',
+            path: 'languages/zz.json',
+            required: true,
+          },
+        ],
         dictionaryPacks: {
           fr: {
             targetLanguage: 'fr',
@@ -697,6 +714,13 @@ describe('languageDataService', () => {
       undefined,
     );
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+    const installedMetadata = JSON.parse(fs.readFileSync(installedMetadataPath, 'utf-8')) as {
+      languageData?: { dictionaryPacks?: { fr?: { version?: string; bundle?: { sha256?: string } } } };
+    };
+    expect(installedMetadata.languageData?.dictionaryPacks?.fr).toMatchObject({
+      version: 'zz-fr-dictionary-v1',
+      bundle: { sha256: sha256(fs.readFileSync(archivePath)) },
+    });
   });
 
   it('rejects a dictionary pack archive that declares a different target language', async () => {

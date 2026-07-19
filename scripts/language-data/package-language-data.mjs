@@ -21,6 +21,8 @@ const TARGET_LANGUAGE_NAMES = {
   ja: 'Japanese',
   zh: 'Chinese',
   ru: 'Russian',
+  es: 'Spanish',
+  cu: 'Church Slavonic',
 };
 
 function readJson(filePath) {
@@ -141,6 +143,14 @@ function createTarGz(archivePath, stagingDir) {
   execFileSync('tar', [
     '--format',
     'ustar',
+    '--uid',
+    '0',
+    '--gid',
+    '0',
+    '--uname',
+    'root',
+    '--gname',
+    'root',
     '-cf',
     tempTarPath,
     ...archiveEntries,

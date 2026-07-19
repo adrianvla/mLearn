@@ -57,6 +57,8 @@ const settingRegistry = {
   hover_known_get_from_dictionary: 'boolean',
   show_pos: 'boolean',
   showReadingAnnotations: 'boolean',
+  readingAnnotationMoreContrast: 'boolean',
+  readingAnnotationSizePercent: 'number',
   hideReadingForKnownWords: 'boolean',
   showProsody: 'boolean',
   showDictionary: 'boolean',

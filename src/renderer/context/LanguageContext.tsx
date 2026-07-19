@@ -163,8 +163,16 @@ interface LanguageFrequencyState {
   lexemeIndex: LanguageLexemeIndex;
 }
 
-function buildLanguageFrequencyState(langInfo: LanguageData | null | undefined): LanguageFrequencyState {
-  const { rows: freq, languageData: effectiveLangInfo } = resolveLanguageFrequencyPayload(langInfo);
+function buildLanguageFrequencyState(
+  langInfo: LanguageData | null | undefined,
+  providerId?: string,
+  levelSystemId?: string,
+): LanguageFrequencyState {
+  const { rows: freq, languageData: effectiveLangInfo } = resolveLanguageFrequencyPayload(
+    langInfo,
+    providerId,
+    levelSystemId,
+  );
 
   if (freq.length === 0) {
     return {
@@ -232,7 +240,13 @@ function buildLanguageFrequencyState(langInfo: LanguageData | null | undefined):
   };
 }
 
-export const LanguageProvider: ParentComponent<{ language?: string }> = (props) => {
+interface LanguageProviderProps {
+  language?: string;
+  frequencyProviderSelections?: Record<string, string>;
+  frequencyLevelSystemSelections?: Record<string, string>;
+}
+
+export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) => {
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createSignal<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
@@ -240,7 +254,12 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [languageDataInstallError, setLanguageDataInstallError] = createSignal<LanguageDataInstallError | null>(null);
   const [languageDataInstalls, setLanguageDataInstalls] = createSignal<Record<string, boolean>>({});
   let lexemeIndex: LanguageLexemeIndex = createEmptyLexemeIndex();
-  const perLanguageFrequencyState = new Map<string, { data: LanguageData | null; state: LanguageFrequencyState }>();
+  const perLanguageFrequencyState = new Map<string, {
+    data: LanguageData | null;
+    providerId?: string;
+    levelSystemId?: string;
+    state: LanguageFrequencyState;
+  }>();
   const currentLang = createMemo<string>(() => props.language ?? '');
   const ipcCleanups: Array<() => void> = [];
 
@@ -301,8 +320,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const parseWordFrequency = (data: LanguageDataMap) => {
     const lang = currentLang();
     const langInfo = data[lang];
+    const providerId = props.frequencyProviderSelections?.[lang];
+    const levelSystemId = props.frequencyLevelSystemSelections?.[lang];
     perLanguageFrequencyState.clear();
-    const state = buildLanguageFrequencyState(langInfo);
+    const state = buildLanguageFrequencyState(langInfo, providerId, levelSystemId);
     lexemeIndex = state.lexemeIndex;
     setWordFrequency(state.frequency);
   };
@@ -333,7 +354,16 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   };
 
   // Get current language data
-  const currentLangData = () => langData[currentLang()] || null;
+  const resolvedLanguageData = (language: string): LanguageData | null => {
+    const resolved = resolveLanguageFrequencyPayload(
+      langData[language] ?? null,
+      props.frequencyProviderSelections?.[language],
+      props.frequencyLevelSystemSelections?.[language],
+    );
+    return resolved.languageData ?? null;
+  };
+
+  const currentLangData = createMemo(() => resolvedLanguageData(currentLang()));
 
   // Get frequency for a word, with fallback to reading-based lookup
   const getFrequency = (word: string): WordFrequencyEntry | null => {
@@ -345,15 +375,22 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       return { frequency: wordFrequency(), lexemeIndex };
     }
     const data = langData[language] ?? null;
+    const providerId = props.frequencyProviderSelections?.[language];
+    const levelSystemId = props.frequencyLevelSystemSelections?.[language];
     const cached = perLanguageFrequencyState.get(language);
-    if (cached && cached.data === data) return cached.state;
-    const state = buildLanguageFrequencyState(data);
-    perLanguageFrequencyState.set(language, { data, state });
+    if (
+      cached
+      && cached.data === data
+      && cached.providerId === providerId
+      && cached.levelSystemId === levelSystemId
+    ) return cached.state;
+    const state = buildLanguageFrequencyState(data, providerId, levelSystemId);
+    perLanguageFrequencyState.set(language, { data, providerId, levelSystemId, state });
     return state;
   };
 
   const getFrequencyForLanguage = (language: string, word: string): WordFrequencyEntry | null => {
-    const data = langData[language] ?? null;
+    const data = resolvedLanguageData(language);
     const state = getFrequencyStateForLanguage(language);
     return getFrequencyForLexeme(word, state.frequency, state.lexemeIndex, data);
   };
@@ -374,21 +411,21 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   const getCanonicalFormForLanguage = (language: string, word: string): string => {
     if (language === currentLang()) return getCanonicalForm(word);
-    const data = langData[language] ?? null;
+    const data = resolvedLanguageData(language);
     const state = getFrequencyStateForLanguage(language);
     return getCanonicalLexeme(word, state.frequency, state.lexemeIndex, data);
   };
 
   const getWordVariantsForLanguage = (language: string, word: string): string[] => {
     if (language === currentLang()) return getWordVariants(word);
-    const data = langData[language] ?? null;
+    const data = resolvedLanguageData(language);
     const state = getFrequencyStateForLanguage(language);
     return getLexemeVariants(word, state.frequency, state.lexemeIndex, data);
   };
 
   const getReadingVariantsForLanguage = (language: string, reading: string): string[] => {
     if (language === currentLang()) return getReadingVariants(reading);
-    return getLexemeReadingVariants(reading, langData[language] ?? null);
+    return getLexemeReadingVariants(reading, resolvedLanguageData(language));
   };
 
   // Get level name from language metadata.
@@ -574,7 +611,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   createEffect(() => {
     const lang = currentLang();
-    void lang;
+    props.frequencyProviderSelections?.[lang];
+    props.frequencyLevelSystemSelections?.[lang];
     parseWordFrequency(langData as LanguageDataMap);
     parseGrammarData(langData as LanguageDataMap);
   });
