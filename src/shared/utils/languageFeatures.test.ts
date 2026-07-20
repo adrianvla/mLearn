@@ -199,7 +199,7 @@ describe('language feature bricks', () => {
   });
 
   it('resolves content font family from metadata before script defaults', () => {
-    expect(getContentFontFamily({
+    const language = {
       name: 'Custom Content Font Language',
       colour_codes: {},
       settings: { fixed: {} },
@@ -208,8 +208,12 @@ describe('language feature bricks', () => {
       },
       typography: {
         contentFontFamily: '"Readable Content"',
+        contentFontOptions: [{ id: 'ponomar', name: 'Ponomar', fontFamily: 'Ponomar' }],
       },
-    })).toBe('"Readable Content"');
+    };
+    expect(getContentFontFamily(language)).toBe('"Readable Content"');
+    expect(getContentFontFamily(language, 'ponomar')).toBe('Ponomar');
+    expect(getContentFontFamily(language, '__proto__')).toBe('"Readable Content"');
   });
 
   it('resolves content font family from language scripts', () => {
@@ -1869,6 +1873,54 @@ describe('language feature bricks', () => {
       rowLevelIndex: 2,
       difficulty: 'lower-is-harder',
     });
+  });
+
+  it('selects a frequency provider and one of its level systems', () => {
+    const language = {
+      name: 'Multi-provider language',
+      defaultFrequencyProvider: 'corpus',
+      frequencyProviders: {
+        corpus: {
+          name: 'Corpus',
+          freq: [['частый', 'ча́стый', 1]],
+          frequencyLevels: {
+            names: { '1': 'Common' },
+            rowLevelIndex: 2,
+          },
+        },
+        smartool: {
+          name: 'SMARTool',
+          freq: [['слово', 'слово', 3]],
+          defaultLevelSystem: 'cefr',
+          levelSystems: {
+            cefr: {
+              name: 'CEFR',
+              frequencyLevels: { names: { '3': 'B1' }, rowLevelIndex: 2 },
+            },
+            trki: {
+              name: 'ТРКИ',
+              frequencyLevels: { names: { '3': 'ТРКИ-1' }, rowLevelIndex: 2 },
+            },
+          },
+        },
+      },
+    } as LanguageData;
+
+    const defaultResolved = resolveLanguageFrequencyPayload(language);
+    expect(defaultResolved.rows).toEqual([['частый', 'ча́стый', 1]]);
+    expect(defaultResolved.providerId).toBe('corpus');
+
+    const invalidResolved = resolveLanguageFrequencyPayload(language, '__proto__', 'constructor');
+    expect(invalidResolved.providerId).toBe('corpus');
+    expect(invalidResolved.rows).toEqual([['частый', 'ча́стый', 1]]);
+
+    const smartoolResolved = resolveLanguageFrequencyPayload(language, 'smartool', 'trki');
+    expect(smartoolResolved.rows).toEqual([['слово', 'слово', 3]]);
+    expect(smartoolResolved.providerId).toBe('smartool');
+    expect(smartoolResolved.levelSystemId).toBe('trki');
+    expect(smartoolResolved.languageData?.frequencyLevels?.names).toEqual({ '3': 'ТРКИ-1' });
+    expect(smartoolResolved.languageData?.activeFrequencyProvider).toBe('smartool');
+    expect(smartoolResolved.languageData?.activeFrequencyLevelSystem).toBe('trki');
   });
 
   it('excludes sentinel frequency levels from target-derived level lists', () => {

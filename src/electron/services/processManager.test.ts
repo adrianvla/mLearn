@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockIpcListeners = new Map<string, ((...args: unknown[]) => void)[]>();
 
@@ -9,6 +9,11 @@ const mockApp = {
   isPackaged: false,
   on: vi.fn(),
 };
+const mockReloadIgnoringCache = vi.fn();
+const mockGetAllWindows = vi.fn(() => [{
+  isDestroyed: vi.fn(() => false),
+  webContents: { reloadIgnoringCache: mockReloadIgnoringCache },
+}]);
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -21,6 +26,9 @@ vi.mock('electron', () => ({
     removeHandler: vi.fn(),
   },
   app: mockApp,
+  BrowserWindow: {
+    getAllWindows: mockGetAllWindows,
+  },
 }));
 
 const mockTerminatePythonBackend = vi.fn();
@@ -50,6 +58,10 @@ beforeEach(async () => {
   mod = await import('./processManager');
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('restartApp', () => {
   it('calls terminatePythonBackend when server is loaded', () => {
     mockIsServerLoaded.mockReturnValue(true);
@@ -65,16 +77,36 @@ describe('restartApp', () => {
 });
 
 describe('forceRestartApp', () => {
-  it('always calls terminatePythonBackend regardless of server state', () => {
+  it('restarts the runtime in place even when the server is not loaded', () => {
     mockIsServerLoaded.mockReturnValue(false);
     mod.forceRestartApp();
-    expect(mockTerminatePythonBackend).toHaveBeenCalledOnce();
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+    expect(mockReloadIgnoringCache).toHaveBeenCalledOnce();
+    expect(mockTerminatePythonBackend).not.toHaveBeenCalled();
   });
 
-  it('calls terminatePythonBackend when server is loaded', () => {
-    mockIsServerLoaded.mockReturnValue(true);
+  it('restarts packaged runtime settings without relaunching Electron', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
     mod.forceRestartApp();
-    expect(mockTerminatePythonBackend).toHaveBeenCalledOnce();
+
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+    expect(mockReloadIgnoringCache).toHaveBeenCalledOnce();
+    expect(mockTerminatePythonBackend).not.toHaveBeenCalled();
+    expect(mockApp.relaunch).not.toHaveBeenCalled();
+    expect(mockApp.exit).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Vite process alive when applying a forced restart in development', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+
+    mod.forceRestartApp();
+
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+    expect(mockReloadIgnoringCache).toHaveBeenCalledOnce();
+    expect(mockTerminatePythonBackend).not.toHaveBeenCalled();
+    expect(mockApp.relaunch).not.toHaveBeenCalled();
+    expect(mockApp.exit).not.toHaveBeenCalled();
   });
 });
 
@@ -121,12 +153,14 @@ describe('setupKillHandlers', () => {
     expect(mockTerminatePythonBackend).not.toHaveBeenCalled();
   });
 
-  it('RESTART_APP_FORCE listener calls forceRestartApp regardless of server state', () => {
+  it('RESTART_APP_FORCE listener reloads the runtime regardless of server state', () => {
     mockIsServerLoaded.mockReturnValue(false);
     mod.setupKillHandlers();
     const listeners = mockIpcListeners.get('restart-app-force') || [];
     expect(listeners.length).toBeGreaterThan(0);
     listeners[0]({});
-    expect(mockTerminatePythonBackend).toHaveBeenCalled();
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+    expect(mockReloadIgnoringCache).toHaveBeenCalledOnce();
+    expect(mockTerminatePythonBackend).not.toHaveBeenCalled();
   });
 });

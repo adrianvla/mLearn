@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "Die ausgewählten Wörterbuchdaten sind veraltet. Öffnen Sie die Spracheinrichtung, um sie zu aktualisieren.",
+      "DictionaryUpdateMessage": "Für die ausgewählten Wörterbuchdaten ist eine Aktualisierung verfügbar. Aktualisieren Sie sie hier, um fortzufahren.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "Die Sprachdaten für Ihre Lernsprache sind veraltet. Öffnen Sie die Spracheinrichtung, um sie zu aktualisieren.",
+      "LanguageUpdateMessage": "Für die Daten Ihrer Lernsprache ist eine Aktualisierung verfügbar. Aktualisieren Sie sie hier, um fortzufahren.",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "Die Aktualisierung der Sprachdaten ist fehlgeschlagen. Versuchen Sie es erneut.",
+      "UpdateNow": "Jetzt aktualisieren",
+      "UpdateTitle": "Aktualisierung der Sprachdaten verfügbar",
+      "Updating": "Wird aktualisiert…",
+      "UpdatingMessage": "Die neuesten Sprachdaten werden heruntergeladen und installiert."
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
@@ -1454,10 +1459,35 @@
           "Label": "Wortart anzeigen"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "Für Lesehilfen die primäre Textfarbe verwenden",
+          "Label": "Mehr Kontrast bei Lesehilfen"
+        },
+        "Preview": {
+          "Reading": "Lesung",
+          "Surface": "Text"
+        },
+        "Size": {
+          "Description": "Lesehilfen relativ zu ihrer Standardgröße anpassen",
+          "Label": "Größe der Lesehilfen"
+        }
+      },
+      "ColoredProsody": {
+        "Enabled": {"Description": "Färbt Aussprachemerkmale anhand des aktiven Sprachpakets und überschreibt bei vorhandenen Prosodiedaten die Wortartfarben.", "Label": "Farbige Prosodie"},
+        "EaseMix": {"Description": "Lässt Prosodiefarben mit steigender kombinierter Leichtigkeit verblassen.", "Label": "Farben nach Leichtigkeit verblassen"},
+        "MixTarget": {"Description": "Wähle die Farbe, zu der Prosodiefarben bei hoher Leichtigkeit übergehen.", "Label": "Überblenden zu", "PartOfSpeech": "Wortartfarbe", "White": "Weiß"},
+        "Palette": {"Description": "Passe die vom Sprachpaket definierten Farben für diese Sprache an.", "ResetAll": "Prosodiepalette zurücksetzen"},
+        "Preview": "Vorschau der farbigen Prosodie",
+        "Saturation": {"Description": "Passe die Intensität aller Prosodiefarben an.", "Label": "Farbsättigung"},
+        "StatusLimit": {"Description": "Färbt Wörter bis zu diesem kombinierten Lernstatus. Höhere Status verwenden die normale Wortartfarbe.", "Known": "Bekannt", "Label": "Färben bis Status", "Learning": "In Bearbeitung"}
+      },
       "Groups": {
         "Appearance": "Erscheinungsbild",
+        "ReadingAppearance": "Lesehilfen",
         "BlurEffect": "Unschärfe-Effekt",
         "CustomColors": "Benutzerdefinierte Farb-Überschreibungen",
+        "ColoredProsody": "Farbige Prosodie",
         "Data": "Daten",
         "DisplayOptions": "Anzeigeoptionen",
         "Language": "Sprache",
@@ -1518,7 +1548,8 @@
           "InstallFailed": "Installation der Sprachdaten fehlgeschlagen",
           "Update": "Sprachdaten aktualisieren",
           "UpdateRequired": "Aktualisierung der Sprachdaten verfügbar",
-          "MissingRequired": "Sprachdaten erforderlich"
+          "MissingRequired": "Sprachdaten erforderlich",
+          "RequiresAppVersion": "Erfordert mLearn {version} oder neuer"
         },
         "DictionaryTarget": {
           "Description": "Wählen Sie die Sprache für Wörterbuchdefinitionen",
@@ -2121,6 +2152,14 @@
       },
       "SearchPlaceholder": "Einstellungen durchsuchen...",
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "Häufigkeitsliste",
+          "Description": "Wähle, welche Worthäufigkeitsquelle für Niveaus, Lernen und Word Sync verwendet wird."
+        },
+        "FrequencyLevelSystem": {
+          "Label": "Niveausystem",
+          "Description": "Wähle, wie die Niveaus dieser Häufigkeitsliste benannt werden."
+        },
         "LearningLanguageLevel": {
           "Label": "Lernsprachniveau",
           "Description": "Wenn festgelegt, werden vorgeschlagene Lernkarten über diesem Niveau und Karten ohne Niveau nicht gespeichert. Betrifft auch die Word Sync-Schwierigkeit.",

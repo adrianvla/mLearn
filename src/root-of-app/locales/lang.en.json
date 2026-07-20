@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "The selected dictionary data is out of date. Open language setup to update it.",
+      "DictionaryUpdateMessage": "An update is available for the selected dictionary data. Update it here to continue.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "Language data for your learning language is out of date. Open language setup to update it.",
+      "LanguageUpdateMessage": "An update is available for your learning language data. Update it here to continue.",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "The language data update failed. Try again.",
+      "UpdateNow": "Update Now",
+      "UpdateTitle": "Language Data Update Available",
+      "Updating": "Updating…",
+      "UpdatingMessage": "Downloading and installing the latest language data."
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
@@ -1454,10 +1459,35 @@
           "Label": "Show Part of Speech"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "Use the primary text color for reading annotations",
+          "Label": "More contrast in reading text"
+        },
+        "Preview": {
+          "Reading": "reading",
+          "Surface": "Text"
+        },
+        "Size": {
+          "Description": "Adjust reading annotations relative to their default size",
+          "Label": "Reading size"
+        }
+      },
+      "ColoredProsody": {
+        "Enabled": {"Description": "Color pronunciation features using the active language package. This overrides part-of-speech colors when prosody data is available.", "Label": "Colored prosody"},
+        "EaseMix": {"Description": "Make prosody colors fainter as the word's combined ease approaches mastered.", "Label": "Fade colors by ease"},
+        "MixTarget": {"Description": "Choose the color that high-ease prosody colors fade toward.", "Label": "Fade toward", "PartOfSpeech": "Part-of-speech color", "White": "White"},
+        "Palette": {"Description": "Customize the package-defined colors for this language.", "ResetAll": "Reset prosody palette"},
+        "Preview": "Colored prosody preview",
+        "Saturation": {"Description": "Adjust the intensity of every prosody color.", "Label": "Color saturation"},
+        "StatusLimit": {"Description": "Color words through this combined learning status. Words above it use their normal part-of-speech color.", "Known": "Known", "Label": "Color through status", "Learning": "Learning"}
+      },
       "Groups": {
         "Appearance": "Appearance",
+        "ReadingAppearance": "Reading text",
         "BlurEffect": "Blur Effect",
         "CustomColors": "Custom Color Overrides",
+        "ColoredProsody": "Colored Prosody",
         "Data": "Data",
         "DisplayOptions": "Display Options",
         "Language": "Language",
@@ -1518,7 +1548,8 @@
           "InstallFailed": "Language data install failed",
           "Update": "Update language data",
           "UpdateRequired": "Language data update available",
-          "MissingRequired": "Language data required"
+          "MissingRequired": "Language data required",
+          "RequiresAppVersion": "Requires mLearn {version} or later"
         },
         "DictionaryTarget": {
           "Description": "Select the language used for dictionary definitions",
@@ -1526,6 +1557,14 @@
         }
       },
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "Frequency List",
+          "Description": "Choose which vocabulary frequency source is used for levels, study, and Word Sync."
+        },
+        "FrequencyLevelSystem": {
+          "Label": "Level System",
+          "Description": "Choose how this frequency list's levels are named."
+        },
         "LearningLanguageLevel": {
           "Label": "Learning Language Level",
           "Description": "When set, suggested flashcards above this level and cards without a level will not be saved. Also affects Word Sync difficulty.",

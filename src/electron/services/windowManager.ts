@@ -309,11 +309,6 @@ function openSettingsWindow(section?: string): BrowserWindow {
 
 // Create the main window
 export function createMainWindow(): BrowserWindow {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    focusWindow(mainWindow);
-    return mainWindow;
-  }
-
   if (welcomeWindow && !welcomeWindow.isDestroyed()) {
     const closingWelcomeWindow = welcomeWindow;
     welcomeWindow = null;
@@ -321,6 +316,12 @@ export function createMainWindow(): BrowserWindow {
       currentWindow = null;
     }
     closingWelcomeWindow.close();
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    currentWindow = mainWindow;
+    focusWindow(mainWindow);
+    return mainWindow;
   }
 
   const windowOptions: Electron.BrowserWindowConstructorOptions = {

@@ -25,6 +25,7 @@ vi.mock('electron', () => ({
   },
   app: {
     getPath: vi.fn(() => '/tmp/test'),
+    getVersion: vi.fn(() => '2.6.7'),
     on: vi.fn(),
     isPackaged: false,
   },
@@ -590,6 +591,110 @@ describe('loadLangData', () => {
     expect(langData['ja']?.freq).toEqual([['食べる', 'たべる']]);
   });
 
+  it('loads installed frequency files published as a top-level row array', () => {
+    const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(installedFreqDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.json'),
+      JSON.stringify({ name: 'Russian', settings: { fixed: {} } }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.freq.json'),
+      JSON.stringify([['человек', 'челове́к']]),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ru']?.freq).toEqual([['человек', 'челове́к']]);
+  });
+
+  it('hydrates every declared frequency provider from its language asset', () => {
+    const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(installedFreqDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.json'),
+      JSON.stringify({
+        name: 'Russian',
+        defaultFrequencyProvider: 'openrussian',
+        frequencyProviders: {
+          openrussian: {
+            name: 'OpenRussian',
+            assetId: 'frequency',
+            frequencyLevels: { names: { '1': 'Common' } },
+          },
+          smartool: {
+            name: 'SMARTool',
+            assetId: 'frequency-smartool',
+            defaultLevelSystem: 'cefr',
+            levelSystems: {
+              cefr: {
+                name: 'CEFR',
+                frequencyLevels: { names: { '1': 'A1' }, rowLevelIndex: 2 },
+              },
+            },
+          },
+        },
+        languageData: {
+          assets: [
+            { id: 'frequency', path: 'languages/ru.freq.json', required: true },
+            { id: 'frequency-smartool', path: 'languages/ru.smartool.freq.json', required: true },
+          ],
+        },
+      }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.freq.json'),
+      JSON.stringify([['человек', 'челове́к']]),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(installedFreqDir, 'ru.smartool.freq.json'),
+      JSON.stringify({ freq: [['слово', 'слово', 1]] }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData['ru']?.frequencyProviders?.openrussian.freq).toEqual([['человек', 'челове́к']]);
+    expect(langData['ru']?.frequencyProviders?.smartool.freq).toEqual([['слово', 'слово', 1]]);
+    expect(langData['ru']?.frequencyProviders?.smartool.levelSystems?.cefr.frequencyLevels.names).toEqual({ '1': 'A1' });
+  });
+
+  it('hydrates declared language fonts from installed package assets', () => {
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    const fontsDir = path.join(tempDir.tmpDir, 'language-data', 'fonts', 'cu');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.mkdirSync(fontsDir, { recursive: true });
+    fs.writeFileSync(path.join(fontsDir, 'Ponomar-Regular.woff2'), Buffer.from('font-data'));
+    fs.writeFileSync(
+      path.join(languagesDir, 'cu.json'),
+      JSON.stringify({
+        name: 'Church Slavonic',
+        typography: {
+          contentFontOptions: [{
+            id: 'ponomar',
+            name: 'Ponomar',
+            fontFamily: 'Ponomar',
+            assetId: 'font-ponomar',
+          }],
+        },
+        languageData: {
+          assets: [{ id: 'font-ponomar', path: 'fonts/cu/Ponomar-Regular.woff2', required: true }],
+        },
+      }),
+      'utf-8',
+    );
+
+    const langData = mod.loadLangData();
+
+    expect(langData.cu?.typography?.contentFontOptions?.[0].sourceDataUrl).toBe(
+      `data:font/woff2;base64,${Buffer.from('font-data').toString('base64')}`,
+    );
+  });
+
   it('preserves explicit numeric levels from installed frequency files even when metadata is incomplete', () => {
     const installedFreqDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(installedFreqDir, { recursive: true });
@@ -731,6 +836,7 @@ describe('loadLanguagePackageCatalog', () => {
             name: 'Spanish',
             nameTranslated: 'Español',
             version: 'es-package-v1',
+            minimumAppVersion: '2.7.0',
             bundle: {
               href: './language-data/language-es-package-v1.tar.gz',
               sizeBytes: 456,
@@ -763,6 +869,7 @@ describe('loadLanguagePackageCatalog', () => {
       name_translated: 'Español',
       languageData: {
         version: 'es-package-v1',
+        minimumAppVersion: '2.7.0',
         bundle: {
           url: 'https://pages.example.com/language-data/language-es-package-v1.tar.gz',
           sizeBytes: 456,
@@ -775,6 +882,30 @@ describe('loadLanguagePackageCatalog', () => {
         ],
       },
     });
+  });
+
+  it('rejects catalog entries with an invalid minimum app version', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          bad: {
+            name: 'Bad Version',
+            version: 'bad-package-v1',
+            minimumAppVersion: '2.7',
+            bundle: { href: './language-data/bad.tar.gz' },
+            files: [],
+          },
+        },
+      }),
+    }));
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    });
+
+    expect(langData).toEqual({});
   });
 
   it('loads dictionary packs from language package catalog entries', async () => {
@@ -1164,6 +1295,7 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify({
       languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+      devMode: true,
     }), 'utf-8');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -1178,6 +1310,7 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
           zz: {
             name: 'Zeta',
             version: 'zz-package-v1',
+            minimumAppVersion: '2.7.0',
             bundle: { href: './zz.tar.gz', sizeBytes: 12, sha256: 'b'.repeat(64) },
             files: [{ id: 'freq', path: 'languages/zz.freq.json', sizeBytes: 12 }],
           },
@@ -1201,6 +1334,8 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
         language: 'zz',
         name: 'Zeta',
         installed: false,
+        compatible: true,
+        minimumAppVersion: '2.7.0',
         missingRequiredAssets: ['freq'],
       }),
     ]);

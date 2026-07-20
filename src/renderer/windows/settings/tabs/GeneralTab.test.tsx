@@ -11,7 +11,21 @@ const onSettingsSavedMock = vi.fn();
 const settingsSavedCleanupMock = vi.fn();
 const installLanguageDataMock = vi.fn();
 
-let mockLanguageDataCatalog = [
+interface MockLanguageDataCatalogStatus {
+  language: string;
+  name: string;
+  installed: boolean;
+  compatible?: boolean;
+  minimumAppVersion?: string;
+  missingRequiredAssets: string[];
+  dictionaryPacks?: Array<{
+    targetLanguage: string;
+    name: string;
+    installed: boolean;
+  }>;
+}
+
+let mockLanguageDataCatalog: MockLanguageDataCatalogStatus[] = [
   { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
   {
     language: 'de',
@@ -83,10 +97,10 @@ vi.mock('../../../components/common', () => ({
   ToggleSwitch: () => <div />,
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
-  Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string }> }) => (
+  Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string; disabled?: boolean }> }) => (
     <select {...props}>
       {props.children}
-      {props.options?.map((option) => <option value={option.value}>{option.label}</option>)}
+      {props.options?.map((option) => <option value={option.value} disabled={option.disabled}>{option.label}</option>)}
     </select>
   ),
   SettingsIcon: () => <div />,
@@ -106,6 +120,7 @@ describe('GeneralTab', () => {
     settingsSavedCleanupMock.mockReset();
     testSettings.language = 'ja';
     testSettings.dictionaryTargetLanguages = {};
+    testSettings.devMode = false;
     mockLanguageDataCatalog = [
       { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
       {
@@ -174,6 +189,53 @@ describe('GeneralTab', () => {
 
     expect(installLanguageDataMock).toHaveBeenCalledWith('de');
     testSettings.language = 'ja';
+    dispose();
+  });
+
+  it('shows and disables a language that requires a newer app version', async () => {
+    mockLanguageDataCatalog = [
+      { language: 'ja', name: 'Japanese', installed: true, compatible: true, missingRequiredAssets: [] },
+      {
+        language: 'de',
+        name: 'German',
+        installed: false,
+        compatible: false,
+        minimumAppVersion: '3.0.0',
+        missingRequiredAssets: ['language-metadata'],
+      },
+    ];
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    const learningLanguageSelect = container.querySelectorAll('select')[1] as HTMLSelectElement;
+    const germanOption = Array.from(learningLanguageSelect.options).find((option) => option.value === 'de');
+    expect(germanOption?.disabled).toBe(true);
+    expect(germanOption?.textContent).toContain('mlearn.Settings.Language.LanguageData.RequiresAppVersion');
+    dispose();
+  });
+
+  it('allows selecting an incompatible language when the development setting is enabled', async () => {
+    testSettings.devMode = true;
+    mockLanguageDataCatalog = [
+      { language: 'ja', name: 'Japanese', installed: true, compatible: true, missingRequiredAssets: [] },
+      {
+        language: 'de',
+        name: 'German',
+        installed: false,
+        compatible: false,
+        minimumAppVersion: '3.0.0',
+        missingRequiredAssets: ['language-metadata'],
+      },
+    ];
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    const learningLanguageSelect = container.querySelectorAll('select')[1] as HTMLSelectElement;
+    const germanOption = Array.from(learningLanguageSelect.options).find((option) => option.value === 'de');
+    expect(germanOption?.disabled).toBe(false);
+    learningLanguageSelect.value = 'de';
+    learningLanguageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ language: 'de' });
     dispose();
   });
 

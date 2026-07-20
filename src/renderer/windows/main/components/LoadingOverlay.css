@@ -1,0 +1,21 @@
+.language-data-update-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.language-data-update-modal__message,
+.language-data-update-modal__error {
+  margin: 0;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-relaxed);
+  word-break: break-word;
+}
+
+.language-data-update-modal__message {
+  color: var(--text-primary);
+}
+
+.language-data-update-modal__error {
+  color: var(--color-error);
+}

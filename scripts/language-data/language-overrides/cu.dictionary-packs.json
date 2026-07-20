@@ -1,0 +1,13 @@
+{
+  "en": {
+    "targetLanguage":"en",
+    "name":"English",
+    "version":"cu-en-kaikki-2026.07.16",
+    "assets":[
+      {"id":"dictionary-en","path":"dictionaries/cu/en/dictionary.db","bundledPath":"dictionaries/cu/en/dictionary.db","required":true},
+      {"id":"metadata-en","path":"dictionaries/cu/en/metadata.json","bundledPath":"dictionaries/cu/en/metadata.json","required":true},
+      {"id":"license-en","path":"dictionaries/cu/en/LICENSE","bundledPath":"dictionaries/cu/en/LICENSE","required":true},
+      {"id":"readme-en","path":"dictionaries/cu/en/README.md","bundledPath":"dictionaries/cu/en/README.md","required":true}
+    ]
+  }
+}

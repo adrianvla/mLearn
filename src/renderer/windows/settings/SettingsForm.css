@@ -58,6 +58,10 @@
   color: var(--color-warning);
 }
 
+.language-data-status.incompatible {
+  color: var(--color-error);
+}
+
 /* Color input */
 .color-input-wrapper {
   display: flex;

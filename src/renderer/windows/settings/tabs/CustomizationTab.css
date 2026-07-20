@@ -1,5 +1,66 @@
 /* CustomizationTab - Theme Preview */
 
+.reading-appearance-size-control {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 48px;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: min(240px, 100%);
+}
+
+.reading-appearance-size-control .range-input {
+  height: 40px;
+  padding-block: 10px;
+  background-clip: content-box;
+}
+
+.reading-appearance-size-value {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.reading-appearance-preview {
+  display: grid;
+  place-items: center;
+  min-height: 104px;
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: var(--font-size-2xl);
+}
+
+.reading-appearance-preview__ruby rt {
+  color: var(--reading-annotation-color);
+  font-size: calc(0.5em * var(--reading-annotation-scale));
+  font-weight: var(--font-weight-normal);
+  letter-spacing: 0.05em;
+}
+
+.reading-appearance-preview__inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+
+.reading-appearance-preview__inline-reading {
+  color: var(--reading-annotation-color);
+  font-size: calc(0.72em * var(--reading-annotation-scale));
+  font-weight: var(--font-weight-normal);
+}
+
+.reading-appearance-preview__inline-reading::before {
+  content: "(";
+}
+
+.reading-appearance-preview__inline-reading::after {
+  content: ")";
+}
+
 /* Preview simulates a video subtitle overlay — hardcoded dark bg + white text is intentional */
 .theme-preview__container {
   padding: var(--spacing-5);
@@ -133,6 +194,41 @@
 .pos-colors__reset-row {
   margin-top: var(--spacing-4);
   text-align: right;
+}
+
+.prosody-colors__description {
+  margin: var(--spacing-4) 0 var(--spacing-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.prosody-colors__preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.prosody-colors__saturation-control {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 48px;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: min(240px, 100%);
+}
+
+.prosody-colors__saturation-control output {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
 }
 
 /* Custom color overrides */

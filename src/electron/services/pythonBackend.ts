@@ -134,6 +134,8 @@ let pendingCriticalError: string | null = null;
 let pendingStartupStatusMessage: string | null = null;
 let activePipProcess: ChildProcess | null = null;
 let selectedPythonExecutablePath: string | null = null;
+const plannedBackendShutdowns = new WeakSet<ChildProcess>();
+let backendRestartAfterExit: ChildProcess | null = null;
 
 // Apple Silicon detection (local to avoid cross-service coupling)
 const isAppleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
@@ -914,23 +916,38 @@ async function pythonFound(): Promise<boolean> {
     }
   };
 
+  let startedProcess: ChildProcess | null = null;
   const handleClose = (code: number | null, signal: NodeJS.Signals | null): void => {
     lifecycleLog.info(`python exited code=${code ?? 'null'} signal=${signal ?? 'null'}`);
-    pythonChildProcess = null;
-    serverLoaded = false;
-    quitToken = null;
-    if (serverLoadCheckInterval) {
-      clearTimeout(serverLoadCheckInterval);
-      serverLoadCheckInterval = null;
+    const wasPlanned = startedProcess ? plannedBackendShutdowns.delete(startedProcess) : false;
+    const shouldRestart = startedProcess !== null && backendRestartAfterExit === startedProcess;
+
+    if (pythonChildProcess === startedProcess) {
+      pythonChildProcess = null;
+      serverLoaded = false;
+      quitToken = null;
+      if (serverLoadCheckInterval) {
+        clearTimeout(serverLoadCheckInterval);
+        serverLoadCheckInterval = null;
+      }
     }
 
-    const errorMsg = buildCrashSummary(code, signal, recentLogTail);
-    lifecycleLog.error(errorMsg);
-    pendingCriticalError = errorMsg;
-    getMainWindow()?.webContents.send(
-      IPC_CHANNELS.SERVER_CRITICAL_ERROR,
-      errorMsg
-    );
+    if (wasPlanned) {
+      lifecycleLog.info('Python backend stopped for a requested shutdown');
+    } else {
+      const errorMsg = buildCrashSummary(code, signal, recentLogTail);
+      lifecycleLog.error(errorMsg);
+      pendingCriticalError = errorMsg;
+      getMainWindow()?.webContents.send(
+        IPC_CHANNELS.SERVER_CRITICAL_ERROR,
+        errorMsg
+      );
+    }
+
+    if (shouldRestart) {
+      backendRestartAfterExit = null;
+      void pythonFound();
+    }
   };
 
   const args = [
@@ -976,6 +993,8 @@ async function pythonFound(): Promise<boolean> {
       },
     });
   }
+
+  startedProcess = pythonChildProcess;
 
   startServerReadyPolling();
 
@@ -1369,10 +1388,12 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
 // Terminate Python backend
 export function terminatePythonBackend(): void {
   if (!pythonChildProcess) return;
+  const processToTerminate = pythonChildProcess;
+  plannedBackendShutdowns.add(processToTerminate);
 
   // Try graceful shutdown
   try {
-    pythonChildProcess.kill('SIGINT');
+    processToTerminate.kill('SIGINT');
   } catch (e) {
     log.warn('Failed to SIGINT python:', e);
   }
@@ -1394,14 +1415,14 @@ export function terminatePythonBackend(): void {
 
   // Force kill after timeout
   setTimeout(() => {
-    if (pythonChildProcess && !pythonChildProcess.killed) {
-      try { pythonChildProcess.kill('SIGTERM'); } catch (e) {
+    if (!processToTerminate.killed) {
+      try { processToTerminate.kill('SIGTERM'); } catch (e) {
         log.error("error", e);
       }
     }
     setTimeout(() => {
-      if (pythonChildProcess && !pythonChildProcess.killed) {
-        try { pythonChildProcess.kill('SIGKILL'); } catch (e) {
+      if (!processToTerminate.killed) {
+        try { processToTerminate.kill('SIGKILL'); } catch (e) {
           log.error("error", e);
         }
       }
@@ -1420,21 +1441,13 @@ export function restartPythonBackend(): void {
     serverLoadCheckInterval = null;
   }
   
-  // Terminate existing process
+  if (!pythonChildProcess) {
+    void pythonFound();
+    return;
+  }
+
+  backendRestartAfterExit = pythonChildProcess;
   terminatePythonBackend();
-  
-  // Wait for the process to fully terminate before respawning
-  const waitForExit = (attempts: number): void => {
-    if (attempts <= 0 || !pythonChildProcess || pythonChildProcess.killed) {
-      pythonChildProcess = null;
-      // Re-launch the backend
-      void pythonFound();
-      return;
-    }
-    setTimeout(() => waitForExit(attempts - 1), 200);
-  };
-  
-  waitForExit(10); // up to 2 seconds
 }
 
 // Setup IPC handlers

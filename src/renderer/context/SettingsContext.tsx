@@ -17,7 +17,11 @@ import { APP_THEMES, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend } from '../../shared/backends';
 import { isCapacitor } from '../../shared/platform';
-import { readingAnnotationsEnabled } from '../../shared/readingAnnotationSettings';
+import {
+  readingAnnotationMoreContrastEnabled,
+  readingAnnotationSizePercent,
+  readingAnnotationsEnabled,
+} from '../../shared/readingAnnotationSettings';
 import { prosodyVisible } from '../../shared/prosodySettings';
 import {
   ensureCloudAccessToken,
@@ -289,6 +293,12 @@ export const SettingsProvider: ParentComponent = (props) => {
     root.style.setProperty('--subtitle-font-size', `${s.subtitle_font_size}px`);
     root.style.setProperty('--subtitle-font-weight', `${s.subtitle_font_weight}`);
     root.style.setProperty('--word-blur-amount', `${s.blur_amount}px`);
+    root.style.removeProperty('--reading-annotation-color');
+    document.body.style.setProperty(
+      '--reading-annotation-color',
+      readingAnnotationMoreContrastEnabled(s) ? 'var(--text-primary)' : 'var(--text-secondary)',
+    );
+    root.style.setProperty('--reading-annotation-scale', `${readingAnnotationSizePercent(s) / 100}`);
 
     // Theme - remove all theme classes first, then apply the current one
     APP_THEMES.forEach(theme => {

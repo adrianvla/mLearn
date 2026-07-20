@@ -4,6 +4,8 @@ import {
   hideReadingAnnotationsForKnownWords,
   ocrReadingAnnotationFilteringEnabled,
   readerReadingAnnotationHiderEnabled,
+  readingAnnotationMoreContrastEnabled,
+  readingAnnotationSizePercent,
   readingAnnotationsEnabled,
 } from '../readingAnnotationSettings';
 
@@ -29,6 +31,12 @@ describe('reading annotation settings', () => {
     expect(readerReadingAnnotationHiderEnabled(makeSettings({
       readerReadingAnnotationHider: undefined,
     }))).toBe(false);
+    expect(readingAnnotationMoreContrastEnabled(makeSettings({
+      readingAnnotationMoreContrast: undefined,
+    }))).toBe(false);
+    expect(readingAnnotationSizePercent(makeSettings({
+      readingAnnotationSizePercent: undefined,
+    }))).toBe(100);
   });
 
   it('resolves reader and OCR reading annotation toggles with defaults', () => {
@@ -41,5 +49,14 @@ describe('reading annotation settings', () => {
       readerReadingAnnotationHider: true,
     }))).toBe(true);
     expect(readerReadingAnnotationHiderEnabled(makeSettings({ readerReadingAnnotationHider: undefined }))).toBe(false);
+  });
+
+  it('resolves reading appearance settings', () => {
+    expect(readingAnnotationMoreContrastEnabled(makeSettings({
+      readingAnnotationMoreContrast: true,
+    }))).toBe(true);
+    expect(readingAnnotationSizePercent(makeSettings({
+      readingAnnotationSizePercent: 130,
+    }))).toBe(130);
   });
 });

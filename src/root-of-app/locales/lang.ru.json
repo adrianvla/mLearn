@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "Выбранные словарные данные устарели. Откройте настройку языка, чтобы обновить их.",
+      "DictionaryUpdateMessage": "Доступно обновление данных выбранного словаря. Обновите их здесь, чтобы продолжить.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "Языковые данные для изучаемого языка устарели. Откройте настройку языка, чтобы обновить их.",
+      "LanguageUpdateMessage": "Доступно обновление данных изучаемого языка. Обновите их здесь, чтобы продолжить.",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "Не удалось обновить языковые данные. Попробуйте ещё раз.",
+      "UpdateNow": "Обновить сейчас",
+      "UpdateTitle": "Доступно обновление языковых данных",
+      "Updating": "Обновление…",
+      "UpdatingMessage": "Загрузка и установка последних языковых данных."
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
@@ -1454,10 +1459,35 @@
           "Label": "Показывать часть речи"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "Использовать основной цвет текста для транскрипций",
+          "Label": "Повышенная контрастность чтения"
+        },
+        "Preview": {
+          "Reading": "чтение",
+          "Surface": "Текст"
+        },
+        "Size": {
+          "Description": "Настройте размер транскрипций относительно стандартного",
+          "Label": "Размер чтения"
+        }
+      },
+      "ColoredProsody": {
+        "Enabled": {"Description": "Окрашивает особенности произношения по настройкам активного языкового пакета. При наличии данных просодии эти цвета заменяют цвета частей речи.", "Label": "Цветная просодия"},
+        "EaseMix": {"Description": "Делает цвета просодии бледнее по мере роста общей освоенности слова.", "Label": "Ослаблять цвет по освоенности"},
+        "MixTarget": {"Description": "Выберите цвет, к которому приближается просодия при высокой освоенности.", "Label": "Смешивать с", "PartOfSpeech": "Цветом части речи", "White": "Белым"},
+        "Palette": {"Description": "Настройте цвета, заданные языковым пакетом.", "ResetAll": "Сбросить палитру просодии"},
+        "Preview": "Предпросмотр цветной просодии",
+        "Saturation": {"Description": "Настройте насыщенность всех цветов просодии.", "Label": "Насыщенность"},
+        "StatusLimit": {"Description": "Окрашивает слова до выбранного общего статуса включительно. Более высокий статус использует обычный цвет части речи.", "Known": "Известно", "Label": "Окрашивать до статуса", "Learning": "Изучается"}
+      },
       "Groups": {
         "Appearance": "Внешний вид",
+        "ReadingAppearance": "Отображение чтения",
         "BlurEffect": "Эффект размытия",
         "CustomColors": "Пользовательские переопределения цветов",
+        "ColoredProsody": "Цветная просодия",
         "Data": "Данные",
         "DisplayOptions": "Параметры отображения",
         "Language": "Язык",
@@ -1518,7 +1548,8 @@
           "InstallFailed": "Не удалось установить языковые данные",
           "Update": "Обновить языковые данные",
           "UpdateRequired": "Доступно обновление языковых данных",
-          "MissingRequired": "Требуются языковые данные"
+          "MissingRequired": "Требуются языковые данные",
+          "RequiresAppVersion": "Требуется mLearn {version} или новее"
         },
         "DictionaryTarget": {
           "Description": "Выберите язык определений в словаре",
@@ -2121,6 +2152,14 @@
       },
       "SearchPlaceholder": "Поиск настроек...",
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "Частотный список",
+          "Description": "Выберите источник частотности слов для уровней, обучения и Word Sync."
+        },
+        "FrequencyLevelSystem": {
+          "Label": "Система уровней",
+          "Description": "Выберите систему названий уровней для этого частотного списка."
+        },
         "LearningLanguageLevel": {
           "Label": "Уровень изучаемого языка",
           "Description": "Если установлено, предлагаемые карточки выше этого уровня и карточки без уровня не будут сохраняться. Также влияет на сложность Word Sync.",

@@ -5,13 +5,33 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, TabContent, Select, Btn } from '../../../components/common';
+import {
+  SettingRow,
+  SettingGroup,
+  TabContent,
+  Select,
+  Btn,
+  RangeInput,
+  ToggleSwitch,
+} from '../../../components/common';
 import Icon from '../../../components/common/Icons/Icon';
 import type { SubtitleTheme } from '@shared/constants';
 import '../SettingsForm.css';
 import './CustomizationTab.css';
 import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
-import type { ColorCodes, LanguageData } from '@shared/types';
+import { DEFAULT_SETTINGS } from '@shared/types';
+import type {
+  ColoredProsodyMixTarget,
+  ColoredProsodyStatusLimit,
+  ColorCodes,
+  LanguageData,
+} from '@shared/types';
+import { getReadingAnnotationDisplay } from '@shared/languageFeatures';
+import {
+  readingAnnotationMoreContrastEnabled,
+  readingAnnotationSizePercent,
+} from '@shared/readingAnnotationSettings';
+import { getColoredProsodyConfig, getColoredProsodyPalette } from '../../../utils/coloredProsody';
 
 /** Labels for CSS variables (user-friendly names) */
 const CSS_VAR_LABELS: Record<string, { label: string; description: string }> = {
@@ -73,7 +93,51 @@ export function buildPartOfSpeechColorEntries(
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { currentLangData } = useLanguage();
+  const { currentLangData, getLanguageFeatures } = useLanguage();
+
+  const readingDisplay = createMemo(() => getReadingAnnotationDisplay(currentLangData()));
+  const supportsReadingAppearance = createMemo(() => (
+    getLanguageFeatures().supportsReadings && readingDisplay() !== 'replace'
+  ));
+  const readingMoreContrast = () => readingAnnotationMoreContrastEnabled(settings);
+  const readingSizePercent = () => readingAnnotationSizePercent(settings);
+  const readingPreviewStyle = (): JSX.CSSProperties => ({
+    '--reading-annotation-color': readingMoreContrast()
+      ? 'var(--text-primary)'
+      : 'var(--text-secondary)',
+    '--reading-annotation-scale': `${readingSizePercent() / 100}`,
+  });
+  const coloredProsodyConfig = createMemo(() => getColoredProsodyConfig(currentLangData()));
+  const coloredProsodyPalette = createMemo(() => {
+    const config = coloredProsodyConfig();
+    return config ? getColoredProsodyPalette(settings, config) : {};
+  });
+
+  const updateProsodyColor = (paletteKey: string, value: string | null) => {
+    const config = coloredProsodyConfig();
+    if (!config) return;
+    const palettes = { ...(settings.coloredProsodyPalettes ?? DEFAULT_SETTINGS.coloredProsodyPalettes) };
+    const palette = { ...(palettes[config.paletteId] ?? {}) };
+    if (value) {
+      palette[paletteKey] = value;
+    } else {
+      delete palette[paletteKey];
+    }
+    if (Object.keys(palette).length > 0) {
+      palettes[config.paletteId] = palette;
+    } else {
+      delete palettes[config.paletteId];
+    }
+    updateSettings({ coloredProsodyPalettes: palettes });
+  };
+
+  const resetProsodyPalette = () => {
+    const config = coloredProsodyConfig();
+    if (!config) return;
+    const palettes = { ...(settings.coloredProsodyPalettes ?? DEFAULT_SETTINGS.coloredProsodyPalettes) };
+    delete palettes[config.paletteId];
+    updateSettings({ coloredProsodyPalettes: palettes });
+  };
 
   /** Update a single custom color */
   const updateCustomColor = (varName: keyof CustomColorOverrides, value: string | null) => {
@@ -135,6 +199,57 @@ export const CustomizationTab: Component = () => {
       }}
       padding="lg"
     >
+
+      <Show when={supportsReadingAppearance()}>
+        <SettingGroup title={t('mlearn.Settings.Groups.ReadingAppearance')}>
+          <SettingRow
+            label={t('mlearn.Settings.ReadingAppearance.MoreContrast.Label')}
+            description={t('mlearn.Settings.ReadingAppearance.MoreContrast.Description')}
+            settingKey="readingAnnotationMoreContrast"
+          >
+            <ToggleSwitch
+              checked={readingMoreContrast()}
+              onChange={(checked) => updateSettings({ readingAnnotationMoreContrast: checked })}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.ReadingAppearance.Size.Label')}
+            description={t('mlearn.Settings.ReadingAppearance.Size.Description')}
+            settingKey="readingAnnotationSizePercent"
+          >
+            <div class="reading-appearance-size-control">
+              <RangeInput
+                min={60}
+                max={160}
+                step={5}
+                value={readingSizePercent()}
+                onChange={(value) => updateSettings({ readingAnnotationSizePercent: value })}
+              />
+              <output class="reading-appearance-size-value">{readingSizePercent()}%</output>
+            </div>
+          </SettingRow>
+
+          <div class="reading-appearance-preview" style={readingPreviewStyle()}>
+            <Show
+              when={readingDisplay() === 'inline'}
+              fallback={
+                <ruby class="reading-appearance-preview__ruby">
+                  {t('mlearn.Settings.ReadingAppearance.Preview.Surface')}
+                  <rt>{t('mlearn.Settings.ReadingAppearance.Preview.Reading')}</rt>
+                </ruby>
+              }
+            >
+              <span class="reading-appearance-preview__inline">
+                {t('mlearn.Settings.ReadingAppearance.Preview.Surface')}
+                <span class="reading-appearance-preview__inline-reading">
+                  {t('mlearn.Settings.ReadingAppearance.Preview.Reading')}
+                </span>
+              </span>
+            </Show>
+          </div>
+        </SettingGroup>
+      </Show>
 
       <SettingGroup title={t('mlearn.Settings.Groups.SubtitleAppearance')}>
         <SettingRow
@@ -314,6 +429,143 @@ export const CustomizationTab: Component = () => {
             </div>
           </Show>
         </SettingGroup>
+      </Show>
+
+      <Show when={coloredProsodyConfig()}>
+        {(config) => (
+          <SettingGroup title={t('mlearn.Settings.Groups.ColoredProsody')}>
+            <SettingRow
+              label={t('mlearn.Settings.ColoredProsody.Enabled.Label')}
+              description={t('mlearn.Settings.ColoredProsody.Enabled.Description')}
+            >
+              <ToggleSwitch
+                checked={settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled}
+                onChange={(checked) => updateSettings({ coloredProsodyEnabled: checked })}
+              />
+            </SettingRow>
+
+            <Show when={settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled}>
+              <SettingRow
+                label={t('mlearn.Settings.ColoredProsody.StatusLimit.Label')}
+                description={t('mlearn.Settings.ColoredProsody.StatusLimit.Description')}
+              >
+                <Select
+                  class="setting-select"
+                  value={settings.coloredProsodyStatusLimit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit}
+                  onChange={(event) => updateSettings({
+                    coloredProsodyStatusLimit: event.currentTarget.value as ColoredProsodyStatusLimit,
+                  })}
+                >
+                  <option value="learning">{t('mlearn.Settings.ColoredProsody.StatusLimit.Learning')}</option>
+                  <option value="known">{t('mlearn.Settings.ColoredProsody.StatusLimit.Known')}</option>
+                </Select>
+              </SettingRow>
+
+              <SettingRow
+                label={t('mlearn.Settings.ColoredProsody.EaseMix.Label')}
+                description={t('mlearn.Settings.ColoredProsody.EaseMix.Description')}
+              >
+                <ToggleSwitch
+                  checked={settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled}
+                  onChange={(checked) => updateSettings({ coloredProsodyEaseMixEnabled: checked })}
+                />
+              </SettingRow>
+
+              <Show when={settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled}>
+                <SettingRow
+                  label={t('mlearn.Settings.ColoredProsody.MixTarget.Label')}
+                  description={t('mlearn.Settings.ColoredProsody.MixTarget.Description')}
+                >
+                  <Select
+                    class="setting-select"
+                    value={settings.coloredProsodyEaseMixTarget ?? DEFAULT_SETTINGS.coloredProsodyEaseMixTarget}
+                    onChange={(event) => updateSettings({
+                      coloredProsodyEaseMixTarget: event.currentTarget.value as ColoredProsodyMixTarget,
+                    })}
+                  >
+                    <option value="white">{t('mlearn.Settings.ColoredProsody.MixTarget.White')}</option>
+                    <option value="part-of-speech">{t('mlearn.Settings.ColoredProsody.MixTarget.PartOfSpeech')}</option>
+                  </Select>
+                </SettingRow>
+              </Show>
+
+              <SettingRow
+                label={t('mlearn.Settings.ColoredProsody.Saturation.Label')}
+                description={t('mlearn.Settings.ColoredProsody.Saturation.Description')}
+              >
+                <div class="prosody-colors__saturation-control">
+                  <RangeInput
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={settings.coloredProsodySaturation ?? DEFAULT_SETTINGS.coloredProsodySaturation}
+                    onChange={(value) => updateSettings({ coloredProsodySaturation: value })}
+                  />
+                  <output>{settings.coloredProsodySaturation ?? DEFAULT_SETTINGS.coloredProsodySaturation}%</output>
+                </div>
+              </SettingRow>
+
+              <p class="prosody-colors__description">
+                {t('mlearn.Settings.ColoredProsody.Palette.Description')}
+              </p>
+              <div class="prosody-colors__preview" aria-label={t('mlearn.Settings.ColoredProsody.Preview')}>
+                <For each={Object.keys(config().colors)}>
+                  {(paletteKey) => (
+                    <span style={{ color: coloredProsodyPalette()[paletteKey] }}>
+                      {config().labels[paletteKey] ?? paletteKey}
+                    </span>
+                  )}
+                </For>
+              </div>
+              <div class="pos-colors__grid">
+                <For each={Object.keys(config().colors)}>
+                  {(paletteKey) => {
+                    const userColor = () => (
+                      settings.coloredProsodyPalettes?.[config().paletteId]?.[paletteKey] ?? ''
+                    );
+                    const effectiveColor = () => coloredProsodyPalette()[paletteKey];
+                    const cardStyle = (): JSX.CSSProperties => ({ '--pos-color': effectiveColor() });
+                    return (
+                      <div class="pos-colors__card" style={cardStyle()}>
+                        <div class="pos-colors__card-header">
+                          <span class="pos-colors__swatch" />
+                          <span class="pos-colors__label">{config().labels[paletteKey] ?? paletteKey}</span>
+                        </div>
+                        <div class="pos-colors__controls">
+                          <input
+                            type="color"
+                            class="pos-colors__color-input"
+                            value={effectiveColor()}
+                            onChange={(event) => updateProsodyColor(paletteKey, event.currentTarget.value)}
+                          />
+                          <input
+                            type="text"
+                            class="setting-input pos-colors__text-input"
+                            placeholder={config().colors[paletteKey]}
+                            value={userColor()}
+                            onChange={(event) => updateProsodyColor(paletteKey, event.currentTarget.value || null)}
+                          />
+                          <Show when={userColor()}>
+                            <Btn variant="ghost" size="sm" onClick={() => updateProsodyColor(paletteKey, null)}>
+                              {t('mlearn.Settings.WordStatus.PosColors.Reset')}
+                            </Btn>
+                          </Show>
+                        </div>
+                      </div>
+                    );
+                  }}
+                </For>
+              </div>
+              <Show when={settings.coloredProsodyPalettes?.[config().paletteId]}>
+                <div class="pos-colors__reset-row">
+                  <Btn variant="ghost" size="sm" onClick={resetProsodyPalette}>
+                    {t('mlearn.Settings.ColoredProsody.Palette.ResetAll')}
+                  </Btn>
+                </div>
+              </Show>
+            </Show>
+          </SettingGroup>
+        )}
       </Show>
 
       <SettingGroup title={t('mlearn.Settings.Groups.CustomColors')}>

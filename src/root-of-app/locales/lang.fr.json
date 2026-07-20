@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "Les données du dictionnaire sélectionné ne sont plus à jour. Ouvrez la configuration des langues pour les mettre à jour.",
+      "DictionaryUpdateMessage": "Une mise à jour est disponible pour les données du dictionnaire sélectionné. Mettez-les à jour ici pour continuer.",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "Les données de votre langue d'apprentissage ne sont plus à jour. Ouvrez la configuration des langues pour les mettre à jour.",
+      "LanguageUpdateMessage": "Une mise à jour est disponible pour les données de votre langue d'apprentissage. Mettez-les à jour ici pour continuer.",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "La mise à jour des données linguistiques a échoué. Réessayez.",
+      "UpdateNow": "Mettre à jour",
+      "UpdateTitle": "Mise à jour des données linguistiques disponible",
+      "Updating": "Mise à jour…",
+      "UpdatingMessage": "Téléchargement et installation des dernières données linguistiques."
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
@@ -1454,10 +1459,35 @@
           "Label": "Afficher la partie du discours"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "Utiliser la couleur de texte principale pour les aides de lecture",
+          "Label": "Plus de contraste pour les aides de lecture"
+        },
+        "Preview": {
+          "Reading": "lecture",
+          "Surface": "Texte"
+        },
+        "Size": {
+          "Description": "Ajuster les aides de lecture par rapport à leur taille par défaut",
+          "Label": "Taille des aides de lecture"
+        }
+      },
+      "ColoredProsody": {
+        "Enabled": {"Description": "Colore les traits de prononciation selon le pack de langue actif et remplace les couleurs grammaticales lorsque la prosodie est disponible.", "Label": "Prosodie colorée"},
+        "EaseMix": {"Description": "Atténue les couleurs prosodiques à mesure que l'aisance combinée du mot augmente.", "Label": "Atténuer selon l'aisance"},
+        "MixTarget": {"Description": "Choisissez la couleur vers laquelle les couleurs prosodiques s'atténuent.", "Label": "Atténuer vers", "PartOfSpeech": "Couleur grammaticale", "White": "Blanc"},
+        "Palette": {"Description": "Personnalisez les couleurs définies par le pack pour cette langue.", "ResetAll": "Réinitialiser la palette prosodique"},
+        "Preview": "Aperçu de la prosodie colorée",
+        "Saturation": {"Description": "Réglez l'intensité de toutes les couleurs prosodiques.", "Label": "Saturation des couleurs"},
+        "StatusLimit": {"Description": "Colore les mots jusqu'à ce statut combiné. Les statuts supérieurs utilisent la couleur grammaticale normale.", "Known": "Connu", "Label": "Colorer jusqu'au statut", "Learning": "En apprentissage"}
+      },
       "Groups": {
         "Appearance": "Apparence",
+        "ReadingAppearance": "Aides de lecture",
         "BlurEffect": "Effet de flou",
         "CustomColors": "Surcharges de couleurs personnalisées",
+        "ColoredProsody": "Prosodie colorée",
         "Data": "Données",
         "DisplayOptions": "Options d'affichage",
         "Language": "Langue",
@@ -1518,7 +1548,8 @@
           "InstallFailed": "Échec de l'installation des données linguistiques",
           "Update": "Mettre à jour les données linguistiques",
           "UpdateRequired": "Mise à jour des données linguistiques disponible",
-          "MissingRequired": "Données linguistiques requises"
+          "MissingRequired": "Données linguistiques requises",
+          "RequiresAppVersion": "Nécessite mLearn {version} ou une version ultérieure"
         },
         "DictionaryTarget": {
           "Description": "Choisissez la langue utilisée pour les définitions du dictionnaire",
@@ -2121,6 +2152,14 @@
       },
       "SearchPlaceholder": "Rechercher dans les paramètres...",
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "Liste de fréquence",
+          "Description": "Choisissez la source de fréquence utilisée pour les niveaux, l'étude et Word Sync."
+        },
+        "FrequencyLevelSystem": {
+          "Label": "Système de niveaux",
+          "Description": "Choisissez comment nommer les niveaux de cette liste de fréquence."
+        },
         "LearningLanguageLevel": {
           "Label": "Niveau de langue d'apprentissage",
           "Description": "Lorsqu'il est défini, les cartes suggérées au-dessus de ce niveau et les cartes sans niveau ne seront pas enregistrées. Affecte également la difficulté de Word Sync.",

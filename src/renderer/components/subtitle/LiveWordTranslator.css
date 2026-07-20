@@ -124,9 +124,9 @@ body.hide-cursor .live-word-translator .panel-header {
   margin: 0;
   text-align: center;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-base);
+  font-size: calc(var(--font-size-base) * var(--reading-annotation-scale));
   font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
+  color: var(--reading-annotation-color);
 }
 
 /* Animation for cards appearing */

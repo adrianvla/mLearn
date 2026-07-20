@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "選択した辞書データは古くなっています。言語セットアップを開いて更新してください。",
+      "DictionaryUpdateMessage": "選択した辞書データの更新があります。ここで更新して続行してください。",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "学習言語の言語データは古くなっています。言語セットアップを開いて更新してください。",
+      "LanguageUpdateMessage": "学習言語データの更新があります。ここで更新して続行してください。",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "言語データの更新に失敗しました。もう一度お試しください。",
+      "UpdateNow": "今すぐ更新",
+      "UpdateTitle": "言語データの更新があります",
+      "Updating": "更新中…",
+      "UpdatingMessage": "最新の言語データをダウンロードしてインストールしています。"
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
@@ -1454,10 +1459,35 @@
           "Label": "品詞を表示"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "読み仮名にメインの文字色を使用します",
+          "Label": "読みを高コントラストにする"
+        },
+        "Preview": {
+          "Reading": "よみ",
+          "Surface": "文字"
+        },
+        "Size": {
+          "Description": "読みの大きさを標準サイズに対する割合で調整します",
+          "Label": "読みのサイズ"
+        }
+      },
+      "ColoredProsody": {
+        "Enabled": {"Description": "有効な言語パッケージの設定に従って発音特徴を色分けします。韻律データがある場合は品詞カラーより優先されます。", "Label": "韻律の色分け"},
+        "EaseMix": {"Description": "単語の総合習熟度が上がるほど韻律カラーを薄くします。", "Label": "習熟度に応じて薄くする"},
+        "MixTarget": {"Description": "習熟度が高いときに韻律カラーを近づける色を選びます。", "Label": "混合先", "PartOfSpeech": "品詞カラー", "White": "白"},
+        "Palette": {"Description": "この言語パッケージで定義された色を変更します。", "ResetAll": "韻律パレットをリセット"},
+        "Preview": "韻律カラーのプレビュー",
+        "Saturation": {"Description": "すべての韻律カラーの鮮やかさを調整します。", "Label": "彩度"},
+        "StatusLimit": {"Description": "選択した総合学習状態まで色分けします。それより上の状態では通常の品詞カラーを使います。", "Known": "既知", "Label": "色分けする上限", "Learning": "学習中"}
+      },
       "Groups": {
         "Appearance": "外観",
+        "ReadingAppearance": "読みの表示",
         "BlurEffect": "ぼかし効果",
         "CustomColors": "カスタムカラー上書き",
+        "ColoredProsody": "韻律カラー",
         "Data": "データ",
         "DisplayOptions": "表示オプション",
         "Language": "言語",
@@ -1518,7 +1548,8 @@
           "InstallFailed": "言語データのインストールに失敗しました",
           "Update": "言語データを更新",
           "UpdateRequired": "言語データの更新があります",
-          "MissingRequired": "言語データが必要です"
+          "MissingRequired": "言語データが必要です",
+          "RequiresAppVersion": "mLearn {version} 以降が必要です"
         },
         "DictionaryTarget": {
           "Description": "辞書の定義に使う言語を選択",
@@ -2121,6 +2152,14 @@
       },
       "SearchPlaceholder": "設定を検索...",
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "頻度リスト",
+          "Description": "レベル、学習、Word Sync に使用する語彙頻度データを選択します。"
+        },
+        "FrequencyLevelSystem": {
+          "Label": "レベル体系",
+          "Description": "この頻度リストのレベル名の体系を選択します。"
+        },
         "LearningLanguageLevel": {
           "Label": "学習言語レベル",
           "Description": "設定した場合、このレベルを超える提案フラッシュカードとレベルのないカードは保存されません。Word Syncの難易度にも影響します。",

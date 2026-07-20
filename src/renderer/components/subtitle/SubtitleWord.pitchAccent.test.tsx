@@ -13,9 +13,21 @@ const mockSettings: Record<string, unknown> = {
   language: 'ja',
   readerWordHoverTrigger: 'hover',
   showProsody: true,
+  do_colour_codes: true,
+  colour_codes: {},
+  coloredProsodyEnabled: true,
+  coloredProsodyPalettes: {},
+  coloredProsodyStatusLimit: 'known',
+  coloredProsodyEaseMixEnabled: false,
+  coloredProsodyEaseMixTarget: 'white',
+  coloredProsodySaturation: 100,
 };
 
-const mockIsWordKnownComprehensiveSync = vi.fn(() => false);
+const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
+  status: 'unknown' as const,
+  source: 'None' as const,
+  timesSeen: 0,
+}));
 const mockGetFrequency = vi.fn(() => null as { raw_level: number; level: string } | null);
 const mockGetFreqLevelNames = vi.fn(() => ({} as Record<string, string>));
 const mockGetCachedTranslation = vi.fn();
@@ -54,7 +66,7 @@ vi.mock('../../context', () => ({
     getReadingVariants: (reading: string) => [reading],
   }),
   useFlashcards: () => ({
-    isWordKnownComprehensiveSync: mockIsWordKnownComprehensiveSync,
+    getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
   }),
 }));
 
@@ -70,7 +82,7 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    mockIsWordKnownComprehensiveSync.mockClear();
+    mockGetComprehensiveWordStatusWithSourceSync.mockClear();
     mockGetFrequency.mockReset();
     mockGetFrequency.mockReturnValue(null);
     mockGetFreqLevelNames.mockReset();
@@ -84,6 +96,12 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
       ],
     });
     mockSettings.language = 'ja';
+    mockSettings.coloredProsodyEnabled = true;
+    mockSettings.coloredProsodyPalettes = {};
+    mockSettings.coloredProsodyStatusLimit = 'known';
+    mockSettings.coloredProsodyEaseMixEnabled = false;
+    mockSettings.coloredProsodyEaseMixTarget = 'white';
+    mockSettings.coloredProsodySaturation = 100;
     mockLanguageData = {
       name: 'Japanese',
       settings: { fixed: {} },
@@ -196,7 +214,7 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
       <SubtitleWord token={token} index={0} />
     ), container);
 
-    expect(mockIsWordKnownComprehensiveSync).toHaveBeenCalledWith('يكتب', 'ar');
+    expect(mockGetComprehensiveWordStatusWithSourceSync).toHaveBeenCalledWith('يكتب', 'ar');
     dispose();
   });
 
@@ -295,5 +313,87 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     expect(stars!.getAttribute('data-level')).toBe('1');
     expect(stars!.querySelectorAll('.star')).toHaveLength(1);
     dispose();
+  });
+
+  it('colors each Chinese character and matching pinyin syllable from package metadata', () => {
+    mockSettings.language = 'zh-Hans';
+    mockLanguageData = {
+      name: 'Chinese',
+      prosody: {
+        coloring: {
+          renderer: 'tone-marked-syllables',
+          paletteId: 'mandarin-tones',
+          colors: {
+            'tone-1': '#ff00ff',
+            'tone-2': '#ffff00',
+            'tone-3': '#00b84a',
+            'tone-4': '#ff0000',
+            neutral: '#006eff',
+          },
+          labels: {},
+        },
+      },
+      textProcessing: {
+        readingAnnotation: {
+          type: 'script-reading',
+          display: 'ruby',
+          annotationScripts: ['Han'],
+        },
+        partOfSpeech: { colors: { noun: '#999999' } },
+      },
+    };
+    const token: Token = {
+      word: '妈麻马骂吗',
+      actual_word: '妈麻马骂吗',
+      reading: 'mā má mǎ mà ma',
+      type: 'noun',
+    };
+
+    const dispose = render(() => <SubtitleWord token={token} index={0} />, container);
+
+    const values = Array.from(container.querySelectorAll<HTMLElement>('.colored-prosody__segment'))
+      .map((element) => element.dataset.prosodyValue);
+    expect(values).toEqual([
+      'tone-1', 'tone-2', 'tone-3', 'tone-4', 'neutral',
+      'tone-1', 'tone-2', 'tone-3', 'tone-4', 'neutral',
+    ]);
+    expect(container.querySelector<HTMLElement>('.colored-prosody__segment')?.style.color)
+      .not.toBe(container.querySelector<HTMLElement>('.subtitle-word')?.style.color);
+    dispose();
+  });
+
+  it('colors Japanese text by pitch category and falls back to POS color without pitch data', () => {
+    mockLanguageData = {
+      name: 'Japanese',
+      prosody: {
+        type: 'japanese-pitch-accent',
+        coloring: {
+          renderer: 'pitch-accent-category',
+          paletteId: 'japanese-pitch-categories',
+          colors: { heiban: '#00b84a', atamadaka: '#ffa500', nakadaka: '#00aaff', odaka: '#ff0000' },
+          labels: {},
+        },
+      },
+      textProcessing: {
+        readingAnnotation: { type: 'script-reading', display: 'ruby', annotationScripts: ['Han'] },
+        partOfSpeech: { colors: { noun: '#999999' } },
+      },
+    };
+    mockGetCachedTranslation.mockReturnValue({
+      data: [{ definitions: ['cherry blossom'], reading: 'さくら' }, undefined, { pitches: [{ position: 2 }] }],
+    });
+    const token: Token = { word: '桜', actual_word: '桜', reading: 'さくら', type: 'noun' };
+
+    const dispose = render(() => <SubtitleWord token={token} index={0} />, container);
+    expect(Array.from(container.querySelectorAll<HTMLElement>('.colored-prosody__segment'))
+      .every((element) => element.dataset.prosodyValue === 'nakadaka')).toBe(true);
+    dispose();
+
+    container.replaceChildren();
+    mockGetCachedTranslation.mockReturnValue({ data: [{ definitions: ['cherry blossom'], reading: 'さくら' }] });
+    const disposeWithoutPitch = render(() => <SubtitleWord token={token} index={0} />, container);
+    expect(container.querySelector('.colored-prosody__segment')).toBeNull();
+    expect(container.querySelector<HTMLElement>('.subtitle-word')?.style.color).not.toBe('');
+    disposeWithoutPitch();
   });
 });

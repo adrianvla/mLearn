@@ -1,0 +1,93 @@
+{
+  "name": "Church Slavonic",
+  "name_translated": "церковнославянский",
+  "frequencyLevels": {
+    "difficulty":"higher-is-harder",
+    "displayOrder":"ascending",
+    "boundaries":[500,1500,3000,6000,12000,30000],
+    "names":{"1":"Core 500","2":"Common 1,500","3":"Reading 3,000","4":"Extended 6,000","5":"Advanced 12,000","6":"Corpus 30,000"}
+  },
+  "grammarLevels": {
+    "difficulty":"higher-is-harder",
+    "displayOrder":"ascending",
+    "names":{"1":"Script and forms","2":"Nominal morphology","3":"Verbal system","4":"Clause syntax","5":"Liturgical and literary usage"}
+  },
+  "grammar": [
+    {"pattern":"ѣ and historical spelling","meaning":"recognize yat and other letters absent from modern Russian orthography","level":1,"match":{"type":"text","text":"ѣ"}},
+    {"pattern":"ъ and ь word endings","meaning":"recognize historical hard and soft signs in lexical endings","level":1,"match":{"type":"text","text":"ъ"}},
+    {"pattern":"titlo abbreviation","meaning":"recognize sacred names and common words written under a titlo","level":1,"match":{"type":"text","text":"҃"}},
+    {"pattern":"dual number","meaning":"forms referring specifically to two entities","level":2},
+    {"pattern":"vocative case","meaning":"direct address with a dedicated nominal form","level":2,"match":{"type":"text","text":"господи"}},
+    {"pattern":"dative absolute","meaning":"a noun or pronoun and participle in the dative forming an adverbial clause","level":2},
+    {"pattern":"aorist","meaning":"a bounded past event, frequent in narrative and liturgical text","level":3,"match":{"type":"text","text":"бысть"}},
+    {"pattern":"imperfect","meaning":"ongoing or repeated past action","level":3,"match":{"type":"text","text":"бѣше"}},
+    {"pattern":"perfect with participle","meaning":"resultative past formed historically with an l-participle and auxiliary","level":3},
+    {"pattern":"participles","meaning":"active and passive participles used attributively or in clause-like constructions","level":3},
+    {"pattern":"да + present","meaning":"purpose, command, wish, or subordinate event","level":4,"match":{"type":"text","text":"да "}},
+    {"pattern":"же","meaning":"discourse particle marking continuation, contrast, or emphasis","level":4,"match":{"type":"text","text":"же"}},
+    {"pattern":"бо","meaning":"postpositive particle introducing a reason or explanation","level":4,"match":{"type":"text","text":"бо"}},
+    {"pattern":"аще","meaning":"conditional clause introduced by if","level":4,"match":{"type":"text","text":"аще"}},
+    {"pattern":"яко","meaning":"comparison, reported content, cause, or result depending on context","level":4,"match":{"type":"text","text":"яко"}},
+    {"pattern":"Church Slavonic word order","meaning":"information structure and source-text influence permit freer constituent order","level":5},
+    {"pattern":"Greek calques","meaning":"recognize syntactic and lexical patterns modeled on Greek originals","level":5,"match":{"type":"text","text":"иже"}},
+    {"pattern":"liturgical formulae","meaning":"interpret stable formulaic phrases by function as well as word-for-word meaning","level":5,"match":{"type":"text","text":"слава"}}
+  ],
+  "textProcessing": {
+    "scriptProfile":{"acceptedScripts":["Cyrl","Glag"],"wordScriptValidation":"only-accepted"},
+    "lexemeNormalization":{"type":"surface-reading","surfaceScripts":["Cyrl","Glag"],"surfaceNormalizers":["casefold","unicode-nfc"],"readingScripts":["Latn"],"readingNormalizer":"lowercase-strip-diacritics","preserveNonPrimaryReadingScript":true},
+    "partOfSpeech": {
+      "translatable":["noun","proper noun","verb","adjective","adverb","pronoun","number"],
+      "aliases":{"NOUN":"noun","PROPN":"proper noun","VERB":"verb","AUX":"verb","ADJ":"adjective","ADV":"adverb","PRON":"pronoun","NUM":"number","DET":"determiner","ADP":"preposition","CCONJ":"conjunction","SCONJ":"conjunction","PART":"particle","INTJ":"interjection","PUNCT":"punctuation","SYM":"symbol","X":"other"},
+      "ignored":["punctuation","symbol"],
+      "colors":{"noun":"#d9e8ff","proper noun":"#c9ddff","verb":"#d9d2ff","adjective":"#d9f2e6","adverb":"#fce8c3","pronoun":"#f5d5e8","number":"#e6e6e6","determiner":"#d8efe9","preposition":"#f6dfc8","conjunction":"#f8e7bd","particle":"#f8e7bd","interjection":"#f2d7d7","other":"#e2e2e2"}
+    },
+    "subtitle": {
+      "speakerNamePrefix":{"enabled":true,"scripts":["Cyrl","Glag"],"allowLatinFallback":true,"delimiters":[":","："]},
+      "characterNamePrefix":{"enabled":true,"scripts":["Cyrl","Glag"],"allowLatinFallback":true,"delimiters":[":","："]}
+    },
+    "sentenceTerminators":[".","!","?","…","·","꙳"],
+    "tokenJoinSeparator":" "
+  },
+  "fixed_settings":{"showReadingAnnotations":false,"showProsody":false},
+  "characterStudy":{"enabled":false,"scripts":[]},
+  "supportedScripts":["Cyrl","Glag"],
+  "typography": {
+    "subtitleFontFamily":"'Noto Serif', 'Times New Roman', serif",
+    "contentFontFamily":"'Noto Serif', 'Times New Roman', serif",
+    "contentFontOptions":[{"id":"ponomar","name":"Ponomar","fontFamily":"Ponomar","assetId":"font-ponomar"}],
+    "textDirection":"ltr"
+  },
+  "conversation": {
+    "register":{"hasDeferentialForms":false},
+    "tutorPromptGuidelines":["Preserve the orthography and recension found in the learner's source instead of silently modernizing it.","Distinguish Old Church Slavonic, later Church Slavonic recensions, and modern Slavic languages when explaining forms.","Explain unfamiliar letters, abbreviations under titlo, nominal morphology, verbal tense systems, participles, and source-text calques when relevant."],
+    "correctionPromptGuidelines":["Do not normalize historical letters to modern Russian spelling unless the learner explicitly asks for a transcription.","Accept valid orthographic variation when it belongs to a recognized recension or edition."],
+    "mistakeCheckerPromptGuidelines":["Treat superscript letters, combining marks, titla, and historical punctuation as meaningful orthographic content."]
+  },
+  "runtime": {
+    "python": {
+      "packagesByComponent":{"ocr":["paddlepaddle==3.2.2","paddleocr>=2.7.3","opencv-python-headless"]},
+      "importChecksByComponent":{"ocr":["paddle","paddleocr","cv2"]}
+    },
+    "ocr":{"recognitionEngine":"paddleocr","paddleLang":"ru","supportsVerticalText":false,"supportsRamSaver":false},
+    "diagnostics":{"sampleText":"Въ началѣ бѣ Слово."},
+    "nlp": {
+      "tokenizer":{"type":"unicode-word","required":true,"fallback":"none","capabilities":["segments","lemmas"],"lowercaseLemma":true,"tokenCharacterClasses":["letter","mark"],"tokenCharacterScripts":["Cyrl","Glag"]},
+      "dictionary": {
+        "type":"sqlite-zlib-json","schema":"headword-reading-zlib-json","targetPathTemplate":"dictionaries/{language}/{target}/dictionary.db","defaultTargetLanguage":"en","schemaVersion":"1","renderer":"structured-glosses","readingPath":["reading"],"definitionsPath":["definitions"],
+        "lookup":{"seedForms":["surface","tokenizer-lemma"],"normalizers":["casefold","unicode-nfc"],"normalizerMode":"branching","readingLookup":"none","readingRank":["common","score-desc","short-reading"]}
+      }
+    }
+  },
+  "languageData": {
+    "version":"cu-package-2026.07.19",
+    "minimumAppVersion":"2.7.0",
+    "sourceVersions":{"dictionary":"kaikki-2026-07-16-enwiktionary-2026-07-06","frequencyCorpus":"CSlElizabeth-e1b254cef86d0e65b1a5d1a94b8b112d0f296a2c","ponomar":"467b94ec5a9e9f942308f16c519eac92c0ed4b86"},
+    "assets":[
+      {"id":"frequency","path":"languages/cu.freq.json","bundledPath":"languages/cu.freq.json","required":true},
+      {"id":"font-ponomar","path":"fonts/cu/Ponomar-Regular.woff2","bundledPath":"fonts/cu/Ponomar-Regular.woff2","required":true},
+      {"id":"ponomar-license","path":"licenses/ponomar-OFL.txt","bundledPath":"licenses/ponomar-OFL.txt","required":true},
+      {"id":"ponomar-readme","path":"licenses/ponomar-README.md","bundledPath":"licenses/ponomar-README.md","required":true},
+      {"id":"frequency-corpus-notice","path":"licenses/csl-elizabeth-PUBLIC-DOMAIN.md","bundledPath":"licenses/csl-elizabeth-PUBLIC-DOMAIN.md","required":true}
+    ]
+  }
+}

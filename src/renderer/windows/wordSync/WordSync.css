@@ -44,7 +44,7 @@
 }
 
 .word-sync-word .ruby-text rt {
-  font-size: 0.45em;
+  font-size: calc(0.45em * var(--reading-annotation-scale));
 }
 
 .word-sync-translation {

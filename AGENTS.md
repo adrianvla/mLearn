@@ -25,7 +25,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 | Add backend endpoint | `shared/backends/types.ts` → `shared/backends/httpBackend.ts` → `src/root-of-app/routes/{name}.py` |
 | Add setting | `shared/types.ts` (Settings + DEFAULT_SETTINGS) → settings context |
 | Add language runtime capability | `src/shared/types.ts` language metadata schema + `src/root-of-app/generic_language.py` |
-| Add language package/data | `~/Desktop/projects/mlearn-website` language-data packaging, then install via catalog |
+| Add language package/data | `scripts/language-data/` builders and sources, then publish through `~/Desktop/projects/mlearn-website` |
 | Platform-specific code | `src/shared/platform.ts` helpers; never hardcode OS checks in renderer |
 
 ## CONVENTIONS
@@ -46,7 +46,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Barrel exports**: Every new common component must be exported from `src/renderer/components/common/index.ts`.
 - **Icons**: Use SVGs from `https://blendicons.com/free-icons/all-styles`. Do not use emojis.
 - **Language data**: Runtime language metadata, dictionaries, frequencies, and optional adapters are downloaded into user `language-data/`. Do not add bundled app-source language modules or dictionaries.
-- **Language-owned runtime dependencies**: Language-specific OCR/tokenizer/TTS/STT Python packages belong in language package metadata under `runtime.python.packagesByComponent` in `~/Desktop/projects/mlearn-website`, not in app-level `pip_requirements.json` defaults. If a clean install is missing OCR or tokenizer libraries for one language, fix the cloud language package/catalog and redeploy language data.
+- **Language-owned runtime dependencies**: Language-specific OCR/tokenizer/TTS/STT Python packages belong in `scripts/language-data/` package metadata under `runtime.python.packagesByComponent`, not in app-level `pip_requirements.json` defaults. If a clean install is missing OCR or tokenizer libraries for one language, fix the language package here, then regenerate and deploy the website catalog.
 - **Language-agnostic app code**: Renderer, shared TS, Electron services, and generic Python routes must read capabilities from installed language metadata/features. Language-specific labels, levels, scripts, tokenization behavior, OCR behavior, prosody behavior, colors, and dictionary availability belong in language packages or generic capability adapters, not in conditionals like `if (language === 'ja')`.
 - **Deprecation**: If you encounter legacy code worth removing, flag it for discussion rather than silently deleting.
 
@@ -92,7 +92,7 @@ npm run build:extension  # ⚠️ macOS-only (uses sed -i '')
 - Python backend bundled via `electron-builder` `extraResources` to `resources/root-of-app/`.
 - Python environment in dev is at `./dist-electron/env/`.
 - Python deps are declared in `src/root-of-app/pip_requirements.json` (grouped: core, ocr, llm, voice, qwen3-tts), not a standard `requirements.txt`.
-- Dictionary build and language-data packaging scripts live in `~/Desktop/projects/mlearn-website`; the app consumes the generated language catalog.
+- Dictionary builders, language package sources, and the packager live in `scripts/language-data/`. Packaging writes release artifacts and the public catalog into `~/Desktop/projects/mlearn-website`, which owns upload and deployment.
 - Custom protocols: `flashcard-image://`, `flashcard-audio://`, `local-media://`.
 - Tethered mode: desktop web server on 7753 proxies Python calls for browser/mobile and provides REST sync API.
 - LLM routing: `builtin` (node-llama-cpp in main) / `ollama` / `cloud` (HTTP). Mobile uses `CloudLLMAdapter` directly.

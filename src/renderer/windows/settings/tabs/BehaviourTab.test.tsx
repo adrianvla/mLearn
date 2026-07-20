@@ -12,6 +12,8 @@ const testSettings = {
   language: 'xx',
   learningLanguageLevel: null,
   learningLanguageLevels: {} as Record<string, number | null>,
+  frequencyProviderSelections: {} as Record<string, string>,
+  frequencyLevelSystemSelections: {} as Record<string, string>,
   autoSuggestFlashcards: true,
   autoSuggestUnknownWords: true,
   knowledgeSourceOrder: ['builtIn', 'anki'] as const,
@@ -95,6 +97,8 @@ describe('BehaviourTab', () => {
     managedKeys.clear();
     testSettings.language = 'xx';
     testSettings.learningLanguageLevels = {};
+    testSettings.frequencyProviderSelections = {};
+    testSettings.frequencyLevelSystemSelections = {};
     testLanguageData = {
       name: 'Example Language',
       settings: { fixed: {} },
@@ -160,6 +164,71 @@ describe('BehaviourTab', () => {
       learningLanguageLevels: {
         xx: 0,
       },
+    });
+
+    dispose();
+  });
+
+  it('offers provider and level-system selectors and resets an incompatible proficiency ceiling', async () => {
+    testSettings.frequencyProviderSelections = { xx: 'smartool' };
+    testSettings.frequencyLevelSystemSelections = { xx: 'cefr' };
+    testSettings.learningLanguageLevels = { xx: 3 };
+    testLanguageData = {
+      ...testLanguageData,
+      activeFrequencyProvider: 'smartool',
+      activeFrequencyLevelSystem: 'cefr',
+      defaultFrequencyProvider: 'openrussian',
+      frequencyProviders: {
+        openrussian: {
+          name: 'OpenRussian',
+          freq: [['частый', 'ча́стый', 1]],
+          frequencyLevels: { names: { '1': 'Common' }, rowLevelIndex: 2 },
+        },
+        smartool: {
+          name: 'SMARTool',
+          freq: [['слово', 'слово', 3]],
+          defaultLevelSystem: 'cefr',
+          levelSystems: {
+            cefr: {
+              name: 'CEFR',
+              frequencyLevels: { names: { '3': 'B1' }, rowLevelIndex: 2 },
+            },
+            trki: {
+              name: 'ТРКИ',
+              frequencyLevels: { names: { '3': 'ТРКИ-1' }, rowLevelIndex: 2 },
+            },
+          },
+        },
+      },
+    };
+
+    const { BehaviourTab } = await import('./BehaviourTab');
+    const dispose = render(() => <BehaviourTab />, container);
+    const selects = Array.from(container.querySelectorAll('select'));
+    const providerSelect = selects.find((select) =>
+      Array.from(select.options).some((option) => option.textContent === 'SMARTool')
+    );
+    const levelSystemSelect = selects.find((select) =>
+      Array.from(select.options).some((option) => option.textContent === 'ТРКИ')
+    );
+
+    expect(providerSelect?.value).toBe('smartool');
+    expect(levelSystemSelect?.value).toBe('cefr');
+
+    levelSystemSelect!.value = 'trki';
+    levelSystemSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({
+      frequencyLevelSystemSelections: { xx: 'trki' },
+      learningLanguageLevels: { xx: null },
+    });
+
+    updateSettingsMock.mockReset();
+    providerSelect!.value = 'openrussian';
+    providerSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({
+      frequencyProviderSelections: { xx: 'openrussian' },
+      frequencyLevelSystemSelections: {},
+      learningLanguageLevels: { xx: null },
     });
 
     dispose();

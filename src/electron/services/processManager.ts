@@ -3,7 +3,7 @@
  * Handles application restart and kill operations
  */
 
-import { app, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { terminatePythonBackend, isServerLoaded, restartPythonBackend } from './pythonBackend';
 import { createMainWindow } from './windowManager';
@@ -26,13 +26,13 @@ export function restartApp(): void {
 
 // Force restart without checking server status
 export function forceRestartApp(): void {
-  terminatePythonBackend();
-  log.info('Force restarting app');
-  
-  setTimeout(() => {
-    app.relaunch();
-    app.exit();
-  }, 1000);
+  log.info('Reloading app runtime without relaunching Electron');
+  restartPythonBackend();
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.reloadIgnoringCache();
+    }
+  }
 }
 
 /**

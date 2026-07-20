@@ -1,0 +1,180 @@
+{
+  "name": "Mandarin Chinese (Simplified)",
+  "flagEmoji": "🇨🇳",
+  "name_translated": "简体中文",
+  "frequencyLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "rowLevelIndex": 2,
+    "names": {"1":"HSK 3.0 Level 1","2":"HSK 3.0 Level 2","3":"HSK 3.0 Level 3","4":"HSK 3.0 Level 4","5":"HSK 3.0 Level 5","6":"HSK 3.0 Level 6","7":"HSK 3.0 Levels 7–9"}
+  },
+  "grammarLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "names": {"1":"Beginner 1","2":"Beginner 2","3":"Intermediate 1","4":"Intermediate 2","5":"Advanced 1","6":"Advanced 2","7":"Mastery"}
+  },
+  "grammar": [
+    {"pattern":"A 是 B","meaning":"identify or classify A as B","level":1,"match":{"type":"text","text":"是"}},
+    {"pattern":"A 不是 B","meaning":"negate identity or classification","level":1,"match":{"type":"text","text":"不是"}},
+    {"pattern":"有","meaning":"express possession or existence","level":1,"match":{"type":"text","text":"有"}},
+    {"pattern":"没有","meaning":"negate possession, existence or completed action","level":1,"match":{"type":"text","text":"没有"}},
+    {"pattern":"在 + place","meaning":"state location or an action in progress","level":1,"match":{"type":"text","text":"在"}},
+    {"pattern":"的 possession","meaning":"mark possession or noun modification","level":1,"match":{"type":"text","text":"的"}},
+    {"pattern":"吗","meaning":"form a neutral yes-no question","level":1,"match":{"type":"text","text":"吗"}},
+    {"pattern":"呢","meaning":"ask a return question or mark an ongoing situation","level":1,"match":{"type":"text","text":"呢"}},
+    {"pattern":"谁/什么/哪/怎么","meaning":"content questions keep normal statement word order","level":1,"match":{"type":"text","text":"谁"}},
+    {"pattern":"也","meaning":"also or too","level":1,"match":{"type":"text","text":"也"}},
+    {"pattern":"都","meaning":"all or both; scope over a preceding group","level":1,"match":{"type":"text","text":"都"}},
+    {"pattern":"很 + adjective","meaning":"link a gradable adjective as predicate","level":1,"match":{"type":"text","text":"很"}},
+    {"pattern":"不 + verb/adjective","meaning":"negate habitual, present or future situations","level":1,"match":{"type":"text","text":"不"}},
+    {"pattern":"了 completed action","meaning":"mark a bounded or completed event","level":1,"match":{"type":"text","text":"了"}},
+    {"pattern":"number + measure word + noun","meaning":"quantify a noun with a classifier","level":1,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"number"},{"canonicalPartOfSpeech":"classifier"},{"canonicalPartOfSpeech":"noun"}]}},
+    {"pattern":"这/那 + measure word + noun","meaning":"demonstrative noun phrase","level":1,"match":{"type":"token-sequence","tokens":[{"oneOf":["这","那"]},{"canonicalPartOfSpeech":"classifier"},{"canonicalPartOfSpeech":"noun"}]}},
+    {"pattern":"想 + verb","meaning":"want or intend to do something","level":1,"match":{"type":"text","text":"想"}},
+    {"pattern":"会 + verb","meaning":"learned ability, likelihood or future possibility","level":1,"match":{"type":"text","text":"会"}},
+    {"pattern":"能 + verb","meaning":"circumstantial ability or permission","level":1,"match":{"type":"text","text":"能"}},
+    {"pattern":"可以 + verb","meaning":"permission or acceptable possibility","level":1,"match":{"type":"text","text":"可以"}},
+    {"pattern":"要 + verb","meaning":"want, need or be about to","level":1,"match":{"type":"text","text":"要"}},
+    {"pattern":"正在 ... 呢","meaning":"action currently in progress","level":2,"match":{"type":"text","text":"正在"}},
+    {"pattern":"过 experiential","meaning":"having experienced an event before","level":2,"match":{"type":"text","text":"过"}},
+    {"pattern":"着 durative","meaning":"continuing state or accompanying manner","level":2,"match":{"type":"text","text":"着"}},
+    {"pattern":"A 比 B + adjective","meaning":"comparative construction","level":2,"match":{"type":"text","text":"比"}},
+    {"pattern":"A 跟 B 一样","meaning":"express equality or similarity","level":2,"match":{"type":"text","text":"一样"}},
+    {"pattern":"没有 ... 那么","meaning":"negative comparison: not as ... as","level":2,"match":{"type":"text","text":"那么"}},
+    {"pattern":"太 ... 了","meaning":"excessive degree or emphatic evaluation","level":2,"match":{"type":"text","text":"太"}},
+    {"pattern":"最 + adjective","meaning":"superlative degree","level":2,"match":{"type":"text","text":"最"}},
+    {"pattern":"更/还 + adjective","meaning":"greater or additional degree","level":2,"match":{"type":"text","text":"更"}},
+    {"pattern":"因为 ... 所以","meaning":"cause and result","level":2,"match":{"type":"text","text":"因为"}},
+    {"pattern":"虽然 ... 但是","meaning":"concession and contrast","level":2,"match":{"type":"text","text":"虽然"}},
+    {"pattern":"如果 ... 就","meaning":"condition and consequence","level":2,"match":{"type":"text","text":"如果"}},
+    {"pattern":"先 ... 再","meaning":"ordered sequence of actions","level":2,"match":{"type":"text","text":"先"}},
+    {"pattern":"一边 ... 一边","meaning":"two simultaneous actions","level":2,"match":{"type":"text","text":"一边"}},
+    {"pattern":"又 ... 又","meaning":"two coexisting qualities or repeated actions","level":2,"match":{"type":"text","text":"又"}},
+    {"pattern":"一 ... 就","meaning":"one event follows immediately after another","level":2,"match":{"type":"text","text":"就"}},
+    {"pattern":"快要 ... 了","meaning":"an event is about to happen","level":2,"match":{"type":"text","text":"快要"}},
+    {"pattern":"从 ... 到","meaning":"range from a starting point to an endpoint","level":2,"match":{"type":"text","text":"从"}},
+    {"pattern":"离 + place + distance","meaning":"state distance from a reference point","level":2,"match":{"type":"text","text":"离"}},
+    {"pattern":"把 + object + verb","meaning":"dispose of or cause a result to a definite object","level":3,"match":{"type":"text","text":"把"}},
+    {"pattern":"被 + agent + verb","meaning":"passive construction","level":3,"match":{"type":"text","text":"被"}},
+    {"pattern":"给 passive","meaning":"colloquial passive or affected construction","level":3,"match":{"type":"text","text":"给"}},
+    {"pattern":"verb + result complement","meaning":"result of an action such as 完、到、懂、见、好","level":3,"match":{"type":"text","text":"完"}},
+    {"pattern":"verb + direction complement","meaning":"direction relative to speaker or reference point","level":3,"match":{"type":"text","text":"来"}},
+    {"pattern":"verb + 得/不 + complement","meaning":"potential complement: able or unable to achieve a result","level":3,"match":{"type":"text","text":"得"}},
+    {"pattern":"verb + 得 + degree","meaning":"describe the manner or degree of an action","level":3,"match":{"type":"text","text":"得"}},
+    {"pattern":"是 ... 的","meaning":"emphasize circumstances of a known past event","level":3,"match":{"type":"text","text":"是"}},
+    {"pattern":"连 ... 都/也","meaning":"emphatic inclusion: even","level":3,"match":{"type":"text","text":"连"}},
+    {"pattern":"除了 ... 以外","meaning":"except for or in addition to","level":3,"match":{"type":"text","text":"除了"}},
+    {"pattern":"不但 ... 而且","meaning":"not only but also","level":3,"match":{"type":"text","text":"不但"}},
+    {"pattern":"越 ... 越","meaning":"correlated increase or decrease","level":3,"match":{"type":"text","text":"越"}},
+    {"pattern":"对 ... 来说","meaning":"frame a statement from a perspective","level":3,"match":{"type":"text","text":"来说"}},
+    {"pattern":"关于/对于","meaning":"introduce a topic or affected domain","level":3,"match":{"type":"text","text":"关于"}},
+    {"pattern":"为了","meaning":"purpose or intended benefit","level":3,"match":{"type":"text","text":"为了"}},
+    {"pattern":"只要 ... 就","meaning":"sufficient condition","level":3,"match":{"type":"text","text":"只要"}},
+    {"pattern":"只有 ... 才","meaning":"necessary condition","level":3,"match":{"type":"text","text":"只有"}},
+    {"pattern":"即使 ... 也","meaning":"hypothetical concession: even if","level":4,"match":{"type":"text","text":"即使"}},
+    {"pattern":"无论 ... 都","meaning":"free-choice concession: no matter","level":4,"match":{"type":"text","text":"无论"}},
+    {"pattern":"既然 ... 就","meaning":"consequence based on an accepted premise","level":4,"match":{"type":"text","text":"既然"}},
+    {"pattern":"与其 ... 不如","meaning":"prefer one alternative over another","level":4,"match":{"type":"text","text":"与其"}},
+    {"pattern":"宁可 ... 也不","meaning":"would rather ... than","level":4,"match":{"type":"text","text":"宁可"}},
+    {"pattern":"一方面 ... 另一方面","meaning":"present two sides of an issue","level":4,"match":{"type":"text","text":"一方面"}},
+    {"pattern":"之所以 ... 是因为","meaning":"focus the reason for an outcome","level":4,"match":{"type":"text","text":"之所以"}},
+    {"pattern":"并不是 ... 而是","meaning":"correct a mistaken contrast","level":4,"match":{"type":"text","text":"并不是"}},
+    {"pattern":"甚至","meaning":"add an extreme or unexpected case","level":4,"match":{"type":"text","text":"甚至"}},
+    {"pattern":"毕竟","meaning":"appeal to a fundamental or acknowledged fact","level":4,"match":{"type":"text","text":"毕竟"}},
+    {"pattern":"反而","meaning":"mark a result contrary to expectation","level":4,"match":{"type":"text","text":"反而"}},
+    {"pattern":"原来","meaning":"new realization or original situation","level":4,"match":{"type":"text","text":"原来"}},
+    {"pattern":"看来","meaning":"inference based on available evidence","level":4,"match":{"type":"text","text":"看来"}},
+    {"pattern":"据说/据报道","meaning":"attribute reported information","level":4,"match":{"type":"text","text":"据"}},
+    {"pattern":"由于 ... 因此","meaning":"formal cause and consequence","level":5,"match":{"type":"text","text":"由于"}},
+    {"pattern":"尽管 ... 仍然","meaning":"formal concession despite a fact","level":5,"match":{"type":"text","text":"尽管"}},
+    {"pattern":"不仅 ... 还","meaning":"expanded additive coordination","level":5,"match":{"type":"text","text":"不仅"}},
+    {"pattern":"除非 ... 否则","meaning":"exceptional condition: unless","level":5,"match":{"type":"text","text":"除非"}},
+    {"pattern":"以免","meaning":"take action to avoid an undesirable result","level":5,"match":{"type":"text","text":"以免"}},
+    {"pattern":"以便","meaning":"formal purpose: so that","level":5,"match":{"type":"text","text":"以便"}},
+    {"pattern":"从而","meaning":"formal resulting development","level":5,"match":{"type":"text","text":"从而"}},
+    {"pattern":"进而","meaning":"advance to a further consequence or step","level":5,"match":{"type":"text","text":"进而"}},
+    {"pattern":"鉴于","meaning":"formal grounds for a decision: in view of","level":5,"match":{"type":"text","text":"鉴于"}},
+    {"pattern":"就 ... 而言","meaning":"formal perspective framing","level":5,"match":{"type":"text","text":"而言"}},
+    {"pattern":"随着","meaning":"change occurring together with another development","level":5,"match":{"type":"text","text":"随着"}},
+    {"pattern":"相比之下","meaning":"formal comparison: by contrast","level":5,"match":{"type":"text","text":"相比之下"}},
+    {"pattern":"何况","meaning":"a fortiori argument: let alone or moreover","level":6,"match":{"type":"text","text":"何况"}},
+    {"pattern":"尚且 ... 何况","meaning":"even the lesser case holds, let alone the stronger","level":6,"match":{"type":"text","text":"尚且"}},
+    {"pattern":"姑且","meaning":"temporarily accept or do something for argument's sake","level":6,"match":{"type":"text","text":"姑且"}},
+    {"pattern":"未免","meaning":"speaker evaluation that something is rather excessive","level":6,"match":{"type":"text","text":"未免"}},
+    {"pattern":"无非","meaning":"nothing more than; limit possible explanations","level":6,"match":{"type":"text","text":"无非"}},
+    {"pattern":"不妨","meaning":"mild recommendation: might as well","level":6,"match":{"type":"text","text":"不妨"}},
+    {"pattern":"难免","meaning":"something is difficult to avoid","level":6,"match":{"type":"text","text":"难免"}},
+    {"pattern":"固然 ... 但是","meaning":"concede one point before presenting a stronger contrast","level":6,"match":{"type":"text","text":"固然"}},
+    {"pattern":"倘若","meaning":"formal hypothetical condition","level":7,"match":{"type":"text","text":"倘若"}},
+    {"pattern":"殊不知","meaning":"introduce a fact contrary to someone's assumption","level":7,"match":{"type":"text","text":"殊不知"}},
+    {"pattern":"毋庸置疑","meaning":"formal certainty: beyond doubt","level":7,"match":{"type":"text","text":"毋庸置疑"}},
+    {"pattern":"归根结底","meaning":"summarize the fundamental cause or conclusion","level":7,"match":{"type":"text","text":"归根结底"}},
+    {"pattern":"不言而喻","meaning":"self-evident without explanation","level":7,"match":{"type":"text","text":"不言而喻"}}
+  ],
+  "textProcessing": {
+    "scriptProfile": {"acceptedScripts":["Han"],"requiredScripts":["Han"],"wordScriptValidation":"contains-required","allowsRomanization":true,"sttRejectPureScripts":["Latn"]},
+    "lexemeNormalization": {"type":"surface-reading","surfaceScripts":["Han"],"readingScripts":["Latn"],"readingNormalizer":"lowercase-strip-diacritics","preserveNonPrimaryReadingScript":true},
+    "wordIndexStrategy": {"type":"whole-expression"},
+    "tokenEstimation": {"compactScripts":["Han"]},
+    "readingAnnotation": {"type":"script-reading","display":"ruby","annotationScripts":["Han"],"readingSeparator":" ","stripParentheticalReadings":true},
+    "partOfSpeech": {
+      "translatable":["noun","proper noun","verb","adjective","adverb","pronoun","number","classifier","idiom"],
+      "aliases":{"NOUN":"noun","PROPN":"proper noun","VERB":"verb","AUX":"verb","ADJ":"adjective","ADV":"adverb","PRON":"pronoun","NUM":"number","DET":"determiner","ADP":"preposition","CCONJ":"conjunction","SCONJ":"conjunction","PART":"particle","INTJ":"interjection","PUNCT":"punctuation","SYM":"symbol","X":"other","q":"classifier","i":"idiom"},
+      "ignored":["punctuation","symbol"],
+      "colors":{"noun":"#d9e8ff","proper noun":"#c9ddff","verb":"#d9d2ff","adjective":"#d9f2e6","adverb":"#fce8c3","pronoun":"#f5d5e8","number":"#e6e6e6","classifier":"#d8efe9","preposition":"#f6dfc8","conjunction":"#f8e7bd","particle":"#f8e7bd","interjection":"#f2d7d7","idiom":"#d6ead1","other":"#e2e2e2"}
+    },
+    "subtitle": {
+      "speakerNamePrefix":{"enabled":true,"scripts":["Han"],"allowLatinFallback":true,"delimiters":[":","："]},
+      "characterNamePrefix":{"enabled":true,"scripts":["Han"],"allowLatinFallback":true,"delimiters":[":","："],"bracketPairs":[["【","】"],["（","）"],["(",")"]]}
+    },
+    "sentenceTerminators":["。","！","？","!","?","…"],
+    "tokenJoinSeparator":""
+  },
+  "prosody": {
+    "coloring": {
+      "renderer":"tone-marked-syllables",
+      "paletteId":"mandarin-tones",
+      "colors":{"tone-1":"#ff00ff","tone-2":"#ffff00","tone-3":"#00b84a","tone-4":"#ff0000","neutral":"#006eff"},
+      "labels":{"tone-1":"Tone 1 (ā)","tone-2":"Tone 2 (á)","tone-3":"Tone 3 (ǎ)","tone-4":"Tone 4 (à)","neutral":"Neutral tone (a)"}
+    }
+  },
+  "characterStudy":{"enabled":true,"scripts":["Han"],"levelOrder":"ascending","levelDisclaimer":true},
+  "typography":{"subtitleFontFamily":"'Noto Sans CJK SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif","contentFontFamily":"'Noto Sans CJK SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif","textDirection":"ltr"},
+  "conversation": {
+    "register":{"hasDeferentialForms":false},
+    "tutorPromptGuidelines":["Use Simplified Chinese characters by default.","Include tone-marked pinyin when introducing unfamiliar vocabulary, but keep normal conversation in Han characters.","Explain measure words, aspect particles, complements, and word order when they cause mistakes."],
+    "correctionPromptGuidelines":["Correct tones in pinyin when the learner writes pinyin.","Do not replace a valid regional Mandarin expression merely with a preferred synonym."],
+    "mistakeCheckerPromptGuidelines":["Distinguish 的、地、得 according to their grammatical role when correcting written Chinese."]
+  },
+  "runtime": {
+    "adapter":{"type":"python-module","path":"adapters/mandarin_adapter.py"},
+    "python": {
+      "packagesByComponent": {
+        "core":["spacy>=3.8.0,<3.9.0","click>=8.1,<9","pypinyin==0.55.0","https://github.com/explosion/spacy-models/releases/download/zh_core_web_sm-3.8.0/zh_core_web_sm-3.8.0-py3-none-any.whl"],
+        "ocr":["paddlepaddle==3.2.2","paddleocr>=2.7.3","opencv-python-headless"]
+      },
+      "importChecksByComponent":{"core":["spacy","zh_core_web_sm","pypinyin"],"ocr":["paddle","paddleocr","cv2"]}
+    },
+    "ocr":{"recognitionEngine":"paddleocr","paddleLang":"ch","supportsVerticalText":true,"supportsRamSaver":false},
+    "tts":{"qwen3LanguageName":"chinese","webSpeechLang":"zh-CN","diagnosticText":"你好！今天过得怎么样？"},
+    "stt":{"whisperLanguage":"zh","hallucinationPhrases":[],"shortAudioMaxSeconds":1,"shortAudioMinTextLength":3},
+    "diagnostics":{"sampleText":"我正在学习中文。"},
+    "nlp": {
+      "tokenizer":{"type":"spacy","model":"zh_core_web_sm","required":true,"fallback":"none","capabilities":["segments","partOfSpeech","readings"],"ignoredPos":["SPACE"]},
+      "dictionary": {
+        "type":"sqlite-zlib-json","schema":"headword-reading-zlib-json","targetPathTemplate":"dictionaries/{language}/{target}/dictionary.db","defaultTargetLanguage":"en","schemaVersion":"1","renderer":"structured-glosses","readingPath":["pinyin","value"],"definitionsPath":["definitions"],
+        "lookup":{"seedForms":["surface"],"readingLookup":{"scripts":["Latn"]},"readingRank":["common","score-desc","short-reading"]}
+      }
+    }
+  },
+  "languageData": {
+    "version":"zh-Hans-package-2026.07.20",
+    "sourceVersions":{"ccCedict":"20260403","completeHskVocabulary":"7ac65bf1a6387d35f1ade478906172a19311c7f9","spacyModel":"zh_core_web_sm-3.8.0","pypinyin":"0.55.0"},
+    "assets":[
+      {"id":"frequency","path":"languages/zh-Hans.freq.json","bundledPath":"languages/zh-Hans.freq.json","required":true},
+      {"id":"python-adapter","path":"adapters/mandarin_adapter.py","bundledPath":"adapters/mandarin_adapter.py","required":true},
+      {"id":"hsk-license","path":"licenses/complete-hsk-vocabulary-LICENSE","bundledPath":"licenses/complete-hsk-vocabulary-LICENSE","required":true},
+      {"id":"hsk-readme","path":"licenses/complete-hsk-vocabulary-README.md","bundledPath":"licenses/complete-hsk-vocabulary-README.md","required":true}
+    ]
+  }
+}

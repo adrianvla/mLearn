@@ -554,11 +554,21 @@ describe('SettingsProvider', () => {
 
   it('applySettingsToDOM: sets CSS variables and theme class', async () => {
     const { ctx, dispose } = await mountProvider();
-    settingsCb(makeSettings({ theme: 'dark', subtitle_font_size: 32, subtitle_font_weight: 700, blur_amount: 10 }));
+    settingsCb(makeSettings({
+      theme: 'dark',
+      subtitle_font_size: 32,
+      subtitle_font_weight: 700,
+      blur_amount: 10,
+      readingAnnotationMoreContrast: true,
+      readingAnnotationSizePercent: 130,
+    }));
     const root = document.documentElement;
     expect(root.style.getPropertyValue('--subtitle-font-size')).toBe('32px');
     expect(root.style.getPropertyValue('--subtitle-font-weight')).toBe('700');
     expect(root.style.getPropertyValue('--word-blur-amount')).toBe('10px');
+    expect(root.style.getPropertyValue('--reading-annotation-color')).toBe('');
+    expect(document.body.style.getPropertyValue('--reading-annotation-color')).toBe('var(--text-primary)');
+    expect(root.style.getPropertyValue('--reading-annotation-scale')).toBe('1.3');
     expect(document.body.classList.contains('theme-dark')).toBe(true);
     ctx.updateSetting('theme', 'light');
     expect(document.body.classList.contains('theme-dark')).toBe(false);

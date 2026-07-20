@@ -135,8 +135,9 @@
 }
 
 .unknown-words-item-word ruby rt {
+  font-size: calc(0.5em * var(--reading-annotation-scale));
   font-weight: var(--font-weight-normal);
-  color: var(--text-primary);
+  color: var(--reading-annotation-color);
   letter-spacing: 0.05em;
 }
 

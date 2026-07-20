@@ -23,9 +23,6 @@ function makeLangData(overrides: Partial<LanguageDataMap[string]> = {}): Languag
   return {
     zz: {
       name: 'Test Language',
-      translatable: ['NOUN'],
-      colour_codes: {},
-      settings: { fixed: {} },
       languageData: {
         assets: [
           {
@@ -266,6 +263,43 @@ describe('languageDataService', () => {
     expect(status.assets[0].validationIssue).toBe('version-mismatch:bundle-v1');
   });
 
+  it('keeps newer installed language metadata current when the remote catalog lags behind', () => {
+    const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(
+      installedMetadataPath,
+      JSON.stringify({
+        name: 'Newer metadata',
+        languageData: { version: 'zz-package-2026.07.19' },
+      }),
+      'utf-8',
+    );
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'zz-package-2026.06.29',
+        bundle: {
+          url: 'https://example.com/language-data/zz.tar.gz',
+        },
+        assets: [
+          {
+            id: 'language-metadata',
+            path: 'languages/zz.json',
+            sizeBytes: 1,
+            sha256: '0'.repeat(64),
+            required: true,
+          },
+        ],
+      },
+    });
+
+    const status = mod.getLanguageDataStatus('zz', langData);
+
+    expect(status.installed).toBe(true);
+    expect(status.outdated).toBe(false);
+    expect(status.missingAssets).toEqual([]);
+  });
+
   it('reports an installed dictionary pack as outdated when its install receipt version is stale', () => {
     const dictionaryPath = path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'fr', 'dictionary.db');
     fs.mkdirSync(path.dirname(dictionaryPath), { recursive: true });
@@ -297,7 +331,7 @@ describe('languageDataService', () => {
       },
     });
 
-    const status = mod.getLanguageDataCatalogStatus(langData)[0]?.dictionaryPacks?.[0];
+    const status = mod.getLanguageDataCatalogStatus(langData, '2.6.7')[0]?.dictionaryPacks?.[0];
 
     expect(status).toMatchObject({
       targetLanguage: 'fr',
@@ -342,6 +376,7 @@ describe('languageDataService', () => {
       zz: makeLangData({
         name: 'Zulu Test',
         languageData: {
+          minimumAppVersion: '2.7.0',
           assets: [
             {
               id: 'dictionary',
@@ -392,13 +427,10 @@ describe('languageDataService', () => {
       }).zz,
       bb: {
         name: 'Bare Metadata',
-        translatable: [],
-        colour_codes: {},
-        settings: { fixed: {} },
       },
     };
 
-    const statuses = mod.getLanguageDataCatalogStatus(langData);
+    const statuses = mod.getLanguageDataCatalogStatus(langData, '2.6.7');
 
     expect(statuses.map((status) => status.language)).toEqual(['aa', 'bb', 'zz']);
     expect(statuses[0]).toMatchObject({
@@ -406,6 +438,7 @@ describe('languageDataService', () => {
       name: 'Afar Test',
       nameTranslated: 'Afar Local',
       installed: true,
+      compatible: true,
       totalBytes: 15,
       installedBytes: 15,
       missingRequiredAssets: [],
@@ -414,6 +447,7 @@ describe('languageDataService', () => {
       language: 'bb',
       name: 'Bare Metadata',
       installed: true,
+      compatible: true,
       totalBytes: 0,
       installedBytes: 0,
       missingRequiredAssets: [],
@@ -422,6 +456,8 @@ describe('languageDataService', () => {
       language: 'zz',
       name: 'Zulu Test',
       installed: false,
+      compatible: false,
+      minimumAppVersion: '2.7.0',
       totalBytes: 120,
       installedBytes: 0,
       missingRequiredAssets: ['dictionary'],
@@ -437,6 +473,48 @@ describe('languageDataService', () => {
       ],
     });
     expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
+
+    const developmentStatuses = mod.getLanguageDataCatalogStatus(langData, '2.6.7', true);
+    expect(developmentStatuses.find((status) => status.language === 'zz')).toMatchObject({
+      compatible: true,
+      minimumAppVersion: '2.7.0',
+    });
+  });
+
+  it('blocks installation when the language requires a newer app version', async () => {
+    const langData = makeLangData({
+      languageData: {
+        minimumAppVersion: '2.7.0',
+        bundle: { url: 'https://example.com/language-data/zz.tar.gz' },
+        assets: [],
+      },
+    });
+
+    await expect(mod.ensureLanguageDataInstalled(
+      'zz',
+      langData,
+      undefined,
+      undefined,
+      { currentAppVersion: '2.6.7' },
+    )).rejects.toThrow('Test Language requires mLearn 2.7.0 or later');
+    expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
+  });
+
+  it('allows an incompatible language package when the app enables the development override', async () => {
+    const status = await mod.ensureLanguageDataInstalled(
+      'zz',
+      makeLangData({
+        languageData: {
+          minimumAppVersion: '2.7.0',
+          assets: [],
+        },
+      }),
+      undefined,
+      undefined,
+      { currentAppVersion: '2.6.7', allowIncompatibleAppVersion: true },
+    );
+
+    expect(status.installed).toBe(true);
   });
 
   it('rejects missing required assets when the package catalog has no bundle', async () => {
@@ -655,6 +733,23 @@ describe('languageDataService', () => {
       fs.copyFileSync(archivePath, destPath);
     });
 
+    const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(installedMetadataPath, JSON.stringify({
+      name: 'Zulu Test',
+      languageData: {
+        version: 'core-v1',
+        dictionaryPacks: {
+          fr: {
+            targetLanguage: 'fr',
+            name: 'French',
+            version: 'zz-fr-dictionary-v0',
+            assets: [],
+          },
+        },
+      },
+    }), 'utf-8');
+
     const status = await (mod.ensureLanguageDataInstalled as unknown as (
       language: string,
       langData: LanguageDataMap,
@@ -668,7 +763,13 @@ describe('languageDataService', () => {
           sizeBytes: 1,
           sha256: 'unused',
         },
-        assets: [],
+        assets: [
+          {
+            id: 'language-metadata',
+            path: 'languages/zz.json',
+            required: true,
+          },
+        ],
         dictionaryPacks: {
           fr: {
             targetLanguage: 'fr',
@@ -697,6 +798,13 @@ describe('languageDataService', () => {
       undefined,
     );
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+    const installedMetadata = JSON.parse(fs.readFileSync(installedMetadataPath, 'utf-8')) as {
+      languageData?: { dictionaryPacks?: { fr?: { version?: string; bundle?: { sha256?: string } } } };
+    };
+    expect(installedMetadata.languageData?.dictionaryPacks?.fr).toMatchObject({
+      version: 'zz-fr-dictionary-v1',
+      bundle: { sha256: sha256(fs.readFileSync(archivePath)) },
+    });
   });
 
   it('rejects a dictionary pack archive that declares a different target language', async () => {

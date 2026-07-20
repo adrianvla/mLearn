@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
@@ -13,6 +13,7 @@ import { setUILanguage } from './localization';
 import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus, resolveDictionaryTargetLanguage } from './languageDataService';
 import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
 import { getLogger } from '../../shared/utils/logger';
+import { compareSemanticVersions } from '../../shared/semanticVersion';
 
 const log = getLogger('electron.settings');
 const LANGUAGE_CATALOG_FETCH_TIMEOUT_MS = 5000;
@@ -208,6 +209,38 @@ export async function saveSettings(settings: Settings): Promise<void> {
   }
 }
 
+const FONT_MIME_TYPES: Record<string, string> = {
+  '.otf': 'font/otf',
+  '.ttf': 'font/ttf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function hydrateLanguageFontAssets(languageData: LanguageData, dataRoot: string): LanguageData {
+  const options = languageData.typography?.contentFontOptions;
+  if (!options?.length) return languageData;
+  const assets = languageData.languageData?.assets ?? [];
+  const resolvedRoot = path.resolve(dataRoot);
+  const contentFontOptions = options.map((option) => {
+    if (!option.assetId) return option;
+    const asset = assets.find((candidate) => candidate.id === option.assetId);
+    if (!asset) return option;
+    const resolvedPath = path.resolve(dataRoot, asset.path);
+    if (!resolvedPath.startsWith(`${resolvedRoot}${path.sep}`) || !fs.existsSync(resolvedPath)) return option;
+    const mimeType = FONT_MIME_TYPES[path.extname(resolvedPath).toLowerCase()];
+    if (!mimeType) return option;
+    const sourceDataUrl = `data:${mimeType};base64,${fs.readFileSync(resolvedPath).toString('base64')}`;
+    return { ...option, sourceDataUrl };
+  });
+  return {
+    ...languageData,
+    typography: {
+      ...languageData.typography,
+      contentFontOptions,
+    },
+  };
+}
+
 export function loadLangData(): LanguageDataMap {
   const langData: LanguageDataMap = {};
   const candidateDirs = [
@@ -246,9 +279,15 @@ export function loadLangData(): LanguageDataMap {
         const langCode = file.slice(0, -'.freq.json'.length);
         const filePath = path.join(frequencyDir, file);
         try {
+          const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          const payload: FrequencyFilePayload = Array.isArray(parsed)
+            ? { freq: parsed }
+            : isRecord(parsed)
+              ? parsed
+              : {};
           const data = migrateFrequencyFileIfNeeded(
             filePath,
-            JSON.parse(fs.readFileSync(filePath, 'utf-8')) as FrequencyFilePayload,
+            payload,
             langData[langCode],
           );
           if (Array.isArray(data.freq) && langData[langCode]) {
@@ -262,6 +301,52 @@ export function loadLangData(): LanguageDataMap {
           log.error(`Failed to load language frequency file ${file}:`, e);
         }
       }
+    }
+
+    for (const [langCode, installedLanguageData] of Object.entries(langData)) {
+      const dataRoot = path.dirname(languagesDirs[0]);
+      const languageData = hydrateLanguageFontAssets(installedLanguageData, dataRoot);
+      const providers = languageData.frequencyProviders;
+      const assets = languageData.languageData?.assets ?? [];
+      if (!providers) {
+        langData[langCode] = languageData;
+        continue;
+      }
+
+      const hydratedProviders = { ...providers };
+      for (const [providerId, provider] of Object.entries(providers)) {
+        const asset = assets.find((candidate) => candidate.id === provider.assetId);
+        if (!asset) continue;
+        const filePath = path.join(dataRoot, asset.path);
+        try {
+          const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          const payload: FrequencyFilePayload = Array.isArray(parsed)
+            ? { freq: parsed }
+            : isRecord(parsed)
+              ? parsed
+              : {};
+          const defaultLevelSystem = provider.defaultLevelSystem
+            ? provider.levelSystems?.[provider.defaultLevelSystem]
+            : undefined;
+          const migrated = migrateFrequencyFileIfNeeded(filePath, payload, {
+            ...languageData,
+            frequencyLevels: provider.frequencyLevels ?? defaultLevelSystem?.frequencyLevels,
+          });
+          hydratedProviders[providerId] = {
+            ...provider,
+            ...(Array.isArray(migrated.freq) ? { freq: migrated.freq } : {}),
+            ...(!provider.levelSystems && migrated.frequencyLevels
+              ? { frequencyLevels: migrated.frequencyLevels }
+              : {}),
+          };
+        } catch (e) {
+          log.error(`Failed to load frequency provider asset ${asset.path}:`, e);
+        }
+      }
+      langData[langCode] = {
+        ...languageData,
+        frequencyProviders: hydratedProviders,
+      };
     }
   } catch (error) {
     log.error('Failed to load language data:', error);
@@ -563,10 +648,18 @@ function normalizeCatalogEntry(language: string, value: unknown, catalogUrl: str
   const files = value.files
     .map((asset) => normalizeCatalogAsset(asset))
     .filter((asset): asset is LanguageDataAsset => asset !== null);
+  const minimumAppVersion = value.minimumAppVersion;
+  if (
+    minimumAppVersion !== undefined
+    && (typeof minimumAppVersion !== 'string' || compareSemanticVersions(minimumAppVersion, minimumAppVersion) === undefined)
+  ) {
+    return null;
+  }
   return {
     name: typeof value.name === 'string' ? value.name : language,
     nameTranslated: typeof value.nameTranslated === 'string' ? value.nameTranslated : undefined,
     version: typeof value.version === 'string' ? value.version : `${language}-v1`,
+    minimumAppVersion,
     bundle,
     files,
     dictionaryPacks: normalizeDictionaryPacks(value.dictionaryPacks, catalogUrl),
@@ -579,6 +672,7 @@ function languageDataFromCatalogEntry(entry: LanguageCatalogEntry): LanguageData
     name_translated: entry.nameTranslated,
     languageData: {
       version: entry.version,
+      minimumAppVersion: entry.minimumAppVersion,
       bundle: entry.bundle,
       assets: entry.files,
       dictionaryPacks: entry.dictionaryPacks,
@@ -661,6 +755,10 @@ function getInstallOptionsFromSettings(settings: Settings): InstallOptions {
   };
 }
 
+function allowsIncompatibleLanguageData(settings: Settings): boolean {
+  return (settings.devMode ?? DEFAULT_SETTINGS.devMode) || process.env.NODE_ENV === 'development';
+}
+
 function didLanguageRuntimeComponentSettingsChange(prevSettings: Settings, nextSettings: Settings): boolean {
   return (
     prevSettings.language !== nextSettings.language ||
@@ -730,8 +828,12 @@ export function setupSettingsIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, async (event) => {
-    const langData = await loadLanguagePackageCatalog();
-    event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData));
+    const settings = loadSettings();
+    const langData = await loadLanguagePackageCatalog(settings);
+    event.reply(
+      IPC_CHANNELS.LANGUAGE_DATA_CATALOG,
+      getLanguageDataCatalogStatus(langData, app.getVersion(), allowsIncompatibleLanguageData(settings)),
+    );
   });
 
   ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => {
@@ -742,7 +844,13 @@ export function setupSettingsIPC(): void {
       const components = installOptions
         ? getLanguageDataComponentsFromInstallOptions(effectiveInstallOptions)
         : getEnabledLanguageDataComponents(settings);
-      await ensureLanguageDataInstalled(language, langData, undefined, undefined, { components });
+      const currentAppVersion = app.getVersion();
+      const allowIncompatibleAppVersion = allowsIncompatibleLanguageData(settings);
+      await ensureLanguageDataInstalled(language, langData, undefined, undefined, {
+        components,
+        currentAppVersion,
+        allowIncompatibleAppVersion,
+      });
       await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), effectiveInstallOptions, {
         onStatus: (message) => event.reply(IPC_CHANNELS.SERVER_STATUS_UPDATE, message),
       });
@@ -758,9 +866,16 @@ export function setupSettingsIPC(): void {
         );
       }
       if (resolvedDictionaryTarget) {
-        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget);
+        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget, {
+          currentAppVersion,
+          allowIncompatibleAppVersion,
+        });
       }
-      const catalog = getLanguageDataCatalogStatus(await loadLanguagePackageCatalog());
+      const catalog = getLanguageDataCatalogStatus(
+        await loadLanguagePackageCatalog(),
+        currentAppVersion,
+        allowIncompatibleAppVersion,
+      );
       const installedStatus = catalog.find((status) => status.language === language);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);

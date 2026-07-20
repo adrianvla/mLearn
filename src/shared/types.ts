@@ -82,6 +82,10 @@ export interface ColorCodes {
   [pos: string]: string;
 }
 
+export type ColoredProsodyStatusLimit = 'learning' | 'known';
+export type ColoredProsodyMixTarget = 'white' | 'part-of-speech';
+export type ColoredProsodyPaletteOverrides = Record<string, Record<string, string>>;
+
 /** Custom CSS color overrides that apply globally regardless of theme */
 export interface CustomColorOverrides {
   'bg-opaque'?: string;
@@ -130,6 +134,12 @@ export interface Settings {
   do_colour_known: boolean;
   do_colour_codes: boolean;
   colour_codes: ColorCodes;
+  coloredProsodyEnabled: boolean;
+  coloredProsodyPalettes: ColoredProsodyPaletteOverrides;
+  coloredProsodyStatusLimit: ColoredProsodyStatusLimit;
+  coloredProsodyEaseMixEnabled: boolean;
+  coloredProsodyEaseMixTarget: ColoredProsodyMixTarget;
+  coloredProsodySaturation: number;
   theme: AppTheme;
   /** Custom CSS color overrides that apply globally regardless of theme */
   customColors?: CustomColorOverrides;
@@ -145,6 +155,8 @@ export interface Settings {
   show_pos: boolean;
   /** Preferred persisted toggle for reading annotations. Prefer readingAnnotationsEnabled() when reading it. */
   showReadingAnnotations?: boolean;
+  readingAnnotationMoreContrast?: boolean;
+  readingAnnotationSizePercent?: number;
   hideReadingForKnownWords?: boolean;
   /** Preferred persisted toggle for prosody/accent display. Prefer prosodyVisible() when reading it. */
   showProsody: boolean;
@@ -235,6 +247,8 @@ export interface Settings {
    * or frequency buckets independently.
    */
   learningLanguageLevels: Record<string, number | null>;
+  frequencyProviderSelections: Record<string, string>;
+  frequencyLevelSystemSelections: Record<string, string>;
 
   // API URLs
   tokeniserUrl: string;
@@ -360,6 +374,7 @@ export interface Settings {
   readerSpreadDirection?: ReaderSpreadDirection;
   /** Font family style for extracted-text reader pages. */
   readerTextFontStyle?: ReaderTextFontStyle;
+  readerContentFontSelections: Record<string, string>;
   /** Extracted-text reader font size in rem. */
   readerTextSize?: number;
   /** Extracted-text reader line-height multiplier. */
@@ -487,6 +502,12 @@ export const DEFAULT_SETTINGS: Settings = {
   do_colour_known: true,
   do_colour_codes: true,
   colour_codes: {},
+  coloredProsodyEnabled: true,
+  coloredProsodyPalettes: {},
+  coloredProsodyStatusLimit: 'known',
+  coloredProsodyEaseMixEnabled: false,
+  coloredProsodyEaseMixTarget: 'white',
+  coloredProsodySaturation: 100,
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
   customThemeCSS: DEFAULT_CUSTOM_THEME_CSS,
@@ -508,6 +529,8 @@ export const DEFAULT_SETTINGS: Settings = {
   knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
   knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
   showReadingAnnotations: true,
+  readingAnnotationMoreContrast: false,
+  readingAnnotationSizePercent: 100,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,
   flashcard_deck: null,
@@ -566,6 +589,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoSuggestUnknownWords: true,
   learningLanguageLevel: null,
   learningLanguageLevels: {},
+  frequencyProviderSelections: {},
+  frequencyLevelSystemSelections: {},
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,
@@ -592,6 +617,7 @@ export const DEFAULT_SETTINGS: Settings = {
   readerFirstPageSingle: true,
   readerSpreadDirection: 'right-to-left',
   readerTextFontStyle: 'language',
+  readerContentFontSelections: {},
   readerTextSize: 1.05,
   readerTextLineHeight: 1.75,
   readerTextWidth: 64,
@@ -748,6 +774,8 @@ export interface LanguageDictionaryPack {
 export interface LanguageDataManifest {
   /** Data payload version independent from app version. */
   version?: string;
+  /** Oldest semantic mLearn app version that can use this language package. */
+  minimumAppVersion?: string;
   /** Source/component versions that make up this language package. */
   sourceVersions?: Record<string, string>;
   /** Optional archive containing all files listed in assets. */
@@ -851,8 +879,8 @@ export interface LanguageTokenEstimationConfig {
 export interface LanguageReadingAnnotationConfig {
   /** How written forms and readings should be rendered together. */
   type?: 'none' | 'script-reading';
-  /** Visual renderer for the surface and reading. Defaults to ruby for compact annotations. */
-  display?: 'ruby' | 'inline';
+  /** Visual renderer. `replace` shows pronunciation in place of the surface, e.g. Russian stress marks. */
+  display?: 'ruby' | 'inline' | 'replace';
   /** Surface scripts that should receive reading annotations, e.g. ["Han"]. */
   annotationScripts?: string[];
   /** Scripts at the end of a surface form that should remain visible in the displayed reading. */
@@ -926,11 +954,20 @@ export interface LanguageTextProcessingConfig {
   tokenJoinSeparator?: string;
 }
 
+export interface LanguageFontFamilyOption {
+  id: string;
+  name: string;
+  fontFamily: string;
+  assetId?: string;
+  sourceDataUrl?: string;
+}
+
 export interface LanguageTypographyConfig {
   /** CSS font-family used for subtitle/media text. Defaults are derived from supported scripts. */
   subtitleFontFamily?: string;
   /** CSS font-family used for language content outside subtitles when a surface needs it. */
   contentFontFamily?: string;
+  contentFontOptions?: LanguageFontFamilyOption[];
   /** Text direction for language content. Defaults are derived from supported scripts. */
   textDirection?: 'ltr' | 'rtl' | 'auto';
 }
@@ -954,6 +991,14 @@ export interface LanguageProsodyConfig {
   particleBoxExcludedPos?: string[];
   /** Matching mode for particleBoxExcludedPos. Defaults to "contains" for tokenizer tags like "動詞-一般". */
   particleBoxExcludedPosMatch?: 'contains' | 'exact';
+  coloring?: LanguageColoredProsodyConfig;
+}
+
+export interface LanguageColoredProsodyConfig {
+  renderer: string;
+  paletteId: string;
+  colors: Record<string, string>;
+  labels: Record<string, string>;
 }
 
 export interface LanguageCharacterStudyConfig {
@@ -1024,6 +1069,21 @@ export interface LanguageFrequencyLevelConfig {
 }
 
 export type LanguageFrequencyRow = [string, string, ...unknown[]];
+
+export interface LanguageFrequencyLevelSystem {
+  name: string;
+  frequencyLevels: LanguageFrequencyLevelConfig;
+}
+
+export interface LanguageFrequencyProvider {
+  name: string;
+  assetId?: string;
+  freq?: LanguageFrequencyRow[];
+  frequencyLevels?: LanguageFrequencyLevelConfig;
+  levelSystems?: Record<string, LanguageFrequencyLevelSystem>;
+  defaultLevelSystem?: string;
+  sourceUrl?: string;
+}
 
 export interface LanguageOcrRuntimeConfig {
   /** RapidOCR LangRec enum name, e.g. "JAPAN", "LATIN", "CYRILLIC". */
@@ -1152,6 +1212,8 @@ export interface LanguageAdapterRuntimeConfig {
   type?: 'python-module';
   /** Adapter path under the language-data root. Required when type is 'python-module'. */
   path?: string;
+  /** Package-owned adapter options interpreted only by the downloaded module. */
+  config?: Record<string, unknown>;
 }
 
 export interface LanguageTtsRuntimeConfig {
@@ -1228,6 +1290,7 @@ export interface LanguageRuntimeConfig {
 export interface LanguageData {
   name: string;
   name_translated?: string;
+  flagEmoji?: string;
   /** Settings behavior supplied by the language package. */
   settings?: LanguageSettingsConfig;
   /** Frequency rows as [surface, reading, ...metadata]. Levels are assigned from boundaries unless frequencyLevels.rowLevelIndex is set. */
@@ -1238,6 +1301,10 @@ export interface LanguageData {
   grammarLevels?: LanguageFrequencyLevelConfig;
   /** Ordering and difficulty semantics for numeric frequency/proficiency levels. */
   frequencyLevels?: LanguageFrequencyLevelConfig;
+  frequencyProviders?: Record<string, LanguageFrequencyProvider>;
+  defaultFrequencyProvider?: string;
+  activeFrequencyProvider?: string;
+  activeFrequencyLevelSystem?: string;
   /** Script validation, lexeme normalization, and indexing behavior for this language. */
   textProcessing?: LanguageTextProcessingConfig;
   /** Optional prosody/accent behavior for this language. */
@@ -1264,6 +1331,7 @@ export interface LanguageCatalogEntry {
   name: string;
   nameTranslated?: string;
   version: string;
+  minimumAppVersion?: string;
   bundle: LanguageDataBundle;
   files: LanguageDataAsset[];
   dictionaryPacks?: Record<string, LanguageDictionaryPack>;
@@ -1295,6 +1363,8 @@ export interface LanguageDataCatalogStatus {
   dataRoot: string;
   installed: boolean;
   outdated: boolean;
+  compatible: boolean;
+  minimumAppVersion?: string;
   totalBytes: number;
   installedBytes: number;
   missingRequiredAssets: string[];

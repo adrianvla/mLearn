@@ -3,6 +3,8 @@ import { DEFAULT_SETTINGS, type Settings } from './types';
 type ReadingAnnotationSettings = Pick<
   Settings,
   'showReadingAnnotations'
+  | 'readingAnnotationMoreContrast'
+  | 'readingAnnotationSizePercent'
   | 'hideReadingForKnownWords'
   | 'ocrReadingAnnotationFiltering'
   | 'ocrReadingAnnotationWidthRatio'
@@ -13,6 +15,14 @@ type ReadingAnnotationSettings = Pick<
 
 export function readingAnnotationsEnabled(settings: ReadingAnnotationSettings): boolean {
   return settings.showReadingAnnotations ?? DEFAULT_SETTINGS.showReadingAnnotations!;
+}
+
+export function readingAnnotationMoreContrastEnabled(settings: ReadingAnnotationSettings): boolean {
+  return settings.readingAnnotationMoreContrast ?? DEFAULT_SETTINGS.readingAnnotationMoreContrast!;
+}
+
+export function readingAnnotationSizePercent(settings: ReadingAnnotationSettings): number {
+  return settings.readingAnnotationSizePercent ?? DEFAULT_SETTINGS.readingAnnotationSizePercent!;
 }
 
 export function hideReadingAnnotationsForKnownWords(settings: ReadingAnnotationSettings): boolean {

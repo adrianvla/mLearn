@@ -13,6 +13,7 @@ import type {
   LanguagePythonRequirementComponent,
 } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
+import { satisfiesMinimumAppVersion } from '../../shared/semanticVersion';
 
 const log = getLogger('electron.languageData');
 const inFlightInstalls = new Map<string, Promise<void>>();
@@ -45,6 +46,8 @@ export interface LanguageDataStatus {
 
 export interface LanguageDataInstallOptions {
   components?: readonly LanguagePythonRequirementComponent[];
+  currentAppVersion?: string;
+  allowIncompatibleAppVersion?: boolean;
 }
 
 const CORE_COMPONENT: LanguagePythonRequirementComponent = 'core';
@@ -152,6 +155,39 @@ function readInstallReceiptVersion(installKey: string): string | undefined {
   }
 }
 
+function compareStructuredVersions(left: string, right: string): number | undefined {
+  const numericToken = /^\d+$/;
+  const tokenize = (value: string) => value.split(/(\d+)/).filter(Boolean);
+  const leftTokens = tokenize(left);
+  const rightTokens = tokenize(right);
+  if (leftTokens.length !== rightTokens.length) return undefined;
+
+  for (let index = 0; index < leftTokens.length; index += 1) {
+    const leftToken = leftTokens[index];
+    const rightToken = rightTokens[index];
+    const leftIsNumeric = numericToken.test(leftToken);
+    const rightIsNumeric = numericToken.test(rightToken);
+    if (leftIsNumeric !== rightIsNumeric) return undefined;
+    if (!leftIsNumeric) {
+      if (leftToken.toLowerCase() !== rightToken.toLowerCase()) return undefined;
+      continue;
+    }
+
+    const leftNumber = BigInt(leftToken);
+    const rightNumber = BigInt(rightToken);
+    if (leftNumber > rightNumber) return 1;
+    if (leftNumber < rightNumber) return -1;
+  }
+
+  return 0;
+}
+
+function installedVersionSatisfiesExpected(installedVersion: string, expectedVersion: string): boolean {
+  if (installedVersion === expectedVersion) return true;
+  const comparison = compareStructuredVersions(installedVersion, expectedVersion);
+  return comparison !== undefined && comparison >= 0;
+}
+
 function writeInstallReceipt(installKey: string, version?: string): void {
   if (!version) return;
   const receiptPath = getInstallReceiptPath(installKey);
@@ -163,10 +199,52 @@ function writeInstallReceipt(installKey: string, version?: string): void {
   );
 }
 
+function syncInstalledDictionaryPackMetadata(
+  language: string,
+  langData: LanguageDataMap,
+  dictionaryTargetLanguage: string,
+): void {
+  const languageManifest = langData[language]?.languageData;
+  const dictionaryPack = languageManifest?.dictionaryPacks?.[dictionaryTargetLanguage];
+  const metadataAsset = languageManifest?.assets.find(isLanguageMetadataAsset);
+  if (!dictionaryPack || !metadataAsset) return;
+
+  const metadataPath = getInstalledLanguageAssetPath(metadataAsset);
+  const parsed = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as unknown;
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Installed language metadata is invalid for ${language}`);
+  }
+
+  const metadata = parsed as Record<string, unknown>;
+  const rawLanguageData = metadata.languageData;
+  const installedLanguageData = typeof rawLanguageData === 'object' && rawLanguageData !== null && !Array.isArray(rawLanguageData)
+    ? rawLanguageData as Record<string, unknown>
+    : {};
+  const rawDictionaryPacks = installedLanguageData.dictionaryPacks;
+  const installedDictionaryPacks = typeof rawDictionaryPacks === 'object'
+    && rawDictionaryPacks !== null
+    && !Array.isArray(rawDictionaryPacks)
+    ? rawDictionaryPacks as Record<string, unknown>
+    : {};
+  const updatedMetadata = {
+    ...metadata,
+    languageData: {
+      ...installedLanguageData,
+      dictionaryPacks: {
+        ...installedDictionaryPacks,
+        [dictionaryTargetLanguage]: dictionaryPack,
+      },
+    },
+  };
+  const temporaryPath = `${metadataPath}.installing`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(updatedMetadata, null, 2)}\n`, 'utf-8');
+  fs.renameSync(temporaryPath, metadataPath);
+}
+
 function installReceiptVersionMatches(installKey: string, expectedVersion?: string): boolean {
   if (!expectedVersion) return true;
   const installedVersion = readInstallReceiptVersion(installKey);
-  return installedVersion === undefined || installedVersion === expectedVersion;
+  return installedVersion === undefined || installedVersionSatisfiesExpected(installedVersion, expectedVersion);
 }
 
 function normalizeInstallComponents(options?: LanguageDataInstallOptions): Set<string> {
@@ -257,7 +335,7 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): Lan
     }
     if (expectedVersion && isLanguageMetadataAsset(asset)) {
       const installedVersion = readInstalledLanguageMetadataVersion(asset, installedPath);
-      if (installedVersion !== undefined && installedVersion === expectedVersion) {
+      if (installedVersion !== undefined && installedVersionSatisfiesExpected(installedVersion, expectedVersion)) {
         return {
           id: asset.id,
           path: installedPath,
@@ -433,7 +511,11 @@ export function getLanguageDataStatus(
   };
 }
 
-export function getLanguageDataCatalogStatus(langData: LanguageDataMap): LanguageDataCatalogStatus[] {
+export function getLanguageDataCatalogStatus(
+  langData: LanguageDataMap,
+  currentAppVersion: string,
+  allowIncompatibleAppVersion = false,
+): LanguageDataCatalogStatus[] {
   return Object.entries(langData)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([language, metadata]) => {
@@ -442,6 +524,10 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
       const bundle = metadata.languageData?.bundle;
       const totalBytes = bundle?.sizeBytes ?? assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0);
       const installedBytes = getInstalledBytes(assets);
+      const minimumAppVersion = metadata.languageData?.minimumAppVersion;
+      const compatible = allowIncompatibleAppVersion
+        || !minimumAppVersion
+        || satisfiesMinimumAppVersion(currentAppVersion, minimumAppVersion);
       const dictionaryPacks = metadata.languageData?.dictionaryPacks
         ? Object.values(metadata.languageData.dictionaryPacks)
           .sort((left, right) => left.targetLanguage.localeCompare(right.targetLanguage))
@@ -472,6 +558,8 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap): Languag
         dataRoot: status.dataRoot,
         installed: status.installed,
         outdated: status.outdated,
+        compatible,
+        minimumAppVersion,
         totalBytes,
         installedBytes,
         missingRequiredAssets: status.missingAssets,
@@ -551,11 +639,21 @@ export async function ensureLanguageDataInstalled(
   dictionaryTargetLanguage?: string,
   options?: LanguageDataInstallOptions,
 ): Promise<LanguageDataStatus> {
+  const minimumAppVersion = langData[language]?.languageData?.minimumAppVersion;
+  if (minimumAppVersion && !options?.allowIncompatibleAppVersion) {
+    const currentAppVersion = options?.currentAppVersion;
+    if (!currentAppVersion || !satisfiesMinimumAppVersion(currentAppVersion, minimumAppVersion)) {
+      throw new Error(`${langData[language]?.name ?? language} requires mLearn ${minimumAppVersion} or later`);
+    }
+  }
   const assets = getAssets(language, langData, dictionaryTargetLanguage, options).filter((asset) => asset.required !== false);
   const bundle = getBundle(language, langData, dictionaryTargetLanguage);
   const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
   const currentStatus = getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
   if (currentStatus.installed) {
+    if (dictionaryTargetLanguage) {
+      syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage);
+    }
     return currentStatus;
   }
   if (!bundle) {
@@ -579,6 +677,9 @@ export async function ensureLanguageDataInstalled(
   inFlightInstalls.set(installKey, installPromise);
   try {
     await installPromise;
+    if (dictionaryTargetLanguage) {
+      syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage);
+    }
     writeInstallReceipt(installKey, expectedVersion);
   } finally {
     if (inFlightInstalls.get(installKey) === installPromise) {

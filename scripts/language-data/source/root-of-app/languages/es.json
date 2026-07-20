@@ -1,0 +1,125 @@
+{
+  "name": "Spanish",
+  "flagEmoji": "🇪🇸",
+  "name_translated": "Español",
+  "frequencyLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "boundaries": [1000, 3000, 7000, 15000, 30000],
+    "names": {
+      "1": "Core 1,000",
+      "2": "Common 3,000",
+      "3": "Intermediate 7,000",
+      "4": "Upper 15,000",
+      "5": "Advanced 30,000"
+    }
+  },
+  "grammarLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "names": {
+      "1": "A1 Foundations",
+      "2": "A2 Elementary",
+      "3": "B1 Intermediate",
+      "4": "B2 Upper intermediate",
+      "5": "C1 Advanced",
+      "6": "C2 Mastery"
+    }
+  },
+  "grammar": [
+    {"pattern":"ser + noun/adjective","meaning":"identify, classify, or describe an inherent characteristic","level":1,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"ser"}]}},
+    {"pattern":"estar + adjective/location","meaning":"describe a state or location","level":1,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"estar"}]}},
+    {"pattern":"hay","meaning":"state that something exists","level":1,"match":{"type":"text","text":"hay"}},
+    {"pattern":"no + verb","meaning":"negate a verb phrase","level":1,"match":{"type":"token-sequence","tokens":[{"equals":"no"},{"canonicalPartOfSpeech":"verb"}]}},
+    {"pattern":"noun and adjective agreement","meaning":"adjectives agree with nouns in gender and number","level":1,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"noun"},{"canonicalPartOfSpeech":"adjective"}]}},
+    {"pattern":"gustar + indirect object","meaning":"express liking with the thing liked as grammatical subject","level":1,"match":{"type":"text","text":"gust"}},
+    {"pattern":"ir a + infinitive","meaning":"express a near or planned future","level":1,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"ir"},{"equals":"a"},{"features":{"VerbForm":"Inf"}}]}},
+    {"pattern":"tener que + infinitive","meaning":"express obligation","level":1,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"tener"},{"equals":"que"},{"features":{"VerbForm":"Inf"}}]}},
+    {"pattern":"present progressive","meaning":"estar + gerund for an action in progress","level":2,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"estar"},{"features":{"VerbForm":"Ger"}}]}},
+    {"pattern":"pretérito indefinido","meaning":"completed past events viewed as bounded","level":2,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Tense":"Past","Aspect":"Perf"}}]}},
+    {"pattern":"pretérito imperfecto","meaning":"habitual, descriptive, or ongoing background in the past","level":2,"match":{"type":"text","text":"aba"}},
+    {"pattern":"reflexive pronoun + verb","meaning":"reflexive, reciprocal, or pronominal verb construction","level":2,"match":{"type":"token-sequence","tokens":[{"oneOf":["me","te","se","nos","os"]},{"canonicalPartOfSpeech":"verb"}]}},
+    {"pattern":"direct object pronouns","meaning":"replace a direct object with lo, la, los, or las","level":2,"match":{"type":"token-sequence","tokens":[{"oneOf":["lo","la","los","las"]},{"canonicalPartOfSpeech":"verb"}]}},
+    {"pattern":"indirect object pronouns","meaning":"replace an indirect object with le or les","level":2,"match":{"type":"token-sequence","tokens":[{"oneOf":["le","les"]},{"canonicalPartOfSpeech":"verb"}]}},
+    {"pattern":"por and para","meaning":"distinguish cause, means, exchange, destination, purpose, and deadline","level":2,"match":{"type":"text","text":" para "}},
+    {"pattern":"present perfect","meaning":"haber + participle for a past event connected to the present","level":3,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"haber"},{"features":{"VerbForm":"Part"}}]}},
+    {"pattern":"present subjunctive","meaning":"subjunctive in wishes, evaluation, doubt, denial, and non-factual clauses","level":3,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Mood":"Sub"}}]}},
+    {"pattern":"para que + subjunctive","meaning":"express purpose with a change of subject","level":3,"match":{"type":"text","text":"para que"}},
+    {"pattern":"cuando + subjunctive","meaning":"refer to an anticipated future event in a time clause","level":3,"match":{"type":"text","text":"cuando"}},
+    {"pattern":"se impersonal","meaning":"make a general statement without naming an agent","level":3,"match":{"type":"text","text":"se "}},
+    {"pattern":"relative clause with que","meaning":"modify a noun with a relative clause","level":3,"match":{"type":"text","text":" que "}},
+    {"pattern":"conditional tense","meaning":"hypothetical consequence, polite request, or future-in-the-past","level":4,"match":{"type":"token-sequence","tokens":[{"canonicalPartOfSpeech":"verb","features":{"Mood":"Cnd"}}]}},
+    {"pattern":"imperfect subjunctive","meaning":"past or hypothetical subjunctive in subordinate clauses","level":4,"match":{"type":"text","text":"iera"}},
+    {"pattern":"si + imperfect subjunctive + conditional","meaning":"present or future contrary-to-fact condition","level":4,"match":{"type":"text","text":"si "}},
+    {"pattern":"passive with ser","meaning":"ser + participle with agreement for an eventive passive","level":4,"match":{"type":"token-sequence","tokens":[{"field":"lemma","equals":"ser"},{"features":{"VerbForm":"Part"}}]}},
+    {"pattern":"aunque + indicative/subjunctive","meaning":"choose mood according to whether a concession is asserted or hypothetical","level":4,"match":{"type":"text","text":"aunque"}},
+    {"pattern":"reported speech","meaning":"sequence of tenses after a past reporting verb","level":4,"match":{"type":"text","text":"dijo que"}},
+    {"pattern":"pluperfect subjunctive","meaning":"hubiera or hubiese + participle for unreal prior events","level":5,"match":{"type":"text","text":"hubiera"}},
+    {"pattern":"como si + imperfect subjunctive","meaning":"make an unreal or counterfactual comparison","level":5,"match":{"type":"text","text":"como si"}},
+    {"pattern":"de ahí que + subjunctive","meaning":"present a consequence in formal discourse","level":5,"match":{"type":"text","text":"de ahí que"}},
+    {"pattern":"por más que + subjunctive","meaning":"express an ineffective effort or open concession","level":5,"match":{"type":"text","text":"por más que"}},
+    {"pattern":"future perfect of probability","meaning":"make an inference about a completed event","level":5,"match":{"type":"text","text":"habrá"}},
+    {"pattern":"subjunctive in literary inversion","meaning":"advanced stylistic use of the subjunctive outside ordinary subordinate clauses","level":6,"match":{"type":"text","text":"sea como sea"}},
+    {"pattern":"discourse-level clitic doubling","meaning":"use doubled object marking for information structure and emphasis","level":6,"match":{"type":"text","text":"le "}},
+    {"pattern":"complex verbal periphrases","meaning":"aspectual and modal nuance through multi-verb constructions","level":6,"match":{"type":"text","text":"venir a"}}
+  ],
+  "textProcessing": {
+    "scriptProfile": {"acceptedScripts":["Latn"],"requiredScripts":["Latn"],"wordScriptValidation":"only-accepted"},
+    "lexemeNormalization": {"type":"surface-reading","surfaceScripts":["Latn"],"surfaceNormalizers":["casefold"],"readingScripts":["Latn"],"readingNormalizer":"unicode-nfc"},
+    "partOfSpeech": {
+      "translatable":["noun","proper noun","verb","adjective","adverb","pronoun","number"],
+      "aliases":{"NOUN":"noun","PROPN":"proper noun","VERB":"verb","AUX":"verb","ADJ":"adjective","ADV":"adverb","PRON":"pronoun","NUM":"number","DET":"determiner","ADP":"preposition","CCONJ":"conjunction","SCONJ":"conjunction","PART":"particle","INTJ":"interjection","PUNCT":"punctuation","SYM":"symbol","X":"other"},
+      "ignored":["punctuation","symbol"],
+      "colors":{"noun":"#d9e8ff","proper noun":"#c9ddff","verb":"#d9d2ff","adjective":"#d9f2e6","adverb":"#fce8c3","pronoun":"#f5d5e8","number":"#e6e6e6","determiner":"#d8efe9","preposition":"#f6dfc8","conjunction":"#f8e7bd","particle":"#f8e7bd","interjection":"#f2d7d7","other":"#e2e2e2"}
+    },
+    "subtitle": {
+      "speakerNamePrefix":{"enabled":true,"scripts":["Latn"],"allowLatinFallback":true,"delimiters":[":","："]},
+      "characterNamePrefix":{"enabled":true,"scripts":["Latn"],"allowLatinFallback":true,"delimiters":[":","："]}
+    },
+    "sentenceTerminators":[".","!","?","…","¡","¿"],
+    "tokenJoinSeparator":" "
+  },
+  "fixed_settings": {"showReadingAnnotations":false,"showProsody":false},
+  "characterStudy":{"enabled":false,"scripts":[]},
+  "supportedScripts":["Latn"],
+  "typography":{"subtitleFontFamily":"'Noto Sans', 'Arial', sans-serif","contentFontFamily":"'Noto Sans', 'Arial', sans-serif","textDirection":"ltr"},
+  "conversation": {
+    "register": {
+      "hasDeferentialForms":true,
+      "casualPromptGuidelines":["Use tú forms by default unless the learner requests another regional or social register."],
+      "correctionPromptGuidelines":["Preserve consistent tú, usted, vosotros, or ustedes choices when they are valid for the learner's chosen variety."]
+    },
+    "tutorPromptGuidelines":["Use neutral, broadly understood Spanish unless the learner asks for a regional variety.","Explain mood, clitic placement, ser versus estar, and preterite versus imperfect when they cause mistakes."],
+    "correctionPromptGuidelines":["Preserve valid regional vocabulary and voseo instead of replacing it automatically.","Correct written accent marks, including accents that distinguish otherwise identical forms."],
+    "mistakeCheckerPromptGuidelines":["Treat omitted subject pronouns as normal when verb agreement makes the subject clear."]
+  },
+  "runtime": {
+    "python": {
+      "packagesByComponent": {
+        "core":["spacy>=3.8.0,<3.9.0","click>=8.1,<9","https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl"],
+        "ocr":["paddlepaddle==3.2.2","paddleocr>=2.7.3","opencv-python-headless"]
+      },
+      "importChecksByComponent":{"core":["spacy","es_core_news_sm"],"ocr":["paddle","paddleocr","cv2"]}
+    },
+    "ocr":{"recognitionEngine":"paddleocr","paddleLang":"es","supportsVerticalText":false,"supportsRamSaver":false},
+    "tts":{"qwen3LanguageName":"spanish","webSpeechLang":"es-ES","diagnosticText":"¡Hola! ¿Cómo estás hoy?"},
+    "stt":{"whisperLanguage":"es","hallucinationPhrases":[],"shortAudioMaxSeconds":1,"shortAudioMinTextLength":5},
+    "diagnostics":{"sampleText":"Estoy aprendiendo español."},
+    "nlp": {
+      "tokenizer":{"type":"spacy","model":"es_core_news_sm","required":true,"fallback":"none","capabilities":["segments","lemmas","partOfSpeech","morphology"],"ignoredPos":["SPACE"]},
+      "dictionary": {
+        "type":"sqlite-zlib-json","schema":"simple-headword-zlib-json","targetPathTemplate":"dictionaries/{language}/{target}/dictionary.db","defaultTargetLanguage":"en","schemaVersion":"1","renderer":"simple-glosses",
+        "lookup":{"seedForms":["surface","tokenizer-lemma"],"normalizers":["casefold"],"normalizerMode":"branching","readingLookup":"none"}
+      }
+    }
+  },
+  "languageData": {
+    "version":"es-package-2026.07.19",
+    "minimumAppVersion":"2.7.0",
+    "sourceVersions":{"freeDict":"eng-spa-2025.11.23-inverted","frequencyWords":"525f9b560de45753a5ea01069454e72e9aa541c6","spacyModel":"es_core_news_sm-3.8.0"},
+    "assets":[
+      {"id":"frequency","path":"languages/es.freq.json","bundledPath":"languages/es.freq.json","required":true},
+      {"id":"frequencywords-notice","path":"licenses/frequencywords-README.md","bundledPath":"licenses/frequencywords-README.md","required":true}
+    ]
+  }
+}

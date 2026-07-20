@@ -1,0 +1,13 @@
+{
+  "en": {
+    "targetLanguage": "en",
+    "name": "English",
+    "version": "zh-Hans-en-cc-cedict-2026.04.03-r2",
+    "assets": [
+      {"id":"dictionary-en","path":"dictionaries/zh-Hans/en/dictionary.db","bundledPath":"dictionaries/zh-Hans/en/dictionary.db","required":true},
+      {"id":"metadata-en","path":"dictionaries/zh-Hans/en/metadata.json","bundledPath":"dictionaries/zh-Hans/en/metadata.json","required":true},
+      {"id":"license-en","path":"dictionaries/zh-Hans/en/LICENSE","bundledPath":"dictionaries/zh-Hans/en/LICENSE","required":true},
+      {"id":"readme-en","path":"dictionaries/zh-Hans/en/README.md","bundledPath":"dictionaries/zh-Hans/en/README.md","required":true}
+    ]
+  }
+}

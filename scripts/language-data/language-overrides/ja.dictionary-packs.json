@@ -1,0 +1,59 @@
+{
+  "en": {
+    "targetLanguage": "en",
+    "name": "English",
+    "version": "ja-en-dictionary-ja-package-2026.06.29",
+    "assets": [
+      {
+        "id": "dictionary",
+        "path": "dictionaries/ja/en/dictionary.db",
+        "bundledPath": "dictionaries/ja/en/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-en",
+        "path": "dictionaries/ja/en/metadata.json",
+        "bundledPath": "dictionaries/ja/en/metadata.json",
+        "required": true
+      }
+    ]
+  },
+  "fr": {
+    "targetLanguage": "fr",
+    "name": "French",
+    "version": "ja-fr-dictionary-jmdict-2026.06.29",
+    "assets": [
+      {
+        "id": "dictionary-fr",
+        "path": "dictionaries/ja/fr/dictionary.db",
+        "bundledPath": "dictionaries/ja/fr/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-fr",
+        "path": "dictionaries/ja/fr/metadata.json",
+        "bundledPath": "dictionaries/ja/fr/metadata.json",
+        "required": true
+      }
+    ]
+  },
+  "de": {
+    "targetLanguage": "de",
+    "name": "German",
+    "version": "ja-de-dictionary-jmdict-2026.06.29",
+    "assets": [
+      {
+        "id": "dictionary-de",
+        "path": "dictionaries/ja/de/dictionary.db",
+        "bundledPath": "dictionaries/ja/de/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-de",
+        "path": "dictionaries/ja/de/metadata.json",
+        "bundledPath": "dictionaries/ja/de/metadata.json",
+        "required": true
+      }
+    ]
+  }
+}

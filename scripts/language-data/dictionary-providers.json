@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "providers": {
+    "jitendex-yomitan": {
+      "status": "active",
+      "sourceLanguages": ["ja"],
+      "targetLanguages": ["en"],
+      "defaultPackId": "ja-en",
+      "sourceUrl": "https://jitendex.org/",
+      "license": "CC-BY-SA-4.0",
+      "notes": "Current Japanese->English source. Jitendex publishes offline Yomitan/MDict builds and states CC BY-SA 4.0 terms."
+    },
+    "jmdict": {
+      "status": "active",
+      "sourceLanguages": ["ja"],
+      "targetLanguages": ["en", "fr", "de"],
+      "sourceUrl": "https://www.edrdg.org/jmdict/j_jmdict.html",
+      "license": "CC-BY-SA-4.0",
+      "notes": "Builds the Japanese->French and Japanese->German packs. English remains served by Jitendex for richer structured content."
+    },
+    "freedict": {
+      "status": "active",
+      "sourceLanguages": ["de", "es"],
+      "targetLanguages": ["en"],
+      "sourceUrl": "https://freedict.org/",
+      "license": "per-dictionary-tei-header",
+      "notes": "Current German->English source and inverted English->Spanish source for Spanish lookup with English glosses. The shared builder reads each FreeDict TEI header and writes pack-specific license metadata."
+    },
+    "kaikki-wiktionary": {
+      "status": "active",
+      "sourceLanguages": ["cu"],
+      "targetLanguages": ["en"],
+      "defaultPackId": "cu-en",
+      "sourceUrl": "https://kaikki.org/dictionary/Old%20Church%20Slavonic/index.html",
+      "license": "CC-BY-SA-4.0",
+      "notes": "Church Slavonic and Old Church Slavonic headwords, romanizations, inflected forms, and English definitions extracted from English Wiktionary by kaikki.org."
+    },
+    "csl-elizabeth": {
+      "status": "active",
+      "sourceLanguages": ["cu"],
+      "targetLanguages": [],
+      "sourceUrl": "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=CSlElizabeth",
+      "license": "public-domain",
+      "notes": "The 1757 Elizabeth Bible corpus supplies the Church Slavonic frequency ranking."
+    },
+    "openrussian": {
+      "status": "active",
+      "sourceLanguages": ["ru"],
+      "targetLanguages": ["en", "de"],
+      "sourceUrl": "https://github.com/Badestrand/russian-dictionary",
+      "license": "CC-BY-SA-4.0",
+      "notes": "Russian headwords, stressed forms, inflections, and English/German glosses. Builds both dictionary packs plus the core stress and frequency assets from a pinned source commit."
+    },
+    "cc-cedict": {
+      "status": "active",
+      "sourceLanguages": ["zh-Hans", "zh-Hant"],
+      "targetLanguages": ["en"],
+      "sourceUrl": "https://www.mdbg.net/chinese/dictionary?page=cc-cedict",
+      "license": "CC-BY-SA-4.0",
+      "notes": "Simplified and Traditional Mandarin headwords, tone-marked pinyin, and English definitions. The reproducible builder downloads the dated Debian source mirror instead of automating the MDBG website."
+    },
+    "complete-hsk-vocabulary": {
+      "status": "active",
+      "sourceLanguages": ["zh-Hans", "zh-Hant"],
+      "targetLanguages": [],
+      "sourceUrl": "https://github.com/drkameleon/complete-hsk-vocabulary",
+      "license": "MIT",
+      "notes": "Pinned HSK 3.0 levels and frequency ranks for both Chinese script variants. This is a core frequency asset, not a dictionary pack."
+    },
+    "wadoku": {
+      "status": "candidate-needs-review",
+      "sourceLanguages": ["ja"],
+      "targetLanguages": ["de"],
+      "sourceUrl": "https://wadoku.eu/",
+      "license": "CC-BY-SA-4.0 for known app/source distributions; confirm data export terms before automation",
+      "notes": "Likely higher-quality Japanese->German source than raw JMdict German glosses, but automation should wait until the data source and redistribution path are pinned down."
+    }
+  }
+}

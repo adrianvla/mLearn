@@ -18,11 +18,16 @@
     },
     "LanguageSetup": {
       "DictionaryMessage": "The selected dictionary language is not installed yet. Open language setup to choose and install the right dictionary data.",
-      "DictionaryUpdateMessage": "所选词典数据已过期。打开语言设置以更新它。",
+      "DictionaryUpdateMessage": "所选词典数据有可用更新。请在此更新后继续。",
       "LanguageMessage": "Language data for your learning language is not installed yet. Open language setup to choose and install it.",
-      "LanguageUpdateMessage": "学习语言的数据已过期。打开语言设置以更新它。",
+      "LanguageUpdateMessage": "学习语言数据有可用更新。请在此更新后继续。",
       "OpenSetup": "Open Language Setup",
-      "Title": "Language Data Required"
+      "Title": "Language Data Required",
+      "UpdateFailed": "语言数据更新失败。请重试。",
+      "UpdateNow": "立即更新",
+      "UpdateTitle": "语言数据有可用更新",
+      "Updating": "正在更新…",
+      "UpdatingMessage": "正在下载并安装最新的语言数据。"
     },
     "RuntimeRestart": {
       "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
@@ -1454,10 +1459,35 @@
           "Label": "显示词性"
         }
       },
+      "ReadingAppearance": {
+        "MoreContrast": {
+          "Description": "读音标注使用主要文字颜色",
+          "Label": "提高读音文字的对比度"
+        },
+        "Preview": {
+          "Reading": "读音",
+          "Surface": "文字"
+        },
+        "Size": {
+          "Description": "按默认大小的百分比调整读音标注",
+          "Label": "读音文字大小"
+        }
+      },
+      "ColoredProsody": {
+        "Enabled": {"Description": "按照当前语言包为发音特征着色。有韵律数据时会覆盖词性颜色。", "Label": "韵律着色"},
+        "EaseMix": {"Description": "随着单词综合熟练度提高，让韵律颜色逐渐变淡。", "Label": "按熟练度淡化"},
+        "MixTarget": {"Description": "选择高熟练度时韵律颜色的混合目标。", "Label": "混合到", "PartOfSpeech": "词性颜色", "White": "白色"},
+        "Palette": {"Description": "自定义此语言包提供的韵律颜色。", "ResetAll": "重置韵律调色板"},
+        "Preview": "韵律着色预览",
+        "Saturation": {"Description": "调整所有韵律颜色的鲜艳程度。", "Label": "颜色饱和度"},
+        "StatusLimit": {"Description": "为不高于所选综合学习状态的单词着色。更高状态使用正常词性颜色。", "Known": "已掌握", "Label": "着色状态上限", "Learning": "学习中"}
+      },
       "Groups": {
         "Appearance": "外观",
+        "ReadingAppearance": "读音显示",
         "BlurEffect": "模糊效果",
         "CustomColors": "自定义颜色覆盖",
+        "ColoredProsody": "韵律着色",
         "Data": "数据",
         "DisplayOptions": "显示选项",
         "Language": "语言",
@@ -1518,7 +1548,8 @@
           "InstallFailed": "语言数据安装失败",
           "Update": "更新语言数据",
           "UpdateRequired": "有可用的语言数据更新",
-          "MissingRequired": "需要语言数据"
+          "MissingRequired": "需要语言数据",
+          "RequiresAppVersion": "需要 mLearn {version} 或更高版本"
         },
         "DictionaryTarget": {
           "Description": "选择词典释义使用的语言",
@@ -1526,6 +1557,14 @@
         }
       },
       "Behaviour": {
+        "FrequencyProvider": {
+          "Label": "词频表",
+          "Description": "选择用于等级、学习和 Word Sync 的词汇频率来源。"
+        },
+        "FrequencyLevelSystem": {
+          "Label": "等级体系",
+          "Description": "选择此词频表所使用的等级名称体系。"
+        },
         "LearningLanguageLevel": {
           "Label": "学习语言等级",
           "Description": "设置后，高于此等级的推荐闪卡以及无等级的卡片将不会被保存。同时影响单词同步的难度。",
