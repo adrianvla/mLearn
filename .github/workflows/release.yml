@@ -19,6 +19,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify tag matches package version
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          test "$GITHUB_REF_NAME" = "v${PACKAGE_VERSION}"
+
       - name: Generate Changelog
         run: |
           PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
@@ -90,10 +99,37 @@ jobs:
       - name: Build Extension
         run: npm run build:extension
 
+      - name: Verify macOS signing configuration
+        run: |
+          test -n "$CSC_LINK"
+          test -n "$CSC_KEY_PASSWORD"
+          test -n "$APPLE_API_KEY_BASE64"
+          test -n "$APPLE_API_KEY_ID"
+          test -n "$APPLE_API_ISSUER"
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Prepare macOS notarization key
+        run: printf '%s' "$APPLE_API_KEY_BASE64" | openssl base64 -d -A -out "$RUNNER_TEMP/AuthKey.p8"
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+
       - name: Build macOS
         run: npm run build && npx electron-builder --mac --universal --publish=never
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_IDENTITY_AUTO_DISCOVERY: true
+          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ runner.temp }}/AuthKey.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Verify macOS updater metadata
+        run: npm run verify:update-artifacts
 
       - name: Rename macOS Artifacts
         run: |
@@ -101,12 +137,12 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           for f in mLearn-*.dmg; do
             if [ -f "$f" ] && [[ "$f" != *-universal* ]]; then
-              mv "$f" "mLearn-${VERSION}-universal.dmg"
+              cp "$f" "mLearn-${VERSION}-universal.dmg"
             fi
           done
           for f in mLearn-*.zip; do
             if [ -f "$f" ] && [[ "$f" != *-universal-mac* ]]; then
-              mv "$f" "mLearn-${VERSION}-universal-mac.zip"
+              cp "$f" "mLearn-${VERSION}-universal-mac.zip"
             fi
           done
 
@@ -117,6 +153,8 @@ jobs:
           files: |
             release/*.dmg
             release/*.zip
+            release/*.blockmap
+            release/latest-mac.yml
 
   build-win:
     needs: changelog
@@ -154,10 +192,24 @@ jobs:
           cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/
           cp extension/icons/*.png extension/dist/icons/
 
+      - name: Verify Windows signing configuration
+        shell: bash
+        run: |
+          test -n "$CSC_LINK"
+          test -n "$CSC_KEY_PASSWORD"
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+
       - name: Build Windows
         run: npm run build && npx electron-builder --win --publish=never
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_IDENTITY_AUTO_DISCOVERY: true
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+
+      - name: Verify Windows updater metadata
+        run: npm run verify:update-artifacts
 
       - name: Zip Unpacked Directories
         shell: powershell
@@ -178,6 +230,8 @@ jobs:
           files: |
             release/*.exe
             release/*.zip
+            release/*.blockmap
+            release/latest.yml
 
   build-linux:
     needs: changelog
@@ -205,6 +259,9 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Verify Linux updater metadata
+        run: npm run verify:update-artifacts
+
       - name: Rename Linux Artifacts
         run: |
           cd release
@@ -212,7 +269,7 @@ jobs:
           # Rename x64 AppImage to remove arch suffix
           for f in mLearn-*-x64.AppImage; do
             if [ -f "$f" ]; then
-              mv "$f" "mLearn-${VERSION}.AppImage"
+              cp "$f" "mLearn-${VERSION}.AppImage"
             fi
           done
 
@@ -242,6 +299,8 @@ jobs:
             release/*.AppImage
             release/*.zip
             release/*.deb
+            release/*.blockmap
+            release/latest-linux*.yml
 
   update-website:
     name: Update Website
@@ -313,7 +372,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "chore: bump version to ${GITHUB_REF_NAME}"
-            git push origin main || git push origin master || true
+            git push origin HEAD
           fi
 
       - name: Link Legal Docs for Worker Build
@@ -334,3 +393,18 @@ jobs:
           VITE_API_BASE_URL: https://mlearn-cloud.kikan.net
           VITE_SUPABASE_URL: https://txacpviufzpvieiabwzg.supabase.co
           VITE_SUPABASE_ANON_KEY: sb_publishable_G0ZiKYlL96Bqxnty-_s9SA_x6WQgPqJ
+
+  publish-release:
+    name: Publish Release
+    needs: update-website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish verified release
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease
+          else
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

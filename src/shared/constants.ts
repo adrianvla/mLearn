@@ -125,6 +125,11 @@ export const IPC_CHANNELS = {
   COMPLETE_INITIAL_SETUP: 'complete-initial-setup',
   GET_VERSION: 'get-version',
   VERSION: 'version',
+  UPDATE_STATE_GET: 'update-state-get',
+  UPDATE_STATE_CHANGED: 'update-state-changed',
+  UPDATE_CHECK: 'update-check',
+  UPDATE_DOWNLOAD: 'update-download',
+  UPDATE_INSTALL: 'update-install',
   
   // Server status
   IS_LOADED: 'is-loaded',

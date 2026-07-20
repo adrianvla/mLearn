@@ -34,6 +34,7 @@ import type {
   SystemMemoryInfo,
   CloudLLMTier,
 } from '../types';
+import type { AppUpdateState } from '../appUpdate';
 import type {
   PluginBusEnvelope,
   PluginBusJSONValue,
@@ -174,6 +175,14 @@ export interface ServerBridge {
   onVersionReceive: (callback: (version: string) => void) => () => void;
   getLegalDocument: (name: string) => void;
   onLegalDocumentReceive: (callback: (content: string) => void) => () => void;
+}
+
+export interface UpdateBridge {
+  getUpdateState: () => Promise<AppUpdateState>;
+  checkForUpdates: (autoDownload?: boolean) => Promise<AppUpdateState>;
+  downloadUpdate: () => Promise<AppUpdateState>;
+  installUpdate: () => Promise<AppUpdateState>;
+  onUpdateStateChanged: (callback: (state: AppUpdateState) => void) => () => void;
 }
 
 export interface InstallerBridge {
@@ -383,6 +392,7 @@ export interface PlatformBridge {
   files: FileBridge;
   window: WindowBridge;
   server: ServerBridge;
+  updates: UpdateBridge;
   installer: InstallerBridge;
   llm: LLMBridge;
   speech: SpeechBridge;

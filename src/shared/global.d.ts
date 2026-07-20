@@ -6,6 +6,7 @@
 import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
+import type { AppUpdateState } from './appUpdate';
 
 export interface MLearnIPC {
   // Settings
@@ -94,6 +95,11 @@ export interface MLearnIPC {
   completeInitialSetup: () => void;
   getVersion: () => void;
   onVersionReceive: (callback: (version: string) => void) => () => void;
+  getUpdateState: () => Promise<AppUpdateState>;
+  checkForUpdates: (autoDownload?: boolean) => Promise<AppUpdateState>;
+  downloadUpdate: () => Promise<AppUpdateState>;
+  installUpdate: () => Promise<AppUpdateState>;
+  onUpdateStateChanged: (callback: (state: AppUpdateState) => void) => () => void;
   getLegalDocument: (name: string) => void;
   onLegalDocumentReceive: (callback: (content: string) => void) => () => void;
 

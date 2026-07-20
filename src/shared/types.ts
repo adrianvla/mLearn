@@ -140,6 +140,7 @@ export interface Settings {
   coloredProsodyEaseMixEnabled: boolean;
   coloredProsodyEaseMixTarget: ColoredProsodyMixTarget;
   coloredProsodySaturation: number;
+  automaticallyDownloadUpdates: boolean;
   theme: AppTheme;
   /** Custom CSS color overrides that apply globally regardless of theme */
   customColors?: CustomColorOverrides;
@@ -508,6 +509,7 @@ export const DEFAULT_SETTINGS: Settings = {
   coloredProsodyEaseMixEnabled: false,
   coloredProsodyEaseMixTarget: 'white',
   coloredProsodySaturation: 100,
+  automaticallyDownloadUpdates: true,
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
   customThemeCSS: DEFAULT_CUSTOM_THEME_CSS,

@@ -58,4 +58,17 @@ describe('Toast', () => {
 
     dispose();
   });
+
+  it('notifies the caller when the user dismisses a toast', async () => {
+    const onDismiss = vi.fn();
+    const dispose = render(() => <ToastContainer />, container);
+    showToast({ variant: 'info', message: 'Update available', duration: 0, onDismiss });
+    await flushPromises();
+
+    (document.body.querySelector('.toast__close') as HTMLButtonElement).click();
+    await vi.advanceTimersByTimeAsync(301);
+
+    expect(onDismiss).toHaveBeenCalledOnce();
+    dispose();
+  });
 });

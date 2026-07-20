@@ -8,6 +8,7 @@ export { ConnectionStatus, type ConnectionStatusProps, type ConnectionState } fr
 export { ProgressBar, type ProgressBarProps } from './ProgressBar';
 export { FloatingStatus, type FloatingStatusProps } from './FloatingStatus';
 export { Toast, ToastContainer, showToast, updateToast, removeToast, type ToastProps, type ToastVariant } from './Toast';
+export { AppUpdateNotifier } from './AppUpdateNotifier';
 
 // Import CSS
 import './EmptyState.css';

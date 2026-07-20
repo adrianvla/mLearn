@@ -3,7 +3,7 @@
  * Start menu showing options to watch videos, open reader, or continue recent content
  */
 
-import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
+import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
@@ -13,8 +13,6 @@ import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
-import { showToast } from '../../../components/common/Feedback/Toast';
-import { UPDATE_URL } from '../../../../shared/constants';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
@@ -23,20 +21,6 @@ import { getLogger } from '../../../../shared/utils/logger';
 import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
 
 const log = getLogger("renderer.welcome");
-
-let updateCheckPerformed = false;
-
-function isNewerVersion(latest: string, current: string): boolean {
-  const latestParts = latest.split('.').map(Number);
-  const currentParts = current.split('.').map(Number);
-  const len = Math.max(latestParts.length, currentParts.length);
-  for (let i = 0; i < len; i++) {
-    const l = latestParts[i] ?? 0;
-    const c = currentParts[i] ?? 0;
-    if (l !== c) return l > c;
-  }
-  return false;
-}
 
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
@@ -58,32 +42,6 @@ export const WelcomeRoute: Component = () => {
       log.error('Failed to load recent items:', e);
     }
 
-    if (!updateCheckPerformed) {
-      updateCheckPerformed = true;
-      const bridge = getBridge();
-      bridge.server.getVersion();
-      const cleanupVersion = bridge.server.onVersionReceive(async (currentVersion: string) => {
-        try {
-          const response = await fetch(UPDATE_URL, { signal: AbortSignal.timeout(10_000) });
-          if (!response.ok) return;
-          const data = await response.json() as { latest?: string };
-          if (data.latest && isNewerVersion(data.latest, currentVersion)) {
-            showToast({
-              variant: 'info',
-              title: 'Update Available',
-              message: t('mlearn.Notifications.UpdateAvailable', {
-                latestVersion: data.latest,
-                currentVersion,
-              }),
-              duration: 0,
-            });
-          }
-        } catch {
-          // Network unavailable — silently ignore
-        }
-      });
-      onCleanup(cleanupVersion);
-    }
   });
 
   const openVideoPlayer = () => {
