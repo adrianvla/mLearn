@@ -36,6 +36,7 @@ describe('getComprehensiveWordStatusWithSource', () => {
       source: 'KnownWordsList',
       timesSeen: 0,
       matchedWord: 'идти',
+      ease: 1.8,
     });
   });
 
@@ -52,11 +53,12 @@ describe('getComprehensiveWordStatusWithSource', () => {
       source: 'PassiveTracking',
       timesSeen: 7,
       matchedWord: 'كتب',
+      ease: 1.6,
     });
   });
 
   it('uses language-provided word forms for SRS card status', () => {
-    const reviewCard = { state: 'review' } as Flashcard;
+    const reviewCard = { state: 'review', ease: 2.6 } as Flashcard;
     const deps = makeDeps({
       getWordForms: () => ['食べる', '食べた'],
       getCardByWordSync: (word) => word === '食べる' ? reviewCard : null,
@@ -67,6 +69,7 @@ describe('getComprehensiveWordStatusWithSource', () => {
       source: 'Srs',
       timesSeen: 0,
       matchedWord: '食べる',
+      ease: 2.6,
     });
   });
 
@@ -83,6 +86,7 @@ describe('getComprehensiveWordStatusWithSource', () => {
       source: 'IgnoredWords',
       timesSeen: 0,
       matchedWord: '押し入れ',
+      ease: 1.8,
     });
   });
 
@@ -100,6 +104,7 @@ describe('getComprehensiveWordStatusWithSource', () => {
       source: 'KnownWordsList',
       timesSeen: 0,
       matchedWord: '連続',
+      ease: 1.8,
     });
   });
 });

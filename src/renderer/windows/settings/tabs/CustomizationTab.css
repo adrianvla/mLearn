@@ -196,6 +196,41 @@
   text-align: right;
 }
 
+.prosody-colors__description {
+  margin: var(--spacing-4) 0 var(--spacing-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.prosody-colors__preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.prosody-colors__saturation-control {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 48px;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: min(240px, 100%);
+}
+
+.prosody-colors__saturation-control output {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
 /* Custom color overrides */
 .custom-colors__description {
   font-size: var(--font-size-sm);

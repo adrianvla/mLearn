@@ -33,6 +33,13 @@ import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import {
+  buildColoredProsodySegments,
+  coloredProsodyAllowsStatus,
+  getColoredProsodyConfig,
+  getColoredProsodyPalette,
+  resolveColoredProsodyStyle,
+} from '../../utils/coloredProsody';
 import '../language-specific/RubyText.css';
 import './SubtitleWord.css';
 
@@ -111,12 +118,14 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return isTokenTranslatable(props.token);
   });
 
-  // Check if this word is known via the comprehensive knowledge system
-  const wordIsKnown = createMemo(() => {
+  const comprehensiveKnowledge = createMemo(() => {
     const word = lookupWord();
-    if (!word) return false;
-    return flashcardCtx.isWordKnownComprehensiveSync(word, settings.language);
+    if (!word) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
+    return flashcardCtx.getComprehensiveWordStatusWithSourceSync(word, settings.language);
   });
+
+  // Check if this word is known via the comprehensive knowledge system
+  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
 
   // Determine word class based on token type
   const getWordClass = createMemo(() => {
@@ -288,6 +297,11 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return getCachedTranslation(word, settings.language, lookupOptions);
   });
 
+  const prosodyPosition = createMemo(() => {
+    const prosody = extractProsodyData(cachedTranslation()?.data, currentLangData());
+    return getProsodyPositionFromOverride(null, prosody);
+  });
+
   // The actual word for prosody lookup
   const actualWord = () => lookupWord();
 
@@ -302,9 +316,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const prosodyOverlayHeight = createMemo((): string | undefined => {
     if (!canRenderProsodyOverlay()) return undefined;
     // Only reserve overlay height if the selected inline renderer has cached prosody data.
-    const translation = cachedTranslation();
-    const prosody = extractProsodyData(translation?.data, currentLangData());
-    if (getProsodyPositionFromOverride(null, prosody) === null) return undefined;
+    if (prosodyPosition() === null) return undefined;
     return wordUsesReadingScript() ? '5px' : '2px';
   });
 
@@ -332,9 +344,60 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     showReadingAnnotation() ? effectiveReading() : null
   ));
 
-  const renderSubtitleText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
-    if (hideProsodyForKnown() || !canRenderProsodyOverlay()) {
+  const coloredProsodyConfig = createMemo(() => getColoredProsodyConfig(currentLangData()));
+
+  const renderColoredProsodyText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
+    const config = coloredProsodyConfig();
+    const enabled = settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled;
+    const statusLimit = settings.coloredProsodyStatusLimit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit;
+    if (!config || !enabled || !coloredProsodyAllowsStatus(comprehensiveKnowledge().status, statusLimit)) {
       return <span class={options.class} style={options.style}>{text}</span>;
+    }
+
+    const displayText = typeof text === 'string'
+      ? text
+      : options.slot === 'reading'
+        ? options.displayReading
+        : options.word;
+    const segments = buildColoredProsodySegments(config, {
+      text: displayText,
+      word: options.word,
+      reading: options.reading,
+      slot: options.slot,
+      prosodyPosition: prosodyPosition(),
+    });
+    if (!segments?.some((segment) => segment.paletteKey)) {
+      return <span class={options.class} style={options.style}>{text}</span>;
+    }
+
+    const palette = getColoredProsodyPalette(settings, config);
+    return (
+      <span class={options.class} style={options.style}>
+        {segments.map((segment) => {
+          const color = segment.paletteKey ? palette[segment.paletteKey] : undefined;
+          return color ? (
+            <span
+              class="colored-prosody__segment"
+              data-prosody-value={segment.paletteKey}
+              style={resolveColoredProsodyStyle(
+                color,
+                settings,
+                comprehensiveKnowledge().ease,
+                getWordColor(),
+              )}
+            >
+              {segment.text}
+            </span>
+          ) : segment.text;
+        })}
+      </span>
+    );
+  };
+
+  const renderSubtitleText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
+    const coloredText = renderColoredProsodyText(text, options);
+    if (hideProsodyForKnown() || !canRenderProsodyOverlay()) {
+      return coloredText;
     }
     const overlayTarget = getProsodyOverlayTextTarget(actualWord(), effectiveReading() || displayWord(), options);
 
@@ -350,14 +413,20 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
         class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
         style={options.style}
       >
-        {text}
+        {coloredText}
       </ProsodyOverlay>
     );
   };
 
   const renderRubyReading = () => (
     <ruby>
-      {displayWord()}
+      {renderColoredProsodyText(displayWord(), {
+        slot: 'word',
+        word: displayWord(),
+        reading: effectiveReading() || displayWord(),
+        displayReading: displayReading(),
+        isReadingScript: wordUsesReadingScript(),
+      })}
       <rp>(</rp>
       <rt>
         {renderSubtitleText(displayReading(), {
