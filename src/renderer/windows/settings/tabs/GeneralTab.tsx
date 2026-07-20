@@ -104,7 +104,7 @@ export const GeneralTab: Component = () => {
         version: status.minimumAppVersion ?? '',
       })}`;
     })(),
-    disabled: getLanguageDataStatus(code)?.compatible === false && code !== settings.language,
+    disabled: !settings.devMode && getLanguageDataStatus(code)?.compatible === false && code !== settings.language,
   })));
   const selectedLanguageDataStatus = createMemo(() => getLanguageDataStatus(settings.language));
   const selectedLanguageInstalling = createMemo(() => isLanguageDataInstalling(settings.language));
@@ -278,7 +278,7 @@ export const GeneralTab: Component = () => {
             value={settings.language}
             onChange={async (e) => {
               const language = e.currentTarget.value;
-              if (getLanguageDataStatus(language)?.compatible === false) return;
+              if (!settings.devMode && getLanguageDataStatus(language)?.compatible === false) return;
               updateSettings({ language });
             }}
             options={learningLanguageOptions()}
@@ -291,7 +291,7 @@ export const GeneralTab: Component = () => {
               </span>
             )}
           </Show>
-          <Show when={selectedLanguageDataStatus()?.compatible !== false && selectedLanguageDataStatus() && !selectedLanguageDataStatus()?.installed}>
+          <Show when={(settings.devMode || selectedLanguageDataStatus()?.compatible !== false) && selectedLanguageDataStatus() && !selectedLanguageDataStatus()?.installed}>
             <Btn
               size="sm"
               variant="secondary"

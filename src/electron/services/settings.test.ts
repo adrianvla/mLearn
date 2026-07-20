@@ -1295,6 +1295,7 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify({
       languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+      devMode: true,
     }), 'utf-8');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -1309,6 +1310,7 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
           zz: {
             name: 'Zeta',
             version: 'zz-package-v1',
+            minimumAppVersion: '2.7.0',
             bundle: { href: './zz.tar.gz', sizeBytes: 12, sha256: 'b'.repeat(64) },
             files: [{ id: 'freq', path: 'languages/zz.freq.json', sizeBytes: 12 }],
           },
@@ -1332,6 +1334,8 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
         language: 'zz',
         name: 'Zeta',
         installed: false,
+        compatible: true,
+        minimumAppVersion: '2.7.0',
         missingRequiredAssets: ['freq'],
       }),
     ]);
