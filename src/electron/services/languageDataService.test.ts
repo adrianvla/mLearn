@@ -473,6 +473,12 @@ describe('languageDataService', () => {
       ],
     });
     expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
+
+    const developmentStatuses = mod.getLanguageDataCatalogStatus(langData, '2.6.7', true);
+    expect(developmentStatuses.find((status) => status.language === 'zz')).toMatchObject({
+      compatible: true,
+      minimumAppVersion: '2.7.0',
+    });
   });
 
   it('blocks installation when the language requires a newer app version', async () => {
@@ -492,6 +498,23 @@ describe('languageDataService', () => {
       { currentAppVersion: '2.6.7' },
     )).rejects.toThrow('Test Language requires mLearn 2.7.0 or later');
     expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
+  });
+
+  it('allows an incompatible language package when the app enables the development override', async () => {
+    const status = await mod.ensureLanguageDataInstalled(
+      'zz',
+      makeLangData({
+        languageData: {
+          minimumAppVersion: '2.7.0',
+          assets: [],
+        },
+      }),
+      undefined,
+      undefined,
+      { currentAppVersion: '2.6.7', allowIncompatibleAppVersion: true },
+    );
+
+    expect(status.installed).toBe(true);
   });
 
   it('rejects missing required assets when the package catalog has no bundle', async () => {

@@ -120,6 +120,7 @@ describe('GeneralTab', () => {
     settingsSavedCleanupMock.mockReset();
     testSettings.language = 'ja';
     testSettings.dictionaryTargetLanguages = {};
+    testSettings.devMode = false;
     mockLanguageDataCatalog = [
       { language: 'ja', name: 'Japanese', installed: true, missingRequiredAssets: [] },
       {
@@ -210,6 +211,31 @@ describe('GeneralTab', () => {
     const germanOption = Array.from(learningLanguageSelect.options).find((option) => option.value === 'de');
     expect(germanOption?.disabled).toBe(true);
     expect(germanOption?.textContent).toContain('mlearn.Settings.Language.LanguageData.RequiresAppVersion');
+    dispose();
+  });
+
+  it('allows selecting an incompatible language when the development setting is enabled', async () => {
+    testSettings.devMode = true;
+    mockLanguageDataCatalog = [
+      { language: 'ja', name: 'Japanese', installed: true, compatible: true, missingRequiredAssets: [] },
+      {
+        language: 'de',
+        name: 'German',
+        installed: false,
+        compatible: false,
+        minimumAppVersion: '3.0.0',
+        missingRequiredAssets: ['language-metadata'],
+      },
+    ];
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    const learningLanguageSelect = container.querySelectorAll('select')[1] as HTMLSelectElement;
+    const germanOption = Array.from(learningLanguageSelect.options).find((option) => option.value === 'de');
+    expect(germanOption?.disabled).toBe(false);
+    learningLanguageSelect.value = 'de';
+    learningLanguageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ language: 'de' });
     dispose();
   });
 

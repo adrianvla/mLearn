@@ -80,6 +80,7 @@
   },
   "languageData": {
     "version":"cu-package-2026.07.19",
+    "minimumAppVersion":"2.7.0",
     "sourceVersions":{"dictionary":"kaikki-2026-07-16-enwiktionary-2026-07-06","frequencyCorpus":"CSlElizabeth-e1b254cef86d0e65b1a5d1a94b8b112d0f296a2c","ponomar":"467b94ec5a9e9f942308f16c519eac92c0ed4b86"},
     "assets":[
       {"id":"frequency","path":"languages/cu.freq.json","bundledPath":"languages/cu.freq.json","required":true},

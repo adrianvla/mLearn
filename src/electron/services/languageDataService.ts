@@ -47,6 +47,7 @@ export interface LanguageDataStatus {
 export interface LanguageDataInstallOptions {
   components?: readonly LanguagePythonRequirementComponent[];
   currentAppVersion?: string;
+  allowIncompatibleAppVersion?: boolean;
 }
 
 const CORE_COMPONENT: LanguagePythonRequirementComponent = 'core';
@@ -510,7 +511,11 @@ export function getLanguageDataStatus(
   };
 }
 
-export function getLanguageDataCatalogStatus(langData: LanguageDataMap, currentAppVersion: string): LanguageDataCatalogStatus[] {
+export function getLanguageDataCatalogStatus(
+  langData: LanguageDataMap,
+  currentAppVersion: string,
+  allowIncompatibleAppVersion = false,
+): LanguageDataCatalogStatus[] {
   return Object.entries(langData)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([language, metadata]) => {
@@ -520,7 +525,9 @@ export function getLanguageDataCatalogStatus(langData: LanguageDataMap, currentA
       const totalBytes = bundle?.sizeBytes ?? assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0);
       const installedBytes = getInstalledBytes(assets);
       const minimumAppVersion = metadata.languageData?.minimumAppVersion;
-      const compatible = !minimumAppVersion || satisfiesMinimumAppVersion(currentAppVersion, minimumAppVersion);
+      const compatible = allowIncompatibleAppVersion
+        || !minimumAppVersion
+        || satisfiesMinimumAppVersion(currentAppVersion, minimumAppVersion);
       const dictionaryPacks = metadata.languageData?.dictionaryPacks
         ? Object.values(metadata.languageData.dictionaryPacks)
           .sort((left, right) => left.targetLanguage.localeCompare(right.targetLanguage))
@@ -633,7 +640,7 @@ export async function ensureLanguageDataInstalled(
   options?: LanguageDataInstallOptions,
 ): Promise<LanguageDataStatus> {
   const minimumAppVersion = langData[language]?.languageData?.minimumAppVersion;
-  if (minimumAppVersion) {
+  if (minimumAppVersion && !options?.allowIncompatibleAppVersion) {
     const currentAppVersion = options?.currentAppVersion;
     if (!currentAppVersion || !satisfiesMinimumAppVersion(currentAppVersion, minimumAppVersion)) {
       throw new Error(`${langData[language]?.name ?? language} requires mLearn ${minimumAppVersion} or later`);

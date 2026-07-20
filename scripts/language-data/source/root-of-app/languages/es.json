@@ -115,6 +115,7 @@
   },
   "languageData": {
     "version":"es-package-2026.07.19",
+    "minimumAppVersion":"2.7.0",
     "sourceVersions":{"freeDict":"eng-spa-2025.11.23-inverted","frequencyWords":"525f9b560de45753a5ea01069454e72e9aa541c6","spacyModel":"es_core_news_sm-3.8.0"},
     "assets":[
       {"id":"frequency","path":"languages/es.freq.json","bundledPath":"languages/es.freq.json","required":true},

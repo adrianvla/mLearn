@@ -755,6 +755,10 @@ function getInstallOptionsFromSettings(settings: Settings): InstallOptions {
   };
 }
 
+function allowsIncompatibleLanguageData(settings: Settings): boolean {
+  return (settings.devMode ?? DEFAULT_SETTINGS.devMode) || process.env.NODE_ENV === 'development';
+}
+
 function didLanguageRuntimeComponentSettingsChange(prevSettings: Settings, nextSettings: Settings): boolean {
   return (
     prevSettings.language !== nextSettings.language ||
@@ -824,8 +828,12 @@ export function setupSettingsIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, async (event) => {
-    const langData = await loadLanguagePackageCatalog();
-    event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, getLanguageDataCatalogStatus(langData, app.getVersion()));
+    const settings = loadSettings();
+    const langData = await loadLanguagePackageCatalog(settings);
+    event.reply(
+      IPC_CHANNELS.LANGUAGE_DATA_CATALOG,
+      getLanguageDataCatalogStatus(langData, app.getVersion(), allowsIncompatibleLanguageData(settings)),
+    );
   });
 
   ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => {
@@ -837,7 +845,12 @@ export function setupSettingsIPC(): void {
         ? getLanguageDataComponentsFromInstallOptions(effectiveInstallOptions)
         : getEnabledLanguageDataComponents(settings);
       const currentAppVersion = app.getVersion();
-      await ensureLanguageDataInstalled(language, langData, undefined, undefined, { components, currentAppVersion });
+      const allowIncompatibleAppVersion = allowsIncompatibleLanguageData(settings);
+      await ensureLanguageDataInstalled(language, langData, undefined, undefined, {
+        components,
+        currentAppVersion,
+        allowIncompatibleAppVersion,
+      });
       await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), effectiveInstallOptions, {
         onStatus: (message) => event.reply(IPC_CHANNELS.SERVER_STATUS_UPDATE, message),
       });
@@ -853,9 +866,16 @@ export function setupSettingsIPC(): void {
         );
       }
       if (resolvedDictionaryTarget) {
-        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget, { currentAppVersion });
+        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget, {
+          currentAppVersion,
+          allowIncompatibleAppVersion,
+        });
       }
-      const catalog = getLanguageDataCatalogStatus(await loadLanguagePackageCatalog(), currentAppVersion);
+      const catalog = getLanguageDataCatalogStatus(
+        await loadLanguagePackageCatalog(),
+        currentAppVersion,
+        allowIncompatibleAppVersion,
+      );
       const installedStatus = catalog.find((status) => status.language === language);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);
