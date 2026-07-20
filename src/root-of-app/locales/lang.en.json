@@ -1473,11 +1473,21 @@
           "Label": "Reading size"
         }
       },
+      "ColoredProsody": {
+        "Enabled": {"Description": "Color pronunciation features using the active language package. This overrides part-of-speech colors when prosody data is available.", "Label": "Colored prosody"},
+        "EaseMix": {"Description": "Make prosody colors fainter as the word's combined ease approaches mastered.", "Label": "Fade colors by ease"},
+        "MixTarget": {"Description": "Choose the color that high-ease prosody colors fade toward.", "Label": "Fade toward", "PartOfSpeech": "Part-of-speech color", "White": "White"},
+        "Palette": {"Description": "Customize the package-defined colors for this language.", "ResetAll": "Reset prosody palette"},
+        "Preview": "Colored prosody preview",
+        "Saturation": {"Description": "Adjust the intensity of every prosody color.", "Label": "Color saturation"},
+        "StatusLimit": {"Description": "Color words through this combined learning status. Words above it use their normal part-of-speech color.", "Known": "Known", "Label": "Color through status", "Learning": "Learning"}
+      },
       "Groups": {
         "Appearance": "Appearance",
         "ReadingAppearance": "Reading text",
         "BlurEffect": "Blur Effect",
         "CustomColors": "Custom Color Overrides",
+        "ColoredProsody": "Colored Prosody",
         "Data": "Data",
         "DisplayOptions": "Display Options",
         "Language": "Language",

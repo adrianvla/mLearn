@@ -211,7 +211,7 @@ describe('package-language-data', () => {
     assert.equal(rows.every((row) => Number.isInteger(row[2]) && row[2] >= 1 && row[2] <= 5), true);
   });
 
-  it('declares complete Russian and Chinese learning capabilities without duplicate prosody', () => {
+  it('declares complete Russian and Chinese learning capabilities with package-owned prosody', () => {
     const languagesDir = path.join(
       process.cwd(),
       'scripts/language-data/source/root-of-app/languages',
@@ -286,8 +286,19 @@ describe('package-language-data', () => {
       traditional.runtime?.python?.packagesByComponent?.core?.includes('opencc-python-reimplemented==0.1.7'),
       true,
     );
+    assert.equal(Object.prototype.hasOwnProperty.call(russian, 'prosody'), false);
+    for (const metadata of [simplified, traditional]) {
+      assert.equal(metadata.prosody?.coloring?.renderer, 'tone-marked-syllables');
+      assert.equal(metadata.prosody?.coloring?.paletteId, 'mandarin-tones');
+      assert.deepEqual(metadata.prosody?.coloring?.colors, {
+        'tone-1': '#ff00ff',
+        'tone-2': '#ffff00',
+        'tone-3': '#00b84a',
+        'tone-4': '#ff0000',
+        neutral: '#006eff',
+      });
+    }
     for (const metadata of [russian, simplified, traditional]) {
-      assert.equal(Object.prototype.hasOwnProperty.call(metadata, 'prosody'), false);
       assert.equal(Object.prototype.hasOwnProperty.call(metadata.textProcessing ?? {}, 'prosody'), false);
       assert.equal(metadata.grammar.length >= 75, true);
       assert.equal(metadata.characterStudy?.enabled, metadata !== russian);

@@ -82,6 +82,10 @@ export interface ColorCodes {
   [pos: string]: string;
 }
 
+export type ColoredProsodyStatusLimit = 'learning' | 'known';
+export type ColoredProsodyMixTarget = 'white' | 'part-of-speech';
+export type ColoredProsodyPaletteOverrides = Record<string, Record<string, string>>;
+
 /** Custom CSS color overrides that apply globally regardless of theme */
 export interface CustomColorOverrides {
   'bg-opaque'?: string;
@@ -130,6 +134,12 @@ export interface Settings {
   do_colour_known: boolean;
   do_colour_codes: boolean;
   colour_codes: ColorCodes;
+  coloredProsodyEnabled: boolean;
+  coloredProsodyPalettes: ColoredProsodyPaletteOverrides;
+  coloredProsodyStatusLimit: ColoredProsodyStatusLimit;
+  coloredProsodyEaseMixEnabled: boolean;
+  coloredProsodyEaseMixTarget: ColoredProsodyMixTarget;
+  coloredProsodySaturation: number;
   theme: AppTheme;
   /** Custom CSS color overrides that apply globally regardless of theme */
   customColors?: CustomColorOverrides;
@@ -492,6 +502,12 @@ export const DEFAULT_SETTINGS: Settings = {
   do_colour_known: true,
   do_colour_codes: true,
   colour_codes: {},
+  coloredProsodyEnabled: true,
+  coloredProsodyPalettes: {},
+  coloredProsodyStatusLimit: 'known',
+  coloredProsodyEaseMixEnabled: false,
+  coloredProsodyEaseMixTarget: 'white',
+  coloredProsodySaturation: 100,
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
   customThemeCSS: DEFAULT_CUSTOM_THEME_CSS,
@@ -975,6 +991,14 @@ export interface LanguageProsodyConfig {
   particleBoxExcludedPos?: string[];
   /** Matching mode for particleBoxExcludedPos. Defaults to "contains" for tokenizer tags like "動詞-一般". */
   particleBoxExcludedPosMatch?: 'contains' | 'exact';
+  coloring?: LanguageColoredProsodyConfig;
+}
+
+export interface LanguageColoredProsodyConfig {
+  renderer: string;
+  paletteId: string;
+  colors: Record<string, string>;
+  labels: Record<string, string>;
 }
 
 export interface LanguageCharacterStudyConfig {

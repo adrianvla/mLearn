@@ -49,6 +49,11 @@ vi.mock('../../context', () => ({
   useFlashcards: () => ({
     isWordKnownByText: () => false,
     isWordKnownComprehensiveSync: mockIsWordKnownComprehensiveSync,
+    getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => ({
+      status: mockIsWordKnownComprehensiveSync(word, language) ? 'known' : 'unknown',
+      source: 'None',
+      timesSeen: 0,
+    }),
     getComprehensiveWordStatusSync: () => 'unknown',
     trackWordHovered: vi.fn(),
     cancelWordHover: mockCancelWordHover,

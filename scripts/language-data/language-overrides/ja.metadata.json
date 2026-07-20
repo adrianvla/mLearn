@@ -105,7 +105,23 @@
         "levelOrder": "descending"
     },
     "prosody": {
-        "type": "japanese-pitch-accent"
+        "type": "japanese-pitch-accent",
+        "coloring": {
+            "renderer": "pitch-accent-category",
+            "paletteId": "japanese-pitch-categories",
+            "colors": {
+                "heiban": "#00b84a",
+                "atamadaka": "#ffa500",
+                "nakadaka": "#00aaff",
+                "odaka": "#ff0000"
+            },
+            "labels": {
+                "heiban": "Heiban",
+                "atamadaka": "Atamadaka",
+                "nakadaka": "Nakadaka",
+                "odaka": "Odaka"
+            }
+        }
     },
     "typography": {
         "subtitleFontFamily": "'Noto Sans CJK JP', 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif",

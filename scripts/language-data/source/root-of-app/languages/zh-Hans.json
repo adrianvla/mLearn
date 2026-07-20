@@ -130,6 +130,14 @@
     "sentenceTerminators":["。","！","？","!","?","…"],
     "tokenJoinSeparator":""
   },
+  "prosody": {
+    "coloring": {
+      "renderer":"tone-marked-syllables",
+      "paletteId":"mandarin-tones",
+      "colors":{"tone-1":"#ff00ff","tone-2":"#ffff00","tone-3":"#00b84a","tone-4":"#ff0000","neutral":"#006eff"},
+      "labels":{"tone-1":"Tone 1 (ā)","tone-2":"Tone 2 (á)","tone-3":"Tone 3 (ǎ)","tone-4":"Tone 4 (à)","neutral":"Neutral tone (a)"}
+    }
+  },
   "characterStudy":{"enabled":true,"scripts":["Han"],"levelOrder":"ascending","levelDisclaimer":true},
   "typography":{"subtitleFontFamily":"'Noto Sans CJK SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif","contentFontFamily":"'Noto Sans CJK SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif","textDirection":"ltr"},
   "conversation": {
@@ -160,7 +168,7 @@
     }
   },
   "languageData": {
-    "version":"zh-Hans-package-2026.07.18",
+    "version":"zh-Hans-package-2026.07.20",
     "sourceVersions":{"ccCedict":"20260403","completeHskVocabulary":"7ac65bf1a6387d35f1ade478906172a19311c7f9","spacyModel":"zh_core_web_sm-3.8.0","pypinyin":"0.55.0"},
     "assets":[
       {"id":"frequency","path":"languages/zh-Hans.freq.json","bundledPath":"languages/zh-Hans.freq.json","required":true},

@@ -1473,11 +1473,21 @@
           "Label": "读音文字大小"
         }
       },
+      "ColoredProsody": {
+        "Enabled": {"Description": "按照当前语言包为发音特征着色。有韵律数据时会覆盖词性颜色。", "Label": "韵律着色"},
+        "EaseMix": {"Description": "随着单词综合熟练度提高，让韵律颜色逐渐变淡。", "Label": "按熟练度淡化"},
+        "MixTarget": {"Description": "选择高熟练度时韵律颜色的混合目标。", "Label": "混合到", "PartOfSpeech": "词性颜色", "White": "白色"},
+        "Palette": {"Description": "自定义此语言包提供的韵律颜色。", "ResetAll": "重置韵律调色板"},
+        "Preview": "韵律着色预览",
+        "Saturation": {"Description": "调整所有韵律颜色的鲜艳程度。", "Label": "颜色饱和度"},
+        "StatusLimit": {"Description": "为不高于所选综合学习状态的单词着色。更高状态使用正常词性颜色。", "Known": "已掌握", "Label": "着色状态上限", "Learning": "学习中"}
+      },
       "Groups": {
         "Appearance": "外观",
         "ReadingAppearance": "读音显示",
         "BlurEffect": "模糊效果",
         "CustomColors": "自定义颜色覆盖",
+        "ColoredProsody": "韵律着色",
         "Data": "数据",
         "DisplayOptions": "显示选项",
         "Language": "语言",

@@ -27,6 +27,7 @@ export interface ComprehensiveWordStatusResult {
   source: WordKnowledgeSource;
   timesSeen: number;
   matchedWord?: string;
+  ease?: number;
 }
 
 interface SourceResult {
@@ -34,6 +35,7 @@ interface SourceResult {
   status: WordStatus;
   timesSeen: number;
   matchedWord?: string;
+  ease?: number;
 }
 
 interface WordFormMatch {
@@ -71,7 +73,7 @@ function getStatusFromSource(
     case 'knownWordsList': {
       for (const match of matches) {
         if (deps.knownUntracked[match.lk]) {
-          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word };
+          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word, ease: deps.knownEaseThreshold };
         }
       }
       return null;
@@ -79,7 +81,7 @@ function getStatusFromSource(
     case 'ignoredWords': {
       for (const match of matches) {
         if (deps.ignoredWords[match.lk]) {
-          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word };
+          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word, ease: deps.knownEaseThreshold };
         }
       }
       return null;
@@ -89,10 +91,10 @@ function getStatusFromSource(
         const card = deps.getCardByWordSync(match.word);
         if (card) {
           if (card.state === 'review') {
-            return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word };
+            return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word, ease: card.ease };
           }
           if (card.state === 'learning' || card.state === 'relearning') {
-            return { source: src, status: 'learning', timesSeen: 0, matchedWord: match.word };
+            return { source: src, status: 'learning', timesSeen: 0, matchedWord: match.word, ease: card.ease };
           }
         }
       }
@@ -100,7 +102,12 @@ function getStatusFromSource(
     }
     case 'anki': {
       if (deps.ankiStatus && deps.ankiStatus !== 'unknown') {
-        return { source: src, status: deps.ankiStatus, timesSeen: 0 };
+        return {
+          source: src,
+          status: deps.ankiStatus,
+          timesSeen: 0,
+          ease: deps.ankiStatus === 'known' ? deps.knownEaseThreshold : deps.learningThreshold,
+        };
       }
       return null;
     }
@@ -109,10 +116,10 @@ function getStatusFromSource(
         const knowledge = deps.wordKnowledge[match.lk];
         if (knowledge) {
           if (knowledge.ease >= deps.knownEaseThreshold) {
-            return { source: src, status: 'known', timesSeen: knowledge.timesSeen, matchedWord: match.word };
+            return { source: src, status: 'known', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
           }
           if (knowledge.ease >= deps.learningThreshold) {
-            return { source: src, status: 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word };
+            return { source: src, status: 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
           }
         }
       }
@@ -131,20 +138,28 @@ function resolveSources(
     return { status: 'unknown', source: SOURCE_NONE, timesSeen: 0 };
   }
 
+  const toResult = (result: SourceResult): ComprehensiveWordStatusResult => ({
+    status: result.status,
+    source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[result.source],
+    timesSeen: result.timesSeen,
+    matchedWord: result.matchedWord,
+    ...(result.ease === undefined ? {} : { ease: result.ease }),
+  });
+
   switch (resolutionMode) {
     case 'order': {
       const winner = available[0];
-      return { status: winner.status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winner.source], timesSeen: winner.timesSeen, matchedWord: winner.matchedWord };
+      return toResult(winner);
     }
     case 'highest': {
       const maxRank = Math.max(...available.map(a => STATUS_RANK[a.status]));
       const winners = available.filter(a => STATUS_RANK[a.status] === maxRank);
-      return { status: winners[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[winners[0].source], timesSeen: winners[0].timesSeen, matchedWord: winners[0].matchedWord };
+      return toResult(winners[0]);
     }
     case 'lowest': {
       const minRank = Math.min(...available.map(a => STATUS_RANK[a.status]));
       const losers = available.filter(a => STATUS_RANK[a.status] === minRank);
-      return { status: losers[0].status, source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[losers[0].source], timesSeen: losers[0].timesSeen, matchedWord: losers[0].matchedWord };
+      return toResult(losers[0]);
     }
   }
 }

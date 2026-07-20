@@ -11,6 +11,7 @@ let settings: Settings;
 let setSettings: SetStoreFunction<Settings>;
 let supportsReadings = true;
 let readingDisplay: 'ruby' | 'inline' | 'replace' = 'ruby';
+let supportsColoredProsody = false;
 
 const translations: Record<string, string> = {
   'mlearn.Settings.Groups.ReadingAppearance': 'Reading text',
@@ -20,6 +21,23 @@ const translations: Record<string, string> = {
   'mlearn.Settings.ReadingAppearance.Size.Description': 'Adjust reading annotations relative to their default size',
   'mlearn.Settings.ReadingAppearance.Preview.Surface': 'Example',
   'mlearn.Settings.ReadingAppearance.Preview.Reading': 'reading',
+  'mlearn.Settings.Groups.ColoredProsody': 'Colored Prosody',
+  'mlearn.Settings.ColoredProsody.Enabled.Label': 'Colored prosody',
+  'mlearn.Settings.ColoredProsody.Enabled.Description': 'Overrides POS colors',
+  'mlearn.Settings.ColoredProsody.StatusLimit.Label': 'Color through status',
+  'mlearn.Settings.ColoredProsody.StatusLimit.Description': 'Use POS above this status',
+  'mlearn.Settings.ColoredProsody.StatusLimit.Learning': 'Learning',
+  'mlearn.Settings.ColoredProsody.StatusLimit.Known': 'Known',
+  'mlearn.Settings.ColoredProsody.EaseMix.Label': 'Fade colors by ease',
+  'mlearn.Settings.ColoredProsody.EaseMix.Description': 'Fade known words',
+  'mlearn.Settings.ColoredProsody.MixTarget.Label': 'Fade toward',
+  'mlearn.Settings.ColoredProsody.MixTarget.Description': 'Mix target',
+  'mlearn.Settings.ColoredProsody.MixTarget.White': 'White',
+  'mlearn.Settings.ColoredProsody.MixTarget.PartOfSpeech': 'Part-of-speech color',
+  'mlearn.Settings.ColoredProsody.Saturation.Label': 'Color saturation',
+  'mlearn.Settings.ColoredProsody.Saturation.Description': 'Color intensity',
+  'mlearn.Settings.ColoredProsody.Palette.Description': 'Customize palette',
+  'mlearn.Settings.ColoredProsody.Preview': 'Colored prosody preview',
 };
 
 vi.mock('../../../context', () => ({
@@ -36,6 +54,14 @@ vi.mock('../../../context', () => ({
   useLanguage: () => ({
     currentLangData: () => ({
       name: 'Test Language',
+      prosody: supportsColoredProsody ? {
+        coloring: {
+          renderer: 'tone-marked-syllables',
+          paletteId: 'test-tones',
+          colors: { 'tone-1': '#ff00ff', neutral: '#006eff' },
+          labels: { 'tone-1': 'Tone 1', neutral: 'Neutral' },
+        },
+      } : undefined,
       textProcessing: {
         readingAnnotation: {
           type: 'script-reading',
@@ -93,6 +119,7 @@ describe('CustomizationTab reading appearance', () => {
     [settings, setSettings] = createStore({ ...DEFAULT_SETTINGS, language: 'ja' });
     supportsReadings = true;
     readingDisplay = 'ruby';
+    supportsColoredProsody = false;
     updateSettingsMock.mockReset();
   });
 
@@ -151,6 +178,46 @@ describe('CustomizationTab reading appearance', () => {
 
     expect(container.textContent).not.toContain('More contrast in reading text');
     expect(container.querySelector('.reading-appearance-preview')).toBeNull();
+
+    dispose();
+  });
+
+  it('shows package-driven palette and updates colored prosody controls', async () => {
+    supportsReadings = false;
+    supportsColoredProsody = true;
+
+    const { CustomizationTab } = await import('./CustomizationTab');
+    const dispose = render(() => <CustomizationTab />, container);
+
+    expect(container.textContent).toContain('Colored Prosody');
+    expect(container.textContent).toContain('Tone 1');
+    expect(container.textContent).toContain('Neutral');
+    expect(container.querySelectorAll('.pos-colors__card')).toHaveLength(2);
+
+    const colorInput = container.querySelector<HTMLInputElement>('.pos-colors__color-input');
+    expect(colorInput).not.toBeNull();
+    colorInput!.value = '#123456';
+    colorInput!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({
+      coloredProsodyPalettes: { 'test-tones': { 'tone-1': '#123456' } },
+    });
+
+    const statusSelect = Array.from(container.querySelectorAll('select'))
+      .find((select) => select.parentElement?.textContent?.includes('Color through status'))!;
+    statusSelect.value = 'learning';
+    statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyStatusLimit: 'learning' });
+
+    const easeToggle = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.parentElement?.textContent?.includes('Fade colors by ease'))!;
+    easeToggle.click();
+    expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyEaseMixEnabled: true });
+    expect(container.textContent).toContain('Part-of-speech color');
+
+    const saturation = container.querySelector<HTMLInputElement>('.prosody-colors__saturation-control input');
+    saturation!.value = '70';
+    saturation!.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodySaturation: 70 });
 
     dispose();
   });
