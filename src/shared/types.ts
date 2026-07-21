@@ -643,7 +643,7 @@ export const DEFAULT_SETTINGS: Settings = {
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: '',
-  builtinModel: 'Qwen3.5-9B-Q4_K_M.gguf',
+  builtinModel: 'gemma-4-12b-it-qat-q4_0.gguf',
   builtinModelAutoselected: false,
   speechEnabled: false,
   autoSpeak: false,
@@ -1972,17 +1972,15 @@ export type CloudLLMTier = 'fast' | 'cheap';
 
 /** Configuration for a built-in GGUF model */
 export interface BuiltinModelConfig {
-  /** Unique identifier e.g. 'qwen3.5-4b' */
   id: string;
-  /** Display name e.g. 'Qwen 3.5 4B' */
+  tier: 'Lite' | 'Fast' | 'Recommended' | 'Best';
   displayName: string;
-  /** GGUF filename e.g. 'Qwen3.5-4B-Q4_K_M.gguf' */
+  quantization: string;
   modelFile: string;
-  /** HuggingFace repo path e.g. 'unsloth/Qwen3.5-4B-GGUF' */
   modelRepo: string;
-  /** Runtime memory requirement in GB */
-  requiredMemoryGb: number;
-  /** Approximate download size in GB */
+  estimatedMemoryGbMin: number;
+  estimatedMemoryGbMax: number;
+  targetMemoryGb: number;
   fileSizeGb: number;
 }
 

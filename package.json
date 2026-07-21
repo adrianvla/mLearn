@@ -116,7 +116,7 @@
     "json-canonicalize": "^2.0.0",
     "jsqr": "^1.4.0",
     "marked": "^17.0.2",
-    "node-llama-cpp": "^3.18.1",
+    "node-llama-cpp": "^3.19.0",
     "qrcode": "^1.5.4",
     "solid-js": "^1.9.4",
     "tar": "^7.5.19",

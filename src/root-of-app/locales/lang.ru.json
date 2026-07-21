@@ -44,10 +44,17 @@
       "OllamaNotReachable": "Не удаётся подключиться к серверу Ollama. Убедитесь, что Ollama запущен и URL верный.",
       "Settings": {
         "BuiltinModel": {
+          "Details": "{quantization} · загрузка ~{downloadSize} ГБ · ~{runningFootprint} ГБ при работе · системная память от {targetMemory} ГБ",
           "DiskSpace": "Требуется дискового пространства: ~{size}",
           "ModelName": "Модель",
           "Redownload": "Скачать заново",
           "Status": "Состояние",
+          "Tiers": {
+            "Best": "Лучшая",
+            "Fast": "Быстрая",
+            "Lite": "Лёгкая",
+            "Recommended": "Рекомендуемая"
+          },
           "Title": "Встроенная модель"
         },
         "CloudConfig": {

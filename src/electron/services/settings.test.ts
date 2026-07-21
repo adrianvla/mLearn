@@ -231,6 +231,19 @@ describe('loadSettings migration', () => {
     expect(settings.cloudLoginUrl).toBe('https://example.com');
   });
 
+  it('replaces a legacy Qwen built-in model and reruns hardware autoselection', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      builtinModel: 'Qwen3.5-4B-Q4_K_M.gguf',
+      builtinModelAutoselected: true,
+    }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.builtinModel).toBe(DEFAULT_SETTINGS.builtinModel);
+    expect(settings.builtinModelAutoselected).toBe(false);
+  });
+
   it('recovers the selected language from a single installed language on update', () => {
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');

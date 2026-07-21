@@ -13,7 +13,14 @@ import { getBridge } from '../../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../../shared/backends';
 import { BUILTIN_MODELS, autoselectBuiltinModel, getModelUrl } from '../../../../shared/builtinModels';
-import { DEFAULT_SETTINGS, type LLMProvider, type LLMModelStatus, type OCRProvider, type SystemMemoryInfo } from '../../../../shared/types';
+import {
+  DEFAULT_SETTINGS,
+  type BuiltinModelConfig,
+  type LLMProvider,
+  type LLMModelStatus,
+  type OCRProvider,
+  type SystemMemoryInfo,
+} from '../../../../shared/types';
 import { ensureCloudAccessToken, handleCloudSessionError } from '../../../services/cloudSessionManager';
 import '../SettingsForm.css';
 import './AITab.css';
@@ -287,6 +294,14 @@ export const AITab: Component = () => {
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   }
 
+  function formatRunningMemory(minGb: number, maxGb: number): string {
+    return minGb === maxGb ? `${minGb}` : `${minGb}–${maxGb}`;
+  }
+
+  function modelTierLabel(tier: BuiltinModelConfig['tier']): string {
+    return t(`mlearn.AI.Settings.BuiltinModel.Tiers.${tier}`);
+  }
+
   return (
     <TabContent
       header={{
@@ -334,7 +349,10 @@ export const AITab: Component = () => {
                   getBridge().llm.llmUnloadModel();
                   void checkModelStatus(modelFile);
                 }}
-                options={BUILTIN_MODELS.map((m) => ({ value: m.modelFile, label: m.displayName }))}
+                options={BUILTIN_MODELS.map((m) => ({
+                  value: m.modelFile,
+                  label: `${modelTierLabel(m.tier)} — ${m.displayName}`,
+                }))}
               />
               <Show when={getBridge().llm.llmGetSystemMemory}>
                 <Btn
@@ -351,7 +369,14 @@ export const AITab: Component = () => {
               {(() => {
                 const model = BUILTIN_MODELS.find((m) => m.modelFile === settings.builtinModel);
                 return model ? (
-                  <HintText>~{model.fileSizeGb} GB download · Requires ~{model.requiredMemoryGb} GB RAM</HintText>
+                  <HintText>
+                    {t('mlearn.AI.Settings.BuiltinModel.Details', {
+                      quantization: model.quantization,
+                      downloadSize: model.fileSizeGb,
+                      runningFootprint: formatRunningMemory(model.estimatedMemoryGbMin, model.estimatedMemoryGbMax),
+                      targetMemory: model.targetMemoryGb,
+                    })}
+                  </HintText>
                 ) : null;
               })()}
             </Show>

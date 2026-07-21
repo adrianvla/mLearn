@@ -44,10 +44,17 @@
       "OllamaNotReachable": "Ollamaサーバーに接続できません。Ollamaが実行中でURLが正しいか確認してください。",
       "Settings": {
         "BuiltinModel": {
+          "Details": "{quantization}・ダウンロード約{downloadSize} GB・実行時約{runningFootprint} GB・システムメモリ{targetMemory} GB以上",
           "DiskSpace": "必要なディスク容量: 約{size}",
           "ModelName": "モデル",
           "Redownload": "再ダウンロード",
           "Status": "状態",
+          "Tiers": {
+            "Best": "最高",
+            "Fast": "高速",
+            "Lite": "ライト",
+            "Recommended": "推奨"
+          },
           "Title": "内蔵モデル"
         },
         "CloudConfig": {

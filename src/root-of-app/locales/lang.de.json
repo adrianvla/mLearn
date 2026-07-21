@@ -44,10 +44,17 @@
       "OllamaNotReachable": "Ollama-Server nicht erreichbar. Stellen Sie sicher, dass Ollama läuft und die URL korrekt ist.",
       "Settings": {
         "BuiltinModel": {
+          "Details": "{quantization} · ~{downloadSize} GB Download · ~{runningFootprint} GB Laufzeitspeicher · {targetMemory} GB+ Systemspeicher",
           "DiskSpace": "Benötigter Speicherplatz: ~{size}",
           "ModelName": "Modell",
           "Redownload": "Erneut herunterladen",
           "Status": "Status",
+          "Tiers": {
+            "Best": "Beste",
+            "Fast": "Schnell",
+            "Lite": "Leicht",
+            "Recommended": "Empfohlen"
+          },
           "Title": "Integriertes Modell"
         },
         "CloudConfig": {
