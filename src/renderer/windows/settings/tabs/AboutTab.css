@@ -33,6 +33,79 @@
   margin: 0 auto 1.5rem;
 }
 
+.about-updates {
+  width: min(100%, 460px);
+  margin: 0 auto 1.5rem;
+  padding: var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  text-align: left;
+}
+
+.about-updates__heading,
+.about-updates__preference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.about-updates h3,
+.about-updates p {
+  margin: 0;
+}
+
+.about-updates h3 {
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+}
+
+.about-updates p,
+.about-updates small {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.about-updates__progress {
+  margin-top: var(--spacing-3);
+}
+
+.about-updates__notes {
+  margin-top: var(--spacing-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.about-updates__notes summary {
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.about-updates__notes p {
+  margin-top: var(--spacing-2);
+  white-space: pre-wrap;
+}
+
+.about-updates__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+}
+
+.about-updates__preference {
+  margin-top: var(--spacing-4);
+  padding-top: var(--spacing-4);
+  border-top: 1px solid var(--border-color);
+}
+
+.about-updates__preference label,
+.about-updates__preference span,
+.about-updates__preference small {
+  display: block;
+}
+
 .about-links {
   display: flex;
   gap: 1rem;

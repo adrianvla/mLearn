@@ -44,10 +44,17 @@
       "OllamaNotReachable": "无法连接 Ollama 服务器。请检查 Ollama 是否正在运行且 URL 正确。",
       "Settings": {
         "BuiltinModel": {
+          "Details": "{quantization} · 下载约 {downloadSize} GB · 运行时约 {runningFootprint} GB · 系统内存 {targetMemory} GB 以上",
           "DiskSpace": "所需磁盘空间：约{size}",
           "ModelName": "模型",
           "Redownload": "重新下载",
           "Status": "状态",
+          "Tiers": {
+            "Best": "最佳",
+            "Fast": "快速",
+            "Lite": "轻量",
+            "Recommended": "推荐"
+          },
           "Title": "内置模型"
         },
         "CloudConfig": {
@@ -213,6 +220,32 @@
     },
     "About": {
       "Description": "mLearn 是一款通过沉浸式学习帮助您学习语言的工具。观看视频、阅读漫画，通过智能字幕和间隔重复自然地学习词汇。",
+      "Updates": {
+        "Title": "更新",
+        "Idle": "可以检查更新。",
+        "Checking": "正在检查更新…",
+        "UpToDate": "mLearn 已是最新版本。",
+        "Available": "版本 {version} 可用。",
+        "Downloading": "正在下载版本 {version}…",
+        "Ready": "版本 {version} 已准备好安装。",
+        "Installing": "正在重启 mLearn 以安装版本 {version}…",
+        "Error": "mLearn 无法更新。请检查网络连接后重试。",
+        "CheckError": "mLearn 无法检查更新。请检查网络连接后重试。",
+        "DownloadError": "mLearn 无法下载更新。请检查网络连接后重试。",
+        "InstallError": "mLearn 无法启动更新。请再次尝试重启，或打开下载页面。",
+        "UpdateFailedTitle": "更新失败",
+        "Development": "自动更新可用于已安装的桌面版本。",
+        "ManualDownload": "此安装版本无法自行更新。请从网站下载最新版本。",
+        "Check": "检查更新",
+        "Download": "下载更新",
+        "Restart": "重启并更新",
+        "DownloadPage": "打开下载页面",
+        "AutomaticDownloads": "自动下载更新",
+        "AutomaticDownloadsDescription": "在后台下载经过验证的更新，并在 mLearn 重启时安装。",
+        "WhatsNew": "更新内容",
+        "AvailableTitle": "有可用更新",
+        "ReadyTitle": "更新已准备就绪"
+      },
       "KeyboardShortcuts": {
         "F": "切换全屏",
         "LeftRight": "快退/快进 5 秒",

@@ -210,6 +210,7 @@ export {
   type ProgressBarProps,
   FloatingStatus,
   type FloatingStatusProps,
+  AppUpdateNotifier,
 } from './Feedback';
 
 // Task Progress Components

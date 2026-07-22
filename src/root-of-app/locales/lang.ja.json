@@ -44,10 +44,17 @@
       "OllamaNotReachable": "Ollamaサーバーに接続できません。Ollamaが実行中でURLが正しいか確認してください。",
       "Settings": {
         "BuiltinModel": {
+          "Details": "{quantization}・ダウンロード約{downloadSize} GB・実行時約{runningFootprint} GB・システムメモリ{targetMemory} GB以上",
           "DiskSpace": "必要なディスク容量: 約{size}",
           "ModelName": "モデル",
           "Redownload": "再ダウンロード",
           "Status": "状態",
+          "Tiers": {
+            "Best": "最高",
+            "Fast": "高速",
+            "Lite": "ライト",
+            "Recommended": "推奨"
+          },
           "Title": "内蔵モデル"
         },
         "CloudConfig": {
@@ -213,6 +220,32 @@
     },
     "About": {
       "Description": "mLearnは没入型学習で言語を学ぶツールです。動画を見たり、漫画を読んだり、インテリジェントな字幕と間隔反復で自然に語彙を学べます。",
+      "Updates": {
+        "Title": "アップデート",
+        "Idle": "アップデートを確認できます。",
+        "Checking": "アップデートを確認しています…",
+        "UpToDate": "mLearnは最新です。",
+        "Available": "バージョン{version}を利用できます。",
+        "Downloading": "バージョン{version}をダウンロードしています…",
+        "Ready": "バージョン{version}をインストールできます。",
+        "Installing": "バージョン{version}をインストールするためmLearnを再起動しています…",
+        "Error": "mLearnをアップデートできませんでした。接続を確認して、もう一度お試しください。",
+        "CheckError": "アップデートを確認できませんでした。接続を確認して、もう一度お試しください。",
+        "DownloadError": "アップデートをダウンロードできませんでした。接続を確認して、もう一度お試しください。",
+        "InstallError": "アップデートを開始できませんでした。もう一度再起動するか、ダウンロードページを開いてください。",
+        "UpdateFailedTitle": "アップデートに失敗しました",
+        "Development": "自動アップデートは、インストール済みのデスクトップ版で利用できます。",
+        "ManualDownload": "このインストールは自動更新に対応していません。ウェブサイトから最新版をダウンロードしてください。",
+        "Check": "アップデートを確認",
+        "Download": "アップデートをダウンロード",
+        "Restart": "再起動してアップデート",
+        "DownloadPage": "ダウンロードページを開く",
+        "AutomaticDownloads": "アップデートを自動的にダウンロード",
+        "AutomaticDownloadsDescription": "検証済みのアップデートをバックグラウンドでダウンロードし、mLearnの再起動時にインストールします。",
+        "WhatsNew": "新機能",
+        "AvailableTitle": "アップデートがあります",
+        "ReadyTitle": "アップデートの準備ができました"
+      },
       "KeyboardShortcuts": {
         "F": "全画面切り替え",
         "LeftRight": "5秒シーク",

@@ -170,4 +170,31 @@ describe('preload plugin bus bridge', () => {
     expect(exposeInMainWorldMock).toHaveBeenCalledTimes(1)
     expect(exposeInMainWorldMock).toHaveBeenCalledWith('mLearnIPC', expect.any(Object))
   })
+
+  it('exposes typed updater commands and removable state listeners', async () => {
+    await import('./preload')
+
+    const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
+      getUpdateState?: () => Promise<unknown>
+      checkForUpdates?: (autoDownload?: boolean) => Promise<unknown>
+      downloadUpdate?: () => Promise<unknown>
+      installUpdate?: () => Promise<unknown>
+      onUpdateStateChanged?: (callback: (state: unknown) => void) => () => void
+    }
+
+    exposedApi.getUpdateState?.()
+    exposedApi.checkForUpdates?.(false)
+    exposedApi.downloadUpdate?.()
+    exposedApi.installUpdate?.()
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'update-state-get')
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'update-check', false)
+    expect(invokeMock).toHaveBeenNthCalledWith(3, 'update-download')
+    expect(invokeMock).toHaveBeenNthCalledWith(4, 'update-install')
+
+    const cleanup = exposedApi.onUpdateStateChanged?.(vi.fn())
+    expect(onMock).toHaveBeenCalledWith('update-state-changed', expect.any(Function))
+    cleanup?.()
+    expect(removeListenerMock).toHaveBeenCalledWith('update-state-changed', expect.any(Function))
+  })
 })

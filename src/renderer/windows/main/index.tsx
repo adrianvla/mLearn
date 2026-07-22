@@ -12,6 +12,7 @@ import { WelcomeRoute } from './routes/WelcomeRoute';
 import { VideoRoute } from './routes/VideoRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
 import { shouldMountMainRoutes } from './mainRouteReadiness';
+import { AppUpdateNotifier } from '../../components/common/Feedback/AppUpdateNotifier';
 
 // Import global styles
 import '../../styles/index.css';
@@ -46,6 +47,7 @@ const MainRoutes = () => {
 
 const App = () => (
   <WindowWrapper showDragRegion={false} showActiveGroupSwitch>
+    <AppUpdateNotifier />
     <LoadingOverlay />
     <MainRoutes />
   </WindowWrapper>

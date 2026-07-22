@@ -1,0 +1,7 @@
+.app-update-toast__body p {
+  margin: 0 0 var(--spacing-2);
+}
+
+.app-update-toast__progress {
+  margin-top: var(--spacing-2);
+}

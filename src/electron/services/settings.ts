@@ -14,6 +14,7 @@ import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus, resolveDicti
 import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
 import { getLogger } from '../../shared/utils/logger';
 import { compareSemanticVersions } from '../../shared/semanticVersion';
+import { isLegacyBuiltinModelFile } from '../../shared/builtinModels';
 
 const log = getLogger('electron.settings');
 const LANGUAGE_CATALOG_FETCH_TIMEOUT_MS = 5000;
@@ -156,6 +157,10 @@ export function loadSettings(): Settings {
       if (migrated.overrideCloudEndpointUrl && migrated.backendUrl && !migrated.cloudApiUrl) {
         migrated.cloudApiUrl = migrated.backendUrl;
         migrated.cloudLoginUrl = migrated.backendUrl;
+      }
+      if (isLegacyBuiltinModelFile(migrated.builtinModel)) {
+        migrated.builtinModel = DEFAULT_SETTINGS.builtinModel;
+        migrated.builtinModelAutoselected = false;
       }
       if (!migrated.language) {
         const installedLanguage = inferSingleInstalledLanguage();

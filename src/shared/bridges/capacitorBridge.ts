@@ -15,6 +15,7 @@ import type {
   FileBridge,
   WindowBridge,
   ServerBridge,
+  UpdateBridge,
   InstallerBridge,
   LLMBridge,
   SpeechBridge,
@@ -45,6 +46,7 @@ import type {
   VoiceModelStatus,
   VoiceSample,
 } from '../types';
+import type { AppUpdateState } from '../appUpdate';
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
@@ -1129,6 +1131,31 @@ const serverBridge: ServerBridge = {
   },
 };
 
+async function getUnsupportedAppUpdateState(): Promise<AppUpdateState> {
+  let currentVersion = '0.0.0';
+  try {
+    const { App } = await import('@capacitor/app');
+    currentVersion = (await App.getInfo()).version;
+  } catch {
+    currentVersion = '0.0.0';
+  }
+  return {
+    status: 'idle',
+    currentVersion,
+    canAutoUpdate: false,
+    supportReason: 'unsupported-platform',
+    updatedAt: Date.now(),
+  };
+}
+
+const updateBridge: UpdateBridge = {
+  getUpdateState: getUnsupportedAppUpdateState,
+  checkForUpdates: getUnsupportedAppUpdateState,
+  downloadUpdate: getUnsupportedAppUpdateState,
+  installUpdate: getUnsupportedAppUpdateState,
+  onUpdateStateChanged: noopCleanup,
+};
+
 // ============================================================================
 // Installer Bridge (no-ops on mobile — no Python install)
 // ============================================================================
@@ -1771,6 +1798,7 @@ export function createCapacitorBridge(): PlatformBridge {
     files: fileBridge,
     window: windowBridge,
     server: serverBridge,
+    updates: updateBridge,
     installer: installerBridge,
     llm: llmBridge,
     speech: speechBridge,

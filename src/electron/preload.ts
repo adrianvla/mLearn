@@ -8,6 +8,7 @@ import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
+import type { AppUpdateState } from '../shared/appUpdate';
 import { getLogger } from '../shared/utils/logger';
 
 const log = getLogger('electron.preload');
@@ -193,6 +194,13 @@ const mLearnIPC = {
   getVersion: () => ipcRenderer.send(IPC_CHANNELS.GET_VERSION),
   onVersionReceive: (callback: (version: string) => void) =>
     ipcOn(IPC_CHANNELS.VERSION, (_event, version) => callback(version)),
+  getUpdateState: (): Promise<AppUpdateState> => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_STATE_GET),
+  checkForUpdates: (autoDownload?: boolean): Promise<AppUpdateState> =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATE_CHECK, autoDownload),
+  downloadUpdate: (): Promise<AppUpdateState> => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DOWNLOAD),
+  installUpdate: (): Promise<AppUpdateState> => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_INSTALL),
+  onUpdateStateChanged: (callback: (state: AppUpdateState) => void) =>
+    ipcOn(IPC_CHANNELS.UPDATE_STATE_CHANGED, (_event, state) => callback(state)),
   getLegalDocument: (name: string) => ipcRenderer.send(IPC_CHANNELS.GET_LEGAL_DOCUMENT, name),
   onLegalDocumentReceive: (callback: (content: string) => void) =>
     ipcOn(IPC_CHANNELS.LEGAL_DOCUMENT, (_event, content) => callback(content)),

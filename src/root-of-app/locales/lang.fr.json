@@ -44,10 +44,17 @@
       "OllamaNotReachable": "Impossible de joindre le serveur Ollama. Vérifiez qu'Ollama est lancé et que l'URL est correcte.",
       "Settings": {
         "BuiltinModel": {
+          "Details": "{quantization} · téléchargement d’environ {downloadSize} Go · empreinte d’exécution d’environ {runningFootprint} Go · {targetMemory} Go+ de mémoire système",
           "DiskSpace": "Espace disque requis : ~{size}",
           "ModelName": "Modèle",
           "Redownload": "Retélécharger",
           "Status": "Statut",
+          "Tiers": {
+            "Best": "Meilleur",
+            "Fast": "Rapide",
+            "Lite": "Léger",
+            "Recommended": "Recommandé"
+          },
           "Title": "Modèle intégré"
         },
         "CloudConfig": {
@@ -213,6 +220,32 @@
     },
     "About": {
       "Description": "mLearn est un outil pour apprendre les langues par immersion. Regardez des vidéos, lisez des mangas et apprenez le vocabulaire naturellement grâce aux sous-titres intelligents et à la répétition espacée.",
+      "Updates": {
+        "Title": "Mises à jour",
+        "Idle": "Prêt à rechercher des mises à jour.",
+        "Checking": "Recherche de mises à jour…",
+        "UpToDate": "mLearn est à jour.",
+        "Available": "La version {version} est disponible.",
+        "Downloading": "Téléchargement de la version {version}…",
+        "Ready": "La version {version} est prête à être installée.",
+        "Installing": "Redémarrage de mLearn pour installer la version {version}…",
+        "Error": "Impossible de mettre mLearn à jour. Vérifiez votre connexion et réessayez.",
+        "CheckError": "Impossible de rechercher les mises à jour. Vérifiez votre connexion et réessayez.",
+        "DownloadError": "Impossible de télécharger la mise à jour. Vérifiez votre connexion et réessayez.",
+        "InstallError": "Impossible de lancer la mise à jour. Essayez de redémarrer à nouveau ou ouvrez la page de téléchargement.",
+        "UpdateFailedTitle": "Échec de la mise à jour",
+        "Development": "Les mises à jour automatiques sont disponibles dans les versions de bureau installées.",
+        "ManualDownload": "Cette installation ne peut pas se mettre à jour seule. Téléchargez la dernière version depuis le site web.",
+        "Check": "Rechercher des mises à jour",
+        "Download": "Télécharger la mise à jour",
+        "Restart": "Redémarrer et mettre à jour",
+        "DownloadPage": "Ouvrir la page de téléchargement",
+        "AutomaticDownloads": "Télécharger automatiquement les mises à jour",
+        "AutomaticDownloadsDescription": "Télécharger les mises à jour vérifiées en arrière-plan et les installer au redémarrage de mLearn.",
+        "WhatsNew": "Nouveautés",
+        "AvailableTitle": "Mise à jour disponible",
+        "ReadyTitle": "Prêt pour la mise à jour"
+      },
       "KeyboardShortcuts": {
         "F": "Plein écran",
         "LeftRight": "Avancer/reculer de 5 secondes",

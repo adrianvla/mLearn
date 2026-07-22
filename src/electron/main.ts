@@ -34,6 +34,7 @@ import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
 import { setupPluginIPC } from './services/pluginIPC';
 import { setupDiagnosticsIPC } from './services/diagnostics';
+import { createAppUpdaterService, setupAppUpdaterIpc, type AppUpdaterService } from './services/appUpdater';
 import { createTray, destroyTray } from './services/trayManager';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
@@ -41,6 +42,7 @@ import { getLogger } from '../shared/utils/logger';
 
 const log = getLogger('electron.main');
 let appWindowCreationPromise: Promise<void> | null = null;
+let appUpdaterService: AppUpdaterService | null = null;
 
 interface AuthDeepLinkPayload {
   code: string | null;
@@ -310,6 +312,8 @@ function setupAllIPC(): void {
   setupPluginIPC();
   setupDiagnosticsIPC();
   setupKillHandlers();
+  appUpdaterService = createAppUpdaterService();
+  setupAppUpdaterIpc(appUpdaterService);
 }
 
 // Create windows and start services
@@ -383,6 +387,10 @@ async function initialize(): Promise<void> {
       app.setAsDefaultProtocolClient('mlearn');
     }
   }
+
+  void appUpdaterService?.initialize({ autoCheck: app.isPackaged }).catch((error) => {
+    log.error('Automatic update initialization failed', error);
+  });
 }
 
 // App lifecycle
@@ -424,6 +432,7 @@ app.on('before-quit', () => {
 
 app.on('quit', () => {
   log.info('App quit: cleanup');
+  appUpdaterService?.dispose();
   stopWebServer();
   terminatePythonBackend();
 });

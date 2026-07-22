@@ -16,6 +16,7 @@ import type {
   FileBridge,
   WindowBridge,
   ServerBridge,
+  UpdateBridge,
   InstallerBridge,
   LLMBridge,
   SpeechBridge,
@@ -164,6 +165,14 @@ const serverBridge: ServerBridge = {
   onVersionReceive: (cb) => getIPC().onVersionReceive(cb),
   getLegalDocument: (name) => getIPC().getLegalDocument(name),
   onLegalDocumentReceive: (cb) => getIPC().onLegalDocumentReceive(cb),
+};
+
+const updateBridge: UpdateBridge = {
+  getUpdateState: () => getIPC().getUpdateState(),
+  checkForUpdates: (autoDownload) => getIPC().checkForUpdates(autoDownload),
+  downloadUpdate: () => getIPC().downloadUpdate(),
+  installUpdate: () => getIPC().installUpdate(),
+  onUpdateStateChanged: (cb) => getIPC().onUpdateStateChanged(cb),
 };
 
 const installerBridge: InstallerBridge = {
@@ -350,6 +359,7 @@ export function createElectronBridge(): PlatformBridge {
     files: fileBridge,
     window: windowBridge,
     server: serverBridge,
+    updates: updateBridge,
     installer: installerBridge,
     llm: llmBridge,
     speech: speechBridge,

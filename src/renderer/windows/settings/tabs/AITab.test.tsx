@@ -16,6 +16,9 @@ const translations: Record<string, string> = {
   'mlearn.AI.Settings.BuiltinModel.ModelName': 'Model',
   'mlearn.AI.Settings.BuiltinModel.Status': 'Status',
   'mlearn.AI.Settings.BuiltinModel.Redownload': 'Redownload',
+  'mlearn.AI.Settings.BuiltinModel.Details': '{quantization} · ~{downloadSize} GB download · ~{runningFootprint} GB running · {targetMemory} GB+ system memory',
+  'mlearn.AI.Settings.BuiltinModel.Tiers.Lite': 'Lite',
+  'mlearn.AI.Settings.BuiltinModel.Tiers.Recommended': 'Recommended',
   'mlearn.AI.ModelReady': 'Model ready',
   'mlearn.AI.ModelNotDownloaded': 'Model not downloaded',
   'mlearn.AI.DownloadModel': 'Download model',
@@ -61,15 +64,23 @@ const translations: Record<string, string> = {
 const builtinModels = [
   {
     modelFile: 'small.gguf',
+    tier: 'Lite',
     displayName: 'Small Model',
+    quantization: 'Official QAT Q4_0',
     fileSizeGb: 1,
-    requiredMemoryGb: 4,
+    estimatedMemoryGbMin: 3,
+    estimatedMemoryGbMax: 4,
+    targetMemoryGb: 8,
   },
   {
     modelFile: 'large.gguf',
+    tier: 'Recommended',
     displayName: 'Large Model',
+    quantization: 'Official QAT Q4_0',
     fileSizeGb: 4,
-    requiredMemoryGb: 8,
+    estimatedMemoryGbMin: 6,
+    estimatedMemoryGbMax: 8,
+    targetMemoryGb: 16,
   },
 ];
 
@@ -117,7 +128,13 @@ vi.mock('../../../context', () => ({
     updateSettings: mockUpdateSettings,
   }),
   useLocalization: () => ({
-    t: (key: string) => translations[key] ?? key,
+    t: (key: string, params?: Record<string, string | number>) => {
+      let value = translations[key] ?? key;
+      for (const [param, replacement] of Object.entries(params ?? {})) {
+        value = value.replaceAll(`{${param}}`, String(replacement));
+      }
+      return value;
+    },
   }),
 }));
 
@@ -348,7 +365,7 @@ describe('AITab', () => {
     expect(container.textContent).toContain('Detected 8 GB unified memory');
 
     const modelSelect = Array.from(container.querySelectorAll('select')).find((select) =>
-      Array.from(select.querySelectorAll('option')).some((option) => option.textContent === 'Large Model'),
+      Array.from(select.querySelectorAll('option')).some((option) => option.textContent?.includes('Large Model')),
     );
 
     expect(modelSelect).toBeTruthy();
@@ -357,6 +374,16 @@ describe('AITab', () => {
     await flushPromises();
 
     expect(container.textContent).not.toContain('Detected 8 GB unified memory');
+
+    dispose();
+  });
+
+  it('shows model tiers, quantization, download size, and memory guidance', async () => {
+    const { dispose } = await renderAITab();
+
+    expect(container.textContent).toContain('Lite — Small Model');
+    expect(container.textContent).toContain('Recommended — Large Model');
+    expect(container.textContent).toContain('Official QAT Q4_0 · ~1 GB download · ~3–4 GB running · 8 GB+ system memory');
 
     dispose();
   });

@@ -23,6 +23,7 @@ export interface ToastProps {
   duration?: number;
   /** Close handler */
   onClose?: () => void;
+  onDismiss?: () => void;
   /** Custom icon element */
   icon?: JSX.Element;
   /** Additional class names */
@@ -100,6 +101,7 @@ const ToastItem: Component<ToastProps> = (props) => {
 
     clearCloseTimer();
     setExiting(true);
+    props.onDismiss?.();
     setTimeout(() => {
       setVisible(false);
       props.onClose?.();
@@ -169,6 +171,7 @@ interface ToastItemData {
   duration?: number;
   icon?: JSX.Element;
   class?: string;
+  onDismiss?: () => void;
 }
 
 const [toasts, setToasts] = createStore<ToastItemData[]>([]);
@@ -221,6 +224,7 @@ export const ToastContainer: Component = () => {
               duration={toast.duration}
               icon={toast.icon}
               class={toast.class}
+              onDismiss={toast.onDismiss}
               onClose={() => removeToast(toast.id)}
             />
           )}

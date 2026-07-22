@@ -51,6 +51,8 @@
     "build:dictionaries": "npm run build:language:de && npm run build:language:es && npm run build:language:cu && npm run build:language:ja && npm run build:language:ru && npm run build:language:zh",
     "package:language-data": "node scripts/language-data/package-language-data.mjs",
     "test:language-data": "node --test scripts/language-data/*.test.mjs && python3 -m unittest discover -s scripts/language-data/providers -p 'test_*.py'",
+    "test:update-artifacts": "node --test scripts/verify-update-artifacts.test.mjs",
+    "verify:update-artifacts": "node scripts/verify-update-artifacts.mjs release",
     "build:extension": "rm -rf extension/dist && mkdir -p extension/dist/popup extension/dist/icons && tsc -p extension/tsconfig.json --noEmit && esbuild extension/src/content-script.ts --bundle --platform=browser --outfile=extension/dist/content-script.js --format=iife && esbuild extension/src/background.ts --bundle --platform=browser --outfile=extension/dist/background.js --format=iife && esbuild extension/src/popup/popup.ts --platform=browser --outfile=extension/dist/popup/popup.js --format=esm && cp extension/manifest.json extension/dist/manifest.json && cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/ && cp extension/icons/*.png extension/dist/icons/"
   },
   "keywords": [
@@ -109,11 +111,12 @@
     "@types/ws": "^8.18.1",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
+    "electron-updater": "^6.8.9",
     "fflate": "^0.8.3",
     "json-canonicalize": "^2.0.0",
     "jsqr": "^1.4.0",
     "marked": "^17.0.2",
-    "node-llama-cpp": "^3.18.1",
+    "node-llama-cpp": "^3.19.0",
     "qrcode": "^1.5.4",
     "solid-js": "^1.9.4",
     "tar": "^7.5.19",
@@ -122,6 +125,13 @@
   "build": {
     "appId": "net.kikan.mlearn",
     "productName": "mLearn",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "adrianvla",
+        "repo": "mLearn"
+      }
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -138,6 +148,7 @@
       "!dist-electron/locales{,/**}",
       "!dist-electron/server.py",
       "!dist-electron/pip_requirements.json",
+      "!dist-electron/version-info.json",
       "!node_modules/@capacitor{,/**}",
       "!node_modules/@ffmpeg{,/**}",
       "!node_modules/solid-js{,/**}",
