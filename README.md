@@ -8,7 +8,7 @@
 
 mLearn is an all-in-one immersion app that knows what you know. Watch videos, read manga, chat with an AI tutor, and review flashcards — all while the app passively tracks every word you encounter to build a personalized model of your knowledge.
 
-**[Website](https://mlearn.kikan.net)** | **[Releases](https://github.com/adrianvla/mLearn/releases)** | **[Issues](https://github.com/adrianvla/mLearn/issues)**
+**[Website](https://mlearn.kikan.net)** | **[Discord](https://l.kikan.net/mlearn-discord)** | **[Releases](https://github.com/adrianvla/mLearn/releases)** | **[Issues](https://github.com/adrianvla/mLearn/issues)**
 
 <img src="https://mlearn.kikan.net/img/mlearn-screenshot.png" alt="mLearn overview with feature legends" width="800" />
 
