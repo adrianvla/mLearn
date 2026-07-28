@@ -7,7 +7,7 @@
 import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
-import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle } from '../../components/flashcard';
+import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
 import {
   Card,
   Modal,
@@ -777,6 +777,7 @@ export const FlashcardsContent: Component = () => {
                     variant="card"
                     size="md"
                   />
+                  <OtherLanguageDueHint />
                 </div>
               }
             >

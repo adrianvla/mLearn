@@ -770,6 +770,7 @@
         "RegenerateExample": "Beispiel mit KI neu generieren",
         "RevealHint": "Klicken oder Leertaste drücken, um die Antwort zu zeigen",
         "ScreenshotAlt": "Screenshot",
+        "ImageUnavailable": "Bild nicht verfügbar",
         "Tracked": "Verfolgt",
         "AnkiDuplicate": "Duplikat",
         "Unseen": "Ungelesen"
@@ -854,6 +855,7 @@
         "New": "Neu:",
         "NewCard": "Neue Karte",
         "Ok": "Gut",
+        "OtherLanguageDue": "{count} Karten fällig in {language}",
         "PressKeyTooltip": "{key} drücken",
         "RelearningCard": "Wiederlernkarte",
         "Remove": "Entfernen",
@@ -861,6 +863,7 @@
         "ReviewCard": "Wiederholungskarte",
         "ReviewMore": "Weitere wiederholen",
         "ShowAnswer": "Antwort zeigen",
+        "SwitchToLanguage": "Wechseln",
         "Undo": "↩",
         "UndoTooltip": "Rückgängig",
         "StealthMode": "Tarnmodus",

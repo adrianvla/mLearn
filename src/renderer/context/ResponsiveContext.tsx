@@ -38,7 +38,7 @@ export type Breakpoint = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type SidebarLayout = 'drawer' | 'inline';
 
 /** Shared responsive token used by every sidebar presentation. */
-export const SIDEBAR_LAYOUT_BREAKPOINT: keyof typeof BREAKPOINTS = 'lg';
+export const SIDEBAR_LAYOUT_BREAKPOINT: keyof typeof BREAKPOINTS = 'md';
 
 export function resolveSidebarLayout(width: number, platformMobile: boolean): SidebarLayout {
   return platformMobile || width <= BREAKPOINTS[SIDEBAR_LAYOUT_BREAKPOINT]

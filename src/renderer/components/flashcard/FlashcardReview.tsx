@@ -16,6 +16,7 @@ import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
+import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import './FlashcardReview.css';
@@ -99,7 +100,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const counts = createMemo(() => queueCounts());
 
   const sessionTotal = createMemo(() => cardsAnswered() + counts().total);
-
   // Calculate session progress percentage
   const sessionProgress = createMemo(() => {
     return getSessionProgress(cardsAnswered(), counts().total);
@@ -505,6 +505,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 <p class="flashcard-completion-text">
                   {t('mlearn.Flashcards.Review.CompleteDescription')}
                 </p>
+                <OtherLanguageDueHint />
                 <div class="flashcard-completion-actions">
                   <Show when={Object.keys(store.flashcards).length > 0}>
                     <Button buttonType="default" variant="primary" onClick={handleStartOver}>

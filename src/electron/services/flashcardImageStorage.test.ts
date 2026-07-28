@@ -603,6 +603,19 @@ describe('flashcardImageStorage', () => {
         expect.any(Object),
       );
     });
+
+    it('protocol handler returns 404 without net.fetch when the file is missing', async () => {
+      const { protocol, net } = await import('electron');
+      vi.mocked(net.fetch).mockClear();
+
+      setupFlashcardImageProtocol();
+
+      const handler = vi.mocked(protocol.handle).mock.calls[0][1] as Function;
+      const response = await handler(new Request('flashcard-image://deleted-card.png'));
+
+      expect(response.status).toBe(404);
+      expect(net.fetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('setupFlashcardImageIPC', () => {

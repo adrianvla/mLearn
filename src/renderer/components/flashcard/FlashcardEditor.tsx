@@ -30,6 +30,7 @@ import {
   getProsodyPositionFieldPlaceholder,
 } from '../../utils/prosodyPresentation';
 import './FlashcardEditor.css';
+import { FlashcardImage } from './FlashcardImage';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.components.flashcardEditor");
@@ -374,7 +375,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         {/* Screenshot preview */}
         <Show when={imageUrl()}>
           <div class="screenshot-preview">
-            <img src={imageUrl()} alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} />
+            <FlashcardImage src={imageUrl()} alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} />
           </div>
         </Show>
       </div>

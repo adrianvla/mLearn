@@ -198,6 +198,9 @@ export function setupFlashcardImageProtocol(): void {
     // flashcard-image://cardId.jpg -> {userData}/flashcard-images/cardId.jpg
     const filename = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
     const filePath = path.join(getImageDir(), filename);
+    if (!fs.existsSync(filePath)) {
+      return new Response(null, { status: 404 });
+    }
     const fileUrl = pathToFileURL(filePath).href;
     return net.fetch(fileUrl, { headers: request.headers });
   });

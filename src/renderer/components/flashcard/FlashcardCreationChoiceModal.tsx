@@ -13,6 +13,7 @@ import { useAnki } from '../../hooks/useAnki';
 import { showToast } from '../common/Feedback/Toast';
 import type { PendingFlashcardChoice } from '../../context/FlashcardContext';
 import './FlashcardCreationChoiceModal.css';
+import { FlashcardImage } from './FlashcardImage';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -171,7 +172,7 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
         <Show when={content().videoUrl} fallback={
           <Show when={content().imageUrl}>
             <div class="flashcard-choice__media">
-              <img src={content().imageUrl!} alt="" />
+              <FlashcardImage src={content().imageUrl!} alt="" />
             </div>
           </Show>
         }>

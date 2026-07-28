@@ -140,6 +140,12 @@ describe('flashcardTtsStorage', () => {
   });
 
   describe('setupFlashcardAudioProtocol', () => {
+    const writeAudio = (name: string) => {
+      const dir = path.join(tempDir.tmpDir, 'flashcard-audio');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, name), 'audio');
+    };
+
     it('registers a protocol handler for the flashcard-audio scheme', async () => {
       const { protocol } = await import('electron');
 
@@ -156,6 +162,7 @@ describe('flashcardTtsStorage', () => {
 
       const handler = vi.mocked(protocol.handle).mock.calls[0][1] as unknown as
         (req: { url: string; headers: Record<string, string> }) => Promise<unknown>;
+      writeAudio('card-123-word.ogg');
       await handler({ url: 'flashcard-audio://card-123-word.ogg', headers: {} });
 
       expect(net.fetch).toHaveBeenCalledWith(
@@ -172,6 +179,7 @@ describe('flashcardTtsStorage', () => {
 
       const handler = vi.mocked(protocol.handle).mock.calls[0][1] as unknown as
         (req: { url: string; headers: Record<string, string> }) => Promise<unknown>;
+      writeAudio('card-qs-word.ogg');
       await handler({ url: 'flashcard-audio://card-qs-word.ogg?t=9999', headers: {} });
 
       const calledUrl = vi.mocked(net.fetch).mock.calls[0][0] as string;
@@ -187,6 +195,7 @@ describe('flashcardTtsStorage', () => {
 
       const handler = vi.mocked(protocol.handle).mock.calls[0][1] as unknown as
         (req: { url: string; headers: Record<string, string> }) => Promise<unknown>;
+      writeAudio('abc-word.ogg');
       await handler({ url: 'flashcard-audio://abc-word.ogg', headers: {} });
 
       const calledUrl = vi.mocked(net.fetch).mock.calls[0][0] as string;

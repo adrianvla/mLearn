@@ -198,6 +198,7 @@ describe('flashcardVideoStorage', () => {
       setupFlashcardVideoProtocol();
 
       const handler = vi.mocked(protocol.handle).mock.calls[0][1];
+      saveFlashcardVideo('card-qs', Buffer.from('video'));
       const request = new Request('flashcard-video://card-qs.mp4?t=123');
       await handler(request);
 

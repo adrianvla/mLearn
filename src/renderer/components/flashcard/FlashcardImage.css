@@ -1,0 +1,12 @@
+.flashcard-image-unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 8rem;
+  padding: var(--spacing-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+}

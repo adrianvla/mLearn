@@ -770,6 +770,7 @@
         "RegenerateExample": "Сгенерировать пример с помощью ИИ",
         "RevealHint": "Нажмите или пробел, чтобы показать ответ",
         "ScreenshotAlt": "Скриншот",
+        "ImageUnavailable": "Изображение недоступно",
         "Tracked": "Отслеживается",
         "AnkiDuplicate": "Дубликат",
         "Unseen": "Неизучено"
@@ -854,6 +855,7 @@
         "New": "Новые:",
         "NewCard": "Новая карточка",
         "Ok": "Хорошо",
+        "OtherLanguageDue": "Карточек к повторению в {language}: {count}",
         "PressKeyTooltip": "Нажмите {key}",
         "RelearningCard": "Переучиваемая карточка",
         "Remove": "Удалить",
@@ -861,6 +863,7 @@
         "ReviewCard": "Карточка повторения",
         "ReviewMore": "Повторить ещё",
         "ShowAnswer": "Показать ответ",
+        "SwitchToLanguage": "Переключить",
         "Undo": "↩",
         "UndoTooltip": "Отменить",
         "StealthMode": "Скрытый режим",

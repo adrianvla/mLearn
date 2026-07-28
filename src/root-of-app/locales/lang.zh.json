@@ -770,6 +770,7 @@
         "RegenerateExample": "使用 AI 重新生成例句",
         "RevealHint": "点击或按空格键显示答案",
         "ScreenshotAlt": "截图",
+        "ImageUnavailable": "无法显示图片",
         "Tracked": "已追踪",
         "AnkiDuplicate": "重复",
         "Unseen": "未学习"
@@ -854,6 +855,7 @@
         "New": "新增：",
         "NewCard": "新卡片",
         "Ok": "一般",
+        "OtherLanguageDue": "{language} 有 {count} 张待复习卡片",
         "PressKeyTooltip": "按 {key}",
         "RelearningCard": "重新学习中卡片",
         "Remove": "移除",
@@ -861,6 +863,7 @@
         "ReviewCard": "复习卡片",
         "ReviewMore": "继续复习",
         "ShowAnswer": "显示答案",
+        "SwitchToLanguage": "切换",
         "Undo": "↩",
         "UndoTooltip": "撤销",
         "StealthMode": "隐身模式",

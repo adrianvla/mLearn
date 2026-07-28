@@ -15,6 +15,7 @@ import type { Flashcard } from '../../../shared/types';
 import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardWordTitle } from './FlashcardWordTitle';
+import { FlashcardImage } from './FlashcardImage';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
 import { isElectron } from '../../../shared/platform';
@@ -306,7 +307,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <Show when={displayVideoUrl()} fallback={
               <Show when={displayImageUrl()}>
                 <div class="flashcard-screenshot-container flashcard-screenshot-front">
-                  <img
+                  <FlashcardImage
                     src={displayImageUrl()!}
                     alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
                     class="flashcard-screenshot"
@@ -416,7 +417,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <Show when={displayVideoUrl()} fallback={
               <Show when={displayImageUrl()}>
                 <div class="flashcard-screenshot-container">
-                  <img
+                  <FlashcardImage
                     src={displayImageUrl()!}
                     alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
                     class="flashcard-screenshot"

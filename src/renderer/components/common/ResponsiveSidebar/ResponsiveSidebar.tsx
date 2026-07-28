@@ -41,6 +41,7 @@ export const ResponsiveSidebar: Component<ResponsiveSidebarProps> = (props) => {
   return (
     <>
       <div class="responsive-sidebar__mobile-bar">
+        <div class="responsive-sidebar__mobile-bar-drag" />
         <IconBtn
           size="sm"
           variant="secondary"

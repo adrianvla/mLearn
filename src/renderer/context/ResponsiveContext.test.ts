@@ -64,12 +64,12 @@ describe('resolveBreakpoint', () => {
 });
 
 describe('resolveSidebarLayout', () => {
-  it('uses the drawer layout through the shared lg breakpoint', () => {
-    expect(resolveSidebarLayout(BREAKPOINTS.lg, false)).toBe('drawer');
+  it('uses the drawer layout through the shared md breakpoint', () => {
+    expect(resolveSidebarLayout(BREAKPOINTS.md, false)).toBe('drawer');
   });
 
-  it('uses the inline layout above the shared lg breakpoint', () => {
-    expect(resolveSidebarLayout(BREAKPOINTS.lg + 1, false)).toBe('inline');
+  it('uses the inline layout above the shared md breakpoint', () => {
+    expect(resolveSidebarLayout(BREAKPOINTS.md + 1, false)).toBe('inline');
   });
 
   it('always uses the drawer layout on mobile platforms', () => {

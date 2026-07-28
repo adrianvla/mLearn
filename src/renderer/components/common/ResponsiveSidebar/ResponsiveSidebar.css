@@ -22,6 +22,7 @@
 
 :root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-bar {
     display: flex;
+    position: relative;
     flex: 0 0 auto;
     align-items: center;
     gap: var(--spacing-2);
@@ -35,11 +36,20 @@
     border-bottom: 1px solid var(--border-color);
     -webkit-backdrop-filter: var(--backdrop-filter);
     backdrop-filter: var(--backdrop-filter);
+}
+
+/* Sibling drag layer: Chromium drops nested no-drag after DOM mutations. */
+:root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-bar-drag {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
     -webkit-app-region: drag;
 }
 
-:root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-bar .btn {
-    -webkit-app-region: no-drag;
+:root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-bar > .btn,
+:root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-title {
+    position: relative;
+    z-index: 1;
 }
 
 :root[data-sidebar-layout='drawer'] .responsive-sidebar__mobile-title {

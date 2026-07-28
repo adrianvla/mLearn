@@ -472,6 +472,9 @@ export function setupFlashcardAudioProtocol(): void {
     const raw = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
     const filename = raw.split('?')[0];
     const filePath = path.join(getAudioDir(), filename);
+    if (!fs.existsSync(filePath)) {
+      return new Response(null, { status: 404 });
+    }
     const fileUrl = pathToFileURL(filePath).href;
     return net.fetch(fileUrl, { headers: request.headers });
   });

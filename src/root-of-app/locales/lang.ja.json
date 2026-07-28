@@ -770,6 +770,7 @@
         "RegenerateExample": "AIで例文を再生成",
         "RevealHint": "クリックまたはスペースキーで答えを表示",
         "ScreenshotAlt": "スクリーンショット",
+        "ImageUnavailable": "画像を表示できません",
         "Tracked": "追跡中",
         "AnkiDuplicate": "重複",
         "Unseen": "未学習"
@@ -854,6 +855,7 @@
         "New": "新規:",
         "NewCard": "新規カード",
         "Ok": "普通",
+        "OtherLanguageDue": "{language}の復習カードが{count}枚あります",
         "PressKeyTooltip": "{key}を押す",
         "RelearningCard": "再学習カード",
         "Remove": "削除",
@@ -861,6 +863,7 @@
         "ReviewCard": "復習カード",
         "ReviewMore": "さらに復習",
         "ShowAnswer": "答えを表示",
+        "SwitchToLanguage": "切り替え",
         "Undo": "↩",
         "UndoTooltip": "元に戻す",
         "StealthMode": "ステルスモード",

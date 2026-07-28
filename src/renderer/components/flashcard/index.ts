@@ -12,4 +12,6 @@ export { FlashcardWordTitle, type FlashcardWordTitleProps } from './FlashcardWor
 export { FlashcardStats, type FlashcardStatsProps } from './FlashcardStats';
 export { TtsGenerateModal, type TtsGenerateModalProps } from './TtsGenerateModal';
 export { FlashcardCreationChoiceModal } from './FlashcardCreationChoiceModal';
+export { FlashcardImage, type FlashcardImageProps } from './FlashcardImage';
+export { OtherLanguageDueHint } from './OtherLanguageDueHint';
 export { AnkiModifyWarningModal, type AnkiModifyWarningModalProps } from './AnkiModifyWarningModal';

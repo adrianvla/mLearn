@@ -770,6 +770,7 @@
         "RegenerateExample": "Régénérer l'exemple avec l'IA",
         "RevealHint": "Cliquez ou appuyez sur Espace pour révéler la réponse",
         "ScreenshotAlt": "Capture d'écran",
+        "ImageUnavailable": "Image indisponible",
         "Tracked": "Suivie",
         "AnkiDuplicate": "Doublon",
         "Unseen": "Jamais vu"
@@ -854,6 +855,7 @@
         "New": "Nouvelles :",
         "NewCard": "Nouvelle carte",
         "Ok": "Bien",
+        "OtherLanguageDue": "{count} cartes à réviser en {language}",
         "PressKeyTooltip": "Appuyez sur {key}",
         "RelearningCard": "Carte en réapprentissage",
         "Remove": "Retirer",
@@ -861,6 +863,7 @@
         "ReviewCard": "Carte de révision",
         "ReviewMore": "Réviser encore",
         "ShowAnswer": "Afficher la réponse",
+        "SwitchToLanguage": "Changer",
         "Undo": "↩",
         "UndoTooltip": "Annuler",
         "StealthMode": "Mode furtif",
