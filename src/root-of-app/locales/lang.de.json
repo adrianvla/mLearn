@@ -1410,6 +1410,11 @@
       }
     },
     "Settings": {
+      "Variant": {
+        "Choose": "Sprachvariante auswählen",
+        "RequiredDescription": "Wählen Sie die gewünschte Schreibvariante aus, bevor Sie fortfahren.",
+        "RequiredTitle": "Sprachvariante auswählen"
+      },
       "Appearance": {
         "Theme": {
           "Dark": "Dunkel",

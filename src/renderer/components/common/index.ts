@@ -47,6 +47,8 @@ export {
   type EulaModalProps,
 } from './EulaModal/EulaModal';
 
+export { LanguageVariantGate } from './LanguageVariantGate/LanguageVariantGate';
+
 // ModalForm Components
 export {
   ModalForm,

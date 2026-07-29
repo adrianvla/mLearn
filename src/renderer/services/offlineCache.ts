@@ -181,6 +181,34 @@ async function idbClear(storeName: string): Promise<void> {
   }
 }
 
+async function idbRemoveLanguages(storeName: string, languages: readonly string[]): Promise<void> {
+  if (languages.length === 0) return;
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      const prefixes = languages.flatMap((language) => [`${language}::`, `${language}->`]);
+      const req = store.openCursor();
+
+      req.onsuccess = () => {
+        const cursor = req.result as IDBCursorWithValue | null;
+        if (!cursor) return;
+        const key = (cursor.value as { key: string }).key;
+        if (prefixes.some((prefix) => key.startsWith(prefix))) {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    log.error("error", e);
+  }
+}
+
 export async function getCachedTranslationDB(word: string): Promise<TranslationResponse | null> {
   return idbGet<TranslationResponse>(STORE_TRANSLATIONS, word);
 }
@@ -293,5 +321,14 @@ export async function clearAllOfflineCaches(): Promise<void> {
     clearTranslationCacheDB(),
     clearDictionaryCacheDB(),
     clearTokenCacheDB(),
+  ]);
+}
+
+/** Remove regenerable cache entries for language codes that were migrated. */
+export async function invalidateOfflineCachesForLanguages(languages: readonly string[]): Promise<void> {
+  await Promise.all([
+    idbRemoveLanguages(STORE_TRANSLATIONS, languages),
+    idbRemoveLanguages(STORE_DICTIONARY, languages),
+    idbRemoveLanguages(STORE_TOKENS, languages),
   ]);
 }

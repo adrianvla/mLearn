@@ -1,6 +1,6 @@
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
 import { Modal, Btn, ProgressBar, Spinner, CheckIcon, CrossIcon } from '../../components/common';
-import { useFlashcards, useLocalization, useSettings } from '../../context';
+import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
   mergeFlashcards,
@@ -43,6 +43,7 @@ type SyncRole = 'sender' | 'receiver' | null;
 
 export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) => {
   const { store } = useFlashcards();
+  const { langData } = useLanguage();
   const { t } = useLocalization();
   const { settings } = useSettings();
   
@@ -284,7 +285,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       }
       
       const remoteStore = JSON.parse(assembled) as FlashcardStore;
-      const merged = await mergeFlashcards(store, remoteStore);
+      const merged = await mergeFlashcards(store, remoteStore, { languageData: langData });
       
       getBridge().flashcards.saveFlashcards(merged);
       

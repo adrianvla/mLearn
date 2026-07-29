@@ -16,6 +16,7 @@ import platform
 import plugin_registry
 from generic_language import GenericLanguageModule
 from logging_utils import get_logger
+from variants import apply_variant_overlay  # pyright: ignore[reportImplicitRelativeImport]
 
 log = get_logger("config")
 
@@ -33,6 +34,7 @@ LANGUAGE_DIR_PATH = ""
 OCR_RAM_SAVER = False
 SUPPORTS_VERTICAL_TEXT = False
 LANGUAGE_METADATA: dict = {}
+ACTIVE_VARIANT: str | None = None
 
 QUIT_TOKEN = ""
 
@@ -136,6 +138,7 @@ def _metadata_for_language(language: str) -> dict:
     installed_metadata = _read_language_metadata(language)
     if installed_metadata:
         if language == LANGUAGE:
+            installed_metadata = apply_variant_overlay(installed_metadata, ACTIVE_VARIANT)
             global LANGUAGE_METADATA
             LANGUAGE_METADATA = installed_metadata
         return installed_metadata
@@ -197,6 +200,8 @@ def get_or_load_language(language: str):
     if not os.path.isfile(metadata_path):
         return None
     metadata = _read_language_metadata(language)
+    if language == LANGUAGE:
+        metadata = apply_variant_overlay(metadata, ACTIVE_VARIANT)
     fingerprint = _language_metadata_fingerprint(metadata)
     existing = plugin_registry.get_language(language)
     if existing is not None and getattr(existing, "__mlearn_metadata_fingerprint", None) == fingerprint:
@@ -262,7 +267,7 @@ def init():
     """
     global LANGUAGE, LLM_ALLOWED, OCR_ALLOWED
     global RESPATH, USER_DATA_PATH, LANGUAGE_DATA_PATH, LANGUAGE_DIR_PATH
-    global OCR_RAM_SAVER, SUPPORTS_VERTICAL_TEXT, LANGUAGE_METADATA
+    global OCR_RAM_SAVER, SUPPORTS_VERTICAL_TEXT, LANGUAGE_METADATA, ACTIVE_VARIANT
 
     _raise_fd_limit()
     _configure_utf8_streams()
@@ -289,6 +294,8 @@ def init():
             else os.path.join(os.path.expanduser("~"), ".mlearn", "language-data")
         )
 
+    ACTIVE_VARIANT = None
+
     # Read OCR config from settings.json
     if USER_DATA_PATH:
         settings_path = os.path.join(USER_DATA_PATH, "settings.json")
@@ -297,6 +304,10 @@ def init():
                 with open(settings_path, "r", encoding="utf-8") as f:
                     settings = json.load(f)
                     OCR_RAM_SAVER = settings.get("ocrRamSaver", False)
+                    variants = settings.get("languageVariants", {})
+                    if isinstance(variants, dict):
+                        active_variant = variants.get(LANGUAGE)
+                        ACTIVE_VARIANT = active_variant if isinstance(active_variant, str) else None
                     log.info(f"OCR Ram Saver: {OCR_RAM_SAVER}")
             except Exception as e:
                 log.error(f"Error reading settings.json: {e}", exc_info=True)
@@ -308,7 +319,7 @@ def init():
     LANGUAGE_DIR_PATH = os.path.join(LANGUAGE_DATA_PATH, "languages")
 
     # Read language-specific config from installed on-demand language data.
-    LANGUAGE_METADATA = _read_language_metadata(LANGUAGE)
+    LANGUAGE_METADATA = apply_variant_overlay(_read_language_metadata(LANGUAGE), ACTIVE_VARIANT)
     SUPPORTS_VERTICAL_TEXT = language_supports_vertical_text_for_language(LANGUAGE)
     log.info(f"Supports vertical text: {SUPPORTS_VERTICAL_TEXT}")
     log.info(f"Language dir path:  {LANGUAGE_DIR_PATH}")

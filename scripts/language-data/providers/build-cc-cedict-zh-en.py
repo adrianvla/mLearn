@@ -154,8 +154,9 @@ def _read_cedict(archive_path: Path, extract_dir: Path) -> list[dict[str, Any]]:
 
 
 def _build_dictionary(entries: list[dict[str, Any]], language: str, built_at: str) -> int:
-    canonical_field = "simplified" if language == "zh-Hans" else "traditional"
-    alias_field = "traditional" if language == "zh-Hans" else "simplified"
+    # Merged zh package: simplified is the canonical form; both headword forms index the same payload.
+    canonical_field = "simplified"
+    alias_field = "traditional"
     output_dir = ROOT_OF_APP_DIR / "dictionaries" / language / "en"
     output_dir.mkdir(parents=True, exist_ok=True)
     db_path = output_dir / "dictionary.db"
@@ -233,10 +234,11 @@ def _build_dictionary(entries: list[dict[str, Any]], language: str, built_at: st
     return inserted
 
 
-def _write_frequency_files(hsk_path: Path) -> tuple[int, int]:
+def _write_frequency_file(hsk_path: Path) -> tuple[int, int, int, int]:
     entries = json.loads(hsk_path.read_text(encoding="utf-8"))
-    rows = {"zh-Hans": [], "zh-Hant": []}
+    rows: list[tuple[int, list[Any]]] = []
     (ROOT_OF_APP_DIR / "languages").mkdir(parents=True, exist_ok=True)
+    counts = {"s": 0, "t": 0, "st": 0}
     for entry in entries:
         levels = [int(level[1:]) for level in entry.get("l", []) if re.fullmatch(r"n[1-7]", str(level))]
         forms = entry.get("f") or []
@@ -247,20 +249,79 @@ def _write_frequency_files(hsk_path: Path) -> tuple[int, int]:
         simplified = str(entry.get("s") or "")
         traditional = str(forms[0].get("t") or simplified)
         pinyin = str((forms[0].get("i") or {}).get("y") or simplified)
-        if simplified:
-            rows["zh-Hans"].append((frequency, [simplified, pinyin, level]))
-        if traditional:
-            rows["zh-Hant"].append((frequency, [traditional, pinyin, level]))
+        if simplified and traditional and simplified != traditional:
+            rows.append((frequency, [simplified, pinyin, level, "s"]))
+            rows.append((frequency, [traditional, pinyin, level, "t"]))
+            counts["s"] += 1
+            counts["t"] += 1
+        elif simplified or traditional:
+            rows.append((frequency, [simplified or traditional, pinyin, level, "st"]))
+            counts["st"] += 1
 
-    counts = []
-    for language in ("zh-Hans", "zh-Hant"):
-        ordered = [row for _, row in sorted(rows[language], key=lambda item: (item[0], item[1][0]))]
-        (ROOT_OF_APP_DIR / "languages" / f"{language}.freq.json").write_text(
-            json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n",
-            encoding="utf-8",
-        )
-        counts.append(len(ordered))
-    return counts[0], counts[1]
+    ordered = [row for _, row in sorted(rows, key=lambda item: (item[0], item[1][0]))]
+    (ROOT_OF_APP_DIR / "languages" / "zh.freq.json").write_text(
+        json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return len(ordered), counts["s"], counts["t"], counts["st"]
+
+
+def _make_opencc_t2s():
+    from opencc import OpenCC  # pyright: ignore[reportMissingImports]
+    for config in ("t2s", "t2s.json"):
+        try:
+            return OpenCC(config)
+        except Exception:
+            continue
+    return None
+
+
+def _write_t2s_table(entries: list[dict[str, Any]], hsk_path: Path, converter=None) -> tuple[int, int, int]:
+    words: dict[str, str] = {}
+    conflicts = 0
+    for entry in entries:
+        traditional, simplified = entry["traditional"], entry["simplified"]
+        if traditional == simplified:
+            continue
+        existing = words.get(traditional)
+        if existing is None:
+            words[traditional] = simplified
+        elif existing != simplified:
+            conflicts += 1
+
+    hsk_entries = json.loads(hsk_path.read_text(encoding="utf-8"))
+    traditional_surfaces = {
+        str((forms[0].get("t") if (forms := entry.get("f") or []) else "") or entry.get("s") or "")
+        for entry in hsk_entries
+    }
+    traditional_surfaces.discard("")
+    if converter is not None:
+        for surface in traditional_surfaces:
+            if surface in words:
+                continue
+            converted = converter.convert(surface)
+            if converted != surface:
+                words[surface] = converted
+
+    chars: dict[str, str] = {}
+    if converter is not None:
+        char_pool = {char for surface in traditional_surfaces for char in surface}
+        char_pool |= {char for word in words for char in word}
+        for char in char_pool:
+            converted = converter.convert(char)
+            if converted != char:
+                chars[char] = converted
+
+    output = {
+        "words": {key: words[key] for key in sorted(words)},
+        "chars": {key: chars[key] for key in sorted(chars)},
+    }
+    (ROOT_OF_APP_DIR / "languages").mkdir(parents=True, exist_ok=True)
+    (ROOT_OF_APP_DIR / "languages" / "zh.t2s.json").write_text(
+        json.dumps(output, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return len(words), len(chars), conflicts
 
 
 def _write_hsk_license(license_path: Path) -> None:
@@ -288,14 +349,15 @@ def main() -> None:
         _download(HSK_URL, hsk_path)
         _download(HSK_LICENSE_URL, license_path)
         entries = _read_cedict(archive_path, temp_dir)
-        hans_frequency_count, hant_frequency_count = _write_frequency_files(hsk_path)
+        total_frequency, simp_only, trad_only, shared = _write_frequency_file(hsk_path)
+        word_count, char_count, conflicts = _write_t2s_table(entries, hsk_path, _make_opencc_t2s())
         _write_hsk_license(license_path)
 
-    hans_count = _build_dictionary(entries, "zh-Hans", built_at)
-    hant_count = _build_dictionary(entries, "zh-Hant", built_at)
+    zh_count = _build_dictionary(entries, "zh", built_at)
     _log(
-        f"Built Chinese packages: {len(entries)} CC-CEDICT entries, {hans_count} zh-Hans rows, "
-        f"{hant_count} zh-Hant rows, {hans_frequency_count}/{hant_frequency_count} HSK rows"
+        f"Built Chinese package: {len(entries)} CC-CEDICT entries, {zh_count} zh dictionary rows, "
+        f"{total_frequency} HSK rows ({simp_only}s/{trad_only}t/{shared}st), "
+        f"t2s table {word_count} words/{char_count} chars/{conflicts} conflicts"
     )
 
 

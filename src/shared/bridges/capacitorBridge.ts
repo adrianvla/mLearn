@@ -793,6 +793,9 @@ const localizationBridge: LocalizationBridge = {
 // ============================================================================
 
 const fileBridge: FileBridge = {
+  async removeLegacyLanguageData(_paths: string[]) {
+    // Package artifacts are desktop-only; Capacitor has no downloaded language-data tree.
+  },
   async readDirectoryImages(_directoryPath: string) {
     // On mobile, use Capacitor Filesystem
     try {

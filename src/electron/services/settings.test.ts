@@ -13,6 +13,8 @@ interface MockIpcEvent {
   reply: ReturnType<typeof vi.fn>;
 }
 
+const mockBroadcastSend = vi.hoisted(() => vi.fn());
+
 vi.mock('electron', () => ({
   ipcMain: {
     on: vi.fn((channel: string, handler: (event: MockIpcEvent, ...args: unknown[]) => void) => {
@@ -22,6 +24,9 @@ vi.mock('electron', () => ({
     }),
     handle: vi.fn(),
     removeHandler: vi.fn(),
+  },
+  webContents: {
+    getAllWebContents: vi.fn(() => [{ send: mockBroadcastSend }]),
   },
   app: {
     getPath: vi.fn(() => '/tmp/test'),
@@ -1229,6 +1234,42 @@ describe('SAVE_SETTINGS IPC handler', () => {
     expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
   });
 
+  it('restarts the backend when only languageVariants changes', async () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.writeFileSync(path.join(languagesDir, 'zh.json'), JSON.stringify({ name: 'Chinese' }), 'utf-8');
+    fs.writeFileSync(settingsPath, JSON.stringify({ language: 'zh', languageVariants: {} }), 'utf-8');
+    mockEnsureLanguagePythonRequirementsInstalled.mockResolvedValue(undefined);
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('save-settings') ?? [];
+    const settings = mod.loadSettings();
+    settings.languageVariants = { zh: 'zh-Hant' };
+
+    for (const handler of handlers) await handler(makeEvent(), settings);
+
+    expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalledOnce();
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+  });
+
+  it('does not restart the backend when languageVariants is identical', async () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.writeFileSync(path.join(languagesDir, 'zh.json'), JSON.stringify({ name: 'Chinese' }), 'utf-8');
+    fs.writeFileSync(settingsPath, JSON.stringify({ language: 'zh', languageVariants: { zh: 'zh-Hant' } }), 'utf-8');
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('save-settings') ?? [];
+    const settings = mod.loadSettings();
+
+    for (const handler of handlers) await handler(makeEvent(), settings);
+
+    expect(mockEnsureLanguagePythonRequirementsInstalled).not.toHaveBeenCalled();
+    expect(mockRestartPythonBackend).not.toHaveBeenCalled();
+  });
+
   it('does not restart the backend for a runtime-component change without installed language data', async () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('save-settings') ?? [];
@@ -1428,12 +1469,12 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     for (const h of handlers) await h(event, 'aa');
 
     expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'aa.freq.json'))).toBe(true);
-    expect(event.reply).toHaveBeenCalledWith('language-data-installed', expect.objectContaining({
+    expect(mockBroadcastSend).toHaveBeenCalledWith('language-data-installed', expect.objectContaining({
       language: 'aa',
       installed: true,
       missingRequiredAssets: [],
     }));
-    expect(event.reply).toHaveBeenCalledWith('language-data-catalog', [
+    expect(mockBroadcastSend).toHaveBeenCalledWith('language-data-catalog', [
       expect.objectContaining({
         language: 'aa',
         installed: true,
@@ -1596,7 +1637,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
       dictionaryTargetLanguage: 'en',
       error: 'No dictionary pack is available for aa->en. Available: fr',
     }));
-    expect(event.reply).not.toHaveBeenCalledWith(
+    expect(mockBroadcastSend).not.toHaveBeenCalledWith(
       'language-data-installed',
       expect.objectContaining({ language: 'aa' }),
     );

@@ -13,6 +13,14 @@ const log = getLogger('electron.fileOperations');
 
 // Image file extensions to read from directories
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif']);
+const LEGACY_LANGUAGE_ARTIFACTS = new Set([
+  'languages/zh-Hans.json',
+  'languages/zh-Hant.json',
+  'languages/zh-Hans.freq.json',
+  'languages/zh-Hant.freq.json',
+  'dictionaries/zh-Hans',
+  'dictionaries/zh-Hant',
+]);
 
 function validatePath(inputPath: string): string {
   const resolved = path.resolve(inputPath);
@@ -27,6 +35,15 @@ function validatePath(inputPath: string): string {
  * Setup IPC handlers for file operations
  */
 export function setupFileOperationsIPC(): void {
+  ipcMain.handle(IPC_CHANNELS.REMOVE_LEGACY_LANGUAGE_DATA, async (_event, relativePaths: string[]) => {
+    for (const relativePath of relativePaths) {
+      if (!LEGACY_LANGUAGE_ARTIFACTS.has(relativePath)) {
+        throw new Error('Unsupported legacy language artifact');
+      }
+      await fs.rm(path.join(app.getPath('userData'), 'language-data', relativePath), { recursive: true, force: true });
+    }
+  });
+
   // Read all image files from a directory
   ipcMain.handle(IPC_CHANNELS.READ_DIRECTORY_IMAGES, async (_event, directoryPath: string) => {
     try {

@@ -45,8 +45,7 @@ describe('package-language-data', () => {
       es: '🇪🇸',
       ja: '🇯🇵',
       ru: '🇷🇺',
-      'zh-Hans': '🇨🇳',
-      'zh-Hant': '🇹🇼',
+      zh: '🇨🇳',
     };
 
     for (const [language, flagEmoji] of Object.entries(expectedFlags)) {
@@ -56,6 +55,13 @@ describe('package-language-data', () => {
       ));
       assert.equal(metadata.flagEmoji, flagEmoji);
     }
+
+    const zh = readJson(path.join(
+      process.cwd(),
+      'scripts/language-data/source/root-of-app/languages/zh.json',
+    ));
+    assert.equal(zh.variants['zh-Hans'].flagEmoji, '🇨🇳');
+    assert.equal(zh.variants['zh-Hant'].flagEmoji, '🇨🇳');
   });
 
   it('rejects a non-semantic minimum app version', async () => {
@@ -217,8 +223,7 @@ describe('package-language-data', () => {
       'scripts/language-data/source/root-of-app/languages',
     );
     const russian = readJson(path.join(languagesDir, 'ru.json'));
-    const simplified = readJson(path.join(languagesDir, 'zh-Hans.json'));
-    const traditional = readJson(path.join(languagesDir, 'zh-Hant.json'));
+    const chinese = readJson(path.join(languagesDir, 'zh.json'));
 
     assert.equal(russian.textProcessing?.readingAnnotation?.display, 'replace');
     assert.equal(russian.runtime?.adapter?.path, 'adapters/russian_adapter.py');
@@ -254,51 +259,45 @@ describe('package-language-data', () => {
       true,
     );
 
-    for (const [language, metadata] of Object.entries({
-      'zh-Hans': simplified,
-      'zh-Hant': traditional,
-    })) {
-      assert.equal(metadata.textProcessing?.readingAnnotation?.display, 'ruby');
-      assert.deepEqual(metadata.textProcessing?.readingAnnotation?.annotationScripts, ['Han']);
-      assert.equal(metadata.runtime?.adapter?.path, 'adapters/mandarin_adapter.py');
-      assert.equal(metadata.runtime?.python?.packagesByComponent?.core?.includes('pypinyin==0.55.0'), true);
-      assert.equal(metadata.runtime?.python?.packagesByComponent?.core?.includes('click>=8.1,<9'), true);
-      assert.equal(metadata.runtime?.tts?.qwen3LanguageName, 'chinese');
-      assert.equal(metadata.runtime?.stt?.whisperLanguage, 'zh');
-      assert.equal(metadata.languageData?.assets?.some((asset) => asset.path === `languages/${language}.freq.json`), true);
-    }
+    assert.equal(chinese.textProcessing?.readingAnnotation?.display, 'ruby');
+    assert.deepEqual(chinese.textProcessing?.readingAnnotation?.annotationScripts, ['Han']);
+    assert.equal(chinese.runtime?.adapter?.path, 'adapters/mandarin_adapter.py');
+    assert.equal(chinese.runtime?.python?.packagesByComponent?.core?.includes('pypinyin==0.55.0'), true);
+    assert.equal(chinese.runtime?.python?.packagesByComponent?.core?.includes('click>=8.1,<9'), true);
+    assert.equal(chinese.runtime?.python?.packagesByComponent?.core?.includes('opencc-python-reimplemented==0.1.7'), true);
+    assert.equal(chinese.runtime?.tts?.qwen3LanguageName, 'chinese');
+    assert.equal(chinese.runtime?.stt?.whisperLanguage, 'zh');
+    assert.equal(chinese.runtime?.ocr?.paddleLang, 'ch');
+    assert.equal(chinese.languageData?.assets?.some((asset) => asset.path === 'languages/zh.freq.json'), true);
+    assert.equal(chinese.languageData?.assets?.some((asset) => asset.path === 'languages/zh.t2s.json'), true);
 
-    const simplifiedPacks = readJson(path.join(
-      process.cwd(),
-      'scripts/language-data/language-overrides/zh-Hans.dictionary-packs.json',
-    ));
-    const traditionalPacks = readJson(path.join(
-      process.cwd(),
-      'scripts/language-data/language-overrides/zh-Hant.dictionary-packs.json',
-    ));
-    assert.equal(simplifiedPacks.en.version, 'zh-Hans-en-cc-cedict-2026.04.03-r2');
-    assert.equal(traditionalPacks.en.version, 'zh-Hant-en-cc-cedict-2026.04.03-r2');
+    // Merged single-canonical-zh model: variants carry script-specific display +
+    // runtime differences; legacy codes fold into zh on receive.
+    assert.deepEqual(chinese.legacyCodes, ['zh-Hans', 'zh-Hant']);
+    assert.equal(chinese.variants['zh-Hans'].overrides.name_translated, '简体中文');
+    assert.equal(chinese.variants['zh-Hant'].overrides.name_translated, '繁體中文');
+    assert.equal(chinese.variants['zh-Hant'].overrides.flagEmoji, '🇨🇳');
+    assert.equal(chinese.variants['zh-Hant'].overrides['runtime.ocr.paddleLang'], 'chinese_cht');
+    assert.equal(chinese.variants['zh-Hant'].overrides['runtime.adapter.config']?.pinyinInputConversion, 't2s');
+    assert.equal(chinese.variants['zh-Hant'].scriptConversion?.mappingAsset, 'languages/zh.t2s.json');
 
-    assert.equal(simplified.runtime?.ocr?.paddleLang, 'ch');
-    assert.equal(traditional.runtime?.ocr?.paddleLang, 'chinese_cht');
-    assert.equal(traditional.runtime?.adapter?.config?.pinyinInputConversion, 't2s');
-    assert.equal(
-      traditional.runtime?.python?.packagesByComponent?.core?.includes('opencc-python-reimplemented==0.1.7'),
-      true,
-    );
+    const zhPacks = readJson(path.join(
+      process.cwd(),
+      'scripts/language-data/language-overrides/zh.dictionary-packs.json',
+    ));
+    assert.equal(zhPacks.en.version, 'zh-en-cc-cedict-2026.07.28');
+
     assert.equal(Object.prototype.hasOwnProperty.call(russian, 'prosody'), false);
-    for (const metadata of [simplified, traditional]) {
-      assert.equal(metadata.prosody?.coloring?.renderer, 'tone-marked-syllables');
-      assert.equal(metadata.prosody?.coloring?.paletteId, 'mandarin-tones');
-      assert.deepEqual(metadata.prosody?.coloring?.colors, {
-        'tone-1': '#ff00ff',
-        'tone-2': '#ffff00',
-        'tone-3': '#00b84a',
-        'tone-4': '#ff0000',
-        neutral: '#006eff',
-      });
-    }
-    for (const metadata of [russian, simplified, traditional]) {
+    assert.equal(chinese.prosody?.coloring?.renderer, 'tone-marked-syllables');
+    assert.equal(chinese.prosody?.coloring?.paletteId, 'mandarin-tones');
+    assert.deepEqual(chinese.prosody?.coloring?.colors, {
+      'tone-1': '#ff00ff',
+      'tone-2': '#ffff00',
+      'tone-3': '#00b84a',
+      'tone-4': '#ff0000',
+      neutral: '#006eff',
+    });
+    for (const metadata of [russian, chinese]) {
       assert.equal(Object.prototype.hasOwnProperty.call(metadata.textProcessing ?? {}, 'prosody'), false);
       assert.equal(metadata.grammar.length >= 75, true);
       assert.equal(metadata.characterStudy?.enabled, metadata !== russian);
@@ -333,6 +332,63 @@ describe('package-language-data', () => {
             );
           }
         }
+      }
+    }
+  });
+
+  it('pins current zh frequency levels for shared cross-script words', () => {
+    const languagesDir = path.join(
+      process.cwd(),
+      'scripts/language-data/source/root-of-app/languages',
+    );
+    const raw = readJson(path.join(languagesDir, 'zh.freq.json'));
+    const rows = Array.isArray(raw) ? raw : raw.freq;
+    const levelBySurface = new Map(rows.map((row) => [row[0], row[2]]));
+    const formBySurface = new Map(rows.map((row) => [row[0], row[3]]));
+
+    // Shared words keep one row tagged both scripts; script-specific words keep
+    // their own row with the same level as the legacy per-script lists.
+    assert.equal(levelBySurface.get('的'), 1);
+    assert.equal(formBySurface.get('的'), 'st');
+    assert.equal(levelBySurface.get('这'), 1);
+    assert.equal(formBySurface.get('这'), 's');
+    assert.equal(levelBySurface.get('這'), 1);
+    assert.equal(formBySurface.get('這'), 't');
+  });
+
+  it('keeps zh variant override paths within the shared overlay allowlist', () => {
+    const allowlistSource = fs.readFileSync(
+      path.join(process.cwd(), 'src/shared/languageVariants.ts'),
+      'utf8',
+    );
+    const allowlistBlock = allowlistSource.match(
+      /VARIANT_OVERLAY_ALLOWLIST = \[([\s\S]*?)\] as const/,
+    );
+    assert.ok(allowlistBlock, 'VARIANT_OVERLAY_ALLOWLIST not found in languageVariants.ts');
+    const allowlist = new Set([...allowlistBlock[1].matchAll(/'([^']+)'/g)].map((m) => m[1]));
+    assert.ok(allowlist.size > 0, 'allowlist extraction yielded no entries');
+
+    const zh = readJson(path.join(
+      process.cwd(),
+      'scripts/language-data/source/root-of-app/languages/zh.json',
+    ));
+    const collectPaths = (node, prefix, out) => {
+      for (const [key, value] of Object.entries(node)) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        if (allowlist.has(path) || value === null || typeof value !== 'object' || Array.isArray(value)) {
+          out.push(path);
+        } else {
+          collectPaths(value, path, out);
+        }
+      }
+      return out;
+    };
+    for (const [variantId, variant] of Object.entries(zh.variants ?? {})) {
+      for (const path of collectPaths(variant.overrides ?? {}, '', [])) {
+        assert.ok(
+          allowlist.has(path),
+          `zh.json variants['${variantId}'].overrides path not in VARIANT_OVERLAY_ALLOWLIST: ${path}`,
+        );
       }
     }
   });
@@ -408,6 +464,7 @@ describe('package-language-data', () => {
     fs.writeFileSync(path.join(modelsDir, 'ocr.bin'), 'ocr model contents', 'utf-8');
     fs.writeFileSync(path.join(languagesDir, 'aa.py'), 'def LOAD_MODULE(folder, language_data_folder=None): pass\n', 'utf-8');
     fs.writeFileSync(path.join(languagesDir, 'aa.freq.json'), JSON.stringify({ freq: [['alpha', 'alpha']] }), 'utf-8');
+    fs.writeFileSync(path.join(languagesDir, 'aa.t2s.json'), JSON.stringify({ chars: {}, words: {} }), 'utf-8');
     fs.writeFileSync(path.join(languagesDir, 'aa.json'), JSON.stringify({
       name: 'Alpha',
       name_translated: 'Alpha',
@@ -467,6 +524,7 @@ describe('package-language-data', () => {
 
     const catalog = readJson(catalogPath);
     assert.deepEqual(Object.keys(catalog.languages), ['aa']);
+    assert.equal(catalog.languages['aa.t2s'], undefined);
     assert.equal(catalog.languages.aa.minimumAppVersion, '2.7.0');
     assert.equal(catalog.languages.aa.bundle.url, `https://cdn.example.com/mlearn/language-data/${coreBundleRelativePath}`);
     assert.equal(catalog.languages.aa.files.some((asset) => asset.path === 'dictionaries/aa/dictionary.db'), false);

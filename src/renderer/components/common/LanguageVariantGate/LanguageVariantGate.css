@@ -1,0 +1,9 @@
+.language-variant-gate-options {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+.language-variant-gate-options .btn {
+  justify-content: flex-start;
+  width: 100%;
+}

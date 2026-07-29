@@ -7,15 +7,17 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS, SRS_EASE } from '../../shared/constants';
-import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData } from '../../shared/types';
-import { createProsodyForPosition, getLanguageProsodyType } from '../../shared/languageFeatures';
+import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, PassiveWordKnowledge, GrammarKnowledgeEntry } from '../../shared/types';
+import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable } from '../../shared/languageFeatures';
+import { calculateWordStats } from '../../shared/utils/wordStats';
+import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.flashcardStorage');
 
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 function getTodayDateString(): string {
   return new Date().toISOString().split('T')[0];
@@ -102,51 +104,6 @@ function resolveMigrationDefaultLanguage(): string {
   }
 
   return inferSingleInstalledLanguage();
-}
-
-function compareStates(a: FlashcardState, b: FlashcardState): number {
-  const order: Record<FlashcardState, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
-  return order[a] - order[b];
-}
-
-function calculateWordStats(cards: Flashcard[]): WordStats {
-  if (cards.length === 0) {
-    return {
-      cardCount: 0,
-      bestEase: SRS_EASE.DEFAULT_KNOWN,
-      totalReviews: 0,
-      totalLapses: 0,
-      lastReviewed: 0,
-      bestInterval: 0,
-      bestState: 'new',
-    };
-  }
-
-  let bestEase = 0;
-  let totalReviews = 0;
-  let totalLapses = 0;
-  let lastReviewed = 0;
-  let bestInterval = 0;
-  let bestState: FlashcardState = 'new';
-
-  for (const card of cards) {
-    if (card.ease > bestEase) bestEase = card.ease;
-    totalReviews += card.reviews || 0;
-    totalLapses += card.lapses || 0;
-    if (card.lastReviewed > lastReviewed) lastReviewed = card.lastReviewed;
-    if (card.interval > bestInterval) bestInterval = card.interval;
-    if (compareStates(card.state, bestState) > 0) bestState = card.state;
-  }
-
-  return {
-    cardCount: cards.length,
-    bestEase,
-    totalReviews,
-    totalLapses,
-    lastReviewed,
-    bestInterval,
-    bestState,
-  };
 }
 
 const languageProsodyMigrationCache = new Map<string, NonNullable<FlashcardContent['prosody']>['type'] | null>();
@@ -444,9 +401,9 @@ function isV1Store(store: any): store is V1FlashcardStore {
 /**
  * @deprecated Backup helper for the one-way v1 flashcard migration path.
  */
-function createBackup(originalPath: string): string {
+function createBackup(originalPath: string, version = 1): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupPath = originalPath.replace('.json', `-backup-v1-${timestamp}.json`);
+  const backupPath = originalPath.replace('.json', `-backup-v${version}-${timestamp}.json`);
   
   if (fs.existsSync(originalPath)) {
     const data = fs.readFileSync(originalPath, 'utf-8');
@@ -455,6 +412,266 @@ function createBackup(originalPath: string): string {
   }
   
   return backupPath;
+}
+
+const ZH_VARIANT_PREFIXES = ['zh-Hans:', 'zh-Hant:'] as const;
+
+type ZhMappingTable = { words?: Record<string, string>; chars?: Record<string, string> };
+
+interface ZhMigrationReport {
+  timestamp: string;
+  migratedKeyCounts: Record<string, number>;
+  collisionCounts: Record<string, number>;
+  orphanCounts: { knownUntracked: number; wordSyncSeen: number };
+  loserSnapshots: Array<{ survivorId: string; loser: Flashcard; oldMapKeys: string[] }>;
+}
+
+function isLegacyZhKey(key: string): boolean {
+  return ZH_VARIANT_PREFIXES.some(prefix => key.startsWith(prefix));
+}
+
+function legacyZhSource(key: string, fallback?: string): string | undefined {
+  return ZH_VARIANT_PREFIXES.find(prefix => key.startsWith(prefix))?.slice(0, -1)
+    ?? (fallback && ZH_VARIANT_PREFIXES.includes(`${fallback}:` as typeof ZH_VARIANT_PREFIXES[number]) ? fallback : undefined);
+}
+
+function containsLegacyZhData(store: FlashcardStore): boolean {
+  const maps = [
+    store.wordToCardMap,
+    store.wordStatsMap,
+    store.wordKnowledge,
+    store.wordCandidates,
+    store.knownUntracked,
+    store.ignoredWords,
+    store.suggestedFlashcards,
+    store.wordSyncSeen,
+    store.grammarKnowledge,
+  ];
+  return Object.values(store.flashcards).some(card => legacyZhSource('', card.language) !== undefined)
+    || maps.some(map => Object.keys(map).some(isLegacyZhKey))
+    || Boolean(store.meta.perLanguage['zh-Hans'] || store.meta.perLanguage['zh-Hant'])
+    || Object.values(store.dailyStats).some(stats => Boolean(stats['zh-Hans'] || stats['zh-Hant']));
+}
+
+function loadZhMigrationPackage(): LanguageData | null {
+  try {
+    const languagesDir = path.join(getUserDataPath(), 'language-data', 'languages');
+    const metadata = JSON.parse(fs.readFileSync(path.join(languagesDir, 'zh.json'), 'utf-8')) as LanguageData;
+    const table = JSON.parse(fs.readFileSync(path.join(languagesDir, 'zh.t2s.json'), 'utf-8')) as ZhMappingTable;
+    registerMappingTable('zh', { words: table.words ?? {}, chars: table.chars ?? {} });
+    return metadata;
+  } catch (error) {
+    log.warn('[flashcardStorage] Deferring zh variant merge until languages/zh.json and languages/zh.t2s.json are installed:', error);
+    return null;
+  }
+}
+
+function mergeCards(a: Flashcard, b: Flashcard): { survivor: Flashcard; loser: Flashcard } {
+  const aReviewed = a.lastReviewed || 0;
+  const bReviewed = b.lastReviewed || 0;
+  const survivor = aReviewed !== bReviewed
+    ? (aReviewed > bReviewed ? a : b)
+    : a.reviews !== b.reviews
+      ? (a.reviews > b.reviews ? a : b)
+      : (a.id < b.id ? a : b);
+  const loser = survivor === a ? b : a;
+  return {
+    survivor: {
+      ...survivor,
+      language: 'zh',
+      dueDate: Math.min(a.dueDate, b.dueDate),
+      lastReviewed: Math.max(aReviewed, bReviewed),
+      createdAt: Math.min(a.createdAt, b.createdAt),
+      lastUpdated: Date.now(),
+      reviews: a.reviews + b.reviews,
+      lapses: a.lapses + b.lapses,
+      tags: [...new Set([...(a.tags ?? []), ...(b.tags ?? [])])],
+      suspended: Boolean(a.suspended || b.suspended),
+    },
+    loser,
+  };
+}
+
+function recognizeSnapshot(entry: PassiveWordKnowledge) {
+  return {
+    ease: entry.ease,
+    lastSeen: entry.lastSeen,
+    timesSeen: entry.timesSeen,
+    timesHovered: entry.timesHovered,
+    lastStatusChange: entry.lastStatusChange,
+  };
+}
+
+function mergeWordKnowledge(a: PassiveWordKnowledge, b: PassiveWordKnowledge, aSource: string, bSource: string): PassiveWordKnowledge {
+  const winner = (b.lastStatusChange ?? 0) > (a.lastStatusChange ?? 0) ? b : a;
+  return {
+    ...winner,
+    language: 'zh',
+    lastSeen: Math.max(a.lastSeen, b.lastSeen),
+    timesSeen: a.timesSeen + b.timesSeen,
+    timesHovered: a.timesHovered + b.timesHovered,
+    forms: {
+      ...a.forms,
+      [aSource]: { ...a.forms?.[aSource], recognize: recognizeSnapshot(a) },
+      ...b.forms,
+      [bSource]: { ...b.forms?.[bSource], recognize: recognizeSnapshot(b) },
+    },
+  };
+}
+
+function canonicalZhKey(word: string, metadata: LanguageData): string {
+  return canonicalKeyHash('zh', word, {
+    hashWord: generateWordHashSync,
+    languageData: metadata,
+    legacyLanguageCodes: Object.fromEntries((metadata.legacyCodes ?? []).map(code => [code, 'zh'])),
+  });
+}
+
+function collectZhCorpus(store: FlashcardStore, metadata: LanguageData): Map<string, string> {
+  const corpus = new Map<string, string>();
+  const add = (word: string | undefined, source?: string) => {
+    if (!word) return;
+    const sources = source && legacyZhSource('', source) ? [source] : ['zh-Hans', 'zh-Hant'];
+    for (const language of sources) corpus.set(`${language}:${generateWordHashSync(word)}`, canonicalZhKey(word, metadata));
+  };
+  for (const card of Object.values(store.flashcards)) add(card.content.front, card.language);
+  for (const [key, entry] of Object.entries(store.wordKnowledge)) add(entry.word, legacyZhSource(key, entry.language));
+  for (const [key, entry] of Object.entries(store.wordCandidates)) add(entry.word, legacyZhSource(key, entry.language));
+  for (const [key, entry] of Object.entries(store.suggestedFlashcards)) add(entry.word, legacyZhSource(key, entry.language));
+  for (const [key, entry] of Object.entries(store.ignoredWords)) add(entry.word, legacyZhSource(key, entry.language));
+  for (const [key, entry] of Object.entries(store.grammarKnowledge)) add(entry.pattern, legacyZhSource(key, entry.language));
+  return corpus;
+}
+
+function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath: string): FlashcardStore {
+  const report: ZhMigrationReport = {
+    timestamp: new Date().toISOString(),
+    migratedKeyCounts: {},
+    collisionCounts: {},
+    orphanCounts: { knownUntracked: 0, wordSyncSeen: 0 },
+    loserSnapshots: [],
+  };
+  const count = (map: string) => { report.migratedKeyCounts[map] = (report.migratedKeyCounts[map] ?? 0) + 1; };
+  const collision = (map: string) => { report.collisionCounts[map] = (report.collisionCounts[map] ?? 0) + 1; };
+  const oldMapKeysFor = (id: string) => Object.entries(store.wordToCardMap)
+    .filter(([, ids]) => Array.isArray(ids) ? ids.includes(id) : ids === id)
+    .map(([key]) => key);
+
+  const flashcards: Record<string, Flashcard> = {};
+  const zhCardsByKey = new Map<string, Flashcard>();
+  for (const card of Object.values(store.flashcards)) {
+    if (!legacyZhSource('', card.language)) {
+      flashcards[card.id] = card;
+      continue;
+    }
+    const key = canonicalZhKey(card.content.front, metadata);
+    const normalized = { ...card, language: 'zh' };
+    const existing = zhCardsByKey.get(key);
+    if (!existing) {
+      zhCardsByKey.set(key, normalized);
+      continue;
+    }
+    const { survivor, loser } = mergeCards(existing, normalized);
+    zhCardsByKey.set(key, survivor);
+    report.loserSnapshots.push({ survivorId: survivor.id, loser: store.flashcards[loser.id], oldMapKeys: [...oldMapKeysFor(existing.id), ...oldMapKeysFor(normalized.id)] });
+    collision('flashcards');
+  }
+  for (const card of zhCardsByKey.values()) flashcards[card.id] = card;
+
+  const migrateKeyed = <T>(map: Record<string, T>, name: string, wordFor: (entry: T) => string | undefined, transform: (entry: T) => T, merge: (a: T, b: T) => T): Record<string, T> => {
+    const result: Record<string, T> = {};
+    for (const [key, entry] of Object.entries(map)) {
+      if (!isLegacyZhKey(key)) {
+        result[key] = entry;
+        continue;
+      }
+      const word = wordFor(entry);
+      if (!word) continue;
+      const canonical = canonicalZhKey(word, metadata);
+      const normalized = transform(entry);
+      if (result[canonical]) {
+        result[canonical] = merge(result[canonical], normalized);
+        collision(name);
+      } else result[canonical] = normalized;
+      count(name);
+    }
+    return result;
+  };
+
+  const wordKnowledge = migrateKeyed(store.wordKnowledge, 'wordKnowledge', entry => entry.word, entry => {
+    const source = entry.language && legacyZhSource('', entry.language) ? entry.language : 'zh-Hans';
+    return { ...entry, language: 'zh', forms: { ...entry.forms, [source]: { ...entry.forms?.[source], recognize: recognizeSnapshot(entry) } } };
+  }, (a, b) => mergeWordKnowledge(a, b, Object.keys(a.forms ?? {})[0] ?? 'zh-Hans', Object.keys(b.forms ?? {})[0] ?? 'zh-Hant'));
+  const wordCandidates = migrateKeyed(store.wordCandidates, 'wordCandidates', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => ({ ...((b.lastSeen > a.lastSeen) ? b : a), count: a.count + b.count, lastSeen: Math.max(a.lastSeen, b.lastSeen) }));
+  const ignoredWords = migrateKeyed(store.ignoredWords, 'ignoredWords', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => a.ignoredAt <= b.ignoredAt ? a : b);
+  const suggestedFlashcards = migrateKeyed(store.suggestedFlashcards, 'suggestedFlashcards', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => {
+    const richer = a.imageUrl && !b.imageUrl ? a : b.imageUrl && !a.imageUrl ? b : (a.lastSeen >= b.lastSeen ? a : b);
+    return { ...richer, count: a.count + b.count, lastSeen: Math.max(a.lastSeen, b.lastSeen) };
+  });
+  const grammarKnowledge = migrateKeyed(store.grammarKnowledge, 'grammarKnowledge', entry => entry.pattern, entry => ({ ...entry, language: 'zh' }), (a, b): GrammarKnowledgeEntry => ({ ...((a.lastSeen >= b.lastSeen) ? a : b), ease: Math.max(a.ease, b.ease), timesEncountered: a.timesEncountered + b.timesEncountered, timesFailed: a.timesFailed + b.timesFailed, lastSeen: Math.max(a.lastSeen, b.lastSeen), language: 'zh' }));
+
+  const corpus = collectZhCorpus(store, metadata);
+  const migrateInverted = <T>(map: Record<string, T>, name: 'knownUntracked' | 'wordSyncSeen', merge: (a: T, b: T) => T): Record<string, T> => {
+    const result: Record<string, T> = {};
+    for (const [key, value] of Object.entries(map)) {
+      if (!isLegacyZhKey(key)) {
+        result[key] = value;
+        continue;
+      }
+      const canonical = corpus.get(key);
+      const nextKey = canonical ?? `zh:${key.slice(key.indexOf(':') + 1)}`;
+      if (!canonical) report.orphanCounts[name] += 1;
+      result[nextKey] = result[nextKey] === undefined ? value : merge(result[nextKey], value);
+      count(name);
+    }
+    return result;
+  };
+  const knownUntracked = migrateInverted(store.knownUntracked, 'knownUntracked', (a, b) => Boolean(a || b));
+  const wordSyncSeen = migrateInverted(store.wordSyncSeen, 'wordSyncSeen', (a, b) => Math.max(a, b));
+
+  const meta = { ...store.meta, perLanguage: { ...store.meta.perLanguage } };
+  const hansMeta = meta.perLanguage['zh-Hans'];
+  const hantMeta = meta.perLanguage['zh-Hant'];
+  if (hansMeta || hantMeta) {
+    const newest = !hantMeta || (hansMeta && hansMeta.newCardsDate >= hantMeta.newCardsDate) ? hansMeta! : hantMeta;
+    meta.perLanguage.zh = hansMeta && hantMeta && hansMeta.newCardsDate === hantMeta.newCardsDate
+      ? { newCardsDate: hansMeta.newCardsDate, newCardsToday: hansMeta.newCardsToday + hantMeta.newCardsToday, reviewsToday: hansMeta.reviewsToday + hantMeta.reviewsToday }
+      : newest;
+    delete meta.perLanguage['zh-Hans'];
+    delete meta.perLanguage['zh-Hant'];
+    count('meta.perLanguage');
+  }
+
+  const dailyStats: Record<string, Record<string, DailyStudyStats>> = {};
+  for (const [date, languages] of Object.entries(store.dailyStats)) {
+    const next = { ...languages };
+    const hans = next['zh-Hans'];
+    const hant = next['zh-Hant'];
+    if (hans || hant) {
+      const left = hans ?? hant!;
+      const right = hant ?? hans!;
+      next.zh = { date: left.date, newCardsStudied: left.newCardsStudied + right.newCardsStudied, reviewCardsStudied: left.reviewCardsStudied + right.reviewCardsStudied, lapses: left.lapses + right.lapses, timeSpent: left.timeSpent + right.timeSpent, graduated: left.graduated + right.graduated };
+      delete next['zh-Hans'];
+      delete next['zh-Hant'];
+      count('dailyStats');
+    }
+    dailyStats[date] = next;
+  }
+
+  const wordToCardMap: Record<string, string[]> = {};
+  for (const [key, ids] of Object.entries(store.wordToCardMap)) if (!isLegacyZhKey(key)) wordToCardMap[key] = Array.isArray(ids) ? ids.filter(id => flashcards[id]) : [ids].filter(id => flashcards[id]);
+  for (const card of Object.values(flashcards)) if (card.language === 'zh') {
+    const key = canonicalZhKey(card.content.front, metadata);
+    if (!wordToCardMap[key]) wordToCardMap[key] = [];
+    wordToCardMap[key].push(card.id);
+  }
+  const wordStatsMap: Record<string, WordStats> = {};
+  for (const [key, ids] of Object.entries(wordToCardMap)) wordStatsMap[key] = calculateWordStats(ids.map(id => flashcards[id]).filter((card): card is Flashcard => Boolean(card)));
+
+  const migrated: FlashcardStore = { ...store, flashcards, wordToCardMap, wordStatsMap, wordKnowledge, wordCandidates, knownUntracked, ignoredWords, suggestedFlashcards, wordSyncSeen, grammarKnowledge, meta, dailyStats, version: CURRENT_VERSION };
+  fs.writeFileSync(path.join(path.dirname(backupPath), 'flashcards.zh-variant-merge-report.json'), JSON.stringify(report, null, 2));
+  migrationInfo = { occurred: true, backupPath, fromVersion: 2 };
+  return migrated;
 }
 
 /**
@@ -633,6 +850,13 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     return { ...DEFAULT_FLASHCARD_STORE };
   }
 
+  if (fc_to_check.version < CURRENT_VERSION && containsLegacyZhData(fc_to_check)) {
+    const zhMetadata = loadZhMigrationPackage();
+    if (!zhMetadata) return fc_to_check;
+    const backupPath = createBackup(getFlashcardsPath(), 2);
+    return migrateLegacyFlashcardStore(migrateV2ToV3(fc_to_check, zhMetadata, backupPath));
+  }
+
   const result: FlashcardStore = {
     flashcards: fc_to_check.flashcards || {},
     wordCandidates: fc_to_check.wordCandidates || {},
@@ -646,7 +870,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     wordSyncSeen: fc_to_check.wordSyncSeen || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
-    version: CURRENT_VERSION,
+    version: fc_to_check.version < CURRENT_VERSION ? CURRENT_VERSION : fc_to_check.version,
   };
 
   return migrateLegacyFlashcardStore(result);

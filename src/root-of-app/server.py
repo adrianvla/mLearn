@@ -40,7 +40,7 @@ config.QUIT_TOKEN = secrets.token_hex(32)
 log.info(f"::QUIT_TOKEN::{config.QUIT_TOKEN}")
 
 # ── Route modules ──
-from routes import nlp, ocr, llm, voice
+from routes import convert, nlp, ocr, llm, voice
 
 # ── FastAPI app ──
 app = FastAPI()
@@ -50,6 +50,7 @@ app.include_router(nlp.router)
 app.include_router(ocr.router)
 app.include_router(llm.router)
 app.include_router(voice.router)
+app.include_router(convert.get_router())
 
 
 @app.exception_handler(Exception)

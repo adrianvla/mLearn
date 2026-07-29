@@ -142,6 +142,9 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET_META, cardId, field),
   deleteFlashcardTts: (cardId: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_DELETE, cardId),
+
+  removeLegacyLanguageData: (paths: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REMOVE_LEGACY_LANGUAGE_DATA, paths),
   
   // ========== Migration ==========
   onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) =>

@@ -1410,6 +1410,11 @@
       }
     },
     "Settings": {
+      "Variant": {
+        "Choose": "选择语言变体",
+        "RequiredDescription": "请先选择要使用的书写变体，然后再继续。",
+        "RequiredTitle": "选择语言变体"
+      },
       "Appearance": {
         "Theme": {
           "Dark": "深色",

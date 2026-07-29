@@ -38,6 +38,7 @@ vi.mock('./SettingsContext', () => ({
 
 vi.mock('./LanguageContext', () => ({
   LanguageProvider: (props: { language?: string; children?: JSX.Element }) => languageProviderMock(props),
+  useLanguage: () => ({ langData: {} }),
 }));
 
 vi.mock('./FlashcardContext', () => ({

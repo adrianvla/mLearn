@@ -11,6 +11,7 @@ import { getBridge } from '../../../../shared/bridges';
 import { getBundledLocaleCodes } from '../../../../shared/bridges/bundledLanguageAssets';
 import '../SettingsForm.css';
 import { getLogger } from '../../../../shared/utils/logger';
+import { LanguageVariantGate } from '../../../components/common';
 
 const log = getLogger("renderer.settings.general");
 
@@ -251,7 +252,8 @@ export const GeneralTab: Component = () => {
       }}
       padding="lg"
     >
-
+      <LanguageVariantGate />
+      
       <SettingGroup title={t('mlearn.Settings.Groups.Language')}>
         <SettingRow
           label={t('mlearn.Settings.Language.AppLanguage.Label')}

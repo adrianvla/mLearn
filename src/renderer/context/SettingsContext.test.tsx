@@ -1,11 +1,12 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { Settings } from '../../shared/types';
+import type { LanguageDataMap, Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { EffectiveManagementPolicy } from '../../shared/managementPolicy';
 import policyFixture from '../../../test/fixtures/management-policy-v1.json';
 
 let settingsCb: (s: Settings) => void;
 let settingsSavedCb: (() => void) | undefined;
+let languageDataCb: (data: LanguageDataMap) => void;
 const settingsCleanup = vi.fn();
 const settingsSavedCleanup = vi.fn();
 const mockRestartBackend = vi.fn();
@@ -17,6 +18,10 @@ const mockBridge = {
     onSettingsSaved: vi.fn(),
     getSettings: vi.fn(),
     saveSettings: vi.fn(),
+  },
+  localization: {
+    onLangData: vi.fn(),
+    getLangData: vi.fn(),
   },
   server: {
     restartBackend: vi.fn(() => mockRestartBackend()),
@@ -32,6 +37,10 @@ function setupMockImplementations() {
   mockBridge.settings.onSettingsSaved.mockImplementation((cb: () => void) => {
     settingsSavedCb = cb;
     return settingsSavedCleanup;
+  });
+  mockBridge.localization.onLangData.mockImplementation((cb: (data: LanguageDataMap) => void) => {
+    languageDataCb = cb;
+    return vi.fn();
   });
 }
 
@@ -64,10 +73,10 @@ const mockSaveCachedPolicyMonotonic = vi.fn();
 
 vi.mock('../services/cloudAuthService', () => ({
   CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS: 60_000,
-  isCloudAccessTokenExpiringSoon: (...args: unknown[]) => mockIsCloudAccessTokenExpiringSoon(...args),
-  normalizeCloudAuthExpiresAt: (...args: unknown[]) => mockNormalizeCloudAuthExpiresAt(...args),
-  refreshCloudSession: (...args: unknown[]) => mockRefreshCloudSession(...args),
-  resolveCloudAccessToken: (...args: unknown[]) => mockResolveCloudAccessToken(...args),
+  isCloudAccessTokenExpiringSoon: mockIsCloudAccessTokenExpiringSoon,
+  normalizeCloudAuthExpiresAt: mockNormalizeCloudAuthExpiresAt,
+  refreshCloudSession: mockRefreshCloudSession,
+  resolveCloudAccessToken: mockResolveCloudAccessToken,
 }));
 
 vi.mock('../services/managementPolicyService', async (importOriginal) => {
@@ -88,31 +97,10 @@ vi.mock('../services/managementPolicyCache', async (importOriginal) => {
   };
 });
 
-type SettingsCtx = {
-  settings: Settings;
-  updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  updateSettings: (partial: Partial<Settings>) => void;
-  saveSettings: () => void;
-  isLoading: () => boolean;
-  isRuntimeRestartRequired: () => boolean;
-  clearRuntimeRestartRequired: () => void;
-  restartAppForRuntimeSettings: () => void;
-  isCloudReLoginModalOpen: () => boolean;
-  openCloudReLoginModal: () => void;
-  closeCloudReLoginModal: () => void;
-  showProsody: () => boolean;
-  setProsodyVisible: (show: boolean) => void;
-  managedPolicy: () => EffectiveManagementPolicy | null;
-  isSettingManaged: (key: keyof Settings) => boolean;
-  getManagedSettingSource: (key: keyof Settings) => { sourceGroupName: string } | null;
-  hasFreshNetworkPolicy: () => boolean;
-  policyAllowsFeature: (featureId: string) => boolean;
-};
-
 async function mountProvider() {
   const { createRoot, createComponent } = await import('solid-js');
   const { SettingsProvider, useSettings } = await import('./SettingsContext');
-  let ctx!: SettingsCtx;
+  let ctx!: ReturnType<typeof useSettings>;
   let dispose!: () => void;
   createRoot((d) => {
     dispose = d;
@@ -261,20 +249,68 @@ describe('SettingsProvider', () => {
 
   it('migrates missing active-group settings to their declared defaults', async () => {
     const { ctx, dispose } = await mountProvider();
-    const legacy = makeSettings() as Settings & {
-      cloudAuthActiveGroupId?: string;
-      cloudAuthActiveGroupName?: string;
-    };
+    const legacy: Partial<Settings> = makeSettings();
     delete legacy.cloudAuthActiveGroupId;
     delete legacy.cloudAuthActiveGroupName;
 
-    settingsCb(legacy);
+    settingsCb(legacy as Settings);
 
     expect(ctx.settings.cloudAuthActiveGroupId).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupId);
     expect(ctx.settings.cloudAuthActiveGroupName).toBe(DEFAULT_SETTINGS.cloudAuthActiveGroupName);
     expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
       cloudAuthActiveGroupId: DEFAULT_SETTINGS.cloudAuthActiveGroupId,
       cloudAuthActiveGroupName: DEFAULT_SETTINGS.cloudAuthActiveGroupName,
+    }));
+    dispose();
+  });
+
+  it('migrates legacy language variants idempotently without replacing a saved choice', async () => {
+    const { ctx, dispose } = await mountProvider();
+    languageDataCb({
+      zh: {
+        name: 'Chinese',
+        legacyCodes: ['zh-Hans', 'zh-Hant'],
+      },
+    });
+    const legacy: Partial<Settings> = makeSettings({ language: 'zh-Hant' });
+    delete legacy.languageVariants;
+
+    settingsCb(legacy as Settings);
+
+    expect(ctx.settings.language).toBe('zh');
+    expect(ctx.settings.languageVariants).toEqual({ zh: 'zh-Hant' });
+
+    settingsCb(ctx.settings);
+
+    expect(ctx.settings.language).toBe('zh');
+    expect(ctx.settings.languageVariants).toEqual({ zh: 'zh-Hant' });
+
+    settingsCb(makeSettings({
+      language: 'zh-Hant',
+      languageVariants: { zh: 'zh-Hans' },
+    }));
+
+    expect(ctx.settings.language).toBe('zh');
+    expect(ctx.settings.languageVariants).toEqual({ zh: 'zh-Hans' });
+    dispose();
+  });
+
+  it('migrates a stale installed language when canonical metadata arrives after settings', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ language: 'zh-Hant' }));
+
+    expect(ctx.settings.language).toBe('zh-Hant');
+
+    languageDataCb({
+      zh: { name: 'Chinese', legacyCodes: ['zh-Hans', 'zh-Hant'] },
+      'zh-Hant': { name: 'Traditional Chinese' },
+    });
+
+    expect(ctx.settings.language).toBe('zh');
+    expect(ctx.settings.languageVariants).toEqual({ zh: 'zh-Hant' });
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      language: 'zh',
+      languageVariants: { zh: 'zh-Hant' },
     }));
     dispose();
   });

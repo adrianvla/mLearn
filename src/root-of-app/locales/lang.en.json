@@ -1410,6 +1410,11 @@
       }
     },
     "Settings": {
+      "Variant": {
+        "Choose": "Choose a language variant",
+        "RequiredDescription": "Choose the writing variant you want to use before continuing.",
+        "RequiredTitle": "Choose a language variant"
+      },
       "Appearance": {
         "Theme": {
           "Dark": "Dark",

@@ -5,7 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { Settings } from '../../shared/types';
+import type { LanguageDataMap, Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type {
   EffectiveManagementPolicy,
@@ -43,6 +43,7 @@ import {
   saveCachedPolicyMonotonic,
 } from '../services/managementPolicyCache';
 import { getLogger } from '../../shared/utils/logger';
+import { canonicalLanguage } from '../../shared/languageVariants';
 
 const log = getLogger("renderer.context.settings");
 
@@ -83,7 +84,35 @@ const LANGUAGE_RUNTIME_KEYS = new Set<keyof Settings>([
   'llmEnabled',
   'ocrEnabled',
   'voiceEnabled',
+  'languageVariants',
 ]);
+
+export function migrateLanguageVariantSettings(
+  settings: Settings,
+  languageData: LanguageDataMap,
+): { settings: Settings; migrated: boolean } {
+  let migrated = false;
+  const next = { ...settings };
+  const variants = next.languageVariants;
+  if (typeof variants !== 'object' || variants === null || Array.isArray(variants)) {
+    next.languageVariants = DEFAULT_SETTINGS.languageVariants;
+    migrated = true;
+  }
+
+  const declaredCanonical = Object.entries(languageData)
+    .find(([code, data]) => code !== next.language && data.legacyCodes?.includes(next.language))?.[0];
+  const canonical = declaredCanonical ?? canonicalLanguage(next.language, languageData);
+  const data = languageData[canonical];
+  if (canonical !== next.language && data?.legacyCodes?.includes(next.language)) {
+    if (!next.languageVariants[canonical]) {
+      next.languageVariants = { ...next.languageVariants, [canonical]: next.language };
+    }
+    next.language = canonical;
+    migrated = true;
+  }
+
+  return { settings: next, migrated };
+}
 
 function normalizeSignedOutActiveGroup<T extends Partial<Settings>>(value: T): T {
   if (value.cloudAuthStatus !== 'signed-out') return value;
@@ -162,6 +191,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   let policyRefreshGeneration = 0;
   let policyRefreshAbort: AbortController | null = null;
   let disposed = false;
+  let languageData: LanguageDataMap = {};
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
   const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
@@ -235,6 +265,10 @@ export const SettingsProvider: ParentComponent = (props) => {
         ? { ...loadedSettings, ...pendingSettingsSnapshot }
         : loadedSettings;
       let migratedSettings = false;
+
+      const languageVariantMigration = migrateLanguageVariantSettings(mergedSettings, languageData);
+      mergedSettings = languageVariantMigration.settings;
+      migratedSettings = languageVariantMigration.migrated;
 
       if (typeof mergedSettings.cloudAuthActiveGroupId !== 'string') {
         mergedSettings.cloudAuthActiveGroupId = DEFAULT_SETTINGS.cloudAuthActiveGroupId;
@@ -713,6 +747,18 @@ export const SettingsProvider: ParentComponent = (props) => {
       broadcastChannel = new BroadcastChannel(SETTINGS_CHANNEL);
       broadcastChannel.onmessage = handleBroadcast;
     }
+
+    ipcCleanups.push(getBridge().localization.onLangData((data) => {
+      languageData = data;
+      const migration = migrateLanguageVariantSettings(settings as Settings, languageData);
+      if (migration.migrated) {
+        updateSettings({
+          language: migration.settings.language,
+          languageVariants: migration.settings.languageVariants,
+        });
+      }
+    }));
+    getBridge().localization.getLangData();
 
     // Load initial settings
     loadSettings();

@@ -1410,6 +1410,11 @@
       }
     },
     "Settings": {
+      "Variant": {
+        "Choose": "言語バリアントを選択",
+        "RequiredDescription": "続行する前に使用する表記バリアントを選択してください。",
+        "RequiredTitle": "言語バリアントを選択"
+      },
       "Appearance": {
         "Theme": {
           "Dark": "ダーク",

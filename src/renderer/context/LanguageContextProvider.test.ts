@@ -8,6 +8,7 @@ const langDataCleanup = vi.fn();
 const languageDataCatalogCleanup = vi.fn();
 const languageDataInstalledCleanup = vi.fn();
 const languageDataInstallErrorCleanup = vi.fn();
+const mockSettings = vi.hoisted(() => ({ languageVariants: {} as Record<string, string> }));
 
 const mockBridge = {
   localization: {
@@ -47,6 +48,10 @@ vi.mock('../../shared/bridges', () => ({
   getBridge: () => mockBridge,
 }));
 
+vi.mock('./SettingsContext', () => ({
+  useSettings: () => ({ settings: mockSettings }),
+}));
+
 type LangCtx = {
   langData: Record<string, unknown>;
   supportedLanguages: () => string[];
@@ -59,7 +64,7 @@ type LangCtx = {
   getFreqLevelNames: () => Record<string, string>;
   isLoading: () => boolean;
   isTranslatable: (pos: string) => boolean;
-  isTokenTranslatable: (token: { word: string; actual_word?: string; surface?: string; type?: string; partOfSpeech?: string }) => boolean;
+  isTokenTranslatable: (token: { word: string; actual_word?: string; surface?: string; reading?: string; type?: string; partOfSpeech?: string }) => boolean;
   translatableTypes: () => string[];
   getLanguageFeatures: () => Record<string, unknown>;
   getEffectiveSettings: <T extends object>(base: T) => T;
@@ -77,7 +82,7 @@ type LangCtx = {
   getReadingVariantsForLanguage: (language: string, reading: string) => string[];
   languageDataCatalog: () => Array<Record<string, unknown>>;
   getLanguageDataStatus: (language: string) => Record<string, unknown> | undefined;
-  installLanguageData: (language: string) => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: unknown) => void;
   isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
   refreshLanguageData: () => void;
   languageDataInstallError: () => { language: string; error: string } | null;
@@ -184,6 +189,7 @@ describe('LanguageContext - provider behavior', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    mockSettings.languageVariants = {};
     setupMockImplementations();
   });
 
@@ -362,6 +368,31 @@ describe('LanguageContext - provider behavior', () => {
     const { ctx, dispose } = await mountProvider({ language: 'de' });
     langDataCb(data);
     expect(ctx.currentLangData()).not.toBeNull();
+    dispose();
+  });
+
+  it('resolves the selected variant overlay for current-language consumers', async () => {
+    mockSettings.languageVariants = { zh: 'traditional' };
+    const { ctx, dispose } = await mountProvider({ language: 'zh' });
+    langDataCb({
+      zh: {
+        name: 'Chinese',
+        variants: {
+          traditional: {
+            name: 'Traditional Chinese',
+            overrides: {
+              'typography.subtitleFontFamily': 'Noto Sans TC',
+              'runtime.tts.webSpeechLang': 'zh-TW',
+            },
+          },
+        },
+      },
+    });
+
+    expect(ctx.currentLangData()).toMatchObject({
+      typography: { subtitleFontFamily: 'Noto Sans TC' },
+      runtime: { tts: { webSpeechLang: 'zh-TW' } },
+    });
     dispose();
   });
 

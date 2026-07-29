@@ -1,11 +1,28 @@
-import type { FlashcardStore, Flashcard, WordCandidate, WordStats, FlashcardState } from '../../shared/types';
-import { SRS_EASE } from '../../shared/constants';
+import type { FlashcardStore, Flashcard, LanguageDataMap, WordCandidate, WordStats } from '../../shared/types';
+import { canonicalLanguage } from '../../shared/languageVariants';
+import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
+import { calculateWordStats } from '../../shared/utils/wordStats';
+import { hashWordSync } from './srsAlgorithm';
+import { getLogger } from '../../shared/utils/logger';
 
 const CHUNK_SIZE = 16000;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 800;
 
 const WORKER_API_URL = 'https://mlearn-cloud.kikan.net';
+const log = getLogger('renderer.flashcardSync');
+
+export interface SyncMergeCollision {
+  source: 'sync-merge';
+  loser: Flashcard;
+  oldMapKeys: string[];
+  survivorId: string;
+}
+
+export interface MergeFlashcardsOptions {
+  languageData?: LanguageDataMap;
+  onCardCollision?: (collision: SyncMergeCollision) => void;
+}
 
 export interface SyncRoom {
   roomId: string;
@@ -43,51 +60,6 @@ export async function toUniqueIdentifier(word: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function compareStates(a: FlashcardState, b: FlashcardState): number {
-  const order: Record<FlashcardState, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
-  return order[a] - order[b];
-}
-
-function calculateWordStats(cards: Flashcard[]): WordStats {
-  if (cards.length === 0) {
-    return {
-      cardCount: 0,
-      bestEase: SRS_EASE.DEFAULT_KNOWN,
-      totalReviews: 0,
-      totalLapses: 0,
-      lastReviewed: 0,
-      bestInterval: 0,
-      bestState: 'new',
-    };
-  }
-
-  let bestEase = 0;
-  let totalReviews = 0;
-  let totalLapses = 0;
-  let lastReviewed = 0;
-  let bestInterval = 0;
-  let bestState: FlashcardState = 'new';
-
-  for (const card of cards) {
-    if (card.ease > bestEase) bestEase = card.ease;
-    totalReviews += card.reviews || 0;
-    totalLapses += card.lapses || 0;
-    if (card.lastReviewed > lastReviewed) lastReviewed = card.lastReviewed;
-    if (card.interval > bestInterval) bestInterval = card.interval;
-    if (compareStates(card.state, bestState) > 0) bestState = card.state;
-  }
-
-  return {
-    cardCount: cards.length,
-    bestEase,
-    totalReviews,
-    totalLapses,
-    lastReviewed,
-    bestInterval,
-    bestState,
-  };
-}
-
 function stripMediaUrls(store: FlashcardStore): FlashcardStore {
   const stripped = JSON.parse(JSON.stringify(store)) as FlashcardStore;
 
@@ -105,7 +77,8 @@ function stripMediaUrls(store: FlashcardStore): FlashcardStore {
 
 export async function mergeFlashcards(
     localStore: FlashcardStore,
-    remoteStore: FlashcardStore
+    remoteStore: FlashcardStore,
+    options: MergeFlashcardsOptions = {},
 ): Promise<FlashcardStore> {
   const merged: FlashcardStore = JSON.parse(JSON.stringify(localStore));
 
@@ -141,7 +114,7 @@ export async function mergeFlashcards(
     const localCard = merged.flashcards[cardId];
     
     if (!localCard) {
-      merged.flashcards[cardId] = remoteCard;
+      merged.flashcards[cardId] = { ...remoteCard, content: { ...remoteCard.content } };
     } else {
       const localReviews = localCard.reviews || 0;
       const remoteReviews = remoteCard.reviews || 0;
@@ -171,13 +144,84 @@ export async function mergeFlashcards(
     }
   }
 
+  const originalCards = new Map(
+    Object.entries(merged.flashcards).map(([cardId, card]) => [cardId, JSON.parse(JSON.stringify(card)) as Flashcard]),
+  );
+  for (const card of Object.values(merged.flashcards)) {
+    if (card.language) {
+      card.language = canonicalLanguage(card.language, options.languageData);
+    }
+  }
+
+  const canonicalKeyForCard = (card: Flashcard): string => {
+    const language = card.language || 'und';
+    return canonicalKeyHash(language, card.content.front, {
+      hashWord: hashWordSync,
+      languageData: options.languageData?.[language],
+    });
+  };
+
+  const hasScriptConversion = (language: string): boolean => {
+    const languageData = options.languageData?.[language];
+    return Boolean(
+      languageData?.textProcessing?.lexemeNormalization?.mappingTableAsset
+      || Object.values(languageData?.variants ?? {}).some((variant) => variant.scriptConversion?.mappingAsset),
+    );
+  };
+
+  const canonicalGroups = new Map<string, Array<[string, Flashcard]>>();
+  for (const entry of Object.entries(merged.flashcards)) {
+    const [, card] = entry;
+    if (!card.content.front || !hasScriptConversion(card.language || 'und')) continue;
+    const key = canonicalKeyForCard(card);
+    const group = canonicalGroups.get(key) ?? [];
+    group.push(entry);
+    canonicalGroups.set(key, group);
+  }
+
+  const now = Date.now();
+  for (const cards of canonicalGroups.values()) {
+    if (cards.length < 2) continue;
+    const sorted = [...cards].sort(([, left], [, right]) => {
+      const reviewedDifference = (right.lastReviewed || 0) - (left.lastReviewed || 0);
+      if (reviewedDifference) return reviewedDifference;
+      const reviewDifference = (right.reviews || 0) - (left.reviews || 0);
+      if (reviewDifference) return reviewDifference;
+      return left.id.localeCompare(right.id);
+    });
+    const [survivorKey, survivor] = sorted[0];
+    const oldMapKeys = cards.map(([, card]) => `${card.language || 'und'}:${hashWordSync(card.content.front)}`);
+    const mergedCard: Flashcard = {
+      ...survivor,
+      dueDate: Math.min(...cards.map(([, card]) => card.dueDate)),
+      lastReviewed: Math.max(...cards.map(([, card]) => card.lastReviewed || 0)),
+      createdAt: Math.min(...cards.map(([, card]) => card.createdAt)),
+      lastUpdated: now,
+      reviews: cards.reduce((total, [, card]) => total + (card.reviews || 0), 0),
+      lapses: cards.reduce((total, [, card]) => total + (card.lapses || 0), 0),
+      tags: [...new Set(cards.flatMap(([, card]) => card.tags ?? []))],
+      suspended: cards.some(([, card]) => Boolean(card.suspended)),
+    };
+    merged.flashcards[survivorKey] = mergedCard;
+
+    for (const [cardKey, card] of sorted.slice(1)) {
+      delete merged.flashcards[cardKey];
+      const collision: SyncMergeCollision = {
+        source: 'sync-merge',
+        loser: originalCards.get(cardKey) ?? card,
+        oldMapKeys,
+        survivorId: survivor.id,
+      };
+      options.onCardCollision?.(collision);
+      log.info('Merged canonical flashcard collision', collision);
+    }
+  }
+
   const newWordToCardMap: Record<string, string[]> = {};
   for (const [cardId, card] of Object.entries(merged.flashcards)) {
     const word = card.content.front;
     if (word) {
-      const wordHash = await toUniqueIdentifier(word);
-      const lang = card.language || 'und';
-      const lk = lang + ':' + wordHash;
+      const lk = canonicalKeyForCard(card);
       if (!newWordToCardMap[lk]) {
         newWordToCardMap[lk] = [];
       }

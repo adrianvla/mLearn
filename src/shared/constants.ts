@@ -225,6 +225,7 @@ export const IPC_CHANNELS = {
   
   // File operations
   READ_DIRECTORY_IMAGES: 'read-directory-images',
+  REMOVE_LEGACY_LANGUAGE_DATA: 'remove-legacy-language-data',
   READ_PDF_FILE: 'read-pdf-file',
   SELECT_VIDEO_FILE: 'select-video-file',
   SELECT_SUBTITLE_FILE: 'select-subtitle-file',

@@ -14,7 +14,7 @@ _pinyin_input_converter: Any = None
 
 def _language_code() -> str:
     prefix = "_mlearn_language_"
-    module_name = __name__[len(prefix):] if __name__.startswith(prefix) else "zh-Hans"
+    module_name = __name__[len(prefix):] if __name__.startswith(prefix) else "zh"
     return module_name.replace("_", "-")
 
 

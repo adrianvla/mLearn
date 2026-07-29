@@ -5,7 +5,24 @@ import {
   toUniqueIdentifier,
   mergeFlashcards,
 } from './flashcardSyncService';
-import type { FlashcardStore, Flashcard } from './flashcardSyncService';
+import type { FlashcardStore, Flashcard, LanguageDataMap } from '../../shared/types';
+import { clearMappingTables, registerMappingTable } from '../../shared/languageFeatures';
+
+const ZH_LANGUAGE_DATA = {
+  zh: {
+    legacyCodes: ['zh-Hans', 'zh-Hant'],
+    textProcessing: {
+      lexemeNormalization: { mappingTableAsset: 'languages/zh.t2s.json' },
+    },
+  },
+} as unknown as LanguageDataMap;
+
+function registerZhMappingTable(): void {
+  registerMappingTable('zh', {
+    words: { '學習': '学习' },
+    chars: { 學: '学', 習: '习' },
+  });
+}
 
 function makeFlashcard(overrides: Partial<Flashcard> = {}): Flashcard {
   return {
@@ -45,6 +62,7 @@ function makeEmptyStore(): FlashcardStore {
     suggestedFlashcards: {},
     wordSyncSeen: {},
     meta: {
+      perLanguage: {},
       newCardsToday: 0,
       reviewsToday: 0,
       newCardsDate: '2024-01-01',
@@ -378,5 +396,108 @@ describe('mergeFlashcards', () => {
 
     expect(Object.keys(merged.wordToCardMap)).toHaveLength(0);
   });
-});
 
+  it('normalizes legacy-language cards and canonicalizes their keys when the mapping table is registered', async () => {
+    registerZhMappingTable();
+    const remote = makeEmptyStore();
+    remote.flashcards['traditional-card'] = makeFlashcard({
+      id: 'traditional-card',
+      language: 'zh-Hant',
+      content: { type: 'word', front: '學習', back: 'to study' },
+    });
+
+    const merged = await mergeFlashcards(makeEmptyStore(), remote, { languageData: ZH_LANGUAGE_DATA });
+    const key = `zh:${await toUniqueIdentifier('学习')}`;
+
+    expect(merged.flashcards['traditional-card'].language).toBe('zh');
+    expect(merged.wordToCardMap[key]).toEqual(['traditional-card']);
+    expect(Object.keys(merged.wordToCardMap)).toEqual([key]);
+    clearMappingTables();
+  });
+
+  it('merges canonical collisions into one card and archives the loser snapshot', async () => {
+    registerZhMappingTable();
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    const archived: unknown[] = [];
+    local.flashcards.local = makeFlashcard({
+      id: 'local',
+      language: 'zh',
+      state: 'review',
+      ease: 3,
+      interval: 500,
+      learningStep: 2,
+      dueDate: 300,
+      reviews: 10,
+      lapses: 2,
+      createdAt: 200,
+      lastReviewed: 2000,
+      lastUpdated: 2000,
+      tags: ['local'],
+      buried: true,
+      content: { type: 'word', front: '学习', back: 'study' },
+    });
+    remote.flashcards.remote = makeFlashcard({
+      id: 'remote',
+      language: 'zh-Hant',
+      state: 'learning',
+      ease: 1.5,
+      interval: 10,
+      learningStep: 1,
+      dueDate: 100,
+      reviews: 3,
+      lapses: 4,
+      createdAt: 100,
+      lastReviewed: 1000,
+      lastUpdated: 3000,
+      tags: ['remote'],
+      suspended: true,
+      content: { type: 'word', front: '學習', back: 'study traditional' },
+    });
+
+    const merged = await mergeFlashcards(local, remote, {
+      languageData: ZH_LANGUAGE_DATA,
+      onCardCollision: (entry) => archived.push(entry),
+    });
+    const key = `zh:${await toUniqueIdentifier('学习')}`;
+
+    expect(merged.flashcards).toEqual({
+      local: expect.objectContaining({
+        id: 'local',
+        content: { type: 'word', front: '学习', back: 'study' },
+        state: 'review',
+        ease: 3,
+        interval: 500,
+        learningStep: 2,
+        dueDate: 100,
+        lastReviewed: 2000,
+        createdAt: 100,
+        reviews: 13,
+        lapses: 6,
+        tags: expect.arrayContaining(['local', 'remote']),
+        suspended: true,
+        buried: true,
+      }),
+    });
+    expect(merged.wordToCardMap[key]).toEqual(['local']);
+    expect(archived).toEqual([
+      expect.objectContaining({ source: 'sync-merge', survivorId: 'local', loser: remote.flashcards.remote }),
+    ]);
+    clearMappingTables();
+  });
+
+  it('preserves the previous byte-identical key behavior for non-variant languages', async () => {
+    const local = makeEmptyStore();
+    local.flashcards.ja = makeFlashcard({
+      id: 'ja',
+      language: 'ja',
+      content: { type: 'word', front: '日本語', back: 'Japanese' },
+    });
+
+    const merged = await mergeFlashcards(local, makeEmptyStore(), { languageData: ZH_LANGUAGE_DATA });
+    const previousKey = `ja:${await toUniqueIdentifier('日本語')}`;
+
+    expect(Object.keys(merged.wordToCardMap)).toEqual([previousKey]);
+    expect(merged.wordToCardMap[previousKey]).toEqual(['ja']);
+  });
+});

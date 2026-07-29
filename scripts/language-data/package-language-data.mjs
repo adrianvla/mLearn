@@ -541,7 +541,7 @@ export async function createLanguageDataRelease(options = {}) {
 
   for (const fileName of fs.readdirSync(languagesDir).sort()) {
     if (!fileName.endsWith('.json')) continue;
-    if (fileName.endsWith('.freq.json')) continue;
+    if (fileName.endsWith('.freq.json') || fileName.endsWith('.t2s.json')) continue;
     const language = path.basename(fileName, '.json');
     const metadata = applyLanguageMetadataOverride(
       releaseOptions,

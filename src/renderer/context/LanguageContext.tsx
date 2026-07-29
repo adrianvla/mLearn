@@ -35,12 +35,15 @@ import {
   ocrRuntimeSupportsRamSaver,
   ocrRuntimeSupportsVerticalText,
   resolveLanguageFrequencyPayload,
+  registerMappingTable,
   sortFrequencyLevelsByDifficulty,
   type LanguageLexemeIndex,
   type LanguageTokenizerCapabilities,
 } from '../../shared/languageFeatures';
+import { resolveActiveVariantId, resolveEffectiveLanguageData } from '../../shared/languageVariants';
 import { prosodyVisible } from '../../shared/prosodySettings';
 import { getLogger } from '../../shared/utils/logger';
+import { useSettings } from './SettingsContext';
 
 const log = getLogger("renderer.context.language");
 
@@ -165,6 +168,7 @@ interface LanguageFrequencyState {
 
 function buildLanguageFrequencyState(
   langInfo: LanguageData | null | undefined,
+  language?: string,
   providerId?: string,
   levelSystemId?: string,
 ): LanguageFrequencyState {
@@ -177,7 +181,7 @@ function buildLanguageFrequencyState(
   if (freq.length === 0) {
     return {
       frequency: {},
-      lexemeIndex: buildLexemeIndex(undefined, effectiveLangInfo),
+      lexemeIndex: buildLexemeIndex(undefined, effectiveLangInfo, language),
     };
   }
 
@@ -236,7 +240,7 @@ function buildLanguageFrequencyState(
 
   return {
     frequency: freqMap,
-    lexemeIndex: buildLexemeIndex(freq, effectiveLangInfo),
+    lexemeIndex: buildLexemeIndex(freq, effectiveLangInfo, language),
   };
 }
 
@@ -247,6 +251,8 @@ interface LanguageProviderProps {
 }
 
 export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) => {
+  const { settings } = useSettings();
+  const [baseLangData, setBaseLangData] = createStore<LanguageDataMap>({});
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createSignal<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
@@ -273,9 +279,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     log.info('[LanguageContext] Loading language data...');
     ipcCleanups.push(bridge.localization.onLangData((data) => {
       log.info('[LanguageContext] Language data received');
-      setLangData(reconcile(data as unknown as LanguageDataMap));
-      parseWordFrequency(data as unknown as LanguageDataMap);
-      parseGrammarData(data as unknown as LanguageDataMap);
+      setBaseLangData(reconcile(data as unknown as LanguageDataMap));
       setIsLoading(false);
     }));
     bridge.localization.getLangData();
@@ -323,7 +327,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     const providerId = props.frequencyProviderSelections?.[lang];
     const levelSystemId = props.frequencyLevelSystemSelections?.[lang];
     perLanguageFrequencyState.clear();
-    const state = buildLanguageFrequencyState(langInfo, providerId, levelSystemId);
+    const state = buildLanguageFrequencyState(langInfo, lang, providerId, levelSystemId);
     lexemeIndex = state.lexemeIndex;
     setWordFrequency(state.frequency);
   };
@@ -367,7 +371,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
 
   // Get frequency for a word, with fallback to reading-based lookup
   const getFrequency = (word: string): WordFrequencyEntry | null => {
-    return getFrequencyForLexeme(word, wordFrequency(), lexemeIndex, currentLangData());
+    return getFrequencyForLexeme(word, wordFrequency(), lexemeIndex, currentLangData(), currentLang());
   };
 
   const getFrequencyStateForLanguage = (language: string): LanguageFrequencyState => {
@@ -384,7 +388,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
       && cached.providerId === providerId
       && cached.levelSystemId === levelSystemId
     ) return cached.state;
-    const state = buildLanguageFrequencyState(data, providerId, levelSystemId);
+    const state = buildLanguageFrequencyState(data, language, providerId, levelSystemId);
     perLanguageFrequencyState.set(language, { data, providerId, levelSystemId, state });
     return state;
   };
@@ -392,17 +396,17 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   const getFrequencyForLanguage = (language: string, word: string): WordFrequencyEntry | null => {
     const data = resolvedLanguageData(language);
     const state = getFrequencyStateForLanguage(language);
-    return getFrequencyForLexeme(word, state.frequency, state.lexemeIndex, data);
+    return getFrequencyForLexeme(word, state.frequency, state.lexemeIndex, data, language);
   };
 
   // Resolve a word/readable form to its canonical frequency-list form using
   // language-defined lexeme normalization.
   const getCanonicalForm = (word: string): string => {
-    return getCanonicalLexeme(word, wordFrequency(), lexemeIndex, currentLangData());
+    return getCanonicalLexeme(word, wordFrequency(), lexemeIndex, currentLangData(), currentLang());
   };
 
   const getWordVariants = (word: string): string[] => {
-    return getLexemeVariants(word, wordFrequency(), lexemeIndex, currentLangData());
+    return getLexemeVariants(word, wordFrequency(), lexemeIndex, currentLangData(), currentLang());
   };
 
   const getReadingVariants = (reading: string): string[] => {
@@ -413,14 +417,14 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     if (language === currentLang()) return getCanonicalForm(word);
     const data = resolvedLanguageData(language);
     const state = getFrequencyStateForLanguage(language);
-    return getCanonicalLexeme(word, state.frequency, state.lexemeIndex, data);
+    return getCanonicalLexeme(word, state.frequency, state.lexemeIndex, data, language);
   };
 
   const getWordVariantsForLanguage = (language: string, word: string): string[] => {
     if (language === currentLang()) return getWordVariants(word);
     const data = resolvedLanguageData(language);
     const state = getFrequencyStateForLanguage(language);
-    return getLexemeVariants(word, state.frequency, state.lexemeIndex, data);
+    return getLexemeVariants(word, state.frequency, state.lexemeIndex, data, language);
   };
 
   const getReadingVariantsForLanguage = (language: string, reading: string): string[] => {
@@ -607,6 +611,30 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   onMount(() => {
     loadLangData();
     loadLanguageDataCatalog();
+  });
+
+  const effectiveLanguageData = createMemo<LanguageDataMap>(() => Object.fromEntries(
+    Object.entries(baseLangData).map(([language, data]) => [
+      language,
+      resolveEffectiveLanguageData(data, settings, language),
+    ]),
+  ));
+
+  createEffect(() => {
+    const data = effectiveLanguageData();
+    const lang = currentLang();
+    const variantId = resolveActiveVariantId(settings, lang);
+    const mappingAsset = variantId ? baseLangData[lang]?.variants?.[variantId]?.scriptConversion?.mappingAsset : undefined;
+
+    setLangData(reconcile(data));
+    parseWordFrequency(data);
+    parseGrammarData(data);
+
+    if (!mappingAsset) return;
+    void fetch(mappingAsset)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error(`Failed to load ${mappingAsset}`)))
+      .then((table) => registerMappingTable(lang, table))
+      .catch((error: unknown) => log.warn('[LanguageContext] Failed to load mapping table:', error));
   });
 
   createEffect(() => {

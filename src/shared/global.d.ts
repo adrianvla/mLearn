@@ -222,6 +222,7 @@ sendLogRecord: (record: unknown) => void;
    * Use this when handling drag-dropped files to get their filesystem path.
    */
   getPathForFile: (file: File) => string;
+  removeLegacyLanguageData: (paths: string[]) => Promise<void>;
 
   // Media Stats
   saveMediaStats: (mediaHash: string, stats: MediaStats) => void;

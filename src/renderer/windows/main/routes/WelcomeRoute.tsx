@@ -8,7 +8,7 @@ import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
@@ -139,6 +139,7 @@ export const WelcomeRoute: Component = () => {
 
   return (
     <div class="welcome-container">
+      <LanguageVariantGate />
       <WindowDragRegion />
       
       {/* Header */}

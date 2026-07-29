@@ -33,7 +33,7 @@ import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
-import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
+import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
 
@@ -41,7 +41,7 @@ import { extractReadingValue } from '../utils/translationCacheParsers';
 const log = getLogger("renderer.context.flashcard");
 
 // Current store version
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 type StoredFlashcardStore = Partial<FlashcardStore> & {
   wordToCardMap?: Record<string, string | string[]>;
@@ -330,7 +330,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const { langData, currentLangData, getFrequencyForLanguage, getCanonicalForm, getWordVariants, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
   const languageData = () => typeof currentLangData === 'function' ? currentLangData() : null;
   const languageDataFor = (language: string): ReturnType<typeof languageData> => (
-    langData[language] ?? (language === settings.language ? languageData() : null)
+    language === settings.language ? languageData() : langData[language] ?? null
   );
   const { requestAccess } = useLowPowerGate();
   const newDayHour = () => settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour;
@@ -2216,6 +2216,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = SRS.hashWordSync(storageWord);
     const lang = language;
     const lk = langKey(lang, wordHash);
+    const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
     if (store.knownUntracked[lk]) return;
     const now = Date.now();
 
@@ -2241,6 +2242,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
       k.lastSeen = now;
       // Ease bump for passive exposure (configurable per caller)
       k.ease = Math.min(5, k.ease + easeBump);
+      if (scriptForm) {
+        const recognize = k.forms?.[scriptForm]?.recognize ?? {
+          ease: SRS.MIN_EASE,
+          lastSeen: now,
+          timesSeen: 0,
+          timesHovered: 0,
+        };
+        if (shouldCount) recognize.timesSeen++;
+        recognize.lastSeen = now;
+        recognize.ease = Math.min(5, recognize.ease + easeBump);
+        k.forms = { ...k.forms, [scriptForm]: { ...k.forms?.[scriptForm], recognize } };
+        k.ease = Math.max(k.ease, ...Object.values(k.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : []));
+      }
     }));
 
     // Notify media stats listeners so per-media tracking stays in sync
@@ -2444,6 +2458,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const storageWord = getPrimaryWordFormForLanguage(word, language);
     const wordHash = SRS.hashWordSync(storageWord);
     const lk = langKey(language, wordHash);
+    const scriptForm = detectScriptForm(word, language, languageDataFor(language));
     const k = store.wordKnowledge[lk];
     if (!k) return;
     // Already recorded a manual status change for this word
@@ -2456,6 +2471,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (entry && entry.statusChangedAtSeen === undefined) {
         entry.statusChangedAtSeen = entry.timesSeen;
         entry.lastStatusChange = Date.now();
+        if (scriptForm) {
+          const recognize = entry.forms?.[scriptForm]?.recognize ?? {
+            ease: entry.ease,
+            lastSeen: entry.lastSeen,
+            timesSeen: entry.timesSeen,
+            timesHovered: entry.timesHovered,
+          };
+          recognize.lastStatusChange = entry.lastStatusChange;
+          entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
+        }
       }
     }));
     saveFlashcards();
@@ -2470,6 +2495,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = SRS.hashWordSync(storageWord);
     const lang = language;
     const lk = langKey(lang, wordHash);
+    const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
     if (store.knownUntracked[lk]) return;
     const now = Date.now();
     const eased = ease + settings.manualStatusEaseBuffer;
@@ -2493,6 +2519,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
         s.wordKnowledge[lk].lastStatusChange = now;
         s.wordKnowledge[lk].wordSyncRatedAt = now;
       }
+      const entry = s.wordKnowledge[lk];
+      if (scriptForm) {
+        const recognize = entry.forms?.[scriptForm]?.recognize ?? {
+          ease: entry.ease,
+          lastSeen: entry.lastSeen,
+          timesSeen: entry.timesSeen,
+          timesHovered: entry.timesHovered,
+        };
+        recognize.ease = eased;
+        recognize.lastSeen = now;
+        recognize.lastStatusChange = now;
+        entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
+        entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
+      }
     }));
     saveFlashcards();
   };
@@ -2502,6 +2542,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = SRS.hashWordSync(storageWord);
     const lang = language;
     const lk = langKey(lang, wordHash);
+    const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
     const now = Date.now();
 
     const buffer = settings.manualStatusEaseBuffer;
@@ -2531,6 +2572,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
         s.wordKnowledge[lk].ease = targetEase;
         s.wordKnowledge[lk].lastStatusChange = now;
         s.wordKnowledge[lk].timesHovered = 0;
+      }
+      const entry = s.wordKnowledge[lk];
+      if (scriptForm) {
+        const recognize = entry.forms?.[scriptForm]?.recognize ?? {
+          ease: entry.ease,
+          lastSeen: entry.lastSeen,
+          timesSeen: entry.timesSeen,
+          timesHovered: entry.timesHovered,
+        };
+        recognize.ease = targetEase;
+        recognize.lastStatusChange = now;
+        recognize.timesHovered = 0;
+        entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
+        entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
       }
     }));
     saveFlashcards();

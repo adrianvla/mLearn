@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, webContents } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
@@ -767,6 +767,7 @@ function allowsIncompatibleLanguageData(settings: Settings): boolean {
 function didLanguageRuntimeComponentSettingsChange(prevSettings: Settings, nextSettings: Settings): boolean {
   return (
     prevSettings.language !== nextSettings.language ||
+    JSON.stringify(prevSettings.languageVariants ?? DEFAULT_SETTINGS.languageVariants) !== JSON.stringify(nextSettings.languageVariants ?? DEFAULT_SETTINGS.languageVariants) ||
     (prevSettings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled) !== (nextSettings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled) ||
     (prevSettings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled) !== (nextSettings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled) ||
     (prevSettings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled) !== (nextSettings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled)
@@ -882,8 +883,11 @@ export function setupSettingsIPC(): void {
         allowIncompatibleAppVersion,
       );
       const installedStatus = catalog.find((status) => status.language === language);
-      event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
-      event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);
+      // Catalog state is global; reply-only would leave other windows stale (bug).
+      for (const target of webContents.getAllWebContents()) {
+        target.send(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
+        target.send(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);
+      }
     } catch (error) {
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_ERROR, {
         language,

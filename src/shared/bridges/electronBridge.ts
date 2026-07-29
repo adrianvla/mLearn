@@ -117,6 +117,7 @@ const fileBridge: FileBridge = {
   selectBrowserFile: () => getIPC().selectBrowserFile(),
   getLocalMediaUrl: (path) => getIPC().getLocalMediaUrl(path),
   getPathForFile: (file) => getIPC().getPathForFile(file),
+  removeLegacyLanguageData: (paths) => getIPC().removeLegacyLanguageData(paths),
   writeToClipboard: (text) => getIPC().writeToClipboard(text),
 };
 

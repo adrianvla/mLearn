@@ -127,6 +127,7 @@ export interface FileBridge {
   selectBrowserFile: () => Promise<string | null>;
   getLocalMediaUrl: (filePath: string) => Promise<string | null>;
   getPathForFile: (file: File) => string;
+  removeLegacyLanguageData: (paths: string[]) => Promise<void>;
   writeToClipboard: (text: string) => void;
 }
 

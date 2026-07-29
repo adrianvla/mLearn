@@ -19,8 +19,7 @@ import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
 import { ActiveGroupGate } from '../components/cloud/ActiveGroupSelector';
-import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
-import { consumePendingFlashcardMigration, setMigrationListenerReady } from './migrationSignals';
+import { MigrationHandler } from '../components/migration/MigrationHandler';
 import { setBuiltinModelReady } from './llmModelSignals';
 import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
@@ -53,67 +52,6 @@ const LanguageProviderBridge: Component<{ children?: JSX.Element }> = (props) =>
       </LanguageProvider>
     </Show>
   );
-};
-
-/**
- * MigrationHandler - Handles showing notifications for v1 data migration
- * Must be placed OUTSIDE FlashcardProvider so listener is ready before flashcards load
- * 
- * Note: Word statuses are loaded automatically at statsService module init time.
- * This handler only shows the migration toast notification.
- */
-const MigrationHandler: ParentComponent = (props) => {
-  const { t } = useLocalization();
-
-  onMount(() => {
-    const showFlashcardMigrationToast = (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined) => {
-      if (!info?.occurred) {
-        return;
-      }
-
-      showToast({
-        variant: 'success',
-        title: t('mlearn.Notifications.MigrationComplete'),
-        message: info.backupPath
-          ? t('mlearn.Notifications.MigrationFlashcards', { version: info.fromVersion ?? '' })
-          : t('mlearn.Notifications.MigrationFlashcardsNoBackup', { version: info.fromVersion ?? '' }),
-        duration: 10000,
-      });
-    };
-
-    // Check if localStorage migration occurred (word statuses already loaded by statsService)
-    const lsInfo = getLocalStorageMigrationInfo();
-    if (lsInfo.occurred) {
-      showToast({
-        variant: 'info',
-        title: t('mlearn.Notifications.MigrationComplete'),
-        message: t('mlearn.Notifications.MigrationWordStatuses', { count: lsInfo.migratedWordCount }),
-        duration: 8000,
-      });
-      resetLocalStorageMigrationInfo();
-    }
-    
-    // Listen for flashcard migration events from electron
-    const handleFlashcardMigration = (e: Event) => {
-      const info = (e as CustomEvent).detail;
-      log.info('[MigrationHandler] Received flashcard migration event:', info);
-      showFlashcardMigrationToast(info);
-    };
-
-    window.addEventListener('mlearn-flashcard-migration', handleFlashcardMigration);
-
-    // Signal that listener is ready
-    setMigrationListenerReady(true);
-    showFlashcardMigrationToast(consumePendingFlashcardMigration() ?? undefined);
-    log.info('[MigrationHandler] Migration listener registered');
-
-    onCleanup(() => {
-      setMigrationListenerReady(false);
-      window.removeEventListener('mlearn-flashcard-migration', handleFlashcardMigration);
-    });
-  });
-  
-  return props.children;
 };
 
 /**

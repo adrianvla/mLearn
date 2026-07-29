@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings } from '../../shared/types';
+import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings, WordStats } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
@@ -122,6 +122,17 @@ const mockLangData = vi.hoisted(() => ({
     colour_codes: {},
     settings: { fixed: {} },
   },
+  zh: {
+    name: 'Chinese',
+    variants: {
+      simplified: { name: 'Simplified', overrides: {} },
+      traditional: {
+        name: 'Traditional',
+        scriptConversion: { engine: 'opencc', config: 't2s', mappingAsset: 'languages/zh.t2s.json' },
+        overrides: { 'runtime.adapter.config.pinyinInputConversion': true },
+      },
+    },
+  },
   fr: {
     name: 'French',
     name_translated: 'français',
@@ -143,7 +154,7 @@ vi.mock('./LanguageContext', () => ({
     getCanonicalFormForLanguage: mockGetCanonicalFormForLanguage,
     getWordVariantsForLanguage: mockGetWordVariantsForLanguage,
     getFrequencyForLanguage: mockGetFrequencyForLanguage,
-    currentLangData: () => null,
+    currentLangData: () => mockLangData[mockSettings.language as keyof typeof mockLangData] ?? null,
   }),
 }));
 
@@ -227,7 +238,7 @@ type FlashcardCtx = {
   isLoading: () => boolean;
   queue: () => ReviewQueue;
   queueCounts: () => { new: number; learning: number; review: number; total: number };
-  addFlashcard: (content: Partial<{ type: string; front: string; back: string; reading?: string; prosody?: FlashcardContent['prosody']; pos?: string; level?: number; example?: string; exampleMeaning?: string; imageUrl?: string; videoUrl?: string; skipExampleTts?: boolean; audioUrl?: string; context?: string; source?: string; extra?: string; word?: string; pronunciation?: string; translation?: string[]; definition?: string[]; screenshotUrl?: string; contextPhrase?: string }> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean, language?: string) => Promise<string>;
+  addFlashcard: (content: Partial<{ type: string; front: string; back: string; reading?: string; prosody?: FlashcardContent['prosody']; pos?: string; level?: number; example?: string; exampleMeaning?: string; imageUrl?: string; videoUrl?: string; skipExampleTts?: boolean; audioUrl?: string; context?: string; source?: string; extra?: string; word?: string; pronunciation?: string; translation?: string[]; definition?: string[]; screenshotUrl?: string; contextPhrase?: string; unpopulated?: boolean }> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean, language?: string) => Promise<string>;
   removeFlashcard: (id: string, neverShowAgain?: boolean) => Promise<boolean>;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   updateFlashcardContent: (id: string, content: Partial<Record<string, unknown>>) => void;
@@ -315,7 +326,7 @@ async function mountProvider() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
   return {
@@ -394,6 +405,7 @@ describe('FlashcardProvider', () => {
     mockSettings.autoSuggestUnknownWords = true;
     mockSettings.learningLanguageLevels = {};
     mockSettings.language = 'ja';
+    mockSettings.languageVariants = {};
     mockSettings.uiLanguage = DEFAULT_SETTINGS.uiLanguage;
     mockSettings.dictionaryTargetLanguages = {};
     mockStreamChat.mockReset();
@@ -1572,6 +1584,30 @@ describe('FlashcardProvider', () => {
     expect(knowledge).toBeDefined();
     expect(knowledge.timesSeen).toBe(1);
     expect(knowledge.ease).toBeCloseTo(SRS.MIN_EASE + 0.05, 2);
+    dispose();
+  });
+
+  it('tracks script forms under one canonical word identity', async () => {
+    mockSettings.language = 'zh';
+    mockGetCanonicalForm.mockImplementation((word: string) => word === '學' ? '学' : word);
+    mockGetWordVariants.mockImplementation((word: string) => word === '學' ? ['学', '學'] : [word]);
+    const { registerMappingTable } = await import('../../shared/languageFeatures');
+    registerMappingTable('zh', { words: {}, chars: { 學: '学' } });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    ctx.trackWordSeen('學', undefined, 0);
+    vi.setSystemTime(501);
+    ctx.trackWordSeen('学', undefined, 0);
+
+    const SRS = await import('../services/srsAlgorithm');
+    const entry = ctx.store.wordKnowledge[`zh:${SRS.hashWordSync('学')}`];
+    expect(entry.timesSeen).toBe(2);
+    expect(entry.forms?.traditional?.recognize?.timesSeen).toBe(1);
+    expect(entry.forms?.simplified?.recognize?.timesSeen).toBe(1);
+    vi.useRealTimers();
     dispose();
   });
 

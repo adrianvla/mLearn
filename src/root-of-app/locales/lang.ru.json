@@ -1410,6 +1410,11 @@
       }
     },
     "Settings": {
+      "Variant": {
+        "Choose": "Выберите вариант языка",
+        "RequiredDescription": "Выберите вариант письменности перед продолжением.",
+        "RequiredTitle": "Выберите вариант языка"
+      },
       "Appearance": {
         "Theme": {
           "Dark": "Тёмная",

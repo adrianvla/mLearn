@@ -2818,3 +2818,81 @@ describe('language feature bricks', () => {
     expect(shouldTokenizeTextForLanguage('   ', 'zh', pinyinAwareLanguage)).toBe(false);
   });
 });
+
+import { beforeEach } from 'vitest';
+import { applyMappingTableNormalizer, clearMappingTables, registerMappingTable } from '../languageFeatures';
+
+describe('mapping-table normalizer registry', () => {
+  const fixture = { words: { 學習: '学习' }, chars: { 學: '学' } };
+
+  beforeEach(() => {
+    clearMappingTables();
+  });
+
+  it('prefers the word-level mapping over the char-by-char fallback', () => {
+    registerMappingTable('zh', fixture);
+    expect(applyMappingTableNormalizer('學習', 'zh')).toBe('学习');
+  });
+
+  it('falls back to char-by-char mapping when there is no word-level hit', () => {
+    registerMappingTable('zh', fixture);
+    expect(applyMappingTableNormalizer('學生', 'zh')).toBe('学生');
+  });
+
+  it('leaves unmapped characters untouched', () => {
+    registerMappingTable('zh', fixture);
+    expect(applyMappingTableNormalizer('生', 'zh')).toBe('生');
+  });
+
+  it('is the identity for languages without a registered table', () => {
+    registerMappingTable('zh', fixture);
+    expect(applyMappingTableNormalizer('學習', 'ja')).toBe('學習');
+    expect(applyMappingTableNormalizer('日本', 'ja')).toBe('日本');
+  });
+
+  it('clearMappingTables resets the registry to identity behavior', () => {
+    registerMappingTable('zh', fixture);
+    clearMappingTables();
+    expect(applyMappingTableNormalizer('學習', 'zh')).toBe('學習');
+  });
+});
+
+import { readFileSync } from 'node:fs';
+import { getWordFormCandidates } from '../../renderer/utils/wordForms';
+import { applyVariantOverlay } from '../languageVariants';
+import type { LanguageFrequencyRow } from '../types';
+
+describe('merged zh characterization (post-merge behavior)', () => {
+  const readPackagedJson = (relative: string) =>
+    JSON.parse(readFileSync(`scripts/language-data/source/root-of-app/languages/${relative}`, 'utf-8'));
+
+  const zhData = readPackagedJson('zh.json') as LanguageData;
+  const zhFreq = readPackagedJson('zh.freq.json') as LanguageFrequencyRow[];
+  const zhT2s = readPackagedJson('zh.t2s.json') as { chars: Record<string, string>; words: Record<string, string> };
+
+  it('keeps script-distinguishing prompt names via variant overlay', () => {
+    expect(getLanguagePromptName('zh', applyVariantOverlay(zhData, 'zh-Hans'))).toBe('Mandarin Chinese (Simplified) (简体中文)');
+    expect(getLanguagePromptName('zh', applyVariantOverlay(zhData, 'zh-Hant'))).toBe('Mandarin Chinese (Traditional) (繁體中文)');
+  });
+
+  it('folds legacy codes into the canonical zh language', () => {
+    expect(zhData.legacyCodes).toEqual(['zh-Hans', 'zh-Hant']);
+    expect(Object.keys(zhData.variants ?? {})).toEqual(['zh-Hans', 'zh-Hant']);
+  });
+
+  it('resolves merged zh frequency rows with per-form script tags', () => {
+    const resolved = resolveLanguageFrequencyPayload({ ...zhData, freq: zhFreq });
+    expect(resolved.rows).toEqual(zhFreq);
+    expect(resolved.rows).toHaveLength(17344);
+    const formBySurface = new Map(resolved.rows.map((row) => [row[0], row[3]]));
+    expect(formBySurface.get('的')).toBe('st');
+    expect(formBySurface.get('这')).toBe('s');
+    expect(formBySurface.get('這')).toBe('t');
+  });
+
+  it('ships a t2s mapping table for cross-script canonical forms', () => {
+    expect(zhT2s.chars['學']).toBe('学');
+    expect(zhT2s.words['學習']).toBe('学习');
+    expect(zhData.variants?.['zh-Hant']?.scriptConversion?.mappingAsset).toBe('languages/zh.t2s.json');
+  });
+});

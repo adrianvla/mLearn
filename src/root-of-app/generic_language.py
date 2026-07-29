@@ -687,6 +687,15 @@ class GenericLanguageModule:
         else:
             self.metadata = {}
 
+        try:
+            import importlib
+
+            active_variant = getattr(importlib.import_module("config"), "ACTIVE_VARIANT", None)
+            apply_variant_overlay = importlib.import_module("variants").apply_variant_overlay
+            self.metadata = apply_variant_overlay(self.metadata, active_variant)
+        except ImportError:
+            pass
+
         runtime = self.metadata.get("runtime", {})
         nlp_config = runtime.get("nlp", {}) if isinstance(runtime, dict) else {}
         self._dictionary_config = nlp_config.get("dictionary", {}) if isinstance(nlp_config, dict) else {}

@@ -148,6 +148,8 @@ export interface Settings {
 
   // Language settings
   language: string;
+  /** Active script variant per learning language (lang -> variantId). */
+  languageVariants: Record<string, string>;
 
   // Dictionary settings
   /** Preferred definition/gloss language per learning language, e.g. { ja: "fr" }. */
@@ -517,6 +519,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showDictionary: true,
   show_pos: true,
   language: '',
+  languageVariants: {},
   dictionaryTargetLanguages: {},
   use_anki: false,
   flashcardSkipAnkiChoice: false,
@@ -827,6 +830,10 @@ export type LanguageReplaceAffixNormalizerStep = {
   to?: string;
 };
 
+export type LanguageMappingTableNormalizerStep = {
+  type: 'mapping-table';
+};
+
 export type LanguageTextNormalizerStep =
   | 'lowercase'
   | 'casefold'
@@ -842,7 +849,8 @@ export type LanguageTextNormalizerStep =
   | 'persian-arabic'
   | LanguagePresetNormalizerStep
   | LanguageReplaceCharactersNormalizerStep
-  | LanguageReplaceAffixNormalizerStep;
+  | LanguageReplaceAffixNormalizerStep
+  | LanguageMappingTableNormalizerStep;
 
 export interface LanguageLexemeNormalization {
   /** How written forms and readings are connected for dictionary/frequency lookup. */
@@ -859,6 +867,11 @@ export interface LanguageLexemeNormalization {
   readingNormalizer?: LanguageReadingNormalizer;
   /** Keep words written in a secondary reading script distinct from canonical headwords. */
   preserveNonPrimaryReadingScript?: boolean;
+  /**
+   * Packaged mapping-table asset (relative path inside the language package)
+   * backing the `mapping-table` normalizer preset for canonical word identity.
+   */
+  mappingTableAsset?: string;
 }
 
 export type LanguageReadingNormalizerStep =
@@ -1289,10 +1302,41 @@ export interface LanguageRuntimeConfig {
   diagnostics?: LanguageDiagnosticsRuntimeConfig;
 }
 
+export interface LanguageVariantScriptConversion {
+  /** Engine registry key. Only 'opencc' supported in v1. */
+  engine: 'opencc';
+  /** Engine config, e.g. 't2s'. */
+  config: string;
+  /**
+   * Packaged mapping-table asset (relative path inside the language package)
+   * for SYNCHRONOUS renderer/electron use. JSON shape:
+   * { "words": Record<string,string>, "chars": Record<string,string> }
+   */
+  mappingAsset?: string;
+}
+
+export interface LanguageVariantConfig {
+  /** Display name, e.g. 'Mandarin Chinese (Simplified)'. */
+  name: string;
+  name_translated?: string;
+  flagEmoji?: string;
+  scriptConversion?: LanguageVariantScriptConversion;
+  /**
+   * Dotted-path SHALLOW overrides over LanguageData. Whole-value replace at
+   * the dotted path — NO deep merge. Paths are validated against
+   * VARIANT_OVERLAY_ALLOWLIST; unknown paths are rejected.
+   */
+  overrides: Record<string, unknown>;
+}
+
 export interface LanguageData {
   name: string;
   name_translated?: string;
   flagEmoji?: string;
+  /** Script/orthography variants of this language, keyed by variant id. */
+  variants?: Record<string, LanguageVariantConfig>;
+  /** Legacy language codes that fold into this language (sync normalize-on-receive). */
+  legacyCodes?: string[];
   /** Settings behavior supplied by the language package. */
   settings?: LanguageSettingsConfig;
   /** Frequency rows as [surface, reading, ...metadata]. Levels are assigned from boundaries unless frequencyLevels.rowLevelIndex is set. */
@@ -1787,6 +1831,26 @@ export interface WordKnowledge {
 }
 
 /** Unified passive word knowledge tracked in FlashcardStore */
+export interface FormRecognizeSkill {
+  ease: number;
+  lastSeen: number;
+  timesSeen: number;
+  timesHovered: number;
+  lastStatusChange?: number;
+}
+
+export interface FormProduceSkill {
+  /** undefined = untested (v1 default; no produce-direction UI yet). */
+  ease?: number;
+  lastReviewed?: number;
+  lastStatusChange?: number;
+}
+
+export interface FormKnowledge {
+  recognize?: FormRecognizeSkill;
+  produce?: FormProduceSkill;
+}
+
 export interface PassiveWordKnowledge {
   /** Ease factor 0–5, default 2.5. Lower = less known */
   ease: number;
@@ -1808,6 +1872,8 @@ export interface PassiveWordKnowledge {
   lastStatusChange?: number;
   /** Timestamp when this word was explicitly rated in the Word Sync window (undefined = never) */
   wordSyncRatedAt?: number;
+  /** Per-script-form skill tracking under one word identity. Keyed by variantId. */
+  forms?: Partial<Record<string, FormKnowledge>>;
 }
 
 /** Ignored word entry tracked per language for browse/unignore workflows */

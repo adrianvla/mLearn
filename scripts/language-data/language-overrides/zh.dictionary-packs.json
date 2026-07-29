@@ -1,0 +1,13 @@
+{
+  "en": {
+    "targetLanguage": "en",
+    "name": "English",
+    "version": "zh-en-cc-cedict-2026.07.28",
+    "assets": [
+      {"id":"dictionary-en","path":"dictionaries/zh/en/dictionary.db","bundledPath":"dictionaries/zh/en/dictionary.db","required":true},
+      {"id":"metadata-en","path":"dictionaries/zh/en/metadata.json","bundledPath":"dictionaries/zh/en/metadata.json","required":true},
+      {"id":"license-en","path":"dictionaries/zh/en/LICENSE","bundledPath":"dictionaries/zh/en/LICENSE","required":true},
+      {"id":"readme-en","path":"dictionaries/zh/en/README.md","bundledPath":"dictionaries/zh/en/README.md","required":true}
+    ]
+  }
+}

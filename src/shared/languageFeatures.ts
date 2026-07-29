@@ -328,7 +328,49 @@ function normalizeLexemeReading(reading: string, config: ReadingLexemeNormalizat
   return normalized;
 }
 
-function applyTextNormalizer(value: string, step: NormalizerStep): string {
+export interface MappingTable {
+  words: Record<string, string>;
+  chars: Record<string, string>;
+}
+
+const mappingTables = new Map<string, MappingTable>();
+
+export function registerMappingTable(language: string, table: MappingTable): void {
+  mappingTables.set(language, { words: table.words ?? {}, chars: table.chars ?? {} });
+}
+
+export function clearMappingTables(): void {
+  mappingTables.clear();
+}
+
+export function applyMappingTableNormalizer(value: string, language: string): string {
+  const table = mappingTables.get(language);
+  if (!table) return value;
+  const wordHit = table.words[value];
+  if (wordHit !== undefined) return wordHit;
+  return Array.from(value).map((char) => table.chars[char] ?? char).join('');
+}
+
+/** Resolve the metadata-owned script form for a surface without language-specific IDs. */
+export function detectScriptForm(
+  word: string,
+  language: string,
+  data?: LanguageData | null,
+): string | undefined {
+  const variants = Object.entries(data?.variants ?? {});
+  const conversionVariants = variants.filter(([, variant]) => variant.scriptConversion);
+  if (conversionVariants.length === 0) return undefined;
+
+  for (const [variantId] of conversionVariants) {
+    if (applyMappingTableNormalizer(word, language) !== word) return variantId;
+  }
+
+  return variants.find(([, variant]) => (
+    !Object.prototype.hasOwnProperty.call(variant.overrides, 'runtime.adapter.config.pinyinInputConversion')
+  ))?.[0];
+}
+
+function applyTextNormalizer(value: string, step: NormalizerStep, language?: string): string {
   if (typeof step === 'string') {
     switch (step) {
       case 'none':
@@ -360,6 +402,10 @@ function applyTextNormalizer(value: string, step: NormalizerStep): string {
     }
   }
 
+  if (step.type === 'mapping-table') {
+    return language ? applyMappingTableNormalizer(value, language) : value;
+  }
+
   if (step.type === 'replace-characters') {
     return Array.from(value).map((char) => step.map[char] ?? char).join('');
   }
@@ -377,8 +423,8 @@ function applyTextNormalizer(value: string, step: NormalizerStep): string {
   return value;
 }
 
-function normalizeLexemeSurface(surface: string, config: ReadingLexemeNormalizationConfig): string {
-  return config.surfaceNormalizers.reduce((current, step) => applyTextNormalizer(current, step), surface.trim());
+function normalizeLexemeSurface(surface: string, config: ReadingLexemeNormalizationConfig, language?: string): string {
+  return config.surfaceNormalizers.reduce((current, step) => applyTextNormalizer(current, step, language), surface.trim());
 }
 
 function getDictionaryLookupNormalizers(data?: LanguageData | null): NormalizerStep[] {
@@ -429,9 +475,9 @@ export function getDictionaryLookupCandidates(word: string, data?: LanguageData 
   return candidates;
 }
 
-function getSurfaceNormalizedLexeme(word: string, config: ReadingLexemeNormalizationConfig): string | null {
+function getSurfaceNormalizedLexeme(word: string, config: ReadingLexemeNormalizationConfig, language?: string): string | null {
   if (config.surfaceNormalizers.length === 0 || !isSurfaceLexeme(word, config)) return null;
-  const normalized = normalizeLexemeSurface(word, config);
+  const normalized = normalizeLexemeSurface(word, config, language);
   return normalized || null;
 }
 
@@ -768,7 +814,7 @@ export function createEmptyLexemeIndex(): LanguageLexemeIndex {
   };
 }
 
-export function buildLexemeIndex(freq: LanguageFrequencyRow[] | undefined, data?: LanguageData | null): LanguageLexemeIndex {
+export function buildLexemeIndex(freq: LanguageFrequencyRow[] | undefined, data?: LanguageData | null, language?: string): LanguageLexemeIndex {
   const normalization = getReadingLexemeNormalizationConfig(data);
   if (!freq?.length || !normalization.enabled) {
     return createEmptyLexemeIndex();
@@ -784,7 +830,7 @@ export function buildLexemeIndex(freq: LanguageFrequencyRow[] | undefined, data?
     const [word, reading] = entry;
     if (!isSurfaceLexeme(word, normalization)) continue;
 
-    const normalizedSurface = normalizeLexemeSurface(word, normalization);
+    const normalizedSurface = normalizeLexemeSurface(word, normalization, language);
     if (normalizedSurface) {
       if (!normalizedSurfaceToCanonical[normalizedSurface]) {
         normalizedSurfaceToCanonical[normalizedSurface] = word;
@@ -824,6 +870,7 @@ export function getFrequencyForLexeme(
   wordFrequency: WordFrequencyMap,
   lexemeIndex: LanguageLexemeIndex,
   data?: LanguageData | null,
+  language?: string,
 ): WordFrequencyEntry | null {
   const direct = wordFrequency[word];
   if (direct) return direct;
@@ -831,7 +878,7 @@ export function getFrequencyForLexeme(
   if (!normalization.enabled) return null;
 
   if (isSurfaceLexeme(word, normalization)) {
-    const canonicalSurface = lexemeIndex.normalizedSurfaceToCanonical[normalizeLexemeSurface(word, normalization)];
+    const canonicalSurface = lexemeIndex.normalizedSurfaceToCanonical[normalizeLexemeSurface(word, normalization, language)];
     if (canonicalSurface) return wordFrequency[canonicalSurface] || null;
   }
 
@@ -847,15 +894,16 @@ export function getCanonicalLexeme(
   wordFrequency: WordFrequencyMap,
   lexemeIndex: LanguageLexemeIndex,
   data?: LanguageData | null,
+  language?: string,
 ): string {
   const normalization = getReadingLexemeNormalizationConfig(data);
   if (!word || !normalization.enabled) return word;
   if (wordFrequency[word]) return word;
   if (isSurfaceLexeme(word, normalization)) {
-    const normalizedSurface = normalizeLexemeSurface(word, normalization);
+    const normalizedSurface = normalizeLexemeSurface(word, normalization, language);
     const canonicalSurface = lexemeIndex.normalizedSurfaceToCanonical[normalizedSurface];
     if (canonicalSurface) return canonicalSurface;
-    const normalizedFallback = getSurfaceNormalizedLexeme(word, normalization);
+    const normalizedFallback = getSurfaceNormalizedLexeme(word, normalization, language);
     if (normalizedFallback) return normalizedFallback;
   }
   if (!isReadingLexeme(word, normalization)) return word;
@@ -871,19 +919,20 @@ export function getLexemeVariants(
   wordFrequency: WordFrequencyMap,
   lexemeIndex: LanguageLexemeIndex,
   data?: LanguageData | null,
+  language?: string,
 ): string[] {
   if (!word) return [];
 
   const variants = new Set<string>();
   variants.add(word);
 
-  const canonical = getCanonicalLexeme(word, wordFrequency, lexemeIndex, data);
+  const canonical = getCanonicalLexeme(word, wordFrequency, lexemeIndex, data, language);
   if (canonical) variants.add(canonical);
 
   const normalization = getReadingLexemeNormalizationConfig(data);
   if (normalization.enabled) {
     if (isSurfaceLexeme(word, normalization)) {
-      const normalizedSurface = getSurfaceNormalizedLexeme(word, normalization);
+      const normalizedSurface = getSurfaceNormalizedLexeme(word, normalization, language);
       if (normalizedSurface) {
         variants.add(normalizedSurface);
         for (const variant of lexemeIndex.normalizedSurfaceToVariants[normalizedSurface] ?? []) {
