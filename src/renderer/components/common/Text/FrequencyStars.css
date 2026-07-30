@@ -21,6 +21,20 @@
   height: 10px;
 }
 
+/* Compact overflow count shown next to a single star.
+   Color #f00 matches star.svg; per-level filters below mirror the star's,
+   so the count renders in the star's exact final color. */
+.frequency .star-count {
+  display: inline-block;
+  position: relative;
+  top: -5px;
+  color: #f00;
+  font-size: 9px;
+  line-height: 10px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
 .frequency .star::before {
   content: "";
   position: absolute;
@@ -42,6 +56,12 @@
   height: 6px;
 }
 
+.frequency.frequency-small .star-count {
+  font-size: 7px;
+  line-height: 6px;
+  top: -3px;
+}
+
 .frequency.frequency-small .star::before {
   width: 6px;
   height: 6px;
@@ -51,6 +71,12 @@
 .frequency.frequency-large .star {
   width: 14px;
   height: 14px;
+}
+
+.frequency.frequency-large .star-count {
+  font-size: 12px;
+  line-height: 14px;
+  top: -7px;
 }
 
 .frequency.frequency-large .star::before {
@@ -92,6 +118,35 @@
 .frequency[data-level="1"] .star::before {
   filter: hue-rotate(350deg) saturate(200%) brightness(170%) drop-shadow(0px 0px var(--shadow-size) currentColor);
   opacity: 0.9;
+}
+
+/* Compact count colors — mirror the star filters above (same #f00 base). */
+.frequency[data-level="7"] .star-count {
+  filter: hue-rotate(57deg) saturate(0%) brightness(170%);
+}
+
+.frequency[data-level="6"] .star-count {
+  filter: hue-rotate(57deg) saturate(200%) brightness(500%);
+}
+
+.frequency[data-level="5"] .star-count {
+  filter: hue-rotate(273deg) saturate(200%) brightness(170%);
+}
+
+.frequency[data-level="4"] .star-count {
+  filter: hue-rotate(60deg) saturate(200%) brightness(170%);
+}
+
+.frequency[data-level="3"] .star-count {
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
+}
+
+.frequency[data-level="2"] .star-count {
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%);
+}
+
+.frequency[data-level="1"] .star-count {
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%);
 }
 
 

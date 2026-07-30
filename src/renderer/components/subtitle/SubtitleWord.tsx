@@ -477,7 +477,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       {renderSubtitleWord()}
       {/* Frequency stars */}
       <Show when={showFrequencyStars()}>
-        <FrequencyStars level={wordFreqEntry()!.raw_level} visualLevel={frequencyVisualLevel()} />
+        <FrequencyStars level={wordFreqEntry()!.raw_level} visualLevel={frequencyVisualLevel()} word={displayWord()} />
       </Show>
     </span>
   );

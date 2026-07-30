@@ -13,11 +13,17 @@ export interface FrequencyStarsProps {
   visualLevel?: number;
   /** Maximum stars to display. */
   maxStars?: number;
+  /** Displayed word; short words get fewer stars with a compact numeric fallback. */
+  word?: string;
   /** Additional class name */
   class?: string;
   /** Size variant */
   size?: 'small' | 'medium' | 'large';
 }
+
+const graphemeSegmenter = new Intl.Segmenter();
+
+const countGlyphs = (text: string): number => [...graphemeSegmenter.segment(text)].length;
 
 /**
  * FrequencyStars - Displays frequency level as colored star icons
@@ -34,9 +40,21 @@ export interface FrequencyStarsProps {
 export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
   const visualLevel = createMemo(() => props.visualLevel ?? props.level);
 
+  const cap = createMemo(() => {
+    const base = props.maxStars ?? 7;
+    const word = props.word;
+    if (!word) return base;
+    const glyphs = countGlyphs(word);
+    if (glyphs < 2) return Math.min(base, 2);
+    if (glyphs < 3) return Math.min(base, 5);
+    return base;
+  });
+
+  const compact = createMemo(() => visualLevel() > cap());
+
   const starCount = createMemo(() => {
-    const max = props.maxStars ?? 7;
-    return Math.min(Math.max(visualLevel() || 0, 0), max);
+    if (compact()) return 1;
+    return Math.min(Math.max(visualLevel() || 0, 0), cap());
   });
 
   const stars = createMemo(() => {
@@ -56,6 +74,9 @@ export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
         data-level={visualLevel()}
         data-raw-level={props.level}
       >
+        <Show when={compact()}>
+          <span class="star-count">{visualLevel()}</span>
+        </Show>
         <For each={stars()}>
           {() => <span class="star" />}
         </For>
