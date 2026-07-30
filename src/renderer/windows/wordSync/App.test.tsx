@@ -96,6 +96,7 @@ vi.mock('../../context', () => ({
     getCanonicalFormForLanguage: mockWordSyncState.getCanonicalFormForLanguage,
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     store: {
       wordKnowledge: mockWordSyncState.wordKnowledge,
       wordSyncSeen: mockWordSyncState.wordSyncSeen,

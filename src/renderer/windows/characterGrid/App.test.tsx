@@ -34,6 +34,7 @@ vi.mock('../../context', () => ({
     settings: { language: languageMock },
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     store: flashcardStoreMock,
     getComprehensiveWordStatusSync: getComprehensiveWordStatusSyncMock,
     isWordKnownByText: () => false,

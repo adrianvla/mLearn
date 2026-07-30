@@ -6,6 +6,7 @@
  * then checked synchronously by WordHover and other components.
  */
 
+import { createSignal } from 'solid-js';
 import { getBackend } from '../../shared/backends';
 import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 import type { LanguageData } from '../../shared/types';
@@ -15,6 +16,9 @@ import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.services.ankiWordsCache");
 
+const [ankiCacheVersion, setAnkiCacheVersion] = createSignal(0);
+export { ankiCacheVersion };
+
 let activeCacheSignature = '';
 
 interface AnkiWordsCacheEntry {
@@ -23,6 +27,7 @@ interface AnkiWordsCacheEntry {
   fetched: boolean;
   fetchPromise: Promise<Set<string>> | null;
   languageData: LanguageData | null | undefined;
+  lastError: string | null;
 }
 
 const cachesBySignature = new Map<string, AnkiWordsCacheEntry>();
@@ -51,6 +56,7 @@ function createCacheEntry(options?: AnkiWordsCacheOptions): AnkiWordsCacheEntry 
     fetched: false,
     fetchPromise: null,
     languageData: options && 'languageData' in options ? options.languageData : undefined,
+    lastError: null,
   };
 }
 
@@ -139,11 +145,14 @@ export async function fetchAnkiWordsCache(options?: AnkiWordsCacheOptions): Prom
       entry.wordsSet = nextSet;
       entry.wordCardsMap = nextMap;
       entry.fetched = true;
+      entry.lastError = null;
     } catch (e) {
       log.error("error", e);
       // Silently fail — this cache entry stays empty
+      entry.lastError = e instanceof Error ? e.message : String(e);
     }
     entry.fetchPromise = null;
+    setAnkiCacheVersion(v => v + 1);
     return entry.wordsSet;
   })();
 
@@ -183,6 +192,12 @@ export function isAnkiCacheFetched(options?: AnkiWordsCacheOptions): boolean {
   return cachesBySignature.get(signature)?.fetched === true;
 }
 
+/** Return the last fetch error recorded for the cache entry, or null when healthy */
+export function getAnkiCacheLastError(options?: AnkiWordsCacheOptions): string | null {
+  const signature = options ? getCacheSignature(options) : activeCacheSignature;
+  return cachesBySignature.get(signature)?.lastError ?? null;
+}
+
 export function getAnkiWordsCacheSignature(options?: AnkiWordsCacheOptions): string {
   return getCacheSignature(options);
 }
@@ -198,10 +213,13 @@ export async function refreshAnkiWordsCache(options?: AnkiWordsCacheOptions): Pr
   } else {
     clearAnkiWordsCache();
   }
-  return fetchAnkiWordsCache(options);
+  const wordsSet = await fetchAnkiWordsCache(options);
+  setAnkiCacheVersion(v => v + 1);
+  return wordsSet;
 }
 
 export function clearAnkiWordsCache(): void {
   cachesBySignature.clear();
   activeCacheSignature = '';
+  setAnkiCacheVersion(v => v + 1);
 }

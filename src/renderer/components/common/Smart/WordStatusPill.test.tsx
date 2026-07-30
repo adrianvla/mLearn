@@ -62,6 +62,7 @@ vi.mock('../../../context', () => ({
     getWordVariantsForLanguage: (language: string, word: string) => [`${language}-variant:${word}`],
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordStatusChange: trackWordStatusChangeMock,
     getComprehensiveWordStatusWithSourceSync: () => comprehensiveResultMock,
     setComprehensiveWordStatus: setComprehensiveWordStatusMock,
@@ -80,6 +81,7 @@ vi.mock('../../../hooks/useAnki', () => ({
 }));
 
 vi.mock('../../../services/ankiWordsCache', () => ({
+  ankiCacheVersion: () => 0,
   findAnkiWordMatchInCache: ankiMocks.findAnkiWordMatchInCacheMock,
   refreshAnkiWordsCache: ankiMocks.refreshAnkiWordsCacheMock,
 }));

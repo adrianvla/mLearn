@@ -1,6 +1,6 @@
 import { Component, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
-import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
+import { ankiCacheVersion, findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { ANKI_EASE, type WordKnowledgeSource } from '../../../../shared/constants';
 import { useAnki } from '../../../hooks/useAnki';
 import { getWordFormCandidates } from '../../../utils/wordForms';
@@ -72,9 +72,10 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     languageData: targetLanguageData(),
   }));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
-  const matchedAnki = createMemo(() =>
-    settings.use_anki ? findAnkiWordMatchInCache(wordForms(), ankiCacheOptions()) : null
-  );
+  const matchedAnki = createMemo(() => {
+    ankiCacheVersion();
+    return settings.use_anki ? findAnkiWordMatchInCache(wordForms(), ankiCacheOptions()) : null;
+  });
   const matchedAnkiWord = createMemo(() => matchedAnki()?.word ?? null);
   const comprehensiveResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, targetLanguage()));
   const effectiveStatus = createMemo(() => comprehensiveResult().status);

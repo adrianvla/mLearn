@@ -24,6 +24,7 @@ vi.mock('../../context', () => ({
     },
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordHovered: mocks.trackWordHovered,
     cancelWordHover: mocks.cancelWordHover,
   }),

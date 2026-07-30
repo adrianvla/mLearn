@@ -20,6 +20,7 @@ const mockStreamChat = vi.hoisted(() => vi.fn());
 const mockBackend = vi.hoisted(() => ({
   ping: vi.fn().mockResolvedValue(true),
   translate: vi.fn().mockResolvedValue({ data: [] }),
+  getAnkiWordStatuses: vi.fn().mockResolvedValue([]),
 }));
 
 // ── Mock bridge ──────────────────────────────────────────────────────
@@ -216,6 +217,7 @@ vi.mock('../../shared/utils/textUtils', () => ({
   getLanguageDisplayName: (lang: string) => lang,
   getReadingExtraCharacters: () => [],
   normalizeReading: (raw: string) => raw.replace(/<[^>]*>/g, '').replace(/\s+/g, ''),
+  normalizeWordLookupText: (raw: string) => raw.replace(/<[^>]*>/g, '').trim(),
   isWordInLanguageScript: (
     word: string,
     _language: string,
@@ -257,6 +259,7 @@ type FlashcardCtx = {
   getNewCount: () => number;
   hasWordSync: (word: string, language?: string) => boolean;
   getCardByWordSync: (word: string, language?: string) => Flashcard | null;
+  getWordTrackingSync: (word: string, language?: string) => { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string };
   getCardsByWordSync: (word: string, language?: string) => Flashcard[];
   isWordIgnoredSync: (word: string, language?: string) => boolean;
   getIgnoredWordsSync: () => Array<{ word: string; reading?: string; language: string; ignoredAt: number }>;
@@ -396,6 +399,7 @@ describe('FlashcardProvider', () => {
     vi.restoreAllMocks();
     mockBackend.ping.mockResolvedValue(true);
     mockBackend.translate.mockResolvedValue({ data: [] });
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([]);
     mockGetCanonicalForm.mockImplementation((word: string) => word);
     mockGetWordVariants.mockImplementation((_word: string) => []);
     mockGetCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
@@ -408,6 +412,7 @@ describe('FlashcardProvider', () => {
     mockSettings.languageVariants = {};
     mockSettings.uiLanguage = DEFAULT_SETTINGS.uiLanguage;
     mockSettings.dictionaryTargetLanguages = {};
+    mockSettings.use_anki = false;
     mockStreamChat.mockReset();
     setupMockImplementations();
   });
@@ -3391,6 +3396,84 @@ describe('FlashcardProvider', () => {
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
     expect(mockBridge.flashcards.deleteFlashcardImage).toHaveBeenCalledOnce();
     expect(mockBridge.flashcards.deleteFlashcardImage).toHaveBeenCalledWith('shared');
+    dispose();
+  });
+
+  // ─── getWordTrackingSync ─────────────────────────────────────────
+  it('getWordTrackingSync returns flashcards when a card exists for the word', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    await ctx.addFlashcard({ front: '花', back: 'flower' }, undefined, true);
+
+    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'flashcards' });
+    dispose();
+  });
+
+  it('getWordTrackingSync returns nothing when use_anki is false even with an Anki cache match', async () => {
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
+    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
+    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'nothing' });
+    dispose();
+  });
+
+  it('getWordTrackingSync returns anki with ankiLookupWord when use_anki and the cache matches', async () => {
+    mockSettings.use_anki = true;
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
+    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
+    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'anki', ankiLookupWord: '花' });
+    dispose();
+  });
+
+  it('getWordTrackingSync returns nothing when use_anki is true but the cache has no match', async () => {
+    mockSettings.use_anki = true;
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'nothing' });
+    dispose();
+  });
+
+  it('getWordTrackingSync prefers flashcards over anki', async () => {
+    mockSettings.use_anki = true;
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
+    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
+    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    await ctx.addFlashcard({ front: '花', back: 'flower' }, undefined, true);
+
+    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'flashcards' });
+    dispose();
+  });
+
+  it('getWordTrackingSync re-evaluates when the anki cache version bumps', async () => {
+    mockSettings.use_anki = true;
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
+    const { createRoot, createMemo } = await import('solid-js');
+    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    let tracking: { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string } | undefined;
+    const disposeMemo = createRoot((d) => {
+      createMemo(() => { tracking = ctx.getWordTrackingSync('花'); });
+      return d;
+    });
+    expect(tracking?.tracker).toBe('nothing');
+
+    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
+
+    expect(tracking?.tracker).toBe('anki');
+    expect(tracking?.ankiLookupWord).toBe('花');
+    disposeMemo();
     dispose();
   });
 });

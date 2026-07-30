@@ -18,6 +18,7 @@ const mockGetCanonicalForm = vi.fn((word: string) => (word === 'يكتب' ? 'ك�
 vi.mock('../../context', () => ({
   useSettings: () => ({ settings: mockSettings }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordHovered: mockTrackWordHovered,
     cancelWordHover: mockCancelWordHover,
   }),

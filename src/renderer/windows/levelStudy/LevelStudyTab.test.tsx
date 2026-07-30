@@ -19,6 +19,7 @@ vi.mock('../../context', () => ({
     t: (key: string) => key,
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     store: {
       flashcards: {},
       wordToCardMap: {},

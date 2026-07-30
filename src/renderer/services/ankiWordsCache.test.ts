@@ -206,3 +206,85 @@ describe('ankiWordsCache', () => {
       .toBe(getAnkiWordsCacheSignature({ language: 'de', languageData: latinLanguage }));
   });
 });
+
+describe('ankiCacheVersion and lastError', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockGetAnkiWords.mockReset();
+    mockGetAnkiWords.mockResolvedValue(['仲間']);
+    mockGetAnkiWordStatuses.mockReset();
+    mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 1300, queue: 0, type: 0 }]);
+  });
+
+  it('bumps ankiCacheVersion on fetch success', async () => {
+    const { ankiCacheVersion, fetchAnkiWordsCache } = await import('./ankiWordsCache');
+    expect(ankiCacheVersion()).toBe(0);
+
+    await fetchAnkiWordsCache();
+
+    expect(ankiCacheVersion()).toBeGreaterThan(0);
+  });
+
+  it('bumps ankiCacheVersion and records lastError on fetch failure', async () => {
+    mockGetAnkiWordStatuses.mockRejectedValueOnce(new Error('anki down'));
+
+    const { ankiCacheVersion, fetchAnkiWordsCache, getAnkiCacheLastError, isAnkiCacheFetched } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+
+    expect(ankiCacheVersion()).toBeGreaterThan(0);
+    expect(getAnkiCacheLastError()).toBe('anki down');
+    expect(isAnkiCacheFetched()).toBe(false);
+  });
+
+  it('records non-Error rejection reasons as strings', async () => {
+    mockGetAnkiWordStatuses.mockRejectedValueOnce('plain failure');
+
+    const { fetchAnkiWordsCache, getAnkiCacheLastError } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+
+    expect(getAnkiCacheLastError()).toBe('plain failure');
+  });
+
+  it('clears lastError on subsequent fetch success', async () => {
+    mockGetAnkiWordStatuses.mockRejectedValueOnce(new Error('boom'));
+
+    const { fetchAnkiWordsCache, refreshAnkiWordsCache, getAnkiCacheLastError } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+    expect(getAnkiCacheLastError()).toBe('boom');
+
+    await refreshAnkiWordsCache();
+
+    expect(getAnkiCacheLastError()).toBeNull();
+  });
+
+  it('scopes lastError to the cache entry addressed by options', async () => {
+    mockGetAnkiWordStatuses.mockRejectedValueOnce(new Error('scoped'));
+
+    const { fetchAnkiWordsCache, getAnkiCacheLastError } = await import('./ankiWordsCache');
+    const options = { language: 'de', languageData: null };
+    await fetchAnkiWordsCache(options);
+
+    expect(getAnkiCacheLastError(options)).toBe('scoped');
+    expect(getAnkiCacheLastError({ language: 'zh', languageData: null })).toBeNull();
+  });
+
+  it('bumps ankiCacheVersion on refreshAnkiWordsCache completion', async () => {
+    const { ankiCacheVersion, fetchAnkiWordsCache, refreshAnkiWordsCache } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+    const before = ankiCacheVersion();
+
+    await refreshAnkiWordsCache();
+
+    expect(ankiCacheVersion()).toBeGreaterThan(before);
+  });
+
+  it('bumps ankiCacheVersion on clearAnkiWordsCache', async () => {
+    const { ankiCacheVersion, fetchAnkiWordsCache, clearAnkiWordsCache } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+    const before = ankiCacheVersion();
+
+    clearAnkiWordsCache();
+
+    expect(ankiCacheVersion()).toBeGreaterThan(before);
+  });
+});

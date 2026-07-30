@@ -21,7 +21,7 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure, shouldUpdateFlashcardOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
-import { findAnkiWordMatchInCache } from '../services/ankiWordsCache';
+import { ankiCacheVersion, findAnkiWordMatchInCache } from '../services/ankiWordsCache';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
@@ -174,6 +174,11 @@ export interface SetWordBankStatusOptions {
 
 type LevelStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
 
+export interface WordTrackingSyncResult {
+  tracker: 'flashcards' | 'anki' | 'nothing';
+  ankiLookupWord?: string;
+}
+
 // Context interface
 interface FlashcardContextValue {
   // Store access
@@ -218,6 +223,8 @@ interface FlashcardContextValue {
   getCardByWordSync: (word: string, language?: string) => Flashcard | null;
   /** Synchronous get all cards for a word for the active or supplied language. */
   getCardsByWordSync: (word: string, language?: string) => Flashcard[];
+  /** Synchronously resolve what tracks this word: own flashcards, Anki, or nothing. */
+  getWordTrackingSync: (word: string, language?: string) => WordTrackingSyncResult;
   /** Synchronous check if word is ignored for the active or supplied language. */
   isWordIgnoredSync: (word: string, language?: string) => boolean;
   /** Synchronous get ignored words for the current language */
@@ -2392,6 +2399,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   const getAnkiStatusForWord = (word: string, language = settings.language): WordStatus | null => {
+    ankiCacheVersion();
     if (!settings.use_anki) return null;
     const forms = getWordFormsForLanguage(word, language);
     const match = findAnkiWordMatchInCache(forms, {
@@ -2400,6 +2408,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
     });
     if (!match?.cards?.length) return null;
     return getAnkiWordKnowledgeStatus(match.cards, settings.ankiLearningThreshold, settings.ankiKnownThreshold);
+  };
+
+  const getWordTrackingSync = (word: string, language = settings.language): WordTrackingSyncResult => {
+    ankiCacheVersion();
+    if (getCardByWordForLanguageSync(word, language) || hasWordSync(word, language)) {
+      return { tracker: 'flashcards' };
+    }
+    if (settings.use_anki) {
+      const match = findAnkiWordMatchInCache(getWordFormsForLanguage(word, language), {
+        language,
+        languageData: languageDataFor(language),
+      });
+      if (match) return { tracker: 'anki', ankiLookupWord: match.word };
+    }
+    return { tracker: 'nothing' };
   };
 
   const passiveLearningEaseThreshold = (): number => (
@@ -3326,6 +3349,7 @@ Translation: [${targetLang} translation]`;
     hasWordSync,
     getCardByWordSync,
     getCardsByWordSync,
+    getWordTrackingSync,
     isWordIgnoredSync,
     getIgnoredWordsSync,
     findUnpopulatedFlashcardForWord,

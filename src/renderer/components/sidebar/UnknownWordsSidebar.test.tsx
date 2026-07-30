@@ -115,6 +115,7 @@ vi.mock('../../context', () => ({
     },
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     hasWordSync: mockHasWordSync,
     getCardByWordSync: mockGetCardByWordSync,
     getComprehensiveWordStatusSync: mockGetComprehensiveWordStatusSync,

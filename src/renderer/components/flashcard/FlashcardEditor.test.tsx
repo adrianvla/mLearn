@@ -104,6 +104,7 @@ vi.mock('../../context', () => ({
     },
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     intervalToString: (interval: number) => String(interval),
     generateExampleSentenceWithLLM: generateExampleSentenceWithLLMMock,
     updateFlashcardContent: updateFlashcardContentMock,

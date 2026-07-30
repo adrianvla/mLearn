@@ -119,6 +119,7 @@ vi.mock('../../context/LanguageContext', () => ({
 
 vi.mock('../../context/FlashcardContext', () => ({
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     store: {
       wordKnowledge,
       flashcards: {},

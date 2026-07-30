@@ -37,6 +37,7 @@ vi.mock('../../../context', () => ({
     settings: settingsState,
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     getCardByWordSync: mockGetCardByWordSync,
   }),
 }));
