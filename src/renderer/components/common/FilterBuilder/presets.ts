@@ -111,12 +111,16 @@ export function buildWordDbEditorFields(
   levelNames: Record<string, string>,
   t: Translate,
   languageData?: LanguageData | null,
+  resolverOverrides: Record<string, FieldResolver<unknown>> = {},
 ): { fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] } {
   const fields: FieldConfig<unknown>[] = [
     buildStatusField(t),
     buildLevelField(levelNames, t, languageData),
     buildSourceField(t),
-  ];
+  ].map((field) => {
+    const override = resolverOverrides[field.field];
+    return override ? { ...field, resolver: override } : field;
+  });
 
   return { fields, paletteItems: buildPaletteItems(fields, t) };
 }

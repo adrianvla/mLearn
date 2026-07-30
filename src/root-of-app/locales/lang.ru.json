@@ -2510,7 +2510,8 @@
         "NoCardFound": "Для этого слова не найдена карточка Anki",
         "NotConnected": "Anki не подключён",
         "Preview": "Предпросмотр",
-        "PreviewTitle": "Предпросмотр Anki — {word}"
+        "PreviewTitle": "Предпросмотр Anki — {word}",
+        "WordsFetchFailed": "Не удалось получить слова Anki"
       },
       "BrowseMode": {
         "AllWords": "Все слова",

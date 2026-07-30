@@ -6,7 +6,6 @@ import type { JSX } from 'solid-js';
 import type { WordEntry } from './components';
 import type { Flashcard } from '../../../shared/types';
 
-const mockHasWordSync = vi.fn(() => false);
 const mockGetCardByWordSync = vi.fn<() => Flashcard | null>(() => null);
 const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
   status: 'unknown',
@@ -17,7 +16,6 @@ const renderedEntries: WordEntry[] = [];
 const renderedEditDialogs: Array<{ word: string; initialData: unknown }> = [];
 const mockFetchAnkiWordsCache = vi.fn(() => Promise.resolve(new Set<string>()));
 const mockIsAnkiCacheFetched = vi.fn(() => true);
-const mockFindAnkiWordMatchInCache = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
 let mockUseAnki = false;
 let mockWordFrequency: Record<string, { reading: string; raw_level: number; level: string }> = {
   '赤い': {
@@ -47,8 +45,8 @@ vi.mock('../../context', () => ({
     getWordVariants: (word: string) => [word],
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     addFlashcard: vi.fn(),
-    hasWordSync: mockHasWordSync,
     removeFlashcard: vi.fn(),
     getCardByWord: vi.fn(async () => null),
     getCardByWordSync: mockGetCardByWordSync,
@@ -84,8 +82,8 @@ vi.mock('../../hooks/useAnki', () => ({
 
 vi.mock('../../services/ankiWordsCache', () => ({
   fetchAnkiWordsCache: mockFetchAnkiWordsCache,
-  findAnkiWordMatchInCache: mockFindAnkiWordMatchInCache,
   isAnkiCacheFetched: mockIsAnkiCacheFetched,
+  getAnkiCacheLastError: vi.fn(() => null),
   refreshAnkiWordsCache: vi.fn(async () => undefined),
 }));
 
@@ -136,8 +134,6 @@ describe('WordDbEditorContent', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    mockHasWordSync.mockClear();
-    mockHasWordSync.mockReturnValue(false);
     mockGetCardByWordSync.mockClear();
     mockGetCardByWordSync.mockReturnValue(null);
     mockGetComprehensiveWordStatusWithSourceSync.mockClear();
@@ -145,8 +141,6 @@ describe('WordDbEditorContent', () => {
     mockFetchAnkiWordsCache.mockResolvedValue(new Set<string>());
     mockIsAnkiCacheFetched.mockReset();
     mockIsAnkiCacheFetched.mockReturnValue(true);
-    mockFindAnkiWordMatchInCache.mockReset();
-    mockFindAnkiWordMatchInCache.mockReturnValue(null);
     mockUseAnki = false;
     mockWordFrequency = {
       '赤い': {
@@ -163,15 +157,14 @@ describe('WordDbEditorContent', () => {
     container.remove();
   });
 
-  it('scopes row flashcard and status lookups to the active language', async () => {
+  it('scopes row flashcard lookups to the active language', async () => {
     const { WordDbEditorContent } = await import('./App');
 
     const dispose = render(() => <WordDbEditorContent />, container);
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockHasWordSync).toHaveBeenCalledWith('赤い', 'ja');
-    expect(mockGetComprehensiveWordStatusWithSourceSync).toHaveBeenCalledWith('赤い', 'ja');
+    expect(mockGetCardByWordSync).toHaveBeenCalledWith('赤い', 'ja');
     dispose();
   });
 
@@ -211,7 +204,6 @@ describe('WordDbEditorContent', () => {
     const entry = renderedEntries.find((candidate) => candidate.word === '赤い');
     expect(entry).toMatchObject({
       word: '赤い',
-      tracker: 'flashcards',
       reading: 'あかい',
       translation: 'red',
       fullTranslation: 'red',
@@ -270,40 +262,6 @@ describe('WordDbEditorContent', () => {
 
     expect(container.textContent).toContain('mlearn.WordDbEditor.EmptyState');
     expect(container.textContent).not.toContain('mlearn.WordDbEditor.Loading');
-    dispose();
-  });
-
-  it('adds Anki tracking after deferred enrichment completes', async () => {
-    mockUseAnki = true;
-    mockIsAnkiCacheFetched.mockReturnValue(false);
-    let resolveAnkiCache!: (words: Set<string>) => void;
-    mockFetchAnkiWordsCache.mockReturnValue(new Promise<Set<string>>((resolve) => {
-      resolveAnkiCache = resolve;
-    }));
-    const { WordDbEditorContent } = await import('./App');
-
-    const dispose = render(() => <WordDbEditorContent />, container);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(renderedEntries.at(-1)).toMatchObject({ word: '赤い', tracker: 'nothing' });
-
-    mockFindAnkiWordMatchInCache.mockReturnValue({
-      word: '赤い',
-      lookupKey: '赤い',
-      cards: [],
-    });
-    resolveAnkiCache(new Set(['赤い']));
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(renderedEntries.at(-1)).toMatchObject({
-      word: '赤い',
-      tracker: 'anki',
-      ankiLookupWord: '赤い',
-    });
     dispose();
   });
 });

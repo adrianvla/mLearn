@@ -2510,7 +2510,8 @@
         "NoCardFound": "Aucune carte Anki trouvée pour ce mot",
         "NotConnected": "Anki n'est pas connecté",
         "Preview": "Aperçu",
-        "PreviewTitle": "Aperçu Anki — {word}"
+        "PreviewTitle": "Aperçu Anki — {word}",
+        "WordsFetchFailed": "Échec de la récupération des mots Anki"
       },
       "BrowseMode": {
         "AllWords": "Tous les mots",

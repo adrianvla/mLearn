@@ -7,6 +7,8 @@ import type { WordEntry } from './WordEntryRow';
 import type { LanguageData } from '../../../../shared/types';
 
 const mockGetCard = vi.fn();
+const getWordTrackingSyncMock = vi.fn((_word: string): { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string } => ({ tracker: 'anki' }));
+const findAnkiWordMatchMock = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
 const extractProsodyDataMock = vi.fn();
 const extractProsodyDataForReadingMock = vi.fn();
 const extractReadingValueMock = vi.fn();
@@ -39,6 +41,18 @@ vi.mock('../../../context', () => ({
   useLanguage: () => ({
     currentLangData: () => mockLanguageData,
   }),
+  useFlashcards: () => ({
+    getWordTrackingSync: getWordTrackingSyncMock,
+  }),
+}));
+
+vi.mock('../../../services/ankiWordsCache', () => ({
+  ankiCacheVersion: () => 0,
+  findAnkiWordMatchInCache: findAnkiWordMatchMock,
+}));
+
+vi.mock('../../../utils/wordForms', () => ({
+  getWordFormCandidates: (word: string) => [word],
 }));
 
 vi.mock('../../../hooks/useTranslation', () => ({
@@ -58,7 +72,9 @@ vi.mock('../../../components/common', () => ({
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
     <button type="button" onClick={props.onClick}>{props.children}</button>
   ),
-  PillLabel: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+  PillLabel: (props: { children?: JSX.Element; class?: string; variant?: string }) => (
+    <span class={props.class} data-variant={props.variant}>{props.children}</span>
+  ),
   AnkiHoverPreview: (props: {
     children?: JSX.Element;
     onShow?: () => void;
@@ -98,8 +114,6 @@ function makeEntry(word: string, overrides: Partial<WordEntry> = {}): WordEntry 
     translation: '',
     reading: '',
     level: 0,
-    tracker: 'anki',
-    status: 0,
     ...overrides,
   };
 }
@@ -121,6 +135,10 @@ describe('WordEntryRow', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     mockGetCard.mockReset();
+    getWordTrackingSyncMock.mockReset();
+    getWordTrackingSyncMock.mockImplementation(() => ({ tracker: 'anki' }));
+    findAnkiWordMatchMock.mockReset();
+    findAnkiWordMatchMock.mockReturnValue(null);
     getCachedTranslationMock.mockReset();
     getCachedTranslationMock.mockReturnValue(null);
     getCachedReadingMock.mockReset();
@@ -229,6 +247,7 @@ describe('WordEntryRow', () => {
   });
 
   it('uses the matched Anki expression for hover card lookup', async () => {
+    getWordTrackingSyncMock.mockReturnValue({ tracker: 'anki', ankiLookupWord: '会う' });
     mockGetCard.mockResolvedValue({
       error: false,
       poor: false,
@@ -238,7 +257,7 @@ describe('WordEntryRow', () => {
 
     const dispose = render(() => (
       <WordEntryRow
-        entry={makeEntry('逢う', { ankiLookupWord: '会う' })}
+        entry={makeEntry('逢う')}
         levelNames={{ 0: 'JLPT N5' }}
         onStatusChange={() => undefined}
         onAddFlashcard={() => undefined}
@@ -869,6 +888,74 @@ describe('WordEntryRow', () => {
       class: 'prosody-overlay-wrapper--reading',
     }));
     expect(container.querySelector('.word-db-prosody-preview')).toBeNull();
+
+    dispose();
+  });
+
+  it('renders a pill chip for an alternate reading even without prosody data', async () => {
+    const { WordEntryRow } = await import('./WordEntryRow');
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('開く', { reading: 'あく', alternateReadings: ['ひらく'] })}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    const chip = container.querySelector('.word-db-alt-readings .pitch-accent-pill');
+    expect(chip).not.toBeNull();
+    expect(chip?.getAttribute('data-variant')).toBe('gray');
+    expect(chip?.querySelector('.pitch-accent-word')?.textContent).toBe('ひらく');
+    expect(prosodyOverlayProps.some((props) => props.word === 'ひらく')).toBe(false);
+
+    dispose();
+  });
+
+  it('renders the accent pill instead of the flat chip when alternate reading prosody resolves', async () => {
+    extractProsodyDataForReadingMock.mockImplementation((
+      raw: unknown,
+      _languageData: LanguageData | null,
+      readingMatches: (reading: string) => boolean,
+    ) => {
+      const reading = typeof raw === 'object' && raw !== null && 'reading' in raw
+        ? String(raw.reading)
+        : '';
+      return readingMatches(reading)
+        ? {
+            type: 'japanese-pitch-accent',
+            position: 2,
+            raw,
+          }
+        : undefined;
+    });
+    const { WordEntryRow } = await import('./WordEntryRow');
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('開く', {
+          reading: 'あく',
+          alternateReadings: ['ひらく'],
+          prosody: {
+            type: 'japanese-pitch-accent',
+            position: 2,
+            raw: { reading: 'ひらく', pitches: [{ position: 2 }] },
+          },
+        })}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    expect(prosodyOverlayProps.some((props) => (
+      props.word === 'ひらく'
+      && props.prosodyPosition === 2
+    ))).toBe(true);
+    expect(container.querySelector('.word-db-alt-readings .pitch-accent-pill')).toBeNull();
 
     dispose();
   });

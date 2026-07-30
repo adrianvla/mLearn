@@ -2510,7 +2510,8 @@
         "NoCardFound": "未找到此单词的 Anki 卡片",
         "NotConnected": "Anki 未连接",
         "Preview": "预览",
-        "PreviewTitle": "Anki 预览 – {word}"
+        "PreviewTitle": "Anki 预览 – {word}",
+        "WordsFetchFailed": "获取 Anki 单词失败"
       },
       "BrowseMode": {
         "AllWords": "所有单词",

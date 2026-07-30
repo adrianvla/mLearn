@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { LanguageData } from '@shared/types';
 import { makeToken } from './fieldConfig';
 import type { FilterToken } from './filterExpr';
 import { validateTokens } from './filterExpr';
-import { buildEmptyPreset, buildWordSyncFields, buildWordSyncPreset } from './presets';
+import { buildEmptyPreset, buildWordDbEditorFields, buildWordSyncFields, buildWordSyncPreset } from './presets';
 
 type TokenShape =
   | { kind: 'operand'; field: string; op: string; value: string }
@@ -248,6 +248,24 @@ describe('buildWordSyncFields', () => {
 
   it('omits sentinel level names from the selectable frequency-level palette', () => {
     expect(levelValues({ '-1': 'Unlisted', '5': 'N5' })).toEqual(['5']);
+  });
+});
+
+describe('buildWordDbEditorFields', () => {
+  const t = (key: string) => key;
+
+  it('applies resolver overrides to the matching fields only', () => {
+    const liveStatus = vi.fn(() => 2);
+    const { fields } = buildWordDbEditorFields({ '5': 'N5' }, t, null, {
+      status: { read: liveStatus, valueLabel: (value) => value },
+    });
+
+    const statusField = fields.find((field) => field.field === 'status');
+    const sourceField = fields.find((field) => field.field === 'source');
+
+    expect(statusField?.resolver.read({ word: '赤い' })).toBe(2);
+    expect(liveStatus).toHaveBeenCalledWith({ word: '赤い' });
+    expect(sourceField?.resolver.read({ knowledgeSource: 'Anki' })).toBe('Anki');
   });
 });
 

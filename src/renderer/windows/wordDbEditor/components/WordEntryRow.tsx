@@ -10,9 +10,11 @@ import { ProsodyOverlay, WordWithReading } from '../../../components/language-sp
 import type { WordWithReadingRenderTextOptions } from '../../../components/language-specific/WordWithReading';
 import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
-import { useLanguage, useLocalization, useSettings } from '../../../context';
+import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
 import { cacheVersion, getCachedTranslation, getCachedReading, fetchTranslation, type WordLookupCandidateOptions } from '../../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { ankiCacheVersion, findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
+import { getWordFormCandidates } from '../../../utils/wordForms';
 import { getProsodyOverlayRenderer } from '../../../utils/prosodyPresentation';
 import { getProsodyOverlayTextTarget } from '../../../utils/prosodyOverlayTarget';
 import {
@@ -114,18 +116,12 @@ export interface WordEntry {
   translation: string;
   reading: string;
   level: number | null;
-  tracker: string;
-  status: number;
-  /** The comprehensive knowledge source that determined this word's status */
-  knowledgeSource?: string;
   fullTranslation?: string;
   prosodyPosition?: number | null;
   prosody?: FlashcardProsody;
   ignoredAt?: number;
   /** Additional readings for words that have multiple independent senses */
   alternateReadings?: string[];
-  /** Expression that matched the Anki cache, if it differs from the displayed dictionary word. */
-  ankiLookupWord?: string;
 }
 
 export interface WordEntryRowProps {
@@ -140,13 +136,14 @@ export interface WordEntryRowProps {
   onExportToAnki?: (entry: WordEntry) => void;
   onAnkiPreview?: (entry: WordEntry) => void;
   ankiExportState?: AnkiExportState;
-  isInAnki?: boolean;
+  forceTracker?: 'ignored';
 }
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
+  const { getWordTrackingSync } = useFlashcards();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -278,10 +275,30 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     return Array.from(all);
   });
 
+  interface RowTracking {
+    tracker: 'flashcards' | 'anki' | 'nothing' | 'ignored';
+    ankiLookupWord?: string;
+  }
+  const tracking = createMemo((): RowTracking => {
+    if (props.forceTracker) return { tracker: props.forceTracker };
+    return getWordTrackingSync(props.entry.word);
+  });
+
+  const ankiCacheOptions = createMemo(() => ({ language: settings.language, languageData: currentLangData() }));
+  const ankiMatch = createMemo(() => {
+    if (!props.onAnkiPreview && !props.onExportToAnki) return null;
+    ankiCacheVersion(); // re-evaluate when the shared anki cache populates or refreshes
+    return findAnkiWordMatchInCache(
+      getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants, { languageData: currentLangData() }),
+      ankiCacheOptions(),
+    );
+  });
+  const isInAnki = () => ankiMatch() !== null;
+
   const trackerLabel = createMemo(() => {
-    if (props.entry.tracker === 'flashcards') return t('mlearn.WordDbEditor.Trackers.Flashcards');
-    if (props.entry.tracker === 'anki') return t('mlearn.WordDbEditor.Trackers.Anki');
-    if (props.entry.tracker === 'ignored') return t('mlearn.WordDbEditor.Trackers.Ignored');
+    if (tracking().tracker === 'flashcards') return t('mlearn.WordDbEditor.Trackers.Flashcards');
+    if (tracking().tracker === 'anki') return t('mlearn.WordDbEditor.Trackers.Anki');
+    if (tracking().tracker === 'ignored') return t('mlearn.WordDbEditor.Trackers.Ignored');
     return t('mlearn.WordDbEditor.Trackers.Nothing');
   });
 
@@ -292,9 +309,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   let ankiHoverFetched = false;
 
   createEffect(() => {
-    props.entry.word;
-    props.entry.ankiLookupWord;
-    props.entry.tracker;
+    tracking();
     ankiHoverFetched = false;
     setAnkiHoverCard(null);
     setAnkiHoverCardInfo(null);
@@ -302,12 +317,12 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   });
 
   const fetchAnkiCard = async () => {
-    if (props.entry.tracker !== 'anki') return;
+    if (tracking().tracker !== 'anki') return;
     if (ankiHoverFetched) return;
     ankiHoverFetched = true;
     setAnkiHoverLoading(true);
     try {
-      const lookupWord = props.entry.ankiLookupWord || props.entry.word;
+      const lookupWord = tracking().ankiLookupWord || props.entry.word;
       const result = await getBackend().getCard({ word: lookupWord }) as {
         cards: Array<{
           fields: AnkiCardFields;
@@ -401,7 +416,11 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
                 return (
                   <Show
                     when={canRenderProsodyOverlay() && prosodyPosition() !== null}
-                    fallback={<span>{altReading}</span>}
+                    fallback={
+                      <PillLabel variant="gray" class="pitch-accent-pill">
+                        <span class="pitch-accent-word">{altReading}</span>
+                      </PillLabel>
+                    }
                   >
                     <ProsodyOverlay
                       word={altReading}
@@ -434,7 +453,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={renderedLevel() === null}>-</Show>
       </div>
       <div class="col tracker">
-        <Show when={props.entry.tracker === 'anki'} fallback={
+        <Show when={tracking().tracker === 'anki'} fallback={
           <span class="tracker-label">{trackerLabel()}</span>
         }>
           <AnkiHoverPreview
@@ -448,7 +467,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {trackerLabel()}
           </AnkiHoverPreview>
         </Show>
-        <Show when={props.entry.tracker === 'flashcards'}>
+        <Show when={tracking().tracker === 'flashcards'}>
           <Show when={props.onEditFlashcard}>
             <Btn
               variant="ghost"
@@ -466,7 +485,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.Global.Remove')}
           </Btn>
         </Show>
-        <Show when={props.entry.tracker === 'ignored' && props.onUnignore}>
+        <Show when={tracking().tracker === 'ignored' && props.onUnignore}>
           <Btn
             variant="secondary"
             size="sm"
@@ -475,7 +494,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.WordDbEditor.Actions.Unignore')}
           </Btn>
         </Show>
-        <Show when={props.entry.tracker !== 'flashcards' && props.entry.tracker !== 'ignored' && props.entry.tracker !== 'anki'}>
+        <Show when={tracking().tracker === 'nothing'}>
           <Btn
             variant="primary"
             size="sm"
@@ -484,7 +503,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.Global.Add')}
           </Btn>
         </Show>
-        <Show when={props.onAnkiPreview && props.isInAnki}>
+        <Show when={props.onAnkiPreview && isInAnki()}>
           <Btn
             variant="ghost"
             size="sm"
@@ -494,7 +513,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.WordDbEditor.Anki.Preview')}
           </Btn>
         </Show>
-        <Show when={props.onExportToAnki && !props.isInAnki}>
+        <Show when={props.onExportToAnki && !isInAnki()}>
           <Btn
             variant={props.ankiExportState === 'exported' || props.ankiExportState === 'duplicate' ? 'ghost' : 'secondary'}
             size="sm"

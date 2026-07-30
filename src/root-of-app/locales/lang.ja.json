@@ -2510,7 +2510,8 @@
         "NoCardFound": "この単語に対応するAnkiカードが見つかりません",
         "NotConnected": "Ankiが接続されていません",
         "Preview": "プレビュー",
-        "PreviewTitle": "Ankiプレビュー – {word}"
+        "PreviewTitle": "Ankiプレビュー – {word}",
+        "WordsFetchFailed": "Anki単語の取得に失敗しました"
       },
       "BrowseMode": {
         "AllWords": "すべての単語",

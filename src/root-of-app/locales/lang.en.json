@@ -2510,7 +2510,8 @@
         "NoCardFound": "No Anki card found for this word",
         "NotConnected": "Anki is not connected",
         "Preview": "Preview",
-        "PreviewTitle": "Anki Preview – {word}"
+        "PreviewTitle": "Anki Preview – {word}",
+        "WordsFetchFailed": "Failed to fetch Anki words"
       },
       "BrowseMode": {
         "AllWords": "All Words",
