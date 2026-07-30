@@ -84,6 +84,12 @@ vi.mock('../common', () => ({
   HoverReveal: (props: { label: string; class?: string }) => <span class={props.class}>{props.label}</span>,
   AnkiIcon: () => <span />,
   RefreshIcon: () => <span />,
+  SafeHtml: (props: { tag: string; class?: string; html?: string }) => {
+    const el = document.createElement(props.tag);
+    if (props.class) el.className = props.class;
+    el.innerHTML = props.html ?? '';
+    return el;
+  },
 }));
 
 vi.mock('./FlashcardWordTitle', () => ({

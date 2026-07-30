@@ -48,6 +48,7 @@ vi.mock('../../context', () => ({
     updateSettings: vi.fn(),
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     addFlashcard: vi.fn(),
     hasWordSync: () => false,
     getCardByWordSync: () => null,
@@ -98,6 +99,12 @@ vi.mock('../common', () => ({
   PillBtn: (props: { label?: string; children?: JSX.Element }) => <button type="button">{props.label ?? props.children}</button>,
   PillLabel: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   ToggleSwitch: () => <input type="checkbox" />,
+  SafeHtml: (props: { tag: string; class?: string; html?: string }) => {
+    const el = document.createElement(props.tag);
+    if (props.class) el.className = props.class;
+    el.innerHTML = props.html ?? '';
+    return el;
+  },
 }));
 
 vi.mock('../language-specific', () => ({

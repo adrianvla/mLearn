@@ -236,6 +236,12 @@ export {
   type LogConsoleProps,
 } from './Text';
 
+// SafeHtml
+export {
+  SafeHtml,
+  type SafeHtmlProps,
+} from './SafeHtml/SafeHtml';
+
 // Layout Components
 export { 
   Flex,

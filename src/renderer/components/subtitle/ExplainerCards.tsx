@@ -32,7 +32,7 @@ export interface ParsedExplainer {
   sections: ExplainerSection[];
   rawText?: string;
 }
-import { Spinner } from '../common';
+import { Spinner, SafeHtml } from '../common';
 import './ExplainerCards.css';
 
 // ============================================================================
@@ -103,9 +103,10 @@ const ColoredPhrase: Component<{ phrase: string; targetWord?: string }> = (props
   
   return (
     <Show when={!coloredHtml.loading} fallback={<span class="explainer-phrase-loading">{props.phrase}</span>}>
-      <div 
+      <SafeHtml 
+        tag="div"
         class="explainer-card__phrase" 
-        innerHTML={coloredHtml() || props.phrase} 
+        html={coloredHtml() || props.phrase} 
       />
     </Show>
   );
@@ -163,7 +164,7 @@ export const ExplanationCard: Component<ExplanationCardProps> = (props) => {
   return (
     <div class="explainer-card explainer-card--explanation">
       <h4 class="explainer-card__title">{props.title}</h4>
-      <p class="explainer-card__content" innerHTML={formattedContent()} />
+      <SafeHtml tag="p" class="explainer-card__content" html={formattedContent()} />
     </div>
   );
 };
@@ -217,7 +218,7 @@ export const ExplainerCards: Component<ExplainerCardsProps> = (props) => {
           fallback={
             <Show when={props.data.rawText}>
               <div class="explainer-card explainer-card--raw">
-                <p class="explainer-card__content" innerHTML={props.data.rawText?.replace(/\n/g, '<br/>') || ''} />
+                <SafeHtml tag="p" class="explainer-card__content" html={props.data.rawText?.replace(/\n/g, '<br/>') || ''} />
               </div>
             </Show>
           }

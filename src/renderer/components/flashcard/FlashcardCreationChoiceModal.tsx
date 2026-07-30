@@ -5,7 +5,7 @@
  */
 
 import { Component, Show, createSignal, createMemo } from 'solid-js';
-import { Modal, ToggleSwitch } from '../common';
+import { Modal, ToggleSwitch, SafeHtml } from '../common';
 import { ModalFooter } from '../common/Misc/ModalFooter';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { useSettings, useLocalization } from '../../context';
@@ -118,22 +118,22 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
             <div class="flashcard-choice__fields">
               <div class="flashcard-choice__field">
                 <span class="flashcard-choice__field-name">{fieldExpression()}</span>
-                <span class="flashcard-choice__field-value" innerHTML={content().front} />
+                <SafeHtml tag="span" class="flashcard-choice__field-value" html={content().front} />
               </div>
               <Show when={content().reading}>
                 <div class="flashcard-choice__field">
                   <span class="flashcard-choice__field-name">{fieldReading()}</span>
-                  <span class="flashcard-choice__field-value" innerHTML={content().reading} />
+                  <SafeHtml tag="span" class="flashcard-choice__field-value" html={content().reading} />
                 </div>
               </Show>
               <div class="flashcard-choice__field">
                 <span class="flashcard-choice__field-name">{fieldMeaning()}</span>
-                <span class="flashcard-choice__field-value" innerHTML={content().back} />
+                <SafeHtml tag="span" class="flashcard-choice__field-value" html={content().back} />
               </div>
               <Show when={content().example}>
                 <div class="flashcard-choice__field">
                   <span class="flashcard-choice__field-name">{t('mlearn.FlashcardChoice.Example')}</span>
-                  <span class="flashcard-choice__field-value" innerHTML={content().example} />
+                  <SafeHtml tag="span" class="flashcard-choice__field-value" html={content().example} />
                 </div>
               </Show>
             </div>
@@ -141,15 +141,15 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
 
           <Show when={!useAnkiTarget()}>
             <div class="flashcard-choice__srs-preview">
-              <div class="flashcard-choice__srs-front" innerHTML={content().front} />
+              <SafeHtml tag="div" class="flashcard-choice__srs-front" html={content().front} />
               <div class="flashcard-choice__srs-divider" />
-              <div class="flashcard-choice__srs-back" innerHTML={content().back} />
+              <SafeHtml tag="div" class="flashcard-choice__srs-back" html={content().back} />
               <Show when={content().reading}>
                 <div class="flashcard-choice__srs-reading">{content().reading}</div>
               </Show>
               <Show when={content().example}>
                 <div class="flashcard-choice__srs-divider" />
-                <div class="flashcard-choice__srs-example" innerHTML={content().example} />
+                <SafeHtml tag="div" class="flashcard-choice__srs-example" html={content().example} />
                 <Show when={content().exampleMeaning}>
                   <div class="flashcard-choice__srs-example-meaning">{content().exampleMeaning}</div>
                 </Show>

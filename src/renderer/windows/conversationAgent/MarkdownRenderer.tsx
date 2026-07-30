@@ -13,6 +13,7 @@ import type { Token } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './MarkdownRenderer.css';
 import { getLogger } from '../../../shared/utils/logger';
+import { SafeHtml } from '../../components';
 
 const log = getLogger("renderer.conversationAgent.markdownRenderer");
 
@@ -165,7 +166,7 @@ export const MarkdownRenderer: Component<MarkdownRendererProps> = (props) => {
     <Show
       when={tokenizedNodes()}
       fallback={
-        <span class="ca-markdown" innerHTML={htmlContent()} />
+        <SafeHtml tag="span" class="ca-markdown" html={htmlContent()} />
       }
     >
       <span class="ca-markdown">{tokenizedNodes()}</span>

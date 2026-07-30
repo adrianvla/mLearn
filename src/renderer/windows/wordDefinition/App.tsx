@@ -6,7 +6,7 @@ import { getBridge } from '../../../shared/bridges';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { fetchTranslation, getCachedTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Spinner, ClockIcon } from '../../components/common';
+import { PillBtn, PillLabel, Spinner, ClockIcon, SafeHtml } from '../../components/common';
 import { ProsodyOverlay } from '../../components/language-specific';
 import { WordStatusPill } from '../../components/common/Smart';
 import {
@@ -229,9 +229,10 @@ const WordDefinitionContent: Component = () => {
                   <Show when={index() > 0}>
                     <hr class="word-definition__divider" />
                   </Show>
-                  <div
+                  <SafeHtml
+                    tag="div"
                     class="word-definition__translation"
-                    innerHTML={
+                    html={
                       Array.isArray(entry.definitions)
                         ? entry.definitions.join('; ')
                         : String(entry.definitions) || ''

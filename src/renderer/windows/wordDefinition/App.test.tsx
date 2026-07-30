@@ -29,6 +29,7 @@ vi.mock('../../context', () => ({
     },
   }),
   useFlashcards: () => ({
+    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     addFlashcard: mockAddFlashcard,
     hasWordSync: mockHasWordSync,
     getCardByWordSync: mockGetCardByWordSync,
@@ -79,6 +80,12 @@ vi.mock('../../components/common', () => ({
   PillBtn: (props: { label?: string; children?: JSX.Element }) => <button>{props.label ?? props.children}</button>,
   PillLabel: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   Spinner: () => <span />,
+  SafeHtml: (props: { tag: string; class?: string; html?: string }) => {
+    const el = document.createElement(props.tag);
+    if (props.class) el.className = props.class;
+    el.innerHTML = props.html ?? '';
+    return el;
+  },
 }));
 
 vi.mock('../../components/language-specific', () => ({

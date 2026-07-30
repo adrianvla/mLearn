@@ -6,7 +6,7 @@
 import { Component, Show, For, createSignal, createMemo, createEffect, onMount, onCleanup } from 'solid-js';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { formatClockTime } from '../../utils/timeFormatting';
-import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon } from '../../components';
+import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon, SafeHtml } from '../../components';
 import { matchesKeybind } from '../../components/common/Input/KeybindInput';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
 import { getPartOfSpeechColor, getTokenJoinSeparator } from '../../../shared/languageFeatures';
@@ -229,7 +229,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           </Show>
           {/* State 5: Plain text — assistant gets markdown rendering, user gets plain */}
           <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && isAssistant()}>
-            <span class="ca-markdown" innerHTML={parseMarkdownToHtml(props.message.content)} />
+            <SafeHtml tag="span" class="ca-markdown" html={parseMarkdownToHtml(props.message.content)} />
           </Show>
           <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && !isAssistant()}>
             <span>{props.message.content}</span>

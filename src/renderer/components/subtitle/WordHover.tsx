@@ -11,7 +11,7 @@ import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch } from '../common';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml } from '../common';
 import { ProsodyOverlay } from '../language-specific';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
@@ -636,7 +636,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                       <Show when={index() > 0}>
                         <hr />
                       </Show>
-                      <div class="hover_translation" innerHTML={Array.isArray(entry.definitions) ? entry.definitions.join('; ') : String(entry.definitions) || ''} />
+                      <SafeHtml tag="div" class="hover_translation" html={Array.isArray(entry.definitions) ? entry.definitions.join('; ') : String(entry.definitions) || ''} />
                       <Show when={entryReading(entry)}>
                         {(reading) => <div class="hover_reading">{reading()}</div>}
                       </Show>
@@ -652,7 +652,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                       <Show when={index() > 0}>
                         <hr />
                       </Show>
-                      <div class="hover_translation" innerHTML={entry.meanings ? entry.meanings.join('; ') : ''} />
+                      <SafeHtml tag="div" class="hover_translation" html={entry.meanings ? entry.meanings.join('; ') : ''} />
                       <Show when={entryReading(entry)}>
                         {(reading) => <div class="hover_reading">{reading()}</div>}
                       </Show>

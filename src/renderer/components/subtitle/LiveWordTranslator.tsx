@@ -8,7 +8,7 @@
 
 import { Component, createSignal, For, onCleanup, createEffect, Show } from 'solid-js';
 import { useSettings } from '../../context';
-import { PanelHeader } from '../common';
+import { PanelHeader, SafeHtml } from '../common';
 import { getBridge } from '../../../shared/bridges';
 import './LiveWordTranslator.css';
 
@@ -169,8 +169,8 @@ export const LiveWordTranslator: Component = () => {
           <For each={cards()}>
             {(card) => (
                 <div class="translator-card" id={card.id}>
-                  <h1 class="translator-card-translation" innerHTML={card.translation} />
-                  <p class="translator-card-reading" innerHTML={card.reading} />
+                  <SafeHtml tag="h1" class="translator-card-translation" html={card.translation} />
+                  <SafeHtml tag="p" class="translator-card-reading" html={card.reading} />
                 </div>
             )}
           </For>

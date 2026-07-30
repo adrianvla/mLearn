@@ -64,6 +64,9 @@ vi.mock('../../components', () => ({
   CheckIcon: () => <span>check</span>,
   CrossIcon: () => <span>cross</span>,
   ScissorsIcon: () => <span>scissors</span>,
+  SafeHtml: (props: Record<string, unknown>) => (
+    <span innerHTML={(props.html as string) ?? ''} />
+  ),
 }));
 
 vi.mock('./MarkdownRenderer', () => ({

@@ -2,6 +2,7 @@ import { Component, JSX, Show } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { dueDateToString } from '../../../services/srsAlgorithm';
 import type { Flashcard } from '../../../../shared/types';
+import { SafeHtml } from '../SafeHtml/SafeHtml';
 import './BuiltInFlashcardHoverPreview.css';
 
 export interface BuiltInFlashcardHoverPreviewProps {
@@ -42,13 +43,13 @@ export const BuiltInFlashcardHoverPreview: Component<BuiltInFlashcardHoverPrevie
               <Show when={card().content.back}>
                 <div class="built-in-flashcard-hover-preview__field">
                   <span class="built-in-flashcard-hover-preview__label">{t('mlearn.Flashcards.Modals.AddCard.MeaningLabel')}</span>
-                  <span class="built-in-flashcard-hover-preview__value" innerHTML={card().content.back} />
+                  <SafeHtml tag="span" class="built-in-flashcard-hover-preview__value" html={card().content.back} />
                 </div>
               </Show>
               <Show when={card().content.example && card().content.example !== '-'}>
                 <div class="built-in-flashcard-hover-preview__field">
                   <span class="built-in-flashcard-hover-preview__label">{t('mlearn.FlashcardChoice.Example')}</span>
-                  <span class="built-in-flashcard-hover-preview__value" innerHTML={truncate(card().content.example!, 200)} />
+                  <SafeHtml tag="span" class="built-in-flashcard-hover-preview__value" html={truncate(card().content.example!, 200)} />
                 </div>
               </Show>
             </div>

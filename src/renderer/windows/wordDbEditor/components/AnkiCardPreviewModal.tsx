@@ -5,7 +5,7 @@
 
 import { Component, createSignal, For, Show, onMount } from 'solid-js';
 import { useLocalization } from '../../../context';
-import { Modal, Spinner, AlertBanner, ModalFooter } from '../../../components/common';
+import { Modal, Spinner, AlertBanner, ModalFooter, SafeHtml } from '../../../components/common';
 import { getBackend } from '../../../../shared/backends';
 import { dueDateToString } from '../../../services/srsAlgorithm';
 import { getAnkiDueDisplayValue, shouldShowAnkiEase, type AnkiCardSchedulingInfo } from '../../../components/common/AnkiHoverPreview/ankiHoverPreviewLogic';
@@ -111,10 +111,7 @@ export const AnkiCardPreviewModal: Component<AnkiCardPreviewModalProps> = (props
             <For each={sortedFields()}>{([fieldName, fieldData]) =>
               <div class="anki-card-preview-modal__field">
                 <div class="anki-card-preview-modal__field-name">{fieldName}</div>
-                <div
-                  class="anki-card-preview-modal__field-value"
-                  innerHTML={fieldData.value || '<em class="anki-card-preview-modal__empty">' + t('mlearn.WordDbEditor.Anki.EmptyField') + '</em>'}
-                />
+                <SafeHtml tag="div" class="anki-card-preview-modal__field-value" html={fieldData.value || '<em class="anki-card-preview-modal__empty">' + t('mlearn.WordDbEditor.Anki.EmptyField') + '</em>'} />
               </div>
             }</For>
             <Show when={shouldShowAnkiEase(cardInfo()?.ease)}>

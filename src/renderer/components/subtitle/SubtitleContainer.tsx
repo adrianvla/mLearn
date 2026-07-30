@@ -15,6 +15,7 @@ import { tokensToPlainText } from '../../utils/phraseExtraction';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
+import { sanitizeHtml } from '../../utils/sanitizeHtml';
 import { getLanguageCssDirection, getSubtitleFontFamily, getTokenJoinSeparator } from '../../../shared/languageFeatures';
 import './SubtitleContainer.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -406,7 +407,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           </Show>
 
           <Show when={!props.isLoading && props.tokens.length === 0 && !props.originalText && props.remoteHtml}>
-            <div style={remoteSubtitleStyle()} innerHTML={props.remoteHtml || ''} />
+            <div style={remoteSubtitleStyle()} innerHTML={sanitizeHtml(props.remoteHtml || '')} />
           </Show>
 
           {/* Translation */}

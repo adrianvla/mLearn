@@ -12,7 +12,7 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon } from '../common';
+import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon, SafeHtml } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardWordTitle } from './FlashcardWordTitle';
 import { FlashcardImage } from './FlashcardImage';
@@ -287,7 +287,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example-row">
-              <div class="flashcard-example" innerHTML={content().example} />
+              <SafeHtml tag="div" class="flashcard-example" html={content().example} />
               <Show when={props.onPlayTts && !content().skipExampleTts}>
                 <IconBtn
                   icon="volume"
@@ -373,12 +373,12 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             </Show>
           </div>
 
-          <div class="flashcard-translation" innerHTML={meaning()} />
+          <SafeHtml tag="div" class="flashcard-translation" html={meaning()} />
 
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example-group">
               <div class="flashcard-example-row">
-                <div class="flashcard-example" innerHTML={content().example} />
+              <SafeHtml tag="div" class="flashcard-example" html={content().example} />
                 <Show when={props.onPlayTts && !content().skipExampleTts}>
                   <IconBtn
                     icon="volume"

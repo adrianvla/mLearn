@@ -111,6 +111,7 @@
     "@types/ws": "^8.18.1",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
+    "dompurify": "3.3.1",
     "electron-updater": "^6.8.9",
     "fflate": "^0.8.3",
     "json-canonicalize": "^2.0.0",
