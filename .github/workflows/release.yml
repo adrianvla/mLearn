@@ -81,6 +81,8 @@ jobs:
   build-mac:
     needs: changelog
     runs-on: macos-latest
+    env:
+      MACOS_SIGNING_AVAILABLE: ${{ secrets.MACOS_CSC_LINK != '' && secrets.MACOS_CSC_KEY_PASSWORD != '' && secrets.APPLE_API_KEY_BASE64 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -99,13 +101,32 @@ jobs:
       - name: Build Extension
         run: npm run build:extension
 
-      - name: Build macOS (ad-hoc signed)
+      - name: Prepare macOS notarization credentials
+        if: env.MACOS_SIGNING_AVAILABLE == 'true'
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D > "$APPLE_API_KEY_PATH"
+          echo "APPLE_API_KEY=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Build macOS
         run: npm run build && npx electron-builder --mac --universal --publish=never
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
-      - name: Verify macOS updater metadata
-        run: npm run verify:update-artifacts
+      - name: Verify signed macOS updater
+        if: env.MACOS_SIGNING_AVAILABLE == 'true'
+        run: |
+          APP_PATH="$(find release -type d -name mLearn.app -print -quit)"
+          test -n "$APP_PATH"
+          codesign --verify --deep --strict "$APP_PATH"
+          codesign -dv "$APP_PATH" 2>&1 | grep -F 'Authority=Developer ID Application:'
+          npm run verify:update-artifacts
 
       - name: Rename macOS Artifacts
         run: |
@@ -116,18 +137,27 @@ jobs:
               cp "$f" "mLearn-${VERSION}-universal.dmg"
             fi
           done
-          for f in mLearn-*.zip; do
-            if [ -f "$f" ] && [[ "$f" != *-universal-mac* ]]; then
-              cp "$f" "mLearn-${VERSION}-universal-mac.zip"
-            fi
-          done
+          if [ "$MACOS_SIGNING_AVAILABLE" = 'true' ]; then
+            for f in mLearn-*.zip; do
+              if [ -f "$f" ] && [[ "$f" != *-universal-mac* ]]; then
+                cp "$f" "mLearn-${VERSION}-universal-mac.zip"
+              fi
+            done
+          fi
 
-      - name: Upload macOS Artifacts
+      - name: Upload macOS installer
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           files: |
             release/*.dmg
+
+      - name: Upload signed macOS updater artifacts
+        if: env.MACOS_SIGNING_AVAILABLE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
             release/*.zip
             release/*.blockmap
             release/latest-mac.yml

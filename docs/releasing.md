@@ -4,11 +4,11 @@ Desktop releases are built from version tags by `.github/workflows/release.yml`.
 
 ## Signing status
 
-macOS and Windows release artifacts are currently built without distribution certificates. macOS uses electron-builder's ad-hoc signature and is not notarized; Windows artifacts are unsigned. This keeps release packaging and updater metadata available, but users can encounter operating-system trust warnings.
+macOS and Windows release artifacts are currently built without distribution certificates. macOS and Windows users can still download installers manually, but unsigned macOS builds never publish an in-place update feed because Squirrel.Mac rejects them. Windows artifacts are unsigned and can trigger operating-system trust warnings.
 
 macOS in-place updates are not considered supported until the app uses a stable Developer ID Application identity and notarization. Windows NSIS and Linux AppImage updater paths can be exercised, but unsigned Windows builds may still trigger trust warnings.
 
-When paid signing credentials become available, configure these GitHub Actions secrets and restore the required signing checks in the release workflow:
+When signing credentials become available, configure these GitHub Actions secrets. The release workflow automatically signs, notarizes, verifies, and publishes the macOS update feed when all five are present:
 
 | Secret | Purpose |
 | --- | --- |
@@ -22,6 +22,6 @@ When paid signing credentials become available, configure these GitHub Actions s
 
 ## Update artifacts
 
-`electron-builder` creates GitHub-provider metadata alongside installers. Each build job runs `npm run verify:update-artifacts` before uploading `latest*.yml`, installers, and blockmaps to the same GitHub release. Do not rename or remove artifacts referenced by those metadata files.
+Signed macOS builds publish `latest-mac.yml`, zip, and blockmap assets only after strict code-signature verification. Unsigned macOS builds publish the DMG only. Each updater-enabled build job runs `npm run verify:update-artifacts` before uploading metadata, installers, and blockmaps to the same GitHub release. Do not rename or remove artifacts referenced by those metadata files.
 
 Signed and notarized macOS builds, Windows NSIS builds, and Linux AppImages update in place. Windows portable builds, Linux distribution packages, development builds, and mobile builds direct users to the download page instead.
