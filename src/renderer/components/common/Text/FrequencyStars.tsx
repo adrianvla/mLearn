@@ -3,7 +3,8 @@
  * Displays star icons based on word frequency level
  */
 
-import { Component, For, Show, createMemo } from 'solid-js';
+import { Component, For, Show, createMemo, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import type { FrequencyStarCollapseMode } from '../../../../shared/types';
 import './FrequencyStars.css';
 
 export interface FrequencyStarsProps {
@@ -13,17 +14,17 @@ export interface FrequencyStarsProps {
   visualLevel?: number;
   /** Maximum stars to display. */
   maxStars?: number;
-  /** Displayed word; short words get fewer stars with a compact numeric fallback. */
-  word?: string;
+  /** Collapse policy. 'auto' measures whether the star row fits under the word. */
+  collapse?: FrequencyStarCollapseMode;
+  /** Minimum px clearance between this word's star row and the neighbors' (auto mode). */
+  margin?: number;
   /** Additional class name */
   class?: string;
   /** Size variant */
   size?: 'small' | 'medium' | 'large';
 }
 
-const graphemeSegmenter = new Intl.Segmenter();
-
-const countGlyphs = (text: string): number => [...graphemeSegmenter.segment(text)].length;
+const STAR_PX = { small: 6, medium: 10, large: 14 } as const;
 
 /**
  * FrequencyStars - Displays frequency level as colored star icons
@@ -40,22 +41,22 @@ const countGlyphs = (text: string): number => [...graphemeSegmenter.segment(text
 export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
   const visualLevel = createMemo(() => props.visualLevel ?? props.level);
 
-  const cap = createMemo(() => {
-    const base = props.maxStars ?? 7;
-    const word = props.word;
-    if (!word) return base;
-    const glyphs = countGlyphs(word);
-    if (glyphs < 2) return Math.min(base, 2);
-    if (glyphs < 3) return Math.min(base, 5);
-    return base;
+  let rootEl: HTMLSpanElement | undefined;
+  const [autoCollapsed, setAutoCollapsed] = createSignal(false);
+
+  const fullStarCount = createMemo(() => {
+    const max = props.maxStars ?? 7;
+    return Math.min(Math.max(visualLevel() || 0, 0), max);
   });
 
-  const compact = createMemo(() => visualLevel() > cap());
-
-  const starCount = createMemo(() => {
-    if (compact()) return 1;
-    return Math.min(Math.max(visualLevel() || 0, 0), cap());
+  const collapsed = createMemo(() => {
+    const mode = props.collapse ?? 'auto';
+    if (mode === 'always') return true;
+    if (mode === 'never') return false;
+    return autoCollapsed();
   });
+
+  const starCount = createMemo(() => (collapsed() ? 1 : fullStarCount()));
 
   const stars = createMemo(() => {
     return Array.from({ length: starCount() }, (_, i) => i);
@@ -67,14 +68,66 @@ export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
     return '';
   });
 
+  // The star row is centered under the word and may overflow into the inter-word
+  // gaps; each side may use half the gap minus the margin so neighbors keep clearance.
+  const measure = () => {
+    if ((props.collapse ?? 'auto') !== 'auto' || !rootEl) {
+      setAutoCollapsed(false);
+      return;
+    }
+    const word = rootEl.parentElement;
+    if (!word) {
+      setAutoCollapsed(false);
+      return;
+    }
+    const rect = word.getBoundingClientRect();
+    const margin = props.margin ?? 0;
+    const clearance = (sibling: Element | null, side: 'left' | 'right'): number => {
+      if (!sibling) return Infinity;
+      const sRect = sibling.getBoundingClientRect();
+      if (Math.abs(sRect.top - rect.top) > rect.height / 2) return Infinity;
+      const gap = side === 'left' ? rect.left - sRect.right : sRect.left - rect.right;
+      return Math.max(0, (gap - margin) / 2);
+    };
+    const allowed =
+      rect.width +
+      clearance(word.previousElementSibling, 'left') +
+      clearance(word.nextElementSibling, 'right');
+    const needed = fullStarCount() * STAR_PX[props.size ?? 'medium'];
+    setAutoCollapsed(needed > allowed);
+  };
+
+  onMount(() => {
+    measure();
+    const word = rootEl?.parentElement;
+    if (word && typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(measure);
+      observer.observe(word);
+      if (word.previousElementSibling) observer.observe(word.previousElementSibling);
+      if (word.nextElementSibling) observer.observe(word.nextElementSibling);
+      onCleanup(() => observer.disconnect());
+    }
+  });
+
+  createEffect(() => {
+    props.level;
+    props.visualLevel;
+    props.collapse;
+    props.margin;
+    props.size;
+    props.maxStars;
+    measure();
+  });
+
   return (
-    <Show when={starCount() > 0}>
-      <span 
+    <Show when={visualLevel() > 0}>
+      <span
+        ref={rootEl}
         class={`frequency ${sizeClass()} ${props.class || ''}`}
         data-level={visualLevel()}
         data-raw-level={props.level}
       >
-        <Show when={compact()}>
+        <Show when={collapsed()}>
           <span class="star-count">{visualLevel()}</span>
         </Show>
         <For each={stars()}>

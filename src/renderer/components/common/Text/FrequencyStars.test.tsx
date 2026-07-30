@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from 'solid-js/web';
-import { FrequencyStars } from './FrequencyStars';
+import { FrequencyStars, type FrequencyStarsProps } from './FrequencyStars';
+
+const rect = (left: number, right: number, top = 0, height = 10): DOMRect =>
+  ({ left, right, top, bottom: top + height, width: right - left, height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
 
 describe('FrequencyStars', () => {
   let container: HTMLDivElement;
@@ -10,50 +13,78 @@ describe('FrequencyStars', () => {
     document.body.appendChild(container);
   });
 
-  const renderStars = (props: Parameters<typeof FrequencyStars>[0]): HTMLElement => {
-    container.innerHTML = '';
-    render(() => <FrequencyStars {...props} />, container);
-    return container;
+  const renderStars = (props: FrequencyStarsProps, parent?: HTMLElement): HTMLElement => {
+    const host = parent ?? container;
+    render(() => <FrequencyStars {...props} />, host);
+    return host;
   };
 
-  it('renders one star per level without a word', () => {
-    const el = renderStars({ level: 4 });
+  const withNeighbors = (word: HTMLSpanElement, gapLeft: number, gapRight: number, sameLine = true) => {
+    const before = document.createElement('span');
+    const after = document.createElement('span');
+    container.append(before, word, after);
+    word.getBoundingClientRect = () => rect(10, 20);
+    before.getBoundingClientRect = () => rect(10 - gapLeft - 5, 10 - gapLeft);
+    after.getBoundingClientRect = () => rect(20 + gapRight, 20 + gapRight + 10, sameLine ? 0 : 100);
+    return { before, after };
+  };
+
+  it('renders one star per level with collapse=never', () => {
+    const el = renderStars({ level: 4, collapse: 'never' });
     expect(el.querySelectorAll('.star')).toHaveLength(4);
     expect(el.querySelector('.star-count')).toBeNull();
   });
 
-  it('caps a 1-glyph word at 2 stars', () => {
-    const el = renderStars({ level: 2, word: '字' });
-    expect(el.querySelectorAll('.star')).toHaveLength(2);
-    expect(el.querySelector('.star-count')).toBeNull();
-  });
-
-  it('renders compact count for a 1-glyph word above the cap', () => {
-    const el = renderStars({ level: 4, word: '字' });
+  it('renders compact count with collapse=always', () => {
+    const el = renderStars({ level: 4, collapse: 'always' });
     expect(el.querySelectorAll('.star')).toHaveLength(1);
     expect(el.querySelector('.star-count')?.textContent).toBe('4');
   });
 
-  it('caps a 2-glyph word at 5 stars', () => {
-    const el = renderStars({ level: 5, word: '学习' });
-    expect(el.querySelectorAll('.star')).toHaveLength(5);
+  it('keeps full stars in auto mode when they fit', () => {
+    const word = document.createElement('span');
+    withNeighbors(word, 100, 100);
+    const el = renderStars({ level: 4, collapse: 'auto', margin: 8 }, word);
+    expect(el.querySelectorAll('.star')).toHaveLength(4);
     expect(el.querySelector('.star-count')).toBeNull();
   });
 
-  it('renders compact count for a 2-glyph word above the cap', () => {
-    const el = renderStars({ level: 7, word: '学习' });
+  it('collapses in auto mode when stars do not fit between neighbors', () => {
+    const word = document.createElement('span');
+    withNeighbors(word, 5, 10);
+    const el = renderStars({ level: 4, collapse: 'auto', margin: 8 }, word);
     expect(el.querySelectorAll('.star')).toHaveLength(1);
-    expect(el.querySelector('.star-count')?.textContent).toBe('7');
+    expect(el.querySelector('.star-count')?.textContent).toBe('4');
   });
 
-  it('shows all stars for a 3-glyph word', () => {
-    const el = renderStars({ level: 6, word: '学习语' });
-    expect(el.querySelectorAll('.star')).toHaveLength(6);
+  it('margin decides the auto-collapse threshold', () => {
+    const wideMarginWord = document.createElement('span');
+    withNeighbors(wideMarginWord, 32, 32);
+    const collapsed = renderStars({ level: 4, collapse: 'auto', margin: 8 }, wideMarginWord);
+    expect(collapsed.querySelector('.star-count')?.textContent).toBe('4');
+
+    const noMarginWord = document.createElement('span');
+    withNeighbors(noMarginWord, 32, 32);
+    const full = renderStars({ level: 4, collapse: 'auto', margin: 0 }, noMarginWord);
+    expect(full.querySelectorAll('.star')).toHaveLength(4);
+    expect(full.querySelector('.star-count')).toBeNull();
+  });
+
+  it('ignores siblings on a different line', () => {
+    const word = document.createElement('span');
+    withNeighbors(word, 0, 0, false);
+    const el = renderStars({ level: 4, collapse: 'auto', margin: 8 }, word);
+    expect(el.querySelectorAll('.star')).toHaveLength(4);
     expect(el.querySelector('.star-count')).toBeNull();
+  });
+
+  it('respects maxStars', () => {
+    const el = renderStars({ level: 7, maxStars: 3, collapse: 'never' });
+    expect(el.querySelectorAll('.star')).toHaveLength(3);
   });
 
   it('keeps the visual level color while compact', () => {
-    const el = renderStars({ level: 3, visualLevel: 4, word: '字' });
+    const el = renderStars({ level: 3, visualLevel: 4, collapse: 'always' });
     expect(el.querySelector('.frequency')?.getAttribute('data-level')).toBe('4');
     expect(el.querySelector('.frequency')?.getAttribute('data-raw-level')).toBe('3');
   });

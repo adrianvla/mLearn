@@ -83,6 +83,9 @@ export interface ColorCodes {
 }
 
 export type ColoredProsodyStatusLimit = 'learning' | 'known';
+
+/** When a word's frequency stars should collapse into a compact "<level><star>" form. */
+export type FrequencyStarCollapseMode = 'never' | 'auto' | 'always';
 export type ColoredProsodyMixTarget = 'white' | 'part-of-speech';
 export type ColoredProsodyPaletteOverrides = Record<string, Record<string, string>>;
 
@@ -140,6 +143,10 @@ export interface Settings {
   coloredProsodyEaseMixEnabled: boolean;
   coloredProsodyEaseMixTarget: ColoredProsodyMixTarget;
   coloredProsodySaturation: number;
+  /** Star collapse policy for word frequency display. 'auto' collapses only when the stars don't fit. */
+  frequencyStarCollapse: FrequencyStarCollapseMode;
+  /** Minimum px clearance between adjacent words' star rows before auto-collapse kicks in. */
+  frequencyStarMargin: number;
   automaticallyDownloadUpdates: boolean;
   theme: AppTheme;
   /** Custom CSS color overrides that apply globally regardless of theme */
@@ -511,6 +518,8 @@ export const DEFAULT_SETTINGS: Settings = {
   coloredProsodyEaseMixEnabled: false,
   coloredProsodyEaseMixTarget: 'white',
   coloredProsodySaturation: 100,
+  frequencyStarCollapse: 'auto',
+  frequencyStarMargin: 8,
   automaticallyDownloadUpdates: true,
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides

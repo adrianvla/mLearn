@@ -1515,13 +1515,35 @@
         }
       },
       "ColoredProsody": {
-        "Enabled": {"Description": "Color pronunciation features using the active language package. This overrides part-of-speech colors when prosody data is available.", "Label": "Colored prosody"},
-        "EaseMix": {"Description": "Make prosody colors fainter as the word's combined ease approaches mastered.", "Label": "Fade colors by ease"},
-        "MixTarget": {"Description": "Choose the color that high-ease prosody colors fade toward.", "Label": "Fade toward", "PartOfSpeech": "Part-of-speech color", "White": "White"},
-        "Palette": {"Description": "Customize the package-defined colors for this language.", "ResetAll": "Reset prosody palette"},
+        "Enabled": {
+          "Description": "Color pronunciation features using the active language package. This overrides part-of-speech colors when prosody data is available.",
+          "Label": "Colored prosody"
+        },
+        "EaseMix": {
+          "Description": "Make prosody colors fainter as the word's combined ease approaches mastered.",
+          "Label": "Fade colors by ease"
+        },
+        "MixTarget": {
+          "Description": "Choose the color that high-ease prosody colors fade toward.",
+          "Label": "Fade toward",
+          "PartOfSpeech": "Part-of-speech color",
+          "White": "White"
+        },
+        "Palette": {
+          "Description": "Customize the package-defined colors for this language.",
+          "ResetAll": "Reset prosody palette"
+        },
         "Preview": "Colored prosody preview",
-        "Saturation": {"Description": "Adjust the intensity of every prosody color.", "Label": "Color saturation"},
-        "StatusLimit": {"Description": "Color words through this combined learning status. Words above it use their normal part-of-speech color.", "Known": "Known", "Label": "Color through status", "Learning": "Learning"}
+        "Saturation": {
+          "Description": "Adjust the intensity of every prosody color.",
+          "Label": "Color saturation"
+        },
+        "StatusLimit": {
+          "Description": "Color words through this combined learning status. Words above it use their normal part-of-speech color.",
+          "Known": "Known",
+          "Label": "Color through status",
+          "Learning": "Learning"
+        }
       },
       "Groups": {
         "Appearance": "Appearance",
@@ -2063,6 +2085,19 @@
           "Background": "Background",
           "Marker": "Marker",
           "Shadow": "Shadow"
+        },
+        "FrequencyStarCollapse": {
+          "Label": "Collapse frequency stars",
+          "Description": "Show long frequency star rows as a compact number with a single star.",
+          "Modes": {
+            "Never": "Don't collapse",
+            "Auto": "Automatic",
+            "Always": "Always collapse"
+          }
+        },
+        "FrequencyStarMargin": {
+          "Label": "Star spacing margin",
+          "Description": "Minimum space (px) between the star rows of neighboring words before stars collapse."
         }
       },
       "UI": {

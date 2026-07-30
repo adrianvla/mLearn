@@ -1515,13 +1515,35 @@
         }
       },
       "ColoredProsody": {
-        "Enabled": {"Description": "Färbt Aussprachemerkmale anhand des aktiven Sprachpakets und überschreibt bei vorhandenen Prosodiedaten die Wortartfarben.", "Label": "Farbige Prosodie"},
-        "EaseMix": {"Description": "Lässt Prosodiefarben mit steigender kombinierter Leichtigkeit verblassen.", "Label": "Farben nach Leichtigkeit verblassen"},
-        "MixTarget": {"Description": "Wähle die Farbe, zu der Prosodiefarben bei hoher Leichtigkeit übergehen.", "Label": "Überblenden zu", "PartOfSpeech": "Wortartfarbe", "White": "Weiß"},
-        "Palette": {"Description": "Passe die vom Sprachpaket definierten Farben für diese Sprache an.", "ResetAll": "Prosodiepalette zurücksetzen"},
+        "Enabled": {
+          "Description": "Färbt Aussprachemerkmale anhand des aktiven Sprachpakets und überschreibt bei vorhandenen Prosodiedaten die Wortartfarben.",
+          "Label": "Farbige Prosodie"
+        },
+        "EaseMix": {
+          "Description": "Lässt Prosodiefarben mit steigender kombinierter Leichtigkeit verblassen.",
+          "Label": "Farben nach Leichtigkeit verblassen"
+        },
+        "MixTarget": {
+          "Description": "Wähle die Farbe, zu der Prosodiefarben bei hoher Leichtigkeit übergehen.",
+          "Label": "Überblenden zu",
+          "PartOfSpeech": "Wortartfarbe",
+          "White": "Weiß"
+        },
+        "Palette": {
+          "Description": "Passe die vom Sprachpaket definierten Farben für diese Sprache an.",
+          "ResetAll": "Prosodiepalette zurücksetzen"
+        },
         "Preview": "Vorschau der farbigen Prosodie",
-        "Saturation": {"Description": "Passe die Intensität aller Prosodiefarben an.", "Label": "Farbsättigung"},
-        "StatusLimit": {"Description": "Färbt Wörter bis zu diesem kombinierten Lernstatus. Höhere Status verwenden die normale Wortartfarbe.", "Known": "Bekannt", "Label": "Färben bis Status", "Learning": "In Bearbeitung"}
+        "Saturation": {
+          "Description": "Passe die Intensität aller Prosodiefarben an.",
+          "Label": "Farbsättigung"
+        },
+        "StatusLimit": {
+          "Description": "Färbt Wörter bis zu diesem kombinierten Lernstatus. Höhere Status verwenden die normale Wortartfarbe.",
+          "Known": "Bekannt",
+          "Label": "Färben bis Status",
+          "Learning": "In Bearbeitung"
+        }
       },
       "Groups": {
         "Appearance": "Erscheinungsbild",
@@ -2040,6 +2062,19 @@
           "Background": "Hintergrund",
           "Marker": "Marker",
           "Shadow": "Schatten"
+        },
+        "FrequencyStarCollapse": {
+          "Label": "Häufigkeitssterne einklappen",
+          "Description": "Lange Sternreihen als kompakte Zahl mit einem einzelnen Stern anzeigen.",
+          "Modes": {
+            "Never": "Nicht einklappen",
+            "Auto": "Automatisch",
+            "Always": "Immer einklappen"
+          }
+        },
+        "FrequencyStarMargin": {
+          "Label": "Sternabstand",
+          "Description": "Mindestabstand (px) zwischen den Sternreihen benachbarter Wörter, bevor Sterne eingeklappt werden."
         }
       },
       "UI": {

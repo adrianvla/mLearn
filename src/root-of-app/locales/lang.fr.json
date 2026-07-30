@@ -1515,13 +1515,35 @@
         }
       },
       "ColoredProsody": {
-        "Enabled": {"Description": "Colore les traits de prononciation selon le pack de langue actif et remplace les couleurs grammaticales lorsque la prosodie est disponible.", "Label": "Prosodie colorée"},
-        "EaseMix": {"Description": "Atténue les couleurs prosodiques à mesure que l'aisance combinée du mot augmente.", "Label": "Atténuer selon l'aisance"},
-        "MixTarget": {"Description": "Choisissez la couleur vers laquelle les couleurs prosodiques s'atténuent.", "Label": "Atténuer vers", "PartOfSpeech": "Couleur grammaticale", "White": "Blanc"},
-        "Palette": {"Description": "Personnalisez les couleurs définies par le pack pour cette langue.", "ResetAll": "Réinitialiser la palette prosodique"},
+        "Enabled": {
+          "Description": "Colore les traits de prononciation selon le pack de langue actif et remplace les couleurs grammaticales lorsque la prosodie est disponible.",
+          "Label": "Prosodie colorée"
+        },
+        "EaseMix": {
+          "Description": "Atténue les couleurs prosodiques à mesure que l'aisance combinée du mot augmente.",
+          "Label": "Atténuer selon l'aisance"
+        },
+        "MixTarget": {
+          "Description": "Choisissez la couleur vers laquelle les couleurs prosodiques s'atténuent.",
+          "Label": "Atténuer vers",
+          "PartOfSpeech": "Couleur grammaticale",
+          "White": "Blanc"
+        },
+        "Palette": {
+          "Description": "Personnalisez les couleurs définies par le pack pour cette langue.",
+          "ResetAll": "Réinitialiser la palette prosodique"
+        },
         "Preview": "Aperçu de la prosodie colorée",
-        "Saturation": {"Description": "Réglez l'intensité de toutes les couleurs prosodiques.", "Label": "Saturation des couleurs"},
-        "StatusLimit": {"Description": "Colore les mots jusqu'à ce statut combiné. Les statuts supérieurs utilisent la couleur grammaticale normale.", "Known": "Connu", "Label": "Colorer jusqu'au statut", "Learning": "En apprentissage"}
+        "Saturation": {
+          "Description": "Réglez l'intensité de toutes les couleurs prosodiques.",
+          "Label": "Saturation des couleurs"
+        },
+        "StatusLimit": {
+          "Description": "Colore les mots jusqu'à ce statut combiné. Les statuts supérieurs utilisent la couleur grammaticale normale.",
+          "Known": "Connu",
+          "Label": "Colorer jusqu'au statut",
+          "Learning": "En apprentissage"
+        }
       },
       "Groups": {
         "Appearance": "Apparence",
@@ -2040,6 +2062,19 @@
           "Background": "Fond",
           "Marker": "Marqueur",
           "Shadow": "Ombre"
+        },
+        "FrequencyStarCollapse": {
+          "Label": "Réduire les étoiles de fréquence",
+          "Description": "Afficher les longues rangées d'étoiles sous forme de nombre compact avec une seule étoile.",
+          "Modes": {
+            "Never": "Ne pas réduire",
+            "Auto": "Automatique",
+            "Always": "Toujours réduire"
+          }
+        },
+        "FrequencyStarMargin": {
+          "Label": "Marge entre étoiles",
+          "Description": "Espace minimal (px) entre les rangées d'étoiles de mots voisins avant réduction."
         }
       },
       "UI": {

@@ -54,6 +54,11 @@ const settingRegistry = {
     ],
   },
   language: 'string',
+  frequencyStarCollapse: {
+    kind: 'string',
+    allowedValues: ['never', 'auto', 'always'],
+  },
+  frequencyStarMargin: 'number',
   hover_known_get_from_dictionary: 'boolean',
   show_pos: 'boolean',
   showReadingAnnotations: 'boolean',

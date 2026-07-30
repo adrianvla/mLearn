@@ -18,7 +18,7 @@ import Icon from '../../../components/common/Icons/Icon';
 import type { SubtitleTheme } from '@shared/constants';
 import '../SettingsForm.css';
 import './CustomizationTab.css';
-import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
+import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides, FrequencyStarCollapseMode } from '@shared/types';
 import { DEFAULT_SETTINGS } from '@shared/types';
 import type {
   ColoredProsodyMixTarget,
@@ -304,6 +304,39 @@ export const CustomizationTab: Component = () => {
             <option value="900">{t('mlearn.Settings.Subtitle.FontWeights.Black')}</option>
           </Select>
         </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Subtitle.FrequencyStarCollapse.Label')}
+          description={t('mlearn.Settings.Subtitle.FrequencyStarCollapse.Description')}
+          settingKey="frequencyStarCollapse"
+        >
+          <Select
+            class="setting-select"
+            value={settings.frequencyStarCollapse ?? DEFAULT_SETTINGS.frequencyStarCollapse}
+            onChange={(e) => updateSettings({ frequencyStarCollapse: e.currentTarget.value as FrequencyStarCollapseMode })}
+          >
+            <option value="never">{t('mlearn.Settings.Subtitle.FrequencyStarCollapse.Modes.Never')}</option>
+            <option value="auto">{t('mlearn.Settings.Subtitle.FrequencyStarCollapse.Modes.Auto')}</option>
+            <option value="always">{t('mlearn.Settings.Subtitle.FrequencyStarCollapse.Modes.Always')}</option>
+          </Select>
+        </SettingRow>
+
+        <Show when={(settings.frequencyStarCollapse ?? DEFAULT_SETTINGS.frequencyStarCollapse) === 'auto'}>
+          <SettingRow
+            label={t('mlearn.Settings.Subtitle.FrequencyStarMargin.Label')}
+            description={t('mlearn.Settings.Subtitle.FrequencyStarMargin.Description')}
+            settingKey="frequencyStarMargin"
+          >
+            <input
+              type="number"
+              class="setting-input"
+              value={settings.frequencyStarMargin ?? DEFAULT_SETTINGS.frequencyStarMargin}
+              min={0}
+              max={100}
+              onChange={(e) => updateSettings({ frequencyStarMargin: parseInt(e.currentTarget.value) })}
+            />
+          </SettingRow>
+        </Show>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.SubtitleTiming')}>

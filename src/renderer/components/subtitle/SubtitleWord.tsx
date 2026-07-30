@@ -477,7 +477,12 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       {renderSubtitleWord()}
       {/* Frequency stars */}
       <Show when={showFrequencyStars()}>
-        <FrequencyStars level={wordFreqEntry()!.raw_level} visualLevel={frequencyVisualLevel()} word={displayWord()} />
+        <FrequencyStars
+          level={wordFreqEntry()!.raw_level}
+          visualLevel={frequencyVisualLevel()}
+          collapse={settings.frequencyStarCollapse ?? DEFAULT_SETTINGS.frequencyStarCollapse}
+          margin={settings.frequencyStarMargin ?? DEFAULT_SETTINGS.frequencyStarMargin}
+        />
       </Show>
     </span>
   );

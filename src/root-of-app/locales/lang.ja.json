@@ -1515,13 +1515,35 @@
         }
       },
       "ColoredProsody": {
-        "Enabled": {"Description": "有効な言語パッケージの設定に従って発音特徴を色分けします。韻律データがある場合は品詞カラーより優先されます。", "Label": "韻律の色分け"},
-        "EaseMix": {"Description": "単語の総合習熟度が上がるほど韻律カラーを薄くします。", "Label": "習熟度に応じて薄くする"},
-        "MixTarget": {"Description": "習熟度が高いときに韻律カラーを近づける色を選びます。", "Label": "混合先", "PartOfSpeech": "品詞カラー", "White": "白"},
-        "Palette": {"Description": "この言語パッケージで定義された色を変更します。", "ResetAll": "韻律パレットをリセット"},
+        "Enabled": {
+          "Description": "有効な言語パッケージの設定に従って発音特徴を色分けします。韻律データがある場合は品詞カラーより優先されます。",
+          "Label": "韻律の色分け"
+        },
+        "EaseMix": {
+          "Description": "単語の総合習熟度が上がるほど韻律カラーを薄くします。",
+          "Label": "習熟度に応じて薄くする"
+        },
+        "MixTarget": {
+          "Description": "習熟度が高いときに韻律カラーを近づける色を選びます。",
+          "Label": "混合先",
+          "PartOfSpeech": "品詞カラー",
+          "White": "白"
+        },
+        "Palette": {
+          "Description": "この言語パッケージで定義された色を変更します。",
+          "ResetAll": "韻律パレットをリセット"
+        },
         "Preview": "韻律カラーのプレビュー",
-        "Saturation": {"Description": "すべての韻律カラーの鮮やかさを調整します。", "Label": "彩度"},
-        "StatusLimit": {"Description": "選択した総合学習状態まで色分けします。それより上の状態では通常の品詞カラーを使います。", "Known": "既知", "Label": "色分けする上限", "Learning": "学習中"}
+        "Saturation": {
+          "Description": "すべての韻律カラーの鮮やかさを調整します。",
+          "Label": "彩度"
+        },
+        "StatusLimit": {
+          "Description": "選択した総合学習状態まで色分けします。それより上の状態では通常の品詞カラーを使います。",
+          "Known": "既知",
+          "Label": "色分けする上限",
+          "Learning": "学習中"
+        }
       },
       "Groups": {
         "Appearance": "外観",
@@ -2040,6 +2062,19 @@
           "Background": "背景",
           "Marker": "マーカー",
           "Shadow": "シャドウ"
+        },
+        "FrequencyStarCollapse": {
+          "Label": "頻度スターを折りたたむ",
+          "Description": "長いスター列を数字と1つのスターのコンパクト表示にします。",
+          "Modes": {
+            "Never": "折りたたまない",
+            "Auto": "自動",
+            "Always": "常に折りたたむ"
+          }
+        },
+        "FrequencyStarMargin": {
+          "Label": "スター間の余白",
+          "Description": "スターが折りたたまれるまでの、隣の単語のスター列との最小間隔(px)。"
         }
       },
       "UI": {
