@@ -962,6 +962,26 @@ class GenericLanguageModule:
                 return None
         return payload
 
+    @functools.lru_cache(maxsize=PROSODY_CACHE_SIZE)
+    def _prosody_entries_by_headword_cached(self, word: str):
+        if not word or self._dictionary_schema != "headword-reading-zlib-json" or not self._prosody_config:
+            return []
+        table_value = self._prosody_config.get("table")
+        reading_column_value = self._prosody_config.get("readingColumn")
+        if not isinstance(table_value, str) or not table_value.strip() or not isinstance(reading_column_value, str) or not reading_column_value.strip():
+            return []
+        table = _safe_sql_identifier(table_value, "")
+        headword_column = _safe_sql_identifier(self._prosody_config.get("headwordColumn"), "headword")
+        data_column = _safe_sql_identifier(self._prosody_config.get("dataColumn"), "data")
+        reading_column = _safe_sql_identifier(reading_column_value, "")
+        conn = self._require_db_conn()
+        with self._db_lock:
+            rows = conn.execute(
+                f"SELECT {data_column} FROM {table} WHERE {headword_column} = ? ORDER BY {reading_column}",
+                (word,),
+            ).fetchall()
+        return [_deserialize_entry(row[data_column]) for row in rows]
+
     def _row_payload(self, row):
         if self._dictionary_schema == "simple-headword-zlib-json":
             return {
@@ -1116,6 +1136,10 @@ class GenericLanguageModule:
         reading = self._headword_reading_entry_reading(best)
         prosody_headword = self._headword_reading_entry_headword(best) or matched_word
         prosody = self._prosody_entry_cached(prosody_headword, reading) or {}
+        if matched_word == prosody_headword:
+            all_prosody = self._prosody_entries_by_headword_cached(prosody_headword)
+            if len(all_prosody) > 1:
+                prosody = all_prosody
 
         if self._dictionary_renderer == "structured-glosses":
             return self._render_structured_headword_reading_entry(best, prosody, matched_word)

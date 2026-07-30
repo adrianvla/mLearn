@@ -81,6 +81,25 @@ describe('extractProsodyFromTranslationData', () => {
     });
   });
 
+  it('binds a secondary reading from a headword payload with multiple pitch rows', () => {
+    const translationData = {
+      data: [
+        { reading: 'あさって', definitions: ['day after tomorrow'] },
+        { reading: 'あさって', definitions: ['day after tomorrow'] },
+        [
+          ['明後日', 'pitch', { reading: 'あさって', pitches: [{ position: 2 }] }],
+          ['明後日', 'pitch', { reading: 'みょうごにち', pitches: [{ position: 3 }] }],
+        ],
+      ],
+    };
+
+    expect(extractProsodyFromTranslationData(translationData, japanesePitchLanguage, 'みょうごにち')).toEqual({
+      type: 'japanese-pitch-accent',
+      position: 3,
+      raw: { reading: 'みょうごにち', pitches: [{ position: 3 }] },
+    });
+  });
+
   it('preserves package-defined future prosody payloads for saved flashcards', () => {
     const raw = { contours: [{ syllable: 'ma', tone: 'rising' }] };
     expect(extractProsodyFromTranslationData({

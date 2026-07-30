@@ -2149,7 +2149,10 @@ def test_generic_headword_reading_dictionary_can_key_prosody_by_reading(tmp_path
 
     by_headword = module.LANGUAGE_TRANSLATE("開く")
     assert by_headword["data"][0]["reading"] == "aku"
-    assert by_headword["data"][2] == {"position": 0, "reading": "aku"}
+    assert by_headword["data"][2] == [
+        {"position": 0, "reading": "aku"},
+        {"position": 2, "reading": "hiraku"},
+    ]
 
     by_reading = module.LANGUAGE_TRANSLATE("hiraku")
     assert by_reading["data"][0]["reading"] == "hiraku"
