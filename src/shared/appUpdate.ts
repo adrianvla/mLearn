@@ -1,5 +1,6 @@
 export type AppUpdateSupportReason =
   | 'development'
+  | 'macos-unsigned'
   | 'windows-portable'
   | 'linux-non-appimage'
   | 'unsupported-platform';

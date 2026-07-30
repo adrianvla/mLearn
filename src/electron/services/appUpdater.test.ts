@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import type { AppUpdater, ProgressInfo, UpdateCheckResult, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppUpdateState } from '../../shared/appUpdate';
 import { IPC_CHANNELS, UPDATE_URL } from '../../shared/constants';
 import {
   createAppUpdaterService,
@@ -120,6 +119,7 @@ function makeService(overrides: AppUpdaterServiceOverrides = {}): AppUpdaterServ
     updater: updater as unknown as AppUpdater,
     getCurrentVersion: () => '2.6.7',
     isPackaged: () => true,
+    isMacDeveloperIdSigned: () => true,
     platform: 'darwin',
     environment: {},
     getAutoDownload: () => false,
@@ -145,15 +145,16 @@ afterEach(() => {
 
 describe('detectAppUpdateSupport', () => {
   it.each([
-    [false, 'darwin', {}, 'development'],
-    [true, 'win32', { PORTABLE_EXECUTABLE_FILE: 'mLearn.exe' }, 'windows-portable'],
-    [true, 'win32', { PORTABLE_EXECUTABLE_DIR: 'C:\\mLearn' }, 'windows-portable'],
-    [true, 'linux', {}, 'linux-non-appimage'],
-    [true, 'linux', { APPIMAGE: '/opt/mLearn.AppImage' }, null],
-    [true, 'darwin', {}, null],
-    [true, 'freebsd', {}, 'unsupported-platform'],
-  ] as const)('returns %s/%s support result', (isPackaged, platform, environment, expected) => {
-    expect(detectAppUpdateSupport(isPackaged, platform, environment)).toBe(expected);
+    [false, 'darwin', {}, true, 'development'],
+    [true, 'win32', { PORTABLE_EXECUTABLE_FILE: 'mLearn.exe' }, true, 'windows-portable'],
+    [true, 'win32', { PORTABLE_EXECUTABLE_DIR: 'C:\\mLearn' }, true, 'windows-portable'],
+    [true, 'linux', {}, true, 'linux-non-appimage'],
+    [true, 'linux', { APPIMAGE: '/opt/mLearn.AppImage' }, true, null],
+    [true, 'darwin', {}, false, 'macos-unsigned'],
+    [true, 'darwin', {}, true, null],
+    [true, 'freebsd', {}, true, 'unsupported-platform'],
+  ] as const)('returns %s/%s support result', (isPackaged, platform, environment, isMacDeveloperIdSigned, expected) => {
+    expect(detectAppUpdateSupport(isPackaged, platform, environment, isMacDeveloperIdSigned)).toBe(expected);
   });
 });
 
@@ -270,6 +271,20 @@ describe('native updater events', () => {
       privateMessage,
     );
   });
+
+  it('classifies an error after download completion as an install failure', async () => {
+    const service = makeService();
+    await service.initialize({ autoCheck: false });
+
+    updater.emit('update-downloaded', makeDownloadedEvent());
+    updater.emit('error', new Error('signature validation failed'));
+
+    expect(service.getState()).toMatchObject({
+      status: 'error',
+      operation: 'install',
+      errorCode: 'install-failed',
+    });
+  });
 });
 
 describe('check concurrency', () => {
@@ -331,6 +346,27 @@ describe('metadata fallback', () => {
         manualDownloadUrl: 'https://mlearn.kikan.net/download',
       },
     });
+  });
+
+  it('uses the manual update path for unsigned macOS builds', async () => {
+    const fetchMetadata = vi.fn().mockResolvedValue({
+      latest: '2.7.0',
+      downloadUrl: 'https://mlearn.kikan.net/download',
+    });
+    const service = makeService({
+      isMacDeveloperIdSigned: () => false,
+      fetchMetadata,
+    });
+
+    const state = await service.checkForUpdates();
+
+    expect(state).toMatchObject({
+      status: 'available',
+      canAutoUpdate: false,
+      supportReason: 'macos-unsigned',
+      update: { source: 'metadata', manualDownloadUrl: 'https://mlearn.kikan.net/download' },
+    });
+    expect(updater.checkForUpdatesMock).not.toHaveBeenCalled();
   });
 
   it('uses semantic version precedence instead of lexical ordering', async () => {
@@ -429,6 +465,25 @@ describe('downloads', () => {
       retryable: true,
     });
     expect(JSON.stringify(state)).not.toContain(message);
+  });
+
+  it('keeps an updater error when its download promise resolves afterward', async () => {
+    const pending = deferred<string[]>();
+    updater.downloadUpdateMock.mockReturnValue(pending.promise);
+    const service = makeService();
+    updater.emit('update-available', makeUpdateInfo());
+
+    const download = service.downloadUpdate();
+    updater.emit('error', new Error('signature validation failed'));
+    pending.resolve(['/tmp/mLearn.dmg']);
+    await download;
+    await Promise.resolve();
+
+    expect(service.getState()).toMatchObject({
+      status: 'error',
+      operation: 'download',
+      errorCode: 'download-failed',
+    });
   });
 
   it('rejects auto-download actions for metadata-only packages', async () => {

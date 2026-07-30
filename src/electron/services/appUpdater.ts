@@ -1,4 +1,6 @@
 import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { spawnSync } from 'node:child_process';
+import { dirname } from 'node:path';
 import {
   autoUpdater,
   type AppUpdater,
@@ -48,6 +50,7 @@ export interface AppUpdaterServiceOverrides {
   readonly updater?: AppUpdater;
   readonly getCurrentVersion?: () => string;
   readonly isPackaged?: () => boolean;
+  readonly isMacDeveloperIdSigned?: () => boolean;
   readonly platform?: NodeJS.Platform;
   readonly environment?: Readonly<NodeJS.ProcessEnv>;
   readonly getAutoDownload?: () => boolean;
@@ -162,6 +165,12 @@ function normalizeProgress(progress: ProgressInfo): AppUpdateProgress {
   };
 }
 
+function hasMacDeveloperIdSignature(appPath: string): boolean {
+  const bundlePath = dirname(dirname(dirname(appPath)));
+  const result = spawnSync('codesign', ['-dv', bundlePath], { encoding: 'utf8' });
+  return result.status === 0 && result.stderr.includes('Authority=Developer ID Application:');
+}
+
 function freezeState(state: AppUpdateState): AppUpdateState {
   if ('update' in state && state.update) Object.freeze(state.update);
   if ('progress' in state) Object.freeze(state.progress);
@@ -172,8 +181,10 @@ export function detectAppUpdateSupport(
   isPackaged: boolean,
   platform: NodeJS.Platform,
   environment: Readonly<NodeJS.ProcessEnv>,
+  isMacDeveloperIdSigned = true,
 ): AppUpdateSupportReason | null {
   if (!isPackaged) return 'development';
+  if (platform === 'darwin' && !isMacDeveloperIdSigned) return 'macos-unsigned';
   if (platform === 'win32' && (environment.PORTABLE_EXECUTABLE_FILE || environment.PORTABLE_EXECUTABLE_DIR)) {
     return 'windows-portable';
   }
@@ -196,10 +207,16 @@ async function fetchUpdateMetadata(url: string): Promise<unknown> {
 function resolveDependencies(overrides: AppUpdaterServiceOverrides): ResolvedDependencies {
   const logger = overrides.logger ?? getLogger('electron.appUpdater');
   const currentVersion = overrides.getCurrentVersion?.() ?? app.getVersion();
+  const isPackaged = overrides.isPackaged?.() ?? app.isPackaged;
+  const platform = overrides.platform ?? process.platform;
+  const isMacDeveloperIdSigned = platform !== 'darwin' || !isPackaged || (
+    overrides.isMacDeveloperIdSigned ?? (() => hasMacDeveloperIdSignature(app.getAppPath()))
+  )();
   const supportReason = detectAppUpdateSupport(
-    overrides.isPackaged?.() ?? app.isPackaged,
-    overrides.platform ?? process.platform,
+    isPackaged,
+    platform,
     overrides.environment ?? process.env,
+    isMacDeveloperIdSigned,
   );
   return {
     updater: overrides.updater ?? autoUpdater,
@@ -349,7 +366,7 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
     });
     void this.dependencies.updater.downloadUpdate()
       .then(() => {
-        if (this.state.status !== 'downloaded' && this.latestUpdate) {
+        if (this.state.status !== 'downloaded' && this.state.status !== 'error' && this.latestUpdate) {
           this.transition({ status: 'downloaded', update: this.latestUpdate });
         }
         this.activeOperation = null;
@@ -513,7 +530,7 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
   private inferActiveOperation(): AppUpdateOperation {
     if (this.activeOperation) return this.activeOperation;
     if (this.state.status === 'downloading' || this.state.status === 'available') return 'download';
-    if (this.state.status === 'installing') return 'install';
+    if (this.state.status === 'downloaded' || this.state.status === 'installing') return 'install';
     return 'check';
   }
 
