@@ -207,8 +207,13 @@ jobs:
           cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/
           cp extension/icons/*.png extension/dist/icons/
 
-      - name: Build Windows (unsigned)
-        run: npm run build && npx electron-builder --win --publish=never
+      - name: Build Windows x64 (unsigned)
+        run: npm run build && npx electron-builder --win --publish=never --config.arch=x64 --config.cacheRoot=release/.cache/x64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Build Windows arm64 (unsigned)
+        run: npx electron-builder --win --publish=never --config.arch=arm64 --config.cacheRoot=release/.cache/arm64
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
