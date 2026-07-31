@@ -106,18 +106,27 @@ jobs:
         env:
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          MACOS_CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          MACOS_CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
         run: |
           APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
           printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D > "$APPLE_API_KEY_PATH"
           echo "APPLE_API_KEY=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
+          echo "APPLE_API_KEY_ID=$APPLE_API_KEY_ID" >> "$GITHUB_ENV"
+          echo "APPLE_API_ISSUER=$APPLE_API_ISSUER" >> "$GITHUB_ENV"
+          echo "CSC_LINK=$MACOS_CSC_LINK" >> "$GITHUB_ENV"
+          echo "CSC_KEY_PASSWORD=$MACOS_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build macOS
+      - name: Build signed macOS
+        if: env.MACOS_SIGNING_AVAILABLE == 'true'
+        run: npm run build && npx electron-builder --mac --universal --publish=never
+
+      - name: Build unsigned macOS
+        if: env.MACOS_SIGNING_AVAILABLE != 'true'
         run: npm run build && npx electron-builder --mac --universal --publish=never
         env:
-          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Verify signed macOS updater
         if: env.MACOS_SIGNING_AVAILABLE == 'true'
