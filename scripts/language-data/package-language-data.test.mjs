@@ -285,7 +285,7 @@ describe('package-language-data', () => {
       process.cwd(),
       'scripts/language-data/language-overrides/zh.dictionary-packs.json',
     ));
-    assert.equal(zhPacks.en.version, 'zh-en-cc-cedict-2026.07.28');
+    assert.equal(zhPacks.en.version, 'zh-en-cc-cedict-2026.07.31');
 
     assert.equal(Object.prototype.hasOwnProperty.call(russian, 'prosody'), false);
     assert.equal(chinese.prosody?.coloring?.renderer, 'tone-marked-syllables');

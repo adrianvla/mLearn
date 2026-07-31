@@ -2,7 +2,7 @@
   "en": {
     "targetLanguage": "en",
     "name": "English",
-    "version": "zh-en-cc-cedict-2026.07.28",
+    "version": "zh-en-cc-cedict-2026.07.31",
     "assets": [
       {"id":"dictionary-en","path":"dictionaries/zh/en/dictionary.db","bundledPath":"dictionaries/zh/en/dictionary.db","required":true},
       {"id":"metadata-en","path":"dictionaries/zh/en/metadata.json","bundledPath":"dictionaries/zh/en/metadata.json","required":true},

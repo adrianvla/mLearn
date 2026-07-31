@@ -1214,7 +1214,7 @@
     }
   },
   "languageData": {
-    "version": "zh-package-2026.07.28",
+      "version": "zh-package-2026.07.31",
     "minimumAppVersion": "2.8.0",
     "sourceVersions": {
       "ccCedict": "20260403",
