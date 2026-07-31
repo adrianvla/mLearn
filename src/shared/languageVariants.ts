@@ -72,11 +72,8 @@ export function canonicalLanguage(lang: string, data: LanguageDataMap | undefine
   if (!data) {
     return lang;
   }
-  if (data[lang]) {
-    return lang;
-  }
   for (const [code, languageData] of Object.entries(data)) {
-    if (languageData.legacyCodes?.includes(lang)) {
+    if (code !== lang && languageData.legacyCodes?.includes(lang)) {
       return code;
     }
   }

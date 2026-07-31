@@ -156,6 +156,13 @@ describe('canonicalLanguage', () => {
     expect(canonicalLanguage('zh-Hant', map)).toBe('zh');
   });
 
+  it('folds a legacy code even when its stale metadata remains installed', () => {
+    expect(canonicalLanguage('zh-Hans', {
+      ...map,
+      'zh-Hans': { name: 'Simplified Chinese' },
+    })).toBe('zh');
+  });
+
   it('keeps canonical codes as-is', () => {
     expect(canonicalLanguage('zh', map)).toBe('zh');
     expect(canonicalLanguage('ja', map)).toBe('ja');
