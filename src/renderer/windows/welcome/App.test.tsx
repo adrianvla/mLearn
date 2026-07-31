@@ -55,7 +55,7 @@ type TestSettings = {
   voiceEnabled?: boolean;
 };
 
-type LanguageRecord = Record<string, { name: string; name_translated?: string }>;
+type LanguageRecord = Record<string, { name: string; name_translated?: string; legacyCodes?: string[] }>;
 type LanguageDataStatus = {
   language: string;
   name: string;
@@ -142,14 +142,14 @@ vi.mock('../../../shared/bridges', () => ({
 vi.mock('../../components/common', () => ({
   Panel: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
   Btn: (props: { children?: JSX.Element; disabled?: boolean; onClick?: () => void; class?: string }) => (
-    <button class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+    <button type="button" class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   SelectableCard: (props: { selected?: boolean; onClick?: () => void; title: string; subtitle?: string; icon?: JSX.Element }) => (
-    <div role="button" aria-pressed={props.selected} onClick={props.onClick}>
+    <button type="button" aria-pressed={props.selected} onClick={props.onClick}>
       {props.icon}
       <span>{props.title}</span>
       <span>{props.subtitle}</span>
-    </div>
+    </button>
   ),
   AlertBanner: (props: { title?: string; message?: string }) => <div>{props.title}{props.message}</div>,
   LogConsole: (props: { title?: string; logs?: Array<{ message: string }> }) => (
@@ -253,6 +253,34 @@ describe('WelcomeApp', () => {
       expect(container.textContent).toContain('Japanese');
       expect(container.textContent).toContain('German');
       expect(container.textContent).toContain('Example Language (Example Native)');
+    });
+
+    dispose();
+  });
+
+  it('collapses installed legacy language codes into their canonical catalog option', async () => {
+    testLanguages = {
+      zh: {
+        name: 'Simplified Chinese',
+        name_translated: '简体中文',
+        legacyCodes: ['zh-Hans', 'zh-Hant'],
+      },
+      'zh-Hans': { name: 'Simplified Chinese', name_translated: '简体中文' },
+    };
+    setLanguageDataCatalog([
+      { language: 'zh', name: 'Simplified Chinese', installed: true, missingRequiredAssets: [] },
+    ]);
+
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+
+    await vi.waitFor(() => {
+      const languageSelect = container.querySelector('select') as HTMLSelectElement;
+      const optionValues = Array.from(languageSelect.options).map((option) => option.value);
+      expect(optionValues.filter((value) => value === 'zh')).toHaveLength(1);
+      expect(optionValues).not.toContain('zh-Hans');
     });
 
     dispose();

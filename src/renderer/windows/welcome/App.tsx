@@ -8,12 +8,13 @@ import { Component, Show, createSignal, createEffect, createMemo, onMount, onCle
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallerState, type LanguageDataCatalogStatus, type PipProgress } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallerState, type LanguageDataCatalogStatus, type LanguageDataMap, type PipProgress } from '../../../shared/types';
 import { Panel, Btn, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
 import { getLogger } from '../../../shared/utils/logger';
 import { getBundledLocaleCodes } from '../../../shared/bridges/bundledLanguageAssets';
+import { canonicalLanguage } from '../../../shared/languageVariants';
 
 const log = getLogger("renderer.welcome.app");
 const CLICK_TO_BEGIN_KEY = 'mlearn.Installer.Instructions.ClickToBegin';
@@ -60,8 +61,11 @@ function languageDataStatusLabel(
 
 const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!', '欢迎！', 'Добро пожаловать!'];
 
-function uniqueLanguageCodes(...groups: Array<readonly string[]>): string[] {
-  return [...new Set(groups.flat().filter(Boolean))];
+function uniqueLanguageCodes(
+  languageData: LanguageDataMap,
+  ...groups: Array<readonly string[]>
+): string[] {
+  return [...new Set(groups.flat().filter(Boolean).map((code) => canonicalLanguage(code, languageData)))];
 }
 
 function resolveInitialLanguageCode(preferredLanguage: string | undefined, availableLanguageCodes: readonly string[]): string {
@@ -99,7 +103,7 @@ const WelcomeContent: Component = () => {
   const catalogLanguageCodes = createMemo(() => languageDataCatalog().map((status) => status.language));
   const availableLanguageCodes = createMemo(() => {
     const catalogCodes = catalogLanguageCodes();
-    return uniqueLanguageCodes(catalogCodes, supportedLanguages());
+    return uniqueLanguageCodes(langData, catalogCodes, supportedLanguages());
   });
   const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => {
     const status = getLanguageDataStatus(code);
