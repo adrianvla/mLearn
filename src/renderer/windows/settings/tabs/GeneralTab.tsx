@@ -5,18 +5,22 @@
 import { Component, createMemo, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon, Textarea } from '../../../components/common';
-import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type Settings } from '../../../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type LanguageDataMap, type Settings } from '../../../../shared/types';
 import { type AppTheme } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBundledLocaleCodes } from '../../../../shared/bridges/bundledLanguageAssets';
+import { canonicalLanguage } from '../../../../shared/languageVariants';
 import '../SettingsForm.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { LanguageVariantGate } from '../../../components/common';
 
 const log = getLogger("renderer.settings.general");
 
-function uniqueLanguageCodes(...groups: Array<readonly string[]>): string[] {
-  return [...new Set(groups.flat().filter(Boolean))];
+function uniqueLanguageCodes(
+  languageData: LanguageDataMap,
+  ...groups: Array<readonly string[]>
+): string[] {
+  return [...new Set(groups.flat().filter(Boolean).map((code) => canonicalLanguage(code, languageData)))];
 }
 
 function assignImportedSetting<K extends keyof Settings>(
@@ -93,7 +97,7 @@ export const GeneralTab: Component = () => {
   })));
   const availableLanguageCodes = createMemo(() => {
     const catalogCodes = languageDataCatalog().map((status) => status.language);
-    return uniqueLanguageCodes(catalogCodes, supportedLanguages());
+    return uniqueLanguageCodes(langData, catalogCodes, supportedLanguages());
   });
   const learningLanguageOptions = createMemo(() => availableLanguageCodes().map((code) => ({
     value: code,

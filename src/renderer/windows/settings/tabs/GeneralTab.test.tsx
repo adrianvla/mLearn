@@ -45,7 +45,13 @@ const testSettings = {
   devMode: false,
 };
 
-const mockLangData = {
+type MockLanguageData = Record<string, {
+  name: string;
+  name_translated: string;
+  legacyCodes?: string[];
+}>;
+
+let mockLangData: MockLanguageData = {
   ja: { name: 'Japanese', name_translated: '日本語' },
   de: { name: 'German', name_translated: 'Deutsch' },
   xx: { name: 'Example Language', name_translated: 'Example Native' },
@@ -132,6 +138,11 @@ describe('GeneralTab', () => {
         dictionaryPacks: [{ targetLanguage: 'en', name: 'German -> English', installed: false }],
       },
     ];
+    mockLangData = {
+      ja: { name: 'Japanese', name_translated: '日本語' },
+      de: { name: 'German', name_translated: 'Deutsch' },
+      xx: { name: 'Example Language', name_translated: 'Example Native' },
+    };
     mockLanguageDataInstallError = null;
     onSettingsSavedMock.mockImplementation((callback: () => void) => {
       callback;
@@ -174,6 +185,29 @@ describe('GeneralTab', () => {
     expect(optionValues).toContain('ja');
     expect(optionValues).toContain('de');
     expect(optionValues).toContain('xx');
+    dispose();
+  });
+
+  it('collapses installed legacy language codes into their canonical catalog option', async () => {
+    mockLanguageDataCatalog = [
+      { language: 'zh', name: 'Simplified Chinese', installed: true, missingRequiredAssets: [] },
+    ];
+    mockLangData = {
+      zh: {
+        name: 'Simplified Chinese',
+        name_translated: '简体中文',
+        legacyCodes: ['zh-Hans', 'zh-Hant'],
+      },
+      'zh-Hans': { name: 'Simplified Chinese', name_translated: '简体中文' },
+    };
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    const learningLanguageSelect = container.querySelectorAll('select')[1] as HTMLSelectElement;
+    const optionValues = Array.from(learningLanguageSelect.options).map((option) => option.value);
+
+    expect(optionValues.filter((value) => value === 'zh')).toHaveLength(1);
+    expect(optionValues).not.toContain('zh-Hans');
     dispose();
   });
 
