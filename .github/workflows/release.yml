@@ -140,13 +140,14 @@ jobs:
         if: env.MACOS_SIGNING_AVAILABLE == 'true'
         run: |
           APP_PATH="$(find release -type d -name mLearn.app -print -quit)"
-          test -n "$APP_PATH"
-          codesign --verify --deep --strict "$APP_PATH"
-          codesign -dv "$APP_PATH" 2>&1 | grep -F 'Authority=Developer ID Application:'
+          echo "APP_PATH=$APP_PATH"
+          test -n "$APP_PATH" || { echo "FAIL: mLearn.app not found under release/"; ls -la release; exit 1; }
+          codesign --verify --deep --strict "$APP_PATH" && echo "OK: codesign --verify"
+          codesign -dv "$APP_PATH" 2>&1 | grep -F 'Authority=Developer ID Application:' || { echo "FAIL: wrong signing identity"; codesign -dv "$APP_PATH"; exit 1; }
           # Verify notarization ticket is stapled to the app bundle
-          xcrun stapler validate "$APP_PATH"
+          xcrun stapler validate "$APP_PATH" || { echo "FAIL: stapler validate"; exit 1; }
           # Verify Gatekeeper accepts the app (signature + notarization + stapling)
-          spctl -a -t exec -vv "$APP_PATH" 2>&1 | grep -q "accepted"
+          spctl -a -t exec -vv "$APP_PATH" || { echo "FAIL: spctl assessment"; exit 1; }
           npm run verify:update-artifacts
 
       - name: Rename macOS Artifacts
