@@ -113,6 +113,10 @@ export const AppUpdateNotifier: Component = () => {
   let toastPresentation: string | null = null;
   let dismissedPresentation: string | null = null;
 
+  // Created once outside the effect below: JSX made inside createEffect is owned by
+  // that effect run, and Solid disposes it on the next run — freezing the toast body.
+  const toastContent = <AppUpdateToastContent state={state} />;
+
   const acceptState = (nextState: AppUpdateState) => {
     setState((currentState) => (
       !currentState || nextState.updatedAt >= currentState.updatedAt ? nextState : currentState
@@ -165,7 +169,7 @@ export const AppUpdateNotifier: Component = () => {
       toastId = showToast({
         variant,
         title,
-        content: <AppUpdateToastContent state={state} />,
+        content: toastContent,
         duration: 0,
         class: 'app-update-toast',
         onDismiss: () => {
