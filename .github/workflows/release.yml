@@ -115,7 +115,15 @@ jobs:
           echo "APPLE_API_KEY=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
           echo "APPLE_API_KEY_ID=$APPLE_API_KEY_ID" >> "$GITHUB_ENV"
           echo "APPLE_API_ISSUER=$APPLE_API_ISSUER" >> "$GITHUB_ENV"
-          echo "CSC_LINK=$MACOS_CSC_LINK" >> "$GITHUB_ENV"
+          # MACOS_CSC_LINK may be a secure URL or base64-encoded .p12 — decode
+          # base64 to a temp file so electron-builder can read the PKCS#12 cert.
+          if [[ "$MACOS_CSC_LINK" =~ ^https?:// ]]; then
+            echo "CSC_LINK=$MACOS_CSC_LINK" >> "$GITHUB_ENV"
+          else
+            CSC_LINK_PATH="$RUNNER_TEMP/certificate.p12"
+            printf '%s' "$MACOS_CSC_LINK" | base64 -D > "$CSC_LINK_PATH"
+            echo "CSC_LINK=$CSC_LINK_PATH" >> "$GITHUB_ENV"
+          fi
           echo "CSC_KEY_PASSWORD=$MACOS_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Build signed macOS
@@ -135,6 +143,10 @@ jobs:
           test -n "$APP_PATH"
           codesign --verify --deep --strict "$APP_PATH"
           codesign -dv "$APP_PATH" 2>&1 | grep -F 'Authority=Developer ID Application:'
+          # Verify notarization ticket is stapled to the app bundle
+          xcrun stapler validate "$APP_PATH"
+          # Verify Gatekeeper accepts the app (signature + notarization + stapling)
+          spctl -a -t exec -vv "$APP_PATH" 2>&1 | grep -q "accepted"
           npm run verify:update-artifacts
 
       - name: Rename macOS Artifacts
@@ -207,12 +219,18 @@ jobs:
           cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/
           cp extension/icons/*.png extension/dist/icons/
 
+      - name: Build Windows (unsigned)
+        run: npm run build
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
       - name: Clean electron cache
         run: Remove-Item -Recurse -Force node_modules/electron -ErrorAction SilentlyContinue; if (Test-Path "$env:LOCALAPPDATA/electron") { Remove-Item -Recurse -Force "$env:LOCALAPPDATA/electron" -ErrorAction SilentlyContinue }
         shell: pwsh
 
-      - name: Build Windows (unsigned)
-        run: npm run build && npx electron-builder --win --publish=never
+      - name: Package Windows (unsigned)
+        run: npx electron-builder --win --publish=never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
