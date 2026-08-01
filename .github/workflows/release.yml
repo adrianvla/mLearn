@@ -143,11 +143,13 @@ jobs:
           echo "APP_PATH=$APP_PATH"
           test -n "$APP_PATH" || { echo "FAIL: mLearn.app not found under release/"; ls -la release; exit 1; }
           codesign --verify --deep --strict "$APP_PATH" && echo "OK: codesign --verify"
-          codesign -dv "$APP_PATH" 2>&1 | grep -F 'Authority=Developer ID Application:' || { echo "FAIL: wrong signing identity"; codesign -dv "$APP_PATH"; exit 1; }
+          codesign -dv "$APP_PATH" 2>&1 || true
           # Verify notarization ticket is stapled to the app bundle
           xcrun stapler validate "$APP_PATH" || { echo "FAIL: stapler validate"; exit 1; }
           # Verify Gatekeeper accepts the app (signature + notarization + stapling)
+          # spctl output includes origin=Developer ID Application: ... which is the identity check
           spctl -a -t exec -vv "$APP_PATH" || { echo "FAIL: spctl assessment"; exit 1; }
+          spctl -a -t exec -vv "$APP_PATH" 2>&1 | grep -F 'origin=Developer ID Application:' || { echo "FAIL: wrong signing identity"; exit 1; }
           npm run verify:update-artifacts
 
       - name: Rename macOS Artifacts
