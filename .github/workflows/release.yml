@@ -220,17 +220,8 @@ jobs:
           cp extension/icons/*.png extension/dist/icons/
 
       - name: Build Windows (unsigned)
-        run: npm run build
         shell: pwsh
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Clean electron cache
-        run: Remove-Item -Recurse -Force node_modules/electron -ErrorAction SilentlyContinue; if (Test-Path "$env:LOCALAPPDATA/electron") { Remove-Item -Recurse -Force "$env:LOCALAPPDATA/electron" -ErrorAction SilentlyContinue }
-        shell: pwsh
-
-      - name: Package Windows (unsigned)
-        run: npx electron-builder --win --publish=never
+        run: npm run build && npx electron-builder --win --publish=never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
