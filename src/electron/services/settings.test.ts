@@ -147,6 +147,25 @@ describe('loadSettings', () => {
     expect(settings.language).toBe('ja');
   });
 
+  it('does not treat mapping-table files as installed languages', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(path.join(langsDir, 'zh.json'), JSON.stringify({ name: 'Chinese' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'zh.t2s.json'), JSON.stringify({ chars: {}, words: {} }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('zh');
+  });
+
+  it('reports no installed language data when only mapping-table files exist', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(path.join(langsDir, 'zh.t2s.json'), JSON.stringify({ chars: {}, words: {} }), 'utf-8');
+
+    expect(mod.hasInstalledLanguageData()).toBe(false);
+  });
+
   it('does not guess a selected language from multiple installed languages when settings file is missing', () => {
     const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
@@ -1302,6 +1321,19 @@ describe('GET_LANG_DATA IPC handler', () => {
     const event = makeEvent();
     for (const h of handlers) await h(event);
     expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({ zz: expect.any(Object) }));
+  });
+
+  it('does not include mapping-table files as languages', async () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(path.join(langsDir, 'zh.json'), JSON.stringify({ name: 'Chinese' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'zh.t2s.json'), JSON.stringify({ chars: {}, words: {} }), 'utf-8');
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('get-lang-data') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) await h(event);
+    expect(event.reply).toHaveBeenCalledWith('lang-data', expect.objectContaining({ zh: expect.any(Object) }));
+    expect(event.reply).toHaveBeenCalledWith('lang-data', expect.not.objectContaining({ 'zh.t2s': expect.anything() }));
   });
 
   it('does not include uninstalled languages from the package catalog', async () => {

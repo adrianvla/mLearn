@@ -9,6 +9,7 @@ import { app, ipcMain, webContents } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
+import { isLanguageMetadataFileName } from '../utils/languageCode';
 import { setUILanguage } from './localization';
 import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus, resolveDictionaryTargetLanguage } from './languageDataService';
 import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
@@ -86,7 +87,7 @@ function getInstalledLanguageCodes(): string[] {
 
   try {
     return fs.readdirSync(languagesDir)
-      .filter((file) => file.endsWith('.json') && !file.endsWith('.freq.json'))
+      .filter(isLanguageMetadataFileName)
       .map((file) => path.basename(file, '.json'))
       .sort();
   } catch (error) {
@@ -263,7 +264,7 @@ export function loadLangData(): LanguageDataMap {
       const files = fs.readdirSync(languagesDir);
 
       for (const file of files) {
-        if (file.endsWith('.json') && !file.endsWith('.freq.json')) {
+        if (isLanguageMetadataFileName(file)) {
           const langCode = path.basename(file, '.json');
           const filePath = path.join(languagesDir, file);
           try {

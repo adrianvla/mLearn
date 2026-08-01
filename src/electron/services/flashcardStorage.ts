@@ -12,6 +12,7 @@ import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable 
 import { calculateWordStats } from '../../shared/utils/wordStats';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { getUserDataPath } from '../utils/platform';
+import { isLanguageMetadataFileName } from '../utils/languageCode';
 import { extractBase64Images } from './flashcardImageStorage';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -77,7 +78,7 @@ function inferSingleInstalledLanguage(): string {
 
   try {
     const languageCodes = fs.readdirSync(languagesDir)
-      .filter((file) => file.endsWith('.json') && !file.endsWith('.freq.json'))
+      .filter(isLanguageMetadataFileName)
       .map((file) => path.basename(file, '.json'))
       .sort();
     return languageCodes.length === 1 ? languageCodes[0] : '';
