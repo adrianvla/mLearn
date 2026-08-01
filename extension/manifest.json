@@ -11,15 +11,14 @@
   "permissions": [
     "activeTab",
     "storage",
-    "alarms",
-    "windows"
+    "alarms"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js",
-    "type": "module"
+    "scripts": ["background.js"]
   },
   "content_scripts": [
     {
@@ -54,7 +53,8 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "mlearn@kikan.net"
+      "id": "mlearn@kikan.net",
+      "strict_min_version": "121.0"
     }
   }
 }

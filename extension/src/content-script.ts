@@ -818,13 +818,26 @@ interface WordAtPointResult {
   offset: number;
 }
 
+// Firefox exposes caretPositionFromPoint instead of caretRangeFromPoint; normalize to a Range
+function caretRangeAtPoint(x: number, y: number): Range | null {
+  if (typeof document.caretRangeFromPoint === 'function') {
+    return document.caretRangeFromPoint(x, y);
+  }
+  const pos = document.caretPositionFromPoint?.(x, y);
+  if (!pos) return null;
+  const r = document.createRange();
+  r.setStart(pos.offsetNode, pos.offset);
+  r.collapse(true);
+  return r;
+}
+
 function getWordAtPoint(x: number, y: number): WordAtPointResult | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const text = el.textContent?.trim();
   if (!text) return null;
 
-  const range = document.caretRangeFromPoint(x, y);
+  const range = caretRangeAtPoint(x, y);
   if (!range) return null;
 
   const textNode = range.startContainer;
@@ -908,8 +921,8 @@ function handleLongPressStart(e: MouseEvent): void {
 
 function handleLongPressMove(e: MouseEvent): void {
   if (longPressTimer !== null) {
-    const dx = e.screenX - longPressStartX;
-    const dy = e.screenY - longPressStartY;
+      const dx = e.clientX - longPressStartX;
+      const dy = e.clientY - longPressStartY;
     if (Math.abs(dx) > LONG_PRESS_MOVE_THRESHOLD || Math.abs(dy) > LONG_PRESS_MOVE_THRESHOLD) {
       clearTimeout(longPressTimer);
       longPressTimer = null;
