@@ -5,10 +5,17 @@ import { IPC_CHANNELS, UPDATE_URL } from '../../shared/constants';
 import {
   createAppUpdaterService,
   detectAppUpdateSupport,
+  hasMacDeveloperIdSignature,
   setupAppUpdaterIpc,
   type AppUpdaterService,
   type AppUpdaterServiceOverrides,
 } from './appUpdater';
+
+const spawnSyncMock = vi.hoisted(() => vi.fn());
+
+vi.mock('node:child_process', () => ({
+  spawnSync: spawnSyncMock,
+}));
 
 const defaultAutoUpdater = vi.hoisted(() => ({
   autoDownload: true,
@@ -155,6 +162,39 @@ describe('detectAppUpdateSupport', () => {
     [true, 'freebsd', {}, true, 'unsupported-platform'],
   ] as const)('returns %s/%s support result', (isPackaged, platform, environment, isMacDeveloperIdSigned, expected) => {
     expect(detectAppUpdateSupport(isPackaged, platform, environment, isMacDeveloperIdSigned)).toBe(expected);
+  });
+});
+
+describe('hasMacDeveloperIdSignature', () => {
+  afterEach(() => {
+    spawnSyncMock.mockReset();
+  });
+
+  it('accepts a notarized Developer ID bundle via spctl', () => {
+    spawnSyncMock.mockReturnValue({
+      status: 0,
+      stdout: '/Applications/mLearn.app: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: Adrian Vlasov (L86B3J7MWZ)\n',
+      stderr: '',
+    });
+
+    expect(hasMacDeveloperIdSignature('/Applications/mLearn.app/Contents/Resources/app.asar')).toBe(true);
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      'spctl',
+      ['-a', '-t', 'exec', '-vv', '/Applications/mLearn.app'],
+      { encoding: 'utf8' },
+    );
+  });
+
+  it('rejects when spctl output has no Developer ID origin (macOS 26 codesign omits Authority lines)', () => {
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+
+    expect(hasMacDeveloperIdSignature('/Applications/mLearn.app/Contents/Resources/app.asar')).toBe(false);
+  });
+
+  it('rejects when Gatekeeper rejects the bundle', () => {
+    spawnSyncMock.mockReturnValue({ status: 3, stdout: '', stderr: 'rejected' });
+
+    expect(hasMacDeveloperIdSignature('/Applications/mLearn.app/Contents/Resources/app.asar')).toBe(false);
   });
 });
 

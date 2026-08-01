@@ -165,10 +165,13 @@ function normalizeProgress(progress: ProgressInfo): AppUpdateProgress {
   };
 }
 
-function hasMacDeveloperIdSignature(appPath: string): boolean {
+// Verify via spctl: macOS 26's `codesign -dv` omits Authority= lines, so grepping
+// codesign output reports signed apps as unsigned (same failure as the CI verify step).
+export function hasMacDeveloperIdSignature(appPath: string): boolean {
   const bundlePath = dirname(dirname(dirname(appPath)));
-  const result = spawnSync('codesign', ['-dv', bundlePath], { encoding: 'utf8' });
-  return result.status === 0 && result.stderr.includes('Authority=Developer ID Application:');
+  const result = spawnSync('spctl', ['-a', '-t', 'exec', '-vv', bundlePath], { encoding: 'utf8' });
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  return result.status === 0 && output.includes('origin=Developer ID Application:');
 }
 
 function freezeState(state: AppUpdateState): AppUpdateState {
