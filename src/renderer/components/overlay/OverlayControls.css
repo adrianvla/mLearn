@@ -212,6 +212,15 @@
   color: var(--text-secondary);
 }
 
+/* Keep toolbar items at natural size when the overlay window is narrow.
+   Without this, flex shrink squashes the icon buttons/sync dot into slivers. */
+.overlay-controls-right,
+.overlay-controls-right > *,
+.overlay-fontsize-control > *,
+.overlay-offset-control .btn-icon {
+  flex-shrink: 0;
+}
+
 .overlay-controls-bar .btn-icon.btn-ghost.inactive:hover:not(:disabled) {
   color: var(--text-primary);
 }
