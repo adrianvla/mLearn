@@ -117,3 +117,47 @@ describe('isDesktop', () => {
     expect(mod.isDesktop()).toBe(false);
   });
 });
+
+function setUserAgent(ua: string): void {
+  Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+}
+
+describe('getOS', () => {
+  it('detects windows from a Windows user agent', async () => {
+    setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    vi.resetModules();
+    mod = await import('./platform');
+    expect(mod.getOS()).toBe('windows');
+  });
+
+  it('detects mac from a Macintosh user agent', async () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36');
+    vi.resetModules();
+    mod = await import('./platform');
+    expect(mod.getOS()).toBe('mac');
+  });
+
+  it('detects linux from a Linux user agent', async () => {
+    setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36');
+    vi.resetModules();
+    mod = await import('./platform');
+    expect(mod.getOS()).toBe('linux');
+  });
+
+  it('returns other for unknown user agents', async () => {
+    setUserAgent('SomeUnknownAgent/1.0');
+    vi.resetModules();
+    mod = await import('./platform');
+    expect(mod.getOS()).toBe('other');
+  });
+});
+
+describe('initPlatformBodyClass', () => {
+  it('adds platform-{os} to document.body', async () => {
+    setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    vi.resetModules();
+    mod = await import('./platform');
+    mod.initPlatformBodyClass();
+    expect(document.body.classList.contains('platform-windows')).toBe(true);
+  });
+});

@@ -16,7 +16,7 @@ import type { SubtitleTheme, AppTheme } from '../../shared/constants';
 import { APP_THEMES, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend } from '../../shared/backends';
-import { isCapacitor } from '../../shared/platform';
+import { isCapacitor, initPlatformBodyClass } from '../../shared/platform';
 import {
   readingAnnotationMoreContrastEnabled,
   readingAnnotationSizePercent,
@@ -73,6 +73,8 @@ interface SettingsContextValue {
 
 // Create context
 const SettingsContext = createContext<SettingsContextValue>();
+
+initPlatformBodyClass();
 
 // BroadcastChannel for cross-window sync
 const SETTINGS_CHANNEL = 'mlearn-settings';

@@ -51,3 +51,43 @@ export function isMobile(): boolean {
 export function isDesktop(): boolean {
   return isElectron();
 }
+
+export type OS = 'windows' | 'mac' | 'linux' | 'other';
+
+let cachedOS: OS | null = null;
+
+/**
+ * Detect the current operating system from the user agent.
+ * Works in Electron, Capacitor, and web renderers (no IPC needed).
+ * Note: Linux is reported on ChromeOS-capable user agents too.
+ */
+export function getOS(): OS {
+  if (cachedOS) return cachedOS;
+
+  if (typeof navigator !== 'undefined') {
+    const ua = navigator.userAgent;
+    if (/Windows/i.test(ua)) {
+      cachedOS = 'windows';
+    } else if (/Macintosh|Mac OS X/i.test(ua)) {
+      cachedOS = 'mac';
+    } else if (/Linux|CrOS/i.test(ua)) {
+      cachedOS = 'linux';
+    } else {
+      cachedOS = 'other';
+    }
+  } else {
+    cachedOS = 'other';
+  }
+
+  return cachedOS;
+}
+
+/**
+ * Adds `platform-{os}` to document.body (e.g. `platform-windows`).
+ * CSS can scope platform-specific fixes with `body.platform-windows ...`.
+ * Idempotent; safe to call once at module load of a shared entry point.
+ */
+export function initPlatformBodyClass(): void {
+  if (typeof document === 'undefined') return;
+  document.body.classList.add(`platform-${getOS()}`);
+}
