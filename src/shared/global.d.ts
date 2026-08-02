@@ -319,6 +319,7 @@ sendLogRecord: (record: unknown) => void;
   restoreWindow: () => void;
   popupMenu: (menuId: string) => void;
   setTitleBarOverlay: (options: { color: string; symbolColor: string }) => void;
+  onWindowFullscreenChange: (callback: (isFullscreen: boolean) => void) => (() => void) | undefined;
   getWindowContext: (windowType: string) => void;
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
 

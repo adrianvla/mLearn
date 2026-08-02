@@ -373,6 +373,14 @@ export function createMainWindow(): BrowserWindow {
     }
   });
 
+  // Window fullscreen state → renderer (WindowsMenuBar hides the strip there)
+  const notifyFullscreen = (isFullscreen: boolean): void => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send(IPC_CHANNELS.WINDOW_FULLSCREEN_CHANGED, isFullscreen);
+  };
+  mainWindow.on('enter-full-screen', () => notifyFullscreen(true));
+  mainWindow.on('leave-full-screen', () => notifyFullscreen(false));
+
   mainWindow.on('closed', () => {
     const closedWindow = mainWindow;
     mainWindow = null;

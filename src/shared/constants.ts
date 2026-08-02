@@ -221,6 +221,7 @@ export const IPC_CHANNELS = {
   RESTORE_WINDOW: 'restore-window',
   POPUP_APP_MENU: 'popup-app-menu',
   SET_TITLEBAR_OVERLAY: 'set-titlebar-overlay',
+  WINDOW_FULLSCREEN_CHANGED: 'window-fullscreen-changed',
   
   // LocalStorage sync
   SEND_LS: 'send-ls',

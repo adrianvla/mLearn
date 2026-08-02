@@ -137,6 +137,7 @@ const windowBridge: WindowBridge = {
   restoreWindow: () => getIPC().restoreWindow(),
   popupMenu: (menuId) => getIPC().popupMenu(menuId),
   setTitleBarOverlay: (options) => getIPC().setTitleBarOverlay(options),
+  onWindowFullscreenChange: (cb) => getIPC().onWindowFullscreenChange(cb),
   getWindowContext: (type) => getIPC().getWindowContext(type),
   onWindowContext: (cb) => getIPC().onWindowContext(cb),
   onOpenSettings: (cb) => getIPC().onOpenSettings(cb),

@@ -999,6 +999,10 @@ const windowBridge: WindowBridge = {
 
   setTitleBarOverlay() {},
 
+  onWindowFullscreenChange() {
+    return undefined;
+  },
+
   getWindowContext(windowType: string) {
     // Read context stored by openWindow and emit to registered callbacks
     try {

@@ -50,7 +50,16 @@ export default function WindowsMenuBar() {
     // Themes switch via body.theme-{name}
     const observer = new MutationObserver(syncOverlay);
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    onCleanup(() => observer.disconnect());
+    // Window fullscreen: hide the strip (body.window-fullscreen collapses
+    // the --windows-menu-bar-height offsets to 0 in CSS)
+    const cleanupFullscreen = bridge.window.onWindowFullscreenChange?.((isFullscreen) => {
+      document.body.classList.toggle('window-fullscreen', isFullscreen);
+    });
+    onCleanup(() => {
+      observer.disconnect();
+      cleanupFullscreen?.();
+      document.body.classList.remove('window-fullscreen');
+    });
   });
 
   return (

@@ -188,6 +188,8 @@ const mLearnIPC = {
   popupMenu: (menuId: string) => ipcRenderer.send(IPC_CHANNELS.POPUP_APP_MENU, menuId),
   setTitleBarOverlay: (options: { color: string; symbolColor: string }) =>
     ipcRenderer.send(IPC_CHANNELS.SET_TITLEBAR_OVERLAY, options),
+  onWindowFullscreenChange: (callback: (isFullscreen: boolean) => void) =>
+    ipcOn(IPC_CHANNELS.WINDOW_FULLSCREEN_CHANGED, (_event, isFullscreen) => callback(isFullscreen)),
   getWindowContext: (windowType: string) => ipcRenderer.send(IPC_CHANNELS.GET_WINDOW_CONTEXT, windowType),
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) =>
     ipcOn(IPC_CHANNELS.WINDOW_CONTEXT, (_event, context) => callback(context)),

@@ -4,9 +4,14 @@
   --windows-menu-bar-height: 40px;
 }
 
-/* Only rendered on Windows (native menu bar is hidden there) */
+/* Only rendered on Windows (native menu bar is hidden there). Fixed overlay:
+   routes keep full viewport height; fixed chrome below is offset by
+   var(--windows-menu-bar-height). */
 .windows-menu-bar {
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   height: var(--windows-menu-bar-height);
   display: flex;
   align-items: center;
@@ -24,6 +29,17 @@
 
 body:not(.platform-windows) .windows-menu-bar {
   display: none;
+}
+
+/* Hide the strip in window fullscreen (electron sends window-fullscreen
+   state; the component toggles this class). Offsets collapse to 0 via the
+   --windows-menu-bar-height variable. */
+body.window-fullscreen .windows-menu-bar {
+  display: none;
+}
+
+body.window-fullscreen {
+  --windows-menu-bar-height: 0;
 }
 
 .windows-menu-logo {
@@ -48,28 +64,48 @@ body:not(.platform-windows) .windows-menu-bar {
   color: var(--text-primary);
 }
 
-/* Fixed reader chrome shifts down by the strip height (40px):
-   nav 48px + strip 40px = 88px */
+/* Fixed chrome shifts down by the strip height. nav 48px + strip = content
+   top offset; the reader status bar is fixed at the bottom (30px). */
 body.platform-windows .reader-nav {
-  top: 40px;
+  top: var(--windows-menu-bar-height);
 }
 
 body.platform-windows .reader-main {
-  margin-top: 88px;
-  height: calc(100vh - 88px - 30px);
+  margin-top: calc(var(--windows-menu-bar-height) + 48px);
+  height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px);
 }
 
 body.platform-windows .reader-sidebar {
-  top: 88px;
-  height: calc(100vh - 88px - 30px);
+  top: calc(var(--windows-menu-bar-height) + 48px);
+  height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px);
+}
+
+body.platform-windows .reader-unknown-words-sidebar {
+  top: calc(var(--windows-menu-bar-height) + 48px);
+  height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px);
+}
+
+body.platform-windows .video-unknown-words-sidebar {
+  top: var(--windows-menu-bar-height);
+  height: calc(100vh - var(--windows-menu-bar-height));
+}
+
+/* Video nav floats at the top of the route — keep it below the strip */
+body.platform-windows .video-route > .video-nav {
+  top: calc(var(--spacing-2) + var(--windows-menu-bar-height));
+}
+
+/* Welcome route content starts under the strip */
+body.platform-windows .welcome-container {
+  padding-top: calc(2rem + var(--windows-menu-bar-height));
 }
 
 body.platform-windows :root[data-sidebar-layout='drawer'] .reader-sidebar,
 body.platform-windows :root[data-sidebar-layout='drawer'] .reader-unknown-words-sidebar {
-  top: 40px;
-  height: calc(100vh - 40px);
+  top: var(--windows-menu-bar-height);
+  height: calc(100vh - var(--windows-menu-bar-height));
 }
 
 body.platform-windows .reader-main .page-image {
-  max-height: calc(100vh - 88px - 30px - 2rem);
+  max-height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px - 2rem);
 }
