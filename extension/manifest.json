@@ -54,7 +54,10 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "mlearn@kikan.net",
-      "strict_min_version": "121.0"
+      "strict_min_version": "121.0",
+      "data_collection_permissions": {
+        "required": ["authenticationInfo", "browsingActivity", "websiteActivity"]
+      }
     }
   }
 }
