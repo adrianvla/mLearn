@@ -247,9 +247,6 @@ export const AboutTab: Component = () => {
         <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/privacy')}>
           Privacy Policy
         </Btn>
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/school-deployment')}>
-          School Deployment
-        </Btn>
       </div>
 
       <div class="about-shortcuts">

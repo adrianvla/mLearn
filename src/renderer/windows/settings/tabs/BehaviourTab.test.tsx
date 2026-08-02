@@ -84,6 +84,7 @@ vi.mock('../../../components/common', () => ({
     </select>
   ),
   Input: (props: JSX.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  ColorInput: () => <div />,
   SortableList: () => <div />,
 }));
 

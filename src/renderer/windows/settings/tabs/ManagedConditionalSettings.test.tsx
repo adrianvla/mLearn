@@ -40,6 +40,7 @@ vi.mock('../../../components/common', () => ({
   ToggleSwitch: () => <input type="checkbox" />,
   Select: () => <select />,
   RangeInput: () => <input type="range" />,
+  RangeNumberInput: () => <input type="range" />,
   Input: () => <input />,
   KeybindInput: () => <input />,
   VideoIcon: () => <span />,

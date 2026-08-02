@@ -1,0 +1,18 @@
+.range-number-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.range-number-input .range-input {
+  width: 120px;
+  flex: 0 0 120px;
+}
+
+.range-number-input__unit {
+  min-width: 2.5ch;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-style: italic;
+  white-space: nowrap;
+}

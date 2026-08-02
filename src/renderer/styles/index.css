@@ -298,3 +298,9 @@
   --overlay-controls-btn-hover-bg: rgba(255, 255, 255, 0.25);
   --overlay-sync-indicator-default: #888;
 }
+
+
+*{
+  /*corner-shape:squircle;*/
+  -electron-corner-smoothing: 60%;
+}

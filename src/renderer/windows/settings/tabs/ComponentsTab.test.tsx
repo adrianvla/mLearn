@@ -192,6 +192,15 @@ vi.mock('../../../components/common', () => ({
     <div>{props.title}{props.message}</div>
   ),
   ManagedSettingNotice: (props: { sourceGroupName: string }) => <span>Managed by {props.sourceGroupName}</span>,
+  ToggleSwitch: (props: { checked?: boolean; disabled?: boolean; ariaLabel?: string; onChange?: (checked: boolean) => void }) => (
+    <input
+      type="checkbox"
+      checked={props.checked}
+      disabled={props.disabled}
+      aria-label={props.ariaLabel}
+      onChange={(e) => props.onChange?.(e.currentTarget.checked)}
+    />
+  ),
 }));
 
 describe('ComponentsTab', () => {

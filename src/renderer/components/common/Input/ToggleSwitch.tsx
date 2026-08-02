@@ -25,6 +25,8 @@ export interface ToggleSwitchProps {
   title?: string;
   /** Visual size of the switch */
   size?: 'sm' | 'md';
+  /** Accessible label for the checkbox input */
+  ariaLabel?: string;
 }
 
 export const ToggleSwitch: Component<ToggleSwitchProps> = (props) => {
@@ -43,6 +45,7 @@ export const ToggleSwitch: Component<ToggleSwitchProps> = (props) => {
         checked={props.checked}
         onChange={handleChange}
         disabled={props.disabled}
+        aria-label={props.ariaLabel}
       />
       <span class="toggle-slider">
         <Show when={props.thumbIcon}>

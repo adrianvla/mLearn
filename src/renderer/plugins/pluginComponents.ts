@@ -18,8 +18,10 @@ import {
   Textarea,
   SelectInput,
   ToggleSwitch,
+  ColorInput,
   FormField,
   RangeInput,
+  RangeNumberInput,
   Card,
   ActionCard,
   CheckboxCard,
@@ -130,8 +132,10 @@ export type {
   TextareaProps,
   SelectInputProps,
   ToggleSwitchProps,
+  ColorInputProps,
   FormFieldProps,
   RangeInputProps,
+  RangeNumberInputProps,
   CardProps,
   ActionCardProps,
   CheckboxCardProps,
@@ -189,8 +193,10 @@ export interface PluginComponentLibrary {
   Textarea: typeof Textarea;
   SelectInput: typeof SelectInput;
   ToggleSwitch: typeof ToggleSwitch;
+  ColorInput: typeof ColorInput;
   FormField: typeof FormField;
   RangeInput: typeof RangeInput;
+  RangeNumberInput: typeof RangeNumberInput;
   Card: typeof Card;
   ActionCard: typeof ActionCard;
   CheckboxCard: typeof CheckboxCard;
@@ -299,8 +305,10 @@ export const pluginComponentLibrary: PluginComponentLibrary = {
   Textarea,
   SelectInput,
   ToggleSwitch,
+  ColorInput,
   FormField,
   RangeInput,
+  RangeNumberInput,
   Card,
   ActionCard,
   CheckboxCard,

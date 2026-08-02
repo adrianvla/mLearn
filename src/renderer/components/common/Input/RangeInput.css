@@ -10,6 +10,7 @@
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
   cursor: pointer;
   padding:3px;
+  background-clip: content-box;
 }
 
 .range-input:focus {
@@ -23,19 +24,33 @@
 }
 
 .range-input:hover {
-  background: var(--bg-intense);
-  border-color: var(--border-color-intense);
+  /*background: var(--bg-intense);*/
+  /*border-color: var(--border-color-intense);*/
+  background-clip: content-box;
 }
 
 .range-input::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 10px;
-  height: 20px;
-  background-color: var(--bg-intense);
+  height: 30px;
+  background-color: var(--bg);
   border-radius: var(--radius-sm);
   border:1px solid var(--border-color-intense);
   cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: all 0.15s;
+}
+.range-input:hover::-webkit-slider-thumb{
+  height: 32px;
+  background-color: var(--bg-intense);
+}
+.range-input:active{
+  background: var(--bg-intense);
+  background-clip: content-box;
+}
+.range-input:active::-webkit-slider-thumb{
+  height:25px;
 }
 .range-input:disabled {
   opacity: 0.4;

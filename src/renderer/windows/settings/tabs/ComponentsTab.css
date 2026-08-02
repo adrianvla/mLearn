@@ -158,58 +158,11 @@
   background: var(--bg-intense);
 }
 
-.components-tab__toggle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-  width: 44px;
-  height: 24px;
-}
-
 .components-tab__managed-toggle {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--spacing-1);
-}
-
-.components-tab__toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.components-tab__toggle-slider {
-  position: absolute;
-  inset: 0;
-  background: var(--border-color-intense);
-  border-radius: var(--radius-full);
-  transition: background var(--transition-normal);
-}
-
-.components-tab__toggle-slider::before {
-  content: '';
-  position: absolute;
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background: var(--text-on-strong);
-  border-radius: 50%;
-  transition: transform var(--transition-normal);
-}
-
-.components-tab__toggle input:checked + .components-tab__toggle-slider {
-  background: var(--color-primary);
-}
-
-.components-tab__toggle input:checked + .components-tab__toggle-slider::before {
-  transform: translateX(20px);
-}
-
-.components-tab__toggle input:focus + .components-tab__toggle-slider {
-  box-shadow: 0 0 0 2px var(--color-primary-hover);
 }
 
 .components-tab__action {

@@ -22,11 +22,12 @@
   padding: 8px 12px;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: var(--font-size-sm);
   width: 80px;
   text-align: right;
+  transition:all var(--transition-fast);
 }
 
 .setting-input:focus {
@@ -67,15 +68,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.setting-color {
-  width: 36px;
-  height: 36px;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
 }
 
 .color-value {

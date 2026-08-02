@@ -4,7 +4,7 @@
 
 import { Component, Show, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeNumberInput, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 import { DEFAULT_SETTINGS, type ReaderTextFontStyle } from '../../../../shared/types';
 import {
@@ -91,32 +91,14 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.TextAppearance.Size.Description')}
           settingKey="readerTextSize"
         >
-          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <RangeInput
-              min={0.85}
-              max={1.35}
-              step={0.05}
-              value={settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}
-              style={{ width: '120px' }}
-              onChange={(value) => updateSettings({ readerTextSize: value })}
-            />
-            <Input
-              type="number"
-              value={settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}
-              min={0.85}
-              max={1.35}
-              step={0.05}
-              ghost={true}
-              style={{ width: '70px', 'text-align': 'center' }}
-              onChange={(e) => {
-                const val = Number.parseFloat(e.currentTarget.value);
-                if (!Number.isNaN(val) && val >= 0.85 && val <= 1.35) {
-                  updateSettings({ readerTextSize: val });
-                }
-              }}
-            />
-            <span class="setting-hint">rem</span>
-          </div>
+          <RangeNumberInput
+            min={0.85}
+            max={1.35}
+            step={0.05}
+            value={settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}
+            unit="rem"
+            onChange={(value) => updateSettings({ readerTextSize: value })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -124,31 +106,13 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.TextAppearance.LineHeight.Description')}
           settingKey="readerTextLineHeight"
         >
-          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <RangeInput
-              min={1.35}
-              max={2.2}
-              step={0.05}
-              value={settings.readerTextLineHeight ?? DEFAULT_SETTINGS.readerTextLineHeight!}
-              style={{ width: '120px' }}
-              onChange={(value) => updateSettings({ readerTextLineHeight: value })}
-            />
-            <Input
-              type="number"
-              value={settings.readerTextLineHeight ?? DEFAULT_SETTINGS.readerTextLineHeight!}
-              min={1.35}
-              max={2.2}
-              step={0.05}
-              ghost={true}
-              style={{ width: '70px', 'text-align': 'center' }}
-              onChange={(e) => {
-                const val = Number.parseFloat(e.currentTarget.value);
-                if (!Number.isNaN(val) && val >= 1.35 && val <= 2.2) {
-                  updateSettings({ readerTextLineHeight: val });
-                }
-              }}
-            />
-          </div>
+          <RangeNumberInput
+            min={1.35}
+            max={2.2}
+            step={0.05}
+            value={settings.readerTextLineHeight ?? DEFAULT_SETTINGS.readerTextLineHeight!}
+            onChange={(value) => updateSettings({ readerTextLineHeight: value })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -156,32 +120,15 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.TextAppearance.Width.Description')}
           settingKey="readerTextWidth"
         >
-          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <RangeInput
-              min={36}
-              max={78}
-              step={2}
-              value={settings.readerTextWidth ?? DEFAULT_SETTINGS.readerTextWidth!}
-              style={{ width: '120px' }}
-              onChange={(value) => updateSettings({ readerTextWidth: value })}
-            />
-            <Input
-              type="number"
-              value={settings.readerTextWidth ?? DEFAULT_SETTINGS.readerTextWidth!}
-              min={36}
-              max={78}
-              step={2}
-              ghost={true}
-              style={{ width: '70px', 'text-align': 'center' }}
-              onChange={(e) => {
-                const val = Number.parseInt(e.currentTarget.value, 10);
-                if (!Number.isNaN(val) && val >= 36 && val <= 78) {
-                  updateSettings({ readerTextWidth: val });
-                }
-              }}
-            />
-            <span class="setting-hint">ch</span>
-          </div>
+          <RangeNumberInput
+            integer
+            min={36}
+            max={78}
+            step={2}
+            value={settings.readerTextWidth ?? DEFAULT_SETTINGS.readerTextWidth!}
+            unit="ch"
+            onChange={(value) => updateSettings({ readerTextWidth: value })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -189,31 +136,13 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.TextAppearance.Margin.Description')}
           settingKey="readerTextMargin"
         >
-          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <RangeInput
-              min={0.7}
-              max={1.5}
-              step={0.05}
-              value={settings.readerTextMargin ?? DEFAULT_SETTINGS.readerTextMargin!}
-              style={{ width: '120px' }}
-              onChange={(value) => updateSettings({ readerTextMargin: value })}
-            />
-            <Input
-              type="number"
-              value={settings.readerTextMargin ?? DEFAULT_SETTINGS.readerTextMargin!}
-              min={0.7}
-              max={1.5}
-              step={0.05}
-              ghost={true}
-              style={{ width: '70px', 'text-align': 'center' }}
-              onChange={(e) => {
-                const val = Number.parseFloat(e.currentTarget.value);
-                if (!Number.isNaN(val) && val >= 0.7 && val <= 1.5) {
-                  updateSettings({ readerTextMargin: val });
-                }
-              }}
-            />
-          </div>
+          <RangeNumberInput
+            min={0.7}
+            max={1.5}
+            step={0.05}
+            value={settings.readerTextMargin ?? DEFAULT_SETTINGS.readerTextMargin!}
+            onChange={(value) => updateSettings({ readerTextMargin: value })}
+          />
         </SettingRow>
       </SettingGroup>
 
@@ -410,32 +339,14 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.Magnifier.Zoom.Description')}
           settingKey="readerMagnifierZoom"
         >
-          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <RangeInput
-              min={1.5}
-              max={5}
-              step={0.5}
-              value={settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!}
-              style={{ width: '120px' }}
-              onChange={(value) => updateSettings({ readerMagnifierZoom: value })}
-            />
-            <Input
-              type="number"
-              value={settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!}
-              min={1.5}
-              max={5}
-              step={0.5}
-              ghost={true}
-              style={{ width: '70px', 'text-align': 'center' }}
-              onChange={(e) => {
-                const val = parseFloat(e.currentTarget.value);
-                if (!isNaN(val) && val >= 1.5 && val <= 5) {
-                  updateSettings({ readerMagnifierZoom: val });
-                }
-              }}
-            />
-            <span class="setting-hint">x</span>
-          </div>
+          <RangeNumberInput
+            min={1.5}
+            max={5}
+            step={0.5}
+            value={settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!}
+            unit="x"
+            onChange={(value) => updateSettings({ readerMagnifierZoom: value })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -443,32 +354,15 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.Magnifier.Size.Description')}
           settingKey="readerMagnifierSize"
         >
-          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <RangeInput
-              min={100}
-              max={400}
-              step={25}
-              value={settings.readerMagnifierSize ?? DEFAULT_SETTINGS.readerMagnifierSize!}
-              style={{ width: '120px' }}
-              onChange={(value) => updateSettings({ readerMagnifierSize: value })}
-            />
-            <Input
-              type="number"
-              value={settings.readerMagnifierSize ?? DEFAULT_SETTINGS.readerMagnifierSize!}
-              min={100}
-              max={400}
-              step={25}
-              ghost={true}
-              style={{ width: '70px', 'text-align': 'center' }}
-              onChange={(e) => {
-                const val = parseInt(e.currentTarget.value);
-                if (!isNaN(val) && val >= 100 && val <= 400) {
-                  updateSettings({ readerMagnifierSize: val });
-                }
-              }}
-            />
-            <span class="setting-hint">px</span>
-          </div>
+          <RangeNumberInput
+            integer
+            min={100}
+            max={400}
+            step={25}
+            value={settings.readerMagnifierSize ?? DEFAULT_SETTINGS.readerMagnifierSize!}
+            unit="px"
+            onChange={(value) => updateSettings({ readerMagnifierSize: value })}
+          />
         </SettingRow>
       </SettingGroup>
 

@@ -13,6 +13,7 @@ import {
   Btn,
   RangeInput,
   ToggleSwitch,
+  ColorInput,
 } from '../../../components/common';
 import Icon from '../../../components/common/Icons/Icon';
 import type { SubtitleTheme } from '@shared/constants';
@@ -425,11 +426,9 @@ export const CustomizationTab: Component = () => {
                       </div>
                     </div>
                     <div class="pos-colors__controls">
-                      <input
-                        type="color"
-                        class="pos-colors__color-input"
+                      <ColorInput
                         value={effectiveColor() || '#000000'}
-                        onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value)}
+                        onChange={(value) => updatePosColor(entry.pos, value)}
                       />
                       <input
                         type="text"
@@ -565,11 +564,9 @@ export const CustomizationTab: Component = () => {
                           <span class="pos-colors__label">{config().labels[paletteKey] ?? paletteKey}</span>
                         </div>
                         <div class="pos-colors__controls">
-                          <input
-                            type="color"
-                            class="pos-colors__color-input"
+                          <ColorInput
                             value={effectiveColor()}
-                            onChange={(event) => updateProsodyColor(paletteKey, event.currentTarget.value)}
+                            onChange={(value) => updateProsodyColor(paletteKey, value)}
                           />
                           <input
                             type="text"
@@ -617,11 +614,9 @@ export const CustomizationTab: Component = () => {
                 description={info.description}
               >
                 <div class="custom-colors__row">
-                  <input
-                    type="color"
-                    class="custom-colors__color-input"
+                  <ColorInput
                     value={currentValue() || '#000000'}
-                    onChange={(e) => updateCustomColor(varName as keyof CustomColorOverrides, e.currentTarget.value)}
+                    onChange={(value) => updateCustomColor(varName as keyof CustomColorOverrides, value)}
                   />
                   <input
                     type="text"

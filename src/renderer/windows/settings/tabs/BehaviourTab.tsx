@@ -4,7 +4,7 @@
 
 import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, SortableList } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, ColorInput, SortableList } from '../../../components/common';
 import type { SortableListItem } from '../../../components/common';
 import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../../shared/languageFeatures';
@@ -265,11 +265,9 @@ export const BehaviourTab: Component = () => {
           settingKey="colour_known"
         >
           <div class="color-input-wrapper">
-            <input
-              type="color"
-              class="setting-color"
+            <ColorInput
               value={settings.colour_known}
-              onChange={(e) => updateSettings({ colour_known: e.currentTarget.value })}
+              onChange={(value) => updateSettings({ colour_known: value })}
             />
             <span class="color-value">{settings.colour_known}</span>
           </div>

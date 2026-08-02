@@ -2,7 +2,7 @@ import { Component, createMemo, createSignal, Show } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { getOcrRuntimeConfig } from '../../../../shared/languageFeatures';
-import { Panel, Btn, AlertBanner, ManagedSettingNotice } from '../../../components/common';
+import { Panel, Btn, AlertBanner, ManagedSettingNotice, ToggleSwitch } from '../../../components/common';
 import type { LanguageDataCatalogStatus } from '../../../../shared/types';
 import type { PolicySettingKey } from '../../../../shared/managementPolicy';
 import './ComponentsTab.css';
@@ -386,18 +386,14 @@ export const ComponentsTab: Component = () => {
                   <Show when={group.toggle}>
                     {(toggle) => (
                       <div class="components-tab__managed-toggle">
-                        <label class="components-tab__toggle">
-                          <input
-                            type="checkbox"
-                            checked={group.enabled()}
-                            disabled={Boolean(getManagedSettingSource(group.policySettingKey))}
-                            aria-label={`${group.title}: ${group.enabled()
-                              ? t('mlearn.ComponentsTab.Enabled')
-                              : t('mlearn.ComponentsTab.Disabled')}`}
-                            onChange={(e) => toggle()(e.currentTarget.checked)}
-                          />
-                          <span class="components-tab__toggle-slider" />
-                        </label>
+                        <ToggleSwitch
+                          checked={group.enabled()}
+                          disabled={Boolean(getManagedSettingSource(group.policySettingKey))}
+                          ariaLabel={`${group.title}: ${group.enabled()
+                            ? t('mlearn.ComponentsTab.Enabled')
+                            : t('mlearn.ComponentsTab.Disabled')}`}
+                          onChange={(checked) => toggle()(checked)}
+                        />
                         <Show when={getManagedSettingSource(group.policySettingKey)}>
                           {(source) => <ManagedSettingNotice sourceGroupName={source().sourceGroupName} />}
                         </Show>

@@ -104,6 +104,14 @@ vi.mock('../../../components/common', () => ({
   ),
   Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props}>{props.children}</select>,
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  ColorInput: (props: { value?: string; onChange?: (value: string) => void }) => (
+    <input
+      type="color"
+      class="color-input"
+      value={props.value}
+      onChange={(event) => props.onChange?.(event.currentTarget.value)}
+    />
+  ),
 }));
 
 vi.mock('../../../components/common/Icons/Icon', () => ({
@@ -194,7 +202,7 @@ describe('CustomizationTab reading appearance', () => {
     expect(container.textContent).toContain('Neutral');
     expect(container.querySelectorAll('.pos-colors__card')).toHaveLength(2);
 
-    const colorInput = container.querySelector<HTMLInputElement>('.pos-colors__color-input');
+    const colorInput = container.querySelector<HTMLInputElement>('.color-input');
     expect(colorInput).not.toBeNull();
     colorInput!.value = '#123456';
     colorInput!.dispatchEvent(new Event('change', { bubbles: true }));

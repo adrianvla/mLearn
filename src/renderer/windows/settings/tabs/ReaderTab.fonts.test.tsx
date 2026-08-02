@@ -51,6 +51,7 @@ vi.mock('../../../components/common', () => ({
   ToggleSwitch: () => <div />,
   KeybindInput: () => <div />,
   RangeInput: () => <div />,
+  RangeNumberInput: () => <div />,
   BookIcon: () => <div />,
   formatKeybindDisplay: (value: string) => value,
 }));

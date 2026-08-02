@@ -113,6 +113,7 @@ vi.mock('../../../components/common', () => ({
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   KeybindInput: () => <input />,
   RangeInput: () => <input type="range" />,
+  RangeNumberInput: () => <input type="range" />,
   Input: () => <input />,
   BookIcon: () => <span />,
   VideoIcon: () => <span />,
