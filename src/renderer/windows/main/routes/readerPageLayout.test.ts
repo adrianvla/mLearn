@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getSpreadPageSideClass, getVisiblePageIndices } from './readerPageLayout';
+import {
+  getSpreadPageSideClass,
+  getVisiblePageIndices,
+  resolveBookSpreadDirection,
+  resolveReaderVerticalLayout,
+} from './readerPageLayout';
 
 describe('getVisiblePageIndices', () => {
   it('returns only the current page in single-page mode', () => {
@@ -34,4 +39,42 @@ describe('getSpreadPageSideClass', () => {
     expect(getSpreadPageSideClass(0, 1, 'right-to-left')).toBe('');
     expect(getSpreadPageSideClass(2, 2, 'right-to-left')).toBe('');
   });
+});
+
+describe('resolveBookSpreadDirection', () => {
+  it('prefers an explicit user setting over every other source', () => {
+    expect(resolveBookSpreadDirection('right-to-left', 'left-to-right', 'left-to-right', 'ltr')).toBe('right-to-left');
+  });
+
+  it('prefers book progression over the language default when the setting is the app default', () => {
+    expect(resolveBookSpreadDirection('left-to-right', 'left-to-right', 'left-to-right', 'rtl')).toBe('right-to-left');
+  });
+
+  it('uses the language default when neither user nor book chooses a direction', () => {
+    expect(resolveBookSpreadDirection(undefined, 'left-to-right', 'right-to-left', null)).toBe('right-to-left');
+  });
+
+  it('uses the app default as the final fallback', () => {
+    expect(resolveBookSpreadDirection(undefined, 'left-to-right', undefined, null)).toBe('left-to-right');
+  });
+});
+
+describe('resolveReaderVerticalLayout', () => {
+  for (const isEpubBook of [false, true]) {
+    for (const supportsVerticalText of [false, true]) {
+      for (const declaresVerticalWriting of [false, true]) {
+        for (const progressionDirection of [null, 'rtl'] as const) {
+          const expected = isEpubBook && supportsVerticalText && (declaresVerticalWriting || progressionDirection === 'rtl');
+          it(`returns ${expected} for epub=${isEpubBook}, support=${supportsVerticalText}, declaration=${declaresVerticalWriting}, direction=${progressionDirection}`, () => {
+            expect(resolveReaderVerticalLayout({
+              isEpubBook,
+              supportsVerticalText,
+              declaresVerticalWriting,
+              progressionDirection,
+            })).toBe(expected);
+          });
+        }
+      }
+    }
+  }
 });

@@ -26,7 +26,7 @@ import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard, ReaderStatusBar, type ReaderUnknownWordEntry } from './components';
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages, pdfToTextPages } from '../../../services/pdfService';
-import { epubToTextPages, isEpubFile } from '../../../services/epubService';
+import { epubToContentPages, isEpubFile, type EpubContent } from '../../../services/epubService';
 import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
 import { captureReaderImageForFlashcard } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
@@ -38,7 +38,6 @@ import {
   getReaderCollatePagesForLanguage,
   getReaderFirstPageSingleForLanguage,
   getReaderPageModeForLanguage,
-  getReaderSpreadDirectionForLanguage,
   resolveCloudOcrEngine,
   getTokenJoinSeparator,
   resolveLanguageContentFontOption,
@@ -53,7 +52,15 @@ import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
 import { syncReaderPluginActivity } from './readerPluginActivity';
 import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
-import { getSpreadPageSideClass, getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
+import {
+  getSpreadPageSideClass,
+  getVisiblePageIndices,
+  resolveBookSpreadDirection,
+  resolveReaderVerticalLayout,
+  type BookProgressionDirection,
+  type ReaderPageMode,
+} from './readerPageLayout';
+import { paginateTextSources, type ReaderSourcePage } from './readerTextPagination';
 import { scrollReaderToPageStart } from './readerNavigation';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
@@ -85,13 +92,6 @@ interface PageImage {
   previewText?: string;
   textStart?: number;
   textEnd?: number;
-}
-
-interface TextSourcePage {
-  name: string;
-  title: string;
-  text: string;
-  previewText?: string;
 }
 
 type FitMode = 'fit-height' | 'fit-width';
@@ -134,6 +134,7 @@ interface ReaderTextPageProps {
   tokenJoinSeparator: string;
   onWordHover: (token: Token, rect: DOMRect, contextPhrase: string) => void;
   onWordLeave: () => void;
+  vertical?: boolean;
 }
 
 interface CropSelection {
@@ -236,7 +237,7 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   });
 
   return (
-    <article class="reader-text-page">
+    <article class="reader-text-page" classList={{ vertical: props.vertical === true }}>
       <Show when={headingText()}>
         <h2>{headingText()}</h2>
       </Show>
@@ -266,6 +267,7 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
                           props.onWordHover(hoverToken, rect, bodyText());
                         }}
                         onWordLeave={props.onWordLeave}
+                        withReadingAnnotation
                       />
                       <Show when={props.tokenJoinSeparator && index() < paragraphTokens.length - 1}>
                         {props.tokenJoinSeparator}
@@ -294,6 +296,17 @@ interface OcrTask {
 const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
 const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
 let lastOcrReadinessWarning = '';
+let epubBlobUrls: string[] = [];
+
+export const revokeEpubBlobUrls = () => {
+  for (const url of epubBlobUrls) URL.revokeObjectURL(url);
+  epubBlobUrls = [];
+};
+
+export const adoptEpubBlobUrls = (newBlobUrls: string[]) => {
+  revokeEpubBlobUrls();
+  epubBlobUrls = newBlobUrls;
+};
 
 // Per-book page memory (like old app's sequencer.js)
 const STORAGE_KEY_PREFIX = 'reader:last-page:';
@@ -311,94 +324,34 @@ const imagePagesFromPdfImages = (images: Array<{ name: string; url: string; blob
   }))
 );
 
-const textPagesFromExtractedText = (
-  pages: Array<{ name: string; title: string; text: string; previewText?: string }>,
-  fallbackTitle: string,
-): PageImage[] => (
-  pages.map((page, index) => ({
-    id: `text-page-${index}-${page.name}`,
-    kind: 'text',
-    name: page.name || `${fallbackTitle}-${index + 1}`,
-    title: page.title || fallbackTitle,
-    text: page.text,
-    previewText: page.previewText ?? page.text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? '',
-    index,
-  }))
-);
-
-function splitParagraphForPage(paragraph: string, capacity: number): string[] {
-  if (paragraph.length <= capacity) return [paragraph];
-  const chunks: string[] = [];
-  let remaining = paragraph.trim();
-
-  while (remaining.length > capacity) {
-    const slice = remaining.slice(0, capacity);
-    const breakAt = slice.search(/\s+\S*$/u);
-    const end = breakAt > Math.floor(capacity * 0.55) ? breakAt + 1 : capacity;
-    chunks.push(remaining.slice(0, end).trim());
-    remaining = remaining.slice(end).trim();
-  }
-
-  if (remaining) chunks.push(remaining);
-  return chunks;
-}
-
-function paginateTextSources(
-  sources: TextSourcePage[],
-  fallbackTitle: string,
+export async function prepareEpubReaderLoad(
+  content: EpubContent,
+  title: string,
   capacity: number,
-): PageImage[] {
-  const pages: PageImage[] = [];
-  let globalOffset = 0;
-
-  for (const source of sources) {
-    const blocks = source.text.split(/\n{2,}/u).map((part) => part.trim()).filter(Boolean);
-    let currentBlocks: string[] = [];
-    let currentLength = 0;
-    let currentStart = globalOffset;
-    let sourceOffset = 0;
-
-    const flush = () => {
-      if (currentBlocks.length === 0) return;
-      const text = currentBlocks.join('\n\n');
-      const index = pages.length;
-      pages.push({
-        id: `text-page-${index}-${source.name}`,
-        kind: 'text',
-        name: source.name || `${fallbackTitle}-${index + 1}`,
-        title: source.title || fallbackTitle,
-        text,
-        previewText: text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? source.previewText ?? '',
-        index,
-        textStart: currentStart,
-        textEnd: currentStart + text.length,
-      });
-      currentBlocks = [];
-      currentLength = 0;
-    };
-
-    for (const block of blocks) {
-      const blockChunks = splitParagraphForPage(block, capacity);
-      for (const chunk of blockChunks) {
-        const separatorLength = currentBlocks.length > 0 ? 2 : 0;
-        if (currentBlocks.length > 0 && currentLength + separatorLength + chunk.length > capacity) {
-          flush();
-          currentStart = globalOffset + sourceOffset;
-        }
-        if (currentBlocks.length === 0) {
-          currentStart = globalOffset + sourceOffset;
-        }
-        currentBlocks.push(chunk);
-        currentLength += separatorLength + chunk.length;
-        sourceOffset += chunk.length + 2;
-      }
-    }
-
-    flush();
-    globalOffset += source.text.length + 2;
+  loadSavedPage: () => Promise<number | null>,
+) {
+  const newBlobUrls: string[] = [];
+  try {
+    // ponytail: img+text chapters place images after the chapter's text run (document-position approximation).
+    const sources: ReaderSourcePage[] = content.items.map((item) => {
+      if (item.kind === 'text') return item;
+      const blob = new Blob([new Uint8Array(item.data)], { type: item.mediaType });
+      const url = URL.createObjectURL(blob);
+      newBlobUrls.push(url);
+      return { kind: 'image', name: item.name, title: item.title, text: '', previewText: '', src: url, blob };
+    });
+    const pages = paginateTextSources(sources, title, capacity);
+    const declaredCover = sources.find((source) => source.kind === 'image' && source.name === content.coverImage?.zipPath);
+    const coverBlob = declaredCover?.blob ?? sources.find((source) => source.kind === 'image')?.blob;
+    const savedPageIndex = await loadSavedPage();
+    const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pages.length
+      ? savedPageIndex
+      : 0;
+    return { sources, pages, coverBlob, newBlobUrls, startPage };
+  } catch (error) {
+    for (const url of newBlobUrls) URL.revokeObjectURL(url);
+    throw error;
   }
-
-  return pages.length > 0 ? pages : textPagesFromExtractedText(sources, fallbackTitle);
 }
 
 const loadSavedPageIndex = async (bookId: string | null): Promise<number | null> => {
@@ -506,7 +459,7 @@ export const ReaderRoute: Component = () => {
   const mediaStats = useMediaStats({ mediaType: 'book', language: settings.language });
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
-  const [textSourcePages, setTextSourcePages] = createSignal<TextSourcePage[] | null>(null);
+  const [textSourcePages, setTextSourcePages] = createSignal<ReaderSourcePage[] | null>(null);
   const [textPageCapacity, setTextPageCapacity] = createSignal(460);
   const [currentPage, setCurrentPage] = createSignal(0);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
@@ -517,9 +470,24 @@ export const ReaderRoute: Component = () => {
   const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
   const [currentBookFormat, setCurrentBookFormat] = createSignal<'images' | 'pdf' | 'epub' | null>(null);
   const [currentBookFile, setCurrentBookFile] = createSignal<File | null>(null);
+  const [bookProgressionDirection, setBookProgressionDirection] = createSignal<BookProgressionDirection>(null);
+  const [bookDeclaresVertical, setBookDeclaresVertical] = createSignal(false);
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
   const pageMode = () => getReaderPageModeForLanguage(settings, currentLangData());
-  const readerSpreadDirection = () => getReaderSpreadDirectionForLanguage(settings, currentLangData());
+  // This supersedes getReaderSpreadDirectionForLanguage so an EPUB's progression can take precedence.
+  const readerSpreadDirection = () => resolveBookSpreadDirection(
+    settings.readerSpreadDirection,
+    DEFAULT_SETTINGS.readerSpreadDirection!,
+    currentLangData()?.reader?.spreadDirection,
+    bookProgressionDirection(),
+  );
+  const readerBookVertical = () => resolveReaderVerticalLayout({
+    isEpubBook: currentBookFormat() === 'epub',
+    declaresVerticalWriting: bookDeclaresVertical(),
+    progressionDirection: bookProgressionDirection(),
+    supportsVerticalText: getLanguageFeatures().supportsVerticalText,
+  });
+  onCleanup(revokeEpubBlobUrls);
   const readerTextFontStyle = () => settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!;
   const selectedLanguageFontId = () => (
     settings.readerContentFontSelections?.[settings.language]
@@ -823,6 +791,7 @@ export const ReaderRoute: Component = () => {
 
   const estimateTextPageCapacity = (): number | null => {
     if (!pageContainerRef || !visiblePagesAreText()) return null;
+    const vertical = readerBookVertical();
     const pageElement = pageContainerRef.querySelector<HTMLElement>('.page');
     const textElement = pageContainerRef.querySelector<HTMLElement>('.reader-text-page');
     if (!pageElement) return null;
@@ -834,8 +803,9 @@ export const ReaderRoute: Component = () => {
     const fontSize = Number.parseFloat(style.fontSize) || 16;
     const parsedLineHeight = Number.parseFloat(style.lineHeight);
     const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontSize * 1.75;
-    const pageWidth = textElement?.getBoundingClientRect().width || pageRect.width;
-    const pageHeight = pageRect.height;
+    const textRect = textElement?.getBoundingClientRect();
+    const inlineExtent = vertical ? textRect?.height || pageRect.height : textRect?.width || pageRect.width;
+    const blockExtent = vertical ? pageRect.width : pageRect.height;
     const sampleText = (textSourcePages() ?? [])
       .map((page) => page.text)
       .join(' ')
@@ -847,8 +817,8 @@ export const ReaderRoute: Component = () => {
     context.font = style.font;
     const sample = sampleText || 'mmmmmmmmmmmmmmmmmmmm';
     const averageGlyphWidth = Math.max(context.measureText(sample).width / sample.length, fontSize * 0.45);
-    const charsPerLine = Math.max(1, Math.floor(pageWidth / averageGlyphWidth));
-    const linesPerPage = Math.max(1, Math.floor(pageHeight / lineHeight));
+    const charsPerLine = Math.max(1, Math.floor(inlineExtent / averageGlyphWidth));
+    const linesPerPage = Math.max(1, Math.floor(blockExtent / lineHeight));
 
     return Math.max(160, Math.floor(charsPerLine * linesPerPage * 0.78));
   };
@@ -863,11 +833,13 @@ export const ReaderRoute: Component = () => {
 
   createEffect(() => {
     if (!visiblePagesAreText()) return;
+    readerBookVertical();
     queueMicrotask(updateMeasuredTextPageCapacity);
   });
 
   createEffect(() => {
     if (!visiblePagesAreText()) return;
+    readerBookVertical();
     settings.readerTextFontStyle;
     settings.readerContentFontSelections?.[settings.language];
     settings.readerTextSize;
@@ -1822,9 +1794,14 @@ export const ReaderRoute: Component = () => {
       startPage: number;
       coverBlob?: Blob;
       file?: File | null;
-      textSourcePages?: TextSourcePage[] | null;
+      textSourcePages?: ReaderSourcePage[] | null;
+      progressionDirection?: BookProgressionDirection;
+      declaresVertical?: boolean;
+      epubBlobUrls?: string[];
     },
   ) => {
+    // invariant: URLs are created fresh per load into a LOCAL array and handed to commitLoadedPages; the previous generation is revoked only as its replacement is adopted — no live page ever references a dead URL.
+    adoptEpubBlobUrls(options.epubBlobUrls ?? []);
     setOcrResults({});
     setCroppedRegions({});
     const imagePageCount = newPages.filter((page) => page.kind === 'image').length;
@@ -1839,6 +1816,9 @@ export const ReaderRoute: Component = () => {
       setCurrentBookPath(options.path);
       setCurrentBookFormat(options.format);
       setCurrentBookFile(options.file ?? null);
+      // Per-book signals must never bleed across loads.
+      setBookProgressionDirection(options.progressionDirection ?? null);
+      setBookDeclaresVertical(options.declaresVertical ?? false);
     });
   };
 
@@ -1850,7 +1830,7 @@ export const ReaderRoute: Component = () => {
     const savedPageIndex = await loadSavedPageIndex(bookId);
     let newPages: PageImage[];
     let coverBlob: Blob | undefined;
-    let textSourcePagesForBook: TextSourcePage[] | null = null;
+    let textSourcePagesForBook: ReaderSourcePage[] | null = null;
 
     if (useOcr) {
       const pdfImages = await pdfToImages(file);
@@ -1892,20 +1872,24 @@ export const ReaderRoute: Component = () => {
     setOcrStatus(t('mlearn.Reader.Status.LoadingBook'));
     const bookId = parseCurrentWorkName(file.name);
     const title = bookId || t('mlearn.Reader.Status.EpubDocument');
-    const textPages = await epubToTextPages(file);
-    if (textPages.length === 0) {
-      throw new Error('EPUB contains no readable text');
-    }
-    const newPages = paginateTextSources(textPages, title, textPageCapacity());
-    const savedPageIndex = await loadSavedPageIndex(bookId);
-    const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < newPages.length
-      ? savedPageIndex
-      : 0;
-    commitLoadedPages(newPages, { bookId, title, path, format: 'epub', startPage, file, textSourcePages: textPages });
+    const content = await epubToContentPages(file);
+    const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedPageIndex(bookId));
+    commitLoadedPages(prepared.pages, {
+      bookId,
+      title,
+      path,
+      format: 'epub',
+      startPage: prepared.startPage,
+      file,
+      textSourcePages: prepared.sources,
+      progressionDirection: content.progressionDirection,
+      declaresVertical: content.declaresVerticalWriting,
+      epubBlobUrls: prepared.newBlobUrls,
+    });
     if (path) {
       void persistActiveBookPath(path);
     }
-    saveToRecent(title, 'book', startPage, path);
+    saveToRecent(title, 'book', prepared.startPage, path, prepared.coverBlob);
     setOcrStatus(t('mlearn.Reader.Status.Ready'));
   };
 
@@ -2765,7 +2749,7 @@ export const ReaderRoute: Component = () => {
               fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenBookFile} />}
           >
             <div
-              class={`page-container ${pageMode()} spread-${readerSpreadDirection() === 'right-to-left' ? 'rtl' : 'ltr'}${(collatePages() && pageMode() === 'double') ? ' collate' : ''}`}
+              class={`page-container ${pageMode()} spread-${readerSpreadDirection() === 'right-to-left' ? 'rtl' : 'ltr'}${(collatePages() && pageMode() === 'double') ? ' collate' : ''}${readerBookVertical() && visiblePagesAreText() ? ' vertical-text' : ''}`}
               ref={pageContainerRef}
             >
               <For each={visiblePages()}>
@@ -2950,6 +2934,7 @@ export const ReaderRoute: Component = () => {
                             tokenJoinSeparator={getTokenJoinSeparator(currentLangData())}
                             onWordHover={handleOcrWordHover}
                             onWordLeave={handleOcrWordLeave}
+                            vertical={readerBookVertical()}
                           />
                         </Show>
                       </div>

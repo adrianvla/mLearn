@@ -4,11 +4,13 @@
  * Supports three hover modes: immediate hover, long hover (delay), and key+hover.
  */
 
-import { Component, createMemo, createSignal, onCleanup } from 'solid-js';
+import { Component, Show, createMemo, createSignal, onCleanup } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import { getTokenLookupWord } from '../../utils/wordForms';
+import { readingAnnotationsEnabled } from '../../../shared/readingAnnotationSettings';
+import { WordWithReading } from '../language-specific/WordWithReading';
 import './OcrOverlay.css';
 
 export interface OcrWordProps {
@@ -17,6 +19,8 @@ export interface OcrWordProps {
   onWordLeave?: () => void;
   /** Disable passive tracking for temporary, untokenized OCR fallback text. */
   trackPassiveHover?: boolean;
+  /** Opt-in rendering of token readings as ruby annotations (e.g. EPUB text pages). */
+  withReadingAnnotation?: boolean;
 }
 
 /** Delay in ms for long-hover mode before triggering */
@@ -50,6 +54,11 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const lookupWord = createMemo(() => (
     getTokenLookupWord(props.token, tokenizerCapabilities()) || displayWord()
   ));
+  const showReading = () => (
+    props.withReadingAnnotation === true
+    && readingAnnotationsEnabled(settings)
+    && Boolean(props.token.reading)
+  );
   
   // Trigger hover using the stable element reference
   // Creates a synthetic event-like object with the element as currentTarget
@@ -163,7 +172,9 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {displayWord()}
+      <Show when={showReading()} fallback={displayWord()}>
+        <WordWithReading word={displayWord()} reading={props.token.reading} />
+      </Show>
     </span>
   );
 };

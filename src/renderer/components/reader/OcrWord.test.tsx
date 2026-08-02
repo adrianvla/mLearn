@@ -3,12 +3,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { OcrWord } from './OcrWord';
-import type { Token } from '../../../shared/types';
+import type { LanguageData, Token } from '../../../shared/types';
 
 const mockSettings: Record<string, unknown> = {
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'Alt',
+  showReadingAnnotations: true,
   language: 'ar',
+};
+
+// Annotation-capable metadata fixture: Han script requires readings, rendered as ruby.
+let mockLanguageData: LanguageData = {
+  name: 'Japanese',
+  settings: { fixed: {} },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+    readingAnnotation: {
+      type: 'script-reading',
+      display: 'ruby',
+      annotationScripts: ['Han'],
+      surfaceSuffixScripts: ['Hira', 'Kana'],
+      readingSeparator: '',
+      stripParentheticalReadings: true,
+    },
+  },
 };
 
 const mockTrackWordHovered = vi.fn();
@@ -23,6 +41,8 @@ vi.mock('../../context', () => ({
     cancelWordHover: mockCancelWordHover,
   }),
   useLanguage: () => ({
+    currentLangData: () => mockLanguageData,
+    langData: {},
     getLanguageFeatures: () => ({
       tokenizerCapabilities: {
         providesLemmas: true,
@@ -37,6 +57,7 @@ describe('OcrWord', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    mockSettings.showReadingAnnotations = true;
     mockTrackWordHovered.mockClear();
     mockCancelWordHover.mockClear();
     mockGetCanonicalForm.mockClear();
@@ -90,5 +111,79 @@ describe('OcrWord', () => {
     expect(onWordEnter).toHaveBeenCalledOnce();
     expect(mockTrackWordHovered).not.toHaveBeenCalled();
     dispose();
+  });
+
+  describe('opt-in reading annotations', () => {
+    const rubyToken: Token = {
+      word: '豚',
+      actual_word: '豚',
+      type: '名詞',
+      reading: 'ぶた',
+    };
+
+    it('renders plain text when the withReadingAnnotation prop is omitted (OCR overlay regression)', () => {
+      const dispose = render(() => <OcrWord token={rubyToken} />, container);
+
+      expect(container.querySelector('ruby')).toBeNull();
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('豚');
+      dispose();
+    });
+
+    it('renders ruby with the reading when enabled and the metadata supports it', () => {
+      const dispose = render(() => (
+        <OcrWord token={rubyToken} withReadingAnnotation />
+      ), container);
+
+      const ruby = container.querySelector('ruby');
+      expect(ruby).not.toBeNull();
+      expect(ruby!.querySelector('rt')?.textContent).toBe('ぶた');
+      expect(ruby!.textContent).toContain('豚');
+      dispose();
+    });
+
+    it('renders no ruby when showReadingAnnotations is disabled', () => {
+      mockSettings.showReadingAnnotations = false;
+
+      const dispose = render(() => (
+        <OcrWord token={rubyToken} withReadingAnnotation />
+      ), container);
+
+      expect(container.querySelector('ruby')).toBeNull();
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('豚');
+      dispose();
+    });
+
+    it('renders no reading when the reading equals the surface word', () => {
+      const sameReadingToken: Token = {
+        word: '豚',
+        actual_word: '豚',
+        type: '名詞',
+        reading: '豚',
+      };
+
+      const dispose = render(() => (
+        <OcrWord token={sameReadingToken} withReadingAnnotation />
+      ), container);
+
+      expect(container.querySelector('rt')).toBeNull();
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('豚');
+      dispose();
+    });
+
+    it('renders plain text without crashing when the token has no reading', () => {
+      const noReadingToken: Token = {
+        word: '豚',
+        actual_word: '豚',
+        type: '名詞',
+      };
+
+      const dispose = render(() => (
+        <OcrWord token={noReadingToken} withReadingAnnotation />
+      ), container);
+
+      expect(container.querySelector('ruby')).toBeNull();
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('豚');
+      dispose();
+    });
   });
 });

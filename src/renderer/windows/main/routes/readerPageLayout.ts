@@ -1,5 +1,28 @@
 export type ReaderPageMode = 'double' | 'single';
 export type ReaderSpreadDirection = 'left-to-right' | 'right-to-left';
+export type BookProgressionDirection = 'ltr' | 'rtl' | null;
+
+export function resolveBookSpreadDirection(
+  configured: ReaderSpreadDirection | undefined,
+  appDefault: ReaderSpreadDirection,
+  languageDefault: ReaderSpreadDirection | undefined,
+  bookDirection: BookProgressionDirection,
+): ReaderSpreadDirection {
+  if (configured !== undefined && configured !== appDefault) return configured;
+  if (bookDirection) return bookDirection === 'rtl' ? 'right-to-left' : 'left-to-right';
+  return languageDefault ?? appDefault;
+}
+
+export function resolveReaderVerticalLayout(opts: {
+  isEpubBook: boolean;
+  declaresVerticalWriting: boolean;
+  progressionDirection: BookProgressionDirection;
+  supportsVerticalText: boolean;
+}): boolean {
+  return opts.isEpubBook
+    && opts.supportsVerticalText
+    && (opts.declaresVerticalWriting || opts.progressionDirection === 'rtl');
+}
 
 export function getVisiblePageIndices(
   totalPages: number,

@@ -216,6 +216,26 @@
   width: min(42ch, 100%);
 }
 
+.reader-main.text-reader .page-container.vertical-text .reader-text-page {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  height: 100%;
+  max-height: 100%;
+  width: 100%;
+}
+
+.reader-main.text-reader .page-container.double.vertical-text .reader-text-page { width: 100%; }
+
+.page-container.vertical-text .reader-text-paragraph {
+  margin: 0;
+  margin-block-end: calc(var(--spacing-5) * var(--reader-text-line-height) / 1.75);
+}
+
+.page-container.vertical-text .reader-text-page h2 {
+  margin: 0;
+  margin-block-end: var(--spacing-5);
+}
+
 .fit-height .page-image {
   max-height: calc(100vh - 48px - 30px - 2rem);
   width: auto;
