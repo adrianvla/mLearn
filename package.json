@@ -109,7 +109,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/tar": "^6.1.13",
     "@types/ws": "^8.18.1",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.0",
     "archiver": "^7.0.1",
     "dompurify": "3.3.1",
     "electron-updater": "^6.8.9",
