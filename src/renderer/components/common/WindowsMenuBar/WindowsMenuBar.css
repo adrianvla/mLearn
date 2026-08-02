@@ -95,6 +95,18 @@ body.platform-windows .video-route > .video-nav {
   top: calc(var(--spacing-2) + var(--windows-menu-bar-height));
 }
 
+/* Live word translator sits above the nav buttons on other platforms (top:
+   38px); on Windows the nav row is lower, so keep the translator below it
+   (nav top + button height + small gap). */
+body.platform-windows .live-word-translator {
+  top: calc(var(--spacing-2) + var(--windows-menu-bar-height) + 2.5rem);
+}
+
+/* Fullscreen (window): nav buttons keep a slight margin from the screen top */
+body.window-fullscreen.platform-windows .video-route > .video-nav {
+  top: calc(var(--spacing-2) + 0.5rem);
+}
+
 /* Welcome route content starts under the strip */
 body.platform-windows .welcome-container {
   padding-top: calc(2rem + var(--windows-menu-bar-height));
