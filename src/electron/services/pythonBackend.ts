@@ -723,6 +723,26 @@ function startServerReadyPolling(): void {
   serverLoadCheckInterval = setTimeout(poll, 750);
 }
 
+/**
+ * Parse `netstat -ano` output for LISTENING owners of a port. Columns:
+ * Proto, Local, Foreign, State, PID. TIME_WAIT ghosts report PID 0 (taskkill
+ * would fail on it) and client connections to the port belong to the app, so
+ * only LISTENING entries are returned.
+ */
+export function parseNetstatListeningPids(output: string): string[] {
+  const pids: string[] = [];
+  const lines = output.split('\n').filter((line) => line.trim());
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/);
+    const state = parts[parts.length - 2];
+    const pid = parts[parts.length - 1];
+    if (state === 'LISTENING' && pid && /^\d+$/.test(pid) && pid !== '0') {
+      pids.push(pid);
+    }
+  }
+  return pids;
+}
+
 function killProcessesOnPort(port: number): void {
   try {
     let pids: string[] = [];
@@ -733,14 +753,7 @@ function killProcessesOnPort(port: number): void {
           encoding: 'utf8',
           windowsHide: true,
         });
-        const lines = output.split('\n').filter((line) => line.trim());
-        for (const line of lines) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parts[parts.length - 1];
-          if (pid && /^\d+$/.test(pid)) {
-            pids.push(pid);
-          }
-        }
+        pids = parseNetstatListeningPids(output);
       } catch {
       }
     } else {

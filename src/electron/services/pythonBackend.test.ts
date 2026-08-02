@@ -297,6 +297,32 @@ describe('pythonBackend', () => {
     });
   });
 
+  describe('parseNetstatListeningPids', () => {
+    it('returns only LISTENING pids, skipping TIME_WAIT ghosts (pid 0) and client connections', () => {
+      const output = [
+        '  TCP    0.0.0.0:7752           0.0.0.0:0              LISTENING       12345',
+        '  TCP    [::]:7752              [::]:0                 LISTENING       12345',
+        '  TCP    127.0.0.1:54321        127.0.0.1:7752         TIME_WAIT       0',
+        '  TCP    127.0.0.1:60000        127.0.0.1:7752         ESTABLISHED     9876',
+      ].join('\n');
+
+      expect(mod.parseNetstatListeningPids(output)).toEqual([12345, 12345].map(String));
+    });
+
+    it('returns empty array when no LISTENING entry matches', () => {
+      const output = [
+        '  TCP    127.0.0.1:54321        127.0.0.1:7752         TIME_WAIT       0',
+        '  TCP    127.0.0.1:60000        127.0.0.1:7752         ESTABLISHED     9876',
+      ].join('\n');
+
+      expect(mod.parseNetstatListeningPids(output)).toEqual([]);
+    });
+
+    it('handles empty output', () => {
+      expect(mod.parseNetstatListeningPids('')).toEqual([]);
+    });
+  });
+
   describe('pip requirements', () => {
     it('keeps core backend requirements free of language-specific tokenizer packages', () => {
       const requirements = JSON.parse(mod.readResourceFile('pip_requirements.json')) as {

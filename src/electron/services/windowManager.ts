@@ -12,6 +12,7 @@ import { isMac, isLinux, isWindows, isPackaged, getAppPath } from '../utils/plat
 import { loadSettings } from './settings';
 import { getCurrentLocaleData } from './localization';
 import { queueCommand } from './webServer';
+import { hasTray } from './trayManager';
 import { getLogger } from '../../shared/utils/logger';
 
 // Title-bar menu strip height — keep in sync with WindowsMenuBar.css --titlebar-height
@@ -363,7 +364,10 @@ export function createMainWindow(): BrowserWindow {
   loadWindowHtml(mainWindow, 'main');
 
   mainWindow.on('close', (event) => {
-    if (!isMac && !(app as any).isQuitting) {
+    // Non-Mac: closing the window hides to tray instead of quitting — but only
+    // when a tray actually exists. Without one the app would become invisible
+    // (no window, no tray), only killable via Task Manager.
+    if (!isMac && !(app as any).isQuitting && hasTray()) {
       event.preventDefault();
       mainWindow?.hide();
     }

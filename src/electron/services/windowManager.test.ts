@@ -10,6 +10,7 @@ type MockWindow = {
   loadFile: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
+  hide: ReturnType<typeof vi.fn>;
   setSize: ReturnType<typeof vi.fn>;
   setBounds: ReturnType<typeof vi.fn>;
   getBounds: ReturnType<typeof vi.fn>;
@@ -42,6 +43,7 @@ function makeMockWindow(): MockWindow {
     loadFile: vi.fn(),
     on: vi.fn(),
     close: vi.fn(),
+    hide: vi.fn(),
     removeMenu: vi.fn(),
     setSize: vi.fn(),
     setBounds: vi.fn(),
@@ -78,6 +80,7 @@ class MockBrowserWindow {
   loadFile: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
+  hide: ReturnType<typeof vi.fn>;
   setSize: ReturnType<typeof vi.fn>;
   setBounds: ReturnType<typeof vi.fn>;
   getBounds: ReturnType<typeof vi.fn>;
@@ -107,6 +110,7 @@ class MockBrowserWindow {
     this.loadFile = w.loadFile;
     this.on = w.on;
     this.close = w.close;
+    this.hide = w.hide;
     this.removeMenu = w.removeMenu;
     this.setSize = w.setSize;
     this.setBounds = w.setBounds;
@@ -180,6 +184,11 @@ vi.mock('../utils/platform', () => ({
   isWindows: false,
   isPackaged: false,
   getAppPath: vi.fn(() => '/tmp/appPath'),
+}));
+
+const mockHasTray = vi.fn(() => false);
+vi.mock('./trayManager', () => ({
+  hasTray: mockHasTray,
 }));
 
 vi.mock('./settings', () => ({
@@ -265,6 +274,8 @@ describe('windowManager', () => {
     ipcHandleHandlers.clear();
     createdWindows.length = 0;
     mockMenuInstance.popup.mockReset();
+    mockHasTray.mockReset();
+    mockHasTray.mockReturnValue(false);
     mockFromWebContents.mockReset();
     mockFromWebContents.mockImplementation(() => makeMockWindow());
     MockBrowserWindow.fromWebContents = mockFromWebContents;
@@ -335,6 +346,37 @@ describe('windowManager', () => {
 
       expect(getMainWindow()).toBeNull();
       expect(getCurrentWindow()).toBeNull();
+    });
+
+    it('hides to tray on close when a tray exists (non-Mac, not quitting)', async () => {
+      mockHasTray.mockReturnValue(true);
+      const { createMainWindow } = await import('./windowManager');
+      const win = createMainWindow();
+
+      const closeCall = (win.on as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c: unknown[]) => c[0] === 'close'
+      );
+      expect(closeCall).toBeDefined();
+      const event = { preventDefault: vi.fn() };
+      (closeCall![1] as (e: typeof event) => void)(event);
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(win.hide).toHaveBeenCalled();
+    });
+
+    it('does not prevent close when no tray exists, so the app can quit', async () => {
+      const { createMainWindow } = await import('./windowManager');
+      const win = createMainWindow();
+
+      const closeCall = (win.on as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c: unknown[]) => c[0] === 'close'
+      );
+      expect(closeCall).toBeDefined();
+      const event = { preventDefault: vi.fn() };
+      (closeCall![1] as (e: typeof event) => void)(event);
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(win.hide).not.toHaveBeenCalled();
     });
 
     it('creates the window with platform-appropriate frame', async () => {
