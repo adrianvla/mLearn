@@ -317,6 +317,8 @@ sendLogRecord: (record: unknown) => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   restoreWindow: () => void;
+  popupMenu: (menuId: string) => void;
+  setTitleBarOverlay: (options: { color: string; symbolColor: string }) => void;
   getWindowContext: (windowType: string) => void;
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
 

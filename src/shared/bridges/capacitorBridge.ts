@@ -995,6 +995,10 @@ const windowBridge: WindowBridge = {
 
   restoreWindow() {},
 
+  popupMenu() {},
+
+  setTitleBarOverlay() {},
+
   getWindowContext(windowType: string) {
     // Read context stored by openWindow and emit to registered callbacks
     try {

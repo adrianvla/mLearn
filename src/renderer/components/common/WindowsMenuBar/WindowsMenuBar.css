@@ -1,0 +1,66 @@
+/* Windows title-bar menu strip. Height must match TITLEBAR_MENU_HEIGHT in
+   windowManager.ts (main window titleBarOverlay) — cross-file invariant. */
+:root {
+  --windows-menu-bar-height: 40px;
+}
+
+/* Only rendered on Windows (native menu bar is hidden there) */
+.windows-menu-bar {
+  position: relative;
+  height: var(--windows-menu-bar-height);
+  display: flex;
+  align-items: center;
+  padding-left: var(--spacing-2);
+  padding-right: 140px; /* native ─ □ × overlay controls */
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-color);
+  -webkit-app-region: drag;
+  user-select: none;
+  z-index: var(--z-overlay);
+}
+
+body:not(.platform-windows) .windows-menu-bar {
+  display: none;
+}
+
+.windows-menu-label {
+  -webkit-app-region: no-drag;
+  height: 100%;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: default;
+}
+
+.windows-menu-label:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Fixed reader chrome shifts down by the strip height (40px):
+   nav 48px + strip 40px = 88px */
+body.platform-windows .reader-nav {
+  top: 40px;
+}
+
+body.platform-windows .reader-main {
+  margin-top: 88px;
+  height: calc(100vh - 88px - 30px);
+}
+
+body.platform-windows .reader-sidebar {
+  top: 88px;
+  height: calc(100vh - 88px - 30px);
+}
+
+body.platform-windows :root[data-sidebar-layout='drawer'] .reader-sidebar,
+body.platform-windows :root[data-sidebar-layout='drawer'] .reader-unknown-words-sidebar {
+  top: 40px;
+  height: calc(100vh - 40px);
+}
+
+body.platform-windows .reader-main .page-image {
+  max-height: calc(100vh - 88px - 30px - 2rem);
+}

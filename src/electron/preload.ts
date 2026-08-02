@@ -185,6 +185,9 @@ const mLearnIPC = {
   minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MINIMIZE_WINDOW),
   maximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MAXIMIZE_WINDOW),
   restoreWindow: () => ipcRenderer.send(IPC_CHANNELS.RESTORE_WINDOW),
+  popupMenu: (menuId: string) => ipcRenderer.send(IPC_CHANNELS.POPUP_APP_MENU, menuId),
+  setTitleBarOverlay: (options: { color: string; symbolColor: string }) =>
+    ipcRenderer.send(IPC_CHANNELS.SET_TITLEBAR_OVERLAY, options),
   getWindowContext: (windowType: string) => ipcRenderer.send(IPC_CHANNELS.GET_WINDOW_CONTEXT, windowType),
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) =>
     ipcOn(IPC_CHANNELS.WINDOW_CONTEXT, (_event, context) => callback(context)),

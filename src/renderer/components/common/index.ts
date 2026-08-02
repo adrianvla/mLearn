@@ -327,6 +327,9 @@ export {
   type TooltipProps,
 } from './Tooltip';
 
+// WindowsMenuBar
+export { default as WindowsMenuBar } from './WindowsMenuBar/WindowsMenuBar';
+
 // HoverReveal
 export {
   HoverReveal,

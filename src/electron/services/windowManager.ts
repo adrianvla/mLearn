@@ -3,16 +3,19 @@
  * Handles creation and management of all application windows
  */
 
-import { BrowserWindow, app, ipcMain, Menu, dialog, screen } from 'electron';
+import { BrowserWindow, app, ipcMain, Menu, dialog, screen, nativeTheme } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
 import type { WindowSize, OpenWindowPayload, OverlayVideoScreenshot } from '../../shared/types';
-import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
+import { isMac, isLinux, isWindows, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
 import { getCurrentLocaleData } from './localization';
 import { queueCommand } from './webServer';
 import { getLogger } from '../../shared/utils/logger';
+
+// Title-bar menu strip height — keep in sync with WindowsMenuBar.css --titlebar-height
+const TITLEBAR_MENU_HEIGHT = 40;
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
@@ -339,10 +342,23 @@ export function createMainWindow(): BrowserWindow {
 
   if (isMac) {
     windowOptions.titleBarStyle = 'hidden';
+  } else if (isWindows) {
+    // Windows: hide the native frame/title and draw our own menu strip over the
+    // title bar area; titleBarOverlay keeps the native ─ □ × controls on top.
+    windowOptions.titleBarStyle = 'hidden';
+    windowOptions.titleBarOverlay = {
+      color: getTitleBarOverlayColor(nativeTheme.shouldUseDarkColors),
+      symbolColor: getTitleBarOverlaySymbolColor(nativeTheme.shouldUseDarkColors),
+      height: TITLEBAR_MENU_HEIGHT,
+    };
   }
 
   mainWindow = new BrowserWindow(windowOptions);
   currentWindow = mainWindow;
+
+  if (isWindows) {
+    mainWindow.removeMenu();
+  }
 
   loadWindowHtml(mainWindow, 'main');
 
@@ -383,6 +399,7 @@ export function createWelcomeWindow(): BrowserWindow {
       sandbox: true,
     },
     frame: isMac ? false : true,
+    autoHideMenuBar: !isMac,
     backgroundColor: '#000000',
   });
 
@@ -418,6 +435,7 @@ export function createDiagnosticsWindow(): BrowserWindow {
       sandbox: true,
     },
     frame: isMac ? false : true,
+    autoHideMenuBar: !isMac,
     backgroundColor: '#000000',
     ...(isMac ? { titleBarStyle: 'hidden' } : {}),
   });
@@ -459,6 +477,7 @@ export function createChildWindow(
       sandbox: true,
     },
     frame: isMac ? false : true,
+    autoHideMenuBar: !isMac,
     backgroundColor: '#000000',
     ...platformOptions,
     ...options,
@@ -679,6 +698,14 @@ export function launchOverlayWindow(): void {
   });
 }
 
+function getTitleBarOverlayColor(dark: boolean): string {
+  return dark ? '#1f1f1f' : '#f5f5f5';
+}
+
+function getTitleBarOverlaySymbolColor(dark: boolean): string {
+  return dark ? '#ffffff' : '#000000';
+}
+
 // Setup application menu
 function setupAppMenu(): void {
   const settings = loadSettings();
@@ -701,6 +728,79 @@ function setupAppMenu(): void {
     { role: 'quit' },
   ];
 
+  const flashcardsItems: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: getLocalizedString('mlearn.Menu.ReviewFlashcards'),
+      click: () => createChildWindow('flashcards' as WindowType, { width: 800, height: 600 }),
+    },
+    {
+      label: getLocalizedString('mlearn.Menu.ForceRecreateFlashcards'),
+      click: async () => {
+        if (!mainWindow) return;
+        const { response } = await dialog.showMessageBox(mainWindow, {
+          type: 'question',
+          title: getLocalizedString('mlearn.Menu.RecreateFlashcards.Title'),
+          message: getLocalizedString('mlearn.Menu.RecreateFlashcards.Message'),
+          buttons: [
+            getLocalizedString('mlearn.Menu.RecreateFlashcards.Cancel'),
+            getLocalizedString('mlearn.Menu.RecreateFlashcards.Create'),
+          ],
+          defaultId: 1,
+          cancelId: 0,
+        });
+        if (response === 0) return;
+
+        mainWindow.webContents.send(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS);
+      },
+    },
+    {
+      label: getLocalizedString('mlearn.Menu.OpenSyncingWindow'),
+      click: () => createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 }),
+    },
+  ];
+
+  const statisticsItems: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: getLocalizedString('mlearn.Menu.ShowLearningStatistics'),
+      click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
+    },
+    {
+      label: getLocalizedString('mlearn.Menu.LevelStudy'),
+      click: () => createChildWindow('level-study' as WindowType, { width: 1200, height: 800 }),
+    },
+    {
+      label: getLocalizedString('mlearn.Menu.EditWordKnowledgeDatabase'),
+      click: () => createChildWindow('word-db-editor' as WindowType, { width: 1300, height: 800 }),
+    },
+  ];
+
+  const videoItems: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: getLocalizedString('mlearn.Menu.SyncSubtitles'),
+      click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'sync-subs'),
+    },
+    {
+      label: getLocalizedString('mlearn.Menu.CopySubtitle'),
+      click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
+    },
+    { type: 'separator' },
+    {
+      label: getLocalizedString('mlearn.Menu.WatchTogether'),
+      click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
+    },
+  ];
+
+  const browserExtensionItems: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: getLocalizedString('mlearn.Menu.BrowserExtension.InstallExtension'),
+      click: () => openSettingsWindow('browser-extension'),
+    },
+    {
+      label: getLocalizedString('mlearn.Menu.BrowserExtension.OpenOverlayWindow'),
+      click: () => launchOverlayWindow(),
+    },
+  ];
+
   const template: Electron.MenuItemConstructorOptions[] = [
     // App menu (macOS)
     ...(isMac ? [{
@@ -710,6 +810,7 @@ function setupAppMenu(): void {
     
     // File menu
     {
+      id: 'mlearn-menu-file',
       label: getLocalizedString('mlearn.Menu.File'),
       submenu: [
         isMac ? { role: 'close' as const } : { role: 'quit' as const },
@@ -719,6 +820,7 @@ function setupAppMenu(): void {
     
     // Edit menu
     {
+      id: 'mlearn-menu-edit',
       label: getLocalizedString('mlearn.Menu.Edit'),
       submenu: [
         {
@@ -745,6 +847,7 @@ function setupAppMenu(): void {
     
     // View menu
     {
+      id: 'mlearn-menu-view',
       label: getLocalizedString('mlearn.Menu.View'),
       submenu: [
         {
@@ -758,114 +861,69 @@ function setupAppMenu(): void {
         ] : []),
       ],
     },
+
+    // Go menu (Windows/Linux: navigation targets)
+    ...(!isMac ? [{
+      id: 'mlearn-menu-go',
+      label: getLocalizedString('mlearn.Menu.Go'),
+      submenu: [
+        ...flashcardsItems,
+        { type: 'separator' as const },
+        ...statisticsItems,
+      ],
+    }] : []),
+
+    // Tools menu (Windows/Linux: video + browser extension)
+    ...(!isMac ? [{
+      id: 'mlearn-menu-tools',
+      label: getLocalizedString('mlearn.Menu.Tools'),
+      submenu: [
+        ...videoItems,
+        { type: 'separator' as const },
+        ...browserExtensionItems,
+      ],
+    }] : []),
     
-    // Window menu
-    {
+    // Window menu (macOS)
+    ...(isMac ? [{
       label: getLocalizedString('mlearn.Menu.Window'),
       submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        ...(isMac ? [
-          { type: 'separator' as const },
-          { role: 'front' as const },
-          { type: 'separator' as const },
-          { role: 'window' as const },
-        ] : [
-          { role: 'close' as const },
-        ]),
+        { role: 'minimize' as const },
+        { role: 'zoom' as const },
+        { type: 'separator' as const },
+        { role: 'front' as const },
+        { type: 'separator' as const },
+        { role: 'window' as const },
       ],
-    },
+    }] : []),
     
-    // Video menu
-    {
+    // Video menu (macOS)
+    ...(isMac ? [{
       label: getLocalizedString('mlearn.Menu.Video'),
-      submenu: [
-        {
-          label: getLocalizedString('mlearn.Menu.SyncSubtitles'),
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'sync-subs'),
-        },
-        {
-          label: getLocalizedString('mlearn.Menu.CopySubtitle'),
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
-        },
-        { type: 'separator' },
-        {
-          label: getLocalizedString('mlearn.Menu.WatchTogether'),
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
-        },
-      ],
-    },
+      submenu: videoItems,
+    }] : []),
 
-    // Flashcards menu
-    {
+    // Flashcards menu (macOS)
+    ...(isMac ? [{
       label: getLocalizedString('mlearn.Menu.Flashcards'),
-      submenu: [
-        {
-          label: getLocalizedString('mlearn.Menu.ReviewFlashcards'),
-          click: () => createChildWindow('flashcards' as WindowType, { width: 800, height: 600 }),
-        },
-        {
-          label: getLocalizedString('mlearn.Menu.ForceRecreateFlashcards'),
-          click: async () => {
-            if (!mainWindow) return;
-            const { response } = await dialog.showMessageBox(mainWindow, {
-              type: 'question',
-              title: getLocalizedString('mlearn.Menu.RecreateFlashcards.Title'),
-              message: getLocalizedString('mlearn.Menu.RecreateFlashcards.Message'),
-              buttons: [
-                getLocalizedString('mlearn.Menu.RecreateFlashcards.Cancel'),
-                getLocalizedString('mlearn.Menu.RecreateFlashcards.Create'),
-              ],
-              defaultId: 1,
-              cancelId: 0,
-            });
-            if (response === 0) return;
+      submenu: flashcardsItems,
+    }] : []),
 
-            mainWindow.webContents.send(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS);
-          },
-        },
-        {
-          label: getLocalizedString('mlearn.Menu.OpenSyncingWindow'),
-          click: () => createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 }),
-        },
-      ],
-    },
-    
-    {
-      label: getLocalizedString('mlearn.Menu.BrowserExtension.Title'),
-      submenu: [
-        {
-          label: getLocalizedString('mlearn.Menu.BrowserExtension.InstallExtension'),
-          click: () => openSettingsWindow('browser-extension'),
-        },
-        {
-          label: getLocalizedString('mlearn.Menu.BrowserExtension.OpenOverlayWindow'),
-          click: () => launchOverlayWindow(),
-        },
-      ],
-    },
-
-    // Statistics menu
-    {
+    // Statistics menu (macOS)
+    ...(isMac ? [{
       label: getLocalizedString('mlearn.Menu.Statistics'),
-      submenu: [
-        {
-          label: getLocalizedString('mlearn.Menu.ShowLearningStatistics'),
-          click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
-        },
-        {
-          label: getLocalizedString('mlearn.Menu.LevelStudy'),
-          click: () => createChildWindow('level-study' as WindowType, { width: 1200, height: 800 }),
-        },
-        {
-          label: getLocalizedString('mlearn.Menu.EditWordKnowledgeDatabase'),
-          click: () => createChildWindow('word-db-editor' as WindowType, { width: 1300, height: 800 }),
-        },
-      ],
-    },
+      submenu: statisticsItems,
+    }] : []),
+
+    // Browser Extension menu (macOS)
+    ...(isMac ? [{
+      label: getLocalizedString('mlearn.Menu.BrowserExtension.Title'),
+      submenu: browserExtensionItems,
+    }] : []),
     
     // Help menu
     {
+      id: 'mlearn-menu-help',
       label: getLocalizedString('mlearn.Menu.Help'),
       submenu: [
         {
@@ -890,6 +948,32 @@ export function setupWindowIPC(): void {
     }
     oldWindowState.trafficLights = arg.visibility;
   });
+
+  // Windows title-bar menu strip (popup at cursor)
+  ipcMain.on(IPC_CHANNELS.POPUP_APP_MENU, (event, menuId: string) => {
+    const menu = Menu.getApplicationMenu();
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!menu || !window || window.isDestroyed()) return;
+    const item = menu.getMenuItemById(menuId);
+    const submenu = item?.submenu;
+    if (!submenu) return;
+    const cursor = screen.getCursorScreenPoint();
+    submenu.popup({ window, x: cursor.x, y: cursor.y + 2 });
+  });
+
+  // Windows title-bar overlay color sync (renderer theme colors)
+  ipcMain.on(
+    IPC_CHANNELS.SET_TITLEBAR_OVERLAY,
+    (event, options: { color: string; symbolColor: string }) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!isWindows || !window || window.isDestroyed() || window !== mainWindow) return;
+      window.setTitleBarOverlay({
+        color: options.color,
+        symbolColor: options.symbolColor,
+        height: TITLEBAR_MENU_HEIGHT,
+      });
+    }
+  );
 
   // Window resize
   ipcMain.on(IPC_CHANNELS.CHANGE_WINDOW_SIZE, (_event, arg: WindowSize) => {

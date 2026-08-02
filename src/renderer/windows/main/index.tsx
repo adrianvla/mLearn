@@ -13,6 +13,7 @@ import { VideoRoute } from './routes/VideoRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
 import { shouldMountMainRoutes } from './mainRouteReadiness';
 import { AppUpdateNotifier } from '../../components/common/Feedback/AppUpdateNotifier';
+import WindowsMenuBar from '../../components/common/WindowsMenuBar/WindowsMenuBar';
 
 // Import global styles
 import '../../styles/index.css';
@@ -47,6 +48,7 @@ const MainRoutes = () => {
 
 const App = () => (
   <WindowWrapper showDragRegion={false} showActiveGroupSwitch>
+    <WindowsMenuBar />
     <AppUpdateNotifier />
     <LoadingOverlay />
     <MainRoutes />

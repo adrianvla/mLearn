@@ -219,6 +219,8 @@ export const IPC_CHANNELS = {
   MINIMIZE_WINDOW: 'minimize-window',
   MAXIMIZE_WINDOW: 'maximize-window',
   RESTORE_WINDOW: 'restore-window',
+  POPUP_APP_MENU: 'popup-app-menu',
+  SET_TITLEBAR_OVERLAY: 'set-titlebar-overlay',
   
   // LocalStorage sync
   SEND_LS: 'send-ls',

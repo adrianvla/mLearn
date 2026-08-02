@@ -21,6 +21,8 @@ type MockWindow = {
   setMinimizable: ReturnType<typeof vi.fn>;
   setFullScreenable: ReturnType<typeof vi.fn>;
   setWindowButtonVisibility: ReturnType<typeof vi.fn>;
+  removeMenu: ReturnType<typeof vi.fn>;
+  setTitleBarOverlay: ReturnType<typeof vi.fn>;
   isDestroyed: ReturnType<typeof vi.fn>;
   focus: ReturnType<typeof vi.fn>;
   webContents: {
@@ -40,6 +42,7 @@ function makeMockWindow(): MockWindow {
     loadFile: vi.fn(),
     on: vi.fn(),
     close: vi.fn(),
+    removeMenu: vi.fn(),
     setSize: vi.fn(),
     setBounds: vi.fn(),
     getBounds: vi.fn(() => ({ x: 0, y: 0, width: 1200, height: 700 })),
@@ -51,6 +54,7 @@ function makeMockWindow(): MockWindow {
     setMinimizable: vi.fn(),
     setFullScreenable: vi.fn(),
     setWindowButtonVisibility: vi.fn(),
+    setTitleBarOverlay: vi.fn(),
     isDestroyed: vi.fn(() => false),
     focus: vi.fn(),
     webContents: {
@@ -85,6 +89,8 @@ class MockBrowserWindow {
   setMinimizable: ReturnType<typeof vi.fn>;
   setFullScreenable: ReturnType<typeof vi.fn>;
   setWindowButtonVisibility: ReturnType<typeof vi.fn>;
+  removeMenu: ReturnType<typeof vi.fn>;
+  setTitleBarOverlay: ReturnType<typeof vi.fn>;
   isDestroyed: ReturnType<typeof vi.fn>;
   focus: ReturnType<typeof vi.fn>;
   webContents: {
@@ -101,6 +107,7 @@ class MockBrowserWindow {
     this.loadFile = w.loadFile;
     this.on = w.on;
     this.close = w.close;
+    this.removeMenu = w.removeMenu;
     this.setSize = w.setSize;
     this.setBounds = w.setBounds;
     this.getBounds = w.getBounds;
@@ -112,6 +119,7 @@ class MockBrowserWindow {
     this.setMinimizable = w.setMinimizable;
     this.setFullScreenable = w.setFullScreenable;
     this.setWindowButtonVisibility = w.setWindowButtonVisibility;
+    this.setTitleBarOverlay = w.setTitleBarOverlay;
     this.isDestroyed = w.isDestroyed;
     this.focus = w.focus;
     this.webContents = w.webContents;
@@ -137,18 +145,23 @@ vi.mock('electron', () => ({
   Menu: {
     buildFromTemplate: vi.fn(() => mockMenuInstance),
     setApplicationMenu: vi.fn(),
+    getApplicationMenu: vi.fn(() => null),
   },
   dialog: {
     showMessageBox: vi.fn(() => Promise.resolve({ response: 1 })),
   },
   screen: {
     getPrimaryDisplay: vi.fn(() => ({ workAreaSize: { width: 1920, height: 1080 } })),
+    getCursorScreenPoint: vi.fn(() => ({ x: 0, y: 0 })),
   },
   shell: {
     openExternal: vi.fn(),
   },
   clipboard: {
     writeText: vi.fn(),
+  },
+  nativeTheme: {
+    shouldUseDarkColors: false,
   },
 }));
 
@@ -164,6 +177,7 @@ vi.mock('fs', () => ({
 vi.mock('../utils/platform', () => ({
   isMac: false,
   isLinux: false,
+  isWindows: false,
   isPackaged: false,
   getAppPath: vi.fn(() => '/tmp/appPath'),
 }));
@@ -195,6 +209,7 @@ vi.mock('./localization', () => ({
           File: 'File',
           Flashcards: 'Flashcards',
           ForceRecreateFlashcards: 'Force recreate new flashcards for today',
+          Go: 'Go',
           Help: 'Help',
           HideReading: 'Hide Reading Annotations',
           OpenDevTools: 'Open DevTools',
@@ -214,6 +229,7 @@ vi.mock('./localization', () => ({
           Statistics: 'Statistics',
           StopWatchTogether: 'Stop Watch Together',
           SyncSubtitles: 'Sync Subtitles with Video',
+          Tools: 'Tools',
           UncollatePages: 'Uncollate Pages',
           Video: 'Video',
           View: 'View',
@@ -523,6 +539,8 @@ describe('windowManager', () => {
         IPC_CHANNELS.OVERLAY_LAUNCH,
         IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS,
         IPC_CHANNELS.OVERLAY_COMMAND,
+        IPC_CHANNELS.POPUP_APP_MENU,
+        IPC_CHANNELS.SET_TITLEBAR_OVERLAY,
       ];
       for (const ch of expectedOnChannels) {
         expect(ipcOnHandlers.has(ch), `Missing ipcMain.on handler for "${ch}"`).toBe(true);
@@ -542,6 +560,7 @@ describe('windowManager', () => {
       vi.doMock('../utils/platform', () => ({
         isMac: true,
         isLinux: false,
+        isWindows: false,
         isPackaged: false,
         getAppPath: vi.fn(() => '/tmp'),
       }));
@@ -1056,6 +1075,85 @@ describe('windowManager', () => {
       updateOverlayGeometry({ x: 100, y: 100, width: 400, height: 200 });
 
       expect(overlayWin.setBounds).not.toHaveBeenCalled();
+    });
+
+    it('POPUP_APP_MENU: pops up the requested menu submenu at the cursor position', async () => {
+      const { setupWindowIPC, createMainWindow } = await import('./windowManager');
+      const win = createMainWindow();
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const { Menu, screen } = await import('electron');
+
+      const submenu = { popup: vi.fn() };
+      const menu = { getMenuItemById: vi.fn(() => ({ submenu })) };
+      (Menu.getApplicationMenu as ReturnType<typeof vi.fn>).mockReturnValue(menu);
+      (screen.getCursorScreenPoint as ReturnType<typeof vi.fn>).mockReturnValue({ x: 100, y: 200 });
+      mockFromWebContents.mockReturnValue(win as unknown as MockWindow);
+
+      fireOn(IPC_CHANNELS.POPUP_APP_MENU, makeSenderEvent(), 'mlearn-menu-file');
+
+      expect(menu.getMenuItemById).toHaveBeenCalledWith('mlearn-menu-file');
+      expect(submenu.popup).toHaveBeenCalledWith({ window: win, x: 100, y: 202 });
+    });
+
+    it('POPUP_APP_MENU: does nothing when the menu item has no submenu', async () => {
+      const { setupWindowIPC, createMainWindow } = await import('./windowManager');
+      const win = createMainWindow();
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const { Menu } = await import('electron');
+
+      const menu = { getMenuItemById: vi.fn(() => undefined) };
+      (Menu.getApplicationMenu as ReturnType<typeof vi.fn>).mockReturnValue(menu);
+      mockFromWebContents.mockReturnValue(win as unknown as MockWindow);
+
+      expect(() => fireOn(IPC_CHANNELS.POPUP_APP_MENU, makeSenderEvent(), 'mlearn-menu-missing')).not.toThrow();
+    });
+
+    it('SET_TITLEBAR_OVERLAY: applies overlay colors on Windows for the main window', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: false,
+        isLinux: false,
+        isWindows: true,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp'),
+      }));
+      const { setupWindowIPC, createMainWindow } = await import('./windowManager');
+      const win = createMainWindow();
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      mockFromWebContents.mockReturnValue(win as unknown as MockWindow);
+
+      fireOn(
+        IPC_CHANNELS.SET_TITLEBAR_OVERLAY,
+        makeSenderEvent(),
+        { color: '#123456', symbolColor: '#abcdef' },
+      );
+
+      expect(win.setTitleBarOverlay).toHaveBeenCalledWith({
+        color: '#123456',
+        symbolColor: '#abcdef',
+        height: 40,
+      });
+    });
+
+    it('SET_TITLEBAR_OVERLAY: ignores non-main windows', async () => {
+      const { setupWindowIPC, createMainWindow } = await import('./windowManager');
+      createMainWindow();
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      const otherWin = makeMockWindow();
+      mockFromWebContents.mockReturnValue(otherWin);
+
+      fireOn(
+        IPC_CHANNELS.SET_TITLEBAR_OVERLAY,
+        makeSenderEvent(),
+        { color: '#123456', symbolColor: '#abcdef' },
+      );
+
+      expect(otherWin.setTitleBarOverlay).not.toHaveBeenCalled();
     });
   });
 
