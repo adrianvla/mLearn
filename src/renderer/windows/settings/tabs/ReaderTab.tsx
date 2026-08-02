@@ -82,6 +82,7 @@ export const ReaderTab: Component = () => {
               { value: 'sans', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Sans') },
               { value: 'serif', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Serif') },
               { value: 'mono', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Mono') },
+              { value: 'custom', label: t('mlearn.Settings.Reader.TextAppearance.Font.Options.Custom') },
             ]}
           />
         </SettingRow>

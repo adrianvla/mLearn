@@ -58,6 +58,7 @@ vi.mock('../../shared/backends', () => ({
 
 vi.mock('../../shared/platform', () => ({
   isCapacitor: () => false,
+  initPlatformBodyClass: () => {},
 }));
 
 const mockResolveCloudAccessToken = vi.fn((settings: Settings) => (

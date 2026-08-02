@@ -141,6 +141,18 @@ describe('OcrWord', () => {
       dispose();
     });
 
+    it('does not force an inline font-family on the ruby wrapper (reader font stack applies)', () => {
+      const dispose = render(() => (
+        <OcrWord token={rubyToken} withReadingAnnotation />
+      ), container);
+
+      const ruby = container.querySelector('ruby') as HTMLElement;
+      expect(ruby).not.toBeNull();
+      expect(ruby.getAttribute('style') ?? '').not.toContain('font-family');
+      expect(ruby.getAttribute('style')).toContain('unicode-bidi');
+      dispose();
+    });
+
     it('renders no ruby when showReadingAnnotations is disabled', () => {
       mockSettings.showReadingAnnotations = false;
 

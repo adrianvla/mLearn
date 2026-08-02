@@ -1290,6 +1290,26 @@
     },
     "Reader": {
       "Title": "Lecteur",
+      "Themes": {
+        "Button": "Thèmes et réglages",
+        "Calm": "Calme",
+        "Focus": "Focus",
+        "FontSize": "Taille du texte",
+        "FontStyle": "Police",
+        "Night": "Nuit",
+        "Original": "Original",
+        "Paper": "Papier",
+        "Quiet": "Discret",
+        "CustomFont": "Police personnalisée",
+        "CustomFontDefault": "Police système",
+        "FontWeight": "Graisse de police",
+        "FontWeightOptions": {
+          "Regular": "Normale",
+          "Medium": "Moyenne",
+          "SemiBold": "Demi-gras",
+          "Bold": "Gras"
+        }
+      },
       "CollatePages": "Assembler les pages",
       "UncollatePages": "Séparer les pages",
       "CopyPhrase": "Copier la phrase",
@@ -1719,7 +1739,8 @@
               "Language": "Par défaut de la langue",
               "Sans": "Sans",
               "Serif": "Serif",
-              "Mono": "Mono"
+              "Mono": "Mono",
+              "Custom": "Personnalisée…"
             }
           },
           "Size": {

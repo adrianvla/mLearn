@@ -16,6 +16,50 @@ export interface ReaderPaginatedPage extends ReaderSourcePage {
   textEnd?: number;
 }
 
+export const MIN_TEXT_PAGE_CAPACITY = 120;
+const MIN_ESTIMATED_TEXT_PAGE_CAPACITY = 160;
+const MAX_TEXT_PAGE_CAPACITY_SHRINKS = 8;
+
+export interface TextPageCapacityEpoch {
+  capacity: number;
+  shrinkIterations: number;
+}
+
+export function estimateVerticalCharsPerLine(inlineExtent: number, fontSize: number): number {
+  return Math.max(1, Math.floor(inlineExtent / fontSize));
+}
+
+export function estimateTextPageCapacityFromMeasurements(measurements: {
+  inlineExtent: number;
+  blockExtent: number;
+  fontSize: number;
+  lineHeight: number;
+  vertical: boolean;
+  averageGlyphWidth: number;
+}): number {
+  const charsPerLine = measurements.vertical
+    ? estimateVerticalCharsPerLine(measurements.inlineExtent, measurements.fontSize)
+    : Math.max(1, Math.floor(measurements.inlineExtent / measurements.averageGlyphWidth));
+  const linesPerPage = Math.max(1, Math.floor(measurements.blockExtent / measurements.lineHeight));
+  return Math.max(MIN_ESTIMATED_TEXT_PAGE_CAPACITY, Math.floor(charsPerLine * linesPerPage * 0.78));
+}
+
+export function shrinkTextPageCapacity(capacity: number): number {
+  return Math.max(MIN_TEXT_PAGE_CAPACITY, Math.floor(capacity * 0.85));
+}
+
+export function resetTextPageCapacityEpoch(estimate: number): TextPageCapacityEpoch {
+  return { capacity: estimate, shrinkIterations: 0 };
+}
+
+export function auditTextPageCapacity(epoch: TextPageCapacityEpoch, overflows: boolean): TextPageCapacityEpoch {
+  if (!overflows || epoch.shrinkIterations >= MAX_TEXT_PAGE_CAPACITY_SHRINKS) return epoch;
+  return {
+    capacity: shrinkTextPageCapacity(epoch.capacity),
+    shrinkIterations: epoch.shrinkIterations + 1,
+  };
+}
+
 export const textPagesFromExtractedText = (
   pages: ReaderSourcePage[],
   fallbackTitle: string,

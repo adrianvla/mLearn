@@ -3,6 +3,8 @@ import {
   getSpreadPageSideClass,
   getVisiblePageIndices,
   resolveBookSpreadDirection,
+  resolveReaderAnnotationColor,
+  resolveReaderTextFontFamily,
   resolveReaderVerticalLayout,
 } from './readerPageLayout';
 
@@ -77,4 +79,51 @@ describe('resolveReaderVerticalLayout', () => {
       }
     }
   }
+});
+
+describe('resolveReaderTextFontFamily', () => {
+  const languageData = {
+    name: 'Custom Content Font Language',
+    colour_codes: {},
+    settings: { fixed: {} },
+    textProcessing: { scriptProfile: { acceptedScripts: ['Han'] } },
+    typography: {
+      contentFontFamily: 'Language Font',
+      contentFontOptions: [{ id: 'selected-font', name: 'Selected Font', fontFamily: 'Selected Font' }],
+    },
+  };
+
+  it('includes CJK-capable fallbacks for serif and mono', () => {
+    expect(resolveReaderTextFontFamily('serif', languageData, undefined)).toContain('Noto Serif CJK JP');
+    expect(resolveReaderTextFontFamily('mono', languageData, undefined)).toBe(
+      'var(--font-family-mono), "Noto Sans Mono CJK JP", "Noto Sans Mono CJK SC", monospace',
+    );
+  });
+
+  it('keeps language and sans selection behavior unchanged', () => {
+    expect(resolveReaderTextFontFamily('language', languageData, 'selected-font')).toBe('Selected Font');
+    expect(resolveReaderTextFontFamily('sans', languageData, undefined)).toBe('var(--font-family-sans)');
+  });
+
+  it('quotes the chosen family and falls back to the content font when custom', () => {
+    expect(resolveReaderTextFontFamily('custom', languageData, undefined, 'Test Font')).toBe(
+      '"Test Font", var(--font-family-content)',
+    );
+  });
+
+  it('uses the content font fallback when custom has no family', () => {
+    expect(resolveReaderTextFontFamily('custom', languageData, undefined, '')).toBe('var(--font-family-content)');
+    expect(resolveReaderTextFontFamily('custom', languageData, undefined, undefined)).toBe('var(--font-family-content)');
+  });
+});
+
+describe('resolveReaderAnnotationColor', () => {
+  it('uses the reader page text color when more contrast is enabled', () => {
+    expect(resolveReaderAnnotationColor({ readingAnnotationMoreContrast: true })).toBe('var(--reader-text-color)');
+  });
+
+  it('uses the secondary text color when more contrast is disabled', () => {
+    expect(resolveReaderAnnotationColor({ readingAnnotationMoreContrast: false })).toBe('var(--text-secondary)');
+    expect(resolveReaderAnnotationColor({})).toBe('var(--text-secondary)');
+  });
 });

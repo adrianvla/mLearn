@@ -1290,6 +1290,26 @@
     },
     "Reader": {
       "Title": "リーダー",
+      "Themes": {
+        "Button": "テーマと設定",
+        "Calm": "落ち着き",
+        "Focus": "集中",
+        "FontSize": "文字サイズ",
+        "FontStyle": "フォント",
+        "Night": "夜",
+        "Original": "オリジナル",
+        "Paper": "紙",
+        "Quiet": "静か",
+        "CustomFont": "カスタムフォント",
+        "CustomFontDefault": "システム既定",
+        "FontWeight": "フォントの太さ",
+        "FontWeightOptions": {
+          "Regular": "標準",
+          "Medium": "中",
+          "SemiBold": "セミボールド",
+          "Bold": "太字"
+        }
+      },
       "CollatePages": "ページを結合",
       "UncollatePages": "ページを分離",
       "CopyPhrase": "フレーズをコピー",
@@ -1719,7 +1739,8 @@
               "Language": "言語の既定",
               "Sans": "Sans",
               "Serif": "Serif",
-              "Mono": "Mono"
+              "Mono": "Mono",
+              "Custom": "カスタム…"
             }
           },
           "Size": {

@@ -176,6 +176,7 @@
   background: transparent;
   color: var(--text-primary);
   font-family: var(--reader-text-font-family);
+  font-weight: var(--reader-text-font-weight, 400);
   line-height: var(--reader-text-line-height);
   overflow-wrap: anywhere;
   user-select: text;
@@ -235,6 +236,8 @@
   margin: 0;
   margin-block-end: var(--spacing-5);
 }
+
+.page-container.vertical-text .ruby-text { ruby-position: over; }
 
 .fit-height .page-image {
   max-height: calc(100vh - 48px - 30px - 2rem);
@@ -532,4 +535,28 @@
 
 :root[data-sidebar-layout='drawer'] .reader-unknown-words-sidebar {
     width: min(20rem, calc(100vw - 3rem));
+}
+
+/* ============================================================================
+   Reader text theme presets — reader-scoped colors, explicit per preset id so
+   they are deterministic across app themes. `original` follows the app theme
+   variables via var(--text-primary).
+   ============================================================================ */
+
+.reader-main.text-reader.reader-text-theme-original { --reader-text-color: var(--text-primary); }
+
+.reader-main.text-reader.reader-text-theme-paper { background: #f6f1e3; --reader-text-color: #3b3325; }
+
+.reader-main.text-reader.reader-text-theme-calm { background: #e9e4da; --reader-text-color: #43403a; }
+
+.reader-main.text-reader.reader-text-theme-quiet { background: #232326; --reader-text-color: #b9b9c0; }
+
+.reader-main.text-reader.reader-text-theme-night { background: #0b0b0d; --reader-text-color: #e8e8ec; }
+
+.reader-main.text-reader.reader-text-theme-focus { background: #ffffff; --reader-text-color: #111111; }
+
+.text-reader .reader-text-page,
+.text-reader .reader-text-page h2 {
+  background: transparent;
+  color: var(--reader-text-color);
 }

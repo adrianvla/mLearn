@@ -1290,6 +1290,26 @@
     },
     "Reader": {
       "Title": "Reader",
+      "Themes": {
+        "Button": "Design & Einstellungen",
+        "Calm": "Ruhig",
+        "Focus": "Fokus",
+        "FontSize": "Textgröße",
+        "FontStyle": "Schriftart",
+        "Night": "Nacht",
+        "Original": "Original",
+        "Paper": "Papier",
+        "Quiet": "Gedämpft",
+        "CustomFont": "Eigene Schriftart",
+        "CustomFontDefault": "Systemstandard",
+        "FontWeight": "Schriftstärke",
+        "FontWeightOptions": {
+          "Regular": "Normal",
+          "Medium": "Mittel",
+          "SemiBold": "Halbfett",
+          "Bold": "Fett"
+        }
+      },
       "CollatePages": "Seiten zusammenführen",
       "UncollatePages": "Seiten trennen",
       "CopyPhrase": "Satz kopieren",
@@ -1719,7 +1739,8 @@
               "Language": "Sprachstandard",
               "Sans": "Sans",
               "Serif": "Serif",
-              "Mono": "Mono"
+              "Mono": "Mono",
+              "Custom": "Eigene…"
             }
           },
           "Size": {

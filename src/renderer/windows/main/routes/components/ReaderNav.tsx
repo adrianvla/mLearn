@@ -3,12 +3,13 @@
  * Top navigation bar for the reader with controls
  */
 
-import {Component, Accessor, Show} from 'solid-js';
+import {Component, Accessor, Show, createSignal} from 'solid-js';
 import { NavBtn, Tag, Select, ChevronLeftIcon, ChevronRightIcon } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
 import { isElectron } from '@shared/platform';
 import './ReaderNav.css';
 import Icon from "@renderer/components/common/Icons/Icon";
+import { ReaderThemePopover } from './ReaderThemePopover';
 
 interface ReaderNavProps {
   bookTitle: Accessor<string>;
@@ -19,6 +20,7 @@ interface ReaderNavProps {
   firstPageSingle: Accessor<boolean>;
   showOcrOverlay: Accessor<boolean>;
   hasOcrResult: Accessor<boolean>;
+  showTextTheme?: boolean;
   onGoHome: () => void;
   onToggleSidebar: () => void;
   onToggleWordSidebar: () => void;
@@ -33,6 +35,18 @@ interface ReaderNavProps {
 
 export const ReaderNav: Component<ReaderNavProps> = (props) => {
   const { t } = useLocalization();
+  const [themePopoverOpen, setThemePopoverOpen] = createSignal(false);
+  let themeTriggerRef: HTMLButtonElement | undefined;
+
+  const closeThemePopover = () => {
+    setThemePopoverOpen(false);
+    themeTriggerRef?.focus();
+  };
+
+  const handleThemeTriggerClick = (e: MouseEvent) => {
+    themeTriggerRef = e.currentTarget as HTMLButtonElement;
+    setThemePopoverOpen((open) => !open);
+  };
 
   return (
     <nav class={`reader-nav panel`}>
@@ -59,6 +73,23 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       </div>
       
       <div class="nav-group">
+        <Show when={props.showTextTheme}>
+          <NavBtn
+            onClick={handleThemeTriggerClick}
+            active={themePopoverOpen()}
+            title={t('mlearn.Reader.Themes.Button')}
+            aria-haspopup="true"
+            aria-expanded={themePopoverOpen()}
+          >
+            あA
+          </NavBtn>
+          <ReaderThemePopover
+            open={themePopoverOpen}
+            anchor={() => themeTriggerRef}
+            onClose={closeThemePopover}
+          />
+        </Show>
+
         <Select
           options={[
             { value: 'fit-height', label: t('mlearn.Reader.Toolbar.FitHeight') },

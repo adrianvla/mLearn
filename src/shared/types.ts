@@ -76,7 +76,7 @@ export interface OverlaySizeDelta {
 // ============================================================================
 
 export type ReaderSpreadDirection = 'left-to-right' | 'right-to-left';
-export type ReaderTextFontStyle = 'language' | 'sans' | 'serif' | 'mono';
+export type ReaderTextFontStyle = 'language' | 'sans' | 'serif' | 'mono' | 'custom';
 
 export interface ColorCodes {
   [pos: string]: string;
@@ -393,6 +393,12 @@ export interface Settings {
   readerTextWidth?: number;
   /** Extracted-text reader outer margin scale. */
   readerTextMargin?: number;
+  /** Extracted-text reader color theme preset id (see READER_TEXT_THEME_IDS). */
+  readerTextTheme?: string;
+  /** Extracted-text reader custom font family ('' = off, uses the style default). */
+  readerTextFontFamily?: string;
+  /** Extracted-text reader font weight when using a custom font style. */
+  readerTextFontWeight?: number;
 
   // Reader magnifier settings
   /** Hotkey to activate the magnifying glass (e.g., 'z', 'Control', 'Alt') */
@@ -636,6 +642,9 @@ export const DEFAULT_SETTINGS: Settings = {
   readerTextLineHeight: 1.75,
   readerTextWidth: 64,
   readerTextMargin: 1,
+  readerTextTheme: 'original',
+  readerTextFontFamily: '',
+  readerTextFontWeight: 400,
   hideReadingForKnownWords: false,
   readerMagnifierHotkey: 'z',
   readerMagnifierZoom: 2,

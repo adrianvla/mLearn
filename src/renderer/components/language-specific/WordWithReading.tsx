@@ -46,6 +46,8 @@ export interface WordWithReadingProps {
   class?: string;
   /** Force showing the reading annotation even if metadata would normally hide it */
   forceShowReadingAnnotation?: boolean;
+  /** Skip forcing the language content font — the surrounding content surface owns the font */
+  inheritFontFamily?: boolean;
   /** Optional wrapper for prosody or script-specific text renderers. */
   renderText?: (text: JSX.Element, options: WordWithReadingRenderTextOptions) => JSX.Element;
 }
@@ -74,7 +76,7 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
   const wordUsesReadingScript = createMemo(() => isReadingScriptText(props.word, resolvedLanguageData()));
   const annotationDisplay = createMemo(() => getReadingAnnotationDisplay(resolvedLanguageData()));
   const contentStyle = createMemo((): JSX.CSSProperties => ({
-    'font-family': getContentFontFamily(resolvedLanguageData()),
+    ...(props.inheritFontFamily ? {} : { 'font-family': getContentFontFamily(resolvedLanguageData()) }),
     direction: getLanguageCssDirection(resolvedLanguageData(), props.language),
     'unicode-bidi': 'isolate',
   }));

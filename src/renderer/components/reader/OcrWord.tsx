@@ -173,7 +173,8 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       onMouseLeave={handleMouseLeave}
     >
       <Show when={showReading()} fallback={displayWord()}>
-        <WordWithReading word={displayWord()} reading={props.token.reading} />
+        {/* reader text page owns the font (serif/mono styles) — don't force the language content font */}
+        <WordWithReading word={displayWord()} reading={props.token.reading} inheritFontFamily />
       </Show>
     </span>
   );

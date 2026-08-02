@@ -15,7 +15,7 @@ import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady,
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
 import { isLLMReady } from '../../../services/llmProvider';
-import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, ReaderTextFontStyle } from '../../../../shared/types';
+import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
@@ -34,7 +34,6 @@ import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import {
-  getContentFontFamily,
   getReaderCollatePagesForLanguage,
   getReaderFirstPageSingleForLanguage,
   getReaderPageModeForLanguage,
@@ -56,12 +55,22 @@ import {
   getSpreadPageSideClass,
   getVisiblePageIndices,
   resolveBookSpreadDirection,
+  resolveReaderAnnotationColor,
+  resolveReaderTextFontFamily,
   resolveReaderVerticalLayout,
   type BookProgressionDirection,
   type ReaderPageMode,
 } from './readerPageLayout';
-import { paginateTextSources, type ReaderSourcePage } from './readerTextPagination';
+import {
+  auditTextPageCapacity,
+  estimateTextPageCapacityFromMeasurements,
+  resetTextPageCapacityEpoch,
+  paginateTextSources,
+  type ReaderSourcePage,
+  type TextPageCapacityEpoch,
+} from './readerTextPagination';
 import { scrollReaderToPageStart } from './readerNavigation';
+import { readerTextThemeClass } from './readerTextThemes';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
@@ -135,6 +144,7 @@ interface ReaderTextPageProps {
   onWordHover: (token: Token, rect: DOMRect, contextPhrase: string) => void;
   onWordLeave: () => void;
   vertical?: boolean;
+  onTokenized?: () => void;
 }
 
 interface CropSelection {
@@ -222,6 +232,7 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
         if (!cancelled) {
           setTokenParagraphs(nextParagraphs);
           setTokenizeFailed(false);
+          props.onTokenized?.();
         }
       })
       .catch(() => {
@@ -494,14 +505,7 @@ export const ReaderRoute: Component = () => {
     ?? DEFAULT_SETTINGS.readerContentFontSelections[settings.language]
   );
   const readerTextFontFamily = () => {
-    const fontStyle = readerTextFontStyle();
-    const fontStacks: Record<ReaderTextFontStyle, string> = {
-      language: getContentFontFamily(currentLangData(), selectedLanguageFontId()),
-      sans: 'var(--font-family-sans)',
-      serif: 'Georgia, "Times New Roman", serif',
-      mono: 'var(--font-family-mono)',
-    };
-    return fontStacks[fontStyle];
+    return resolveReaderTextFontFamily(readerTextFontStyle(), currentLangData(), selectedLanguageFontId(), settings.readerTextFontFamily ?? '');
   };
   createEffect(() => {
     if (readerTextFontStyle() !== 'language') return;
@@ -512,10 +516,12 @@ export const ReaderRoute: Component = () => {
   });
   const readerTextStyle = (): JSX.CSSProperties => ({
     '--reader-text-font-family': readerTextFontFamily(),
+    '--reader-text-font-weight': `${settings.readerTextFontWeight ?? DEFAULT_SETTINGS.readerTextFontWeight}`,
     '--reader-text-font-size': `${settings.readerTextSize ?? DEFAULT_SETTINGS.readerTextSize!}rem`,
     '--reader-text-line-height': `${settings.readerTextLineHeight ?? DEFAULT_SETTINGS.readerTextLineHeight!}`,
     '--reader-text-width': `${settings.readerTextWidth ?? DEFAULT_SETTINGS.readerTextWidth!}ch`,
     '--reader-text-gutter-scale': `${settings.readerTextMargin ?? DEFAULT_SETTINGS.readerTextMargin!}`,
+    '--reading-annotation-color': resolveReaderAnnotationColor(settings),
   } as JSX.CSSProperties);
   // When true and in double-page mode, first page displays alone (cover page)
   // This offsets the pairing: [0], [1,2], [3,4]... instead of [0,1], [2,3]...
@@ -817,28 +823,58 @@ export const ReaderRoute: Component = () => {
     context.font = style.font;
     const sample = sampleText || 'mmmmmmmmmmmmmmmmmmmm';
     const averageGlyphWidth = Math.max(context.measureText(sample).width / sample.length, fontSize * 0.45);
-    const charsPerLine = Math.max(1, Math.floor(inlineExtent / averageGlyphWidth));
-    const linesPerPage = Math.max(1, Math.floor(blockExtent / lineHeight));
+    return estimateTextPageCapacityFromMeasurements({
+      inlineExtent,
+      blockExtent,
+      fontSize,
+      lineHeight,
+      vertical,
+      averageGlyphWidth,
+    });
+  };
 
-    return Math.max(160, Math.floor(charsPerLine * linesPerPage * 0.78));
+  let textPageCapacityEpoch: TextPageCapacityEpoch = resetTextPageCapacityEpoch(textPageCapacity());
+  let textPageOverflowAuditFrame: number | undefined;
+
+  const textPageOverflows = (article: Pick<HTMLElement, 'scrollWidth' | 'clientWidth' | 'scrollHeight' | 'clientHeight'>): boolean => (
+    article.scrollWidth > article.clientWidth + 2 || article.scrollHeight > article.clientHeight + 2
+  );
+
+  const scheduleTextPageOverflowAudit = () => {
+    if (textPageOverflowAuditFrame !== undefined) return;
+    textPageOverflowAuditFrame = requestAnimationFrame(() => {
+      textPageOverflowAuditFrame = undefined;
+      if (!pageContainerRef || !visiblePagesAreText()) return;
+      const articles = Array.from(pageContainerRef.querySelectorAll<HTMLElement>('.reader-text-page'));
+      // ponytail: self-correcting shrink loop; use a binary-search DOM slicer if eight passes ever prove insufficient.
+      const nextEpoch = auditTextPageCapacity(textPageCapacityEpoch, articles.some(textPageOverflows));
+      textPageCapacityEpoch = nextEpoch;
+      setTextPageCapacity(nextEpoch.capacity);
+    });
   };
 
   const updateMeasuredTextPageCapacity = () => {
     const nextCapacity = estimateTextPageCapacity();
     if (!nextCapacity) return;
-    setTextPageCapacity((previous) => (
-      Math.abs(previous - nextCapacity) > 24 ? nextCapacity : previous
-    ));
+    setTextPageCapacity((previous) => {
+      const capacity = Math.abs(previous - nextCapacity) > 24 ? nextCapacity : previous;
+      textPageCapacityEpoch = resetTextPageCapacityEpoch(capacity);
+      return capacity;
+    });
+    scheduleTextPageOverflowAudit();
   };
 
   createEffect(() => {
     if (!visiblePagesAreText()) return;
-    readerBookVertical();
-    queueMicrotask(updateMeasuredTextPageCapacity);
+    pages();
+    currentPage();
+    queueMicrotask(scheduleTextPageOverflowAudit);
   });
 
   createEffect(() => {
-    if (!visiblePagesAreText()) return;
+    textSourcePages();
+    fitMode();
+    pageMode();
     readerBookVertical();
     settings.readerTextFontStyle;
     settings.readerContentFontSelections?.[settings.language];
@@ -889,6 +925,7 @@ export const ReaderRoute: Component = () => {
     onCleanup(() => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateMeasuredTextPageCapacity);
+      if (textPageOverflowAuditFrame !== undefined) cancelAnimationFrame(textPageOverflowAuditFrame);
     });
   });
 
@@ -2685,6 +2722,7 @@ export const ReaderRoute: Component = () => {
             firstPageSingle={firstPageSingle}
             showOcrOverlay={showOcrOverlay}
             hasOcrResult={hasOcrResult}
+            showTextTheme={visiblePagesAreText()}
             onGoHome={goHome}
             onToggleSidebar={() => setShowSidebar(!showSidebar())}
             onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
@@ -2740,7 +2778,7 @@ export const ReaderRoute: Component = () => {
 
         {/* Main Content */}
         <main
-          class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}`}
+          class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}${visiblePagesAreText() ? ` ${readerTextThemeClass(settings.readerTextTheme)}` : ''}`}
           style={visiblePagesAreText() ? readerTextStyle() : undefined}
           ref={readerMainRef}
         >
@@ -2935,6 +2973,7 @@ export const ReaderRoute: Component = () => {
                             onWordHover={handleOcrWordHover}
                             onWordLeave={handleOcrWordLeave}
                             vertical={readerBookVertical()}
+                            onTokenized={scheduleTextPageOverflowAudit}
                           />
                         </Show>
                       </div>

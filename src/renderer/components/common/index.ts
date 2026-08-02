@@ -327,6 +327,12 @@ export {
   type TooltipProps,
 } from './Tooltip';
 
+// Popover
+export {
+  Popover,
+  type PopoverProps,
+} from './Popover';
+
 // WindowsMenuBar
 export { default as WindowsMenuBar } from './WindowsMenuBar/WindowsMenuBar';
 

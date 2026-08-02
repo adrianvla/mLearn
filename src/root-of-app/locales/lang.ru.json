@@ -1290,6 +1290,26 @@
     },
     "Reader": {
       "Title": "Читалка",
+      "Themes": {
+        "Button": "Темы и настройки",
+        "Calm": "Спокойный",
+        "Focus": "Фокус",
+        "FontSize": "Размер текста",
+        "FontStyle": "Шрифт",
+        "Night": "Ночь",
+        "Original": "Оригинал",
+        "Paper": "Бумага",
+        "Quiet": "Приглушённый",
+        "CustomFont": "Свой шрифт",
+        "CustomFontDefault": "Системная по умолчанию",
+        "FontWeight": "Насыщенность шрифта",
+        "FontWeightOptions": {
+          "Regular": "Обычная",
+          "Medium": "Средняя",
+          "SemiBold": "Полужирная",
+          "Bold": "Жирная"
+        }
+      },
       "CollatePages": "Соединить страницы",
       "UncollatePages": "Разъединить страницы",
       "CopyPhrase": "Копировать фразу",
@@ -1719,7 +1739,8 @@
               "Language": "По умолчанию для языка",
               "Sans": "Sans",
               "Serif": "Serif",
-              "Mono": "Mono"
+              "Mono": "Mono",
+              "Custom": "Своя…"
             }
           },
           "Size": {

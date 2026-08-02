@@ -1290,6 +1290,26 @@
     },
     "Reader": {
       "Title": "Reader",
+      "Themes": {
+        "Button": "Themes & Settings",
+        "Calm": "Calm",
+        "Focus": "Focus",
+        "FontSize": "Text size",
+        "FontStyle": "Font",
+        "Night": "Night",
+        "Original": "Original",
+        "Paper": "Paper",
+        "Quiet": "Quiet",
+        "CustomFont": "Custom font",
+        "CustomFontDefault": "System default",
+        "FontWeight": "Font weight",
+        "FontWeightOptions": {
+          "Regular": "Regular",
+          "Medium": "Medium",
+          "SemiBold": "Semi-bold",
+          "Bold": "Bold"
+        }
+      },
       "CollatePages": "Collate pages",
       "UncollatePages": "Uncollate pages",
       "CopyPhrase": "Copy phrase",
@@ -1742,7 +1762,8 @@
               "Language": "Language default",
               "Sans": "Sans",
               "Serif": "Serif",
-              "Mono": "Mono"
+              "Mono": "Mono",
+              "Custom": "Custom…"
             }
           },
           "Size": {

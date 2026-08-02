@@ -1,6 +1,36 @@
+import { getContentFontFamily } from '../../../../shared/languageFeatures';
+import { readingAnnotationMoreContrastEnabled } from '../../../../shared/readingAnnotationSettings';
+import type { ReaderTextFontStyle, Settings } from '../../../../shared/types';
+
 export type ReaderPageMode = 'double' | 'single';
 export type ReaderSpreadDirection = 'left-to-right' | 'right-to-left';
 export type BookProgressionDirection = 'ltr' | 'rtl' | null;
+
+export function resolveReaderTextFontFamily(
+  style: ReaderTextFontStyle,
+  langData: Parameters<typeof getContentFontFamily>[0],
+  fontId: string | undefined,
+  customFamily?: string,
+): string {
+  switch (style) {
+    case 'language':
+      return getContentFontFamily(langData, fontId);
+    case 'sans':
+      return 'var(--font-family-sans)';
+    case 'serif':
+      return 'Georgia, "Times New Roman", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif CJK JP", "Noto Serif CJK SC", "Songti SC", "SimSun", serif';
+    case 'mono':
+      return 'var(--font-family-mono), "Noto Sans Mono CJK JP", "Noto Sans Mono CJK SC", monospace';
+    case 'custom':
+      return customFamily ? `"${customFamily}", var(--font-family-content)` : 'var(--font-family-content)';
+  }
+}
+
+export function resolveReaderAnnotationColor(
+  settings: Pick<Settings, 'readingAnnotationMoreContrast'>,
+): string {
+  return readingAnnotationMoreContrastEnabled(settings) ? 'var(--reader-text-color)' : 'var(--text-secondary)';
+}
 
 export function resolveBookSpreadDirection(
   configured: ReaderSpreadDirection | undefined,

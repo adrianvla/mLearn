@@ -1290,6 +1290,26 @@
     },
     "Reader": {
       "Title": "阅读器",
+      "Themes": {
+        "Button": "主题与设置",
+        "Calm": "平静",
+        "Focus": "专注",
+        "FontSize": "文字大小",
+        "FontStyle": "字体",
+        "Night": "夜间",
+        "Original": "原始",
+        "Paper": "纸张",
+        "Quiet": "静谧",
+        "CustomFont": "自定义字体",
+        "CustomFontDefault": "系统默认",
+        "FontWeight": "字重",
+        "FontWeightOptions": {
+          "Regular": "常规",
+          "Medium": "中等",
+          "SemiBold": "半粗",
+          "Bold": "粗体"
+        }
+      },
       "CollatePages": "合并页面",
       "UncollatePages": "拆分页面",
       "CopyPhrase": "复制短语",
@@ -1742,7 +1762,8 @@
               "Language": "语言默认",
               "Sans": "Sans",
               "Serif": "Serif",
-              "Mono": "Mono"
+              "Mono": "Mono",
+              "Custom": "自定义…"
             }
           },
           "Size": {
