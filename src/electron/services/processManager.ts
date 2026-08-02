@@ -6,7 +6,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { terminatePythonBackend, isServerLoaded, restartPythonBackend } from './pythonBackend';
-import { createMainWindow } from './windowManager';
+import { createMainWindow, getMainWindow } from './windowManager';
+import { createTray } from './trayManager';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.processManager');
@@ -43,6 +44,12 @@ export function completeInitialSetup(): void {
   log.info('Completing initial setup without relaunching app');
   restartPythonBackend();
   createMainWindow();
+  // Tray creation is skipped at startup when the welcome window is shown
+  // (no main window yet); create it now that the main window exists.
+  const mainWindow = getMainWindow();
+  if (mainWindow) {
+    createTray(mainWindow);
+  }
 }
 
 // Setup IPC handlers

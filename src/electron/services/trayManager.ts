@@ -14,6 +14,10 @@ function getTrayIconPath(): string {
   if (isWindows) {
     const icoPath = path.join(resourcePath, 'icon.ico');
     if (isPackaged || fs.existsSync(icoPath)) return icoPath;
+    // Dev: getResourcePath() points at dist-electron/, the icon lives in the
+    // repo-root build/ dir (only packaged builds carry it in resources/).
+    const devIcoPath = path.join(resourcePath, '..', 'build', 'icon.ico');
+    if (fs.existsSync(devIcoPath)) return devIcoPath;
     return path.join(resourcePath, 'build', 'icon.ico');
   }
   const pngPath = path.join(resourcePath, 'icons', '16x16.png');

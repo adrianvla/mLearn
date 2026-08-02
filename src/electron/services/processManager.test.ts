@@ -35,6 +35,8 @@ const mockTerminatePythonBackend = vi.fn();
 const mockIsServerLoaded = vi.fn(() => true);
 const mockRestartPythonBackend = vi.fn();
 const mockCreateMainWindow = vi.fn();
+const mockGetMainWindow = vi.fn(() => null);
+const mockCreateTray = vi.fn();
 
 vi.mock('./pythonBackend', () => ({
   terminatePythonBackend: mockTerminatePythonBackend,
@@ -44,6 +46,11 @@ vi.mock('./pythonBackend', () => ({
 
 vi.mock('./windowManager', () => ({
   createMainWindow: mockCreateMainWindow,
+  getMainWindow: mockGetMainWindow,
+}));
+
+vi.mock('./trayManager', () => ({
+  createTray: mockCreateTray,
 }));
 
 let mod: typeof import('./processManager');
@@ -122,6 +129,23 @@ describe('setup completion', () => {
     expect(mockCreateMainWindow).toHaveBeenCalledOnce();
     expect(mockApp.relaunch).not.toHaveBeenCalled();
     expect(mockApp.exit).not.toHaveBeenCalled();
+  });
+
+  it('creates the tray when the main window exists after setup', () => {
+    const win = { id: 1 };
+    mockGetMainWindow.mockReturnValue(win as never);
+    mod.setupKillHandlers();
+    const listeners = mockIpcListeners.get('complete-initial-setup') || [];
+    listeners[0]({});
+    expect(mockCreateTray).toHaveBeenCalledWith(win);
+  });
+
+  it('skips tray creation when no main window exists', () => {
+    mockGetMainWindow.mockReturnValue(null);
+    mod.setupKillHandlers();
+    const listeners = mockIpcListeners.get('complete-initial-setup') || [];
+    listeners[0]({});
+    expect(mockCreateTray).not.toHaveBeenCalled();
   });
 });
 
