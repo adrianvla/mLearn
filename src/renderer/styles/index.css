@@ -15,9 +15,9 @@
 :root {
   /* ========== Color Palette ========== */
   /* Primary colors */
-  --color-primary: #4a90d9;
-  --color-primary-hover: #5a9de9;
-  --color-primary-active: #3a80c9;
+  --color-primary: #ff5900;
+  --color-primary-hover: #e86d2f;
+  --color-primary-active: #d15d1f;
 
   /* Semantic colors */
   --color-success: #58c333;
@@ -245,7 +245,7 @@
   --scrollbar-thumb-hover: var(--accent-bg);
 
   /* ========== Flashcard Highlight ========== */
-  --flashcard-highlight: #356ee8;
+  --flashcard-highlight: var(--color-primary);
 
   /* ========== Additional Theming Variables ========== */
   /* Panel/surface hover states */
