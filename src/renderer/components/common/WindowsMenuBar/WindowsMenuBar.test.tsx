@@ -64,4 +64,24 @@ describe('WindowsMenuBar', () => {
     dispose();
     expect(document.body.classList.contains('window-fullscreen')).toBe(false);
   });
+
+  it('toggles the class on element fullscreen (video player requestFullscreen)', () => {
+    const dispose = render(() => <WindowsMenuBar />, document.body);
+
+    // Simulate element fullscreen: document.fullscreenElement set + event
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => ({ tagName: 'DIV' }),
+    });
+    document.dispatchEvent(new Event('fullscreenchange'));
+    expect(document.body.classList.contains('window-fullscreen')).toBe(true);
+
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => null,
+    });
+    document.dispatchEvent(new Event('fullscreenchange'));
+    expect(document.body.classList.contains('window-fullscreen')).toBe(false);
+    dispose();
+  });
 });

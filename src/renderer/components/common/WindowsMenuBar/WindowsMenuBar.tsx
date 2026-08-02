@@ -50,14 +50,21 @@ export default function WindowsMenuBar() {
     // Themes switch via body.theme-{name}
     const observer = new MutationObserver(syncOverlay);
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    // Window fullscreen: hide the strip (body.window-fullscreen collapses
-    // the --windows-menu-bar-height offsets to 0 in CSS)
+    // Fullscreen: hide the strip (body.window-fullscreen collapses the
+    // --windows-menu-bar-height offsets to 0 in CSS). Covers BOTH window
+    // fullscreen (main process IPC) and element fullscreen (video player
+    // requestFullscreen, which the window events don't report).
+    const syncFullscreenClass = () => {
+      document.body.classList.toggle('window-fullscreen', document.fullscreenElement !== null);
+    };
     const cleanupFullscreen = bridge.window.onWindowFullscreenChange?.((isFullscreen) => {
       document.body.classList.toggle('window-fullscreen', isFullscreen);
     });
+    document.addEventListener('fullscreenchange', syncFullscreenClass);
     onCleanup(() => {
       observer.disconnect();
       cleanupFullscreen?.();
+      document.removeEventListener('fullscreenchange', syncFullscreenClass);
       document.body.classList.remove('window-fullscreen');
     });
   });

@@ -97,9 +97,15 @@ body.platform-windows .video-route > .video-nav {
 
 /* Live word translator sits above the nav buttons on other platforms (top:
    38px); on Windows the nav row is lower, so keep the translator below it
-   (nav top + button height + small gap). */
+   (nav top + button height + small gap). The hide-cursor rule in
+   LiveWordTranslator.css (top: 10px) must not apply here — it would slide the
+   panel under the strip; keep it just below the strip instead. */
 body.platform-windows .live-word-translator {
   top: calc(var(--spacing-2) + var(--windows-menu-bar-height) + 2.5rem);
+}
+
+body.hide-cursor.platform-windows .live-word-translator {
+  top: calc(var(--spacing-2) + var(--windows-menu-bar-height));
 }
 
 /* Fullscreen (window): nav buttons keep a slight margin from the screen top */
