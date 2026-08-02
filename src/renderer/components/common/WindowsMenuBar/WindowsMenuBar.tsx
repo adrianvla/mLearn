@@ -1,6 +1,7 @@
 import { onCleanup, onMount } from 'solid-js';
 import { getBridge } from '@shared/bridges';
 import { useLocalization } from '../../../context/LocalizationContext';
+import AppLogo from '../Misc/AppLogo';
 import './WindowsMenuBar.css';
 
 // Menu ids must match the ids in the app menu template (windowManager.ts);
@@ -54,6 +55,9 @@ export default function WindowsMenuBar() {
 
   return (
     <div ref={stripRef} class="windows-menu-bar">
+      <div class="windows-menu-logo">
+        <AppLogo size="20px" />
+      </div>
       {MENU_ITEMS.map((item) => (
         <button
           type="button"

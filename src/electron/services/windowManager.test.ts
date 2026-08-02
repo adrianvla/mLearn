@@ -1119,23 +1119,24 @@ describe('windowManager', () => {
       expect(overlayWin.setBounds).not.toHaveBeenCalled();
     });
 
-    it('POPUP_APP_MENU: pops up the requested menu submenu at the cursor position', async () => {
+    it('POPUP_APP_MENU: pops up the requested menu submenu at the cursor', async () => {
       const { setupWindowIPC, createMainWindow } = await import('./windowManager');
       const win = createMainWindow();
       setupWindowIPC();
       const { IPC_CHANNELS } = await import('../../shared/constants');
-      const { Menu, screen } = await import('electron');
+      const { Menu } = await import('electron');
 
       const submenu = { popup: vi.fn() };
       const menu = { getMenuItemById: vi.fn(() => ({ submenu })) };
       (Menu.getApplicationMenu as ReturnType<typeof vi.fn>).mockReturnValue(menu);
-      (screen.getCursorScreenPoint as ReturnType<typeof vi.fn>).mockReturnValue({ x: 100, y: 200 });
       mockFromWebContents.mockReturnValue(win as unknown as MockWindow);
 
       fireOn(IPC_CHANNELS.POPUP_APP_MENU, makeSenderEvent(), 'mlearn-menu-file');
 
       expect(menu.getMenuItemById).toHaveBeenCalledWith('mlearn-menu-file');
-      expect(submenu.popup).toHaveBeenCalledWith({ window: win, x: 100, y: 202 });
+      // No x/y: popup() defaults to the cursor position, which is what places
+      // the menu under the clicked label (x/y are window-relative).
+      expect(submenu.popup).toHaveBeenCalledWith({ window: win });
     });
 
     it('POPUP_APP_MENU: does nothing when the menu item has no submenu', async () => {

@@ -953,7 +953,9 @@ export function setupWindowIPC(): void {
     oldWindowState.trafficLights = arg.visibility;
   });
 
-  // Windows title-bar menu strip (popup at cursor)
+  // Windows title-bar menu strip (popup at cursor). x/y passed to popup() are
+  // window-relative, so omitting them (cursor default) is what positions the
+  // menu under the clicked label.
   ipcMain.on(IPC_CHANNELS.POPUP_APP_MENU, (event, menuId: string) => {
     const menu = Menu.getApplicationMenu();
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -961,8 +963,7 @@ export function setupWindowIPC(): void {
     const item = menu.getMenuItemById(menuId);
     const submenu = item?.submenu;
     if (!submenu) return;
-    const cursor = screen.getCursorScreenPoint();
-    submenu.popup({ window, x: cursor.x, y: cursor.y + 2 });
+    submenu.popup({ window });
   });
 
   // Windows title-bar overlay color sync (renderer theme colors)
