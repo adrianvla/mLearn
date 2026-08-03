@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { mergeWordRows, selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
-import type { Flashcard } from '../../../../shared/types';
+import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
+import type { Flashcard, TranslationResponse } from '../../../../shared/types';
 
 const makeCard = (overrides: Partial<Flashcard> & { id: string; createdAt: number }): Flashcard => ({
   content: { type: 'word', front: 'front', back: 'back' },
@@ -193,6 +193,51 @@ describe('mergeWordRows', () => {
   });
 });
 
+describe('mergeRowLists', () => {
+  it('keeps primary rows first and fills remaining slots, preserving additional row backs', () => {
+    const rows = mergeRowLists(
+      [{ word: '猫', reading: 'ねこ', back: 'cat (flashcard)' }],
+      [
+        { word: '猫', reading: 'ねこ', back: 'cat, feline' },
+        { word: '犬', reading: 'いぬ', back: 'dog' },
+      ],
+      4,
+    );
+    expect(rows).toEqual([
+      { word: '猫', reading: 'ねこ', back: 'cat (flashcard)' },
+      { word: '犬', reading: 'いぬ', back: 'dog' },
+    ]);
+  });
+
+  it('dedupes additional rows against primary rows case-insensitively', () => {
+    const rows = mergeRowLists(
+      [{ word: 'Cat', back: 'b1' }],
+      [
+        { word: 'cat', back: 'b2' },
+        { word: 'DOG', back: 'b3' },
+      ],
+      4,
+    );
+    expect(rows.map((r) => r.word)).toEqual(['Cat', 'DOG']);
+  });
+
+  it('caps the merged result at max', () => {
+    const rows = mergeRowLists(
+      [
+        { word: 'a', back: '1' },
+        { word: 'b', back: '2' },
+      ],
+      [
+        { word: 'c', back: '3' },
+        { word: 'd', back: '4' },
+      ],
+      3,
+    );
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.word)).toEqual(['a', 'b', 'c']);
+  });
+});
+
 describe('selectLevelChips', () => {
   const makeLevel = (level: number, knownPct: number) => ({
     level,
@@ -237,5 +282,60 @@ describe('selectLevelChips', () => {
     const complete = makeLevel(2, 100);
 
     expect(selectLevelChips([roundedIncomplete, complete], 5).active?.level).toBe(1);
+  });
+});
+
+describe('selectDictionaryRows', () => {
+  it('returns [] for a null response', () => {
+    expect(selectDictionaryRows(null, 'word')).toEqual([]);
+  });
+
+  it('maps entries to rows, skips the prosody slot, and caps at max', () => {
+    const response: TranslationResponse = {
+      data: [
+        { word: '試験', reading: 'しけん', definitions: ['exam', 'test'] },
+        { word: '猫', reading: 'ねこ', definitions: 'cat' },
+        { tone: true }, // slot 2: prosody payload, not an entry
+      ],
+    };
+    const rows = selectDictionaryRows(response, 'fallback', 2);
+    expect(rows).toEqual([
+      { word: '試験', reading: 'しけん', back: 'exam, test' },
+      { word: '猫', reading: 'ねこ', back: 'cat' },
+    ]);
+  });
+
+  it('uses fallbackWord for entries without a headword', () => {
+    const response: TranslationResponse = {
+      data: [{ definitions: ['apple'], reading: 'リンゴ' }],
+    };
+    const rows = selectDictionaryRows(response, 'fallback', 4);
+    expect(rows).toEqual([{ word: 'fallback', reading: 'リンゴ', back: 'apple' }]);
+  });
+
+  it('skips the structured/full-HTML entry in slot 1', () => {
+    const response: TranslationResponse = {
+      data: [
+        { word: '試験', reading: 'しけん', definitions: 'examination, exam, test' },
+        { word: '試験', reading: 'しけん', definitions: '<div type="structured-content"><div>…</div></div>' },
+        { tone: true }, // slot 2: prosody payload, not an entry
+      ],
+    };
+    const rows = selectDictionaryRows(response, 'fallback', 4);
+    expect(rows).toEqual([
+      { word: '試験', reading: 'しけん', back: 'examination, exam, test' },
+    ]);
+  });
+
+  it('skips entries with no content and honors the max cap', () => {
+    const response: TranslationResponse = {
+      data: [
+        { reading: '', definitions: [] },
+        { word: 'a', reading: 'r', definitions: ['1'] },
+        { word: 'b', reading: 'r', definitions: ['2'] },
+      ],
+    };
+    const rows = selectDictionaryRows(response, 'x', 1);
+    expect(rows).toEqual([{ word: 'a', reading: 'r', back: '1' }]);
   });
 });

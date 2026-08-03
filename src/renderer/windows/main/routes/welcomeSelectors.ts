@@ -3,7 +3,7 @@
  * Pure helpers for deriving the real state shown in welcome previews.
  */
 
-import type { DailyStudyStats, Flashcard } from '../../../../shared/types';
+import type { DailyStudyStats, Flashcard, TranslationEntry, TranslationResponse } from '../../../../shared/types';
 import type { LevelStats } from '../../../utils/wordLevelStats';
 
 /** Newest populated card for the given language, or null. */
@@ -84,6 +84,26 @@ export function selectWordSearchRows(
 }
 
 /**
+ * Merge two row lists word-deduplicated (case-insensitive), primary first, capped at max.
+ */
+export function mergeRowLists(
+  primary: RecentWordRow[],
+  additional: RecentWordRow[],
+  max = 4,
+): RecentWordRow[] {
+  const seen = new Set<string>();
+  const merged: RecentWordRow[] = [];
+  for (const row of [...primary, ...additional]) {
+    const key = row.word.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(row);
+    if (merged.length >= max) break;
+  }
+  return merged;
+}
+
+/**
  * Merge flashcard search rows with Anki cache words. Flashcard rows keep their
  * position; Anki words fill the remaining slots, deduped case-insensitively on word.
  */
@@ -92,16 +112,40 @@ export function mergeWordRows(
   ankiWords: string[],
   max = 4,
 ): RecentWordRow[] {
-  const seen = new Set(flashcardRows.map((row) => row.word.toLowerCase()));
-  const merged = [...flashcardRows];
-  for (const word of ankiWords) {
-    if (merged.length >= max) break;
-    const key = word.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push({ word, reading: undefined, back: '' });
+  return mergeRowLists(
+    flashcardRows,
+    ankiWords.map((word) => ({ word, reading: undefined, back: '' })),
+    max,
+  );
+}
+
+/** Dictionary rows for the welcome lookup card; slot 1 of `data` is the structured/full-HTML entry and slot 2 a prosody payload — neither is a preview row. */
+export function selectDictionaryRows(
+  response: TranslationResponse | null,
+  fallbackWord: string,
+  max = 4,
+): RecentWordRow[] {
+  if (!response) return [];
+  const rows: RecentWordRow[] = [];
+  for (const raw of response.data) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    if (!('definitions' in raw)) continue;
+    const entry = raw as TranslationEntry;
+    const definitions = Array.isArray(entry.definitions)
+      ? entry.definitions
+      : [entry.definitions];
+    if (!entry.word && !entry.reading && definitions.length === 0) continue;
+    // The preview shows plain-text definitions only; skip entries whose
+    // definitions carry HTML markup (e.g. the structured slot-1 entry).
+    if (definitions.some((definition) => definition.includes('<'))) continue;
+    rows.push({
+      word: entry.word || fallbackWord,
+      reading: entry.reading || undefined,
+      back: definitions.join(', '),
+    });
+    if (rows.length >= max) break;
   }
-  return merged.slice(0, max);
+  return rows;
 }
 
 export interface WeekStatDay {
