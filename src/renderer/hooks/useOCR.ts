@@ -401,7 +401,7 @@ export function useOCR() {
     const engine = resolveCloudOcrEngine(languageData);
     const result = await withCloudAuth(async (cloudToken) => {
       const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
-      return adapter.recognize(imageBlob, language, engine);
+      return adapter.recognize(imageBlob, language, engine, getOcrRuntimeConfig(languageData).paddleLang);
     });
 
     return {

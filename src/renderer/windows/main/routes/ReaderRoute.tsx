@@ -38,6 +38,7 @@ import {
   getReaderFirstPageSingleForLanguage,
   getReaderPageModeForLanguage,
   resolveCloudOcrEngine,
+  getOcrRuntimeConfig,
   getTokenJoinSeparator,
   resolveLanguageContentFontOption,
 } from '../../../../shared/languageFeatures';
@@ -1146,7 +1147,7 @@ export const ReaderRoute: Component = () => {
         const cloudApiUrl = resolveCloudApiUrl(settings);
         const cloudResult = await withCloudAuth(async (cloudToken) => {
           const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
-          return adapter.recognize(crop.blob, language, engine);
+          return adapter.recognize(crop.blob, language, engine, getOcrRuntimeConfig(languageData).paddleLang, true);
         });
         result = normalizeReaderOcrResult({ boxes: cloudResult.boxes });
       } else {
@@ -1656,7 +1657,7 @@ export const ReaderRoute: Component = () => {
         const cloudApiUrl = resolveCloudApiUrl(settings);
         const cloudResult = await withCloudAuth(async (cloudToken) => {
           const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
-          return adapter.recognize(prepared.blob, language, engine);
+          return adapter.recognize(prepared.blob, language, engine, getOcrRuntimeConfig(languageData).paddleLang);
         });
 
         result = normalizeReaderOcrResult({

@@ -245,7 +245,8 @@ describe('CloudOCRAdapter', () => {
       const adapter = new CloudOCRAdapter(BASE_URL, AUTH_TOKEN);
       const promise = adapter.recognize(blob, 'ja');
       const rejection = expect(promise).rejects.toThrow('timed out');
-      await vi.advanceTimersByTimeAsync(60_000 + 5_000);
+      // maxWaitMs is 240s; advance past it so the poll loop exits and rejects.
+      await vi.advanceTimersByTimeAsync(240_000 + 10_000);
       await rejection;
 
       vi.useRealTimers();
@@ -319,6 +320,55 @@ describe('CloudOCRAdapter', () => {
         expect.any(String),
         expect.objectContaining({ body: JSON.stringify({ language: 'ja', engine: 'manga-ocr', imageFormat: 'png' }) }),
       );
+
+      vi.useRealTimers();
+    });
+
+    it('passes paddleLang and singleRegion when provided', async () => {
+      vi.useFakeTimers();
+
+      const blob = new Blob(['img'], { type: 'image/png' });
+      mockFetch
+        .mockResolvedValueOnce(makeJsonResponse(createJobResponse))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(makeJsonResponse(completedJobResponse));
+
+      const adapter = new CloudOCRAdapter(BASE_URL, AUTH_TOKEN);
+      const promise = adapter.recognize(blob, 'ja', 'paddle', 'japan', true);
+      await vi.advanceTimersByTimeAsync(500);
+      await promise;
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        expect.any(String),
+        expect.objectContaining({
+          body: JSON.stringify({ language: 'ja', engine: 'paddle', imageFormat: 'png', paddleLang: 'japan', singleRegion: true }),
+        }),
+      );
+
+      vi.useRealTimers();
+    });
+
+    it('omits paddleLang and singleRegion from the body when not provided', async () => {
+      vi.useFakeTimers();
+
+      const blob = new Blob(['img'], { type: 'image/png' });
+      mockFetch
+        .mockResolvedValueOnce(makeJsonResponse(createJobResponse))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(makeJsonResponse(completedJobResponse));
+
+      const adapter = new CloudOCRAdapter(BASE_URL, AUTH_TOKEN);
+      const promise = adapter.recognize(blob, 'ja');
+      await vi.advanceTimersByTimeAsync(500);
+      await promise;
+
+      const body = mockFetch.mock.calls[0][1].body as string;
+      expect(body).toBe(JSON.stringify({ language: 'ja', engine: undefined, imageFormat: 'png' }));
+      expect(body).not.toContain('paddleLang');
+      expect(body).not.toContain('singleRegion');
 
       vi.useRealTimers();
     });

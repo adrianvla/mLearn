@@ -727,7 +727,7 @@ describe('useOCR', () => {
 
       expect(result).not.toBeNull();
       expect(result!.text).toBe('cloud result');
-      expect(mockCloudRecognize).toHaveBeenCalledWith(expect.any(Blob), 'ja', 'rapid');
+      expect(mockCloudRecognize).toHaveBeenCalledWith(expect.any(Blob), 'ja', 'rapid', undefined);
       expect(mockFetch).not.toHaveBeenCalled();
       dispose();
     });
@@ -760,7 +760,7 @@ describe('useOCR', () => {
       const result = await ocr.recognize(blob);
 
       expect(result).not.toBeNull();
-      expect(mockCloudRecognize).toHaveBeenCalledWith(expect.any(Blob), 'ja', 'manga-ocr');
+      expect(mockCloudRecognize).toHaveBeenCalledWith(expect.any(Blob), 'ja', 'manga-ocr', undefined);
       dispose();
     });
   });

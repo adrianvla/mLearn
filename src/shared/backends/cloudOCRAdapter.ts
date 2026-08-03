@@ -64,6 +64,8 @@ export class CloudOCRAdapter {
     imageBlob: Blob,
     language: string,
     engine?: string,
+    paddleLang?: string,
+    singleRegion?: boolean,
   ): Promise<OCRJobResult> {
     // Step 1: Create job
     const createRes = await fetch(`${this.baseUrl}/api/ocr/jobs`, {
@@ -76,6 +78,8 @@ export class CloudOCRAdapter {
         language,
         engine: engine ?? undefined,
         imageFormat: this.detectFormat(imageBlob),
+        paddleLang: paddleLang ?? undefined,
+        singleRegion: singleRegion ?? undefined,
       }),
     });
 
