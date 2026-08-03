@@ -170,9 +170,9 @@
           }
         },
         "Speech": {
-          "Title": "Speech",
-          "Label": "Speech",
-          "Description": "Enable text-to-speech for AI responses and speech-to-text input"
+          "Title": "AI Voice",
+          "Label": "AI Voice",
+          "Description": "Enable the AI tutor's voice: speak responses aloud and accept speech-to-text input. Turn on Auto-speak to play every reply automatically"
         },
         "AutoSpeak": {
           "Label": "Auto-speak Responses",

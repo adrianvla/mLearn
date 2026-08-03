@@ -170,9 +170,9 @@
           }
         },
         "Speech": {
-          "Title": "语音",
-          "Label": "语音",
-          "Description": "启用 AI 回复的文本转语音和语音输入"
+          "Title": "AI 语音",
+          "Label": "AI 语音",
+          "Description": "启用 AI 导师的语音：朗读回复并接受语音输入。开启下方的「自动朗读回复」即可自动朗读每条回复"
         },
         "AutoSpeak": {
           "Label": "自动朗读回复",

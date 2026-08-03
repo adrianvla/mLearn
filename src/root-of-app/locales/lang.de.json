@@ -170,9 +170,9 @@
           }
         },
         "Speech": {
-          "Title": "Sprache",
-          "Label": "Sprache",
-          "Description": "Text-to-Speech für KI-Antworten und Speech-to-Text-Eingabe aktivieren"
+          "Title": "KI-Stimme",
+          "Label": "KI-Stimme",
+          "Description": "Stimme des KI-Tutors einschalten: Antworten laut vorlesen und Spracheingabe erlauben. Aktivieren Sie „Antworten automatisch vorlesen“, um jede Antwort automatisch abzuspielen"
         },
         "AutoSpeak": {
           "Label": "Antworten automatisch vorlesen",

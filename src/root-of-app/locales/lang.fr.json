@@ -170,9 +170,9 @@
           }
         },
         "Speech": {
-          "Title": "Voix",
-          "Label": "Voix",
-          "Description": "Activer la synthèse vocale pour les réponses IA et la reconnaissance vocale en entrée"
+          "Title": "Voix IA",
+          "Label": "Voix IA",
+          "Description": "Activer la voix du tuteur IA : lire les réponses à voix haute et accepter la reconnaissance vocale. Activez « Lecture auto des réponses » pour lire chaque réponse automatiquement"
         },
         "AutoSpeak": {
           "Label": "Lecture auto des réponses",
