@@ -36,6 +36,9 @@ describe('ReaderRoute EPUB flow wiring', () => {
     expect(image).toMatchObject({ kind: 'image', src: 'blob:flow-image' });
     expect(image?.blob).toBeInstanceOf(Blob);
     expect(text?.text).toContain('語');
+    expect(prepared.pages.find((page) => page.kind === 'text')?.readingSpans).toEqual([
+      { start: 5, end: 6, reading: 'ご' },
+    ]);
 
     adoptEpubBlobUrls(prepared.newBlobUrls);
     expect(revokeUrl).not.toHaveBeenCalled();

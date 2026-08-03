@@ -26,7 +26,7 @@ import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard, ReaderStatusBar, type ReaderUnknownWordEntry } from './components';
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages, pdfToTextPages } from '../../../services/pdfService';
-import { epubToContentPages, isEpubFile, type EpubContent } from '../../../services/epubService';
+import { epubToContentPages, isEpubFile, type EpubContent, type EpubReadingSpan } from '../../../services/epubService';
 import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
 import { captureReaderImageForFlashcard } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
@@ -66,6 +66,8 @@ import {
   estimateTextPageCapacityFromMeasurements,
   resetTextPageCapacityEpoch,
   paginateTextSources,
+  applyReadingSpansToTokens,
+  sliceReadingSpansForRange,
   type ReaderSourcePage,
   type TextPageCapacityEpoch,
 } from './readerTextPagination';
@@ -101,6 +103,7 @@ interface PageImage {
   previewText?: string;
   textStart?: number;
   textEnd?: number;
+  readingSpans?: EpubReadingSpan[];
 }
 
 type FitMode = 'fit-height' | 'fit-width';
@@ -214,23 +217,37 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
     const blocks = textBlocks();
     return headingText() ? blocks.slice(1) : blocks;
   };
+  const bodyBlocksWithOffsets = () => {
+    const blocks = textBlocks();
+    const skipFirst = Boolean(headingText());
+    let offset = 0;
+    return blocks.flatMap((block, index) => {
+      const start = offset;
+      offset += block.length + 2;
+      return skipFirst && index === 0 ? [] : [{ block, start }];
+    });
+  };
   const bodyText = () => {
     return bodyBlocks().join('\n\n');
   };
   const hasTokenParagraphs = () => tokenParagraphs().some((paragraph) => paragraph.length > 0);
 
   createEffect(() => {
-    const paragraphs = bodyBlocks();
+    const paragraphs = bodyBlocksWithOffsets();
     if (!paragraphs.length) {
       setTokenParagraphs([]);
       return;
     }
 
     let cancelled = false;
-    Promise.all(paragraphs.map((paragraph) => props.tokenize(paragraph)))
+    Promise.all(paragraphs.map(({ block }) => props.tokenize(block)))
       .then((nextParagraphs) => {
         if (!cancelled) {
-          setTokenParagraphs(nextParagraphs);
+          const spans = props.page.readingSpans;
+          setTokenParagraphs(nextParagraphs.map((tokens, index) => {
+            const { block, start } = paragraphs[index];
+            return applyReadingSpansToTokens(block, tokens, sliceReadingSpansForRange(spans, start, start + block.length));
+          }));
           setTokenizeFailed(false);
           props.onTokenized?.();
         }

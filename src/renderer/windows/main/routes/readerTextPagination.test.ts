@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import type { Token } from '../../../../shared/types';
 import {
+  applyReadingSpansToTokens,
   auditTextPageCapacity,
   estimateTextPageCapacityFromMeasurements,
   estimateVerticalCharsPerLine,
   paginateTextSources,
   resetTextPageCapacityEpoch,
   shrinkTextPageCapacity,
+  sliceReadingSpansForRange,
   splitParagraphForPage,
+  textPagesFromExtractedText,
 } from './readerTextPagination';
 
 describe('reader text pagination characterization', () => {
@@ -134,5 +138,98 @@ describe('reader text capacity', () => {
       capacity: 460,
       shrinkIterations: 0,
     });
+  });
+});
+
+describe('reading span pagination', () => {
+  it('remaps spans into page-local offsets across split pages', () => {
+    const pages = paginateTextSources([{
+      kind: 'text',
+      name: 'chapter',
+      title: 'title',
+      text: 'ab\n\ncd',
+      readingSpans: [
+        { start: 0, end: 2, reading: 'x' },
+        { start: 4, end: 6, reading: 'y' },
+      ],
+    }], 'fallback', 3);
+    expect(pages).toHaveLength(2);
+    expect(pages[0]).toMatchObject({ text: 'ab', readingSpans: [{ start: 0, end: 2, reading: 'x' }] });
+    expect(pages[1]).toMatchObject({ text: 'cd', readingSpans: [{ start: 0, end: 2, reading: 'y' }] });
+  });
+
+  it('drops spans whose base text is split across page boundaries', () => {
+    const pages = paginateTextSources([{
+      kind: 'text',
+      name: 'chapter',
+      title: 'title',
+      text: 'abcdef',
+      readingSpans: [{ start: 1, end: 5, reading: 'r' }],
+    }], 'fallback', 3);
+    expect(pages.map((page) => page.text)).toEqual(['abc', 'def']);
+    expect(pages.every((page) => page.readingSpans === undefined)).toBe(true);
+  });
+
+  it('carries spans through the unpaginated fallback path', () => {
+    const pages = textPagesFromExtractedText([{
+      kind: 'text',
+      name: 'chapter',
+      title: 'title',
+      text: 'ab',
+      readingSpans: [{ start: 0, end: 2, reading: 'x' }],
+    }], 'fallback');
+    expect(pages[0].readingSpans).toEqual([{ start: 0, end: 2, reading: 'x' }]);
+  });
+
+  it('slices and rebases spans for a paragraph range', () => {
+    const spans = [
+      { start: 0, end: 2, reading: 'a' },
+      { start: 4, end: 6, reading: 'b' },
+    ];
+    expect(sliceReadingSpansForRange(spans, 2, 8)).toEqual([{ start: 2, end: 4, reading: 'b' }]);
+    expect(sliceReadingSpansForRange(spans, 0, 6)).toEqual(spans);
+    expect(sliceReadingSpansForRange(undefined, 0, 1)).toBeUndefined();
+  });
+});
+
+describe('applyReadingSpansToTokens', () => {
+  const token = (surface: string, reading?: string): Token => ({
+    word: surface,
+    actual_word: surface,
+    type: '',
+    reading,
+  });
+
+  it('overrides the token reading on exact surface match without mutating input', () => {
+    const tokens = [token('豚', 'とん'), token('に')];
+    const result = applyReadingSpansToTokens('豚に', tokens, [{ start: 0, end: 1, reading: 'ぶた' }]);
+    expect(result.map((entry) => entry.reading)).toEqual(['ぶた', undefined]);
+    expect(tokens[0].reading).toBe('とん');
+  });
+
+  it('applies a stem-prefix span to an inflected token', () => {
+    const result = applyReadingSpansToTokens('与える', [token('与える', 'あたえる')], [{ start: 0, end: 1, reading: 'あた' }]);
+    expect(result[0].reading).toBe('あた');
+  });
+
+  it('keeps the dictionary reading when multiple spans cut into one token', () => {
+    const tokens = [token('抑圧', 'よくあつ')];
+    const result = applyReadingSpansToTokens('抑圧', tokens, [
+      { start: 0, end: 1, reading: 'よく' },
+      { start: 1, end: 2, reading: 'あつ' },
+    ]);
+    expect(result).toBe(tokens);
+    expect(result[0].reading).toBe('よくあつ');
+  });
+
+  it('ignores spans that cover multiple tokens', () => {
+    const tokens = [token('抑'), token('圧')];
+    const result = applyReadingSpansToTokens('抑圧', tokens, [{ start: 0, end: 2, reading: 'よくあつ' }]);
+    expect(result).toBe(tokens);
+  });
+
+  it('returns the same tokens when no spans are present', () => {
+    const tokens = [token('ab')];
+    expect(applyReadingSpansToTokens('ab', tokens, undefined)).toBe(tokens);
   });
 });

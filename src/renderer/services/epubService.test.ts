@@ -160,14 +160,65 @@ describe('epubService', () => {
     expect(epub2.coverImage).toMatchObject({ zipPath: 'OEBPS/img/cover image.png', data: new Uint8Array([13]) });
   });
 
-  it('ruby markup keeps only base text, never leaking rt/rp/rtc readings inline', async () => {
+  it('ruby markup keeps base text and records book-defined readings as spans', async () => {
     const content = await epubToContentPages(makeEpub({
       chapters: [{
         href: 'chapter.xhtml',
         html: '<html><body><p><ruby>豚<rp>(</rp><rt>ぶた</rt><rp>)</rp></ruby>に<ruby>人権<rt>じんけん</rt></ruby>を<ruby><rb>与</rb><rt>あた</rt></ruby>えぬ、<ruby><rb>東</rb><rb>京</rb><rtc><rt>とう</rt><rt>きょう</rt></rtc></ruby></p></body></html>',
       }],
     }));
-    expect(content.items[0]).toMatchObject({ text: '豚に人権を与えぬ、東京', previewText: '豚に人権を与えぬ、東京' });
+    const [item] = content.items;
+    expect(item).toMatchObject({ text: '豚に人権を与えぬ、東京', previewText: '豚に人権を与えぬ、東京' });
+    expect(item.kind === 'text' ? item.readingSpans : undefined).toEqual([
+      { start: 0, end: 1, reading: 'ぶた' },
+      { start: 2, end: 4, reading: 'じんけん' },
+      { start: 5, end: 6, reading: 'あた' },
+      { start: 9, end: 10, reading: 'とう' },
+      { start: 10, end: 11, reading: 'きょう' },
+    ]);
+  });
+
+  it('remaps reading spans through whitespace collapsing', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><body><p>foo\n   <ruby><rb>bar</rb><rt>baz</rt></ruby>  qux</p></body></html>',
+      }],
+    }));
+    const [item] = content.items;
+    expect(item).toMatchObject({ text: 'foo bar qux' });
+    expect(item.kind === 'text' ? item.readingSpans : undefined).toEqual([
+      { start: 4, end: 7, reading: 'baz' },
+    ]);
+  });
+
+  it('offsets reading spans across joined blocks and keeps rt out of chapter titles', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><body><h1><ruby>題<rt>だい</rt></ruby></h1><p>one</p><p><ruby>two<rt>r</rt></ruby></p></body></html>',
+      }],
+    }));
+    const [item] = content.items;
+    expect(item).toMatchObject({ title: '題', text: '題\n\none\n\ntwo' });
+    expect(item.kind === 'text' ? item.readingSpans : undefined).toEqual([
+      { start: 0, end: 1, reading: 'だい' },
+      { start: 8, end: 11, reading: 'r' },
+    ]);
+  });
+
+  it('keeps ruby base text without readings when rt is missing or counts mismatch', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><body><p><ruby>base</ruby> x <ruby><rb>A</rb><rb>B</rb><rt>AB</rt></ruby></p></body></html>',
+      }],
+    }));
+    const [item] = content.items;
+    expect(item).toMatchObject({ text: 'base x AB' });
+    expect(item.kind === 'text' ? item.readingSpans : undefined).toEqual([
+      { start: 7, end: 9, reading: 'AB' },
+    ]);
   });
 
   it('empty-skip omits whitespace-only imageless chapters', async () => {

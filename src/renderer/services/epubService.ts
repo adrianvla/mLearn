@@ -8,6 +8,15 @@ export interface EpubImageRef {
   data: Uint8Array;
 }
 
+export interface EpubReadingSpan {
+  /** Start offset (inclusive) into the item's plain text, in UTF-16 code units. */
+  start: number;
+  /** End offset (exclusive) into the item's plain text. */
+  end: number;
+  /** Book-defined reading annotation for the covered base text. */
+  reading: string;
+}
+
 export interface EpubTextItem {
   kind: 'text';
   name: string;
@@ -16,6 +25,7 @@ export interface EpubTextItem {
   previewText: string;
   source: string;
   index: number;
+  readingSpans?: EpubReadingSpan[];
 }
 
 export interface EpubImageItem extends EpubImageRef {
@@ -129,6 +139,99 @@ interface EpubChapterContent {
   title: string;
   text: string;
   previewText: string;
+  readingSpans?: EpubReadingSpan[];
+}
+
+interface RawExtraction {
+  text: string;
+  spans: EpubReadingSpan[];
+}
+
+function childElements(element: Element, localName: string): Element[] {
+  return Array.from(element.children).filter((child) => child.localName === localName);
+}
+
+// textContent would flatten rt/rp/rtc readings inline after each word, so ruby base
+// text is walked explicitly and book-defined readings are recorded as offset spans.
+function extractRubyAnnotation(ruby: Element, raw: RawExtraction): void {
+  const bases = childElements(ruby, 'rb');
+  const directReadings = childElements(ruby, 'rt');
+  const readings = directReadings.length > 0
+    ? directReadings
+    : childElements(ruby, 'rtc').flatMap((rtc) => childElements(rtc, 'rt'));
+  const pushSpan = (base: string, reading: string) => {
+    const start = raw.text.length;
+    raw.text += base;
+    if (reading && base.trim()) raw.spans.push({ start, end: raw.text.length, reading });
+  };
+  if (bases.length > 0 && bases.length === readings.length) {
+    bases.forEach((base, index) => {
+      pushSpan(base.textContent ?? '', cleanText(readings[index].textContent ?? ''));
+    });
+    return;
+  }
+  const fallbackBase = bases.length > 0
+    ? bases.map((base) => base.textContent ?? '').join('')
+    : Array.from(ruby.childNodes).reduce((text, node) => text + (node.nodeType === 3 ? node.nodeValue ?? '' : ''), '');
+  pushSpan(fallbackBase, readings.map((reading) => cleanText(reading.textContent ?? '')).filter(Boolean).join(''));
+}
+
+function walkExtractableText(node: Node, raw: RawExtraction): void {
+  if (node.nodeType === 3) {
+    raw.text += node.nodeValue ?? '';
+    return;
+  }
+  if (node.nodeType !== 1) return;
+  const element = node as Element;
+  switch (element.localName) {
+    case 'script':
+    case 'style':
+    case 'nav':
+    case 'rt':
+    case 'rp':
+    case 'rtc':
+      return;
+    case 'ruby':
+      extractRubyAnnotation(element, raw);
+      return;
+    default:
+      for (const child of Array.from(element.childNodes)) walkExtractableText(child, raw);
+  }
+}
+
+function walkCleanedText(root: Element): RawExtraction {
+  const raw: RawExtraction = { text: '', spans: [] };
+  walkExtractableText(root, raw);
+  const source = raw.text;
+  const rawToClean = new Int32Array(source.length).fill(-1);
+  let text = '';
+  let pendingWhitespace = -1;
+  for (let i = 0; i < source.length; i += 1) {
+    if (/\s/u.test(source[i])) {
+      if (pendingWhitespace < 0) pendingWhitespace = i;
+      continue;
+    }
+    if (pendingWhitespace >= 0) {
+      if (text.length > 0) {
+        rawToClean[pendingWhitespace] = text.length;
+        text += ' ';
+      }
+      pendingWhitespace = -1;
+    }
+    rawToClean[i] = text.length;
+    text += source[i];
+  }
+  const spans = raw.spans.flatMap((span) => {
+    let start = span.start;
+    let end = span.end;
+    while (start < end && /\s/u.test(source[start])) start += 1;
+    while (end > start && /\s/u.test(source[end - 1])) end -= 1;
+    if (start >= end) return [];
+    const cleanStart = rawToClean[start];
+    const cleanEnd = rawToClean[end - 1] + 1;
+    return cleanStart >= 0 && cleanEnd > cleanStart ? [{ start: cleanStart, end: cleanEnd, reading: span.reading }] : [];
+  });
+  return { text, spans };
 }
 
 function chapterContentAndImageRefs(html: string): { content: EpubChapterContent; imageRefs: string[] } {
@@ -138,22 +241,35 @@ function chapterContentAndImageRefs(html: string): { content: EpubChapterContent
     ...Array.from(body.querySelectorAll('img[src]')).map((image) => image.getAttribute('src')),
     ...Array.from(body.querySelectorAll('image')).map((image) => image.getAttribute('xlink:href') ?? image.getAttribute('href')),
   ].filter((ref): ref is string => Boolean(ref));
-  // Strip rt/rp/rtc first: textContent would flatten ruby readings inline after each word.
-  body.querySelectorAll('script, style, nav, rt, rp, rtc').forEach((node) => {
-    node.remove();
-  });
-  const title = queryText(doc, ['h1', 'h2', 'title']);
-  const text = Array.from(body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
-    .map((node) => cleanText(node.textContent ?? ''))
-    .filter(Boolean)
-    .join('\n\n')
-    || cleanText(body.textContent ?? '');
-  const previewText = Array.from(body.querySelectorAll('p,li,blockquote'))
-    .map((node) => cleanText(node.textContent ?? ''))
-    .find(Boolean)
+  const blocks = Array.from(body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
+    .map((element) => ({ element, ...walkCleanedText(element) }));
+  const heading = ['h1', 'h2']
+    .map((tag) => blocks.find((block) => block.element.localName === tag && block.text))
+    .find((block) => block !== undefined);
+  const title = heading?.text ?? queryText(doc, ['title']);
+  let text = '';
+  const spans: EpubReadingSpan[] = [];
+  for (const block of blocks) {
+    if (!block.text) continue;
+    if (text.length > 0) text += '\n\n';
+    const offset = text.length;
+    text += block.text;
+    for (const span of block.spans) {
+      spans.push({ start: span.start + offset, end: span.end + offset, reading: span.reading });
+    }
+  }
+  if (!text) {
+    const fallback = walkCleanedText(body);
+    text = fallback.text;
+    spans.push(...fallback.spans);
+  }
+  const previewText = blocks.find((block) => ['p', 'li', 'blockquote'].includes(block.element.localName) && block.text)?.text
     ?? text.split(/\n{2,}/u).find(Boolean)
     ?? '';
-  return { content: { title, text, previewText }, imageRefs };
+  return {
+    content: { title, text, previewText, readingSpans: spans.length > 0 ? spans : undefined },
+    imageRefs,
+  };
 }
 
 function epubImageRef(
@@ -216,6 +332,7 @@ export async function epubToContentPages(file: File): Promise<EpubContent> {
         previewText: content.previewText || content.text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) || '',
         source: sourceName,
         index: 0,
+        ...(content.readingSpans ? { readingSpans: content.readingSpans } : {}),
       });
     }
     for (const ref of imageRefs) {

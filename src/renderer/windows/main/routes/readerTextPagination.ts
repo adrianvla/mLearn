@@ -1,9 +1,13 @@
+import type { Token } from '../../../../shared/types';
+import type { EpubReadingSpan } from '../../../services/epubService';
+
 export interface ReaderSourcePage {
   kind?: 'text' | 'image';
   name: string;
   title: string;
   text: string;
   previewText?: string;
+  readingSpans?: EpubReadingSpan[];
   src?: string;
   blob?: Blob;
 }
@@ -71,6 +75,7 @@ export const textPagesFromExtractedText = (
     title: page.title || fallbackTitle,
     text: page.text,
     previewText: page.previewText ?? page.text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? '',
+    ...(page.readingSpans ? { readingSpans: page.readingSpans } : {}),
     index,
   }))
 );
@@ -106,14 +111,16 @@ export function paginateTextSources(
       continue;
     }
     const blocks = source.text.split(/\n{2,}/u).map((part) => part.trim()).filter(Boolean);
-    let currentBlocks: string[] = [];
+    let currentChunks: Array<{ text: string; sourceStart: number }> = [];
     let currentLength = 0;
     let currentStart = globalOffset;
     let sourceOffset = 0;
+    let blockSearchCursor = 0;
 
     const flush = () => {
-      if (currentBlocks.length === 0) return;
-      const text = currentBlocks.join('\n\n');
+      if (currentChunks.length === 0) return;
+      const text = currentChunks.map((chunk) => chunk.text).join('\n\n');
+      const readingSpans = readingSpansForChunks(source.readingSpans, currentChunks);
       const index = pages.length;
       pages.push({
         id: `text-page-${index}-${source.name}`,
@@ -125,21 +132,28 @@ export function paginateTextSources(
         index,
         textStart: currentStart,
         textEnd: currentStart + text.length,
+        ...(readingSpans.length > 0 ? { readingSpans } : {}),
       });
-      currentBlocks = [];
+      currentChunks = [];
       currentLength = 0;
     };
 
     for (const block of blocks) {
+      const blockStart = source.text.indexOf(block, blockSearchCursor);
+      if (blockStart >= 0) blockSearchCursor = blockStart + block.length;
       const blockChunks = splitParagraphForPage(block, capacity);
+      let chunkSearchCursor = 0;
       for (const chunk of blockChunks) {
-        const separatorLength = currentBlocks.length > 0 ? 2 : 0;
-        if (currentBlocks.length > 0 && currentLength + separatorLength + chunk.length > capacity) {
+        const chunkStartInBlock = blockStart >= 0 ? block.indexOf(chunk, chunkSearchCursor) : -1;
+        if (chunkStartInBlock >= 0) chunkSearchCursor = chunkStartInBlock + chunk.length;
+        const sourceStart = blockStart >= 0 && chunkStartInBlock >= 0 ? blockStart + chunkStartInBlock : -1;
+        const separatorLength = currentChunks.length > 0 ? 2 : 0;
+        if (currentChunks.length > 0 && currentLength + separatorLength + chunk.length > capacity) {
           flush();
           currentStart = globalOffset + sourceOffset;
         }
-        if (currentBlocks.length === 0) currentStart = globalOffset + sourceOffset;
-        currentBlocks.push(chunk);
+        if (currentChunks.length === 0) currentStart = globalOffset + sourceOffset;
+        currentChunks.push({ text: chunk, sourceStart });
         currentLength += separatorLength + chunk.length;
         sourceOffset += chunk.length + 2;
       }
@@ -151,3 +165,80 @@ export function paginateTextSources(
 
   return pages.length > 0 ? pages : textPagesFromExtractedText(sources, fallbackTitle);
 }
+
+const readingSpansForChunks = (
+  spans: EpubReadingSpan[] | undefined,
+  chunks: Array<{ text: string; sourceStart: number }>,
+): EpubReadingSpan[] => {
+  if (!spans?.length) return [];
+  const result: EpubReadingSpan[] = [];
+  let pageOffset = 0;
+  for (const chunk of chunks) {
+    if (chunk.sourceStart >= 0) {
+      const chunkEnd = chunk.sourceStart + chunk.text.length;
+      for (const span of spans) {
+        if (span.start >= chunk.sourceStart && span.end <= chunkEnd) {
+          result.push({
+            start: span.start - chunk.sourceStart + pageOffset,
+            end: span.end - chunk.sourceStart + pageOffset,
+            reading: span.reading,
+          });
+        }
+      }
+    }
+    pageOffset += chunk.text.length + 2;
+  }
+  return result;
+};
+
+export function sliceReadingSpansForRange(
+  spans: EpubReadingSpan[] | undefined,
+  start: number,
+  end: number,
+): EpubReadingSpan[] | undefined {
+  if (!spans?.length) return undefined;
+  const sliced = spans.flatMap((span) => (
+    span.start >= start && span.end <= end
+      ? [{ start: span.start - start, end: span.end - start, reading: span.reading }]
+      : []
+  ));
+  return sliced.length > 0 ? sliced : undefined;
+}
+
+// Book-defined readings take precedence over tokenizer/dictionary readings when a span
+// aligns with a token: exact surface match, or a strict prefix (ruby over the stem of an
+// inflected token) provided no further span continues inside the same token.
+export function applyReadingSpansToTokens(
+  paragraph: string,
+  tokens: Token[],
+  spans: EpubReadingSpan[] | undefined,
+): Token[] {
+  if (!spans?.length || tokens.length === 0) return tokens;
+  let adjusted: Token[] | null = null;
+  let cursor = 0;
+  tokens.forEach((token, index) => {
+    const surface = token.surface || token.word;
+    if (!surface) return;
+    const start = paragraph.indexOf(surface, cursor);
+    if (start < 0) return;
+    const end = start + surface.length;
+    cursor = end;
+    const override = spans.find((span) => span.start === start && span.end === end)
+      ?? prefixSpanForToken(spans, start, end);
+    if (!override || override.reading === token.reading) return;
+    if (!adjusted) adjusted = tokens.slice();
+    adjusted[index] = { ...token, reading: override.reading };
+  });
+  return adjusted ?? tokens;
+}
+
+const prefixSpanForToken = (
+  spans: EpubReadingSpan[],
+  start: number,
+  end: number,
+): EpubReadingSpan | undefined => {
+  const prefixes = spans.filter((span) => span.start === start && span.end < end);
+  if (prefixes.length !== 1) return undefined;
+  const [prefix] = prefixes;
+  return spans.some((span) => span !== prefix && span.start >= prefix.end && span.start < end) ? undefined : prefix;
+};
