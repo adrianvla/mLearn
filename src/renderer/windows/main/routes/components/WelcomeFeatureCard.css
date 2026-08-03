@@ -1,0 +1,136 @@
+/**
+ * WelcomeFeatureCard Styles
+ * Compound welcome card: stretched main-action button with header and preview.
+ */
+
+.welcome-feature-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--bg);
+  backdrop-filter: var(--backdrop-filter);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal), background var(--transition-normal);
+  text-align: left;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Stretched main-action button: covers the whole card, behind preview controls */
+.welcome-feature-card-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: inherit;
+  z-index: 2;
+}
+
+.welcome-feature-card-main:disabled {
+  cursor: not-allowed;
+}
+
+.welcome-feature-card:has(.welcome-feature-card-main:hover) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-color-intense);
+  background: var(--bg-intense);
+}
+
+.welcome-feature-card:has(.welcome-feature-card-main:focus-visible) {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.welcome-feature-card:has(.welcome-feature-card-main:active) {
+  transform: scale(0.96);
+}
+
+/* Disabled dims only the header; preview controls stay usable */
+.welcome-feature-card.is-main-disabled .welcome-feature-card-header {
+  opacity: 0.5;
+}
+
+.welcome-feature-card.is-main-disabled:has(.welcome-feature-card-main:hover) {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border-color);
+  background: var(--bg);
+}
+
+.welcome-feature-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.welcome-feature-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--bg-intense);
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.welcome-feature-card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.welcome-feature-card-text h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 0.125rem;
+}
+
+.welcome-feature-card-text p {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.welcome-feature-card-preview {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Real preview controls must sit above the stretched main-action button */
+.welcome-feature-card .welcome-feature-card-preview :is(button, input, select, textarea, a) {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-feature-card {
+    transition: none;
+  }
+
+  .welcome-feature-card:has(.welcome-feature-card-main:hover) {
+    transform: none;
+  }
+
+  .welcome-feature-card:has(.welcome-feature-card-main:active) {
+    transform: none;
+  }
+}

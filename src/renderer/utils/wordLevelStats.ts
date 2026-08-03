@@ -251,6 +251,45 @@ export function resolveLevelStudyWordFrequency(
     : buildWordFrequencyMapFromLanguageData(languageData);
 }
 
+export function getLevelStudyFrequency(languageData: LanguageData | null) {
+  return resolveLevelStudyWordFrequency({}, languageData);
+}
+
+export function getLevelStudyLevelNames(
+  languageData: LanguageData | null,
+  frequency: WordFrequencyMap = getLevelStudyFrequency(languageData),
+): Record<string, string> {
+  const names: Record<string, string> = { ...(languageData?.frequencyLevels?.names ?? {}) };
+  for (const entry of Object.values(frequency)) {
+    if (!isDisplayableFrequencyLevel(entry.raw_level, names, languageData)) continue;
+    const key = String(entry.raw_level);
+    names[key] = names[key] || entry.level || getFrequencyLevelLabel(entry.raw_level, names, languageData);
+  }
+  return names;
+}
+
+export interface LevelCoverageSummary {
+  total: number;
+  tracked: number;
+  pct: number;
+  complete: boolean;
+}
+
+export function summarizeLevelCoverage(levels: readonly LevelStats[]): LevelCoverageSummary {
+  const total = levels.reduce((sum, level) => sum + level.total, 0);
+  const tracked = levels.reduce(
+    (sum, level) => sum + level.known + level.learning + level.unknown,
+    0,
+  );
+  const complete = total > 0 && tracked === total;
+  const pct = total === 0
+    ? 0
+    : complete
+      ? 100
+      : Math.min(Math.round((tracked / total) * 100), 99);
+  return { total, tracked, pct, complete };
+}
+
 function getSortedFrequencyLevels(
   wordFrequency: WordFrequencyMap,
   levelNames: Record<string, string>,

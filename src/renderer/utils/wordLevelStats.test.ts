@@ -5,6 +5,7 @@ import {
   computeLevelCoverage,
   computeLevelStats,
   resolveLevelStudyWordFrequency,
+  summarizeLevelCoverage,
 } from './wordLevelStats';
 import { hashWordSync } from '../services/srsAlgorithm';
 import type { FlashcardStore, LanguageData, WordFrequencyMap } from '../../shared/types';
@@ -12,6 +13,37 @@ import type { FlashcardStore, LanguageData, WordFrequencyMap } from '../../share
 function lk(language: string, word: string): string {
   return language + ':' + hashWordSync(word);
 }
+
+describe('summarizeLevelCoverage', () => {
+  it('uses exact counts for completion and caps rounded incomplete coverage below 100', () => {
+    const level = {
+      level: 1,
+      name: 'L1',
+      total: 2000,
+      known: 1999,
+      learning: 0,
+      unknown: 0,
+      untracked: 1,
+      knownPct: 100,
+      learningPct: 0,
+      unknownPct: 0,
+      untrackedPct: 0.1,
+    };
+
+    expect(summarizeLevelCoverage([level])).toEqual({
+      total: 2000,
+      tracked: 1999,
+      pct: 99,
+      complete: false,
+    });
+    expect(summarizeLevelCoverage([{ ...level, known: 2000, untracked: 0 }])).toEqual({
+      total: 2000,
+      tracked: 2000,
+      pct: 100,
+      complete: true,
+    });
+  });
+});
 
 function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
   return {

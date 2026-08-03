@@ -3,16 +3,31 @@
  * Start menu showing options to watch videos, open reader, or continue recent content
  */
 
-import { Component, createSignal, onMount, For, Show } from 'solid-js';
+import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { useSettings, useLocalization, useLanguage } from '../../../context';
+import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
+import { Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
+import {
+  WelcomeFeatureCard,
+  WelcomeVideoPreview,
+  WelcomeReaderPreview,
+  WelcomeFlashcardPreview,
+  WelcomeSettingsPreview,
+  WelcomeStatsPreview,
+  WelcomeLookupPreview,
+  WelcomeLevelPreview,
+  WelcomeTutorPreview,
+  WelcomeContinueRow,
+} from './components';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
+import { openWordLookup } from '../../../services/wordLookupService';
+import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
+import { selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats } from './welcomeSelectors';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
@@ -29,10 +44,12 @@ export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { currentLangData } = useLanguage();
-  
+  const language = useLanguage();
+  const flashcards = useFlashcards();
+
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
   const [showTutorModal, setShowTutorModal] = createSignal(false);
+  const [lookupDraft, setLookupDraft] = createSignal('');
 
   onMount(async () => {
     try {
@@ -109,7 +126,7 @@ export const WelcomeRoute: Component = () => {
       }
       return;
     }
-    
+
     if (item.type === 'video') {
       // Store the path and navigate
       sessionStorage.setItem(OPEN_VIDEO_SESSION_KEY, item.path);
@@ -130,11 +147,87 @@ export const WelcomeRoute: Component = () => {
   const getLanguageName = () => {
     return getLocalizedLanguageName(
       settings.language,
-      currentLangData(),
+      language.currentLangData(),
       t,
       t('mlearn.Common.Status.Unknown'),
       settings.uiLanguage,
     );
+  };
+
+  const videoItem = () => recentItems().find((item) => item.type === 'video') ?? null;
+  const bookItem = () => recentItems().find((item) => item.type === 'book') ?? null;
+
+  const newestCard = createMemo(() =>
+    selectNewestFlashcard(flashcards.store.flashcards, settings.language),
+  );
+  const recentWordRows = createMemo(() =>
+    selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),
+  );
+  const submitLookup = () => {
+    openWordLookup(lookupDraft());
+  };
+
+  const levelStudySource = createMemo(() => {
+    const langData = language.currentLangData();
+    if (!langData) return null;
+    const freq = getLevelStudyFrequency(langData);
+    if (!freq || Object.keys(freq).length === 0) return null;
+    return {
+      langData,
+      freq,
+      levelNames: getLevelStudyLevelNames(langData, freq),
+    };
+  });
+  const levelStudy = createMemo(() => {
+    if (flashcards.isLoading()) return null;
+    const source = levelStudySource();
+    if (!source) return null;
+    const stats = computeLevelStats(
+      flashcards.store,
+      source.freq,
+      settings.language,
+      settings.known_ease_threshold,
+      settings.srsLearningThreshold,
+      source.levelNames,
+      source.langData,
+      language.getCanonicalFormForLanguage,
+    );
+    if (stats.length === 0) return null;
+    return { levels: stats, ...summarizeLevelCoverage(stats) };
+  });
+  const levelCoverage = createMemo(() => {
+    const data = levelStudy();
+    if (data === null) return null;
+    return { total: data.total, tracked: data.tracked, pct: data.pct };
+  });
+  const levelChips = createMemo(() => selectLevelChips(levelStudy()?.levels ?? []));
+
+  const weekStats = createMemo(() =>
+    selectWeekStats(flashcards.store.dailyStats, settings.language, new Date()),
+  );
+  const weekTotals = createMemo(() => {
+    const days = weekStats();
+    return {
+      newCards: days.reduce((sum, day) => sum + day.newCards, 0),
+      reviews: days.reduce((sum, day) => sum + day.reviews, 0),
+    };
+  });
+  const formatWeekday = (date: string) => {
+    try {
+      return new Intl.DateTimeFormat(settings.uiLanguage, { weekday: 'narrow' }).format(new Date(`${date}T00:00:00`));
+    } catch {
+      return date.slice(5);
+    }
+  };
+  const weekdayLabels = createMemo(() => weekStats().map((day) => formatWeekday(day.date)));
+
+  const formatLastWatched = (timestamp: number) => {
+    try {
+      const days = Math.round((timestamp - Date.now()) / 86_400_000);
+      return new Intl.RelativeTimeFormat(settings.uiLanguage, { numeric: 'auto' }).format(days, 'day');
+    } catch {
+      return new Date(timestamp).toLocaleDateString(settings.uiLanguage);
+    }
   };
 
   return (
@@ -151,7 +244,7 @@ export const WelcomeRoute: Component = () => {
         <div class="welcome-subtitle">
           <span>
             {t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}
-            <Show when={currentLangData()?.flagEmoji}>
+            <Show when={language.currentLangData()?.flagEmoji}>
               {(flagEmoji) => <> {flagEmoji()}</>}
             </Show>
           </span>
@@ -161,81 +254,171 @@ export const WelcomeRoute: Component = () => {
 
       {/* Main Actions */}
       <section class="welcome-actions">
-        <ActionCard
+        <WelcomeFeatureCard
           icon={<VideoIcon size={24} />}
           title={t('mlearn.Home.Cards.Video.Title')}
           description={t('mlearn.Home.Cards.Video.Description')}
           onClick={openVideoPlayer}
-          primary
+          preview={
+            <WelcomeVideoPreview
+              item={videoItem()}
+              emptyLabel={t('mlearn.Home.Cards.Video.Description')}
+              continueLabel={t('mlearn.Global.Continue')}
+              onResume={openRecent}
+            />
+          }
         />
 
-        <ActionCard
+        <WelcomeFeatureCard
           icon={<BookIcon size={24} />}
           title={t('mlearn.Home.Cards.Reader.Title')}
           description={t('mlearn.Home.Cards.Reader.Description')}
           onClick={openReader}
-          primary
+          preview={
+            <WelcomeReaderPreview
+              item={bookItem()}
+              emptyLabel={t('mlearn.Home.Cards.Reader.Description')}
+              continueLabel={t('mlearn.Global.Continue')}
+              onResume={openRecent}
+            />
+          }
         />
 
-        <ActionCard
+        <WelcomeFeatureCard
           icon={<Icon icon="cards" color="currentColor" class="" />}
           title={t('mlearn.Home.Cards.Flashcards.Title')}
           description={t('mlearn.Home.Cards.Flashcards.Description')}
           onClick={openFlashcards}
+          preview={
+            <WelcomeFlashcardPreview
+              card={newestCard()}
+              loading={flashcards.isLoading()}
+              dueCount={flashcards.queueCounts().total}
+              dueLabel={t('mlearn.Flashcards.Statistics.DueToday')}
+              emptyLabel={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
+              loadingLabel={t('mlearn.Global.Loading')}
+              openLabel={t('mlearn.Global.Continue')}
+              onOpen={openFlashcards}
+            />
+          }
         />
 
-        <ActionCard
+        <WelcomeFeatureCard
           icon={<SettingsIcon size={24} />}
           title={t('mlearn.Home.Cards.Settings.Title')}
           description={t('mlearn.Home.Cards.Settings.Description')}
           onClick={openSettings}
+          preview={
+            <WelcomeSettingsPreview
+              generalLabel={t('mlearn.Settings.Tabs.General')}
+              appearanceLabel={t('mlearn.Settings.Tabs.Appearance')}
+              aiLabel={t('mlearn.Settings.Tabs.AI')}
+              shortcutsLabel={t('mlearn.About.KeyboardShortcuts.Title')}
+              onOpen={openSettings}
+            />
+          }
         />
 
-        <ActionCard
+        <WelcomeFeatureCard
           icon={<BarChartIcon size={24} />}
           title={t('mlearn.Home.Cards.Statistics.Title')}
           description={t('mlearn.Home.Cards.Statistics.Description')}
           onClick={openStatistics}
+          preview={
+            <WelcomeStatsPreview
+              days={weekStats()}
+              newTotal={weekTotals().newCards}
+              reviewsTotal={weekTotals().reviews}
+              newLabel={t('mlearn.Statistics.Dashboard.CardState.New')}
+              reviewsLabel={t('mlearn.Statistics.Dashboard.Reviews')}
+              weekdayLabels={weekdayLabels()}
+              onOpen={openStatistics}
+            />
+          }
         />
 
-        <ActionCard
+        <WelcomeFeatureCard
           icon={<SearchIcon size={24} />}
           title={t('mlearn.Home.Cards.WordDatabase.Title')}
           description={t('mlearn.Home.Cards.WordDatabase.Description')}
           onClick={openWordDatabase}
+          preview={
+            <WelcomeLookupPreview
+              mobile={isMobile()}
+              draft={lookupDraft()}
+              placeholder={t('mlearn.Global.Search')}
+              searchLabel={t('mlearn.Global.Search')}
+              emptyHint={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
+              rows={recentWordRows()}
+              onDraftChange={(value) => setLookupDraft(value)}
+              onSubmit={submitLookup}
+              onOpenDatabase={openWordDatabase}
+              onLookupWord={openWordLookup}
+            />
+          }
         />
 
-        <ActionCard
+        <WelcomeFeatureCard
           icon={<TargetIcon size={24} />}
           title={t('mlearn.Home.Cards.LevelStudy.Title')}
           description={t('mlearn.Home.Cards.LevelStudy.Description')}
           onClick={openLevelStudy}
+          preview={
+            <WelcomeLevelPreview
+              coverage={levelCoverage()}
+              active={levelChips().active}
+              chips={levelChips().chips}
+              titleLabel={t('mlearn.LevelStudy.Coverage.Title')}
+              emptyLabel={t('mlearn.Home.Cards.LevelStudy.Description')}
+              onOpen={openLevelStudy}
+            />
+          }
         />
 
         <Show
           when={!isLLMReady(settings)}
           fallback={
-            <ActionCard
+            <WelcomeFeatureCard
               icon={<BotIcon size={24} />}
               title={t('mlearn.Home.Cards.AITutor.Title')}
               description={t('mlearn.Home.Cards.AITutor.Description')}
               onClick={openAITutor}
-              primary
               class="welcome-ai-tutor-card"
+              preview={
+                <WelcomeTutorPreview
+                  ready
+                  readyLabel={t('mlearn.Global.Ready')}
+                  setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
+                  continueLabel={t('mlearn.Global.Continue')}
+                  settingsLabel={t('mlearn.Home.Cards.Settings.Title')}
+                  onLaunch={openAITutor}
+                  onOpenSettings={openSettings}
+                />
+              }
             />
           }
         >
           <Tooltip
             content={t('mlearn.Home.Cards.AITutor.SetupRequiredTooltip')}
           >
-            <ActionCard
+            <WelcomeFeatureCard
               icon={<BotIcon size={24} />}
               title={t('mlearn.Home.Cards.AITutor.Title')}
               description={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
               onClick={openAITutor}
-              primary
               disabled
               class="welcome-ai-tutor-card"
+              preview={
+                <WelcomeTutorPreview
+                  ready={false}
+                  readyLabel={t('mlearn.Global.Ready')}
+                  setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
+                  continueLabel={t('mlearn.Global.Continue')}
+                  settingsLabel={t('mlearn.Home.Cards.Settings.Title')}
+                  onLaunch={openAITutor}
+                  onOpenSettings={openSettings}
+                />
+              }
             />
           </Tooltip>
         </Show>
@@ -247,21 +430,19 @@ export const WelcomeRoute: Component = () => {
         onStart={handleStartTutor}
       />
 
-      {/* Recent Items */}
-      <Show when={recentItems().length > 0}>
-        <section class="welcome-recent">
-          <h2>{t('mlearn.Home.UI.ContinueLearning')}</h2>
-          <div class="recent-grid">
-            <For each={recentItems().slice(0, 4)}>
-              {(item) => (
-                <RecentCard 
-                  item={item} 
-                  onClick={() => openRecent(item)} 
-                />
-              )}
-            </For>
-          </div>
-        </section>
+      {/* Recent item: full-width continue row */}
+      <Show when={recentItems()[0]}>
+        {(item) => (
+          <section class="welcome-continue-section">
+            <h2>{t('mlearn.Home.UI.ContinueLearning')}</h2>
+            <WelcomeContinueRow
+              item={item()}
+              continueLabel={t('mlearn.Global.Continue')}
+              lastWatchedLabel={formatLastWatched(item().lastWatched)}
+              onContinue={openRecent}
+            />
+          </section>
+        )}
       </Show>
 
     </div>

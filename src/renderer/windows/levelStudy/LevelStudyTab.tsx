@@ -2,10 +2,10 @@ import { Component, createEffect, createMemo, createSignal, For, Show } from 'so
 import { useLocalization, useFlashcards, useLanguage, useSettings } from '../../context';
 import { LevelCard } from './LevelCard';
 import { LevelDetailModal } from './LevelDetailModal';
-import { computeLevelStats, resolveLevelStudyWordFrequency } from '../../utils/wordLevelStats';
+import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../utils/wordLevelStats';
 import { ProgressBar, EmptyState, TargetIcon, Btn } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
-import { getFrequencyLevelLabel, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
+import { isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import type { LanguageData } from '../../../shared/types';
 
 function resolveLevelStudyLanguage(
@@ -36,21 +36,6 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-function getLevelStudyFrequency(languageData: LanguageData | null) {
-  return resolveLevelStudyWordFrequency({}, languageData);
-}
-
-function getLevelStudyLevelNames(languageData: LanguageData | null): Record<string, string> {
-  const frequency = getLevelStudyFrequency(languageData);
-  const names: Record<string, string> = { ...(languageData?.frequencyLevels?.names ?? {}) };
-  for (const entry of Object.values(frequency)) {
-    if (!isDisplayableFrequencyLevel(entry.raw_level, names, languageData)) continue;
-    const key = String(entry.raw_level);
-    names[key] = names[key] || entry.level || getFrequencyLevelLabel(entry.raw_level, names, languageData);
-  }
-  return names;
-}
-
 export const LevelStudyTab: Component = () => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
@@ -71,11 +56,21 @@ export const LevelStudyTab: Component = () => {
     )
   ));
 
+  const frequency = createMemo(() => {
+    const langData = resolvedLanguageData().data;
+    return langData ? getLevelStudyFrequency(langData) : {};
+  });
+
+  const levelNames = createMemo(() => {
+    const langData = resolvedLanguageData().data;
+    return langData ? getLevelStudyLevelNames(langData, frequency()) : {};
+  });
+
   const stats = createMemo(() => {
     const resolved = resolvedLanguageData();
     const langData = resolved.data;
     if (!langData) return [];
-    const freq = getLevelStudyFrequency(langData);
+    const freq = frequency();
     if (!freq || Object.keys(freq).length === 0) return [];
     return computeLevelStats(
       flashcards.store,
@@ -83,20 +78,13 @@ export const LevelStudyTab: Component = () => {
       resolved.language,
       settings.known_ease_threshold,
       settings.srsLearningThreshold,
-      getLevelStudyLevelNames(langData),
+      levelNames(),
       langData,
       language.getCanonicalFormForLanguage,
     );
   });
 
-  const coverage = createMemo(() => {
-    const s = stats();
-    if (s.length === 0) return { total: 0, tracked: 0, pct: 0 };
-    const total = s.reduce((sum, level) => sum + level.total, 0);
-    const tracked = s.reduce((sum, level) => sum + level.known + level.learning + level.unknown, 0);
-    const pct = total === 0 ? 0 : Math.round((tracked / total) * 100);
-    return { total, tracked, pct };
-  });
+  const coverage = createMemo(() => summarizeLevelCoverage(stats()));
 
   const hasFrequencyData = createMemo(() => stats().length > 0);
 
@@ -133,13 +121,13 @@ export const LevelStudyTab: Component = () => {
           </div>
           <ProgressBar value={coverage().pct} showPercent />
           <span class="level-study-coverage-hint">
-            {coverage().pct === 100
+            {coverage().complete
               ? t('mlearn.LevelStudy.Coverage.Complete')
               : t('mlearn.LevelStudy.Coverage.Hint')}
           </span>
         </div>
 
-        <Show when={coverage().pct < 100}>
+        <Show when={!coverage().complete}>
           <div class="level-study-bulk-add">
             <Show
               when={showBulkAdd()}
@@ -179,10 +167,10 @@ export const LevelStudyTab: Component = () => {
                     onClick={async () => {
                       const allUntracked: string[] = [];
                       const { language: resolvedLanguage, data: langData } = resolvedLanguageData();
-                      const freq = getLevelStudyFrequency(langData);
-                      const levelNames = getLevelStudyLevelNames(langData);
+                      const freq = frequency();
+                      const names = levelNames();
                       for (const [word, entry] of Object.entries(freq)) {
-                        if (!isDisplayableFrequencyLevel(entry.raw_level, levelNames, langData)) continue;
+                        if (!isDisplayableFrequencyLevel(entry.raw_level, names, langData)) continue;
                         const status = flashcards.getComprehensiveWordStatusSync(word, resolvedLanguage);
                         if (status === 'unknown' && !flashcards.hasWordSync(word, resolvedLanguage)) {
                           allUntracked.push(word);
