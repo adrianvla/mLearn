@@ -2445,6 +2445,8 @@ export interface ConversationAgentContext {
   grammarLevelPercentages: LevelPercentages;
   characterContext?: string;
   subtitleHistory?: string[];
+  /** Draft message to seed the composer with and send once the window is ready. */
+  initialMessage?: string;
 }
 
 /** Grammar point selected by the user for a tutor session */

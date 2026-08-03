@@ -48,6 +48,62 @@ export function selectRecentWordRows(
   return matched.slice(0, max).map((entry) => entry.row);
 }
 
+/**
+ * Live quick-search over the user's flashcards. Empty/whitespace query yields [].
+ * Case-insensitive `includes` match against front, reading, and back; front-prefix
+ * matches rank first, then newest first; capped at max.
+ */
+export function selectWordSearchRows(
+  cards: Record<string, Flashcard>,
+  language: string,
+  query: string,
+  max = 4,
+): RecentWordRow[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const matched: Array<{ createdAt: number; prefix: boolean; row: RecentWordRow }> = [];
+  for (const card of Object.values(cards)) {
+    if (card.language !== language || card.content.unpopulated) continue;
+    if (!card.content.front) continue;
+    const front = card.content.front;
+    const reading = card.content.reading ?? '';
+    const back = card.content.back;
+    const haystack = `${front} ${reading} ${back}`.toLowerCase();
+    if (!haystack.includes(q)) continue;
+    matched.push({
+      createdAt: card.createdAt,
+      prefix: front.toLowerCase().startsWith(q),
+      row: { word: front, reading: card.content.reading, back },
+    });
+  }
+  matched.sort((a, b) => {
+    if (a.prefix !== b.prefix) return a.prefix ? -1 : 1;
+    return b.createdAt - a.createdAt;
+  });
+  return matched.slice(0, max).map((entry) => entry.row);
+}
+
+/**
+ * Merge flashcard search rows with Anki cache words. Flashcard rows keep their
+ * position; Anki words fill the remaining slots, deduped case-insensitively on word.
+ */
+export function mergeWordRows(
+  flashcardRows: RecentWordRow[],
+  ankiWords: string[],
+  max = 4,
+): RecentWordRow[] {
+  const seen = new Set(flashcardRows.map((row) => row.word.toLowerCase()));
+  const merged = [...flashcardRows];
+  for (const word of ankiWords) {
+    if (merged.length >= max) break;
+    const key = word.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({ word, reading: undefined, back: '' });
+  }
+  return merged.slice(0, max);
+}
+
 export interface WeekStatDay {
   /** Local date key in YYYY-MM-DD form, matching the flashcard store's dailyStats keys. */
   date: string;

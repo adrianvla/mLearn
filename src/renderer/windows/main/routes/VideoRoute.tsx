@@ -1473,7 +1473,7 @@ export const VideoRoute: Component = () => {
         <button
           type="button"
           class="video-word-sidebar-backdrop"
-          aria-label={t('mlearn.Global.Aria.Close')}
+          aria-label={t('mlearn.Global.Close')}
           onClick={() => setShowWordSidebar(false)}
         />
         <VideoUnknownWordsSidebar

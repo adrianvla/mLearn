@@ -866,6 +866,12 @@ export const ConversationContent: Component = () => {
             setSceneContext(config.customInstructions);
           }
         }
+        if (typeof rawCtx.initialMessage === 'string' && rawCtx.initialMessage.trim()) {
+          setInputText(rawCtx.initialMessage);
+          queueMicrotask(() => {
+            void handleSend();
+          });
+        }
       }
     });
     bridge.window.getWindowContext('conversation-agent');

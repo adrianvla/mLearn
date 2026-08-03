@@ -1072,7 +1072,9 @@
         },
         "WordDatabase": {
           "Description": "Browse and manage your tracked vocabulary",
-          "Title": "Word Database"
+          "Title": "Word Database",
+          "NoMatches": "No matches found",
+          "LookupHint": "Press Enter to look up \u201c{query}\u201d"
         },
         "CharacterGrid": {
           "Description": "Visual overview of your character knowledge",

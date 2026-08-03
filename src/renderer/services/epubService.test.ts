@@ -160,6 +160,16 @@ describe('epubService', () => {
     expect(epub2.coverImage).toMatchObject({ zipPath: 'OEBPS/img/cover image.png', data: new Uint8Array([13]) });
   });
 
+  it('ruby markup keeps only base text, never leaking rt/rp/rtc readings inline', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><body><p><ruby>豚<rp>(</rp><rt>ぶた</rt><rp>)</rp></ruby>に<ruby>人権<rt>じんけん</rt></ruby>を<ruby><rb>与</rb><rt>あた</rt></ruby>えぬ、<ruby><rb>東</rb><rb>京</rb><rtc><rt>とう</rt><rt>きょう</rt></rtc></ruby></p></body></html>',
+      }],
+    }));
+    expect(content.items[0]).toMatchObject({ text: '豚に人権を与えぬ、東京', previewText: '豚に人権を与えぬ、東京' });
+  });
+
   it('empty-skip omits whitespace-only imageless chapters', async () => {
     const content = await epubToContentPages(makeEpub({
       chapters: [

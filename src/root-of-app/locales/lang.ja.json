@@ -1072,7 +1072,9 @@
         },
         "WordDatabase": {
           "Description": "追跡中の語彙を閲覧・管理",
-          "Title": "単語データベース"
+          "Title": "単語データベース",
+          "NoMatches": "一致する単語がありません",
+          "LookupHint": "Enterキーで「{query}」を調べる"
         },
         "CharacterGrid": {
           "Description": "文字の習得状況を視覚的に確認",

@@ -282,15 +282,17 @@ describe('WelcomeSettingsPreview', () => {
     container.remove();
   });
 
-  it('renders four rows that all open settings', () => {
+  it('renders four rows that deep-link to their settings section', () => {
     const onOpen = vi.fn();
     const dispose = render(
       () => (
         <WelcomeSettingsPreview
-          generalLabel="General"
-          appearanceLabel="Appearance"
-          aiLabel="AI"
-          shortcutsLabel="Keyboard Shortcuts"
+          rows={[
+            { label: 'General', section: 'general' },
+            { label: 'Appearance', section: 'appearance' },
+            { label: 'AI', section: 'ai' },
+            { label: 'Keyboard Shortcuts', section: 'about' },
+          ]}
           onOpen={onOpen}
         />
       ),
@@ -302,7 +304,9 @@ describe('WelcomeSettingsPreview', () => {
     expect(rows[0]?.textContent).toContain('General');
     expect(rows[3]?.textContent).toContain('Keyboard Shortcuts');
     rows[2]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith('ai');
+    rows[3]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onOpen).toHaveBeenCalledWith('about');
 
     dispose();
   });
@@ -382,6 +386,9 @@ describe('WelcomeLookupPreview', () => {
           placeholder="Look up a word"
           searchLabel="Search"
           emptyHint="No words yet"
+          searching={false}
+          noMatchesLabel="No matches found"
+          lookupHint="Press Enter to look up the word"
           rows={[
             { word: 'word1', reading: 'r1', back: 'meaning' },
             { word: 'word2', back: 'other' },
@@ -421,6 +428,9 @@ describe('WelcomeLookupPreview', () => {
           placeholder="Look up a word"
           searchLabel="Search"
           emptyHint="No words yet"
+          searching={false}
+          noMatchesLabel="No matches found"
+          lookupHint="Press Enter to look up the word"
           rows={[]}
           onDraftChange={() => {}}
           onSubmit={() => {}}
@@ -437,6 +447,119 @@ describe('WelcomeLookupPreview', () => {
     dispose();
   });
 
+  it('shows the no-matches hint while searching with zero results', () => {
+    const dispose = render(
+      () => (
+        <WelcomeLookupPreview
+          mobile={false}
+          draft="zzz"
+          placeholder="Look up a word"
+          searchLabel="Search"
+          emptyHint="No words yet"
+          searching
+          noMatchesLabel="No matches found"
+          lookupHint="Press Enter to look up the word"
+          rows={[]}
+          onDraftChange={() => {}}
+          onSubmit={() => {}}
+          onOpenDatabase={() => {}}
+          onLookupWord={() => {}}
+        />
+      ),
+      container,
+    );
+
+    expect(container.querySelector('.wfv-lookup-empty .wfv-empty')?.textContent).toBe('No matches found');
+    expect(container.querySelector('.wfv-lookup-hint')?.textContent).toBe('Press Enter to look up the word');
+    expect(container.querySelectorAll('button.wfv-word-row')).toHaveLength(0);
+
+    dispose();
+  });
+
+  it('shows the Enter-key lookup hint only while searching with zero results', () => {
+    const dispose = render(
+      () => (
+        <WelcomeLookupPreview
+          mobile={false}
+          draft="zzz"
+          placeholder="Look up a word"
+          searchLabel="Search"
+          emptyHint="No words yet"
+          searching
+          noMatchesLabel="No matches found"
+          lookupHint="Press Enter to look up zzz"
+          rows={[]}
+          onDraftChange={() => {}}
+          onSubmit={() => {}}
+          onOpenDatabase={() => {}}
+          onLookupWord={() => {}}
+        />
+      ),
+      container,
+    );
+
+    expect(container.querySelector('.wfv-lookup-hint')?.textContent).toBe('Press Enter to look up zzz');
+    expect(container.querySelector('.wfv-lookup-empty')?.textContent).toContain('No matches found');
+
+    dispose();
+  });
+
+  it('hides the lookup hint when the search is not active', () => {
+    const dispose = render(
+      () => (
+        <WelcomeLookupPreview
+          mobile={false}
+          draft=""
+          placeholder="Look up a word"
+          searchLabel="Search"
+          emptyHint="No words yet"
+          searching={false}
+          noMatchesLabel="No matches found"
+          lookupHint="Press Enter to look up the word"
+          rows={[]}
+          onDraftChange={() => {}}
+          onSubmit={() => {}}
+          onOpenDatabase={() => {}}
+          onLookupWord={() => {}}
+        />
+      ),
+      container,
+    );
+
+    expect(container.querySelector('.wfv-lookup-hint')).toBeNull();
+
+    dispose();
+  });
+
+  it('announces live search rows through an aria-live region', () => {
+    const dispose = render(
+      () => (
+        <WelcomeLookupPreview
+          mobile={false}
+          draft="wo"
+          placeholder="Look up a word"
+          searchLabel="Search"
+          emptyHint="No words yet"
+          searching
+          noMatchesLabel="No matches found"
+          lookupHint="Press Enter to look up the word"
+          rows={[{ word: 'word1', back: 'meaning' }]}
+          onDraftChange={() => {}}
+          onSubmit={() => {}}
+          onOpenDatabase={() => {}}
+          onLookupWord={() => {}}
+        />
+      ),
+      container,
+    );
+
+    const region = container.querySelector('.wfv-word-rows');
+    expect(region?.getAttribute('aria-live')).toBe('polite');
+    expect(region?.querySelector('button.wfv-word-row')?.textContent).toContain('word1');
+
+    dispose();
+  });
+
   it('shows an honest open-database control on mobile', () => {
     const onOpenDatabase = vi.fn();
     const dispose = render(
@@ -447,6 +570,9 @@ describe('WelcomeLookupPreview', () => {
           placeholder="Look up a word"
           searchLabel="Search"
           emptyHint="No words yet"
+          searching={false}
+          noMatchesLabel="No matches found"
+          lookupHint="Press Enter to look up the word"
           rows={[]}
           onDraftChange={() => {}}
           onSubmit={() => {}}
@@ -496,7 +622,7 @@ describe('WelcomeLevelPreview', () => {
     expect(container.querySelector('.wfv-level-value')?.textContent).toBe('60%');
     const chips = container.querySelectorAll('.wfv-level-chip');
     expect(chips).toHaveLength(5);
-    expect(chips[2]?.classList.contains('wfv-level-chip-active')).toBe(true);
+    expect(chips[0]?.classList.contains('wfv-level-chip-active')).toBe(true);
     expect(container.querySelector('.wfv-level-status')?.textContent).toContain('60 / 100');
 
     container.querySelector<HTMLButtonElement>('button.wfv-level-dial-wrap')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -560,51 +686,87 @@ describe('WelcomeTutorPreview', () => {
     container.remove();
   });
 
-  it('launches when ready and opens settings when setup is required', () => {
-    const onLaunch = vi.fn();
-    const onOpenSettings = vi.fn();
+  it('reports draft changes and submits from the composer', () => {
+    const onDraftChange = vi.fn();
+    const onSubmit = vi.fn();
 
-    const disposeReady = render(
+    const dispose = render(
       () => (
         <WelcomeTutorPreview
           ready
           readyLabel="Ready"
           setupLabel="Setup"
-          continueLabel="Continue"
-          settingsLabel="Settings"
-          onLaunch={onLaunch}
-          onOpenSettings={onOpenSettings}
+          placeholder="Message in Japanese..."
+          mobile={false}
+          draft=""
+          onDraftChange={onDraftChange}
+          onSubmit={onSubmit}
         />
       ),
       container,
     );
-    const composer = container.querySelector<HTMLButtonElement>('button.wfv-composer');
-    expect(composer?.getAttribute('aria-label')).toBe('Continue');
-    composer?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onLaunch).toHaveBeenCalledTimes(1);
-    expect(onOpenSettings).not.toHaveBeenCalled();
-    disposeReady();
 
-    container.innerHTML = '';
-    const disposeSetup = render(
+    const input = container.querySelector<HTMLInputElement>('input.wfv-tutor-input');
+    expect(input?.disabled).toBe(false);
+    input!.value = 'hello';
+    input!.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(onDraftChange).toHaveBeenCalledWith('hello');
+
+    container.querySelector('form.wfv-tutor-composer')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+
+    dispose();
+  });
+
+  it('keeps the composer visually present but disabled when setup is required', () => {
+    const dispose = render(
       () => (
         <WelcomeTutorPreview
           ready={false}
           readyLabel="Ready"
           setupLabel="Setup"
-          continueLabel="Continue"
-          settingsLabel="Settings"
-          onLaunch={onLaunch}
-          onOpenSettings={onOpenSettings}
+          placeholder="Message in Japanese..."
+          mobile={false}
+          draft=""
+          onDraftChange={() => {}}
+          onSubmit={vi.fn()}
         />
       ),
       container,
     );
-    const setupComposer = container.querySelector<HTMLButtonElement>('button.wfv-composer');
-    expect(setupComposer?.getAttribute('aria-label')).toBe('Settings');
-    setupComposer?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onLaunch).toHaveBeenCalledTimes(1);
-    expect(onOpenSettings).toHaveBeenCalledTimes(1);
-    disposeSetup();
+
+    const input = container.querySelector<HTMLInputElement>('input.wfv-tutor-input');
+    const send = container.querySelector<HTMLButtonElement>('button.wfv-tutor-send');
+    expect(input).not.toBeNull();
+    expect(input?.disabled).toBe(true);
+    expect(send?.disabled).toBe(true);
+    expect(container.querySelector('.wfv-tutor-status-text')?.textContent).toBe('Setup');
+
+    dispose();
+  });
+
+  it('shows a mobile open button instead of the composer', () => {
+    const onSubmit = vi.fn();
+    const dispose = render(
+      () => (
+        <WelcomeTutorPreview
+          ready
+          readyLabel="Ready"
+          setupLabel="Setup"
+          placeholder="Message in Japanese..."
+          mobile
+          draft=""
+          onDraftChange={() => {}}
+          onSubmit={onSubmit}
+        />
+      ),
+      container,
+    );
+
+    expect(container.querySelector('input.wfv-tutor-input')).toBeNull();
+    container.querySelector<HTMLButtonElement>('button.wfv-tutor-open')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+
+    dispose();
   });
 });

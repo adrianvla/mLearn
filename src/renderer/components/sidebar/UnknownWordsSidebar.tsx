@@ -410,7 +410,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
                   size="sm"
                   variant="ghost"
                   icon={<CloseIcon size={16} />}
-                  aria-label={t('mlearn.Global.Aria.Close')}
+                  aria-label={t('mlearn.Global.Close')}
                   onClick={() => props.onClose?.()}
                 />
               </Show>

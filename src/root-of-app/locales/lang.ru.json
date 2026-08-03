@@ -1072,7 +1072,9 @@
         },
         "WordDatabase": {
           "Description": "Просмотр и управление отслеживаемым словарём",
-          "Title": "База слов"
+          "Title": "База слов",
+          "NoMatches": "Ничего не найдено",
+          "LookupHint": "Нажмите Enter, чтобы найти «{query}»"
         },
         "CharacterGrid": {
           "Description": "Визуальный обзор знания символов",

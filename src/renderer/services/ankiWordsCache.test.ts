@@ -288,3 +288,50 @@ describe('ankiCacheVersion and lastError', () => {
     expect(ankiCacheVersion()).toBeGreaterThan(before);
   });
 });
+
+describe('searchAnkiWordsCache', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockGetAnkiWords.mockReset();
+    mockGetAnkiWords.mockResolvedValue(['仲間']);
+    mockGetAnkiWordStatuses.mockReset();
+    mockGetAnkiWordStatuses.mockResolvedValue([
+      { word: 'Apple', factor: 1300, queue: 0, type: 0 },
+      { word: 'Pineapple', factor: 1300, queue: 0, type: 0 },
+      { word: 'applesauce', factor: 1300, queue: 0, type: 0 },
+      { word: 'Banana', factor: 1300, queue: 0, type: 0 },
+    ]);
+  });
+
+  it('returns [] when the cache entry has not fetched yet', async () => {
+    const { searchAnkiWordsCache } = await import('./ankiWordsCache');
+    expect(searchAnkiWordsCache('Apple')).toEqual([]);
+  });
+
+  it('returns [] for an empty or whitespace-only query', async () => {
+    const { searchAnkiWordsCache, fetchAnkiWordsCache } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+    expect(searchAnkiWordsCache('')).toEqual([]);
+    expect(searchAnkiWordsCache('   ')).toEqual([]);
+  });
+
+  it('ranks prefix matches before contains matches, case-insensitively', async () => {
+    const { searchAnkiWordsCache, fetchAnkiWordsCache } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+    expect(searchAnkiWordsCache('apple')).toEqual(['Apple', 'applesauce', 'Pineapple']);
+  });
+
+  it('caps the result count at max', async () => {
+    const { searchAnkiWordsCache, fetchAnkiWordsCache } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+    expect(searchAnkiWordsCache('apple', 2)).toEqual(['Apple', 'applesauce']);
+  });
+
+  it('searches only the cache entry addressed by options', async () => {
+    const { searchAnkiWordsCache, fetchAnkiWordsCache } = await import('./ankiWordsCache');
+    const options = { language: 'de', languageData: null };
+    await fetchAnkiWordsCache(options);
+    expect(searchAnkiWordsCache('Apple', 6, options)).toEqual(['Apple', 'applesauce', 'Pineapple']);
+    expect(searchAnkiWordsCache('Apple', 6, { language: 'zh', languageData: null })).toEqual([]);
+  });
+});

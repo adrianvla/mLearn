@@ -1072,7 +1072,9 @@
         },
         "WordDatabase": {
           "Description": "Gespeicherte Vokabeln durchsuchen und verwalten",
-          "Title": "Wortdatenbank"
+          "Title": "Wortdatenbank",
+          "NoMatches": "Keine Treffer",
+          "LookupHint": "Drücken Sie Enter, um \u201e{query}\u201c nachzuschlagen"
         },
         "CharacterGrid": {
           "Description": "Visuelle Übersicht über Ihre Zeichenkenntnis",

@@ -138,10 +138,11 @@ function chapterContentAndImageRefs(html: string): { content: EpubChapterContent
     ...Array.from(body.querySelectorAll('img[src]')).map((image) => image.getAttribute('src')),
     ...Array.from(body.querySelectorAll('image')).map((image) => image.getAttribute('xlink:href') ?? image.getAttribute('href')),
   ].filter((ref): ref is string => Boolean(ref));
-  const title = queryText(doc, ['h1', 'h2', 'title']);
-  body.querySelectorAll('script, style, nav').forEach((node) => {
+  // Strip rt/rp/rtc first: textContent would flatten ruby readings inline after each word.
+  body.querySelectorAll('script, style, nav, rt, rp, rtc').forEach((node) => {
     node.remove();
   });
+  const title = queryText(doc, ['h1', 'h2', 'title']);
   const text = Array.from(body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
     .map((node) => cleanText(node.textContent ?? ''))
     .filter(Boolean)

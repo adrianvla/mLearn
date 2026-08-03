@@ -121,8 +121,16 @@ export const SettingsContent: Component = () => {
 
     const cleanup = bridge.window.onOpenSettings(handler);
 
+    const contextCleanup = bridge.window.onWindowContext((ctx) => {
+      if (ctx && typeof ctx.section === 'string') {
+        setActiveTab(resolveTab(ctx.section));
+      }
+    });
+    bridge.window.getWindowContext('settings');
+
     onCleanup(() => {
       cleanup();
+      contextCleanup?.();
     });
   });
 

@@ -3,12 +3,12 @@
  * Start menu showing options to watch videos, open reader, or continue recent content
  */
 
-import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
+import { Component, createEffect, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
+import { Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
 import {
   WelcomeFeatureCard,
   WelcomeVideoPreview,
@@ -27,7 +27,8 @@ import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
-import { selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats } from './welcomeSelectors';
+import { mergeWordRows, selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
+import { ankiCacheVersion, fetchAnkiWordsCache, isAnkiCacheFetched, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
@@ -40,6 +41,14 @@ const log = getLogger("renderer.welcome");
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
 
+/** Blank tutor session used when the composer launches a conversation from a draft message. */
+const DEFAULT_TUTOR_CONFIG: TutorSessionConfig = {
+  selectedGrammar: [],
+  selectedWords: [],
+  selectedMedia: [],
+  customInstructions: '',
+};
+
 export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
   const { settings } = useSettings();
@@ -50,6 +59,7 @@ export const WelcomeRoute: Component = () => {
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
   const [showTutorModal, setShowTutorModal] = createSignal(false);
   const [lookupDraft, setLookupDraft] = createSignal('');
+  const [tutorDraft, setTutorDraft] = createSignal('');
 
   onMount(async () => {
     try {
@@ -71,6 +81,10 @@ export const WelcomeRoute: Component = () => {
 
   const openSettings = () => {
     getBridge().window.openWindow({ type: 'settings' });
+  };
+
+  const openSettingsSection = (section: string) => {
+    getBridge().window.openWindow({ type: 'settings', context: { section } });
   };
 
   const openFlashcards = () => {
@@ -103,6 +117,22 @@ export const WelcomeRoute: Component = () => {
 
   const openAITutor = () => {
     setShowTutorModal(true);
+  };
+
+  const handleTutorSubmit = () => {
+    const draft = tutorDraft().trim();
+    if (draft) {
+      getBridge().window.openWindow({
+        type: 'conversation-agent',
+        context: {
+          tutorConfig: DEFAULT_TUTOR_CONFIG,
+          initialMessage: draft,
+        } as unknown as Record<string, unknown>,
+      });
+      setTutorDraft('');
+      return;
+    }
+    openAITutor();
   };
 
   const handleStartTutor = (config: TutorSessionConfig) => {
@@ -163,9 +193,34 @@ export const WelcomeRoute: Component = () => {
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),
   );
+  const lookupRows = createMemo(() => {
+    ankiCacheVersion();
+    if (!lookupDraft().trim()) return recentWordRows();
+    const flashcardRows = selectWordSearchRows(flashcards.store.flashcards, settings.language, lookupDraft(), 4);
+    if (!settings.use_anki) return flashcardRows;
+    return mergeWordRows(
+      flashcardRows,
+      searchAnkiWordsCache(lookupDraft(), 6, {
+        language: settings.language,
+        languageData: language.currentLangData(),
+      }),
+      4,
+    );
+  });
   const submitLookup = () => {
     openWordLookup(lookupDraft());
   };
+
+  // Prefetch the Anki word cache when tracking is enabled so the first search has data.
+  createEffect(() => {
+    if (!settings.use_anki) return;
+    const options = {
+      language: settings.language,
+      languageData: language.currentLangData(),
+    };
+    if (isAnkiCacheFetched(options)) return;
+    void fetchAnkiWordsCache(options);
+  });
 
   const levelStudySource = createMemo(() => {
     const langData = language.currentLangData();
@@ -248,7 +303,9 @@ export const WelcomeRoute: Component = () => {
               {(flagEmoji) => <> {flagEmoji()}</>}
             </Show>
           </span>
-          <Btn variant="ghost" size="sm" onClick={openSettings}>{t('mlearn.Home.UI.ChangeLanguage')}</Btn>
+          <button type="button" class="welcome-change-language" onClick={openSettings}>
+            {t('mlearn.Home.UI.ChangeLanguage')}
+          </button>
         </div>
       </header>
 
@@ -310,11 +367,13 @@ export const WelcomeRoute: Component = () => {
           onClick={openSettings}
           preview={
             <WelcomeSettingsPreview
-              generalLabel={t('mlearn.Settings.Tabs.General')}
-              appearanceLabel={t('mlearn.Settings.Tabs.Appearance')}
-              aiLabel={t('mlearn.Settings.Tabs.AI')}
-              shortcutsLabel={t('mlearn.About.KeyboardShortcuts.Title')}
-              onOpen={openSettings}
+              rows={[
+                { label: t('mlearn.Settings.Tabs.General'), section: 'general' },
+                { label: t('mlearn.Settings.Tabs.Appearance'), section: 'appearance' },
+                { label: t('mlearn.Settings.Tabs.AI'), section: 'ai' },
+                { label: t('mlearn.About.KeyboardShortcuts.Title'), section: 'about' },
+              ]}
+              onOpen={openSettingsSection}
             />
           }
         />
@@ -349,7 +408,10 @@ export const WelcomeRoute: Component = () => {
               placeholder={t('mlearn.Global.Search')}
               searchLabel={t('mlearn.Global.Search')}
               emptyHint={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
-              rows={recentWordRows()}
+              searching={lookupDraft().trim().length > 0}
+              noMatchesLabel={t('mlearn.Home.Cards.WordDatabase.NoMatches')}
+              lookupHint={t('mlearn.Home.Cards.WordDatabase.LookupHint', { query: lookupDraft().trim() })}
+              rows={lookupRows()}
               onDraftChange={(value) => setLookupDraft(value)}
               onSubmit={submitLookup}
               onOpenDatabase={openWordDatabase}
@@ -389,10 +451,11 @@ export const WelcomeRoute: Component = () => {
                   ready
                   readyLabel={t('mlearn.Global.Ready')}
                   setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
-                  continueLabel={t('mlearn.Global.Continue')}
-                  settingsLabel={t('mlearn.Home.Cards.Settings.Title')}
-                  onLaunch={openAITutor}
-                  onOpenSettings={openSettings}
+                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: getLanguageName() })}
+                  mobile={isMobile()}
+                  draft={tutorDraft()}
+                  onDraftChange={setTutorDraft}
+                  onSubmit={handleTutorSubmit}
                 />
               }
             />
@@ -413,10 +476,11 @@ export const WelcomeRoute: Component = () => {
                   ready={false}
                   readyLabel={t('mlearn.Global.Ready')}
                   setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
-                  continueLabel={t('mlearn.Global.Continue')}
-                  settingsLabel={t('mlearn.Home.Cards.Settings.Title')}
-                  onLaunch={openAITutor}
-                  onOpenSettings={openSettings}
+                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: getLanguageName() })}
+                  mobile={isMobile()}
+                  draft={tutorDraft()}
+                  onDraftChange={setTutorDraft}
+                  onSubmit={handleTutorSubmit}
                 />
               }
             />

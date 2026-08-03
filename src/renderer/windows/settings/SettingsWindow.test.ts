@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 
 const onOpenSettingsMock = vi.fn<(callback: (section?: string) => void) => () => void>();
+const onWindowContextMock = vi.fn<(callback: (context: Record<string, unknown> | null) => void) => () => void>();
+const getWindowContextMock = vi.fn();
 let openSettingsHandler: ((section?: string) => void) | undefined;
+let windowContextHandler: ((context: Record<string, unknown> | null) => void) | undefined;
 
 vi.mock('../../context', () => ({
   useLocalization: () => ({
@@ -39,6 +42,8 @@ vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({
     window: {
       onOpenSettings: onOpenSettingsMock,
+      onWindowContext: onWindowContextMock,
+      getWindowContext: getWindowContextMock,
     },
   }),
 }));
@@ -65,11 +70,20 @@ describe('SettingsContent', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     openSettingsHandler = undefined;
+    windowContextHandler = undefined;
     onOpenSettingsMock.mockReset();
+    onWindowContextMock.mockReset();
+    getWindowContextMock.mockReset();
     onOpenSettingsMock.mockImplementation((callback) => {
       openSettingsHandler = callback;
       return () => {
         openSettingsHandler = undefined;
+      };
+    });
+    onWindowContextMock.mockImplementation((callback) => {
+      windowContextHandler = callback;
+      return () => {
+        windowContextHandler = undefined;
       };
     });
   });
@@ -105,6 +119,42 @@ describe('SettingsContent', () => {
     toggle?.click();
 
     expect(container.querySelector('#settings-navigation')?.classList.contains('tab-list--responsive-sidebar-open')).toBe(true);
+
+    dispose();
+  });
+
+  it('reads the section from the window context on mount', async () => {
+    const { SettingsContent } = await import('./SettingsWindow');
+    const dispose = render(() => SettingsContent({}), container);
+
+    expect(getWindowContextMock).toHaveBeenCalledWith('settings');
+
+    windowContextHandler?.({ section: 'ai' });
+
+    const selectedTab = container.querySelector('[role="tab"][aria-selected="true"]');
+    expect(selectedTab?.querySelector('.tab-label')?.textContent).toContain('AI');
+
+    dispose();
+  });
+
+  it('switches tabs when the window context is pushed to an already-open window', async () => {
+    const { SettingsContent } = await import('./SettingsWindow');
+    const dispose = render(() => SettingsContent({}), container);
+
+    windowContextHandler?.({ section: 'appearance' });
+
+    let selectedTab = container.querySelector('[role="tab"][aria-selected="true"]');
+    expect(selectedTab?.querySelector('.tab-label')?.textContent).toContain('Appearance');
+
+    windowContextHandler?.({ section: 'about' });
+
+    selectedTab = container.querySelector('[role="tab"][aria-selected="true"]');
+    expect(selectedTab?.querySelector('.tab-label')?.textContent).toContain('About');
+
+    windowContextHandler?.(null);
+
+    selectedTab = container.querySelector('[role="tab"][aria-selected="true"]');
+    expect(selectedTab?.querySelector('.tab-label')?.textContent).toContain('About');
 
     dispose();
   });

@@ -166,6 +166,33 @@ export function isWordInAnkiCache(word: string, options?: AnkiWordsCacheOptions)
   return keys.some((key) => entry.wordsSet.has(key));
 }
 
+/**
+ * Case-insensitive search over cached Anki words. Prefix matches rank first,
+ * then includes matches; capped at max. Empty until the cache entry has fetched.
+ */
+export function searchAnkiWordsCache(
+  query: string,
+  max = 6,
+  options?: AnkiWordsCacheOptions,
+): string[] {
+  const entry = options ? getCacheEntry(options) : getActiveCacheEntry();
+  if (!entry.fetched) return [];
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const prefixMatches: string[] = [];
+  const includesMatches: string[] = [];
+  for (const key of entry.wordCardsMap.keys()) {
+    const lower = key.toLowerCase();
+    if (lower.startsWith(q)) {
+      prefixMatches.push(key);
+      if (prefixMatches.length >= max) break;
+    } else if (lower.includes(q) && includesMatches.length < max * 2) {
+      includesMatches.push(key);
+    }
+  }
+  return [...prefixMatches, ...includesMatches].slice(0, max);
+}
+
 /** Return the first matched Anki cache entry, preserving candidate priority. */
 export function findAnkiWordMatchInCache(words: readonly string[], options?: AnkiWordsCacheOptions): AnkiWordCacheMatch | null {
   const entry = options ? getCacheEntry(options) : getActiveCacheEntry();

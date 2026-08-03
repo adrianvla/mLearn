@@ -2758,7 +2758,7 @@ export const ReaderRoute: Component = () => {
           <button
             type="button"
             class="reader-sidebar-backdrop"
-            aria-label={t('mlearn.Global.Aria.Close')}
+            aria-label={t('mlearn.Global.Close')}
             onClick={() => {
               setShowSidebar(false);
               setShowWordSidebar(false);

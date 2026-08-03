@@ -176,29 +176,25 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
   );
 };
 
-export interface WelcomeSettingsPreviewProps {
-  generalLabel: string;
-  appearanceLabel: string;
-  aiLabel: string;
-  shortcutsLabel: string;
-  onOpen: () => void;
+export interface WelcomeSettingsRow {
+  label: string;
+  /** Settings tab section this row deep-links to (resolved by the Settings window). */
+  section: string;
 }
 
-/** Compact settings menu: each row opens the existing Settings window. */
-export const WelcomeSettingsPreview: Component<WelcomeSettingsPreviewProps> = (props) => {
-  const rows = () => [
-    props.generalLabel,
-    props.appearanceLabel,
-    props.aiLabel,
-    props.shortcutsLabel,
-  ];
+export interface WelcomeSettingsPreviewProps {
+  rows: WelcomeSettingsRow[];
+  onOpen: (section: string) => void;
+}
 
+/** Compact settings menu: each row opens the Settings window on its tab. */
+export const WelcomeSettingsPreview: Component<WelcomeSettingsPreviewProps> = (props) => {
   return (
     <div class="wfv-settings">
-      <For each={rows()}>
-        {(label) => (
-          <button type="button" class="wfv-settings-row" onClick={props.onOpen}>
-            <span class="wfv-settings-label">{label}</span>
+      <For each={props.rows}>
+        {(row) => (
+          <button type="button" class="wfv-settings-row" onClick={() => props.onOpen(row.section)}>
+            <span class="wfv-settings-label">{row.label}</span>
             <svg class="wfv-settings-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>
         )}
@@ -269,6 +265,12 @@ export interface WelcomeLookupPreviewProps {
   placeholder: string;
   searchLabel: string;
   emptyHint: string;
+  /** True while the user has typed a search query (draft is non-empty). */
+  searching: boolean;
+  /** Localized hint shown when a search query matches no flashcards. */
+  noMatchesLabel: string;
+  /** Localized hint pointing at the Enter-key dictionary lookup escape hatch. */
+  lookupHint: string;
   rows: RecentWordRow[];
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
@@ -276,7 +278,7 @@ export interface WelcomeLookupPreviewProps {
   onLookupWord: (word: string) => void;
 }
 
-/** Custom search console plus real recent word rows; rows open a quick lookup. */
+/** Custom search console plus real word rows; rows open a quick lookup. */
 export const WelcomeLookupPreview: Component<WelcomeLookupPreviewProps> = (props) => {
   return (
     <div class="wfv-lookup">
@@ -304,28 +306,37 @@ export const WelcomeLookupPreview: Component<WelcomeLookupPreviewProps> = (props
                 <span>{props.searchLabel}</span>
               </button>
             </form>
-            <Show
-              when={props.rows.length > 0}
-              fallback={<p class="wfv-empty wfv-lookup-empty">{props.emptyHint}</p>}
-            >
-              <div class="wfv-word-rows">
-                <For each={props.rows}>
-                  {(row) => (
-                    <button
-                      type="button"
-                      class="wfv-word-row"
-                      onClick={() => props.onLookupWord(row.word)}
-                    >
-                      <span class="wfv-word-front">{row.word}</span>
-                      <Show when={row.reading}>
-                        <span class="wfv-word-reading">{row.reading}</span>
-                      </Show>
-                      <span class="wfv-word-back">{row.back}</span>
-                    </button>
-                  )}
-                </For>
-              </div>
-            </Show>
+            <div class="wfv-word-rows" aria-live="polite">
+              <Show
+                when={props.rows.length === 0}
+                fallback={
+                  <For each={props.rows}>
+                    {(row) => (
+                      <button
+                        type="button"
+                        class="wfv-word-row"
+                        onClick={() => props.onLookupWord(row.word)}
+                      >
+                        <span class="wfv-word-front">{row.word}</span>
+                        <Show when={row.reading}>
+                          <span class="wfv-word-reading">{row.reading}</span>
+                        </Show>
+                        <span class="wfv-word-back">{row.back}</span>
+                      </button>
+                    )}
+                  </For>
+                }
+              >
+                <div class="wfv-lookup-empty">
+                  <p class="wfv-empty">
+                    {props.searching ? props.noMatchesLabel : props.emptyHint}
+                  </p>
+                  <Show when={props.searching && props.rows.length === 0}>
+                    <p class="wfv-lookup-hint">{props.lookupHint}</p>
+                  </Show>
+                </div>
+              </Show>
+            </div>
           </div>
         }
       >
@@ -355,53 +366,67 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
       : Math.min(Math.round(level.knownPct), 99)
   );
 
+  const remainingChips = () => props.chips.filter(
+    (chip) => props.active === null || chip.level !== props.active.level,
+  );
+
   return (
     <div class="wfv-level">
-      <button
-        type="button"
-        class="wfv-level-dial-wrap"
-        onClick={props.onOpen}
-        aria-label={props.coverage === null ? props.emptyLabel : `${props.titleLabel}: ${props.coverage.pct}%`}
-      >
-        <svg class="wfv-level-dial" viewBox="0 0 100 100" role="img" aria-hidden="true">
-          <circle class="wfv-level-track" cx="50" cy="50" r="44" pathLength="100" />
-          <Show when={props.coverage}>
-            {(coverage) => (
-              <circle
-                class="wfv-level-fill"
-                cx="50"
-                cy="50"
-                r="44"
-                pathLength="100"
-                stroke-dasharray="100"
-                stroke-dashoffset={100 - coverage().pct}
-              />
-            )}
-          </Show>
-        </svg>
-        <span class="wfv-level-value">{props.coverage === null ? '0%' : `${props.coverage.pct}%`}</span>
-      </button>
-      <Show
-        when={props.coverage}
-        fallback={<p class="wfv-empty">{props.emptyLabel}</p>}
-      >
-        {(coverage) => (
-          <>
-            <div class="wfv-level-chips">
-              <For each={props.chips}>
-                {(chip) => (
-                  <span
-                    class={`wfv-level-chip ${props.active !== null && chip.level === props.active.level ? 'wfv-level-chip-active' : ''}`}
-                  >
-                    <span class="wfv-level-chip-name">{chip.name}</span>
-                    <span class="wfv-level-chip-pct">{knownPct(chip)}%</span>
+      <div class="wfv-level-top">
+        <button
+          type="button"
+          class="wfv-level-dial-wrap"
+          onClick={props.onOpen}
+          aria-label={props.coverage === null ? props.emptyLabel : `${props.titleLabel}: ${props.coverage.pct}%`}
+        >
+          <svg class="wfv-level-dial" viewBox="0 0 100 100" role="img" aria-hidden="true">
+            <circle class="wfv-level-track" cx="50" cy="50" r="44" pathLength="100" />
+            <Show when={props.coverage}>
+              {(coverage) => (
+                <circle
+                  class="wfv-level-fill"
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  pathLength="100"
+                  stroke-dasharray="100"
+                  stroke-dashoffset={100 - coverage().pct}
+                />
+              )}
+            </Show>
+          </svg>
+          <span class="wfv-level-value">{props.coverage === null ? '0%' : `${props.coverage.pct}%`}</span>
+        </button>
+        <Show
+          when={props.coverage}
+          fallback={<p class="wfv-empty">{props.emptyLabel}</p>}
+        >
+          {(coverage) => (
+            <div class="wfv-level-side">
+              <Show when={props.active}>
+                {(active) => (
+                  <span class="wfv-level-chip wfv-level-chip-active">
+                    <span class="wfv-level-chip-name">{active().name}</span>
+                    <span class="wfv-level-chip-pct">{knownPct(active())}%</span>
                   </span>
                 )}
-              </For>
+              </Show>
+              <p class="wfv-level-status">{coverage().tracked} / {coverage().total}</p>
             </div>
-            <p class="wfv-level-status">{coverage().tracked} / {coverage().total}</p>
-          </>
-        )}
+          )}
+        </Show>
+      </div>
+      <Show when={props.coverage && remainingChips().length > 0}>
+        <div class="wfv-level-chips">
+          <For each={remainingChips()}>
+            {(chip) => (
+              <span class="wfv-level-chip">
+                <span class="wfv-level-chip-name">{chip.name}</span>
+                <span class="wfv-level-chip-pct">{knownPct(chip)}%</span>
+              </span>
+            )}
+          </For>
+        </div>
       </Show>
     </div>
   );
@@ -411,23 +436,17 @@ export interface WelcomeTutorPreviewProps {
   ready: boolean;
   readyLabel: string;
   setupLabel: string;
-  continueLabel: string;
-  settingsLabel: string;
-  onLaunch: () => void;
-  onOpenSettings: () => void;
+  placeholder: string;
+  mobile: boolean;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSubmit: () => void;
 }
 
-/** Conversation-launch surface: bubble stack, real readiness status, composer-shaped launch. */
+/** Readiness status pill plus a real composer; setup state keeps the composer disabled. */
 export const WelcomeTutorPreview: Component<WelcomeTutorPreviewProps> = (props) => {
-  const actionLabel = () => (props.ready ? props.continueLabel : props.settingsLabel);
-
   return (
     <div class="wfv-tutor">
-      <div class="wfv-tutor-bubbles" aria-hidden="true">
-        <span class="wfv-tutor-bubble wfv-tutor-bubble-a" />
-        <span class="wfv-tutor-bubble wfv-tutor-bubble-b" />
-        <span class="wfv-tutor-bubble wfv-tutor-bubble-c" />
-      </div>
       <div class="wfv-tutor-status">
         <span
           class={`wfv-tutor-dot ${props.ready ? 'wfv-tutor-dot-ready' : 'wfv-tutor-dot-setup'}`}
@@ -437,15 +456,40 @@ export const WelcomeTutorPreview: Component<WelcomeTutorPreviewProps> = (props) 
           {props.ready ? props.readyLabel : props.setupLabel}
         </span>
       </div>
-      <button
-        type="button"
-        class="wfv-composer"
-        onClick={props.ready ? props.onLaunch : props.onOpenSettings}
-        aria-label={actionLabel()}
+      <Show
+        when={props.mobile}
+        fallback={
+          <form
+            class="wfv-tutor-composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              props.onSubmit();
+            }}
+          >
+            <input
+              class="wfv-tutor-input"
+              type="text"
+              value={props.draft}
+              placeholder={props.placeholder}
+              aria-label={props.placeholder}
+              disabled={!props.ready}
+              onInput={(e) => props.onDraftChange(e.currentTarget.value)}
+            />
+            <button
+              type="submit"
+              class="wfv-tutor-send"
+              disabled={!props.ready}
+              aria-label={props.ready ? props.readyLabel : props.setupLabel}
+            >
+              <svg class="wfv-composer-send" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8-8-2z" /></svg>
+            </button>
+          </form>
+        }
       >
-        <span class="wfv-composer-label">{actionLabel()}</span>
-        <svg class="wfv-composer-send" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8-8-2z" /></svg>
-      </button>
+        <button type="button" class="wfv-tactile wfv-tutor-open" onClick={props.onSubmit}>
+          {props.ready ? props.readyLabel : props.setupLabel}
+        </button>
+      </Show>
     </div>
   );
 };

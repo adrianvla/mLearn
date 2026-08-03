@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats } from './welcomeSelectors';
+import { mergeWordRows, selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
 import type { Flashcard } from '../../../../shared/types';
 
 const makeCard = (overrides: Partial<Flashcard> & { id: string; createdAt: number }): Flashcard => ({
@@ -69,6 +69,56 @@ describe('selectRecentWordRows', () => {
   });
 });
 
+describe('selectWordSearchRows', () => {
+  it('returns [] for an empty or whitespace-only query', () => {
+    const cards = { a: makeCard({ id: 'a', createdAt: 1 }) };
+    expect(selectWordSearchRows(cards, 'ja', '')).toEqual([]);
+    expect(selectWordSearchRows(cards, 'ja', '   ')).toEqual([]);
+  });
+
+  it('filters by language and skips unpopulated shells', () => {
+    const cards = {
+      other: makeCard({ id: 'other', createdAt: 900, language: 'de', content: { type: 'word', front: 'cat', back: 'Katze' } }),
+      shell: makeCard({ id: 'shell', createdAt: 800, content: { type: 'word', front: 'cat', back: 'x', unpopulated: true } }),
+      real: makeCard({ id: 'real', createdAt: 100, content: { type: 'word', front: 'cat', back: 'neko' } }),
+    };
+    const rows = selectWordSearchRows(cards, 'ja', 'cat');
+    expect(rows).toEqual([{ word: 'cat', back: 'neko' }]);
+  });
+
+  it('matches case-insensitively across front, reading, and back', () => {
+    const cards = {
+      front: makeCard({ id: 'front', createdAt: 1, content: { type: 'word', front: 'Pineapple', back: 'b1' } }),
+      reading: makeCard({ id: 'reading', createdAt: 2, content: { type: 'word', front: 'x', reading: 'APPLE', back: 'b2' } }),
+      back: makeCard({ id: 'back', createdAt: 3, content: { type: 'word', front: 'y', back: 'apple pie' } }),
+      none: makeCard({ id: 'none', createdAt: 4, content: { type: 'word', front: 'zzz', back: 'yyy' } }),
+    };
+    const rows = selectWordSearchRows(cards, 'ja', 'APPLE');
+    expect(rows.map((r) => r.word)).toEqual(['y', 'x', 'Pineapple']);
+  });
+
+  it('ranks front-prefix matches first, then newest first', () => {
+    const cards = {
+      prefixNewer: makeCard({ id: 'prefixNewer', createdAt: 200, content: { type: 'word', front: 'kitten', back: 'b1' } }),
+      containsOlder: makeCard({ id: 'containsOlder', createdAt: 900, content: { type: 'word', front: 'the kitchen sink', back: 'b2' } }),
+      prefixOlder: makeCard({ id: 'prefixOlder', createdAt: 50, content: { type: 'word', front: 'kit', back: 'b3' } }),
+      prefixNewest: makeCard({ id: 'prefixNewest', createdAt: 800, content: { type: 'word', front: 'kitty', back: 'b4' } }),
+    };
+    const rows = selectWordSearchRows(cards, 'ja', 'kit');
+    expect(rows.map((r) => r.word)).toEqual(['kitty', 'kitten', 'kit', 'the kitchen sink']);
+  });
+
+  it('caps the result count at max', () => {
+    const cards: Record<string, Flashcard> = {};
+    for (let i = 0; i < 6; i += 1) {
+      cards[`c${i}`] = makeCard({ id: `c${i}`, createdAt: i, content: { type: 'word', front: `word${i}`, back: 'b' } });
+    }
+    const rows = selectWordSearchRows(cards, 'ja', 'word', 3);
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.word)).toEqual(['word5', 'word4', 'word3']);
+  });
+});
+
 describe('selectWeekStats', () => {
   it('returns exactly seven oldest-first days with per-language values and zeroed gaps', () => {
     const now = new Date(2026, 0, 10, 12, 0, 0); // 2026-01-10
@@ -99,6 +149,47 @@ describe('selectWeekStats', () => {
       '2026-05-26', '2026-05-27', '2026-05-28', '2026-05-29',
       '2026-05-30', '2026-05-31', '2026-06-01',
     ]);
+  });
+});
+
+describe('mergeWordRows', () => {
+  it('keeps flashcard rows first and fills the remaining slots with anki words', () => {
+    const rows = mergeWordRows(
+      [
+        { word: 'cat', reading: 'neko', back: 'animal' },
+        { word: 'dog', back: 'pet' },
+      ],
+      ['cat', 'bird', 'fish'],
+      4,
+    );
+    expect(rows).toEqual([
+      { word: 'cat', reading: 'neko', back: 'animal' },
+      { word: 'dog', back: 'pet' },
+      { word: 'bird', reading: undefined, back: '' },
+      { word: 'fish', reading: undefined, back: '' },
+    ]);
+  });
+
+  it('dedupes anki words against flashcard rows case-insensitively', () => {
+    const rows = mergeWordRows(
+      [{ word: 'Cat', back: 'b1' }],
+      ['cat', 'CAT', 'Dog'],
+      4,
+    );
+    expect(rows.map((r) => r.word)).toEqual(['Cat', 'Dog']);
+  });
+
+  it('caps the merged result at max', () => {
+    const rows = mergeWordRows(
+      [
+        { word: 'a', back: '' },
+        { word: 'b', back: '' },
+      ],
+      ['c', 'd', 'e'],
+      3,
+    );
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.word)).toEqual(['a', 'b', 'c']);
   });
 });
 

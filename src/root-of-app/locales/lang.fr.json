@@ -1072,7 +1072,9 @@
         },
         "WordDatabase": {
           "Description": "Parcourir et gérer votre vocabulaire suivi",
-          "Title": "Base de mots"
+          "Title": "Base de mots",
+          "NoMatches": "Aucun résultat",
+          "LookupHint": "Appuyez sur Entrée pour rechercher « {query} »"
         },
         "CharacterGrid": {
           "Description": "Aperçu visuel de votre connaissance des caractères",

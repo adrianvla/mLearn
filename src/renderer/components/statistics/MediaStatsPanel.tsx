@@ -70,7 +70,7 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
     <div class="media-stats-panel">
       <div class="media-stats-header">
         <h3 class="media-stats-title">{props.stats.mediaName}</h3>
-        <IconBtn variant="ghost" onClick={props.onClose} aria-label={t('mlearn.Global.Aria.Close')}>
+        <IconBtn variant="ghost" onClick={props.onClose} aria-label={t('mlearn.Global.Close')}>
           <CloseIcon size={16} />
         </IconBtn>
       </div>

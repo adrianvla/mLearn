@@ -1072,7 +1072,9 @@
         },
         "WordDatabase": {
           "Description": "浏览和管理您的追踪词汇",
-          "Title": "单词数据库"
+          "Title": "单词数据库",
+          "NoMatches": "未找到匹配项",
+          "LookupHint": "按 Enter 键查找「{query}」"
         },
         "CharacterGrid": {
           "Description": "字符掌握情况的视觉概览",
