@@ -375,6 +375,17 @@ export const GeneralTab: Component = () => {
           />
         </SettingRow>
 
+        <SettingRow
+          label={t('mlearn.Settings.Appearance.SimplifyHomeScreen.Label')}
+          description={t('mlearn.Settings.Appearance.SimplifyHomeScreen.Description')}
+          settingKey="simplifyHomeScreen"
+        >
+          <ToggleSwitch
+            checked={settings.simplifyHomeScreen ?? DEFAULT_SETTINGS.simplifyHomeScreen}
+            onChange={(checked) => updateSettings({ simplifyHomeScreen: checked })}
+          />
+        </SettingRow>
+
         <Show when={settings.theme === 'custom'}>
           <SettingRow
             label={t('mlearn.Settings.Appearance.Theme.CustomCssLabel')}

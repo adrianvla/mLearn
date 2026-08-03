@@ -1456,6 +1456,10 @@
           "Custom": "Custom",
           "CustomCssDescription": "Edit the CSS for your custom theme. Changes apply live.",
           "CustomCssLabel": "Custom CSS"
+        },
+        "SimplifyHomeScreen": {
+          "Description": "Show the home screen as a plain button grid without interactive previews.",
+          "Label": "Simplify home screen"
         }
       },
       "BlurEffect": {

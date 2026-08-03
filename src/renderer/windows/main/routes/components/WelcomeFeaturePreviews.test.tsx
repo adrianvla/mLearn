@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 import {
   WelcomeFlashcardPreview,
   WelcomeLevelPreview,
@@ -195,7 +196,9 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="None"
           loadingLabel="Loading"
           openLabel="Open"
+          ratingButtons={[]}
           onOpen={() => {}}
+          onRate={() => {}}
         />
       ),
       container,
@@ -231,7 +234,9 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="None"
           loadingLabel="Loading"
           openLabel="Open"
+          ratingButtons={[]}
           onOpen={() => {}}
+          onRate={() => {}}
         />
       ),
       container,
@@ -256,7 +261,9 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="No cards"
           loadingLabel="Loading"
           openLabel="Open"
+          ratingButtons={[]}
           onOpen={() => {}}
+          onRate={() => {}}
         />
       ),
       container,
@@ -265,6 +272,83 @@ describe('WelcomeFlashcardPreview', () => {
     expect(container.querySelector('.wfv-flashcard-shell')).not.toBeNull();
     expect(container.querySelector('.wfv-flashcard-shell .wfv-flashcard-text')?.textContent).toBe('No cards');
     expect(container.querySelector('button.wfv-flashcard-stage')).toBeNull();
+
+    dispose();
+  });
+
+  it('renders rating buttons and forwards the chosen quality', () => {
+    const onRate = vi.fn();
+    const dispose = render(
+      () => (
+        <WelcomeFlashcardPreview
+          card={makeCard('front', 'back')}
+          loading={false}
+          dueCount={3}
+          dueLabel="Due"
+          emptyLabel="None"
+          loadingLabel="Loading"
+          openLabel="Open"
+          ratingButtons={[
+            { quality: 'again', label: 'Again', time: '<10m' },
+            { quality: 'good', label: 'Ok', time: '10m' },
+          ]}
+          onOpen={() => {}}
+          onRate={onRate}
+        />
+      ),
+      container,
+    );
+
+    const again = container.querySelector('.wfv-flashcard-rating-again');
+    expect(again).toBeNull();
+
+    const stage = container.querySelector('button.wfv-flashcard-stage');
+    stage?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    const againAfterFlip = container.querySelector('.wfv-flashcard-rating-again');
+    const goodAfterFlip = container.querySelector('.wfv-flashcard-rating-good');
+    expect(againAfterFlip?.textContent).toContain('Again');
+    expect(againAfterFlip?.textContent).toContain('<10m');
+    expect(goodAfterFlip).not.toBeNull();
+
+    againAfterFlip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onRate).toHaveBeenCalledWith('again');
+
+    dispose();
+  });
+
+  it('resets to the front when the card changes', () => {
+    const dispose = render(
+      () => {
+        const [card, setCard] = createSignal<Flashcard | null>(makeCard('front', 'back'));
+        return (
+          <>
+            <WelcomeFlashcardPreview
+              card={card()}
+              loading={false}
+              dueCount={3}
+              dueLabel="Due"
+              emptyLabel="None"
+              loadingLabel="Loading"
+              openLabel="Open"
+              ratingButtons={[]}
+              onOpen={() => {}}
+              onRate={() => {}}
+            />
+            <button type="button" class="next-card" onClick={() => setCard(makeCard('next', 'answer'))}>next</button>
+          </>
+        );
+      },
+      container,
+    );
+
+    const stage = container.querySelector('button.wfv-flashcard-stage');
+    stage?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(container.querySelector('.wfv-flashcard-inner')?.classList.contains('flipped')).toBe(true);
+
+    (container.querySelector('button.next-card') as HTMLButtonElement).click();
+    expect(container.querySelector('.wfv-flashcard-inner')?.classList.contains('flipped')).toBe(false);
+    expect(container.querySelector('.wfv-flashcard-front .wfv-flashcard-text')?.textContent).toBe('next');
 
     dispose();
   });

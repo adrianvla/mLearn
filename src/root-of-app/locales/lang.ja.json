@@ -1456,6 +1456,10 @@
           "Custom": "カスタム",
           "CustomCssDescription": "カスタムテーマのCSSを編集します。変更はリアルタイムで適用されます。",
           "CustomCssLabel": "カスタムCSS"
+        },
+        "SimplifyHomeScreen": {
+          "Description": "ホーム画面をインタラクティブなプレビューなしのシンプルなボタングリッドで表示します。",
+          "Label": "ホーム画面をシンプルにする"
         }
       },
       "BlurEffect": {

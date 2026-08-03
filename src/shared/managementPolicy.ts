@@ -67,6 +67,7 @@ const settingRegistry = {
   hideReadingForKnownWords: 'boolean',
   showProsody: 'boolean',
   showDictionary: 'boolean',
+  simplifyHomeScreen: 'boolean',
   use_anki: 'boolean',
   flashcardSkipAnkiChoice: 'boolean',
   skipAnkiDuplicateWarning: 'boolean',

@@ -3,7 +3,7 @@
  * Start menu showing options to watch videos, open reader, or continue recent content
  */
 
-import { Component, createEffect, createMemo, createSignal, onMount, Show } from 'solid-js';
+import { Component, createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
@@ -21,13 +21,16 @@ import {
   WelcomeTutorPreview,
   WelcomeContinueRow,
 } from './components';
+import { ActionCard } from '../../../components/common/Card/ActionCard';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
-import { mergeWordRows, selectLevelChips, selectNewestFlashcard, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
+import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
+import { fetchTranslation } from '../../../hooks/useTranslation';
+import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { ankiCacheVersion, fetchAnkiWordsCache, isAnkiCacheFetched, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
@@ -187,26 +190,64 @@ export const WelcomeRoute: Component = () => {
   const videoItem = () => recentItems().find((item) => item.type === 'video') ?? null;
   const bookItem = () => recentItems().find((item) => item.type === 'book') ?? null;
 
-  const newestCard = createMemo(() =>
-    selectNewestFlashcard(flashcards.store.flashcards, settings.language),
-  );
+  const currentCard = createMemo(() => flashcards.getCurrentCard());
+  const ratingButtons = createMemo(() => {
+    const dates = flashcards.getPreviewDueDates();
+    if (!dates) return [];
+    return [
+      { quality: 'again' as const, label: t('mlearn.Flashcards.Review.Again'), time: flashcards.dueDateToString(dates.again) },
+      { quality: 'hard' as const, label: t('mlearn.Flashcards.Review.Hard'), time: flashcards.dueDateToString(dates.hard) },
+      { quality: 'good' as const, label: t('mlearn.Flashcards.Review.Ok'), time: flashcards.dueDateToString(dates.good) },
+      { quality: 'easy' as const, label: t('mlearn.Flashcards.Review.Easy'), time: flashcards.dueDateToString(dates.easy) },
+    ];
+  });
+  const rateCard = (quality: 'again' | 'hard' | 'good' | 'easy') => {
+    const card = currentCard();
+    if (card) flashcards.answerCard(quality, card.id);
+  };
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),
   );
   const lookupRows = createMemo(() => {
     ankiCacheVersion();
-    if (!lookupDraft().trim()) return recentWordRows();
-    const flashcardRows = selectWordSearchRows(flashcards.store.flashcards, settings.language, lookupDraft(), 4);
-    if (!settings.use_anki) return flashcardRows;
-    return mergeWordRows(
-      flashcardRows,
-      searchAnkiWordsCache(lookupDraft(), 6, {
-        language: settings.language,
-        languageData: language.currentLangData(),
-      }),
-      4,
-    );
+    const draft = lookupDraft().trim();
+    if (!draft) return recentWordRows();
+    const flashcardRows = selectWordSearchRows(flashcards.store.flashcards, settings.language, draft, 4);
+    const personalRows = settings.use_anki
+      ? mergeWordRows(
+          flashcardRows,
+          searchAnkiWordsCache(draft, 6, {
+            language: settings.language,
+            languageData: language.currentLangData(),
+          }),
+          4,
+        )
+      : flashcardRows;
+    return mergeRowLists(personalRows, selectDictionaryRows(dictResponse() ?? null, draft, 4), 4);
   });
+
+  const [dictLookupWord, setDictLookupWord] = createSignal('');
+  createEffect(() => {
+    const draft = lookupDraft().trim();
+    if (!draft) {
+      setDictLookupWord('');
+      return;
+    }
+    const timer = setTimeout(() => setDictLookupWord(draft), 300);
+    onCleanup(() => clearTimeout(timer));
+  });
+  const [dictResponse] = createResource(
+    () => dictLookupWord() || undefined,
+    async (word) => {
+      if (!word) return null;
+      return fetchTranslation(word, settings.language, {
+        getCanonicalForm: language.getCanonicalForm,
+        getWordVariants: language.getWordVariants,
+        dictionaryTargetLanguage: getDictionaryTargetLanguageForSettings(settings),
+        languageData: language.currentLangData,
+      });
+    },
+  );
   const submitLookup = () => {
     openWordLookup(lookupDraft());
   };
@@ -310,21 +351,24 @@ export const WelcomeRoute: Component = () => {
       </header>
 
       {/* Main Actions */}
-      <section class="welcome-actions">
-        <WelcomeFeatureCard
-          icon={<VideoIcon size={24} />}
-          title={t('mlearn.Home.Cards.Video.Title')}
-          description={t('mlearn.Home.Cards.Video.Description')}
-          onClick={openVideoPlayer}
-          preview={
-            <WelcomeVideoPreview
-              item={videoItem()}
-              emptyLabel={t('mlearn.Home.Cards.Video.Description')}
-              continueLabel={t('mlearn.Global.Continue')}
-              onResume={openRecent}
+      <Show
+        when={settings.simplifyHomeScreen}
+        fallback={
+          <section class="welcome-actions">
+            <WelcomeFeatureCard
+              icon={<VideoIcon size={24} />}
+              title={t('mlearn.Home.Cards.Video.Title')}
+              description={t('mlearn.Home.Cards.Video.Description')}
+              onClick={openVideoPlayer}
+              preview={
+                <WelcomeVideoPreview
+                  item={videoItem()}
+                  emptyLabel={t('mlearn.Home.Cards.Video.Description')}
+                  continueLabel={t('mlearn.Global.Continue')}
+                  onResume={openRecent}
+                />
+              }
             />
-          }
-        />
 
         <WelcomeFeatureCard
           icon={<BookIcon size={24} />}
@@ -348,14 +392,16 @@ export const WelcomeRoute: Component = () => {
           onClick={openFlashcards}
           preview={
             <WelcomeFlashcardPreview
-              card={newestCard()}
+              card={currentCard()}
               loading={flashcards.isLoading()}
               dueCount={flashcards.queueCounts().total}
               dueLabel={t('mlearn.Flashcards.Statistics.DueToday')}
               emptyLabel={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
               loadingLabel={t('mlearn.Global.Loading')}
               openLabel={t('mlearn.Global.Continue')}
+              ratingButtons={ratingButtons()}
               onOpen={openFlashcards}
+              onRate={rateCard}
             />
           }
         />
@@ -407,7 +453,7 @@ export const WelcomeRoute: Component = () => {
               draft={lookupDraft()}
               placeholder={t('mlearn.Global.Search')}
               searchLabel={t('mlearn.Global.Search')}
-              emptyHint={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
+              emptyHint={t('mlearn.Home.Cards.WordDatabase.EmptyHint')}
               searching={lookupDraft().trim().length > 0}
               noMatchesLabel={t('mlearn.Home.Cards.WordDatabase.NoMatches')}
               lookupHint={t('mlearn.Home.Cards.WordDatabase.LookupHint', { query: lookupDraft().trim() })}
@@ -486,7 +532,76 @@ export const WelcomeRoute: Component = () => {
             />
           </Tooltip>
         </Show>
-      </section>
+          </section>
+        }
+      >
+        <section class="welcome-actions welcome-actions--simple">
+          <ActionCard
+            icon={<VideoIcon size={24} />}
+            title={t('mlearn.Home.Cards.Video.Title')}
+            description={t('mlearn.Home.Cards.Video.Description')}
+            onClick={openVideoPlayer}
+            primary
+          />
+
+          <ActionCard
+            icon={<BookIcon size={24} />}
+            title={t('mlearn.Home.Cards.Reader.Title')}
+            description={t('mlearn.Home.Cards.Reader.Description')}
+            onClick={openReader}
+            primary
+          />
+
+          <ActionCard
+            icon={<Icon icon="cards" color="currentColor" class="" />}
+            title={t('mlearn.Home.Cards.Flashcards.Title')}
+            description={t('mlearn.Home.Cards.Flashcards.Description')}
+            onClick={openFlashcards}
+          />
+
+          <ActionCard
+            icon={<SettingsIcon size={24} />}
+            title={t('mlearn.Home.Cards.Settings.Title')}
+            description={t('mlearn.Home.Cards.Settings.Description')}
+            onClick={openSettings}
+          />
+
+          <ActionCard
+            icon={<BarChartIcon size={24} />}
+            title={t('mlearn.Home.Cards.Statistics.Title')}
+            description={t('mlearn.Home.Cards.Statistics.Description')}
+            onClick={openStatistics}
+          />
+
+          <ActionCard
+            icon={<SearchIcon size={24} />}
+            title={t('mlearn.Home.Cards.WordDatabase.Title')}
+            description={t('mlearn.Home.Cards.WordDatabase.Description')}
+            onClick={openWordDatabase}
+          />
+
+          <ActionCard
+            icon={<TargetIcon size={24} />}
+            title={t('mlearn.Home.Cards.LevelStudy.Title')}
+            description={t('mlearn.Home.Cards.LevelStudy.Description')}
+            onClick={openLevelStudy}
+          />
+
+          <ActionCard
+            icon={<BotIcon size={24} />}
+            title={t('mlearn.Home.Cards.AITutor.Title')}
+            description={
+              isLLMReady(settings)
+                ? t('mlearn.Home.Cards.AITutor.Description')
+                : t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')
+            }
+            onClick={openAITutor}
+            primary
+            disabled={!isLLMReady(settings)}
+            class="welcome-ai-tutor-card"
+          />
+        </section>
+      </Show>
 
       <AITutorSetupModal
         isOpen={showTutorModal()}
@@ -494,19 +609,23 @@ export const WelcomeRoute: Component = () => {
         onStart={handleStartTutor}
       />
 
-      {/* Recent item: full-width continue row */}
-      <Show when={recentItems()[0]}>
-        {(item) => (
-          <section class="welcome-continue-section">
-            <h2>{t('mlearn.Home.UI.ContinueLearning')}</h2>
-            <WelcomeContinueRow
-              item={item()}
-              continueLabel={t('mlearn.Global.Continue')}
-              lastWatchedLabel={formatLastWatched(item().lastWatched)}
-              onContinue={openRecent}
-            />
-          </section>
-        )}
+      {/* Recent items: continue rows */}
+      <Show when={recentItems().length > 0}>
+        <section class="welcome-continue-section">
+          <h2>{t('mlearn.Home.UI.ContinueLearning')}</h2>
+          <div class="welcome-continue-list">
+            <For each={recentItems().slice(0, 5)}>
+              {(item) => (
+                <WelcomeContinueRow
+                  item={item}
+                  continueLabel={t('mlearn.Global.Continue')}
+                  lastWatchedLabel={formatLastWatched(item.lastWatched)}
+                  onContinue={openRecent}
+                />
+              )}
+            </For>
+          </div>
+        </section>
       </Show>
 
     </div>

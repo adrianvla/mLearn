@@ -1456,6 +1456,10 @@
           "Custom": "Benutzerdefiniert",
           "CustomCssDescription": "Bearbeiten Sie das CSS für Ihr benutzerdefiniertes Design. Änderungen werden live angewendet.",
           "CustomCssLabel": "Benutzerdefiniertes CSS"
+        },
+        "SimplifyHomeScreen": {
+          "Description": "Startseite als einfaches Schaltflächenraster ohne interaktive Vorschauen anzeigen.",
+          "Label": "Startseite vereinfachen"
         }
       },
       "BlurEffect": {

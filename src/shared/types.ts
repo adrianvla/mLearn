@@ -152,6 +152,8 @@ export interface Settings {
   /** Custom CSS color overrides that apply globally regardless of theme */
   customColors?: CustomColorOverrides;
   customThemeCSS: string;
+  /** Render the home screen as a plain button grid without interactive previews */
+  simplifyHomeScreen: boolean;
 
   // Language settings
   language: string;
@@ -530,6 +532,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
   customThemeCSS: DEFAULT_CUSTOM_THEME_CSS,
+  simplifyHomeScreen: false,
   hover_known_get_from_dictionary: false,
   showDictionary: true,
   show_pos: true,

@@ -8,16 +8,21 @@ const localization = vi.hoisted(() => ({
   translate: (key: string) => key,
 }));
 
+const settingsState = vi.hoisted(() => ({
+  settings: {
+    language: 'ja',
+    uiLanguage: 'en',
+    known_ease_threshold: 3500,
+    srsLearningThreshold: 1500,
+    simplifyHomeScreen: false,
+  },
+}));
+
 vi.mock('@solidjs/router', () => ({ useNavigate: () => vi.fn() }));
 
 vi.mock('../../../context', () => ({
   useSettings: () => ({
-    settings: {
-      language: 'ja',
-      uiLanguage: 'en',
-      known_ease_threshold: 3500,
-      srsLearningThreshold: 1500,
-    },
+    settings: settingsState.settings,
   }),
   useLocalization: () => ({ t: (key: string) => localization.translate(key) }),
   useLanguage: () => ({
@@ -32,6 +37,10 @@ vi.mock('../../../context', () => ({
     store: { flashcards: {}, dailyStats: {} },
     isLoading: () => false,
     queueCounts: () => ({ total: 0 }),
+    getCurrentCard: () => null,
+    getPreviewDueDates: () => null,
+    dueDateToString: (_dueDate: number) => '',
+    answerCard: vi.fn(),
   }),
 }));
 
@@ -67,6 +76,15 @@ vi.mock('../../../components/common', () => {
     LanguageVariantGate: () => null,
   };
 });
+
+vi.mock('../../../components/common/Card/ActionCard', () => ({
+  ActionCard: (props: { title: string; description: string; disabled?: boolean }) => (
+    <button type="button" disabled={props.disabled}>
+      <h3>{props.title}</h3>
+      <p>{props.description}</p>
+    </button>
+  ),
+}));
 
 vi.mock('./components', () => {
   const Preview: Component = () => <div />;
@@ -119,6 +137,22 @@ describe('WelcomeRoute localization', () => {
     expect(container.textContent).toContain('after:mlearn.Home.UI.LearningLanguage');
     expect(container.textContent).not.toContain('before:mlearn.Home.Cards.Video.Title');
 
+    dispose();
+  });
+
+  it('renders plain action buttons instead of feature cards when simplifyHomeScreen is enabled', async () => {
+    settingsState.settings.simplifyHomeScreen = true;
+    const dispose = render(() => <WelcomeRoute />, container);
+
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('button'));
+    expect(buttons.some((b) => b.textContent?.includes('mlearn.Home.Cards.Video.Title'))).toBe(true);
+    expect(buttons.some((b) => b.textContent?.includes('mlearn.Home.Cards.Reader.Title'))).toBe(true);
+    expect(buttons.some((b) => b.textContent?.includes('mlearn.Home.Cards.AITutor.Title'))).toBe(true);
+
+    const articles = container.querySelectorAll('article');
+    expect(articles.length).toBe(0);
+
+    settingsState.settings.simplifyHomeScreen = false;
     dispose();
   });
 });

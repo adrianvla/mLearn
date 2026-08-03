@@ -4,11 +4,12 @@
  * reflects real app state and hands off to existing workflows via callbacks.
  */
 
-import { Component, createSignal, For, Show } from 'solid-js';
+import { Component, createEffect, createSignal, For, Show } from 'solid-js';
 import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import type { LevelStats } from '../../../../utils/wordLevelStats';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
+import type { Rating } from '../../../../services/srsAlgorithm';
 import './WelcomeFeaturePreviews.css';
 
 export interface WelcomeMediaPreviewProps {
@@ -104,6 +105,12 @@ export const WelcomeReaderPreview: Component<WelcomeMediaPreviewProps> = (props)
   );
 };
 
+export interface WelcomeFlashcardRating {
+  quality: Rating;
+  label: string;
+  time: string;
+}
+
 export interface WelcomeFlashcardPreviewProps {
   card: Flashcard | null;
   loading: boolean;
@@ -112,12 +119,20 @@ export interface WelcomeFlashcardPreviewProps {
   emptyLabel: string;
   loadingLabel: string;
   openLabel: string;
+  ratingButtons: WelcomeFlashcardRating[];
   onOpen: () => void;
+  onRate: (quality: Rating) => void;
 }
 
-/** Stacked 3D deck: click flips the newest real card; empty/loading keeps a deck shell. */
+/** Compact reviewer: click flips the real due card, then rate it to advance; empty/loading keeps a deck shell. */
 export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = (props) => {
   const [flipped, setFlipped] = createSignal(false);
+
+  // Start each new card on its front (front-facing rating moves the session on).
+  createEffect(() => {
+    props.card?.id;
+    setFlipped(false);
+  });
 
   const cardShell = (label: string) => (
     <div class="wfv-flashcard-shell">
@@ -165,6 +180,23 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
         }
       >
         {cardShell(props.loadingLabel)}
+      </Show>
+      <Show when={props.card && flipped() && props.ratingButtons.length > 0}>
+        <fieldset class="wfv-flashcard-ratings">
+          <legend class="wfv-flashcard-ratings-legend">{props.dueLabel}</legend>
+          <For each={props.ratingButtons}>
+            {(btn) => (
+              <button
+                type="button"
+                class={`wfv-tactile wfv-flashcard-rating wfv-flashcard-rating-${btn.quality}`}
+                onClick={() => props.onRate(btn.quality)}
+              >
+                <span class="wfv-flashcard-rating-label">{btn.label}</span>
+                <span class="wfv-flashcard-rating-time">{btn.time}</span>
+              </button>
+            )}
+          </For>
+        </fieldset>
       </Show>
       <div class="wfv-flashcard-row">
         <span class="wfv-flashcard-due">{props.dueLabel}: {props.dueCount}</span>

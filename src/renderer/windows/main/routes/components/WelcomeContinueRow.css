@@ -32,7 +32,6 @@
 }
 
 .welcome-continue-main:hover {
-  transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
   border-color: var(--border-color-intense);
   background: var(--bg-intense);
@@ -54,7 +53,7 @@
   flex-shrink: 0;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: var(--bg-intense);
+  background: var(--bg);
   border: 1px solid var(--border-color);
 }
 
@@ -147,9 +146,8 @@
 }
 
 .welcome-continue-action:hover {
-  background: var(--bg-opaque);
+  background: var(--bg-intense);
   box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
 }
 
 .welcome-continue-action:active {

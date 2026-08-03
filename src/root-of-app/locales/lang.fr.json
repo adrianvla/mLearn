@@ -1456,6 +1456,10 @@
           "Custom": "Personnalisé",
           "CustomCssDescription": "Modifiez le CSS de votre thème personnalisé. Les changements s'appliquent en direct.",
           "CustomCssLabel": "CSS personnalisé"
+        },
+        "SimplifyHomeScreen": {
+          "Description": "Afficher l'écran d'accueil sous forme de grille de boutons simples, sans aperçus interactifs.",
+          "Label": "Simplifier l'écran d'accueil"
         }
       },
       "BlurEffect": {
