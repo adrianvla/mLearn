@@ -123,7 +123,7 @@
 .btn-default.btn-primary {
   background: rgba(74, 144, 217, 0.3);
   border-color: rgba(74, 144, 217, 0.4);
-  color: var(--color-primary);
+  color: rgba(74, 144, 217, 1);
 }
 
 .btn-default.btn-primary:hover:not(:disabled) {
