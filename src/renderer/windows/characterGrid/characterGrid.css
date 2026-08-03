@@ -17,6 +17,17 @@
   height: 100%;
 }
 
+/* Inside the Level Study tab, fill the tab panel instead of the viewport —
+   100vh here overflows the panel and creates a second, outer scrollbar */
+.level-study-content .character-grid-window {
+  height: 100%;
+}
+
+/* Inside Level Study, the tab bar already provides the title */
+.level-study-content .cg-header h1 {
+  display: none;
+}
+
 /* On mobile, push tooltip above the tab bar */
 .mobile-layout .cg-tooltip {
   bottom: calc(var(--mobile-tabbar-height, 56px) + env(safe-area-inset-bottom) + var(--spacing-3));

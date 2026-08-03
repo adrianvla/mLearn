@@ -5,8 +5,10 @@
 .word-sync {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  /* safe: fall back to start alignment on overflow so small windows
+     don't clip content at unreachable ends (Level Study tab) */
+  align-items: safe center;
+  justify-content: safe center;
   height: 100%;
   gap: var(--spacing-6);
   padding: var(--spacing-8);
