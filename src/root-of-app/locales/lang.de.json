@@ -1073,6 +1073,7 @@
         "WordDatabase": {
           "Description": "Gespeicherte Vokabeln durchsuchen und verwalten",
           "Title": "Wortdatenbank",
+          "EmptyHint": "Nach einem Wort suchen",
           "NoMatches": "Keine Treffer",
           "LookupHint": "Drücken Sie Enter, um \u201e{query}\u201c nachzuschlagen"
         },
@@ -1242,8 +1243,12 @@
       }
     },
     "Languages": {
+      "cu": "Kirchenslawisch",
       "de": "Deutsch",
-      "ja": "Japanisch"
+      "es": "Spanisch",
+      "ja": "Japanisch",
+      "ru": "Russisch",
+      "zh": "Chinesisch"
     },
     "LocaleNames": {
       "de": "Deutsch",

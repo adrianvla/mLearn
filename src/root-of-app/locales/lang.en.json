@@ -1073,6 +1073,7 @@
         "WordDatabase": {
           "Description": "Browse and manage your tracked vocabulary",
           "Title": "Word Database",
+          "EmptyHint": "Search for a word",
           "NoMatches": "No matches found",
           "LookupHint": "Press Enter to look up \u201c{query}\u201d"
         },
@@ -1242,8 +1243,12 @@
       }
     },
     "Languages": {
+      "cu": "Church Slavonic",
       "de": "German",
-      "ja": "Japanese"
+      "es": "Spanish",
+      "ja": "Japanese",
+      "ru": "Russian",
+      "zh": "Chinese"
     },
     "LocaleNames": {
       "de": "Deutsch",

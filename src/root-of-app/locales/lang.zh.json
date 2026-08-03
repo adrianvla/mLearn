@@ -1073,6 +1073,7 @@
         "WordDatabase": {
           "Description": "浏览和管理您的追踪词汇",
           "Title": "单词数据库",
+          "EmptyHint": "搜索单词",
           "NoMatches": "未找到匹配项",
           "LookupHint": "按 Enter 键查找「{query}」"
         },
@@ -1242,8 +1243,12 @@
       }
     },
     "Languages": {
+      "cu": "教会斯拉夫语",
       "de": "德语",
-      "ja": "日语"
+      "es": "西班牙语",
+      "ja": "日语",
+      "ru": "俄语",
+      "zh": "中文"
     },
     "LocaleNames": {
       "de": "德语",

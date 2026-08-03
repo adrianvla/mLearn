@@ -1073,6 +1073,7 @@
         "WordDatabase": {
           "Description": "追跡中の語彙を閲覧・管理",
           "Title": "単語データベース",
+          "EmptyHint": "単語を検索",
           "NoMatches": "一致する単語がありません",
           "LookupHint": "Enterキーで「{query}」を調べる"
         },
@@ -1242,8 +1243,12 @@
       }
     },
     "Languages": {
+      "cu": "教会スラヴ語",
       "de": "ドイツ語",
-      "ja": "日本語"
+      "es": "スペイン語",
+      "ja": "日本語",
+      "ru": "ロシア語",
+      "zh": "中国語"
     },
     "LocaleNames": {
       "de": "Deutsch",
