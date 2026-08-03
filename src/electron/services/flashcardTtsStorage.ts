@@ -279,7 +279,7 @@ async function generateViaCloud(
         'Authorization': `Bearer ${authToken}`,
       },
       body: jobBody,
-      timeout: 30000,
+      timeout: 150000,
     });
 
     if (jobRes.statusCode !== 200) {
@@ -293,7 +293,7 @@ async function generateViaCloud(
     }
 
     const statusUrl = new URL(`${baseUrl}/api/jobs/${jobId}`);
-    const maxPolls = 60;
+    const maxPolls = 150; // 5 min at 2s — GPU cold start + model load can take minutes
     const pollIntervalMs = 2000;
     let jobStatus = 'pending';
 
@@ -310,10 +310,12 @@ async function generateViaCloud(
       }
 
       const statusData = JSON.parse(statusRes.body.toString());
-      jobStatus = statusData.job?.status || 'unknown';
+      // Worker returns the raw row under `job`; older deploys used camelCase `data`.
+      const job = statusData.job ?? statusData.data;
+      jobStatus = job?.status || 'unknown';
       if (jobStatus === 'completed') break;
       if (jobStatus === 'failed') {
-        log.error(`[FlashcardTTS] Cloud job failed: ${statusData.job?.error || 'Unknown error'}`);
+        log.error(`[FlashcardTTS] Cloud job failed: ${job?.error || 'Unknown error'}`);
         return false;
       }
     }

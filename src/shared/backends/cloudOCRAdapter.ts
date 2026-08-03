@@ -118,10 +118,11 @@ export class CloudOCRAdapter {
 
   /**
    * Poll the job status until completed or failed.
-   * Uses exponential backoff starting at 500ms, max 30s total wait.
+   * Uses exponential backoff starting at 500ms. Budget is generous because the
+   * OCR service cold-starts a GPU container and loads models on first request.
    */
   private async pollJobResult(jobId: string): Promise<OCRJobResult> {
-    const maxWaitMs = 60_000;
+    const maxWaitMs = 240_000;
     const startTime = Date.now();
     let delay = 500;
 
