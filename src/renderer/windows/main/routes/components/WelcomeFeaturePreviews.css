@@ -272,7 +272,9 @@
   position: relative;
   isolation: isolate;
   flex: 1;
-  min-height: 0;
+  /* Faces are absolutely positioned, so the stage has no intrinsic height;
+     without a floor it collapses to a strip in short/auto-height containers. */
+  min-height: 4.25rem;
   width: 100%;
   padding: 0 0.5rem 0.375rem 0;
   border: 0;
@@ -374,7 +376,8 @@
 .wfv-flashcard-shell {
   position: relative;
   flex: 1;
-  min-height: 0;
+  /* Same absolutely-positioned-children floor as the stage */
+  min-height: 4.25rem;
 }
 
 .wfv-flashcard-shell-card {
@@ -448,6 +451,7 @@
   gap: 0.4rem;
   padding: 0.35rem 0.6rem;
   min-width: 0;
+  min-height: 34px;
 }
 
 .wfv-flashcard-rating-label {

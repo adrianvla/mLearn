@@ -532,7 +532,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
   customThemeCSS: DEFAULT_CUSTOM_THEME_CSS,
-  simplifyHomeScreen: false,
+  simplifyHomeScreen: true,
   hover_known_get_from_dictionary: false,
   showDictionary: true,
   show_pos: true,

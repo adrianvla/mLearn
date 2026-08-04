@@ -198,12 +198,16 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
           </For>
         </fieldset>
       </Show>
-      <div class="wfv-flashcard-row">
-        <span class="wfv-flashcard-due">{props.dueLabel}: {props.dueCount}</span>
-        <button type="button" class="wfv-tactile wfv-flashcard-open" onClick={props.onOpen}>
-          {props.openLabel}
-        </button>
-      </div>
+      {/* Footer swaps with the ratings fieldset while flipped: the 240px card
+          row cannot fit stage + ratings + footer, so only one occupies the slot. */}
+      <Show when={!flipped() || !props.card}>
+        <div class="wfv-flashcard-row">
+          <span class="wfv-flashcard-due">{props.dueLabel}: {props.dueCount}</span>
+          <button type="button" class="wfv-tactile wfv-flashcard-open" onClick={props.onOpen}>
+            {props.openLabel}
+          </button>
+        </div>
+      </Show>
     </div>
   );
 };

@@ -317,6 +317,42 @@ describe('WelcomeFlashcardPreview', () => {
     dispose();
   });
 
+  it('swaps the footer row for the ratings fieldset while flipped', () => {
+    const dispose = render(
+      () => (
+        <WelcomeFlashcardPreview
+          card={makeCard('front', 'back')}
+          loading={false}
+          dueCount={3}
+          dueLabel="Due"
+          emptyLabel="None"
+          loadingLabel="Loading"
+          openLabel="Open"
+          ratingButtons={[{ quality: 'good', label: 'Ok', time: '10m' }]}
+          onOpen={() => {}}
+          onRate={() => {}}
+        />
+      ),
+      container,
+    );
+
+    expect(container.querySelector('.wfv-flashcard-row')).not.toBeNull();
+    expect(container.querySelector('.wfv-flashcard-ratings')).toBeNull();
+
+    const stage = container.querySelector('button.wfv-flashcard-stage');
+    stage?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(container.querySelector('.wfv-flashcard-row')).toBeNull();
+    expect(container.querySelector('.wfv-flashcard-ratings')).not.toBeNull();
+
+    stage?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(container.querySelector('.wfv-flashcard-row')).not.toBeNull();
+    expect(container.querySelector('.wfv-flashcard-ratings')).toBeNull();
+
+    dispose();
+  });
+
   it('resets to the front when the card changes', () => {
     const dispose = render(
       () => {
