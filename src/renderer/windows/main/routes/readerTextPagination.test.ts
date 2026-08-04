@@ -233,3 +233,62 @@ describe('applyReadingSpansToTokens', () => {
     expect(applyReadingSpansToTokens('ab', tokens, undefined)).toBe(tokens);
   });
 });
+
+describe('hard page breaks', () => {
+  it('flushes at a book page break even when capacity alone would keep one page', () => {
+    const pages = paginateTextSources([{
+      kind: 'text',
+      name: 'ch',
+      title: 't',
+      text: 'aa\n\nbb\n\ncc',
+      pageBreakOffsets: [4],
+    }], 'fallback', 100);
+    expect(pages.map((page) => page.text)).toEqual(['aa', 'bb\n\ncc']);
+  });
+
+  it('forces an earlier split than capacity would produce', () => {
+    const withoutBreak = paginateTextSources([{
+      kind: 'text',
+      name: 'ch',
+      title: 't',
+      text: 'aaa\n\nbbb\n\nccc',
+    }], 'fallback', 8);
+    const withBreak = paginateTextSources([{
+      kind: 'text',
+      name: 'ch',
+      title: 't',
+      text: 'aaa\n\nbbb\n\nccc',
+      pageBreakOffsets: [5],
+    }], 'fallback', 8);
+    expect(withoutBreak.map((page) => page.text)).toEqual(['aaa\n\nbbb', 'ccc']);
+    expect(withBreak.map((page) => page.text)).toEqual(['aaa', 'bbb\n\nccc']);
+  });
+
+  it('keeps reading spans and offsets on pages split by a hard break', () => {
+    const pages = paginateTextSources([{
+      kind: 'text',
+      name: 'ch',
+      title: 't',
+      text: 'ab\n\ncd\n\nef',
+      readingSpans: [
+        { start: 0, end: 2, reading: 'x' },
+        { start: 8, end: 10, reading: 'y' },
+      ],
+      pageBreakOffsets: [4],
+    }], 'fallback', 100);
+    expect(pages.map((page) => page.text)).toEqual(['ab', 'cd\n\nef']);
+    expect(pages[0].readingSpans).toEqual([{ start: 0, end: 2, reading: 'x' }]);
+    expect(pages[1].readingSpans).toEqual([{ start: 4, end: 6, reading: 'y' }]);
+  });
+
+  it('ignores break offsets absent from the block list', () => {
+    const pages = paginateTextSources([{
+      kind: 'text',
+      name: 'ch',
+      title: 't',
+      text: 'aa\n\nbb',
+      pageBreakOffsets: [99],
+    }], 'fallback', 100);
+    expect(pages.map((page) => page.text)).toEqual(['aa\n\nbb']);
+  });
+});

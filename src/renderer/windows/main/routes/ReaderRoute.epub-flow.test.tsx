@@ -83,6 +83,17 @@ describe('ReaderRoute EPUB flow wiring', () => {
     expect(revokeUrl).toHaveBeenCalledWith('blob:replacement-flow-image');
   });
 
+  it('splits prepared pages at explicit book page breaks', async () => {
+    const entries = {
+      'META-INF/container.xml': strToU8('<?xml version="1.0"?><container><rootfiles><rootfile full-path="OEBPS/content.opf" /></rootfiles></container>'),
+      'OEBPS/content.opf': strToU8('<?xml version="1.0"?><package xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:title>Break Book</dc:title></metadata><manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" /></manifest><spine><itemref idref="chapter" /></spine></package>'),
+      'OEBPS/chapter.xhtml': strToU8('<html><body><p>one</p><p style="page-break-before: always">two</p></body></html>'),
+    };
+    const content = await epubToContentPages(new File([zipSync(entries)], 'break.epub', { type: 'application/epub+zip' }));
+    const prepared = await prepareEpubReaderLoad(content, 'Break Book', 100, async () => null);
+    expect(prepared.pages.filter((page) => page.kind === 'text').map((page) => page.text)).toEqual(['one', 'two']);
+  });
+
   it('revokes newly created EPUB URLs when saved-page loading rejects before adoption', async () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:failed-flow-image');
     const revokeUrl = vi.spyOn(URL, 'revokeObjectURL');

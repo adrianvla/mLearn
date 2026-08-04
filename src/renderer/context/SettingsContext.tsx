@@ -194,6 +194,11 @@ export const SettingsProvider: ParentComponent = (props) => {
   let policyRefreshAbort: AbortController | null = null;
   let disposed = false;
   let languageData: LanguageDataMap = {};
+  // Per-run Python backend token (broadcast by the main process on stdout
+  // parse and on Python restart). Must be re-injected whenever the backend
+  // adapter is rebuilt, or every Python call 401s with
+  // "Invalid or missing backend token".
+  let lastBackendToken: string | null = null;
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
   const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
@@ -409,6 +414,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       getBackend({
         mode: nextSettings.backendMode,
         url: resolveBackendUrl(nextSettings),
+        backendToken: lastBackendToken ?? undefined,
       });
     }
   };
@@ -463,6 +469,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     getBackend({
       mode: reconciledSettings.backendMode,
       url: resolveBackendUrl(reconciledSettings),
+      backendToken: lastBackendToken ?? undefined,
     });
     applySettingsToDOM(reconciledSettings);
     if (shouldPersist || readerAppearanceNormalized) saveSettingsSnapshot(reconciledSettings, false);
@@ -764,6 +771,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     // stdout) and changes on every backend restart. Reconfigure the adapter
     // so direct Python calls carry the current bearer token.
     ipcCleanups.push(getBridge().server.onBackendTokenChanged((token) => {
+      lastBackendToken = token;
       if (token) {
         configureBackend({
           mode: settings.backendMode,

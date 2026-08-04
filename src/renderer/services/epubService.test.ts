@@ -265,4 +265,65 @@ describe('epubService', () => {
     }));
     expect(content.items[0]).toMatchObject({ kind: 'image', mediaType: 'image/webp' });
   });
+
+  it('records explicit page breaks from inline style, style rules, markers, and break-after', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><head><style>p.hardbreak { page-break-before: always; }</style></head>'
+          + '<body>'
+          + '<p>one</p>'
+          + '<p class="hardbreak">two</p>'
+          + '<p style="page-break-before: always">three</p>'
+          + '<div class="pagebreak"></div>'
+          + '<p>four</p>'
+          + '<hr class="pagebreak" />'
+          + '<p>five</p>'
+          + '<p style="break-after: page">six</p>'
+          + '<p>seven</p>'
+          + '</body></html>',
+      }],
+    }));
+    const [item] = content.items;
+    expect(item).toMatchObject({ text: 'one\n\ntwo\n\nthree\n\nfour\n\nfive\n\nsix\n\nseven' });
+    expect(item.kind === 'text' ? item.pageBreakOffsets : undefined).toEqual([5, 10, 17, 23, 34]);
+  });
+
+  it('break-before on a multi-block wrapper only breaks before its first block', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><body>'
+          + '<div style="page-break-before: always"><p>one</p><p>two</p></div>'
+          + '<p>three</p>'
+          + '</body></html>',
+      }],
+    }));
+    const [item] = content.items;
+    expect(item).toMatchObject({ text: 'one\n\ntwo\n\nthree' });
+    expect(item.kind === 'text' ? item.pageBreakOffsets : undefined).toBeUndefined();
+  });
+
+  it('break-after on a multi-block wrapper breaks after its last block only', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><body>'
+          + '<div style="page-break-after: always"><p>one</p><p>two</p></div>'
+          + '<p>three</p>'
+          + '</body></html>',
+      }],
+    }));
+    const [item] = content.items;
+    expect(item).toMatchObject({ text: 'one\n\ntwo\n\nthree' });
+    expect(item.kind === 'text' ? item.pageBreakOffsets : undefined).toEqual([10]);
+  });
+
+  it('emits no page breaks when the document has none', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{ href: 'chapter.xhtml', html: '<html><body><p>only</p></body></html>' }],
+    }));
+    const [item] = content.items;
+    expect(item.kind === 'text' ? item.pageBreakOffsets : undefined).toBeUndefined();
+  });
 });

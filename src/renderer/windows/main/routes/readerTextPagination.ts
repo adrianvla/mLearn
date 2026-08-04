@@ -8,6 +8,8 @@ export interface ReaderSourcePage {
   text: string;
   previewText?: string;
   readingSpans?: EpubReadingSpan[];
+  /** Offsets into `text` at which a new page must start (explicit book page breaks). */
+  pageBreakOffsets?: number[];
   src?: string;
   blob?: Blob;
 }
@@ -76,6 +78,7 @@ export const textPagesFromExtractedText = (
     text: page.text,
     previewText: page.previewText ?? page.text.split(/\n{2,}/u).map((part) => part.trim()).find(Boolean) ?? '',
     ...(page.readingSpans ? { readingSpans: page.readingSpans } : {}),
+    ...(page.pageBreakOffsets ? { pageBreakOffsets: page.pageBreakOffsets } : {}),
     index,
   }))
 );
@@ -141,12 +144,18 @@ export function paginateTextSources(
     for (const block of blocks) {
       const blockStart = source.text.indexOf(block, blockSearchCursor);
       if (blockStart >= 0) blockSearchCursor = blockStart + block.length;
+      const blockBreaksPage = blockStart >= 0 && (source.pageBreakOffsets?.includes(blockStart) ?? false);
       const blockChunks = splitParagraphForPage(block, capacity);
       let chunkSearchCursor = 0;
-      for (const chunk of blockChunks) {
+      for (let chunkIndex = 0; chunkIndex < blockChunks.length; chunkIndex += 1) {
+        const chunk = blockChunks[chunkIndex];
         const chunkStartInBlock = blockStart >= 0 ? block.indexOf(chunk, chunkSearchCursor) : -1;
         if (chunkStartInBlock >= 0) chunkSearchCursor = chunkStartInBlock + chunk.length;
         const sourceStart = blockStart >= 0 && chunkStartInBlock >= 0 ? blockStart + chunkStartInBlock : -1;
+        if (blockBreaksPage && chunkIndex === 0 && currentChunks.length > 0) {
+          flush();
+          currentStart = globalOffset + sourceOffset;
+        }
         const separatorLength = currentChunks.length > 0 ? 2 : 0;
         if (currentChunks.length > 0 && currentLength + separatorLength + chunk.length > capacity) {
           flush();

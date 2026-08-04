@@ -26,6 +26,8 @@ export interface EpubTextItem {
   source: string;
   index: number;
   readingSpans?: EpubReadingSpan[];
+  /** Offsets into `text` where a new page must start (explicit book page breaks). */
+  pageBreakOffsets?: number[];
 }
 
 export interface EpubImageItem extends EpubImageRef {
@@ -140,6 +142,7 @@ interface EpubChapterContent {
   text: string;
   previewText: string;
   readingSpans?: EpubReadingSpan[];
+  pageBreakOffsets?: number[];
 }
 
 interface RawExtraction {
@@ -199,6 +202,60 @@ function walkExtractableText(node: Node, raw: RawExtraction): void {
   }
 }
 
+const BREAK_BEFORE_RE = /(?:page-break-before|break-before)\s*:\s*(?:always|left|right|page)\b/i;
+const BREAK_AFTER_RE = /(?:page-break-after|break-after)\s*:\s*(?:always|left|right|page)\b/i;
+
+function pageBreakTargetedClasses(doc: Document): { before: Set<string>; after: Set<string> } {
+  const before = new Set<string>();
+  const after = new Set<string>();
+  for (const styleEl of Array.from(doc.querySelectorAll('style'))) {
+    for (const chunk of (styleEl.textContent ?? '').split('}')) {
+      const openBrace = chunk.lastIndexOf('{');
+      if (openBrace < 0) continue;
+      const selectorPart = chunk.slice(0, openBrace);
+      const declPart = chunk.slice(openBrace + 1);
+      const isBefore = BREAK_BEFORE_RE.test(declPart);
+      const isAfter = BREAK_AFTER_RE.test(declPart);
+      if (!isBefore && !isAfter) continue;
+      const target = isBefore ? before : after;
+      for (const match of selectorPart.matchAll(/\.([A-Za-z_][\w-]*)/gu)) target.add(match[1]);
+    }
+  }
+  return { before, after };
+}
+
+function breakSignalForElement(
+  el: Element,
+  beforeClasses: ReadonlySet<string>,
+  afterClasses: ReadonlySet<string>,
+): 'before' | 'after' | null {
+  const style = el.getAttribute('style') ?? '';
+  if (BREAK_BEFORE_RE.test(style)) return 'before';
+  if (BREAK_AFTER_RE.test(style)) return 'after';
+  const className = el.getAttribute('class') ?? '';
+  if (/[-_]after\b/i.test(className)) return 'after';
+  if (/[-_]before\b/i.test(className)) return 'before';
+  if (/(?:^|[\s-])(?:page[-_]?break|new[-_]?page)(?=$|[\s-])/i.test(className)) return 'before';
+  const classes = className.split(/\s+/u).filter(Boolean);
+  if (classes.some((c) => afterClasses.has(c))) return 'after';
+  if (classes.some((c) => beforeClasses.has(c))) return 'before';
+  return null;
+}
+
+function nearestBreakElement(
+  el: Element,
+  beforeClasses: ReadonlySet<string>,
+  afterClasses: ReadonlySet<string>,
+): { element: Element; direction: 'before' | 'after' } | null {
+  let node: Element | null = el;
+  while (node && node.localName !== 'body') {
+    const direction = breakSignalForElement(node, beforeClasses, afterClasses);
+    if (direction) return { element: node, direction };
+    node = node.parentElement;
+  }
+  return null;
+}
+
 function walkCleanedText(root: Element): RawExtraction {
   const raw: RawExtraction = { text: '', spans: [] };
   walkExtractableText(root, raw);
@@ -241,19 +298,50 @@ function chapterContentAndImageRefs(html: string): { content: EpubChapterContent
     ...Array.from(body.querySelectorAll('img[src]')).map((image) => image.getAttribute('src')),
     ...Array.from(body.querySelectorAll('image')).map((image) => image.getAttribute('xlink:href') ?? image.getAttribute('href')),
   ].filter((ref): ref is string => Boolean(ref));
+  const { before: breakBeforeClasses, after: breakAfterClasses } = pageBreakTargetedClasses(doc);
+  const breakMarkers = Array.from(body.querySelectorAll('*')).filter((el) => (
+    !(el.textContent ?? '').trim() && nearestBreakElement(el, breakBeforeClasses, breakAfterClasses) !== null
+  ));
   const blocks = Array.from(body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
-    .map((element) => ({ element, ...walkCleanedText(element) }));
+    .map((element) => ({
+      element,
+      ...walkCleanedText(element),
+      breakSignal: nearestBreakElement(element, breakBeforeClasses, breakAfterClasses),
+    }));
   const heading = ['h1', 'h2']
     .map((tag) => blocks.find((block) => block.element.localName === tag && block.text))
     .find((block) => block !== undefined);
   const title = heading?.text ?? queryText(doc, ['title']);
   let text = '';
   const spans: EpubReadingSpan[] = [];
+  const pageBreakOffsets: number[] = [];
+  const seenBeforeAncestors = new Set<Element>();
+  let prevAfterElement: Element | null = null;
+  let markerIndex = 0;
   for (const block of blocks) {
     if (!block.text) continue;
+    const consumedMarkersBefore = markerIndex;
+    while (
+      markerIndex < breakMarkers.length
+      && (breakMarkers[markerIndex].compareDocumentPosition(block.element) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    ) {
+      markerIndex += 1;
+    }
+    let startsPage = consumedMarkersBefore < markerIndex;
+    if (block.breakSignal?.direction === 'before') {
+      if (!seenBeforeAncestors.has(block.breakSignal.element)) {
+        seenBeforeAncestors.add(block.breakSignal.element);
+        startsPage = true;
+      }
+    } else if (prevAfterElement !== null && !prevAfterElement.contains(block.element)) {
+      startsPage = true;
+    }
+    if (block.breakSignal?.direction === 'after') prevAfterElement = block.breakSignal.element;
+    else prevAfterElement = null;
     if (text.length > 0) text += '\n\n';
     const offset = text.length;
     text += block.text;
+    if (startsPage && offset > 0) pageBreakOffsets.push(offset);
     for (const span of block.spans) {
       spans.push({ start: span.start + offset, end: span.end + offset, reading: span.reading });
     }
@@ -267,7 +355,13 @@ function chapterContentAndImageRefs(html: string): { content: EpubChapterContent
     ?? text.split(/\n{2,}/u).find(Boolean)
     ?? '';
   return {
-    content: { title, text, previewText, readingSpans: spans.length > 0 ? spans : undefined },
+    content: {
+      title,
+      text,
+      previewText,
+      readingSpans: spans.length > 0 ? spans : undefined,
+      pageBreakOffsets: pageBreakOffsets.length > 0 ? pageBreakOffsets : undefined,
+    },
     imageRefs,
   };
 }
@@ -333,6 +427,7 @@ export async function epubToContentPages(file: File): Promise<EpubContent> {
         source: sourceName,
         index: 0,
         ...(content.readingSpans ? { readingSpans: content.readingSpans } : {}),
+        ...(content.pageBreakOffsets ? { pageBreakOffsets: content.pageBreakOffsets } : {}),
       });
     }
     for (const ref of imageRefs) {
