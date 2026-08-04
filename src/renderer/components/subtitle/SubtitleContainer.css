@@ -25,6 +25,11 @@
   pointer-events: none;
 }
 
+/* Hardcore Mode: hidden by default, but keeps receiving hover so the user can peek */
+.subtitles.hardcore-hidden {
+  opacity: 0;
+}
+
 /* Blur entire subtitle line when all words are known */
 .subtitles.subtitle-line-blur {
   filter: blur(var(--word-blur-amount));

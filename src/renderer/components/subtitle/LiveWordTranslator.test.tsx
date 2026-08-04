@@ -137,4 +137,49 @@ describe('LiveWordTranslator', () => {
     expect(card).not.toBeNull();
     dispose();
   });
+
+  it('removes a card from the DOM after its lifetime plus the fade duration', () => {
+    vi.useFakeTimers();
+    const dispose = render(() => <LiveWordTranslator />, container);
+    window.mLearnLiveTranslator?.addCard('word', 'word', 'definition');
+    expect(container.querySelector('.translator-card')).not.toBeNull();
+
+    // Lifetime elapses: card starts fading
+    vi.advanceTimersByTime(30000);
+    expect(container.querySelector('.translator-card')?.classList.contains('fading')).toBe(true);
+
+    // Fade completes: card removed from the DOM
+    vi.advanceTimersByTime(300);
+    expect(container.querySelector('.translator-card')).toBeNull();
+
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('re-adding a word during the fade keeps the card and restarts its lifetime', () => {
+    vi.useFakeTimers();
+    const dispose = render(() => <LiveWordTranslator />, container);
+    window.mLearnLiveTranslator?.addCard('word', 'word', 'definition');
+
+    // Lifetime elapses and the fade starts, but removal has not happened yet
+    vi.advanceTimersByTime(30000);
+    vi.advanceTimersByTime(299);
+    expect(container.querySelector('.translator-card')).not.toBeNull();
+
+    // Subtitle re-adds the same word: the pending removal must be cancelled
+    window.mLearnLiveTranslator?.addCard('word', 'word', 'definition');
+    vi.advanceTimersByTime(300);
+    const card = container.querySelector('.translator-card');
+    expect(card).not.toBeNull();
+    expect(card?.classList.contains('fading')).toBe(false);
+
+    // Lifetime restarted from the re-add: advance to the fade start (30000 - 300)
+    vi.advanceTimersByTime(29700);
+    expect(container.querySelector('.translator-card')?.classList.contains('fading')).toBe(true);
+    vi.advanceTimersByTime(300);
+    expect(container.querySelector('.translator-card')).toBeNull();
+
+    dispose();
+    vi.useRealTimers();
+  });
 });

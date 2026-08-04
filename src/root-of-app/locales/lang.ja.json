@@ -2207,6 +2207,10 @@
             "Label": "字幕を表示",
             "Description": "動画プレーヤーの字幕表示を切り替える"
           },
+          "HardcoreMode": {
+            "Label": "Hardcore Mode",
+            "Description": "Hide subtitles by default. Hover over the subtitle area to peek at them. The live word translator keeps running."
+          },
           "ShowTranslation": {
             "Label": "翻訳を表示",
             "Description": "字幕の下に翻訳行を表示する"

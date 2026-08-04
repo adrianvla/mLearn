@@ -2207,6 +2207,10 @@
             "Label": "Untertitel anzeigen",
             "Description": "Untertitel im Videoplayer ein-/ausblenden"
           },
+          "HardcoreMode": {
+            "Label": "Hardcore Mode",
+            "Description": "Hide subtitles by default. Hover over the subtitle area to peek at them. The live word translator keeps running."
+          },
           "ShowTranslation": {
             "Label": "Übersetzung anzeigen",
             "Description": "Übersetzungszeile unter den Untertiteln anzeigen"

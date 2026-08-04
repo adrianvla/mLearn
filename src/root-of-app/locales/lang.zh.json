@@ -2234,6 +2234,10 @@
             "Label": "显示字幕",
             "Description": "切换视频播放器中的字幕可见性"
           },
+          "HardcoreMode": {
+            "Label": "Hardcore Mode",
+            "Description": "Hide subtitles by default. Hover over the subtitle area to peek at them. The live word translator keeps running."
+          },
           "ShowTranslation": {
             "Label": "显示翻译",
             "Description": "在字幕下方显示翻译行"

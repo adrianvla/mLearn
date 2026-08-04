@@ -2207,6 +2207,10 @@
             "Label": "Показывать субтитры",
             "Description": "Переключить видимость субтитров в видеоплеере"
           },
+          "HardcoreMode": {
+            "Label": "Hardcore Mode",
+            "Description": "Hide subtitles by default. Hover over the subtitle area to peek at them. The live word translator keeps running."
+          },
           "ShowTranslation": {
             "Label": "Показывать перевод",
             "Description": "Показывать строку перевода под субтитрами"

@@ -67,6 +67,10 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const tokenSeparator = createMemo(() => getTokenJoinSeparator(currentLangData()));
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
 
+  // Hardcore Mode: subtitles hidden by default, peek while the mouse is over the subtitle area
+  const hardcoreMode = () => settings.hardcoreMode === true;
+  const [hardcorePeek, setHardcorePeek] = createSignal(false);
+
   // Initialize deep link bridge for mlearn://lookup
   const cleanupBridgeLookup = initWordLookupBridge();
   onCleanup(cleanupBridgeLookup);
@@ -254,6 +258,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (!show) {
       classes.push('not-shown');
     }
+    if (hardcoreMode() && !hardcorePeek()) {
+      classes.push('hardcore-hidden');
+    }
     if (settings.blur_known_subtitles && allWordsKnown()) {
       classes.push('subtitle-line-blur');
     }
@@ -378,7 +385,11 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
   return (
     <>
-      <div class={getContainerClass()}>
+      <div
+        class={getContainerClass()}
+        onMouseEnter={() => setHardcorePeek(true)}
+        onMouseLeave={() => setHardcorePeek(false)}
+      >
         {/*<GlassPanel variant="elevated" blur="md" rounded="lg" padding="sm">*/}
           {/* Subtitle text */}
           <Show when={!props.isLoading && props.tokens.length > 0}>

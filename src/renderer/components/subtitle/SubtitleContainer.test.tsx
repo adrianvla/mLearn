@@ -505,4 +505,34 @@ describe('SubtitleContainer', () => {
 
     delete (window as unknown as Record<string, unknown>).mLearnLiveTranslator;
   });
+
+  it('hardcore mode hides subtitles by default but reveals them while hovering the subtitle area', () => {
+    mockSettings.showSubtitles = true;
+    mockSettings.hardcoreMode = true;
+
+    const dispose = render(
+      () => (
+        <SubtitleContainer
+          tokens={mockTokens}
+          originalText="hello world"
+          isLoading={false}
+        />
+      ),
+      container,
+    );
+
+    const subtitlesEl = container.querySelector('.subtitles') as HTMLElement;
+    expect(subtitlesEl.classList.contains('hardcore-hidden')).toBe(true);
+    // Subtitles keep processing in hardcore mode: not-shown (full disable) must not apply
+    expect(subtitlesEl.classList.contains('not-shown')).toBe(false);
+
+    subtitlesEl.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+    expect(subtitlesEl.classList.contains('hardcore-hidden')).toBe(false);
+
+    subtitlesEl.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+    expect(subtitlesEl.classList.contains('hardcore-hidden')).toBe(true);
+
+    dispose();
+    mockSettings.hardcoreMode = false;
+  });
 });

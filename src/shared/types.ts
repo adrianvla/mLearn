@@ -342,6 +342,8 @@ export interface Settings {
   liveTranslatorIncludeKnown?: boolean;
   /** Blur known words individually in subtitles */
   blurKnownWords?: boolean;
+  /** Hardcore Mode: subtitles hidden by default; hovering the subtitle area reveals them. Live translator keeps running. */
+  hardcoreMode?: boolean;
 
   // Feature flags
   llmEnabled: boolean;
@@ -629,6 +631,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showLiveTranslator: true,
   liveTranslatorIncludeKnown: false,
   blurKnownWords: false,
+  hardcoreMode: false,
   ocrRamSaver: false,
   ocrTurboMode: false,
   ocrReadingAnnotationFiltering: true,

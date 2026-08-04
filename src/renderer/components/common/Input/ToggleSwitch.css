@@ -31,6 +31,16 @@
   --toggle-thumb-travel: 16px;
 }
 
+/* Danger variant — checked state uses the danger color instead of success */
+.toggle-switch--danger {
+  --toggle-bg-checked: var(--color-danger);
+  --toggle-bg-checked-hover: var(--color-danger);
+}
+
+.toggle-switch--danger input:focus + .toggle-slider {
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.3);
+}
+
 .toggle-switch.disabled {
   cursor: not-allowed;
   opacity: 0.5;

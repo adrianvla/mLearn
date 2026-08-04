@@ -2207,6 +2207,10 @@
             "Label": "Afficher les sous-titres",
             "Description": "Afficher ou masquer les sous-titres dans le lecteur"
           },
+          "HardcoreMode": {
+            "Label": "Hardcore Mode",
+            "Description": "Hide subtitles by default. Hover over the subtitle area to peek at them. The live word translator keeps running."
+          },
           "ShowTranslation": {
             "Label": "Afficher la traduction",
             "Description": "Afficher la ligne de traduction sous les sous-titres"

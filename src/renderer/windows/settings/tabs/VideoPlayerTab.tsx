@@ -211,6 +211,17 @@ export const VideoPlayerTab: Component = () => {
         </SettingRow>
 
         <SettingRow
+          label={t('mlearn.Settings.VideoPlayer.Playback.HardcoreMode.Label')}
+          description={t('mlearn.Settings.VideoPlayer.Playback.HardcoreMode.Description')}
+        >
+          <ToggleSwitch
+            class="toggle-switch--danger"
+            checked={settings.hardcoreMode ?? DEFAULT_SETTINGS.hardcoreMode!}
+            onChange={(checked) => updateSettings({ hardcoreMode: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
           label={t('mlearn.Settings.VideoPlayer.Playback.ShowTranslation.Label')}
           description={t('mlearn.Settings.VideoPlayer.Playback.ShowTranslation.Description')}
           settingKey="showTranslation"
