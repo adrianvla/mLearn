@@ -628,6 +628,9 @@ const WelcomeContent: Component = () => {
             <Select
               class="welcome-window__sentence-select"
               value={selectedLanguage()}
+              placeholder={availableLanguages().length === 0
+                ? t('mlearn.Installer.SetupSentence.LoadingLanguages')
+                : undefined}
               onChange={(event) => {
                 if (getLanguageDataStatus(event.currentTarget.value)?.compatible === false) return;
                 setSelectedLanguage(event.currentTarget.value);

@@ -1172,7 +1172,8 @@
         "LearnPrefix": "我想学习",
         "AppLanguagePrefix": "并使用 mLearn 的显示语言",
         "AppLanguageSuffix": "。",
-        "DictionaryPrefix": "词典释义语言为"
+        "DictionaryPrefix": "词典释义语言为",
+        "LoadingLanguages": "正在加载可用语言…"
       },
       "Advanced": {
         "Title": "高级设置"

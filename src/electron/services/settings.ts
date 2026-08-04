@@ -885,9 +885,22 @@ export function setupSettingsIPC(): void {
       );
       const installedStatus = catalog.find((status) => status.language === language);
       // Catalog state is global; reply-only would leave other windows stale (bug).
+      // Always push catalog + lang data so a transient catalog failure (installedStatus
+      // undefined) cannot leave the home screen stuck on "language data is not installed".
       for (const target of webContents.getAllWebContents()) {
-        target.send(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
+        if (installedStatus) {
+          target.send(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
+        }
         target.send(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);
+        target.send(IPC_CHANNELS.LANG_DATA, loadLangData());
+      }
+
+      // The Python backend caches the active language at startup; installing the
+      // selected learning language must restart it or the backend never loads it.
+      const installedSettings = loadSettings();
+      if (installedSettings.language === language) {
+        const { restartPythonBackend } = await import('./pythonBackend');
+        restartPythonBackend();
       }
     } catch (error) {
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_ERROR, {

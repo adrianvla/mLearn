@@ -1172,7 +1172,8 @@
         "LearnPrefix": "学習したい言語は",
         "AppLanguagePrefix": "mLearnの表示言語は",
         "AppLanguageSuffix": "です。",
-        "DictionaryPrefix": "辞書の定義言語は"
+        "DictionaryPrefix": "辞書の定義言語は",
+        "LoadingLanguages": "利用可能な言語を読み込んでいます…"
       },
       "Advanced": {
         "Title": "詳細設定"

@@ -1475,6 +1475,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     });
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify({
+      language: 'bb',
       languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
     }), 'utf-8');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -1512,6 +1513,77 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
         installed: true,
       }),
     ]);
+    expect(mockBroadcastSend).toHaveBeenCalledWith('lang-data', expect.objectContaining({
+      aa: expect.anything(),
+    }));
+    expect(mockRestartPythonBackend).not.toHaveBeenCalled();
+  });
+
+  it('restarts the Python backend when the active learning language is installed', async () => {
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'aa.tar.gz');
+    const metadataBytes = JSON.stringify({
+      name: 'Alpha',
+      textProcessing: {
+        partOfSpeech: {
+          translatable: ['NOUN'],
+          colors: {},
+        },
+      },
+      settings: { fixed: {} },
+    });
+    const manifestFiles = [
+      {
+        id: 'language-metadata',
+        path: 'languages/aa.json',
+        sizeBytes: Buffer.byteLength(metadataBytes),
+        sha256: sha256(metadataBytes),
+        required: true,
+      },
+    ];
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify({
+      schemaVersion: 1,
+      language: 'aa',
+      version: 'aa-package-v1',
+      files: manifestFiles,
+    }), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'aa.json'), metadataBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      language: 'aa',
+      languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
+    }), 'utf-8');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        languages: {
+          aa: {
+            name: 'Alpha',
+            version: 'aa-package-v1',
+            bundle: {
+              href: './aa.tar.gz',
+              sizeBytes: fs.statSync(archivePath).size,
+              sha256: sha256(fs.readFileSync(archivePath)),
+            },
+            files: manifestFiles,
+          },
+        },
+      }),
+    }));
+
+    mod.setupSettingsIPC();
+    const handlers = mockIpcListeners.get('install-language-data') ?? [];
+    const event = makeEvent();
+    for (const h of handlers) await h(event, 'aa');
+
+    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'aa.json'))).toBe(true);
+    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
   });
 
   it('ensures installed language-declared Python requirements for enabled components', async () => {

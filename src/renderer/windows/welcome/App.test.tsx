@@ -21,6 +21,7 @@ const translations: Record<string, string> = {
   'mlearn.Installer.SetupSentence.AppLanguagePrefix': 'with mLearn in',
   'mlearn.Installer.SetupSentence.AppLanguageSuffix': '.',
   'mlearn.Installer.SetupSentence.DictionaryPrefix': 'Dictionary definitions should be in',
+  'mlearn.Installer.SetupSentence.LoadingLanguages': 'Loading available languages…',
   'mlearn.Installer.Advanced.Title': 'Advanced',
   'mlearn.Installer.Summary.LearningLanguage': 'Learning language: {language}',
   'mlearn.Installer.Summary.DisplayLanguage': 'Display language: {language}',
@@ -234,6 +235,35 @@ describe('WelcomeApp', () => {
       expect(container.textContent).toContain('German');
       expect(container.textContent).not.toContain('Chinese');
       expect(container.textContent).not.toContain('Coming soon');
+    });
+
+    dispose();
+  });
+
+  it('shows a loading placeholder in the learning-language select while no languages are available', async () => {
+    testLanguages = {};
+    setLanguageDataCatalog([]);
+
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+
+    await vi.waitFor(() => {
+      const languageSelect = container.querySelector('select') as HTMLSelectElement;
+      expect(Array.from(languageSelect.options).map((option) => option.textContent))
+        .toContain('Loading available languages…');
+    });
+
+    setLanguageDataCatalog([
+      { language: 'es', name: 'Spanish', installed: false, missingRequiredAssets: ['language-metadata'] },
+    ]);
+
+    await vi.waitFor(() => {
+      const languageSelect = container.querySelector('select') as HTMLSelectElement;
+      expect(Array.from(languageSelect.options).map((option) => option.textContent))
+        .not.toContain('Loading available languages…');
+      expect(container.textContent).toContain('Spanish');
     });
 
     dispose();
