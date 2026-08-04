@@ -34,6 +34,7 @@ class MockWebSocket {
   static CLOSED = 3;
 
   url: string;
+  headers?: Record<string, string>;
   readyState: number;
   private _listeners = new Map<string, WsEventCallback[]>();
   send = vi.fn();
@@ -42,8 +43,9 @@ class MockWebSocket {
     this._emit('close');
   });
 
-  constructor(url: string) {
+  constructor(url: string, options?: { headers?: Record<string, string> }) {
     this.url = url;
+    this.headers = options?.headers;
     this.readyState = MockWebSocket.OPEN;
     lastCreatedWebSocket = this;
   }
@@ -418,7 +420,7 @@ describe('VOICE_MODEL_STATUS handler', () => {
     await handleHandlers.get('voice-model-status')?.({}, 'ja');
 
     expect(httpGetFn).toHaveBeenCalledWith(
-      expect.stringContaining('/voice/tts/status?language=ja'),
+      expect.objectContaining({ path: expect.stringContaining('/voice/tts/status?language=ja') }),
       expect.any(Function),
     );
   });
@@ -468,12 +470,12 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     expect(lastCreatedWebSocket?.url).toContain('tts_provider=qwen3');
   });
 
-  it('includes quit token in WebSocket URL when available', () => {
+  it('includes quit token in WebSocket headers when available', () => {
     mockQuitToken = 'abc123def456';
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
-    expect(lastCreatedWebSocket?.url).toContain('token=abc123def456');
+    expect(lastCreatedWebSocket?.headers?.Authorization).toBe('Bearer abc123def456');
     mockQuitToken = null;
   });
 
@@ -492,7 +494,7 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     mockQuitToken = 'delayed-token';
     mockQuitTokenAvailableCallback?.('delayed-token');
     expect(lastCreatedWebSocket).not.toBeNull();
-    expect(lastCreatedWebSocket?.url).toContain('token=delayed-token');
+    expect(lastCreatedWebSocket?.headers?.Authorization).toBe('Bearer delayed-token');
     expect(event.sender.send).toHaveBeenCalledWith('voice-session-status', {
       stage: 'websocket',
       message: 'Opening local voice stream…',
@@ -1047,8 +1049,9 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
 
-    httpGetFn.mockImplementation((url: string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
-      const isTtsStatus = url.includes('/voice/tts/status');
+    httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const urlPath = typeof opts === 'string' ? opts : (opts.path ?? '');
+      const isTtsStatus = urlPath.includes('/voice/tts/status');
       const body = JSON.stringify({
         downloaded: false,
         loaded: false,
@@ -1219,7 +1222,7 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     await new Promise((r) => setTimeout(r, 50));
 
     expect(httpGetFn).toHaveBeenCalledWith(
-      expect.stringContaining('/voice/tts/status?language=ja'),
+      expect.objectContaining({ path: expect.stringContaining('/voice/tts/status?language=ja') }),
       expect.any(Function),
     );
   });
@@ -1473,9 +1476,10 @@ describe('installVoicePackages — includeMlxStt flag controls mlx-stt inclusion
 describe('checkModelStatus — dynamic STT model name and engine propagation', () => {
   it('propagates engine and dynamic modelName from the backend STT status response', async () => {
     mod.setupVoiceIPC();
-    httpGetFn.mockImplementation((url: string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
-      const isSttStatus = url.includes('/voice/stt/status');
-      const isTtsStatus = url.includes('/voice/tts/status');
+    httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const urlPath = typeof opts === 'string' ? opts : (opts.path ?? '');
+      const isSttStatus = urlPath.includes('/voice/stt/status');
+      const isTtsStatus = urlPath.includes('/voice/tts/status');
       const payload = isSttStatus
         ? {
             downloaded: true,
@@ -1504,8 +1508,9 @@ describe('checkModelStatus — dynamic STT model name and engine propagation', (
 
   it('does not set sttEngine when the backend omits the engine field', async () => {
     mod.setupVoiceIPC();
-    httpGetFn.mockImplementation((url: string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
-      const payload = url.includes('/voice/stt/status')
+    httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: ReturnType<typeof makeFakeResponse>) => void) => {
+      const urlPath = typeof opts === 'string' ? opts : (opts.path ?? '');
+      const payload = urlPath.includes('/voice/stt/status')
         ? { downloaded: true, downloading: false, progress: 1, modelName: 'openai/whisper-small' }
         : { downloaded: true, downloading: false, progress: 1 };
       const body = JSON.stringify(payload);

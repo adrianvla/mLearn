@@ -9,6 +9,7 @@ import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
 import type { LanguageData, Settings } from '../../../../shared/types';
 import { loadLangData, loadSettings } from '../../settings';
+import { getQuitToken } from '../../pythonBackend';
 import { httpGet, wsConnect, skipTest } from '../utils';
 import { backendSttStatusUrl, backendTtsStatusUrl } from '../voiceDiagnosticUrls';
 
@@ -79,8 +80,9 @@ registerDiagnosticSuite({
         const { language } = getVoiceDiagnosticContext();
         const url = new URL(`ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stream`);
         url.searchParams.set('language', language);
+        const authToken = getQuitToken();
         try {
-          await wsConnect(url.toString());
+          await wsConnect(url.toString(), 10_000, authToken ? { Authorization: `Bearer ${authToken}` } : undefined);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           // 403 means the endpoint exists but requires auth token — server is functional
@@ -199,7 +201,10 @@ registerDiagnosticSuite({
           provider: 'qwen3',
         });
         await new Promise<void>((resolve, reject) => {
-          const ws = new WebSocket(`ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/stream`);
+          const authToken = getQuitToken();
+          const ws = new WebSocket(`ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/stream`, {
+            headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+          });
           const timer = setTimeout(() => {
             ws.terminate();
             reject(new Error('Local Qwen3-TTS stream timed out'));

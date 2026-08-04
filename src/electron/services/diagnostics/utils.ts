@@ -115,10 +115,10 @@ export function isConnectionRefused(err: unknown): boolean {
   return false;
 }
 
-export function wsConnect(url: string, timeoutMs = 10_000): Promise<void> {
+export function wsConnect(url: string, timeoutMs = 10_000, headers?: Record<string, string>): Promise<void> {
   return new Promise((resolve, reject) => {
     const WebSocket = require('ws');
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, headers ? { headers } : undefined);
     const timer = setTimeout(() => {
       ws.terminate();
       reject(new Error(`WebSocket connection to ${url} timed out after ${timeoutMs}ms`));

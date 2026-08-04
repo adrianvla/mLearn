@@ -142,7 +142,11 @@ describe('webServer', () => {
       if (event === 'error') mockHttpServer._errorHandler = handler;
       return mockHttpServer;
     });
-    mockHttpServer.listen.mockImplementation((_port, cb) => { if (cb) cb(); return mockHttpServer; });
+    mockHttpServer.listen.mockImplementation((_port: unknown, _hostOrCb?: unknown, cb?: () => void) => {
+      const callback = typeof _hostOrCb === 'function' ? _hostOrCb : cb;
+      if (callback) callback();
+      return mockHttpServer;
+    });
 
     mod = await import('./webServer');
   });

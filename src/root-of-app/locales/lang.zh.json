@@ -358,7 +358,10 @@
       "SigningIn": "正在登录…",
       "TestConnection": "测试连接",
       "Title": "连接",
-      "Unreachable": "无法访问"
+      "Unreachable": "无法访问",
+      "TetheredServing": "Tethered Serving",
+      "TetheredServerEnabled": "在本地网络中为移动客户端提供服务",
+      "TetheredServerEnabledDescription": "将本地 Python 后端暴露给此网络中的其他设备。仅在需要与手机或平板同步时需要。"
     },
     "ConversationAgent": {
       "Agents": {

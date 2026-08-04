@@ -26,6 +26,14 @@ import { loadLocalization } from './localization';
 import { getAnkiCard, getAnkiWordsPayload, refreshAnkiCards } from './ankiService';
 import { getLogger } from '../../shared/utils/logger';
 
+// Lazily require pythonBackend so importing webServer doesn't trigger its
+// module-level side effects (windowManager tests mock platform utils).
+function getPythonBackendToken(): string | null {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getQuitToken } = require('./pythonBackend') as { getQuitToken: () => string | null };
+  return getQuitToken();
+}
+
 const log = getLogger('electron.webServer');
 
 // Server instances
@@ -259,7 +267,11 @@ function validateSubtitleTracks(data: unknown): data is { tracks: unknown[]; tex
 }
 
 function requireAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-  if (req.headers['x-auth-token'] !== SERVER_AUTH_TOKEN) {
+  const supplied = req.headers['x-auth-token'];
+  const ok = typeof supplied === 'string'
+    && supplied.length === SERVER_AUTH_TOKEN.length
+    && crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(SERVER_AUTH_TOKEN));
+  if (!ok) {
     res.writeHead(401, { ...corsHeaders, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Unauthorized' }));
     return false;
@@ -318,8 +330,13 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
-  // Forward proxy to Python backend
+  // Forward proxy to Python backend. The caller must authenticate to the
+  // node server first (X-Auth-Token); the proxy then injects the current
+  // Python bearer token so direct Python auth is enforced even for proxied
+  // requests. Caller-supplied auth headers are discarded.
   if (pathname.startsWith('/forward/')) {
+    if (!requireAuth(req, res)) return;
+
     const forwardPath = pathname.replace('/forward', '');
     const settings = loadSettings();
     const tokeniserUrl = settings.tokeniserUrl || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
@@ -331,15 +348,30 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
       return;
     }
 
+    const backendToken = getPythonBackendToken();
+    if (!backendToken) {
+      res.writeHead(503, corsHeaders);
+      res.end('Python backend not ready');
+      return;
+    }
+
+    const forwardedHeaders: Record<string, string | string[] | undefined> = {
+      ...req.headers,
+      host: `${hostname}:${port}`,
+    };
+    delete forwardedHeaders['authorization'];
+    delete forwardedHeaders['x-auth-token'];
+    delete forwardedHeaders['x-quit-token'];
+    delete forwardedHeaders['connection'];
+    delete forwardedHeaders['upgrade'];
+    forwardedHeaders['authorization'] = `Bearer ${backendToken}`;
+
     const options: http.RequestOptions = {
       hostname,
       port: parseInt(port, 10),
       path: forwardPath,
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: `${hostname}:${port}`,
-      },
+      headers: forwardedHeaders as Record<string, string>,
     };
 
     const proxyClient = tokeniserUrl.startsWith('https') ? https : http;
@@ -795,6 +827,20 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
+  // API: Current Python backend token (authenticated). Tethered clients that
+  // already hold the node pairing token fetch the per-run Python bearer token
+  // here; it is never persisted or synced.
+  if (pathname === '/api/backend-token') {
+    if (!requireAuth(req, res)) return;
+    const token = getPythonBackendToken();
+    if (!token) {
+      sendJsonResponse(res, { error: 'Python backend not ready' }, 503);
+      return;
+    }
+    sendJsonResponse(res, { token });
+    return;
+  }
+
   // API: Settings (GET/POST)
   if (pathname === '/api/settings') {
     if (!requireAuth(req, res)) return;
@@ -810,6 +856,9 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
       req.on('end', async () => {
         try {
           const incoming = JSON.parse(body);
+          if (incoming && typeof incoming === 'object' && 'tetheredServerEnabled' in incoming) {
+            delete incoming.tetheredServerEnabled;
+          }
           await saveSettings(incoming);
           const ankiResult = await refreshAnkiCards(incoming);
           notifyAnkiRefreshResult(ankiResult);
@@ -975,8 +1024,10 @@ export function startWebServer(): void {
     sendError();
   });
 
-  httpServer.listen(PROXY_SERVER_PORT, () => {
-    log.info(`Web server listening on http://127.0.0.1:${PROXY_SERVER_PORT}`);
+  const settings = loadSettings();
+  const listenHost = settings.tetheredServerEnabled ? '0.0.0.0' : '127.0.0.1';
+  httpServer.listen(PROXY_SERVER_PORT, listenHost, () => {
+    log.info(`Web server listening on http://${listenHost}:${PROXY_SERVER_PORT}`);
   });
 
   refreshAnkiCards()

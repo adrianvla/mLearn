@@ -106,7 +106,7 @@ describe('HttpNodeServerAdapter', () => {
 
       const result = await adapter.getSettings();
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/settings`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/settings`, expect.objectContaining({ headers: {} }));
       expect(result).toEqual(mockSettings);
     });
 
@@ -147,7 +147,7 @@ describe('HttpNodeServerAdapter', () => {
 
       const result = await adapter.getFlashcards();
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/flashcards`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/flashcards`, expect.objectContaining({ headers: {} }));
       expect(result).toEqual(mockStore);
     });
 
@@ -189,7 +189,7 @@ describe('HttpNodeServerAdapter', () => {
 
       const result = await adapter.getLocalization('ja');
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/localization/ja`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/localization/ja`, expect.objectContaining({ headers: {} }));
       expect(result).toEqual(locData);
     });
 
@@ -199,7 +199,7 @@ describe('HttpNodeServerAdapter', () => {
 
       await adapter.getLocalization('zh-TW');
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/localization/zh-TW`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/localization/zh-TW`, expect.objectContaining({ headers: {} }));
     });
 
     it('URL-encodes lang with spaces', async () => {
@@ -208,7 +208,7 @@ describe('HttpNodeServerAdapter', () => {
 
       await adapter.getLocalization('lang name');
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/localization/lang%20name`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/localization/lang%20name`, expect.objectContaining({ headers: {} }));
     });
 
     it('throws when response is not ok', async () => {
@@ -227,7 +227,7 @@ describe('HttpNodeServerAdapter', () => {
 
       const result = await adapter.getLangData('ja');
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/lang-data/ja`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/lang-data/ja`, expect.objectContaining({ headers: {} }));
       expect(result).toEqual(langData);
     });
 
@@ -238,7 +238,7 @@ describe('HttpNodeServerAdapter', () => {
 
       const result = await adapter.getLangData();
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/lang-data`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/lang-data`, expect.objectContaining({ headers: {} }));
       expect(result).toEqual(langData);
     });
 
@@ -248,7 +248,7 @@ describe('HttpNodeServerAdapter', () => {
 
       await adapter.getLangData('zh-TW');
 
-      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/lang-data/zh-TW`);
+      expect(mockFetch).toHaveBeenCalledWith(`${DEFAULT_URL}/api/lang-data/zh-TW`, expect.objectContaining({ headers: {} }));
     });
 
     it('throws when response is not ok', async () => {

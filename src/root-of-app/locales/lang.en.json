@@ -356,6 +356,9 @@
       "SignIn": "Sign in",
       "SignOut": "Sign out",
       "SigningIn": "Signing in...",
+      "TetheredServing": "Tethered Serving",
+      "TetheredServerEnabled": "Serve mobile clients over the local network",
+      "TetheredServerEnabledDescription": "Exposes the local Python backend to other devices on this network. Only needed when syncing with a phone or tablet.",
       "TestConnection": "Test Connection",
       "Title": "Connection",
       "Unreachable": "Unreachable"

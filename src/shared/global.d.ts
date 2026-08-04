@@ -106,6 +106,8 @@ export interface MLearnIPC {
   // Server/Backend Status
   isLoaded: () => void;
   isSuccess: () => void;
+  getBackendToken: () => void;
+  onBackendTokenChanged: (callback: (token: string | null) => void) => () => void;
   onServerLoad: (callback: (message: string) => void) => () => void;
   onServerStatusUpdate: (callback: (message: string) => void) => () => void;
   onServerCriticalError: (callback: (message: string) => void) => () => void;

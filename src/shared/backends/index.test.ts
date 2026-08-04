@@ -98,10 +98,23 @@ describe('getBackend', () => {
     expect(first).not.toBe(second);
   });
 
-  it('creates a new instance when authToken is different', () => {
-    const first = getBackend({ mode: 'local', authToken: 'token-a' });
-    const second = getBackend({ mode: 'local', authToken: 'token-b' });
+  it('creates a new instance when backendToken is different', () => {
+    const first = getBackend({ mode: 'local', backendToken: 'token-a' });
+    const second = getBackend({ mode: 'local', backendToken: 'token-b' });
     expect(first).not.toBe(second);
+  });
+
+  it('returns the configured backend for bare getBackend() calls', () => {
+    const configured = getBackend({ mode: 'local', backendToken: 'token-x' });
+    const bare = getBackend();
+    expect(bare).toBe(configured);
+  });
+
+  it('creates a new backend after resetBackend()', () => {
+    const first = getBackend({ mode: 'local', backendToken: 'token-x' });
+    resetBackend();
+    const bare = getBackend();
+    expect(bare).not.toBe(first);
   });
 });
 

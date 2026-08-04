@@ -139,6 +139,8 @@ export const IPC_CHANNELS = {
   LOG_RECORD: 'log-record',
   ANKI_CONNECTION_ERROR: 'anki-connection-error',
   OCR_STATUS_UPDATE: 'ocr-status-update',
+  GET_BACKEND_TOKEN: 'get-backend-token',
+  BACKEND_TOKEN_CHANGED: 'backend-token-changed',
   
   // Installation
   IS_SUCCESSFUL_INSTALL: 'is-successful-install',

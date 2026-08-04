@@ -358,7 +358,10 @@
       "SigningIn": "サインイン中...",
       "TestConnection": "接続テスト",
       "Title": "接続",
-      "Unreachable": "到達不能"
+      "Unreachable": "到達不能",
+      "TetheredServing": "Tethered Serving",
+      "TetheredServerEnabled": "ローカルネットワークでモバイルクライアントにサービスを提供",
+      "TetheredServerEnabledDescription": "ローカルネットワーク上の他のデバイスにローカルPythonバックエンドを公開します。電話やタブレットと同期する場合のみ必要です。"
     },
     "ConversationAgent": {
       "Agents": {

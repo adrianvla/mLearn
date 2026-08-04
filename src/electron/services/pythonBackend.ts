@@ -372,6 +372,18 @@ function notifyQuitTokenAvailable(token: string): void {
   }
 }
 
+function broadcastBackendToken(token: string | null): void {
+  try {
+    for (const win of BrowserWindow.getAllWindows()) {
+      const w = win as { isDestroyed?: () => boolean; webContents: { send: (channel: string, ...args: unknown[]) => void } };
+      if (w.isDestroyed && w.isDestroyed()) continue;
+      w.webContents.send(IPC_CHANNELS.BACKEND_TOKEN_CHANGED, token);
+    }
+  } catch (e) {
+    log.error('Failed to broadcast backend token:', e);
+  }
+}
+
 /** Broadcast an IPC event to all open windows (install events need to reach
  *  every window, not just the main window, so the install progress modal
  *  is visible everywhere). */
@@ -888,6 +900,7 @@ async function pythonFound(): Promise<boolean> {
       if (quitTokenMatch) {
         quitToken = quitTokenMatch[1];
         notifyQuitTokenAvailable(quitToken);
+        broadcastBackendToken(quitToken);
         continue;
       }
       if (line.startsWith(V2_PREFIX)) {
@@ -939,6 +952,7 @@ async function pythonFound(): Promise<boolean> {
       pythonChildProcess = null;
       serverLoaded = false;
       quitToken = null;
+      broadcastBackendToken(null);
       if (serverLoadCheckInterval) {
         clearTimeout(serverLoadCheckInterval);
         serverLoadCheckInterval = null;
@@ -972,6 +986,11 @@ async function pythonFound(): Promise<boolean> {
     userDataPath,
     getLanguageDataRoot(),
   ];
+
+  // The backend binds to loopback by default. Only expose it on all
+  // interfaces (LAN) when the user explicitly enables tethered serving.
+  const backendHost = settings.tetheredServerEnabled ? '0.0.0.0' : '127.0.0.1';
+  args.push('--host', backendHost);
 
   if (isWindows) {
     // Use exec() on Windows — running through cmd.exe ensures proper
@@ -1524,5 +1543,9 @@ export function setupPythonBackendIPC(): void {
 
   ipcMain.on(IPC_CHANNELS.RESTART_BACKEND, () => {
     restartPythonBackend();
+  });
+
+  ipcMain.on(IPC_CHANNELS.GET_BACKEND_TOKEN, (event) => {
+    event.reply(IPC_CHANNELS.BACKEND_TOKEN_CHANGED, quitToken);
   });
 }

@@ -1075,6 +1075,34 @@ const serverBridge: ServerBridge = {
       .catch(() => emitter.emit('python-success', false));
   },
 
+  getBackendToken() {
+    // On mobile, the per-run Python token is served by the desktop's node
+    // server (authenticated via the node pairing token). Cache it so the
+    // renderer can send it with direct Python calls.
+    const nodeUrl = getNodeServerUrl();
+    const pairingToken = localStorage.getItem('mlearn-node-server-token');
+    if (!pairingToken) {
+      emitter.emit('backend-token-changed', null);
+      return;
+    }
+    fetch(`${nodeUrl}/api/backend-token`, {
+      headers: { 'X-Auth-Token': pairingToken },
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error(`backend-token ${res.status}`);
+        const data = await res.json() as { token?: string };
+        if (data.token) localStorage.setItem('mlearn-backend-token', data.token);
+        emitter.emit('backend-token-changed', data.token ?? null);
+      })
+      .catch(() => {
+        emitter.emit('backend-token-changed', null);
+      });
+  },
+
+  onBackendTokenChanged(callback) {
+    return emitter.on('backend-token-changed', callback as Listener);
+  },
+
   onServerLoad(callback) {
     return emitter.on('server-load', callback as Listener);
   },
@@ -1217,7 +1245,14 @@ const llmBridge: LLMBridge = {
       : `${nodeUrl}/forward/llm/stream`;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (cloudToken) headers['Authorization'] = `Bearer ${cloudToken}`;
+    if (isCloudMode) {
+      if (cloudToken) headers['Authorization'] = `Bearer ${cloudToken}`;
+    } else {
+      // /forward/* requires the node pairing token; the desktop proxy injects
+      // the Python bearer token itself.
+      const pairingToken = localStorage.getItem('mlearn-node-server-token');
+      if (pairingToken) headers['X-Auth-Token'] = pairingToken;
+    }
 
     fetch(url, {
       method: 'POST',

@@ -216,6 +216,9 @@ const mLearnIPC = {
   // ========== Server Status ==========
   isLoaded: () => ipcRenderer.send(IPC_CHANNELS.IS_LOADED),
   isSuccess: () => ipcRenderer.send(IPC_CHANNELS.IS_SUCCESSFUL_INSTALL),
+  getBackendToken: () => ipcRenderer.send(IPC_CHANNELS.GET_BACKEND_TOKEN),
+  onBackendTokenChanged: (callback: (token: string | null) => void) =>
+    ipcOn(IPC_CHANNELS.BACKEND_TOKEN_CHANGED, (_event, token) => callback(token)),
   onServerLoad: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.SERVER_LOAD, (_event, message) => callback(message)),
   onServerStatusUpdate: (callback: (message: string) => void) =>

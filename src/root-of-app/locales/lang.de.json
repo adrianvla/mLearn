@@ -358,7 +358,10 @@
       "SigningIn": "Anmeldung...",
       "TestConnection": "Verbindung testen",
       "Title": "Verbindung",
-      "Unreachable": "Nicht erreichbar"
+      "Unreachable": "Nicht erreichbar",
+      "TetheredServing": "Tethered Serving",
+      "TetheredServerEnabled": "Mobile Geräte im lokalen Netzwerk bedienen",
+      "TetheredServerEnabledDescription": "Macht das lokale Python-Backend für andere Geräte in diesem Netzwerk erreichbar. Nur beim Synchronisieren mit einem Telefon oder Tablet nötig."
     },
     "ConversationAgent": {
       "Agents": {

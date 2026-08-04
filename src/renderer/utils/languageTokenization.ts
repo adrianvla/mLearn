@@ -9,24 +9,20 @@ const log = getLogger('renderer.utils.languageTokenization');
 
 type BackendSettings = Pick<
   Settings,
-  'backendMode' | 'backendUrl' | 'cloudAuthAccessToken' | 'cloudAuthToken'
+  'backendMode' | 'backendUrl'
 >;
 
-function getConfiguredBackend(settings: BackendSettings) {
-  return getBackend({
-    mode: settings.backendMode,
-    url: settings.backendUrl,
-    authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-  });
+function getConfiguredBackend() {
+  return getBackend();
 }
 
 export async function tokenizeTextWithSettings(
   text: string,
   language: string,
-  settings: BackendSettings,
+  _settings: BackendSettings,
 ): Promise<Token[]> {
   if (!text.trim()) return [];
-  return getConfiguredBackend(settings).tokenize(text, language);
+  return getConfiguredBackend().tokenize(text, language);
 }
 
 function colorizeWithRoughTokenizerFallback(params: {

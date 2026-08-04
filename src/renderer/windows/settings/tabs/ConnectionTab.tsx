@@ -11,11 +11,11 @@ import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import {
   DEFAULT_CLOUD_LOGIN_URL,
   DEFAULT_CLOUD_API_URL,
-  getBackend,
   requiresFirstPartyCloudLegalConsent,
-  resetBackend,
   resolveCloudLoginUrl,
 } from '../../../../shared/backends';
+import { HttpBackend } from '../../../../shared/backends/httpBackend';
+import { PYTHON_BACKEND_PORT } from '../../../../shared/constants';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
 import { getBridge } from '../../../../shared/bridges';
 import { exchangeCloudDesktopCode, getCloudDashboardUrl, startCloudDesktopLogin } from '../../../services/cloudAuthService';
@@ -66,12 +66,12 @@ export const ConnectionTab: Component = () => {
     setBackendStatus('idle');
     setBackendError('');
     try {
-      resetBackend();
-      const backend = getBackend({
-        mode: settings.backendMode as BackendMode,
-        url: settings.backendUrl,
-        authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-      });
+      // /health is public, so test connectivity with a standalone instance
+      // without disturbing the token-configured backend singleton.
+      const testUrl = settings.backendMode === 'tethered' && settings.backendUrl
+        ? settings.backendUrl.replace(/\/+$/, '')
+        : `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
+      const backend = new HttpBackend(testUrl, {});
       const ok = await backend.ping();
       setBackendStatus(ok ? 'success' : 'error');
       if (!ok) setBackendError(t('mlearn.Connection.Unreachable') || 'Unreachable');
@@ -407,6 +407,21 @@ export const ConnectionTab: Component = () => {
                   : (t('mlearn.Connection.TestConnection') || 'Test Connection')
               }
             </Btn>
+          </SettingRow>
+        </SettingGroup>
+      </Show>
+
+      {/* ── Serve Tethered Clients (desktop host only) ── */}
+      <Show when={!isMobile()}>
+        <SettingGroup title={t('mlearn.Connection.TetheredServing') || 'Tethered Serving'}>
+          <SettingRow
+            label={t('mlearn.Connection.TetheredServerEnabled') || 'Serve mobile clients over the local network'}
+            description={t('mlearn.Connection.TetheredServerEnabledDescription') || 'Exposes the local Python backend to other devices on this network. Only needed when syncing with a phone or tablet.'}
+          >
+            <ToggleSwitch
+              checked={settings.tetheredServerEnabled}
+              onChange={(checked) => updateSetting('tetheredServerEnabled', checked)}
+            />
           </SettingRow>
         </SettingGroup>
       </Show>

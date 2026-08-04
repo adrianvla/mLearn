@@ -10,6 +10,7 @@ import { ipcMain, protocol, net } from 'electron';
 import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
+import { getQuitToken } from './pythonBackend';
 import { limitConsecutiveDots } from '../../shared/utils/textUtils';
 import { pathToFileURL } from 'node:url';
 import http from 'http';
@@ -119,6 +120,7 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
     const payload: Record<string, unknown> = { text, language, format: 'ogg', provider };
     if (voiceSamplePath) payload.voiceSamplePath = voiceSamplePath;
     const body = JSON.stringify(payload);
+    const token = getQuitToken();
 
     const req = http.request(
       {
@@ -129,6 +131,7 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(body),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         timeout: 60000,
       },

@@ -27,11 +27,12 @@ import logging
 import os
 import time
 import importlib.util
+import secrets
 from pathlib import Path
 
 import torch
 import torchaudio
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -43,8 +44,36 @@ log = logging.getLogger("moss-tts-server")
 
 app = FastAPI(title="MOSS-TTS Remote Server")
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "null",
+        "capacitor://localhost",
+        "https://localhost",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# Set from the --token CLI arg; empty when not configured.
+SERVER_TOKEN = os.environ.get("MOSS_TTS_TOKEN", "")
+
+
+def require_token(request: Request) -> None:
+    if not SERVER_TOKEN:
+        return
+    authorization = request.headers.get("authorization", "")
+    scheme, _, credential = authorization.partition(" ")
+    if (
+        scheme.lower() != "bearer"
+        or not credential
+        or not secrets.compare_digest(credential, SERVER_TOKEN)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 # ---------------------------------------------------------------------------
 # Global state
@@ -161,7 +190,7 @@ async def health():
     return {"status": "ok", "model_loaded": _model is not None}
 
 
-@app.get("/voice/tts/status")
+@app.get("/voice/tts/status", dependencies=[Depends(require_token)])
 async def tts_status():
     return {
         "downloaded": True,
@@ -218,7 +247,7 @@ def _log_language_data_path() -> None:
     log.info("Language metadata path: %s", LANGUAGE_DATA_PATH / "languages")
 
 
-@app.post("/voice/tts")
+@app.post("/voice/tts", dependencies=[Depends(require_token)])
 async def tts_generate(req: TTSRequest):
     if _model is None:
         raise HTTPException(status_code=503, detail="Model not loaded yet")
@@ -293,8 +322,13 @@ async def tts_generate(req: TTSRequest):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MOSS-TTS-Realtime remote server")
-    parser.add_argument("--host", default="0.0.0.0", help="Bind address")
+    parser.add_argument("--host", default="127.0.0.1", help="Bind address")
     parser.add_argument("--port", type=int, default=7760, help="Port")
+    parser.add_argument(
+        "--token",
+        default=os.environ.get("MOSS_TTS_TOKEN", ""),
+        help="Bearer token required when binding to a non-loopback address",
+    )
     parser.add_argument(
         "--no-preload", action="store_true", help="Don't load model at startup"
     )
@@ -304,8 +338,16 @@ if __name__ == "__main__":
         help="Path to mLearn language-data containing languages/<code>.json metadata",
     )
     args = parser.parse_args()
+    SERVER_TOKEN = args.token
     _set_language_data_path(args.language_data_path)
     _log_language_data_path()
+
+    is_loopback = args.host in ("127.0.0.1", "localhost", "::1")
+    if not is_loopback and not SERVER_TOKEN:
+        raise SystemExit(
+            "Refusing to bind to a non-loopback address without --token; "
+            "pass a bearer token so remote clients can authenticate."
+        )
 
     if not args.no_preload:
         load_model()

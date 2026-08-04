@@ -1883,11 +1883,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const total = ids.length;
     if (total === 0) return 0;
 
-    const backend = getBackend({
-      mode: settings.backendMode,
-      url: settings.backendUrl,
-      authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-    });
+    const backend = getBackend();
 
     let backendAvailable = false;
     try {
@@ -2840,11 +2836,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const toCreate = candidates.slice(0, maxCards);
 
     // Check backend availability
-    const backend = getBackend({
-      mode: settings.backendMode,
-      url: settings.backendUrl,
-      authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-    });
+    const backend = getBackend();
 
     let backendAvailable = false;
     try {

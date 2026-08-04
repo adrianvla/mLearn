@@ -15,7 +15,7 @@ import type {
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
 import { APP_THEMES, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
-import { getBackend, resetBackend } from '../../shared/backends';
+import { getBackend, resetBackend, configureBackend } from '../../shared/backends';
 import { isCapacitor, initPlatformBodyClass } from '../../shared/platform';
 import {
   readingAnnotationMoreContrastEnabled,
@@ -409,7 +409,6 @@ export const SettingsProvider: ParentComponent = (props) => {
       getBackend({
         mode: nextSettings.backendMode,
         url: resolveBackendUrl(nextSettings),
-        authToken: resolveCloudAccessToken(nextSettings),
       });
     }
   };
@@ -464,7 +463,6 @@ export const SettingsProvider: ParentComponent = (props) => {
     getBackend({
       mode: reconciledSettings.backendMode,
       url: resolveBackendUrl(reconciledSettings),
-      authToken: resolveCloudAccessToken(reconciledSettings),
     });
     applySettingsToDOM(reconciledSettings);
     if (shouldPersist || readerAppearanceNormalized) saveSettingsSnapshot(reconciledSettings, false);
@@ -761,6 +759,20 @@ export const SettingsProvider: ParentComponent = (props) => {
       }
     }));
     getBridge().localization.getLangData();
+
+    // The per-run Python token arrives asynchronously (parsed from backend
+    // stdout) and changes on every backend restart. Reconfigure the adapter
+    // so direct Python calls carry the current bearer token.
+    ipcCleanups.push(getBridge().server.onBackendTokenChanged((token) => {
+      if (token) {
+        configureBackend({
+          mode: settings.backendMode,
+          url: resolveBackendUrl(settings as Settings),
+          backendToken: token,
+        });
+      }
+    }));
+    getBridge().server.getBackendToken();
 
     // Load initial settings
     loadSettings();

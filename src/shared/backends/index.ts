@@ -41,9 +41,6 @@ export function requiresFirstPartyCloudLegalConsent(settings: CloudUrlSettings):
     && resolveCloudApiUrl(settings) === DEFAULT_CLOUD_API_URL;
 }
 
-let cached: BackendAdapter | null = null;
-let cachedKey = '';
-
 function isViteDevRendererOrigin(): boolean {
   const location = globalThis.location;
   if (!location) return false;
@@ -97,7 +94,28 @@ function resolveAnkiBaseUrl(mode: BackendMode, userUrl?: string): string {
 export interface GetBackendOptions {
   mode?: BackendMode;
   url?: string;
+  /** Per-run bearer token for the local Python backend. */
+  backendToken?: string;
+  /** Auth token for the Electron node server (X-Auth-Token). */
+  nodeAuthToken?: string;
+  /** @deprecated Cloud tokens are handled by cloud adapters, not HttpBackend. */
   authToken?: string;
+}
+
+let cached: BackendAdapter | null = null;
+let cachedKey = '';
+
+function buildBackend(opts: GetBackendOptions): BackendAdapter {
+  const mode = opts.mode || 'local';
+  const baseUrl = resolveBaseUrl(mode, opts.url);
+  const ankiBaseUrl = resolveAnkiBaseUrl(mode, opts.url);
+  const backendToken = opts.backendToken || opts.authToken || '';
+  const nodeAuthToken = opts.nodeAuthToken || '';
+  return new HttpBackend(baseUrl, {
+    backendToken: backendToken || undefined,
+    nodeAuthToken: nodeAuthToken || undefined,
+    ankiBaseUrl,
+  });
 }
 
 /**
@@ -108,24 +126,50 @@ export interface GetBackendOptions {
  * const backend = getBackend({
  *   mode: settings.backendMode,
  *   url: settings.backendUrl,
- *   authToken: settings.cloudAuthToken,
+ *   backendToken: backendToken,
  * });
  * ```
+ *
+ * Bare `getBackend()` calls (no args) return the adapter most recently
+ * configured via `configureBackend()` (set by SettingsContext) instead of
+ * silently recreating an unauthenticated local adapter.
  */
 export function getBackend(opts: GetBackendOptions = {}): BackendAdapter {
-  const mode = opts.mode || 'local';
-  const baseUrl = resolveBaseUrl(mode, opts.url);
-  const ankiBaseUrl = resolveAnkiBaseUrl(mode, opts.url);
-  const authToken = opts.authToken || '';
-  const key = `${baseUrl}::${ankiBaseUrl}::${authToken}`;
+  const hasExplicitConfig = Boolean(opts.mode || opts.url || opts.backendToken || opts.nodeAuthToken || opts.authToken);
+
+  if (!hasExplicitConfig) {
+    if (cached) return cached;
+    return buildBackend({});
+  }
+
+  const key = JSON.stringify({
+    mode: opts.mode || 'local',
+    url: opts.url || '',
+    backendToken: opts.backendToken || opts.authToken || '',
+    nodeAuthToken: opts.nodeAuthToken || '',
+  });
 
   if (cached && cachedKey === key) return cached;
 
-  cached = new HttpBackend(baseUrl, {
-    authToken: authToken || undefined,
-    ankiBaseUrl,
-  });
+  cached = buildBackend(opts);
   cachedKey = key;
+  return cached;
+}
+
+/**
+ * Configure the backend singleton with explicit runtime credentials
+ * (mode/URL + per-run Python token). Subsequent bare `getBackend()` calls
+ * return this instance. Call again (or call `resetBackend()`) when the
+ * Python process restarts and the token changes.
+ */
+export function configureBackend(opts: GetBackendOptions = {}): BackendAdapter {
+  cached = buildBackend(opts);
+  cachedKey = JSON.stringify({
+    mode: opts.mode || 'local',
+    url: opts.url || '',
+    backendToken: opts.backendToken || opts.authToken || '',
+    nodeAuthToken: opts.nodeAuthToken || '',
+  });
   return cached;
 }
 

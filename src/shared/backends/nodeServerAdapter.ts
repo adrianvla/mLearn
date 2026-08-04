@@ -37,9 +37,11 @@ export interface NodeServerAdapter {
 
 export class HttpNodeServerAdapter implements NodeServerAdapter {
   private readonly baseUrl: string;
+  private readonly authToken?: string;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, options?: { authToken?: string }) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
+    this.authToken = options?.authToken;
   }
 
   getBaseUrl(): string {
@@ -51,8 +53,16 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
     return `${this.baseUrl}${p}`;
   }
 
+  private headers(extra?: Record<string, string>): Record<string, string> {
+    const h: Record<string, string> = { ...extra };
+    if (this.authToken) {
+      h['X-Auth-Token'] = this.authToken;
+    }
+    return h;
+  }
+
   async getSettings(): Promise<Settings> {
-    const res = await fetch(this.buildUrl('/api/settings'));
+    const res = await fetch(this.buildUrl('/api/settings'), { headers: this.headers() });
     if (!res.ok) throw new Error(`Failed to get settings: ${res.status}`);
     return await res.json() as Settings;
   }
@@ -60,14 +70,14 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
   async saveSettings(settings: Settings): Promise<void> {
     const res = await fetch(this.buildUrl('/api/settings'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(settings),
     });
     if (!res.ok) throw new Error(`Failed to save settings: ${res.status}`);
   }
 
   async getFlashcards(): Promise<FlashcardStore> {
-    const res = await fetch(this.buildUrl('/api/flashcards'));
+    const res = await fetch(this.buildUrl('/api/flashcards'), { headers: this.headers() });
     if (!res.ok) throw new Error(`Failed to get flashcards: ${res.status}`);
     return await res.json() as FlashcardStore;
   }
@@ -75,21 +85,21 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
   async saveFlashcards(store: FlashcardStore): Promise<void> {
     const res = await fetch(this.buildUrl('/api/flashcards'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(store),
     });
     if (!res.ok) throw new Error(`Failed to save flashcards: ${res.status}`);
   }
 
   async getLocalization(lang: string): Promise<Record<string, unknown>> {
-    const res = await fetch(this.buildUrl(`/api/localization/${encodeURIComponent(lang)}`));
+    const res = await fetch(this.buildUrl(`/api/localization/${encodeURIComponent(lang)}`), { headers: this.headers() });
     if (!res.ok) throw new Error(`Failed to get localization: ${res.status}`);
     return await res.json() as Record<string, unknown>;
   }
 
   async getLangData(lang?: string): Promise<Record<string, unknown>> {
     const path = lang ? `/api/lang-data/${encodeURIComponent(lang)}` : '/api/lang-data';
-    const res = await fetch(this.buildUrl(path));
+    const res = await fetch(this.buildUrl(path), { headers: this.headers() });
     if (!res.ok) throw new Error(`Failed to get lang data: ${res.status}`);
     return await res.json() as Record<string, unknown>;
   }
@@ -112,10 +122,10 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
 
 let cached: NodeServerAdapter | null = null;
 
-export function getNodeServer(baseUrl?: string): NodeServerAdapter {
+export function getNodeServer(baseUrl?: string, options?: { authToken?: string }): NodeServerAdapter {
   const url = baseUrl || `http://127.0.0.1:${PROXY_SERVER_PORT}`;
   if (cached && (cached as HttpNodeServerAdapter).getBaseUrl() === url) return cached;
-  cached = new HttpNodeServerAdapter(url);
+  cached = new HttpNodeServerAdapter(url, options);
   return cached;
 }
 

@@ -113,8 +113,8 @@ describe('HttpBackend', () => {
       });
     });
 
-    it('includes Authorization header when authToken is provided', async () => {
-      const authed = new HttpBackend('http://127.0.0.1:7752', { authToken: 'my-token' });
+    it('includes Authorization header when backendToken is provided', async () => {
+      const authed = new HttpBackend('http://127.0.0.1:7752', { backendToken: 'my-token' });
       mockFetch.mockResolvedValueOnce(makeOkResponse({ tokens: [] }));
 
       await authed.tokenize('test');
@@ -475,8 +475,11 @@ describe('HttpBackend', () => {
   });
 
   describe('auth token', () => {
-    it('sends Authorization header on all requests', async () => {
-      const backend = new HttpBackend('http://127.0.0.1:7752', { authToken: 'secret-token' });
+    it('sends Authorization header on Python requests and X-Auth-Token on node requests', async () => {
+      const backend = new HttpBackend('http://127.0.0.1:7752', {
+        backendToken: 'secret-token',
+        nodeAuthToken: 'node-token',
+      });
 
       mockFetch.mockResolvedValue(makeOkResponse({ tokens: [] }));
       await backend.tokenize('test');
@@ -496,11 +499,11 @@ describe('HttpBackend', () => {
       await backend.getAnkiWords();
       expect(mockFetch).toHaveBeenLastCalledWith(
         expect.any(String),
-        expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer secret-token' }) })
+        expect.objectContaining({ headers: expect.objectContaining({ 'X-Auth-Token': 'node-token' }) })
       );
     });
 
-    it('does not send Authorization header when no authToken', async () => {
+    it('does not send Authorization header when no backendToken', async () => {
       const backend = new HttpBackend('http://127.0.0.1:7752');
       mockFetch.mockResolvedValueOnce(makeOkResponse({ tokens: [] }));
 

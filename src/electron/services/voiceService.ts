@@ -161,16 +161,27 @@ async function ensureVoiceSampleTranscript(
 
 function fetchJson(url: string): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    http.get(url, (res) => {
-      let data = '';
-      res.on('data', (chunk: string) => { data += chunk; });
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch (e) {
-          log.error("error", e);
-          reject(e);
-        }
-      });
-    }).on('error', reject);
+    const token = getQuitToken();
+    const urlObj = new URL(url);
+    const req = http.get(
+      {
+        hostname: urlObj.hostname,
+        port: urlObj.port,
+        path: `${urlObj.pathname}${urlObj.search}`,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk: string) => { data += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch (e) {
+            log.error("error", e);
+            reject(e);
+          }
+        });
+      },
+    );
+    req.on('error', reject);
   });
 }
 
@@ -191,6 +202,7 @@ function postJson(
   return new Promise((resolve, reject) => {
     const bodyStr = JSON.stringify(body);
     const urlObj = new URL(url);
+    const token = getQuitToken();
     const req = http.request(
       {
         hostname: urlObj.hostname,
@@ -200,6 +212,7 @@ function postJson(
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(bodyStr),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       },
       (res) => {
@@ -525,7 +538,7 @@ function doStartSession(
   ttsProvider?: string,
 ): void {
   const ttsProviderQuery = ttsProvider ? `&tts_provider=${encodeURIComponent(ttsProvider)}` : '';
-  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}&token=${encodeURIComponent(token)}${ttsProviderQuery}`;
+  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}${ttsProviderQuery}`;
 
   try {
     sendSessionStatus(sender, {
@@ -533,7 +546,7 @@ function doStartSession(
       message: 'Opening local voice stream…',
       progress: 0.02,
     });
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, { headers: { Authorization: `Bearer ${token}` } });
     activeWs = ws;
     activeSession = true;
     activeSender = sender;
@@ -865,7 +878,10 @@ function streamLocalTTS(
   signal: AbortSignal,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(API_ENDPOINTS.voiceTtsStream);
+    const token = getQuitToken();
+    const ws = new WebSocket(API_ENDPOINTS.voiceTtsStream, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     activeTtsWs = ws;
     let pendingAudioMeta: {
       sampleRate: number;

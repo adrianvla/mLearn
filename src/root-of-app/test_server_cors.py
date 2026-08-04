@@ -24,7 +24,13 @@ def import_server(monkeypatch, tmp_path):
     return importlib.import_module("server")
 
 
-def test_tokenize_errors_include_cors_headers(monkeypatch, tmp_path):
+def auth_headers(server, **extra):
+    headers = {"Authorization": f"Bearer {server.config.QUIT_TOKEN}"}
+    headers.update(extra)
+    return headers
+
+
+def test_tokenize_errors_include_cors_headers_for_allowed_origin(monkeypatch, tmp_path):
     server = import_server(monkeypatch, tmp_path)
 
     class FailingLanguageModule:
@@ -40,15 +46,29 @@ def test_tokenize_errors_include_cors_headers(monkeypatch, tmp_path):
     client = TestClient(server.app, raise_server_exceptions=False)
     response = client.post(
         "/tokenize",
-        headers={"Origin": "http://localhost:3000"},
+        headers=auth_headers(server, Origin="http://localhost:3000"),
         json={"text": "漢字", "language": "ja"},
     )
 
     assert response.status_code >= 500
-    assert response.headers["access-control-allow-origin"] == "*"
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
-def test_tokenize_preflight_includes_cors_headers(monkeypatch, tmp_path):
+def test_tokenize_errors_do_not_leak_cors_for_disallowed_origin(monkeypatch, tmp_path):
+    server = import_server(monkeypatch, tmp_path)
+
+    client = TestClient(server.app, raise_server_exceptions=False)
+    response = client.post(
+        "/tokenize",
+        headers=auth_headers(server, Origin="https://evil.example"),
+        json={"text": "漢字", "language": "ja"},
+    )
+
+    assert response.status_code != 401
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_tokenize_preflight_includes_cors_headers_for_allowed_origin(monkeypatch, tmp_path):
     server = import_server(monkeypatch, tmp_path)
 
     client = TestClient(server.app, raise_server_exceptions=False)
@@ -62,12 +82,12 @@ def test_tokenize_preflight_includes_cors_headers(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "*"
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
     assert "POST" in response.headers["access-control-allow-methods"]
     assert "content-type" in response.headers["access-control-allow-headers"].lower()
 
 
-def test_middleware_errors_include_cors_headers(monkeypatch, tmp_path):
+def test_middleware_errors_include_cors_headers_for_allowed_origin(monkeypatch, tmp_path):
     server = import_server(monkeypatch, tmp_path)
 
     def fail_info(*_args, **_kwargs):
@@ -78,9 +98,9 @@ def test_middleware_errors_include_cors_headers(monkeypatch, tmp_path):
     client = TestClient(server.app, raise_server_exceptions=False)
     response = client.post(
         "/tokenize",
-        headers={"Origin": "http://localhost:3000"},
+        headers=auth_headers(server, Origin="http://localhost:3000"),
         json={"text": "漢字", "language": "ja"},
     )
 
     assert response.status_code == 500
-    assert response.headers["access-control-allow-origin"] == "*"
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"

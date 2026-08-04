@@ -272,6 +272,8 @@ export interface Settings {
   backendMode: 'local' | 'tethered';
   /** Base URL when mode is 'tethered' (e.g. http://192.168.1.10:7752) */
   backendUrl: string;
+  /** Expose the local Python backend to the LAN so tethered mobile clients can connect. */
+  tetheredServerEnabled: boolean;
   /** Single provider-agnostic manifest URL describing downloadable language data. */
   languageCatalogUrl: string;
   /**
@@ -565,6 +567,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ankiConnectUrl: 'http://127.0.0.1:8765',
   backendMode: 'local' as const,
   backendUrl: '',
+  tetheredServerEnabled: false,
   languageCatalogUrl: DEFAULT_LANGUAGE_CATALOG_URL,
   cloudAuthToken: '',
   cloudAuthAccessToken: '',

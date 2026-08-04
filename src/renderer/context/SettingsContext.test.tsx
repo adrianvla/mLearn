@@ -26,6 +26,8 @@ const mockBridge = {
   server: {
     restartBackend: vi.fn(() => mockRestartBackend()),
     forceRestartApp: vi.fn(() => mockForceRestartApp()),
+    getBackendToken: vi.fn(),
+    onBackendTokenChanged: vi.fn(() => vi.fn()),
   },
 };
 
@@ -50,9 +52,11 @@ vi.mock('../../shared/bridges', () => ({
 
 const mockGetBackend = vi.fn();
 const mockResetBackend = vi.fn();
+const mockConfigureBackend = vi.fn();
 vi.mock('../../shared/backends', () => ({
   getBackend: (...args: unknown[]) => mockGetBackend(...args),
   resetBackend: () => mockResetBackend(),
+  configureBackend: (...args: unknown[]) => mockConfigureBackend(...args),
   resolveCloudApiUrl: (settings: Settings) => settings.cloudApiUrl,
 }));
 

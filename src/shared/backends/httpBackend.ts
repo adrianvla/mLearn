@@ -22,8 +22,10 @@ const log = getLogger("shared.backends.http");
 const DEFAULT_OCR_TIMEOUT_MS = 120_000;
 
 export interface HttpBackendOptions {
-  /** Bearer token for auth (optional) */
-  authToken?: string;
+  /** Per-run bearer token for the local Python backend. Sent on Python requests. */
+  backendToken?: string;
+  /** Auth token for the Electron node server (X-Auth-Token). Sent on node/Anki requests. */
+  nodeAuthToken?: string;
   /** Base URL for the Electron Node server that owns Anki cache/index routes. */
   ankiBaseUrl?: string;
 }
@@ -41,13 +43,15 @@ class HttpBackendStatusError extends Error {
 export class HttpBackend implements BackendAdapter {
   private readonly baseUrl: string;
   private readonly ankiBaseUrl: string;
-  private readonly authToken?: string;
+  private readonly backendToken?: string;
+  private readonly nodeAuthToken?: string;
 
   constructor(baseUrl: string, options?: HttpBackendOptions) {
     // Strip trailing slash
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.ankiBaseUrl = (options?.ankiBaseUrl || this.baseUrl).replace(/\/+$/, '');
-    this.authToken = options?.authToken;
+    this.backendToken = options?.backendToken;
+    this.nodeAuthToken = options?.nodeAuthToken;
   }
 
   getBaseUrl(): string {
@@ -68,10 +72,20 @@ export class HttpBackend implements BackendAdapter {
     return `${this.ankiBaseUrl}${p}`;
   }
 
-  private headers(extra?: Record<string, string>): Record<string, string> {
+  /** Headers for Python backend requests (bearer auth). */
+  private pythonHeaders(extra?: Record<string, string>): Record<string, string> {
     const h: Record<string, string> = { ...extra };
-    if (this.authToken) {
-      h['Authorization'] = `Bearer ${this.authToken}`;
+    if (this.backendToken) {
+      h['Authorization'] = `Bearer ${this.backendToken}`;
+    }
+    return h;
+  }
+
+  /** Headers for node server (Anki/sync) requests (X-Auth-Token auth). */
+  private nodeHeaders(extra?: Record<string, string>): Record<string, string> {
+    const h: Record<string, string> = { ...extra };
+    if (this.nodeAuthToken) {
+      h['X-Auth-Token'] = this.nodeAuthToken;
     }
     return h;
   }
@@ -92,7 +106,7 @@ export class HttpBackend implements BackendAdapter {
 
     const res = await fetch(this.buildUrl(API_PATHS.tokenize), {
       method: 'POST',
-      headers: this.headers({ 'Content-Type': 'application/json' }),
+      headers: this.pythonHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(10_000),
     });
@@ -111,7 +125,7 @@ export class HttpBackend implements BackendAdapter {
 
     const res = await fetch(this.buildUrl(API_PATHS.translate), {
       method: 'POST',
-      headers: this.headers({ 'Content-Type': 'application/json' }),
+      headers: this.pythonHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(10_000),
     });
@@ -150,7 +164,7 @@ export class HttpBackend implements BackendAdapter {
 
     const res = await fetch(this.buildUrl(API_PATHS.ocr), {
       method: 'POST',
-      headers: this.headers(),
+      headers: this.pythonHeaders(),
       body: form,
       signal: AbortSignal.timeout(options?.timeoutMs ?? DEFAULT_OCR_TIMEOUT_MS),
     });
@@ -167,7 +181,7 @@ export class HttpBackend implements BackendAdapter {
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: this.headers(),
+      headers: this.pythonHeaders(),
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -178,7 +192,7 @@ export class HttpBackend implements BackendAdapter {
   async getCard(params: Record<string, unknown>): Promise<unknown> {
     const res = await fetch(this.buildAnkiUrl(API_PATHS.ankiCard), {
       method: 'POST',
-      headers: this.headers({ 'Content-Type': 'application/json' }),
+      headers: this.nodeHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(params),
       signal: AbortSignal.timeout(10_000),
     });
@@ -190,7 +204,7 @@ export class HttpBackend implements BackendAdapter {
   private async getAnkiWordsPayload(): Promise<{ words?: string[]; cards?: AnkiWordStatusRecord[] }> {
     const res = await fetch(this.buildAnkiUrl(API_PATHS.ankiWords), {
       method: 'GET',
-      headers: this.headers(),
+      headers: this.nodeHeaders(),
       signal: AbortSignal.timeout(10_000),
     });
 
@@ -214,7 +228,7 @@ export class HttpBackend implements BackendAdapter {
   async reloadAnkiCache(): Promise<boolean> {
     const res = await fetch(this.buildAnkiUrl(API_PATHS.ankiReload), {
       method: 'POST',
-      headers: this.headers({ 'Content-Type': 'application/json' }),
+      headers: this.nodeHeaders({ 'Content-Type': 'application/json' }),
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -227,7 +241,7 @@ export class HttpBackend implements BackendAdapter {
       const timeoutId = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(this.buildUrl(API_PATHS.health), {
         method: 'GET',
-        headers: this.headers(),
+        headers: this.pythonHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

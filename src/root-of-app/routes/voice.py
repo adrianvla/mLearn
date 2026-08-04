@@ -1262,13 +1262,6 @@ async def voice_stream_ws(websocket: WebSocket):
       { "type": "error", "message": "..." }
       { "type": "ready" }
     """
-    token = websocket.query_params.get("token")
-    quit_token = getattr(config, "QUIT_TOKEN", None)
-    if quit_token and token != quit_token:
-        await websocket.accept()
-        await websocket.close(code=4003, reason="Unauthorized")
-        return
-
     await websocket.accept()
 
     language = websocket.query_params.get("language") or config.LANGUAGE

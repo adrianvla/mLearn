@@ -358,7 +358,10 @@
       "SigningIn": "Вход...",
       "TestConnection": "Проверить подключение",
       "Title": "Подключение",
-      "Unreachable": "Недоступен"
+      "Unreachable": "Недоступен",
+      "TetheredServing": "Tethered Serving",
+      "TetheredServerEnabled": "Обслуживать мобильные клиенты в локальной сети",
+      "TetheredServerEnabledDescription": "Открывает локальный Python-бэкенд для других устройств в этой сети. Нужно только при синхронизации с телефоном или планшетом."
     },
     "ConversationAgent": {
       "Agents": {
