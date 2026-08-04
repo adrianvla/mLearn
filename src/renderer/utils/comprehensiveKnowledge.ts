@@ -31,7 +31,7 @@ export interface ComprehensiveWordStatusResult {
 }
 
 interface SourceResult {
-  source: KnowledgeSource;
+  source: KnowledgeSource | 'manual';
   status: WordStatus;
   timesSeen: number;
   matchedWord?: string;
@@ -115,11 +115,16 @@ function getStatusFromSource(
       for (const match of matches) {
         const knowledge = deps.wordKnowledge[match.lk];
         if (knowledge) {
+          // A word whose ease was set by an explicit user rating (status pill or
+          // Word Sync) is not passive knowledge — report it as Manual so the UI
+          // doesn't misattribute the user's own action to passive tracking.
+          const explicitlyRated = knowledge.lastStatusChange !== undefined || knowledge.wordSyncRatedAt !== undefined;
+          const source = explicitlyRated ? 'manual' : src;
           if (knowledge.ease >= deps.knownEaseThreshold) {
-            return { source: src, status: 'known', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
+            return { source, status: 'known', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
           }
           if (knowledge.ease >= deps.learningThreshold) {
-            return { source: src, status: 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
+            return { source, status: 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
           }
         }
       }
@@ -144,9 +149,7 @@ function resolveSources(
     timesSeen: result.timesSeen,
     matchedWord: result.matchedWord,
     ...(result.ease === undefined ? {} : { ease: result.ease }),
-  });
-
-  switch (resolutionMode) {
+  });  switch (resolutionMode) {
     case 'order': {
       const winner = available[0];
       return toResult(winner);

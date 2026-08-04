@@ -2598,6 +2598,7 @@
         "IgnoredWords": "無視した単語",
         "Srs": "SRS",
         "PassiveTracking": "パッシブトラッキング",
+        "Manual": "手動",
         "None": "ソースなし",
         "Anki": "Anki"
       },

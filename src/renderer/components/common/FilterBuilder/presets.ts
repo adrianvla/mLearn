@@ -191,6 +191,7 @@ function buildSourceField(t: Translate): FieldConfig<unknown> {
           label: t(`mlearn.WordDbEditor.SourceFilter.${displayName}`),
         };
       }),
+      { value: 'Manual', label: t('mlearn.WordDbEditor.SourceFilter.Manual') },
       { value: 'None', label: t('mlearn.WordDbEditor.SourceFilter.None') },
     ],
     resolver: propertyResolver('knowledgeSource', 'None'),

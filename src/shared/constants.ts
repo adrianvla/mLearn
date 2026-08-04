@@ -411,10 +411,11 @@ export const KNOWLEDGE_SOURCE_DISPLAY_NAMES = {
   srs: 'Srs',
   anki: 'Anki',
   passiveTracking: 'PassiveTracking',
-} as const satisfies Record<KnowledgeSource, string>;
+  manual: 'Manual',
+} as const satisfies Record<KnowledgeSource | 'manual', string>;
 
 export type KnowledgeSourceDisplayName = typeof KNOWLEDGE_SOURCE_DISPLAY_NAMES[KnowledgeSource];
-export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'None';
+export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None';
 
 // Knowledge resolution modes
 export const KNOWLEDGE_RESOLUTION_MODES = ['order', 'highest', 'lowest'] as const;

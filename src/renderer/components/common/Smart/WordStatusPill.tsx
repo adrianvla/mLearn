@@ -23,7 +23,7 @@ const getNextStatus = (status: WordStatus): WordStatus => {
   return WORD_STATUS_VALUES[(index + 1) % WORD_STATUS_VALUES.length];
 };
 
-const PASSIVE_SOURCES: ReadonlySet<WordKnowledgeSource> = new Set(['PassiveTracking', 'None']);
+const PASSIVE_SOURCES: ReadonlySet<WordKnowledgeSource> = new Set(['PassiveTracking', 'Manual', 'None']);
 
 export interface WordStatusPillProps {
   word: string;
@@ -87,7 +87,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       : [t(`mlearn.Settings.KnowledgePriority.Source.${source}`)];
 
     const timesSeen = comprehensiveResult().timesSeen;
-    if (source === 'PassiveTracking' && timesSeen > 0) {
+    if ((source === 'PassiveTracking' || source === 'Manual') && timesSeen > 0) {
       sourceLabels.push(t('mlearn.WordHover.TimesSeen', { count: String(timesSeen) }));
     }
 

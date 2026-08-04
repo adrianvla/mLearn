@@ -2598,6 +2598,7 @@
         "IgnoredWords": "已忽略的单词",
         "Srs": "SRS",
         "PassiveTracking": "被动追踪",
+        "Manual": "手动",
         "None": "无来源",
         "Anki": "Anki"
       },

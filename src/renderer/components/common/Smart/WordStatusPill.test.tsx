@@ -191,4 +191,23 @@ describe('WordStatusPill', () => {
 
     dispose();
   });
+
+  it('labels explicitly rated words as Manual with the seen count instead of PassiveTracking', () => {
+    comprehensiveResultMock = {
+      status: 'known',
+      source: 'Manual',
+      timesSeen: 10,
+      matchedWord: 'Haus',
+    };
+
+    const dispose = render(() => (
+      <WordStatusPill word="Haus" language="de" />
+    ), container);
+
+    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-content')).toBe(
+      'mlearn.WordHover.StatusSource.Prefixmlearn.Settings.KnowledgePriority.Source.Manual + mlearn.WordHover.TimesSeen:10',
+    );
+
+    dispose();
+  });
 });

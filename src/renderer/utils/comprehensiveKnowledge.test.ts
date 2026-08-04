@@ -57,6 +57,54 @@ describe('getComprehensiveWordStatusWithSource', () => {
     });
   });
 
+  it('reports Manual source for passive entries that were explicitly rated via the status pill', () => {
+    const deps = makeDeps({
+      wordKnowledge: {
+        'ru:hash:слово': { ease: 1.9, timesSeen: 10, lastStatusChange: 5000 } as PassiveWordKnowledge,
+      },
+    });
+
+    expect(getComprehensiveWordStatusWithSource('слово', deps)).toEqual({
+      status: 'known',
+      source: 'Manual',
+      timesSeen: 10,
+      matchedWord: 'слово',
+      ease: 1.9,
+    });
+  });
+
+  it('reports Manual source for passive entries that were rated in Word Sync', () => {
+    const deps = makeDeps({
+      wordKnowledge: {
+        'ru:hash:слово': { ease: 1.9, timesSeen: 10, wordSyncRatedAt: 5000 } as PassiveWordKnowledge,
+      },
+    });
+
+    expect(getComprehensiveWordStatusWithSource('слово', deps)).toEqual({
+      status: 'known',
+      source: 'Manual',
+      timesSeen: 10,
+      matchedWord: 'слово',
+      ease: 1.9,
+    });
+  });
+
+  it('keeps PassiveTracking source for entries whose ease grew without explicit rating', () => {
+    const deps = makeDeps({
+      wordKnowledge: {
+        'ru:hash:слово': { ease: 1.9, timesSeen: 50 } as PassiveWordKnowledge,
+      },
+    });
+
+    expect(getComprehensiveWordStatusWithSource('слово', deps)).toEqual({
+      status: 'known',
+      source: 'PassiveTracking',
+      timesSeen: 50,
+      matchedWord: 'слово',
+      ease: 1.9,
+    });
+  });
+
   it('uses language-provided word forms for SRS card status', () => {
     const reviewCard = { state: 'review', ease: 2.6 } as Flashcard;
     const deps = makeDeps({

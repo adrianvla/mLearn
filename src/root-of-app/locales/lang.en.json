@@ -2606,6 +2606,7 @@
         "IgnoredWords": "Ignored Words",
         "Srs": "SRS",
         "PassiveTracking": "Passive Tracking",
+        "Manual": "Manual",
         "None": "No Source",
         "Anki": "Anki"
       },

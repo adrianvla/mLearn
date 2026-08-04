@@ -107,16 +107,18 @@
   width: 44px;
   height: 44px;
   border-radius: var(--radius-full);
-  background: var(--bg);
+  /* ponytail: opaque nt tier — CSS backdrop-filter can't blur here (parent/window
+     backdrop-filter blocks nested filters), translucent --bg lets the thumb bleed through */
+  background: var(--bg-nt-primary);
   border: 1px solid var(--border-color-intense);
-  color: var(--accent-primary);
+  color: var(--text-primary);
   cursor: pointer;
   box-shadow: var(--shadow-md);
   transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .wfv-play:hover {
-  background: var(--bg-intense);
+  background: var(--bg-nt-secondary);
   transform: scale(1.05);
 }
 

@@ -2598,6 +2598,7 @@
         "IgnoredWords": "Игнорируемые слова",
         "Srs": "SRS",
         "PassiveTracking": "Пассивное отслеживание",
+        "Manual": "Вручную",
         "None": "Нет источника",
         "Anki": "Anki"
       },
