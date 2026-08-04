@@ -956,7 +956,7 @@ describe('Server Bridge', () => {
     bridge.server.onServerLoad(cb);
     bridge.server.isLoaded();
     await new Promise(r => setTimeout(r, 20));
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/control'));
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/health'));
     expect(cb).toHaveBeenCalledWith('loaded');
   });
 

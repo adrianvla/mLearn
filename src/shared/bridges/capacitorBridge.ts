@@ -1056,7 +1056,7 @@ const windowBridge: WindowBridge = {
 const serverBridge: ServerBridge = {
   isLoaded() {
     // On mobile, ping the backend to check if it's loaded
-    fetch(`${getBackendUrl()}/control`)
+    fetch(`${getBackendUrl()}/health`)
       .then(res => {
         if (res.ok) emitter.emit('server-load', 'loaded');
       })
@@ -1068,7 +1068,7 @@ const serverBridge: ServerBridge = {
 
   isSuccess() {
     // Check Python backend health
-    fetch(`${getBackendUrl()}/control`)
+    fetch(`${getBackendUrl()}/health`)
       .then(res => {
         emitter.emit('python-success', res.ok);
       })

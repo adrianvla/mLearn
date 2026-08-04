@@ -13,6 +13,7 @@ import { canonicalLanguage } from '../../../../shared/languageVariants';
 import '../SettingsForm.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { LanguageVariantGate } from '../../../components/common';
+import { getBilingualLanguageName, getNativeLanguageName } from '../../../utils/languageDisplayName';
 
 const log = getLogger("renderer.settings.general");
 
@@ -103,7 +104,15 @@ export const GeneralTab: Component = () => {
     value: code,
     label: (() => {
       const status = getLanguageDataStatus(code);
-      const languageName = langData[code]?.name_translated ?? status?.nameTranslated ?? status?.name ?? code.toUpperCase();
+      const nativeName = langData[code]?.name_translated ?? status?.nameTranslated ?? status?.name;
+      const languageName = getBilingualLanguageName(
+        code,
+        langData[code],
+        t,
+        settings.uiLanguage,
+        nativeName ?? code.toUpperCase(),
+        nativeName,
+      );
       if (!status || status.compatible) return languageName;
       return `${languageName} — ${t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
         version: status.minimumAppVersion ?? '',
@@ -336,7 +345,14 @@ export const GeneralTab: Component = () => {
               }}
               options={dictionaryTargetOptions().map((pack) => ({
                 value: pack.targetLanguage,
-                label: pack.name,
+                label: getBilingualLanguageName(
+                  pack.targetLanguage,
+                  null,
+                  t,
+                  settings.uiLanguage,
+                  pack.name,
+                  getNativeLanguageName(pack.targetLanguage),
+                ),
               }))}
             />
             <Show when={selectedDictionaryPackStatus()}>

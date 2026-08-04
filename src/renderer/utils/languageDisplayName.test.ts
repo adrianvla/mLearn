@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LanguageData } from '../../shared/types';
-import { getLocalizedLanguageName } from './languageDisplayName';
+import { getLocalizedLanguageName, getDisplayLanguageName, getBilingualLanguageName, getNativeLanguageName } from './languageDisplayName';
 
 const thirdPartyLanguage: LanguageData = {
   name: 'Arabic',
   name_translated: 'العربية',
-  colour_codes: {},
   settings: { fixed: {} },
 };
 
@@ -33,5 +32,55 @@ describe('getLocalizedLanguageName', () => {
 
     expect(getLocalizedLanguageName('', null, t, 'Unknown')).toBe('Unknown');
     expect(t).not.toHaveBeenCalledWith('mlearn.Languages.');
+  });
+});
+
+describe('getDisplayLanguageName', () => {
+  it('uses the UI-language translation when available', () => {
+    const t = (key: string) => key === 'mlearn.Languages.ja' ? 'Japanisch' : key;
+
+    expect(getDisplayLanguageName('ja', thirdPartyLanguage, t, 'de', 'Unbekannt')).toBe('Japanisch');
+  });
+
+  it('prefers the english metadata name for unlocalized custom codes', () => {
+    const t = (key: string) => key;
+
+    expect(getDisplayLanguageName('x-mlearn-ar', thirdPartyLanguage, t, 'en')).toBe('Arabic');
+  });
+});
+
+describe('getBilingualLanguageName', () => {
+  it('shows the localized name with the native name in parentheses', () => {
+    const t = (key: string) => key === 'mlearn.Languages.ja' ? 'Japanisch' : key;
+
+    expect(getBilingualLanguageName('ja', thirdPartyLanguage, t, 'de', 'Unbekannt', '日本語')).toBe('Japanisch (日本語)');
+  });
+
+  it('collapses to a single name when localized and native names are identical', () => {
+    const t = (key: string) => key === 'mlearn.Languages.de' ? 'Deutsch' : key;
+
+    expect(getBilingualLanguageName('de', null, t, 'de', 'Deutsch', 'Deutsch')).toBe('Deutsch');
+  });
+
+  it('uses the metadata english name as primary for unlocalized package languages', () => {
+    const t = (key: string) => key;
+
+    expect(getBilingualLanguageName('x-mlearn-ar', thirdPartyLanguage, t, 'en')).toBe('Arabic (العربية)');
+  });
+
+  it('resolves the native name from Intl for standard codes without metadata', () => {
+    const t = (key: string) => key;
+
+    expect(getBilingualLanguageName('en', null, t, 'de', 'Englisch')).toBe('Englisch (English)');
+  });
+});
+
+describe('getNativeLanguageName', () => {
+  it('returns the endonym for a standard code', () => {
+    expect(getNativeLanguageName('en')).toBe('English');
+  });
+
+  it('returns an empty string for invalid codes', () => {
+    expect(getNativeLanguageName('x-mlearn-ar')).toBe('');
   });
 });

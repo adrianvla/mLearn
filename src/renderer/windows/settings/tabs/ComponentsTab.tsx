@@ -3,8 +3,9 @@ import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { getOcrRuntimeConfig } from '../../../../shared/languageFeatures';
 import { Panel, Btn, AlertBanner, ManagedSettingNotice, ToggleSwitch } from '../../../components/common';
-import type { LanguageDataCatalogStatus } from '../../../../shared/types';
+import type { LanguageDataCatalogStatus, LanguageDataMap } from '../../../../shared/types';
 import type { PolicySettingKey } from '../../../../shared/managementPolicy';
+import { getLocalizedLanguageName, getBilingualLanguageName, getNativeLanguageName } from '../../../utils/languageDisplayName';
 import './ComponentsTab.css';
 
 const KNOWN_OCR_ENGINE_LABEL_KEYS = {
@@ -232,10 +233,17 @@ export const ComponentsTab: Component = () => {
         kind: 'language',
         language: status.language,
         title: t('mlearn.ComponentsTab.LanguageData.CoreTitle', {
-          language: status.nameTranslated ?? status.name,
+          language: getBilingualLanguageName(
+            status.language,
+            langData[status.language],
+            t,
+            settings.uiLanguage,
+            status.nameTranslated ?? status.name,
+            status.nameTranslated ?? status.name,
+          ),
         }),
         description: t('mlearn.ComponentsTab.LanguageData.CoreDescription', {
-          language: status.name,
+          language: getLocalizedLanguageName(status.language, langData[status.language], t, status.name, settings.uiLanguage),
         }),
         installed: status.installed,
         outdated: status.outdated,
@@ -246,7 +254,7 @@ export const ComponentsTab: Component = () => {
       });
 
       for (const pack of status.dictionaryPacks ?? []) {
-        rows.push(buildDictionaryPackRow(status, pack, t));
+        rows.push(buildDictionaryPackRow(status, pack, t, settings.uiLanguage, langData));
       }
     }
     return rows.sort((left, right) => {
@@ -466,15 +474,24 @@ function buildDictionaryPackRow(
   status: LanguageDataCatalogStatus,
   pack: CatalogDictionaryPackStatus,
   t: (key: string, params?: Record<string, string | number>) => string,
+  uiLanguage: string,
+  langData: LanguageDataMap,
 ): LanguagePackRow {
   return {
     key: `${status.language}:${pack.targetLanguage}`,
     kind: 'dictionary',
     language: status.language,
     dictionaryTargetLanguage: pack.targetLanguage,
-    title: pack.name,
+    title: getBilingualLanguageName(
+      pack.targetLanguage,
+      null,
+      t,
+      uiLanguage,
+      pack.name,
+      getNativeLanguageName(pack.targetLanguage),
+    ),
     description: t('mlearn.ComponentsTab.LanguageData.DictionaryDescription', {
-      language: status.nameTranslated ?? status.name,
+      language: getLocalizedLanguageName(status.language, langData[status.language], t, status.name, uiLanguage),
       target: pack.targetLanguage.toUpperCase(),
     }),
     installed: pack.installed,

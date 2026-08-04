@@ -12,6 +12,7 @@ let languageDataInstallErrorMock: { language: string; dictionaryTargetLanguage?:
 let managedSettingKey: string | null = null;
 
 const testSettings = {
+  uiLanguage: 'en',
   llmEnabled: true,
   ocrEnabled: true,
   voiceEnabled: false,
@@ -134,7 +135,7 @@ vi.mock('../../../context', () => ({
         dictionaryPacks: [
           {
             targetLanguage: 'en',
-            name: 'Japanese -> English',
+            name: 'English',
             installed: true,
             outdated: false,
             totalBytes: 4096,
@@ -151,7 +152,7 @@ vi.mock('../../../context', () => ({
           },
           {
             targetLanguage: 'fr',
-            name: 'Japanese -> French',
+            name: 'French',
             installed: false,
             outdated: false,
             totalBytes: 2048,
@@ -251,11 +252,11 @@ describe('ComponentsTab', () => {
     expect(container.textContent).not.toContain('RapidOCR models');
     expect(container.textContent).toContain('Whisper STT engine');
     expect(container.textContent).toContain('Language data');
-    expect(container.textContent).toContain('日本語 language package');
+    expect(container.textContent).toContain('Japanese (日本語) language package');
     expect(container.textContent).toContain('language-metadata');
-    expect(container.textContent).toContain('Japanese -> English');
-    expect(container.textContent).toContain('Japanese -> French');
-    expect(container.textContent).toContain('Definitions for 日本語 in EN.');
+    expect(container.textContent).toContain('English');
+    expect(container.textContent).toContain('French (français)');
+    expect(container.textContent).toContain('Definitions for Japanese in EN.');
     expect(container.textContent).not.toContain('mlearn.Installer.Components');
     expect(container.textContent).not.toContain('mlearn.ComponentsTab');
 
@@ -505,8 +506,8 @@ describe('ComponentsTab', () => {
     const dispose = render(() => <ComponentsTab />, container);
 
     const packRows = Array.from(container.querySelectorAll('.components-tab__language-pack'));
-    const englishPack = packRows.find((row) => row.textContent?.includes('Japanese -> English'));
-    const frenchPack = packRows.find((row) => row.textContent?.includes('Japanese -> French'));
+    const englishPack = packRows.find((row) => row.textContent?.includes('English'));
+    const frenchPack = packRows.find((row) => row.textContent?.includes('French'));
 
     expect(englishPack?.textContent).not.toContain('Checksum mismatch');
     expect(frenchPack?.textContent).toContain('Checksum mismatch');

@@ -441,7 +441,7 @@ describe('WelcomeApp', () => {
     await vi.waitFor(() => {
       expect(changeLanguageMock).toHaveBeenCalledWith('de');
       expect(container.textContent).toContain('Display language: German');
-      expect(container.textContent).toContain('Dictionary language: Japanese→German');
+      expect(container.textContent).toContain('Dictionary language: Japanisch→Deutsch');
     });
 
     dispose();
@@ -507,8 +507,8 @@ describe('WelcomeApp', () => {
     await vi.waitFor(() => {
       const advanced = container.querySelector('details.welcome-window__advanced') as HTMLDetailsElement | null;
       expect(advanced?.open).toBe(true);
-      expect(container.textContent).toContain('No French dictionary is available. Choose one of: Japanese -> English, Japanese -> German.');
-      expect(container.textContent).toContain('Dictionary language: Japanese→not available');
+      expect(container.textContent).toContain('No French dictionary is available. Choose one of: anglais, allemand.');
+      expect(container.textContent).toContain('Dictionary language: japonais→not available');
     });
 
     let continueButton = Array.from(container.querySelectorAll('button'))
@@ -524,7 +524,7 @@ describe('WelcomeApp', () => {
       continueButton = Array.from(container.querySelectorAll('button'))
         .find((button) => button.textContent?.includes('Install Selected Language Data'));
       expect(continueButton?.disabled).toBe(false);
-      expect(container.textContent).toContain('Dictionary language: Japanese→German');
+      expect(container.textContent).toContain('Dictionary language: japonais→allemand');
     });
 
     continueButton?.click();

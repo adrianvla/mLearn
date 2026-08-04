@@ -225,10 +225,9 @@ export class HttpBackend implements BackendAdapter {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(this.buildUrl(API_PATHS.control), {
-        method: 'POST',
-        headers: this.headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ function: 'ping' }),
+      const res = await fetch(this.buildUrl(API_PATHS.health), {
+        method: 'GET',
+        headers: this.headers(),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

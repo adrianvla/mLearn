@@ -442,17 +442,16 @@ describe('HttpBackend', () => {
   describe('ping', () => {
     const backend = new HttpBackend('http://127.0.0.1:7752');
 
-    it('returns true when /control responds ok', async () => {
+    it('returns true when /health responds ok', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true } as Response);
 
       const result = await backend.ping();
 
       expect(result).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:7752/control',
+        'http://127.0.0.1:7752/health',
         expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ function: 'ping' }),
+          method: 'GET',
         })
       );
     });

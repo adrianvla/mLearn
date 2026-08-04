@@ -56,7 +56,7 @@ export const API_PATHS = {
   llmStatus: '/llm/status',
   ocr: '/ocr',
   ocrWarmup: '/ocr/warmup',
-  control: '/control',
+  health: '/health',
   quit: '/quit',
   voiceStream: '/voice/stream',
   voiceTtsStream: '/voice/tts/stream',

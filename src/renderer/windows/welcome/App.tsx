@@ -15,6 +15,7 @@ import './welcome.css';
 import { getLogger } from '../../../shared/utils/logger';
 import { getBundledLocaleCodes } from '../../../shared/bridges/bundledLanguageAssets';
 import { canonicalLanguage } from '../../../shared/languageVariants';
+import { getLocalizedLanguageName, getBilingualLanguageName, getNativeLanguageName, getDisplayLanguageName } from '../../utils/languageDisplayName';
 
 const log = getLogger("renderer.welcome.app");
 const CLICK_TO_BEGIN_KEY = 'mlearn.Installer.Instructions.ClickToBegin';
@@ -105,16 +106,6 @@ const WelcomeContent: Component = () => {
     const catalogCodes = catalogLanguageCodes();
     return uniqueLanguageCodes(langData, catalogCodes, supportedLanguages());
   });
-  const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => {
-    const status = getLanguageDataStatus(code);
-    return {
-      code,
-      name: langData[code]?.name ?? status?.name ?? code.toUpperCase(),
-      nativeName: langData[code]?.name_translated ?? status?.nameTranslated ?? status?.name ?? code.toUpperCase(),
-      compatible: status?.compatible !== false,
-      minimumAppVersion: status?.minimumAppVersion,
-    };
-  }));
   const uiLanguageCodes = getBundledLocaleCodes();
   const uiLanguageOptions = createMemo(() => uiLanguageCodes.map((code) => ({
     value: code,
@@ -134,6 +125,16 @@ const WelcomeContent: Component = () => {
 
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
   const [selectedUILanguage, setSelectedUILanguage] = createSignal<string>(resolveInitialUILanguageCode(settings.uiLanguage, uiLanguageCodes));
+  const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => {
+    const status = getLanguageDataStatus(code);
+    return {
+      code,
+      name: getDisplayLanguageName(code, langData[code], t, selectedUILanguage(), status?.name ?? code.toUpperCase()),
+      nativeName: langData[code]?.name_translated ?? status?.nameTranslated ?? status?.name ?? code.toUpperCase(),
+      compatible: status?.compatible !== false,
+      minimumAppVersion: status?.minimumAppVersion,
+    };
+  }));
   const [selectedDictionaryTargetLanguage, setSelectedDictionaryTargetLanguage] = createSignal('');
   const [isAdvancedOpen, setIsAdvancedOpen] = createSignal(false);
   const [pendingLanguageInstall, setPendingLanguageInstall] = createSignal<string | null>(null);
@@ -219,7 +220,9 @@ const WelcomeContent: Component = () => {
     !isPreferredDictionaryTargetAvailable()
   ));
   const availableDictionaryTargetLabels = createMemo(() => (
-    dictionaryTargetOptions().map((pack) => pack.name).join(', ')
+    dictionaryTargetOptions().map((pack) => (
+      getLocalizedLanguageName(pack.targetLanguage, null, t, pack.name, selectedUILanguage())
+    )).join(', ')
   ));
   const selectedDictionaryPackStatus = createMemo(() => {
     const target = selectedDictionaryTargetLanguage();
@@ -230,8 +233,7 @@ const WelcomeContent: Component = () => {
   const selectedDictionaryTargetLabel = createMemo(() => {
     const target = selectedDictionaryTargetLanguage();
     if (!target) return t('mlearn.Installer.Summary.NotAvailable');
-    const localeName = t(`mlearn.LocaleNames.${target}`);
-    return localeName === `mlearn.LocaleNames.${target}` ? target.toUpperCase() : localeName;
+    return getLocalizedLanguageName(target, null, t, target.toUpperCase(), selectedUILanguage());
   });
   const selectedDictionaryRoute = createMemo(() => {
     const source = selectedLanguageOption()?.name ?? selectedLanguage().toUpperCase();
@@ -630,15 +632,20 @@ const WelcomeContent: Component = () => {
                 if (getLanguageDataStatus(event.currentTarget.value)?.compatible === false) return;
                 setSelectedLanguage(event.currentTarget.value);
               }}
-              options={availableLanguages().map((lang) => ({
-                value: lang.code,
-                label: lang.compatible
-                  ? `${lang.name} (${lang.nativeName})`
-                  : `${lang.name} (${lang.nativeName}) — ${t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
-                    version: lang.minimumAppVersion ?? '',
-                  })}`,
-                disabled: !lang.compatible && lang.code !== selectedLanguage(),
-              }))}
+              options={availableLanguages().map((lang) => {
+                const displayName = lang.name === lang.nativeName
+                  ? lang.name
+                  : `${lang.name} (${lang.nativeName})`;
+                return {
+                  value: lang.code,
+                  label: lang.compatible
+                    ? displayName
+                    : `${displayName} — ${t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', {
+                      version: lang.minimumAppVersion ?? '',
+                    })}`,
+                  disabled: !lang.compatible && lang.code !== selectedLanguage(),
+                };
+              })}
             />
             <span>{t('mlearn.Installer.SetupSentence.AppLanguagePrefix')}</span>
             <Select
@@ -675,7 +682,14 @@ const WelcomeContent: Component = () => {
                   onChange={(event) => setSelectedDictionaryTargetLanguage(event.currentTarget.value)}
                   options={dictionaryTargetOptions().map((pack) => ({
                     value: pack.targetLanguage,
-                    label: pack.name,
+                    label: getBilingualLanguageName(
+                      pack.targetLanguage,
+                      null,
+                      t,
+                      selectedUILanguage(),
+                      pack.name,
+                      getNativeLanguageName(pack.targetLanguage),
+                    ),
                   }))}
                 />
                 <Show when={shouldShowDictionaryTargetWarning()}>
