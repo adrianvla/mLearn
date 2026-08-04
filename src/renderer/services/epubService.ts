@@ -263,8 +263,9 @@ function walkCleanedText(root: Element): RawExtraction {
   const rawToClean = new Int32Array(source.length).fill(-1);
   let text = '';
   let pendingWhitespace = -1;
+  // U+3000 (ideographic space) is a meaningful glyph in CJK text, not collapsible whitespace.
   for (let i = 0; i < source.length; i += 1) {
-    if (/\s/u.test(source[i])) {
+    if (/[^\S\u3000]/u.test(source[i])) {
       if (pendingWhitespace < 0) pendingWhitespace = i;
       continue;
     }

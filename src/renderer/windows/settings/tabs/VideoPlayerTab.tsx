@@ -106,6 +106,19 @@ export const VideoPlayerTab: Component = () => {
           </SettingRow>
         </Show>
 
+        <Show when={(getLanguageFeatures().supportsProsody && showProsody()) || isSettingManaged('hideProsodyForKnownWords')}>
+          <SettingRow
+            label={t('mlearn.Settings.DisplayOptions.HideProsodyForKnownWords.Label')}
+            description={t('mlearn.Settings.DisplayOptions.HideProsodyForKnownWords.Description')}
+            settingKey="hideProsodyForKnownWords"
+          >
+            <ToggleSwitch
+              checked={settings.hideProsodyForKnownWords ?? DEFAULT_SETTINGS.hideProsodyForKnownWords}
+              onChange={(checked) => updateSettings({ hideProsodyForKnownWords: checked })}
+            />
+          </SettingRow>
+        </Show>
+
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.ShowPos.Label')}
           description={t('mlearn.Settings.DisplayOptions.ShowPos.Description')}

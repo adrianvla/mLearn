@@ -338,6 +338,17 @@ export const CustomizationTab: Component = () => {
             />
           </SettingRow>
         </Show>
+
+        <SettingRow
+          label={t('mlearn.Settings.Subtitle.HideFrequencyStarsForKnownWords.Label')}
+          description={t('mlearn.Settings.Subtitle.HideFrequencyStarsForKnownWords.Description')}
+          settingKey="hideFrequencyStarsForKnownWords"
+        >
+          <ToggleSwitch
+            checked={settings.hideFrequencyStarsForKnownWords ?? DEFAULT_SETTINGS.hideFrequencyStarsForKnownWords}
+            onChange={(checked) => updateSettings({ hideFrequencyStarsForKnownWords: checked })}
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.SubtitleTiming')}>

@@ -63,7 +63,7 @@ body.hide-cursor .live-word-translator .panel-header {
   gap: 10px;
   flex-direction: column;
   flex-wrap: wrap;
-  overflow: hidden;
+  /*overflow: hidden;*/
   padding-right: 10px;
   align-content: flex-start;
   max-height:95px;

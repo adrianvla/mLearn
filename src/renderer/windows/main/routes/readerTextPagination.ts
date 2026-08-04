@@ -216,7 +216,9 @@ export function sliceReadingSpansForRange(
 
 // Book-defined readings take precedence over tokenizer/dictionary readings when a span
 // aligns with a token: exact surface match, or a strict prefix (ruby over the stem of an
-// inflected token) provided no further span continues inside the same token.
+// inflected token) provided no further span continues inside the same token. A prefix span
+// only overrides when the token reading is missing or disagrees — a complete tokenizer
+// reading that already covers the stem (e.g. 違う→ちがう with book ruby 違→ちが) is kept whole.
 export function applyReadingSpansToTokens(
   paragraph: string,
   tokens: Token[],
@@ -232,9 +234,11 @@ export function applyReadingSpansToTokens(
     if (start < 0) return;
     const end = start + surface.length;
     cursor = end;
-    const override = spans.find((span) => span.start === start && span.end === end)
-      ?? prefixSpanForToken(spans, start, end);
+    const exact = spans.find((span) => span.start === start && span.end === end);
+    const prefix = exact === undefined ? prefixSpanForToken(spans, start, end) : undefined;
+    const override = exact ?? prefix;
     if (!override || override.reading === token.reading) return;
+    if (prefix && token.reading && token.reading.startsWith(override.reading)) return;
     if (!adjusted) adjusted = tokens.slice();
     adjusted[index] = { ...token, reading: override.reading };
   });

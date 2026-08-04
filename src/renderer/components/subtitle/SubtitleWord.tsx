@@ -325,7 +325,9 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const showFrequencyStars = createMemo(() => {
     if (!cachedTranslation()) return false;
     const freq = wordFreqEntry();
-    return freq !== null && isDisplayableFrequencyLevel(freq.raw_level, getFreqLevelNames(), currentLangData());
+    if (freq === null || !isDisplayableFrequencyLevel(freq.raw_level, getFreqLevelNames(), currentLangData())) return false;
+    if ((settings.hideFrequencyStarsForKnownWords ?? DEFAULT_SETTINGS.hideFrequencyStarsForKnownWords) && wordIsKnown()) return false;
+    return true;
   });
 
   const frequencyVisualLevel = createMemo(() => {
@@ -335,9 +337,12 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return getFrequencyLevelVisualRank(freq.raw_level, getFreqLevelNames(), languageData);
   });
 
-  // Whether to hide prosody for known words when reading annotations are hidden.
+  // Whether to hide prosody for known words: via the dedicated setting, or when
+  // reading annotations are hidden for known words.
   const hideProsodyForKnown = createMemo(() => {
-    return hideReadingAnnotationsForKnownWords(settings) && wordIsKnown();
+    if (!wordIsKnown()) return false;
+    if (hideReadingAnnotationsForKnownWords(settings)) return true;
+    return settings.hideProsodyForKnownWords ?? DEFAULT_SETTINGS.hideProsodyForKnownWords;
   });
 
   const readingForDisplay = createMemo(() => (

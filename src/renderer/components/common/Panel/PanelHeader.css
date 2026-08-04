@@ -40,7 +40,7 @@
 }
 
 .panel-header .btn:hover {
-  background: var(--panel-header-hover-bg);
+  background: var(--bg);
 }
 
 .panel-header .btn img {

@@ -1740,9 +1740,14 @@ describe('language feature bricks', () => {
   });
 
   it('preserves configured reading suffix scripts in annotation display', () => {
-    expect(adjustReadingAnnotationForSurfaceSuffix('赤い', 'あさ', surfaceReadingLanguage)).toBe('あい');
+    expect(adjustReadingAnnotationForSurfaceSuffix('赤い', 'あさ', surfaceReadingLanguage)).toBe('あさ');
     expect(adjustReadingAnnotationForSurfaceSuffix('赤字', 'あかじ', surfaceReadingLanguage)).toBe('あかじ');
     expect(adjustReadingAnnotationForSurfaceSuffix('Haus', 'haus', latinLanguage)).toBe('haus');
+  });
+
+  it('does not clobber a reading that already ends in kana', () => {
+    expect(adjustReadingAnnotationForSurfaceSuffix('違う', 'ちが', surfaceReadingLanguage)).toBe('ちが');
+    expect(adjustReadingAnnotationForSurfaceSuffix('違う', 'ちがう', surfaceReadingLanguage)).toBe('ちがう');
   });
 
   it('keeps lower-number-is-harder level semantics as the default', () => {

@@ -207,8 +207,21 @@ describe('applyReadingSpansToTokens', () => {
     expect(tokens[0].reading).toBe('とん');
   });
 
-  it('applies a stem-prefix span to an inflected token', () => {
-    const result = applyReadingSpansToTokens('与える', [token('与える', 'あたえる')], [{ start: 0, end: 1, reading: 'あた' }]);
+  it('keeps the complete tokenizer reading when a stem-prefix span already covers it', () => {
+    const tokens = [token('与える', 'あたえる')];
+    const result = applyReadingSpansToTokens('与える', tokens, [{ start: 0, end: 1, reading: 'あた' }]);
+    expect(result).toBe(tokens);
+    expect(result[0].reading).toBe('あたえる');
+  });
+
+  it('applies a stem-prefix span when the tokenizer reading is missing', () => {
+    const tokens = [token('与える')];
+    const result = applyReadingSpansToTokens('与える', tokens, [{ start: 0, end: 1, reading: 'あた' }]);
+    expect(result[0].reading).toBe('あた');
+  });
+
+  it('applies a stem-prefix span when the tokenizer reading disagrees', () => {
+    const result = applyReadingSpansToTokens('与える', [token('与える', 'くみえる')], [{ start: 0, end: 1, reading: 'あた' }]);
     expect(result[0].reading).toBe('あた');
   });
 

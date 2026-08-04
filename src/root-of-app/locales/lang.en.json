@@ -1530,6 +1530,10 @@
           "Description": "Display prosody, tone, stress, or accent information for words",
           "Label": "Show prosody and accent"
         },
+        "HideProsodyForKnownWords": {
+          "Description": "Only show prosody, tone, stress, or accent information for words you don't know yet",
+          "Label": "Hide Prosody for Known Words"
+        },
         "ShowPos": {
           "Description": "Display grammatical information for words",
           "Label": "Show Part of Speech"
@@ -2134,6 +2138,10 @@
         "FrequencyStarMargin": {
           "Label": "Star spacing margin",
           "Description": "Minimum space (px) between the star rows of neighboring words before stars collapse."
+        },
+        "HideFrequencyStarsForKnownWords": {
+          "Label": "Hide Frequency Stars for Known Words",
+          "Description": "Only show frequency stars under words you don't know yet"
         }
       },
       "UI": {

@@ -147,6 +147,8 @@ export interface Settings {
   frequencyStarCollapse: FrequencyStarCollapseMode;
   /** Minimum px clearance between adjacent words' star rows before auto-collapse kicks in. */
   frequencyStarMargin: number;
+  /** Hide the frequency stars row under words already known. */
+  hideFrequencyStarsForKnownWords: boolean;
   automaticallyDownloadUpdates: boolean;
   theme: AppTheme;
   /** Custom CSS color overrides that apply globally regardless of theme */
@@ -172,6 +174,8 @@ export interface Settings {
   hideReadingForKnownWords?: boolean;
   /** Preferred persisted toggle for prosody/accent display. Prefer prosodyVisible() when reading it. */
   showProsody: boolean;
+  /** Hide prosody/accent overlays on words already known. */
+  hideProsodyForKnownWords: boolean;
   showDictionary?: boolean; // Show dictionary on hover
 
   // Anki settings
@@ -530,6 +534,7 @@ export const DEFAULT_SETTINGS: Settings = {
   coloredProsodySaturation: 100,
   frequencyStarCollapse: 'auto',
   frequencyStarMargin: 8,
+  hideFrequencyStarsForKnownWords: false,
   automaticallyDownloadUpdates: true,
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
@@ -600,6 +605,7 @@ export const DEFAULT_SETTINGS: Settings = {
   overlayAutoPosition: true,
   overlayTextMode: false,
   showProsody: true,
+  hideProsodyForKnownWords: false,
   timeWatched: 0,
   maxNewCardsPerDay: 10,
   proportionOfLevelCards: 0.5,

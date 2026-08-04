@@ -1900,7 +1900,8 @@ export function adjustReadingAnnotationForSurfaceSuffix(
     lastWordChar &&
     lastReadingChar &&
     lastWordChar !== lastReadingChar &&
-    hasLettersInAnyScript(lastWordChar, suffixScripts, getResolvedScriptProfile('', data).scriptRanges)
+    hasLettersInAnyScript(lastWordChar, suffixScripts, getResolvedScriptProfile('', data).scriptRanges) &&
+    !hasLettersInAnyScript(lastReadingChar, suffixScripts, getResolvedScriptProfile('', data).scriptRanges)
   ) {
     readingChars[readingChars.length - 1] = lastWordChar;
     return readingChars.join('');

@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { SubtitleWord } from './SubtitleWord';
 import type { LanguageData, Token } from '../../../shared/types';
+import type { ComprehensiveWordStatusResult } from '../../utils/comprehensiveKnowledge';
 
 const mockSettings: Record<string, unknown> = {
   blur_words: false,
@@ -23,11 +24,13 @@ const mockSettings: Record<string, unknown> = {
   coloredProsodySaturation: 100,
 };
 
-const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
-  status: 'unknown' as const,
-  source: 'None' as const,
-  timesSeen: 0,
-}));
+const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
+  (): ComprehensiveWordStatusResult => ({
+    status: 'unknown',
+    source: 'None',
+    timesSeen: 0,
+  }),
+);
 const mockGetFrequency = vi.fn(() => null as { raw_level: number; level: string } | null);
 const mockGetFreqLevelNames = vi.fn(() => ({} as Record<string, string>));
 const mockGetCachedTranslation = vi.fn();
@@ -396,5 +399,72 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     expect(container.querySelector('.colored-prosody__segment')).toBeNull();
     expect(container.querySelector<HTMLElement>('.subtitle-word')?.style.color).not.toBe('');
     disposeWithoutPitch();
+  });
+
+  it('hides prosody overlays for known words when hideProsodyForKnownWords is on', () => {
+    mockSettings.hideProsodyForKnownWords = true;
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
+      status: 'known' as const,
+      source: 'Srs',
+      timesSeen: 3,
+    });
+    const token: Token = {
+      word: '何時',
+      surface: '何時',
+      actual_word: '何時',
+      reading: 'いつ',
+      type: '名詞',
+      partOfSpeech: '名詞',
+    };
+
+    const dispose = render(() => (
+      <SubtitleWord token={token} index={0} />
+    ), container);
+
+    expect(container.querySelector('.pitch-overlay-wrapper')).toBeNull();
+    expect(container.querySelector('.pitch-accent')).toBeNull();
+    dispose();
+  });
+
+  it('hides frequency stars for known words when hideFrequencyStarsForKnownWords is on', () => {
+    mockSettings.language = 'xx';
+    mockSettings.hideFrequencyStarsForKnownWords = true;
+    mockLanguageData = {
+      name: 'CEFR-like Language',
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+      },
+      frequencyLevels: {
+        difficulty: 'higher-is-harder',
+      },
+    };
+    mockGetFrequency.mockReturnValue({ raw_level: 4, level: 'B2' });
+    mockGetFreqLevelNames.mockReturnValue({
+      '1': 'A1',
+      '2': 'A2',
+      '3': 'B1',
+      '4': 'B2',
+    });
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
+      status: 'known' as const,
+      source: 'Srs',
+      timesSeen: 3,
+    });
+    const token: Token = {
+      word: 'advanced',
+      surface: 'advanced',
+      actual_word: 'advanced',
+      reading: 'advanced',
+      type: 'noun',
+      partOfSpeech: 'noun',
+    };
+
+    const dispose = render(() => (
+      <SubtitleWord token={token} index={0} />
+    ), container);
+
+    expect(container.querySelector('.frequency')).toBeNull();
+    dispose();
   });
 });

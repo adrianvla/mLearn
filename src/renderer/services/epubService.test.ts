@@ -221,6 +221,17 @@ describe('epubService', () => {
     ]);
   });
 
+  it('preserves full-width ideographic spaces instead of collapsing them', async () => {
+    const content = await epubToContentPages(makeEpub({
+      chapters: [{
+        href: 'chapter.xhtml',
+        html: '<html><body><p>ミリーゼ　『回顧録』</p><p>a　b</p></body></html>',
+      }],
+    }));
+    const [item] = content.items;
+    expect(item).toMatchObject({ text: 'ミリーゼ　『回顧録』\n\na　b' });
+  });
+
   it('empty-skip omits whitespace-only imageless chapters', async () => {
     const content = await epubToContentPages(makeEpub({
       chapters: [
