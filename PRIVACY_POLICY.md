@@ -56,7 +56,7 @@ net exists for edge cases, then purged by garbage collection.
 
 ### 2.6 What We Do NOT Collect
 - The content of AI conversations (no chat logs)
-- Voice cloning samples (processed transiently and discarded)
+- Voice cloning samples (processed locally and discarded)
 - OCR images after processing (deleted immediately)
 - Generated TTS audio after delivery (deleted immediately)
 - Video, audio, or subtitle files from your local media
@@ -102,7 +102,7 @@ cloud backend:
 | **Edge network / CDN** | Request routing, DDoS protection, flashcard sync | Encrypted requests, flashcard chunks |
 | **Database / Auth** | User accounts, job tracking, Watch Together state | Account email, job metadata, room state |
 | **AI inference** | LLM text generation | Conversation messages (transient, not stored by us) |
-| **Audio synthesis** | TTS and voice cloning | Text, voice sample (transient, not stored by us) |
+| **Audio synthesis** | TTS | Text (transient, not stored by us) |
 
 Specific provider names and locations may change over time. A current
 list is maintained at [mlearn.kikan.net/infrastructure]. We do not

@@ -1,6 +1,6 @@
 # mLearn End User License Agreement (EULA)
 
-**Version 1.3 — Effective Date: 2026-07-07**
+**Version 1.4 — Effective Date: 2026-08-05**
 
 **Licensor:** Adrian Vlasov, Vaud, Switzerland  
 **Contact:** adrian@kikan.net  
@@ -103,9 +103,9 @@ before cloning any voice. You may not clone voices without the speaker's
 explicit consent, nor use cloned voices for fraud, defamation, harassment,
 impersonation, or any illegal purpose.
 
-Voice samples are processed transiently and are not stored by us. If you
-use cloud TTS/voice cloning, your sample passes through our relay and is
-deleted immediately after processing.
+Voice samples are processed locally and are not stored by us. If you
+use cloud TTS, your text passes through our relay and is deleted
+immediately after processing.
 
 ## 5. OCR & User-Provided Content
 
@@ -137,11 +137,17 @@ We reserve the right to blacklist or disable plugins that violate this
 EULA or pose security risks, via updates to a local blocklist distributed
 with app updates.
 
-## 8. Open Source & Modified Versions
+## 8. Source Code & Modified Versions
 
-If you download, clone, fork, or modify the source code, this EULA does
-not apply to your modified version unless you distribute it under the
-same terms. We disclaim all liability for any third-party modification,
+mLearn is source-available under the Sustainable Use License v1.0
+(SUL 1.0), which governs the source code and any derivative works you
+create from it. If you download, clone, fork, or modify the source
+code, your modified version remains subject to SUL 1.0 and this EULA.
+
+If you distribute a modified version, you must include a prominent
+notice stating that the software has been modified, and anyone who
+receives a copy from you must also receive a copy of the SUL 1.0
+terms. We disclaim all liability for any third-party modification,
 redistribution, or deployment of the source code. Official compiled
 releases are the only versions we support and warrant (to the limited
 extent stated above).

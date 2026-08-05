@@ -15,7 +15,7 @@ accessible through a mLearn Cloud account, including:
 
 - Cloud LLM relay (mlearn-cloud.kikan.net)
 - Cloud OCR processing
-- Cloud TTS / voice cloning (via Modal infrastructure)
+- Cloud TTS (via Modal infrastructure)
 - Watch Together session coordination (playback state sync only)
 - Flashcard and settings sync (via Cloudflare Durable Objects and Supabase)
 - Quota tracking
