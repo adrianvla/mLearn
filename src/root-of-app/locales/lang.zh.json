@@ -1530,6 +1530,10 @@
           "Description": "显示单词的韵律、声调、重音或音高信息",
           "Label": "显示韵律和重音"
         },
+        "HideProsodyForKnownWords": {
+          "Description": "仅为尚未掌握的单词显示韵律、声调、重音或音高信息",
+          "Label": "隐藏已掌握单词的韵律"
+        },
         "ShowPos": {
           "Description": "显示单词的语法信息",
           "Label": "显示词性"
@@ -2134,6 +2138,10 @@
         "FrequencyStarMargin": {
           "Label": "星级间距",
           "Description": "相邻单词星级行之间的最小间距(px),小于该值时折叠星级。"
+        },
+        "HideFrequencyStarsForKnownWords": {
+          "Label": "隐藏已掌握单词的频率星级",
+          "Description": "仅在尚未掌握的单词下显示频率星级"
         }
       },
       "UI": {
