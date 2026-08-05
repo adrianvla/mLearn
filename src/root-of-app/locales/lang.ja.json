@@ -1530,6 +1530,10 @@
           "Description": "単語のプロソディ、声調、強勢、アクセント情報を表示",
           "Label": "プロソディとアクセントを表示"
         },
+        "HideProsodyForKnownWords": {
+          "Description": "まだ知らない単語にのみプロソディ、声調、強勢、アクセント情報を表示",
+          "Label": "既知語のプロソディを隠す"
+        },
         "ShowPos": {
           "Description": "単語の文法情報を表示",
           "Label": "品詞を表示"
@@ -2111,6 +2115,10 @@
         "FrequencyStarMargin": {
           "Label": "スター間の余白",
           "Description": "スターが折りたたまれるまでの、隣の単語のスター列との最小間隔(px)。"
+        },
+        "HideFrequencyStarsForKnownWords": {
+          "Label": "既知語の頻度スターを隠す",
+          "Description": "まだ知らない単語の下にのみ頻度スターを表示"
         }
       },
       "UI": {

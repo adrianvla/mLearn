@@ -1530,6 +1530,10 @@
           "Description": "Afficher les informations de prosodie, de ton, d'accentuation ou d'accent des mots",
           "Label": "Afficher la prosodie et l'accent"
         },
+        "HideProsodyForKnownWords": {
+          "Description": "Afficher les informations de prosodie, de ton, d'accentuation ou d'accent uniquement pour les mots que vous ne connaissez pas encore",
+          "Label": "Masquer la prosodie pour les mots connus"
+        },
         "ShowPos": {
           "Description": "Afficher les informations grammaticales des mots",
           "Label": "Afficher la partie du discours"
@@ -2111,6 +2115,10 @@
         "FrequencyStarMargin": {
           "Label": "Marge entre étoiles",
           "Description": "Espace minimal (px) entre les rangées d'étoiles de mots voisins avant réduction."
+        },
+        "HideFrequencyStarsForKnownWords": {
+          "Label": "Masquer les étoiles de fréquence pour les mots connus",
+          "Description": "Afficher les étoiles de fréquence uniquement sous les mots que vous ne connaissez pas encore"
         }
       },
       "UI": {

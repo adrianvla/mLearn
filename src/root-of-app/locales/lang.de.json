@@ -1530,6 +1530,10 @@
           "Description": "Prosodie-, Ton-, Betonungs- oder Akzentinformationen zu Wörtern anzeigen",
           "Label": "Prosodie und Akzent anzeigen"
         },
+        "HideProsodyForKnownWords": {
+          "Description": "Prosodie-, Ton-, Betonungs- oder Akzentinformationen nur für noch unbekannte Wörter anzeigen",
+          "Label": "Prosodie bei bekannten Wörtern ausblenden"
+        },
         "ShowPos": {
           "Description": "Grammatische Informationen zu Wörtern anzeigen",
           "Label": "Wortart anzeigen"
@@ -2111,6 +2115,10 @@
         "FrequencyStarMargin": {
           "Label": "Sternabstand",
           "Description": "Mindestabstand (px) zwischen den Sternreihen benachbarter Wörter, bevor Sterne eingeklappt werden."
+        },
+        "HideFrequencyStarsForKnownWords": {
+          "Label": "Häufigkeitssterne bei bekannten Wörtern ausblenden",
+          "Description": "Häufigkeitssterne nur unter Wörtern anzeigen, die Sie noch nicht kennen"
         }
       },
       "UI": {
