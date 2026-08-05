@@ -1606,7 +1606,8 @@
         "Behaviour": "Verhalten",
         "WordKnowledge": "Wortkenntnisse",
         "LanguageProficiency": "Lernsprachniveau",
-        "SuggestedFlashcards": "Vorgeschlagene Lernkarten"
+        "SuggestedFlashcards": "Vorgeschlagene Lernkarten",
+        "WordColors": "Wortfärbung"
       },
       "Keybind": {
         "PressKey": "Taste drücken...",
@@ -2133,14 +2134,6 @@
           "Description": "Wörter nach Wortart einfärben",
           "Label": "Wortart-Farben"
         },
-        "ColourKnown": {
-          "Description": "Bereits gelernte Wörter farblich hervorheben",
-          "Label": "Bekannte Wörter einfärben"
-        },
-        "KnownColour": {
-          "Description": "Hervorhebungsfarbe für bekannte Wörter",
-          "Label": "Farbe bekannter Wörter"
-        },
         "KnownThreshold": {
           "Description": "Ease-Wert, ab dem ein Wort als bekannt gilt (0–5000 = 0,0–5,0 Skala)",
           "Label": "Integriertes SRS: Bekannt-Schwelle"
@@ -2182,7 +2175,15 @@
           "Label": "Manueller Status-Ease-Puffer",
           "Description": "Zusätzliche Leichtigkeit beim manuellen Setzen des Wortstatus. Bietet eine Schonfrist, bevor das passive Hover-Tracking ihn herabstufen kann."
         },
-        "EquivalentExposures": "≈ {count} Mal in Untertiteln gesehen"
+        "EquivalentExposures": "≈ {count} Mal in Untertiteln gesehen",
+        "EnableWordColoring": {
+          "Description": "Färbung von Wörtern nach Wortart, Prosodie und Schwierigkeitsmischung aktivieren",
+          "Label": "Wortfärbung"
+        },
+        "ColorKnownWords": {
+          "Description": "Wenn deaktiviert, bleiben bereits bekannte Wörter ungefärbt",
+          "Label": "Bekannte Wörter färben"
+        }
       },
       "VideoPlayer": {
         "Title": "Videoplayer",

@@ -224,6 +224,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {
+    if (!settings.enableWordColoring) return undefined;
+    if (!settings.colorKnownWords && wordIsKnown()) return undefined;
     if (!settings.do_colour_codes) return undefined;
     
     const pos = getPos();
@@ -355,7 +357,14 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     const config = coloredProsodyConfig();
     const enabled = settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled;
     const statusLimit = settings.coloredProsodyStatusLimit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit;
-    if (!config || !enabled || !coloredProsodyAllowsStatus(comprehensiveKnowledge().status, statusLimit)) {
+    const coloringEnabled = settings.enableWordColoring ?? DEFAULT_SETTINGS.enableWordColoring;
+    if (!config || !enabled || !coloringEnabled) {
+      return <span class={options.class} style={options.style}>{text}</span>;
+    }
+    if (!(settings.colorKnownWords ?? DEFAULT_SETTINGS.colorKnownWords) && wordIsKnown()) {
+      return <span class={options.class} style={options.style}>{text}</span>;
+    }
+    if (!coloredProsodyAllowsStatus(comprehensiveKnowledge().status, statusLimit)) {
       return <span class={options.class} style={options.style}>{text}</span>;
     }
 

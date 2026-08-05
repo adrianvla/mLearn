@@ -1606,7 +1606,8 @@
         "Behaviour": "Behaviour",
         "WordKnowledge": "Word Knowledge",
         "LanguageProficiency": "Language Proficiency",
-        "SuggestedFlashcards": "Suggested Flashcards"
+        "SuggestedFlashcards": "Suggested Flashcards",
+        "WordColors": "Word Coloring"
       },
       "Keybind": {
         "PressKey": "Press a key...",
@@ -2156,14 +2157,6 @@
           "Description": "Colour code words based on their grammatical role",
           "Label": "Part of Speech Colours"
         },
-        "ColourKnown": {
-          "Description": "Highlight words you've learned with a distinct colour",
-          "Label": "Colour Known Words"
-        },
-        "KnownColour": {
-          "Description": "Colour used to highlight known words",
-          "Label": "Known Word Colour"
-        },
         "KnownThreshold": {
           "Description": "Ease above which a word is considered known (0–5000 = 0.0–5.0 scale)",
           "Label": "Built-in SRS: Known Threshold"
@@ -2205,7 +2198,15 @@
           "Label": "Manual Status Ease Buffer",
           "Description": "Extra ease added when manually setting a word's status. Provides a grace period before passive hover tracking can downgrade it."
         },
-        "EquivalentExposures": "≈ seen {count} times in subtitles"
+        "EquivalentExposures": "≈ seen {count} times in subtitles",
+        "EnableWordColoring": {
+          "Description": "Enable word coloring by part of speech, prosody, and ease blending",
+          "Label": "Word Coloring"
+        },
+        "ColorKnownWords": {
+          "Description": "When disabled, words you already know stay uncolored",
+          "Label": "Color Known Words"
+        }
       },
       "About": {
         "Licenses": "Licenses",

@@ -671,6 +671,8 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
 
   /** Get POS color from user overrides or package POS metadata. */
   const getTokenColor = createMemo((): string | undefined => {
+    if (!settings.enableWordColoring) return undefined;
+    if (!settings.colorKnownWords && props.token.isKnown === true) return undefined;
     if (!settings.do_colour_codes) return undefined;
     const pos = props.token.partOfSpeech ?? props.token.type ?? '';
     if (!pos) return undefined;

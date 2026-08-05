@@ -14,6 +14,8 @@ const mockSettings: Record<string, unknown> = {
   language: 'ja',
   readerWordHoverTrigger: 'hover',
   showProsody: true,
+  enableWordColoring: true,
+  colorKnownWords: true,
   do_colour_codes: true,
   colour_codes: {},
   coloredProsodyEnabled: true,
@@ -399,6 +401,45 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     expect(container.querySelector('.colored-prosody__segment')).toBeNull();
     expect(container.querySelector<HTMLElement>('.subtitle-word')?.style.color).not.toBe('');
     disposeWithoutPitch();
+  });
+
+  it('skips POS coloring when the global word coloring master is off', () => {
+    mockSettings.enableWordColoring = false;
+    mockLanguageData = {
+      name: 'Japanese',
+      textProcessing: {
+        readingAnnotation: { type: 'script-reading', display: 'ruby', annotationScripts: ['Han'] },
+        partOfSpeech: { colors: { noun: '#999999' } },
+      },
+    };
+    mockGetCachedTranslation.mockReturnValue({ data: [{ definitions: ['cherry blossom'], reading: 'さくら' }] });
+    const token: Token = { word: '桜', actual_word: '桜', reading: 'さくら', type: 'noun' };
+
+    const dispose = render(() => <SubtitleWord token={token} index={0} />, container);
+    expect(container.querySelector<HTMLElement>('.subtitle-word')?.style.color).toBe('');
+    dispose();
+  });
+
+  it('leaves known words uncolored when colorKnownWords is off', () => {
+    mockSettings.colorKnownWords = false;
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
+      status: 'known' as const,
+      source: 'Srs',
+      timesSeen: 3,
+    });
+    mockLanguageData = {
+      name: 'Japanese',
+      textProcessing: {
+        readingAnnotation: { type: 'script-reading', display: 'ruby', annotationScripts: ['Han'] },
+        partOfSpeech: { colors: { noun: '#999999' } },
+      },
+    };
+    mockGetCachedTranslation.mockReturnValue({ data: [{ definitions: ['cherry blossom'], reading: 'さくら' }] });
+    const token: Token = { word: '桜', actual_word: '桜', reading: 'さくら', type: 'noun' };
+
+    const dispose = render(() => <SubtitleWord token={token} index={0} />, container);
+    expect(container.querySelector<HTMLElement>('.subtitle-word')?.style.color).toBe('');
+    dispose();
   });
 
   it('hides prosody overlays for known words when hideProsodyForKnownWords is on', () => {

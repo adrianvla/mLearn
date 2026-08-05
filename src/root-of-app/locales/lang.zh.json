@@ -1606,7 +1606,8 @@
         "Behaviour": "行为",
         "WordKnowledge": "单词知识",
         "LanguageProficiency": "语言水平",
-        "SuggestedFlashcards": "推荐闪卡"
+        "SuggestedFlashcards": "推荐闪卡",
+        "WordColors": "单词着色"
       },
       "Keybind": {
         "PressKey": "按一个键…",
@@ -2156,14 +2157,6 @@
           "Description": "根据语法角色为单词着色",
           "Label": "词性颜色"
         },
-        "ColourKnown": {
-          "Description": "用不同的颜色突出显示您已学习的单词",
-          "Label": "为已知单词着色"
-        },
-        "KnownColour": {
-          "Description": "用于突出显示已知单词的颜色",
-          "Label": "已知单词颜色"
-        },
         "KnownThreshold": {
           "Description": "单词被视为已知的难度系数阈值（0–5000，对应 0.0–5.0 标度）",
           "Label": "内置 SRS：已知阈值"
@@ -2205,7 +2198,15 @@
           "Label": "手动状态缓冲值",
           "Description": "手动设置单词状态时添加的额外轻松度。在被动悬停追踪降级之前提供宽限期。"
         },
-        "EquivalentExposures": "≈ 在字幕中出现过 {count} 次"
+        "EquivalentExposures": "≈ 在字幕中出现过 {count} 次",
+        "EnableWordColoring": {
+          "Description": "启用按词性、韵律和熟练度混合进行的单词着色",
+          "Label": "单词着色"
+        },
+        "ColorKnownWords": {
+          "Description": "禁用后，已经认识的单词将不着色",
+          "Label": "为已知单词着色"
+        }
       },
       "About": {
         "Licenses": "许可协议",

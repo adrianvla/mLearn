@@ -133,8 +133,10 @@ export interface Settings {
   blur_words: boolean;
   blur_known_subtitles: boolean;
   blur_amount: number;
-  colour_known: string;
-  do_colour_known: boolean;
+  /** Global master switch for all word coloring (POS, prosody, blending). */
+  enableWordColoring: boolean;
+  /** When off, words known to the user are not colored by any coloring system. */
+  colorKnownWords: boolean;
   do_colour_codes: boolean;
   colour_codes: ColorCodes;
   coloredProsodyEnabled: boolean;
@@ -524,8 +526,8 @@ export const DEFAULT_SETTINGS: Settings = {
   blur_words: false,
   blur_known_subtitles: false,
   blur_amount: 5,
-  colour_known: '#cceec9',
-  do_colour_known: true,
+  enableWordColoring: true,
+  colorKnownWords: true,
   do_colour_codes: true,
   colour_codes: {},
   coloredProsodyEnabled: true,

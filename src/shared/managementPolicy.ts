@@ -37,8 +37,8 @@ const settingRegistry = {
   blur_words: 'boolean',
   blur_known_subtitles: 'boolean',
   blur_amount: 'number',
-  colour_known: 'string',
-  do_colour_known: 'boolean',
+  enableWordColoring: 'boolean',
+  colorKnownWords: 'boolean',
   do_colour_codes: 'boolean',
   theme: {
     kind: 'string',

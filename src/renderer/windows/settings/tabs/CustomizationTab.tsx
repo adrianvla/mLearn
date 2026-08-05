@@ -404,6 +404,43 @@ export const CustomizationTab: Component = () => {
         </div>
       </SettingGroup>
 
+      <SettingGroup title={t('mlearn.Settings.Groups.WordColors')}>
+        <SettingRow
+          label={t('mlearn.Settings.WordStatus.EnableWordColoring.Label')}
+          description={t('mlearn.Settings.WordStatus.EnableWordColoring.Description')}
+          settingKey="enableWordColoring"
+        >
+          <ToggleSwitch
+            checked={settings.enableWordColoring ?? DEFAULT_SETTINGS.enableWordColoring}
+            onChange={(checked) => updateSettings({ enableWordColoring: checked })}
+          />
+        </SettingRow>
+
+        <Show when={settings.enableWordColoring ?? DEFAULT_SETTINGS.enableWordColoring}>
+          <SettingRow
+            label={t('mlearn.Settings.WordStatus.ColorKnownWords.Label')}
+            description={t('mlearn.Settings.WordStatus.ColorKnownWords.Description')}
+            settingKey="colorKnownWords"
+          >
+            <ToggleSwitch
+              checked={settings.colorKnownWords ?? DEFAULT_SETTINGS.colorKnownWords}
+              onChange={(checked) => updateSettings({ colorKnownWords: checked })}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.WordStatus.ColourCodes.Label')}
+            description={t('mlearn.Settings.WordStatus.ColourCodes.Description')}
+            settingKey="do_colour_codes"
+          >
+            <ToggleSwitch
+              checked={settings.do_colour_codes ?? DEFAULT_SETTINGS.do_colour_codes}
+              onChange={(checked) => updateSettings({ do_colour_codes: checked })}
+            />
+          </SettingRow>
+        </Show>
+      </SettingGroup>
+
       <Show when={posEntries().length > 0}>
         <SettingGroup title={t('mlearn.Settings.Groups.PosColors')}>
           <p class="pos-colors__description">

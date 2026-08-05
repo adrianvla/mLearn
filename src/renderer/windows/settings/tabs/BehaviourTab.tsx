@@ -4,7 +4,7 @@
 
 import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, ColorInput, SortableList } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, SortableList } from '../../../components/common';
 import type { SortableListItem } from '../../../components/common';
 import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../../shared/languageFeatures';
@@ -247,42 +247,6 @@ export const BehaviourTab: Component = () => {
             />
           </SettingRow>
         </Show>
-
-        <SettingRow
-          label={t('mlearn.Settings.WordStatus.ColourKnown.Label')}
-          description={t('mlearn.Settings.WordStatus.ColourKnown.Description')}
-          settingKey="do_colour_known"
-        >
-          <ToggleSwitch
-            checked={settings.do_colour_known}
-            onChange={(checked) => updateSettings({ do_colour_known: checked })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.WordStatus.KnownColour.Label')}
-          description={t('mlearn.Settings.WordStatus.KnownColour.Description')}
-          settingKey="colour_known"
-        >
-          <div class="color-input-wrapper">
-            <ColorInput
-              value={settings.colour_known}
-              onChange={(value) => updateSettings({ colour_known: value })}
-            />
-            <span class="color-value">{settings.colour_known}</span>
-          </div>
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.WordStatus.ColourCodes.Label')}
-          description={t('mlearn.Settings.WordStatus.ColourCodes.Description')}
-          settingKey="do_colour_codes"
-        >
-          <ToggleSwitch
-            checked={settings.do_colour_codes}
-            onChange={(checked) => updateSettings({ do_colour_codes: checked })}
-          />
-        </SettingRow>
 
         <SettingRow
           label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Label')}

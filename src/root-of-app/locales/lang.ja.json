@@ -1606,7 +1606,8 @@
         "Behaviour": "動作設定",
         "WordKnowledge": "単語の知識",
         "LanguageProficiency": "学習言語レベル",
-        "SuggestedFlashcards": "提案フラッシュカード"
+        "SuggestedFlashcards": "提案フラッシュカード",
+        "WordColors": "単語の色付け"
       },
       "Keybind": {
         "PressKey": "キーを押してください...",
@@ -2133,14 +2134,6 @@
           "Description": "品詞に基づいて単語を色分け",
           "Label": "品詞カラー"
         },
-        "ColourKnown": {
-          "Description": "学習済みの単語を色で強調表示",
-          "Label": "既知の単語を色付け"
-        },
-        "KnownColour": {
-          "Description": "既知の単語を強調する色",
-          "Label": "既知の単語の色"
-        },
         "KnownThreshold": {
           "Description": "この値以上で単語を既知とみなすEase（0〜5000 = 0.0〜5.0スケール）",
           "Label": "内蔵SRS: 既知しきい値"
@@ -2182,7 +2175,15 @@
           "Label": "手動ステータス緩衝値",
           "Description": "単語のステータスを手動で設定する際に追加される余裕値。パッシブホバートラッキングがダウングレードする前の猶予期間を提供します。"
         },
-        "EquivalentExposures": "≈ 字幕で{count}回見た"
+        "EquivalentExposures": "≈ 字幕で{count}回見た",
+        "EnableWordColoring": {
+          "Description": "品詞・韻律・熟達度ブレンドによる単語の色付けを有効化",
+          "Label": "単語の色付け"
+        },
+        "ColorKnownWords": {
+          "Description": "無効にすると、既知の単語には色が付きません",
+          "Label": "既知の単語を着色"
+        }
       },
       "VideoPlayer": {
         "Title": "動画プレーヤー",

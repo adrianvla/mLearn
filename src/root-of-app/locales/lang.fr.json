@@ -1606,7 +1606,8 @@
         "Behaviour": "Comportement",
         "WordKnowledge": "Connaissance des mots",
         "LanguageProficiency": "Niveau de langue d'apprentissage",
-        "SuggestedFlashcards": "Flashcards suggérées"
+        "SuggestedFlashcards": "Flashcards suggérées",
+        "WordColors": "Coloration des mots"
       },
       "Keybind": {
         "PressKey": "Appuyez sur une touche...",
@@ -2133,14 +2134,6 @@
           "Description": "Colorer les mots selon leur partie du discours",
           "Label": "Couleurs grammaticales"
         },
-        "ColourKnown": {
-          "Description": "Mettre en surbrillance les mots déjà appris",
-          "Label": "Colorer les mots connus"
-        },
-        "KnownColour": {
-          "Description": "Couleur de surbrillance des mots connus",
-          "Label": "Couleur des mots connus"
-        },
         "KnownThreshold": {
           "Description": "Aisance au-dessus de laquelle un mot est considéré connu (0–5000 = échelle 0,0–5,0)",
           "Label": "SRS intégré : Seuil connu"
@@ -2182,7 +2175,15 @@
           "Label": "Tampon d'aisance de statut manuel",
           "Description": "Aisance supplémentaire ajoutée lors de la définition manuelle du statut d'un mot. Fournit une période de grâce avant que le suivi de survol passif ne puisse le rétrograder."
         },
-        "EquivalentExposures": "≈ vu {count} fois dans les sous-titres"
+        "EquivalentExposures": "≈ vu {count} fois dans les sous-titres",
+        "EnableWordColoring": {
+          "Description": "Activer la coloration des mots par partie du discours, prosodie et mélange selon la difficulté",
+          "Label": "Coloration des mots"
+        },
+        "ColorKnownWords": {
+          "Description": "Lorsque désactivé, les mots déjà connus restent non colorés",
+          "Label": "Colorer les mots connus"
+        }
       },
       "VideoPlayer": {
         "Title": "Lecteur vidéo",
