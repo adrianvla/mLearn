@@ -506,6 +506,41 @@ describe('SubtitleContainer', () => {
     delete (window as unknown as Record<string, unknown>).mLearnLiveTranslator;
   });
 
+  it('prefers the token reading (subtitle bracket override) over the dictionary reading in live translator cards', async () => {
+    mockSettings.showLiveTranslator = true;
+    mockTranslateWord.mockResolvedValue({
+      data: [{ word: '無性', reading: 'むせい', definitions: ['asexual'] }],
+    });
+    const addCardMock = vi.fn();
+    (window as unknown as Record<string, unknown>).mLearnLiveTranslator = {
+      addCard: addCardMock,
+      removeCard: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
+      isVisible: vi.fn(),
+    };
+
+    const dispose = render(
+      () => (
+        <SubtitleContainer
+          tokens={[
+            { word: '無性', surface: '無性', actual_word: '無性', reading: 'むしょう', type: 'word', partOfSpeech: 'word' },
+          ]}
+          originalText="無性(むしょう)"
+          isLoading={false}
+        />
+      ),
+      container,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(addCardMock).toHaveBeenCalledWith('無性', 'むしょう', 'asexual');
+    dispose();
+
+    delete (window as unknown as Record<string, unknown>).mLearnLiveTranslator;
+  });
+
   it('hardcore mode hides subtitles by default but reveals them while hovering the subtitle area', () => {
     mockSettings.showSubtitles = true;
     mockSettings.hardcoreMode = true;

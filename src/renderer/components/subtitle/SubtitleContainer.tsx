@@ -168,7 +168,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             translationText = first.definitions;
           }
         }
-        const reading = extractReadingValue(first, currentLangData()) ?? token.reading ?? '';
+        const reading = token.reading ?? extractReadingValue(first, currentLangData()) ?? '';
         if (translationText) {
           translator.addCard(displayWord, reading, translationText);
         }
@@ -360,7 +360,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
               ? first.definitions.join('; ')
               : String(first.definitions);
           }
-          const reading = extractReadingValue(first, currentLangData()) ?? token.reading ?? '';
+          const reading = token.reading ?? extractReadingValue(first, currentLangData()) ?? '';
           if (!translationText) return;
 
           // Retry adding to live translator in case it hasn't mounted yet

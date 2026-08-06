@@ -462,7 +462,7 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
   }
 
   const firstEntry = translationItems?.[0] as TranslationEntry | undefined;
-  const rawReading = normalizeDictionaryReading(extractReadingValue(firstEntry, params.languageData) || params.token.reading || '', params.languageData);
+  const rawReading = normalizeDictionaryReading(params.token.reading || extractReadingValue(firstEntry, params.languageData) || '', params.languageData);
   const reading = rawReading && rawReading !== word ? rawReading : '';
   const prosody = extractProsodyFromTranslationData(params.translationData, params.languageData, reading);
   const cardId = generateUUID();
