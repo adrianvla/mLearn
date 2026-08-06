@@ -14,6 +14,7 @@ const testSettings = {
   backendUrl: '',
   nodeServerUrl: '',
   languageCatalogUrl: 'https://mlearn.kikan.net/language-catalog.json',
+  runtimeCatalogUrl: 'https://mlearn.kikan.net/runtime-catalog.json',
   cloudAuthAccessToken: '',
   cloudAuthToken: '',
   cloudTosAccepted: false,
@@ -125,6 +126,21 @@ describe('ConnectionTab', () => {
     input!.dispatchEvent(new InputEvent('input', { bubbles: true }));
 
     expect(updateSettingMock).toHaveBeenCalledWith('languageCatalogUrl', 'https://pages.example.com/language-catalog.json');
+    dispose();
+  });
+
+  it('lets users configure the Python runtime catalog manifest URL', async () => {
+    const { ConnectionTab } = await import('./ConnectionTab');
+    const dispose = render(() => <ConnectionTab />, container);
+
+    const input = Array.from(container.querySelectorAll('input'))
+      .find((item) => item.value === 'https://mlearn.kikan.net/runtime-catalog.json') as HTMLInputElement | undefined;
+    expect(input).toBeDefined();
+
+    input!.value = 'https://raw.githubusercontent.com/kikans/mlearn-cdn-mirror/main/runtime-catalog.json';
+    input!.dispatchEvent(new InputEvent('input', { bubbles: true }));
+
+    expect(updateSettingMock).toHaveBeenCalledWith('runtimeCatalogUrl', 'https://raw.githubusercontent.com/kikans/mlearn-cdn-mirror/main/runtime-catalog.json');
     dispose();
   });
 

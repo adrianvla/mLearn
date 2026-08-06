@@ -383,6 +383,19 @@ export const ConnectionTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
+      <SettingGroup title={t('mlearn.Connection.RuntimeCatalog.Title')}>
+        <SettingRow
+          label={t('mlearn.Connection.RuntimeCatalog.Url')}
+          description={t('mlearn.Connection.RuntimeCatalog.Description')}
+        >
+          <Input
+            value={settings.runtimeCatalogUrl ?? DEFAULT_SETTINGS.runtimeCatalogUrl}
+            onInput={(e) => updateSetting('runtimeCatalogUrl', e.currentTarget.value)}
+            placeholder={DEFAULT_SETTINGS.runtimeCatalogUrl}
+          />
+        </SettingRow>
+      </SettingGroup>
+
       {/* ── Node Server (Tethered) ── */}
       <Show when={settings.backendMode === 'tethered'}>
         <SettingGroup title={t('mlearn.Connection.NodeServer') || 'Desktop Server'}>

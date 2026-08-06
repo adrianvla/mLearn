@@ -2,7 +2,7 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES, DEFAULT_LANGUAGE_CATALOG_URL } from './constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
 import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction } from './constants';
 
@@ -282,6 +282,8 @@ export interface Settings {
   tetheredServerEnabled: boolean;
   /** Single provider-agnostic manifest URL describing downloadable language data. */
   languageCatalogUrl: string;
+  /** Manifest URL for the Python runtime archives (used during first-time setup). */
+  runtimeCatalogUrl: string;
   /**
    * Bearer token for cloud backend auth.
    *
@@ -578,6 +580,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backendUrl: '',
   tetheredServerEnabled: false,
   languageCatalogUrl: DEFAULT_LANGUAGE_CATALOG_URL,
+  runtimeCatalogUrl: DEFAULT_RUNTIME_CATALOG_URL,
   cloudAuthToken: '',
   cloudAuthAccessToken: '',
   cloudAuthRefreshToken: '',

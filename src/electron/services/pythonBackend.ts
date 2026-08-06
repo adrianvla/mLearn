@@ -1250,7 +1250,8 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
   let catalogEntry: RuntimeCatalogEntry;
   let catalogVersion: string;
   try {
-    const catalog = await fetchRuntimeCatalog(DEFAULT_RUNTIME_CATALOG_URL);
+    const runtimeCatalogUrl = loadSettings().runtimeCatalogUrl?.trim() || DEFAULT_RUNTIME_CATALOG_URL;
+    const catalog = await fetchRuntimeCatalog(runtimeCatalogUrl);
     catalogVersion = catalog.version;
     const target = getRuntimeTarget();
     const entry = catalog.runtimes[target];

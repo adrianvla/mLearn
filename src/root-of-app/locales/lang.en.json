@@ -345,6 +345,11 @@
         "Title": "Language Catalog",
         "Url": "Catalog URL"
       },
+      "RuntimeCatalog": {
+        "Description": "Manifest URL for the Python runtime archives (used during first-time setup).",
+        "Title": "Python Runtime Catalog",
+        "Url": "Runtime catalog URL"
+      },
       "Mode": "Mode",
       "ModeLocal": "Local",
       "ModeTethered": "Tethered",
