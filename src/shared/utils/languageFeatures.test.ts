@@ -447,6 +447,14 @@ describe('language feature bricks', () => {
     expect(getLexemeVariants('あかい', wordFrequency, index, surfaceReadingLanguage)).toEqual(['あかい', '赤い', '明い']);
   });
 
+  it('does not treat reading homophones as variants of a surface lexeme', () => {
+    const index = buildLexemeIndex(freq, surfaceReadingLanguage);
+    // 赤い and 明い both read あかい — a kanji surface keeps its identity
+    expect(getLexemeVariants('赤い', wordFrequency, index, surfaceReadingLanguage)).toEqual(['赤い']);
+    // …while ambiguous reading-script input still resolves to all homophones
+    expect(getLexemeVariants('あかい', wordFrequency, index, surfaceReadingLanguage)).toEqual(['あかい', '赤い', '明い']);
+  });
+
   it('keeps identity-normalized languages from using reading fallback', () => {
     const index = buildLexemeIndex(freq, latinLanguage);
     expect(getCanonicalLexeme('あかい', wordFrequency, index, latinLanguage)).toBe('あかい');

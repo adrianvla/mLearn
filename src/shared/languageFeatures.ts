@@ -941,9 +941,14 @@ export function getLexemeVariants(
       }
     }
 
+    // Reading-to-variants expansion conflates homophones (静止 vs 生死, both
+    // せいし). That is only valid when the input is a pure reading-script form
+    // (ambiguous kana/pinyin); any surface lexeme (even mixed-script, e.g. 赤い
+    // which is also partly kana) has a fixed identity, so sibling homophones
+    // must not become its variants.
     const freqEntry = wordFrequency[word] || (canonical ? wordFrequency[canonical] : undefined);
     const reading = freqEntry?.reading;
-    if (reading) {
+    if (reading && isReadingLexeme(word, normalization) && !isSurfaceLexeme(word, normalization)) {
       const normalizedReading = normalizeLexemeReading(reading, normalization);
       for (const variant of lexemeIndex.readingToVariants[normalizedReading] ?? []) {
         variants.add(variant);
