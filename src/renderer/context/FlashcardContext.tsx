@@ -2557,10 +2557,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   const setComprehensiveWordStatus = (word: string, status: WordStatus, language = settings.language) => {
-    const storageWord = getPrimaryWordFormForLanguage(word, language);
-    const wordHash = SRS.hashWordSync(storageWord);
     const lang = language;
-    const lk = langKey(lang, wordHash);
+    // A manual rating is a statement about the whole word identity, not one
+    // surface form. Write it to every form the status resolver reads
+    // (getWordFormsForLanguage); a single-hash write leaves sibling forms'
+    // stale passive entries to shadow the rating, freezing the pill.
+    const forms = getWordFormsForLanguage(word, lang);
     const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
     const now = Date.now();
 
@@ -2570,41 +2572,45 @@ export const FlashcardProvider: ParentComponent = (props) => {
     else if (status === 'known') targetEase = settings.easeThresholdKnown + buffer;
 
     setStore(produce((s) => {
-      if (status !== 'known' && s.knownUntracked[lk]) {
-        delete s.knownUntracked[lk];
-      }
-      if (status !== 'known' && s.ignoredWords[lk]) {
-        delete s.ignoredWords[lk];
-      }
+      for (const form of forms) {
+        const wordHash = SRS.hashWordSync(form);
+        const lk = langKey(lang, wordHash);
+        if (status !== 'known' && s.knownUntracked[lk]) {
+          delete s.knownUntracked[lk];
+        }
+        if (status !== 'known' && s.ignoredWords[lk]) {
+          delete s.ignoredWords[lk];
+        }
 
-      if (!s.wordKnowledge[lk]) {
-        s.wordKnowledge[lk] = {
-          ease: targetEase,
-          lastSeen: now,
-          timesSeen: 0,
-          timesHovered: 0,
-          word: storageWord,
-          language: lang,
-          lastStatusChange: now,
-        };
-      } else {
-        s.wordKnowledge[lk].ease = targetEase;
-        s.wordKnowledge[lk].lastStatusChange = now;
-        s.wordKnowledge[lk].timesHovered = 0;
-      }
-      const entry = s.wordKnowledge[lk];
-      if (scriptForm) {
-        const recognize = entry.forms?.[scriptForm]?.recognize ?? {
-          ease: entry.ease,
-          lastSeen: entry.lastSeen,
-          timesSeen: entry.timesSeen,
-          timesHovered: entry.timesHovered,
-        };
-        recognize.ease = targetEase;
-        recognize.lastStatusChange = now;
-        recognize.timesHovered = 0;
-        entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
-        entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
+        if (!s.wordKnowledge[lk]) {
+          s.wordKnowledge[lk] = {
+            ease: targetEase,
+            lastSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word: form,
+            language: lang,
+            lastStatusChange: now,
+          };
+        } else {
+          s.wordKnowledge[lk].ease = targetEase;
+          s.wordKnowledge[lk].lastStatusChange = now;
+          s.wordKnowledge[lk].timesHovered = 0;
+        }
+        const entry = s.wordKnowledge[lk];
+        if (scriptForm) {
+          const recognize = entry.forms?.[scriptForm]?.recognize ?? {
+            ease: entry.ease,
+            lastSeen: entry.lastSeen,
+            timesSeen: entry.timesSeen,
+            timesHovered: entry.timesHovered,
+          };
+          recognize.ease = targetEase;
+          recognize.lastStatusChange = now;
+          recognize.timesHovered = 0;
+          entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
+          entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
+        }
       }
     }));
     saveFlashcards();

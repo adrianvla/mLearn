@@ -279,6 +279,7 @@ type FlashcardCtx = {
   isWordKnownByText: (word: string, language?: string) => boolean;
   isWordLearningByText: (word: string, language?: string) => boolean;
   getComprehensiveWordStatusSync: (word: string, language?: string) => 'unknown' | 'learning' | 'known';
+  getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => { status: 'unknown' | 'learning' | 'known'; source: string; timesSeen: number; matchedWord?: string; ease?: number };
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   trackGrammarEncountered: (pattern: string, level?: number, language?: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
@@ -1515,6 +1516,41 @@ describe('FlashcardProvider', () => {
     });
     expect(ctx.store.wordKnowledge[arKey]?.ease).toBeGreaterThanOrEqual(mockSettings.easeThresholdKnown);
     expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
+    dispose();
+  });
+
+  it('setComprehensiveWordStatus writes the manual rating to every word-form hash so a sibling passive entry cannot shadow it', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'さすが' ? ['さすが', '流石'] : [word]);
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const sasugaLk = `ja:${SRS.hashWordSync('さすが')}`;
+    const sasugaKanjiLk = `ja:${SRS.hashWordSync('流石')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [sasugaKanjiLk]: {
+          word: '流石',
+          language: 'ja',
+          reading: 'さすが',
+          ease: mockSettings.easeThresholdKnown + 0.2,
+          lastSeen: 1,
+          timesSeen: 36,
+          timesHovered: 0,
+        },
+      },
+    }));
+
+    expect(ctx.getComprehensiveWordStatusWithSourceSync('さすが')).toMatchObject({
+      status: 'known',
+      source: 'PassiveTracking',
+      matchedWord: '流石',
+    });
+
+    ctx.setComprehensiveWordStatus('さすが', 'unknown');
+
+    expect(ctx.getComprehensiveWordStatusWithSourceSync('さすが').status).toBe('unknown');
+    expect(ctx.store.wordKnowledge[sasugaLk]?.lastStatusChange).toBeDefined();
+    expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.lastStatusChange).toBeDefined();
+    expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.ease).toBeLessThan(mockSettings.easeThresholdLearning);
     dispose();
   });
 
