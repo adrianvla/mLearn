@@ -323,6 +323,27 @@ describe('buildJapanesePitchAccentHtml', () => {
     const html = buildJapanesePitchAccentHtml(info, undefined, { includeParticleBox: false });
     expect(html).toContain('flex-grow:2');
   });
+
+  it('particle box flex-grow matches trailing mora (2-kana mora word)', () => {
+    const info = getJapanesePitchAccentInfo(1, 'じょじょ')!;
+    const html = buildJapanesePitchAccentHtml(info);
+    const particlePart = html.split('<div').at(-1)!;
+    expect(particlePart).toContain('flex-grow:2');
+  });
+
+  it('particle box flex-grow stays 1 when trailing mora is single-kana', () => {
+    const info = getJapanesePitchAccentInfo(1, 'あめ')!;
+    const html = buildJapanesePitchAccentHtml(info);
+    const particlePart = html.split('<div').at(-1)!;
+    expect(particlePart).toContain('flex-grow:1');
+  });
+
+  it('particle box flex-grow follows trailing mora in mixed-length words', () => {
+    const info = getJapanesePitchAccentInfo(1, 'きょく')!; // きょ(2) く(1)
+    const html = buildJapanesePitchAccentHtml(info);
+    const particlePart = html.split('<div').at(-1)!;
+    expect(particlePart).toContain('flex-grow:1');
+  });
 });
 
 describe('getJapanesePitchAccentCategory', () => {

@@ -178,7 +178,10 @@ export function buildJapanesePitchAccentHtml(info: JapanesePitchAccentInfo | nul
     if (bottom) classString += " bottom";
     if (top) classString += " top";
     if (left) classString += " left";
-    html += `<div class="${classString}" style="margin-right:${marginPercent}%;"></div>`;
+    // Particle box flex-grow matches the trailing mora box, so it never looks
+    // shorter than the word boxes it sits next to (covers mixed 1/2-kana moras).
+    const lastCharCount = (info.moraCharCounts[unitCount - 1] ?? 1) || 1;
+    html += `<div class="${classString}" style="flex-grow:${lastCharCount};margin-right:${marginPercent}%;"></div>`;
   }
 
   if (padTo && padTo > unitCount) {
