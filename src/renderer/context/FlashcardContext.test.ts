@@ -2714,6 +2714,34 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('refreshQueue caps new cards by maxNewCardsPerDayLearning, not the legacy maxNewCardsPerDay', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const cards: Record<string, Flashcard> = {};
+    for (let i = 0; i < 50; i++) {
+      cards[`cap-${i}`] = makeCard({ id: `cap-${i}`, state: 'new' });
+    }
+    const hash = await SRS.hashWord('テスト');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      flashcards: cards,
+      wordToCardMap: { [lk]: Object.keys(cards) },
+      meta: {
+        ...makeEmptyStore().meta,
+        // Legacy field shadows the queue if used; the user-facing learning
+        // setting must be the effective daily cap.
+        maxNewCardsPerDay: 10,
+        maxNewCardsPerDayLearning: 40,
+        perLanguage: { ja: { newCardsToday: 2, reviewsToday: 0, newCardsDate: SRS.getTodayDateString(4) } },
+        newCardsToday: 2,
+      },
+    }));
+
+    ctx.refreshQueue();
+
+    expect(ctx.queue().newQueue.length).toBe(38); // 40 - 2, not 10 - 2 = 8
+    dispose();
+  });
+
   // ─── Priority 3: Anki choice flow ────────────────────────────────
   it('addFlashcard with use_anki shows pending choice', async () => {
     const { ctx, dispose } = await mountProvider();

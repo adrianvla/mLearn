@@ -553,11 +553,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const refreshQueue = () => {
     const lang = settings.language;
     const plm = store.meta.perLanguage[lang];
+    // The user-facing "Max new cards to learn" setting is the effective daily cap
+    // for studying new cards. The legacy meta.maxNewCardsPerDay field (the
+    // auto-creation quota, default 10) must NOT shadow it — it used to cap the
+    // queue at min(legacy, learning), so a user setting of 40 still only saw 10
+    // new cards per day. -1 means unlimited.
+    const learningCap = store.meta.maxNewCardsPerDayLearning;
+    const maxNew = learningCap === -1 ? Number.MAX_SAFE_INTEGER : learningCap;
     const newQueue = SRS.buildReviewQueue(
         store.flashcards,
-        store.meta.maxNewCardsPerDay,
+        maxNew,
         plm?.newCardsToday ?? 0,
-        store.meta.maxNewCardsPerDayLearning,
+        learningCap,
         store.meta.maxReviewsPerDay,
         plm?.reviewsToday ?? 0,
         newDayHour(),
