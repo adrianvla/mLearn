@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Flashcard, LanguageData, Settings } from '../../../shared/types';
-import { buildBulkExampleUpdate, getCardsNeedingBulkExamples, resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
+import { buildBulkExampleUpdate, buildBulkExampleUpdates, getCardsNeedingBulkExamples, resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 
 function makeCard(overrides: Partial<Flashcard> = {}): Flashcard {
   const { content: contentOverride, ...cardOverrides } = overrides;
@@ -43,10 +43,10 @@ describe('flashcards bulk examples', () => {
       settings: { fixed: {} },
       textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
     } satisfies LanguageData;
-    const generateExampleSentenceWithLLM = vi.fn(async () => ({
+    const generateExampleSentences = vi.fn(async () => [{
       sentence: 'السلام عليكم',
       meaning: 'Peace be upon you',
-    }));
+    }]);
     const colorizeTokenizedText = vi.fn(async () => '<span>السلام</span> عليكم');
     const getLanguageData = vi.fn(() => arabicLanguageData);
 
@@ -55,11 +55,11 @@ describe('flashcards bulk examples', () => {
       settings: backendSettings,
       colourCodes: { greeting: '#fff' },
       getLanguageData,
-      generateExampleSentenceWithLLM,
+      generateExampleSentences,
       colorizeTokenizedText,
     });
 
-    expect(generateExampleSentenceWithLLM).toHaveBeenCalledWith('سلام', 'hello', 'ar');
+    expect(generateExampleSentences).toHaveBeenCalledWith([{ word: 'سلام', definition: 'hello', language: 'ar' }]);
     expect(getLanguageData).toHaveBeenCalledWith('ar');
     expect(colorizeTokenizedText).toHaveBeenCalledWith(expect.objectContaining({
       language: 'ar',
@@ -77,10 +77,10 @@ describe('flashcards bulk examples', () => {
   });
 
   it('falls back to the active language only for cards without stored language', async () => {
-    const generateExampleSentenceWithLLM = vi.fn(async () => ({
+    const generateExampleSentences = vi.fn(async () => [{
       sentence: '雨が降っています。',
       meaning: 'It is raining.',
-    }));
+    }]);
     const colorizeTokenizedText = vi.fn(async () => '<span>雨</span>が降っています。');
 
     await buildBulkExampleUpdate(makeCard({
@@ -94,11 +94,11 @@ describe('flashcards bulk examples', () => {
       settings: backendSettings,
       colourCodes: {},
       getLanguageData: () => null,
-      generateExampleSentenceWithLLM,
+      generateExampleSentences,
       colorizeTokenizedText,
     });
 
-    expect(generateExampleSentenceWithLLM).toHaveBeenCalledWith('雨', 'rain', 'ja');
+    expect(generateExampleSentences).toHaveBeenCalledWith([{ word: '雨', definition: 'rain', language: 'ja' }]);
     expect(colorizeTokenizedText).toHaveBeenCalledWith(expect.objectContaining({
       language: 'ja',
       targetWord: '雨',
@@ -130,5 +130,21 @@ describe('flashcards bulk examples', () => {
     expect(resolveFlashcardColourCodes(languageData, {})).toEqual({ noun: '#ar' });
     expect(resolveFlashcardColourCodes(languageData, { verb: '#custom' })).toEqual({ noun: '#ar' });
     expect(resolveFlashcardColourCodes({ ...languageData, textProcessing: undefined }, { verb: '#custom' })).toEqual({ verb: '#custom' });
+  });
+
+  it('batches jobs before colorizing each result', async () => {
+    const cards = [makeCard({ id: 'one' }), makeCard({ id: 'two', content: { type: 'word', front: '猫', back: 'cat' } })];
+    const generateExampleSentences = vi.fn(async () => [
+      { sentence: 'سلام.', meaning: 'Hello.' },
+      { sentence: '猫です。', meaning: 'It is a cat.' },
+    ]);
+
+    const updates = await buildBulkExampleUpdates(cards, {
+      activeLanguage: 'ja', settings: backendSettings, colourCodes: {}, getLanguageData: () => null,
+      generateExampleSentences, colorizeTokenizedText: async ({ text }) => text,
+    });
+
+    expect(generateExampleSentences).toHaveBeenCalledOnce();
+    expect(updates.map((update) => update?.cardId)).toEqual(['one', 'two']);
   });
 });

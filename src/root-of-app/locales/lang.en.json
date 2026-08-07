@@ -115,6 +115,11 @@
             "Upload": "Upload voice sample"
           }
         },
+        "FlashcardLLM": {
+          "Label": "Batch size (LLM examples)",
+          "Description": "0 disables batching; jobs are grouped into LLM calls of this many. Lower = more calls, higher = fewer but larger prompts.",
+          "ZeroDisabled": "0 = disabled (one call per word)"
+        },
         "OCR": {
           "Provider": {
             "Cloud": "Cloud",
@@ -745,7 +750,12 @@
         "SortDueDateAsc": "Due date (earliest first)",
         "SortDueDateDesc": "Due date (latest first)",
         "SortEaseAsc": "Ease (low to high)",
-        "SortEaseDesc": "Ease (high to low)"
+        "SortEaseDesc": "Ease (high to low)",
+        "SelectAll": "Select all",
+        "DeselectAll": "Clear selection",
+        "SelectedCount": "{count} selected",
+        "DeleteSelected": "Delete selected",
+        "DeletedCount": "{count} flashcard(s) deleted"
       },
       "Bulk": {
         "EtaRemaining": "~{eta} remaining",
@@ -2962,7 +2972,11 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency"
+        "Recency": "Recency",
+        "State": "State",
+        "Language": "Language",
+        "Suspended": "Suspended",
+        "Buried": "Buried"
       },
       "Status": {
         "Untracked": "Untracked",
@@ -2977,7 +2991,11 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved",
-      "TokensCleared": "Filters cleared"
+      "TokensCleared": "Filters cleared",
+      "Bool": {
+        "True": "Yes",
+        "False": "No"
+      }
     },
     "CharacterGrid": {
       "CharactersByLevel": "Characters by level:",

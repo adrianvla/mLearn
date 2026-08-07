@@ -264,6 +264,11 @@ type FlashcardCtx = {
   isWordIgnoredSync: (word: string, language?: string) => boolean;
   getIgnoredWordsSync: () => Array<{ word: string; reading?: string; language: string; ignoredAt: number }>;
   findUnpopulatedFlashcardForWord: (word: string, language?: string) => Flashcard | null;
+  addLevelStudyFlashcards: (
+    words: string[],
+    targetStatus: 'new' | 'learning' | 'known' | 'mastered',
+    language?: string,
+  ) => Promise<{ created: number; promoted: number; skipped: number }>;
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
   pushUndoState: (options?: { type?: string; restore?: () => void | Promise<void> }) => void;
   undoLastAction: () => void;
@@ -3511,5 +3516,76 @@ describe('FlashcardProvider', () => {
     expect(tracking?.ankiLookupWord).toBe('花');
     disposeMemo();
     dispose();
+  });
+
+  // ─── addLevelStudyFlashcards bulk per-femory benchmark (perf guard) ──────
+  // Sandboxed: getBridge()/getBackend() are mocked, so saveFlashcards is a no-op
+  // and this test can never read or write the user's real flashcard files.
+  describe('addLevelStudyFlashcards scaling', () => {
+    it('creates a large batch in one saveFlashcards call and reports wall time', async () => {
+      const N = 2000;
+      const { ctx, dispose } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      mockBridge.flashcards.saveFlashcards.mockClear();
+      mockBackend.translate.mockClear();
+
+      const words = Array.from({ length: N }, (_, i) => `bench-テスト-${i}`);
+      const t0 = performance.now();
+      const result = await ctx.addLevelStudyFlashcards(words, 'new', 'ja');
+      const wallMs = performance.now() - t0;
+
+      expect(result.created).toBe(N);
+      expect(result.skipped).toBe(0);
+      await vi.waitFor(() => {
+        expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalledOnce();
+      });
+      expect(mockBackend.translate).not.toHaveBeenCalled();
+      expect(Object.keys(ctx.store.flashcards)).toHaveLength(N);
+
+      // eslint-disable-next-line no-console
+      console.log(`[bench] addLevelStudyFlashcards(${N} shells) = ${wallMs.toFixed(1)}ms`);
+      dispose();
+    });
+
+    it('batches one save even when words are reused (all skipped)', async () => {
+      const N = 2000;
+      const { ctx, dispose } = await mountProvider();
+      const words = Array.from({ length: N }, (_, i) => `bench-テスト-${i}`);
+      await ctx.addLevelStudyFlashcards(words, 'new', 'ja');
+
+      mockBridge.flashcards.saveFlashcards.mockClear();
+      const t1 = performance.now();
+      const second = await ctx.addLevelStudyFlashcards(words, 'new', 'ja');
+      const wallMs = performance.now() - t1;
+
+      expect(second.created).toBe(0);
+      expect(second.skipped).toBe(N);
+      await vi.waitFor(() => {
+        expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalledOnce();
+      });
+      // eslint-disable-next-line no-console
+      console.log(`[bench] re-add skips ${N} = ${wallMs.toFixed(1)}ms`);
+      dispose();
+    });
+
+    it('promotes pending suggestions in a single batched path', async () => {
+      const { ctx, dispose } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      const words = ['キャプチャテスト'];
+      await ctx.captureSuggestedFlashcard({ word: 'キャプチャテスト', language: 'ja' });
+
+      mockBridge.flashcards.saveFlashcards.mockClear();
+      mockBackend.translate.mockClear();
+      const result = await ctx.addLevelStudyFlashcards(words, 'new', 'ja');
+
+      // A pending suggestion must route through the promote path, never a fresh shell.
+      expect(result.created).toBe(0);
+      expect(mockBackend.translate).toHaveBeenCalledWith('キャプチャテスト', 'ja', expect.anything());
+      // eslint-disable-next-line no-console
+      console.log(
+        `[bench] promote suggestion -> created=${result.created} promoted=${result.promoted} skipped=${result.skipped}`,
+      );
+      dispose();
+    });
   });
 });

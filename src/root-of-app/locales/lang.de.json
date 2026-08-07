@@ -115,6 +115,11 @@
             "Upload": "Stimmprobe hochladen"
           }
         },
+        "FlashcardLLM": {
+          "Label": "Gruppengröße (LLM-Beispiele)",
+          "Description": "0 deaktiviert die Bündelung; Aufgaben werden in LLM-Aufrufen dieser Größe zusammengefasst. Niedriger = mehr Aufrufe, höher = weniger, aber größere Prompts.",
+          "ZeroDisabled": "0 = deaktiviert (ein Aufruf pro Wort)"
+        },
         "OCR": {
           "Provider": {
             "Cloud": "Cloud",
@@ -740,7 +745,12 @@
         "SortDueDateAsc": "Fällig (früheste)",
         "SortDueDateDesc": "Fällig (späteste)",
         "SortEaseAsc": "Leichtigkeit (aufsteigend)",
-        "SortEaseDesc": "Leichtigkeit (absteigend)"
+        "SortEaseDesc": "Leichtigkeit (absteigend)",
+        "SelectAll": "Alle auswählen",
+        "DeselectAll": "Auswahl aufheben",
+        "SelectedCount": "{count} ausgewählt",
+        "DeleteSelected": "Ausgewählte löschen",
+        "DeletedCount": "{count} Karteikarte(n) gelöscht"
       },
       "Bulk": {
         "EtaRemaining": "~{eta} verbleibend",
@@ -2957,7 +2967,11 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency"
+        "Recency": "Recency",
+        "State": "Status",
+        "Language": "Sprache",
+        "Suspended": "Ausgesetzt",
+        "Buried": "Begraben"
       },
       "Status": {
         "Untracked": "Nicht verfolgt",
@@ -2972,7 +2986,11 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved",
-      "TokensCleared": "Filter geleert"
+      "TokensCleared": "Filter geleert",
+      "Bool": {
+        "True": "Ja",
+        "False": "Nein"
+      }
     },
     "CharacterGrid": {
       "CharactersByLevel": "Zeichen nach Stufe:",

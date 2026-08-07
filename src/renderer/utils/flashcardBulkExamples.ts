@@ -1,4 +1,5 @@
 import type { Flashcard, FlashcardContent, LanguageData, Settings } from '../../shared/types';
+import type { LLMExampleJob, LLMExampleResult } from './llmExampleBatch';
 
 type BackendSettings = Pick<
   Settings,
@@ -12,11 +13,7 @@ export interface BulkExampleDeps {
   settings: BackendSettings;
   colourCodes: Record<string, string>;
   getLanguageData: (language: string) => LanguageData | null;
-  generateExampleSentenceWithLLM: (
-    word: string,
-    definition: string,
-    language: string,
-  ) => Promise<{ sentence: string; meaning: string }>;
+  generateExampleSentences: (jobs: LLMExampleJob[]) => Promise<LLMExampleResult[]>;
   colorizeTokenizedText: (params: {
     text: string;
     language: string;
@@ -59,7 +56,7 @@ export async function buildBulkExampleUpdate(
   deps: BulkExampleDeps,
 ): Promise<BulkExampleUpdate | null> {
   const language = card.language || deps.activeLanguage;
-  const result = await deps.generateExampleSentenceWithLLM(card.content.front, card.content.back, language);
+  const [result] = await deps.generateExampleSentences([{ word: card.content.front, definition: card.content.back, language }]);
   if (!result.sentence) return null;
   const languageData = deps.getLanguageData(language);
 
@@ -80,4 +77,36 @@ export async function buildBulkExampleUpdate(
       exampleMeaning: result.meaning || undefined,
     },
   };
+}
+
+export async function buildBulkExampleUpdates(
+  cards: Flashcard[],
+  deps: BulkExampleDeps,
+): Promise<Array<BulkExampleUpdate | null>> {
+  const jobs = cards.map((card) => ({
+    word: card.content.front,
+    definition: card.content.back,
+    language: card.language || deps.activeLanguage,
+  }));
+  const results = await deps.generateExampleSentences(jobs);
+
+  return Promise.all(cards.map(async (card, index) => {
+    const result = results[index] ?? { sentence: '', meaning: '' };
+    if (!result.sentence) return null;
+    const language = jobs[index].language;
+    const languageData = deps.getLanguageData(language);
+    const exampleHtml = await deps.colorizeTokenizedText({
+      text: result.sentence,
+      language,
+      languageData,
+      settings: deps.settings,
+      colourCodes: resolveFlashcardColourCodes(languageData, deps.colourCodes),
+      targetWord: card.content.front,
+    });
+    return {
+      cardId: card.id,
+      language,
+      content: { example: exampleHtml, exampleMeaning: result.meaning || undefined },
+    };
+  }));
 }

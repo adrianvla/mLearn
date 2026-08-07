@@ -115,6 +115,11 @@
             "Upload": "音声サンプルをアップロード"
           }
         },
+        "FlashcardLLM": {
+          "Label": "バッチサイズ（LLM例文）",
+          "Description": "0でバッチ処理を無効にします。ジョブはこの件数ごとにLLM呼び出しへまとめられます。小さいほど呼び出しが増え、大きいほど呼び出しは減りますがプロンプトは大きくなります。",
+          "ZeroDisabled": "0 = 無効（単語ごとに1回呼び出し）"
+        },
         "OCR": {
           "Provider": {
             "Cloud": "クラウド",
@@ -740,7 +745,12 @@
         "SortDueDateAsc": "期限（早い順）",
         "SortDueDateDesc": "期限（遅い順）",
         "SortEaseAsc": "容易度（低→高）",
-        "SortEaseDesc": "容易度（高→低）"
+        "SortEaseDesc": "容易度（高→低）",
+        "SelectAll": "すべて選択",
+        "DeselectAll": "選択をクリア",
+        "SelectedCount": "{count} 件選択中",
+        "DeleteSelected": "選択を削除",
+        "DeletedCount": "{count} 件のカードを削除しました"
       },
       "Bulk": {
         "EtaRemaining": "残り約{eta}",
@@ -2957,7 +2967,11 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency"
+        "Recency": "Recency",
+        "State": "状態",
+        "Language": "言語",
+        "Suspended": "一時停止",
+        "Buried": "保留"
       },
       "Status": {
         "Untracked": "未追跡",
@@ -2972,7 +2986,11 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved",
-      "TokensCleared": "フィルターをクリアしました"
+      "TokensCleared": "フィルターをクリアしました",
+      "Bool": {
+        "True": "はい",
+        "False": "いいえ"
+      }
     },
     "CharacterGrid": {
       "CharactersByLevel": "レベル別の文字:",

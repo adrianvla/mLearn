@@ -115,6 +115,11 @@
             "Upload": "上传语音样本"
           }
         },
+        "FlashcardLLM": {
+          "Label": "批量大小（LLM 例句）",
+          "Description": "0 会禁用批处理；任务会按此数量分组为 LLM 调用。数值越低调用越多，数值越高调用越少但提示词更大。",
+          "ZeroDisabled": "0 = 已禁用（每个单词一次调用）"
+        },
         "OCR": {
           "Provider": {
             "Cloud": "云端",
@@ -740,7 +745,12 @@
         "SortDueDateAsc": "到期日（最早优先）",
         "SortDueDateDesc": "到期日（最晚优先）",
         "SortEaseAsc": "难度系数（低到高）",
-        "SortEaseDesc": "难度系数（高到低）"
+        "SortEaseDesc": "难度系数（高到低）",
+        "SelectAll": "全选",
+        "DeselectAll": "清除选择",
+        "SelectedCount": "已选择 {count} 项",
+        "DeleteSelected": "删除所选",
+        "DeletedCount": "已删除 {count} 张卡片"
       },
       "Bulk": {
         "EtaRemaining": "约剩{eta}",
@@ -2957,7 +2967,11 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency"
+        "Recency": "Recency",
+        "State": "状态",
+        "Language": "语言",
+        "Suspended": "暂停",
+        "Buried": "埋藏"
       },
       "Status": {
         "Untracked": "未追踪",
@@ -2972,7 +2986,11 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved",
-      "TokensCleared": "筛选器已清空"
+      "TokensCleared": "筛选器已清空",
+      "Bool": {
+        "True": "是",
+        "False": "否"
+      }
     },
     "CharacterGrid": {
       "CharactersByLevel": "按等级划分的字符：",

@@ -115,6 +115,11 @@
             "Upload": "Télécharger un échantillon vocal"
           }
         },
+        "FlashcardLLM": {
+          "Label": "Taille du lot (exemples LLM)",
+          "Description": "0 désactive le regroupement ; les tâches sont regroupées dans des appels LLM de cette taille. Plus bas = plus d'appels, plus haut = moins d'invites, mais plus grandes.",
+          "ZeroDisabled": "0 = désactivé (un appel par mot)"
+        },
         "OCR": {
           "Provider": {
             "Cloud": "Cloud",
@@ -740,7 +745,12 @@
         "SortDueDateAsc": "Échéance (plus proche)",
         "SortDueDateDesc": "Échéance (plus lointaine)",
         "SortEaseAsc": "Facilité (croissante)",
-        "SortEaseDesc": "Facilité (décroissante)"
+        "SortEaseDesc": "Facilité (décroissante)",
+        "SelectAll": "Tout sélectionner",
+        "DeselectAll": "Effacer la sélection",
+        "SelectedCount": "{count} sélectionné(s)",
+        "DeleteSelected": "Supprimer la sélection",
+        "DeletedCount": "{count} carte(s) supprimée(s)"
       },
       "Bulk": {
         "EtaRemaining": "~{eta} restant",
@@ -2957,7 +2967,11 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency"
+        "Recency": "Recency",
+        "State": "État",
+        "Language": "Langue",
+        "Suspended": "Suspendue",
+        "Buried": "Enterrée"
       },
       "Status": {
         "Untracked": "Non suivi",
@@ -2972,7 +2986,11 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved",
-      "TokensCleared": "Filtres effacés"
+      "TokensCleared": "Filtres effacés",
+      "Bool": {
+        "True": "Oui",
+        "False": "Non"
+      }
     },
     "CharacterGrid": {
       "CharactersByLevel": "Caractères par niveau :",

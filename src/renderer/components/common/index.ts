@@ -184,6 +184,7 @@ export {
   buildEmptyPreset,
   buildWordSyncFields,
   buildWordDbEditorFields,
+  buildFlashcardBrowseFields,
   statusResolver,
   levelResolver,
   sourceResolver,

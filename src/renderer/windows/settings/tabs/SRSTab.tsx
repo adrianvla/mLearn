@@ -624,6 +624,20 @@ export const SRSTab: Component = () => {
                 ttsProvider={settings.flashcardTtsProvider}
             />
           </SettingRow>
+          <SettingRow
+            label={t('mlearn.AI.Settings.FlashcardLLM.Label')}
+            description={t('mlearn.AI.Settings.FlashcardLLM.Description')}
+          >
+            <input
+              class="setting-input"
+              type="number"
+              min="0"
+              max="5000"
+              step="25"
+              value={settings.llmBulkExampleBatchSize}
+              onChange={(e) => updateSettings({ llmBulkExampleBatchSize: Math.max(0, Math.floor(e.currentTarget.valueAsNumber || 0)) })}
+            />
+          </SettingRow>
         </Show>
 
         <SettingRow

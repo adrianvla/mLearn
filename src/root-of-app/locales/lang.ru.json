@@ -115,6 +115,11 @@
             "Upload": "Загрузить образец голоса"
           }
         },
+        "FlashcardLLM": {
+          "Label": "Размер пакета (примеры LLM)",
+          "Description": "0 отключает пакетную обработку; задания группируются в LLM-вызовы такого размера. Меньше = больше вызовов, больше = меньше, но крупнее запросы.",
+          "ZeroDisabled": "0 = отключено (один вызов на слово)"
+        },
         "OCR": {
           "Provider": {
             "Cloud": "Cloud",
@@ -740,7 +745,12 @@
         "SortDueDateAsc": "Срок (ранние)",
         "SortDueDateDesc": "Срок (поздние)",
         "SortEaseAsc": "Лёгкость (по возрастанию)",
-        "SortEaseDesc": "Лёгкость (по убыванию)"
+        "SortEaseDesc": "Лёгкость (по убыванию)",
+        "SelectAll": "Выбрать все",
+        "DeselectAll": "Снять выделение",
+        "SelectedCount": "Выбрано: {count}",
+        "DeleteSelected": "Удалить выбранные",
+        "DeletedCount": "Удалено карточек: {count}"
       },
       "Bulk": {
         "EtaRemaining": "~{eta} осталось",
@@ -2957,7 +2967,11 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency"
+        "Recency": "Recency",
+        "State": "Состояние",
+        "Language": "Язык",
+        "Suspended": "Приостановлена",
+        "Buried": "Скрыта"
       },
       "Status": {
         "Untracked": "Не отслеживается",
@@ -2972,7 +2986,11 @@
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
       "TokenMoved": "Filter moved",
-      "TokensCleared": "Фильтры очищены"
+      "TokensCleared": "Фильтры очищены",
+      "Bool": {
+        "True": "Да",
+        "False": "Нет"
+      }
     },
     "CharacterGrid": {
       "CharactersByLevel": "Символы по уровню:",

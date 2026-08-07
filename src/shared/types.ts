@@ -481,6 +481,8 @@ export interface Settings {
   flashcardTtsProvider: TTSProvider;
   /** Auto-generate .ogg files for new flashcards */
   flashcardAutoGenerateAudio: boolean;
+  /** Maximum number of flashcard example jobs in one LLM request (0 disables batching). */
+  llmBulkExampleBatchSize: number;
   /** Voice sample ID for flashcard TTS voice cloning (Qwen3/Remote) */
   flashcardVoiceSampleId: string;
   /** Stealth mode: hide media (image/video) on flashcards during review */
@@ -699,6 +701,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardAutoTts: true,
   flashcardTtsProvider: 'kokoro',
   flashcardAutoGenerateAudio: false,
+  llmBulkExampleBatchSize: 25,
   flashcardVoiceSampleId: '',
   flashcardStealthMode: false,
   flashcardMuteAudio: false,

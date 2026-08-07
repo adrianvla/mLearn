@@ -11,6 +11,10 @@ const STATUS_FIELD = 'status';
 const LEVEL_FIELD = 'level';
 const SOURCE_FIELD = 'source';
 const RECENCY_FIELD = 'recency';
+const FLASHCARD_STATE_FIELD = 'state';
+const FLASHCARD_LANGUAGE_FIELD = 'language';
+const FLASHCARD_SUSPENDED_FIELD = 'suspended';
+const FLASHCARD_BURIED_FIELD = 'buried';
 const EQ_OPS = ['eq'] as const;
 export const WORD_SYNC_STATUS_UNTRACKED = 'untracked';
 
@@ -125,6 +129,27 @@ export function buildWordDbEditorFields(
   return { fields, paletteItems: buildPaletteItems(fields, t) };
 }
 
+export function buildFlashcardBrowseFields(
+  languageNames: Record<string, string>,
+  t: Translate,
+  levelContext?: { levelNames: Record<string, string>; languageData?: LanguageData | null },
+): { fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] } {
+  const fields: FieldConfig<unknown>[] = [
+    buildFlashcardStateField(t),
+    buildFlashcardLanguageField(languageNames, t),
+    buildFlashcardSuspendedField(t),
+    buildFlashcardBuriedField(t),
+  ];
+
+  // The Level field is per-language and only meaningful when the browse is scoped
+  // to a single language (its values enumerate that language's level system).
+  if (levelContext) {
+    fields.push(buildFlashcardLevelField(levelContext.levelNames, t, levelContext.languageData));
+  }
+
+  return { fields, paletteItems: buildPaletteItems(fields, t) };
+}
+
 function statusUnknownToken(): FilterToken {
   return {
     instanceId: uniqueId(),
@@ -159,6 +184,37 @@ function buildStatusField(t: Translate, options: { includeUntracked?: boolean } 
       { value: String(WORD_STATUS.KNOWN), label: t('mlearn.FilterBuilder.Status.Known') },
     ],
     resolver: propertyResolver('status'),
+  };
+}
+
+// Reads the per-language frequency level off a flashcard's nested content.
+// Missing level resolves to '' so an empty filter value matches untagged cards,
+// mirroring the language field's convention.
+function flashcardLevelResolver(record: unknown): unknown {
+  const content = record && typeof record === 'object' ? (record as { content?: { level?: number } }).content : undefined;
+  return typeof content?.level === 'number' ? content.level : '';
+}
+
+function buildFlashcardLevelField(
+  levelNames: Record<string, string>,
+  t: Translate,
+  languageData?: LanguageData | null,
+): FieldConfig<unknown> {
+  const sortedLevels = sortFrequencyLevelsForDisplay(
+    Object.keys(levelNames).map(Number).filter((level) => isDisplayableFrequencyLevel(level, levelNames, languageData)),
+    languageData,
+  );
+  return {
+    field: LEVEL_FIELD,
+    label: t('mlearn.FilterBuilder.Field.Level'),
+    allowedOps: [...EQ_OPS],
+    values: [
+      ...sortedLevels.map((level) => ({ value: String(level), label: getFrequencyLevelLabel(level, levelNames, languageData) })),
+    ],
+    resolver: {
+      read: flashcardLevelResolver,
+      valueLabel: (value) => value,
+    },
   };
 }
 
@@ -208,6 +264,58 @@ function buildRecencyField(t: Translate): FieldConfig<unknown> {
       { value: 'false', label: t('mlearn.FilterBuilder.Recency.NotRecent') },
     ],
     resolver: propertyResolver('seenRecently'),
+  };
+}
+
+function buildFlashcardStateField(t: Translate): FieldConfig<unknown> {
+  return {
+    field: FLASHCARD_STATE_FIELD,
+    label: t('mlearn.FilterBuilder.Field.State'),
+    allowedOps: [...EQ_OPS],
+    values: [
+      { value: 'new', label: t('mlearn.Flashcards.State.New') },
+      { value: 'learning', label: t('mlearn.Flashcards.State.Learning') },
+      { value: 'relearning', label: t('mlearn.Flashcards.State.Relearning') },
+      { value: 'review', label: t('mlearn.Flashcards.State.Review') },
+    ],
+    resolver: propertyResolver('state'),
+  };
+}
+
+function buildFlashcardLanguageField(languageNames: Record<string, string>, t: Translate): FieldConfig<unknown> {
+  return {
+    field: FLASHCARD_LANGUAGE_FIELD,
+    label: t('mlearn.FilterBuilder.Field.Language'),
+    allowedOps: [...EQ_OPS],
+    values: Object.entries(languageNames).map(([code, name]) => ({ value: code, label: name })),
+    resolver: propertyResolver('language', ''),
+  };
+}
+
+function buildBooleanValues(t: Translate): { value: string; label: string }[] {
+  return [
+    { value: 'true', label: t('mlearn.FilterBuilder.Bool.True') },
+    { value: 'false', label: t('mlearn.FilterBuilder.Bool.False') },
+  ];
+}
+
+function buildFlashcardSuspendedField(t: Translate): FieldConfig<unknown> {
+  return {
+    field: FLASHCARD_SUSPENDED_FIELD,
+    label: t('mlearn.FilterBuilder.Field.Suspended'),
+    allowedOps: [...EQ_OPS],
+    values: buildBooleanValues(t),
+    resolver: propertyResolver('suspended', false),
+  };
+}
+
+function buildFlashcardBuriedField(t: Translate): FieldConfig<unknown> {
+  return {
+    field: FLASHCARD_BURIED_FIELD,
+    label: t('mlearn.FilterBuilder.Field.Buried'),
+    allowedOps: [...EQ_OPS],
+    values: buildBooleanValues(t),
+    resolver: propertyResolver('buried', false),
   };
 }
 

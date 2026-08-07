@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
 import type { WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -36,6 +36,7 @@ import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFl
 import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
+import { parseExampleBlocksFromLLM, type LLMExampleJob, type LLMExampleResult } from '../utils/llmExampleBatch';
 
 
 const log = getLogger("renderer.context.flashcard");
@@ -315,6 +316,7 @@ interface FlashcardContextValue {
 
   // LLM example generation
   generateExampleSentenceWithLLM: (word: string, definition: string, language: string) => Promise<{ sentence: string; meaning: string }>;
+  generateExampleSentencesWithLLM: (jobs: LLMExampleJob[]) => Promise<LLMExampleResult[]>;
   translateExampleSentence: (sentence: string, sourceLanguage: string, language?: string) => Promise<string>;
 
   // Utility
@@ -1896,6 +1898,44 @@ export const FlashcardProvider: ParentComponent = (props) => {
       return 0;
     }
 
+    const llmExamples = new Map<string, LLMExampleResult>();
+    if (useLLM) {
+      const jobs: LLMExampleJob[] = [];
+      const jobIds: string[] = [];
+      for (const id of ids) {
+        const key = findSuggestionKey(id);
+        if (!key) continue;
+        const suggestion = store.suggestedFlashcards[key];
+        if (!suggestion) continue;
+        try {
+          const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, suggestion.language);
+          const translationResponse = await backend.translate(
+            suggestion.word,
+            suggestion.language,
+            dictionaryTargetLanguage ? { dictionaryTargetLanguage } : undefined,
+          );
+          const firstEntry = translationResponse?.data?.[0] as TranslationEntry | undefined;
+          const backText = firstEntry?.definitions
+            ? (Array.isArray(firstEntry.definitions) ? firstEntry.definitions.join('; ') : String(firstEntry.definitions))
+            : '';
+          if (backText) {
+            jobs.push({ word: suggestion.word, definition: backText, language: suggestion.language });
+            jobIds.push(id);
+          }
+        } catch (e) {
+          log.warn(`Failed to prepare LLM example for "${suggestion.word}":`, e);
+        }
+      }
+      try {
+        const results = await generateExampleSentencesWithLLM(jobs);
+        results.forEach((result, index) => {
+          llmExamples.set(jobIds[index], result);
+        });
+      } catch (e) {
+        log.warn('Failed to generate LLM examples for suggested flashcards:', e);
+      }
+    }
+
     let created = 0;
     let done = 0;
     for (const id of ids) {
@@ -1935,14 +1975,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
         let exampleSentence = suggestion.contextHtml || suggestion.contextPhrase || '';
         let exampleMeaning = '';
         if (useLLM) {
-          try {
-            const result = await generateExampleSentenceWithLLM(suggestion.word, backText, suggestion.language);
-            if (result.sentence) {
-              exampleSentence = result.sentence;
-              exampleMeaning = result.meaning;
-            }
-          } catch (e) {
-            log.warn(`Failed to generate LLM example for "${suggestion.word}":`, e);
+          const result = llmExamples.get(id);
+          if (result?.sentence) {
+            exampleSentence = result.sentence;
+            exampleMeaning = result.meaning;
           }
         }
 
@@ -2075,6 +2111,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
     let promoted = 0;
     let skipped = 0;
 
+    // Collect suggestion ids to promote and (canonical, lk) pairs to build as fresh
+    // shells in ONE pass, so a bulk add isn't O(n) separate store re-renders / translates.
+    const promotes: Array<{ id: string; word: string }> = [];
+    const shells: Array<{ canonical: string; lk: string }> = [];
+
     for (const word of words) {
       if (!word.trim()) {
         skipped++;
@@ -2087,34 +2128,48 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const suggestion = store.suggestedFlashcards[lk];
 
       if (suggestion) {
-        const promotedCount = await promoteSuggestedFlashcards([suggestion.id]);
-        if (promotedCount > 0) {
-          const card = findUnpopulatedFlashcardForWord(canonical, lang) ?? getCardByWordSync(canonical, lang);
-          if (card) applyLevelStudyScheduling(card.id, targetStatus);
-          promoted++;
-        } else {
-          skipped++;
-        }
+        promotes.push({ id: suggestion.id, word: canonical });
         continue;
       }
 
       const existingCardIds = store.wordToCardMap[lk] ?? [];
+
       if (existingCardIds.some((id) => store.flashcards[id])) {
         skipped++;
         continue;
       }
 
+      shells.push({ canonical, lk });
+    }
+
+    // Promote all pending suggestions in a single batched call (one translate + one save inside).
+    if (promotes.length > 0) {
+      await promoteSuggestedFlashcards(promotes.map((p) => p.id));
+      // Re-apply level-study scheduling to the card created for each promoted word.
+      for (const { word } of promotes) {
+        const card = findUnpopulatedFlashcardForWord(word, lang) ?? getCardByWordSync(word, lang);
+        if (card) {
+          applyLevelStudyScheduling(card.id, targetStatus);
+          promoted++;
+        } else {
+          skipped++;
+        }
+      }
+    }
+
+    // Create all new shells in a single batched store mutation (avoids one re-render per word).
+    if (shells.length > 0) {
       const now = Date.now();
       const schedule = getLevelStudyScheduling(targetStatus);
-      const id = SRS.generateUUID();
-      const newCard: Flashcard = {
-        id,
+      const newCards: Flashcard[] = shells.map(({ canonical }) => ({
+        id: SRS.generateUUID(),
         content: {
           type: 'word',
           front: canonical,
           back: '',
           word: canonical,
           unpopulated: true,
+          level: getFrequencyForLanguage(lang, canonical)?.raw_level,
           userEditedFields: [],
         },
         state: schedule.state,
@@ -2128,18 +2183,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
         lastReviewed: now,
         lastUpdated: now,
         language: lang,
-      };
-
-      setStore(produce((s) => {
-        s.flashcards[id] = newCard;
-        if (!s.wordToCardMap[lk]) {
-          s.wordToCardMap[lk] = [];
-        }
-        s.wordToCardMap[lk].push(id);
-        const cards = s.wordToCardMap[lk].map((cardId) => s.flashcards[cardId]).filter(Boolean);
-        s.wordStatsMap[lk] = calculateWordStats(cards);
       }));
-      created++;
+      setStore(produce((s) => {
+        for (let i = 0; i < shells.length; i++) {
+          const { lk } = shells[i];
+          s.flashcards[newCards[i].id] = newCards[i];
+          if (!s.wordToCardMap[lk]) {
+            s.wordToCardMap[lk] = [];
+          }
+          s.wordToCardMap[lk].push(newCards[i].id);
+          const cards = s.wordToCardMap[lk].map((cardId) => s.flashcards[cardId]).filter(Boolean);
+          s.wordStatsMap[lk] = calculateWordStats(cards);
+        }
+      }));
+      created = shells.length;
     }
 
     if (created > 0 || promoted > 0) {
@@ -2857,7 +2914,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
       return 0;
     }
 
-    let createdCount = 0;
+    const prepared: Array<{
+      compositeKey: string;
+      candidate: WordCandidate;
+      backText: string;
+      reading: string;
+      prosody: FlashcardProsody | undefined;
+      definitionArr: string[] | undefined;
+    }> = [];
 
     for (const [compositeKey, candidate] of toCreate) {
       // Skip if card already exists for this word
@@ -2903,27 +2967,38 @@ export const FlashcardProvider: ParentComponent = (props) => {
             : [String(secondEntry.definitions)];
         }
 
-        // Optionally generate example sentence with LLM
-        let exampleSentence = '';
-        let exampleMeaning = '';
-        if (useLLM) {
-          try {
-            const result = await generateExampleSentenceWithLLM(candidate.word, backText, settings.language);
-            exampleSentence = result.sentence;
-            exampleMeaning = result.meaning;
-          } catch (e) {
-            log.warn(`Failed to generate LLM example for "${candidate.word}":`, e);
-          }
-        }
+        prepared.push({ compositeKey, candidate, backText, reading, prosody, definitionArr });
+      } catch (e) {
+        log.warn(`Failed to auto-create flashcard for "${candidate.word}":`, e);
+      }
+    }
 
+    let examples: LLMExampleResult[] = prepared.map(() => ({ sentence: '', meaning: '' }));
+    if (useLLM && prepared.length > 0) {
+      try {
+        examples = await generateExampleSentencesWithLLM(prepared.map(({ candidate, backText }) => ({
+          word: candidate.word,
+          definition: backText,
+          language: settings.language,
+        })));
+      } catch (e) {
+        log.warn('Failed to generate LLM examples for auto-created flashcards:', e);
+      }
+    }
+
+    let createdCount = 0;
+    for (const [index, preparedCard] of prepared.entries()) {
+      const { compositeKey, candidate, backText, reading, prosody, definitionArr } = preparedCard;
+      const example = examples[index];
+      try {
         const content: Partial<FlashcardContent> & { front: string; back: string } = {
           type: 'word',
           front: candidate.word,
           back: backText,
           reading: reading || undefined,
           prosody,
-          example: exampleSentence || undefined,
-          exampleMeaning: exampleMeaning || undefined,
+          example: example.sentence || undefined,
+          exampleMeaning: example.meaning || undefined,
           // Legacy fields
           word: candidate.word,
           pronunciation: reading || undefined,
@@ -3012,6 +3087,79 @@ Translation: [${targetLang} translation]`;
 
       throw error;
     }
+  };
+
+  const generateExampleSentencesWithLLM = async (jobs: LLMExampleJob[]): Promise<LLMExampleResult[]> => {
+    if (jobs.length === 0) return [];
+
+    const batchSize = settings.llmBulkExampleBatchSize;
+    if (batchSize < 2) {
+      return Promise.all(jobs.map((job) => generateExampleSentenceWithLLM(job.word, job.definition, job.language)));
+    }
+
+    const results: LLMExampleResult[] = jobs.map(() => ({ sentence: '', meaning: '' }));
+    const displayLocale = settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage;
+    const groups = new Map<string, Array<{ index: number; job: LLMExampleJob; sourceLang: string; targetLang: string }>>();
+
+    jobs.forEach((job, index) => {
+      const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, job.language) || displayLocale;
+      const sourceLang = getLanguagePromptName(job.language, languageDataFor(job.language));
+      const targetLang = getLanguagePromptName(dictionaryTargetLanguage, languageDataFor(dictionaryTargetLanguage));
+      const key = `${sourceLang}\u0000${targetLang}`;
+      const group = groups.get(key) ?? [];
+      group.push({ index, job, sourceLang, targetLang });
+      groups.set(key, group);
+    });
+
+    for (const group of groups.values()) {
+      for (let start = 0; start < group.length; start += batchSize) {
+        const chunk = group.slice(start, start + batchSize);
+        const { sourceLang, targetLang } = chunk[0];
+        let parsed: LLMExampleResult[] | null = null;
+
+        if (settings.llmProvider === 'cloud' || await requestAccess('llm')) {
+          try {
+            const response = await new Promise<string>((resolve, reject) => {
+              const prompt = `Generate a simple, natural example sentence in ${sourceLang} for each of the following words, then give the ${targetLang} translation of each sentence. Respond with exactly ${chunk.length} numbered blocks. Use this exact format per item N:
+
+N. Sentence: (sentence in ${sourceLang})
+N. Translation: (translation in ${targetLang})
+
+${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${job.definition})`).join('\n')}`;
+              const { abort } = streamChat([
+                { role: 'system', content: 'You are a helpful language learning assistant. Generate natural, simple example sentences.' },
+                { role: 'user', content: prompt },
+              ], [], {
+                onChunk: () => {},
+                onToolCall: () => {},
+                onDone: resolve,
+                onError: (error: unknown) => reject(error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown error')),
+              }, settings);
+              const safetyTimeout = setTimeout(() => {
+                abort();
+                reject(new Error('LLM timeout'));
+              }, 30_000);
+              const originalResolve = resolve;
+              const originalReject = reject;
+              resolve = (value) => { clearTimeout(safetyTimeout); originalResolve(value); };
+              reject = (error) => { clearTimeout(safetyTimeout); originalReject(error); };
+            });
+            parsed = parseExampleBlocksFromLLM(response, chunk.length);
+          } catch (error) {
+            if (!handleCloudOperationFallback(error)) throw error;
+          }
+        }
+
+        const chunkResults = parsed ?? await Promise.all(chunk.map(({ job }) => (
+          generateExampleSentenceWithLLM(job.word, job.definition, job.language)
+        )));
+        chunk.forEach(({ index }, chunkIndex) => {
+          results[index] = chunkResults[chunkIndex];
+        });
+      }
+    }
+
+    return results;
   };
 
   /**
@@ -3393,6 +3541,7 @@ Translation: [${targetLang} translation]`;
     resetSRS,
     nukeAllFlashcards,
     generateExampleSentenceWithLLM,
+    generateExampleSentencesWithLLM,
     translateExampleSentence,
     intervalToString: (ms: number) => SRS.intervalToString(ms, t),
     dueDateToString: (dueDate: number) => SRS.dueDateToString(dueDate, t),

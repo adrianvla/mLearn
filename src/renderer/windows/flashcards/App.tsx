@@ -9,7 +9,6 @@ import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLangua
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
 import {
-  Card,
   Modal,
   Input,
   Btn,
@@ -29,6 +28,20 @@ import {
   MicrophoneIcon,
   VoiceSamplePicker,
   CollapsibleStickyHeader,
+  FilterBuilder,
+  SelectableCard,
+  TrashIcon,
+  buildFlashcardBrowseFields,
+  buildEmptyPreset,
+  evaluateAst,
+  parseTokens,
+  validateTokens,
+  type ExprNode,
+  type FieldConfig,
+  type FieldResolver,
+  type FilterToken,
+  type PaletteItem,
+  type ValidationError,
 } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
 import { getLanguageDisplayName, stripHtmlForTts } from '../../../shared/utils/textUtils';
@@ -36,13 +49,14 @@ import { getBridge } from '../../../shared/bridges';
 import { resolveCloudApiUrl } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
+import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
-import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type TTSProvider } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
 import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
-import { buildBulkExampleUpdate, getCardsNeedingBulkExamples } from '../../utils/flashcardBulkExamples';
+import { buildBulkExampleUpdates, getCardsNeedingBulkExamples } from '../../utils/flashcardBulkExamples';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -90,7 +104,7 @@ export const FlashcardsContent: Component = () => {
     updateFlashcard,
     getSuggestedFlashcardsSync,
     intervalToString,
-    generateExampleSentenceWithLLM,
+    generateExampleSentencesWithLLM,
     translateExampleSentence,
     isLoading,
   } = useFlashcards();
@@ -115,6 +129,24 @@ export const FlashcardsContent: Component = () => {
 
   // Sort state
   const [sortBy, setSortBy] = createSignal('default');
+
+  // Filter expression state
+  const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
+
+  // Returns the single language the current filter scopes to, or null when the
+  // browse is not restricted to exactly one language (multi-level-system safety).
+  const singleLanguageScope = (tokens: FilterToken[]): string | null => {
+    const langs = new Set<string>();
+    for (const token of tokens) {
+      if (token.kind !== 'operand' || token.field !== 'language') continue;
+      if (!token.value) return null;
+      langs.add(token.value);
+    }
+    return langs.size === 1 ? [...langs][0] : null;
+  };
+
+  // Multi-select state
+  const [selected, setSelected] = createSignal<Set<string>>(new Set());
 
   // Bulk operation state
   const [bulkProgress, setBulkProgress] = createSignal<{ current: number; total: number; label: string; startTime: number } | null>(null);
@@ -418,9 +450,67 @@ export const FlashcardsContent: Component = () => {
   // Get flashcards from store (now it's a Record)
   const flashcards = createMemo(() => getAllCards());
 
+  const filterFields = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() => {
+    const languageNames: Record<string, string> = {};
+    for (const [code, data] of Object.entries(langData)) {
+      if (!data) continue;
+      languageNames[code] = getLanguageDisplayName(code, data, settings.uiLanguage);
+    }
+
+    // The Level filter only enumerates one language's level system, so it is
+    // gated on the browse being scoped to exactly one language via `eq`.
+    const scopedLanguage = singleLanguageScope(filterTokens());
+    let levelContext: { levelNames: Record<string, string>; languageData?: LanguageData | null } | undefined;
+    if (scopedLanguage) {
+      const scopedData = langData[scopedLanguage] ?? (scopedLanguage === settings.language ? currentLangData() : null);
+      if (scopedData) {
+        levelContext = {
+          levelNames: getLevelStudyLevelNames(scopedData),
+          languageData: scopedData,
+        };
+      }
+    }
+
+    return buildFlashcardBrowseFields(languageNames, t, levelContext);
+  });
+
+  const filterResolvers = createMemo<Record<string, FieldResolver<unknown>>>(() => {
+    const resolvers: Record<string, FieldResolver<unknown>> = {};
+    for (const field of filterFields().fields) {
+      resolvers[field.field] = field.resolver;
+    }
+    return resolvers;
+  });
+
+  const filterAst = createMemo<
+    | { ok: true; ast: ExprNode | null }
+    | { ok: false; errors: ValidationError[] }
+  >(() => {
+    const tokens = filterTokens();
+    if (tokens.length === 0) return { ok: true, ast: null };
+
+    const validation = validateTokens(tokens);
+    if (!validation.ok) return { ok: false, errors: validation.errors };
+
+    try {
+      return { ok: true, ast: parseTokens(tokens) };
+    } catch {
+      return { ok: false, errors: [{ index: -1, message: 'parse_error' }] };
+    }
+  });
+
+  const filterValidation = createMemo(() => {
+    const result = filterAst();
+    if (result.ok) return { ok: true as const };
+    return { ok: false as const, errors: result.errors };
+  });
+
   // Filtered flashcards for browse tab
   const filteredFlashcards = createMemo(() => {
     const query = searchQuery().toLowerCase().trim();
+    const ast = filterAst();
+    const activeAst = ast.ok && ast.ast ? ast.ast : null;
+    const resolvers = filterResolvers();
     let cards = flashcards();
 
     if (query) {
@@ -431,6 +521,10 @@ export const FlashcardsContent: Component = () => {
 
         return front.includes(query) || back.includes(query) || reading.includes(query);
       });
+    }
+
+    if (activeAst) {
+      cards = cards.filter((card) => evaluateAst(activeAst, card, resolvers));
     }
 
     const sort = sortBy();
@@ -452,6 +546,54 @@ export const FlashcardsContent: Component = () => {
   // Queue counts for UI
   const counts = createMemo(() => queueCounts());
   const suggestedCount = createMemo(() => getSuggestedFlashcardBadgeCount(getSuggestedFlashcardsSync));
+
+  const allFilteredSelected = createMemo(() => {
+    const ids = filteredFlashcards().map((card) => card.id);
+    if (ids.length === 0) return false;
+    const sel = selected();
+    return ids.every((id) => sel.has(id));
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    const ids = filteredFlashcards().map((card) => card.id);
+    if (allFilteredSelected()) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        return next;
+      });
+    }
+  };
+
+  const clearSelection = () => setSelected(new Set<string>());
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selected());
+    if (ids.length === 0) return;
+
+    let deleted = 0;
+    for (const id of ids) {
+      const removed = await removeFlashcard(id, false);
+      if (removed) deleted += 1;
+    }
+
+    clearSelection();
+    showToast({ message: t('mlearn.Flashcards.Browse.DeletedCount', { count: String(deleted) }), variant: 'success' });
+  };
 
   const handleDeleteCard = async () => {
     const cardId = selectedCard();
@@ -620,27 +762,27 @@ export const FlashcardsContent: Component = () => {
 
     let generated = 0;
     let failed = 0;
-    for (const card of needExamples) {
-      try {
-        const update = await buildBulkExampleUpdate(card, {
+    try {
+      const updates = await buildBulkExampleUpdates(needExamples, {
           activeLanguage: settings.language,
           settings,
           colourCodes,
           getLanguageData: (language) => langData[language] ?? (language === settings.language ? currentLangData() : null),
-          generateExampleSentenceWithLLM,
+          generateExampleSentences: generateExampleSentencesWithLLM,
           colorizeTokenizedText,
-        });
+      });
+      for (const update of updates) {
         if (update) {
           updateFlashcardContent(update.cardId, update.content);
           generated++;
         } else {
           failed++;
         }
-      } catch (e) {
-        log.warn(`Failed to generate example for "${card.content.front}":`, e);
-        failed++;
+        setBulkProgress({ current: generated + failed, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
       }
-      setBulkProgress({ current: generated + failed, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
+    } catch (e) {
+      log.warn('Failed to generate bulk examples:', e);
+      failed = needExamples.length;
     }
 
     setBulkProgress(null);
@@ -792,27 +934,62 @@ export const FlashcardsContent: Component = () => {
               return (
                 <div class="flashcards-browse" ref={(el) => { browseRef = el; }}>
                   <CollapsibleStickyHeader getScrollContainer={() => browseRef} class="flashcards-browse-header">
-                    <Input
-                      placeholder={t('mlearn.Flashcards.Browse.SearchPlaceholder')}
-                      value={searchQuery()}
-                      onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                      leftIcon={<SearchIcon size={16} />}
-                      size="md"
-                      class="flashcards-search-input"
-                    />
-                    <Select
-                      options={sortOptions()}
-                      value={sortBy()}
-                      onChange={(e) => setSortBy(e.currentTarget.value)}
-                      class="flashcards-sort-select"
+                    <div class="flashcards-browse-controls">
+                      <Input
+                        placeholder={t('mlearn.Flashcards.Browse.SearchPlaceholder')}
+                        value={searchQuery()}
+                        onInput={(e) => setSearchQuery(e.currentTarget.value)}
+                        leftIcon={<SearchIcon size={16} />}
+                        size="md"
+                        class="flashcards-search-input"
+                      />
+                      <Select
+                        options={sortOptions()}
+                        value={sortBy()}
+                        onChange={(e) => setSortBy(e.currentTarget.value)}
+                        class="flashcards-sort-select"
+                      />
+                      <Show when={flashcards().length > 0}>
+                        <span class="flashcards-count">
+                          {t('mlearn.Flashcards.Browse.ShowingCount', {
+                            count: filteredFlashcards().length,
+                            total: flashcards().length
+                          })}
+                        </span>
+                      </Show>
+                    </div>
+                    <FilterBuilder
+                      fields={filterFields().fields}
+                      paletteItems={filterFields().paletteItems}
+                      tokens={filterTokens()}
+                      onChange={setFilterTokens}
+                      evaluation={filterValidation()}
                     />
                     <Show when={flashcards().length > 0}>
-                      <span class="flashcards-count">
-                        {t('mlearn.Flashcards.Browse.ShowingCount', {
-                          count: filteredFlashcards().length,
-                          total: flashcards().length
-                        })}
-                      </span>
+                      <div class="flashcards-browse-bulkbar">
+                        <div class="flashcards-browse-bulkbar-left">
+                          <Btn size="sm" variant="secondary" onClick={toggleSelectAllFiltered}>
+                            {allFilteredSelected()
+                              ? t('mlearn.Flashcards.Browse.DeselectAll')
+                              : t('mlearn.Flashcards.Browse.SelectAll')}
+                          </Btn>
+                          <span class="flashcards-browse-selected-count">
+                            {t('mlearn.Flashcards.Browse.SelectedCount', { count: String(selected().size) })}
+                          </span>
+                        </div>
+                        <div class="flashcards-browse-bulkbar-right">
+                          <Btn
+                            size="sm"
+                            variant="danger"
+                            disabled={selected().size === 0}
+                            onClick={handleBulkDelete}
+                            icon={<TrashIcon size={14} />}
+                            iconPosition="left"
+                          >
+                            {t('mlearn.Flashcards.Browse.DeleteSelected')}
+                          </Btn>
+                        </div>
+                      </div>
                     </Show>
                   </CollapsibleStickyHeader>
 
@@ -846,12 +1023,13 @@ export const FlashcardsContent: Component = () => {
                     <For each={filteredFlashcards()}>
                       {(card) => {
                         const stateBadge = getStateBadge(card);
+                        const isSelected = () => selected().has(card.id);
                         return (
-                          <Card
+                          <SelectableCard
+                            selected={isSelected()}
+                            onClick={() => toggleSelect(card.id)}
                             title={
                               <FlashcardWordTitle content={card.content} language={card.language} />
-                            }
-                            subtitle={undefined
                             }
                             headerActions={
                               <IconBtn
@@ -860,11 +1038,12 @@ export const FlashcardsContent: Component = () => {
                                 variant="ghost"
                                 class="flashcard-tts-btn"
                                 classList={{ 'flashcard-tts-btn--active': browseTtsCardId() === card.id && browseTtsPlayingField() === 'word' }}
-                                onClick={() => handleBrowseTts(card.id, card.content.front)}
+                                onClick={(e) => { e.stopPropagation(); handleBrowseTts(card.id, card.content.front); }}
                                 disabled={browseTtsGenerating()}
                                 title={t('mlearn.Flashcards.Card.PlayWord')}
                               />
                             }
+                            class="flashcards-browse-card"
                           >
                             <p class="flashcard-translation">
                               {card.content.back}
@@ -880,14 +1059,15 @@ export const FlashcardsContent: Component = () => {
                                 <Btn
                                   variant="ghost"
                                   size="xs"
-                                  onClick={() => openEditModal(card)}
+                                  onClick={(e) => { e.stopPropagation(); openEditModal(card); }}
                                 >
                                   {t('mlearn.Global.Edit')}
                                 </Btn>
                                 <Btn
                                   variant="danger"
                                   size="xs"
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     setSelectedCard(card.id);
                                     setShowDeleteConfirm(true);
                                   }}
@@ -896,7 +1076,7 @@ export const FlashcardsContent: Component = () => {
                                 </Btn>
                               </div>
                             </div>
-                          </Card>
+                          </SelectableCard>
                         );
                       }}
                     </For>
