@@ -42,7 +42,6 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 _voice_stt_model = None
 _voice_stt_engine: str | None = None  # "mlx" | "faster-whisper" | None
-_STT_MODEL_OVERRIDE: str | None = None  # settable via API/query param; '' = auto
 _voice_tts_pipelines: dict[str, object] = {}  # Kokoro KPipeline instances by lang_code
 _voice_vad_model = None
 _voice_vad_lock = threading.Lock()
@@ -120,11 +119,6 @@ def _tts_runtime(language: str) -> dict:
 
 def _stt_runtime(language: str) -> dict:
     return config.language_runtime_config_for_language(language, "stt")
-
-
-def _voice_settings() -> dict:
-    """Read voice-related settings for STT engine selection. Returns dict with sttModel key."""
-    return {"sttModel": _STT_MODEL_OVERRIDE or ""}
 
 
 def _stt_language_hint(language: str | None) -> str | None:
@@ -356,14 +350,7 @@ def _is_apple_silicon() -> bool:
 
 
 def _get_stt_engine() -> str:
-    """Determine STT engine, honoring explicit sttModel overrides."""
-    override = _voice_settings().get("sttModel", "")
-    if override:
-        is_mlx_override = "mlx-community/" in override or override.lower().startswith("mlx")
-        if is_mlx_override and not _is_apple_silicon():
-            log.warning(f"STT model override '{override}' requires Apple Silicon; using faster-whisper instead")
-            return "faster-whisper"
-        return "mlx" if is_mlx_override else "faster-whisper"
+    """Determine STT engine from hardware: MLX on Apple Silicon, faster-whisper elsewhere."""
     return "mlx" if _is_apple_silicon() else "faster-whisper"
 
 
@@ -434,7 +421,7 @@ def _ensure_stt_loaded():
             _voice_stt_progress = max(_voice_stt_progress, 0.05)
 
             engine = _get_stt_engine()
-            model_id = _voice_settings().get("sttModel", "") or _stt_default_model_id(engine)
+            model_id = _stt_default_model_id(engine)
 
             log.info(f"Loading STT model ({engine}): {model_id}")
             _emit_voice_loading_status("stt", f"Loading {engine} STT model…", _voice_stt_progress, model_id)
@@ -622,7 +609,7 @@ async def voice_stt_status(language: Optional[str] = None):
     requested_language = language or config.LANGUAGE
     whisper_language = _stt_language_hint(requested_language) if requested_language else None
     engine = _get_stt_engine()
-    model_name = _voice_settings().get("sttModel", "") or _stt_default_model_id(engine)
+    model_name = _stt_default_model_id(engine)
     loaded = _voice_stt_model is not None
     downloaded = False
     try:

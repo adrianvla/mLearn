@@ -8,12 +8,13 @@ import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS, SRS_EASE } from '../../shared/constants';
 import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, PassiveWordKnowledge, GrammarKnowledgeEntry } from '../../shared/types';
-import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable } from '../../shared/languageFeatures';
+import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
 import { calculateWordStats } from '../../shared/utils/wordStats';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { getUserDataPath } from '../utils/platform';
 import { isLanguageMetadataFileName } from '../utils/languageCode';
 import { extractBase64Images } from './flashcardImageStorage';
+import { loadLangData } from './settings';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.flashcardStorage');
@@ -828,7 +829,7 @@ function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardSt
   // profile language instead of assigning a language-specific default.
   result = migrateV6ToV7(result, migrationLanguage);
 
-  return migrateLegacyFlashcardStore(result);
+  return finalizeStore(result);
 }
 
 function isValidFlashcardStore(value: unknown): value is FlashcardStore {
@@ -838,6 +839,53 @@ function isValidFlashcardStore(value: unknown): value is FlashcardStore {
     'flashcards' in v && typeof v.flashcards === 'object' && v.flashcards !== null &&
     typeof v.version === 'number'
   );
+}
+
+/**
+ * Idempotent repair: stamp `content.level` on flashcards that lack it, using
+ * the installed language frequency data (identical resolution to the
+ * renderer's word-level lookups). Runs on every load; skips words that don't
+ * resolve so it self-heals when language data is installed later.
+ */
+function backfillMissingFlashcardLevels(store: FlashcardStore): FlashcardStore {
+  const levelLess = Object.values(store.flashcards).filter((card) => card.content?.level === undefined);
+  if (levelLess.length === 0) return store;
+
+  const langData = loadLangData();
+  if (!langData) return store;
+
+  const byLanguage = new Map<string, Flashcard[]>();
+  for (const card of levelLess) {
+    if (!card.language) continue;
+    const bucket = byLanguage.get(card.language);
+    if (bucket) bucket.push(card);
+    else byLanguage.set(card.language, [card]);
+  }
+
+  const updated: Record<string, Flashcard> = {};
+  for (const [lang, cards] of byLanguage) {
+    const data = langData[lang];
+    if (!data) continue;
+    const { rows, languageData: effective } = resolveLanguageFrequencyPayload(data);
+    if (rows.length === 0) continue;
+    const freqMap = buildWordFrequencyMapFromLanguageData(effective);
+    const lexemeIndex = buildLexemeIndex(rows, effective, lang);
+    for (const card of cards) {
+      const word = card.content?.word ?? card.content?.front;
+      if (!word) continue;
+      const entry = getFrequencyForLexeme(word, freqMap, lexemeIndex, effective, lang);
+      if (entry && typeof entry.raw_level === 'number') {
+        updated[card.id] = { ...card, content: { ...card.content, level: entry.raw_level } };
+      }
+    }
+  }
+
+  if (Object.keys(updated).length === 0) return store;
+  return { ...store, flashcards: { ...store.flashcards, ...updated } };
+}
+
+function finalizeStore(store: FlashcardStore): FlashcardStore {
+  return backfillMissingFlashcardLevels(migrateLegacyFlashcardStore(store));
 }
 
 function checkFlashcards(fc_to_check: any): FlashcardStore {
@@ -855,7 +903,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     const zhMetadata = loadZhMigrationPackage();
     if (!zhMetadata) return fc_to_check;
     const backupPath = createBackup(getFlashcardsPath(), 2);
-    return migrateLegacyFlashcardStore(migrateV2ToV3(fc_to_check, zhMetadata, backupPath));
+    return finalizeStore(migrateV2ToV3(fc_to_check, zhMetadata, backupPath));
   }
 
   const result: FlashcardStore = {
@@ -874,7 +922,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     version: fc_to_check.version < CURRENT_VERSION ? CURRENT_VERSION : fc_to_check.version,
   };
 
-  return migrateLegacyFlashcardStore(result);
+  return finalizeStore(result);
 }
 
 export async function loadFlashcards(): Promise<FlashcardStore> {

@@ -865,6 +865,81 @@ export function buildLexemeIndex(freq: LanguageFrequencyRow[] | undefined, data?
   };
 }
 
+function defaultFreqBoundaries(totalEntries: number, levelCount = 5): number[] {
+  const safeLevelCount = Math.max(levelCount, 1);
+  const step = Math.floor(totalEntries / safeLevelCount);
+  return Array.from({ length: Math.max(safeLevelCount - 1, 0) }, (_, idx) => step * (idx + 1));
+}
+
+/**
+ * Build the surface -> frequency-entry map for a language from its metadata +
+ * frequency payload. Level assignment mirrors the renderer's
+ * `buildLanguageFrequencyState`: explicit `frequencyLevels.rowLevelIndex`
+ * column wins, otherwise levels fall back to `boundaries`/position.
+ */
+export function buildWordFrequencyMapFromLanguageData(
+  languageData?: LanguageData | null,
+): WordFrequencyMap {
+  const { rows, languageData: effectiveLanguageData } = resolveLanguageFrequencyPayload(languageData);
+  if (!Array.isArray(rows) || rows.length === 0) return {};
+
+  const levelNames = effectiveLanguageData?.frequencyLevels?.names ?? {};
+  const declaredLevels = Object.keys(levelNames).map(Number).filter((level) => Number.isFinite(level));
+  const levelsByDifficulty = sortFrequencyLevelsByDifficulty(declaredLevels, effectiveLanguageData);
+  const rowLevelIndex = Number.isInteger(effectiveLanguageData?.frequencyLevels?.rowLevelIndex)
+    && (effectiveLanguageData?.frequencyLevels?.rowLevelIndex ?? -1) >= 2
+    ? effectiveLanguageData?.frequencyLevels?.rowLevelIndex
+    : undefined;
+  const boundaries = declaredLevels.length > 0
+    ? effectiveLanguageData?.frequencyLevels?.boundaries ?? defaultFreqBoundaries(rows.length, levelsByDifficulty.length)
+    : [];
+
+  const frequency: WordFrequencyMap = {};
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const [surface, reading] = row;
+    if (typeof surface !== 'string' || typeof reading !== 'string' || !surface) continue;
+
+    const rowLevel = rowLevelIndex !== undefined ? Number(row[rowLevelIndex]) : Number.NaN;
+    let level = Number.isFinite(rowLevel)
+      ? rowLevel
+      : levelsByDifficulty[levelsByDifficulty.length - 1] ?? -1;
+
+    if (!Number.isFinite(rowLevel)) {
+      for (let boundaryIndex = 0; boundaryIndex < boundaries.length; boundaryIndex += 1) {
+        if (index <= boundaries[boundaryIndex]) {
+          level = levelsByDifficulty[boundaryIndex] ?? level;
+          break;
+        }
+      }
+    }
+
+    const levelLabel = isDisplayableFrequencyLevel(level, levelNames, effectiveLanguageData)
+      ? getFrequencyLevelLabel(level, levelNames, effectiveLanguageData)
+      : '';
+    const existing = frequency[surface];
+    if (existing) {
+      if (reading !== existing.reading) {
+        existing.alternateReadings = existing.alternateReadings ?? [];
+        if (!existing.alternateReadings.includes(reading)) {
+          existing.alternateReadings.push(reading);
+        }
+      }
+      continue;
+    }
+
+    frequency[surface] = {
+      reading,
+      level: levelLabel,
+      raw_level: level,
+    };
+  }
+
+  return frequency;
+}
+
 export function getFrequencyForLexeme(
   word: string,
   wordFrequency: WordFrequencyMap,

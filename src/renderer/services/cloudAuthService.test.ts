@@ -71,7 +71,6 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     builtinModel: '',
     speechEnabled: false,
     autoSpeak: false,
-    sttLanguage: '',
     voiceMode: 'push-to-talk',
     ttsProvider: 'kokoro',
     voiceTtsSpeed: 1.0,

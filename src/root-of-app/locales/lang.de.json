@@ -466,7 +466,8 @@
       },
       "Banner": {
         "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
-        "SafetyNotice": "🛡️ Sicherheitsprüfung ist {status} (verbraucht zusätzliche Rechenleistung).",
+        "LocalPrivacyNotice": "Läuft vollständig auf Ihrem Gerät — Ihre Nachrichten verlassen nie Ihren Rechner.",
+        "SafetyNotice": "🛡️ Sicherheitsprüfung ist {status}.",
         "SettingsLink": "Einstellungen",
         "TerminationNotice": "Bei Erkennung schädlicher Inhalte wird der Chat beendet."
       },

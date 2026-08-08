@@ -151,7 +151,7 @@ export const FlashcardsSuggested: Component = () => {
   });
 
   const [containerWidth, setContainerWidth] = createSignal(0);
-  const CARD_MIN_WIDTH = 300;
+  const CARD_MIN_WIDTH = 360;
   const CARD_GAP = 16;
 
   const columns = createMemo(() => {

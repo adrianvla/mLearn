@@ -466,7 +466,8 @@
       },
       "Banner": {
         "AIWarning": "⚠️ AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
-        "SafetyNotice": "🛡️ 安全筛查已{status}（使用额外计算资源）。",
+        "LocalPrivacyNotice": "完全在您的设备上运行 — 您的消息绝不会离开这台设备。",
+        "SafetyNotice": "🛡️ 安全筛查已{status}。",
         "SettingsLink": "设置",
         "TerminationNotice": "如果检测到有害内容，聊天将被终止。"
       },

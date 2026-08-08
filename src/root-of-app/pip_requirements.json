@@ -1,40 +1,43 @@
 {
   "core": [
     "pip",
-    "uvicorn",
-    "fastapi",
-    "pydantic",
-    "beautifulsoup4",
-    "pillow",
-    "numpy",
-    "python-multipart",
+    "uvicorn==0.41.0",
+    "fastapi==0.129.2",
+    "pydantic==2.12.5",
+    "beautifulsoup4==4.14.3",
+    "pillow==12.1.1",
+    "numpy==2.4.2",
+    "python-multipart==0.0.22",
     "setuptools",
     "wheel",
-    "websockets"
+    "websockets==16.0"
   ],
   "ocr": [],
   "llm": [
-    "torch",
-    "transformers>=5.12.1,<5.13",
-    "sentencepiece"
+    "torch==2.10.0",
+    "transformers==5.12.1",
+    "sentencepiece==0.2.1"
   ],
   "voice": [
-    "torch",
-    "torchaudio",
-    "faster_whisper",
-    "kokoro",
-    "soundfile",
+    "torch==2.10.0",
+    "torchaudio==2.10.0",
+    "faster_whisper==1.2.1",
+    "kokoro==0.9.4",
+    "soundfile==0.13.1",
     "silero-vad",
-    "onnxruntime"
+    "onnxruntime==1.24.2"
   ],
   "qwen3-tts": [
-    "mlx-audio>=0.4.4",
-    "transformers>=5.12.1,<5.13",
+    "mlx==0.31.1",
+    "mlx-metal==0.31.1",
+    "mlx-lm==0.31.2",
+    "mlx-audio==0.4.4",
+    "transformers==5.12.1",
     "tokenizers==0.22.1",
-    "huggingface-hub>=1.21,<1.22",
-    "soundfile>=0.12.1"
+    "huggingface-hub==1.21.0",
+    "soundfile==0.13.1"
   ],
   "mlx-stt": [
-    "sentencepiece>=0.2.0"
+    "sentencepiece==0.2.1"
   ]
 }

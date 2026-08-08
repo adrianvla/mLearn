@@ -1656,7 +1656,7 @@ export const ConversationContent: Component = () => {
       getBridge().speech.sttStop();
       setIsRecording(false);
     } else {
-      const lang = settings.sttLanguage || settings.language;
+      const lang = settings.language;
       getBridge().speech.sttStart(lang);
       setIsRecording(true);
     }
@@ -1755,6 +1755,9 @@ export const ConversationContent: Component = () => {
             {t('mlearn.ConversationAgent.Banner.AIWarning')}
           </p>
           <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-secondary)' }}>
+            {t('mlearn.ConversationAgent.Banner.LocalPrivacyNotice')}
+          </p>
+          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-secondary)' }}>
             {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: settings.agentSafetyChecker ? 'ON' : 'OFF' })}
             {' '}
             <button
@@ -1764,8 +1767,10 @@ export const ConversationContent: Component = () => {
             >
               [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
             </button>
-            {' '}
-            {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
+            <Show when={settings.agentSafetyChecker}>
+              {' '}
+              {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
+            </Show>
           </p>
         </div>
       </Modal>

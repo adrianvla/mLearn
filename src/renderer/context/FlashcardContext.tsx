@@ -1597,6 +1597,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         videoUrl: params.videoUrl,
         source: params.source,
         sourceMediaHash: params.sourceMediaHash,
+        level: getFrequencyForLanguage(lang, word)?.raw_level,
       });
       updateFlashcardContent(unpopulatedCard.id, { ...updates, unpopulated: false }, false);
       return;
@@ -1996,7 +1997,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           reading: reading || undefined,
           prosody,
           pos: suggestion.pos,
-          level: suggestion.level ?? getFrequencyForLanguage(suggestion.language, suggestion.word)?.raw_level ?? undefined,
+          level: suggestion.level ?? getFrequencyForLanguage(suggestion.language, getPrimaryWordFormForLanguage(suggestion.word, suggestion.language))?.raw_level ?? undefined,
           example: exampleSentence || undefined,
           exampleMeaning: exampleMeaning || undefined,
           imageUrl: suggestion.imageUrl,

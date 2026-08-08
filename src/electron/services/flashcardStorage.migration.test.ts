@@ -11,6 +11,9 @@ vi.mock('electron', () => ({ ipcMain: { on: vi.fn() } }));
 vi.mock('../utils/platform', () => ({ getUserDataPath: vi.fn(() => tempDir.tmpDir) }));
 vi.mock('./flashcardImageStorage', () => ({ extractBase64Images: vi.fn(() => false) }));
 
+const mockLoadLangData = vi.hoisted(() => vi.fn());
+vi.mock('./settings', () => ({ loadLangData: mockLoadLangData }));
+
 const table = { words: {}, chars: { '學': '学', '沒': '没' } };
 const zhMetadata: LanguageData = {
   name: 'Chinese',
@@ -170,5 +173,103 @@ describe('flashcardStorage v2→v3 zh variant migration', () => {
     const twice = await loadFlashcards();
     expect(JSON.stringify(twice)).toBe(snapshot);
     expect(backups()).toHaveLength(backupCount);
+  });
+});
+
+const jaFrequencyLevels = { names: { '1': 'JLPT N1', '5': 'JLPT N5' }, rowLevelIndex: 2, difficulty: 'lower-is-harder', displayOrder: 'descending' } as const;
+const jaLangData: LanguageData = {
+  name: 'Japanese',
+  frequencyLevels: jaFrequencyLevels,
+  freq: [
+    ['食べ物', 'たべもの', 5],
+    ['飛行機', 'ひこうき', 5],
+    ['猫', 'ねこ', 1],
+  ],
+};
+
+function jaCard(id: string, front: string, overrides: Partial<Flashcard> = {}): Flashcard {
+  return {
+    id,
+    content: { type: 'word', front, back: front, word: front },
+    language: 'ja',
+    state: 'new', ease: 2.5, interval: 0, dueDate: 100, reviews: 0, lapses: 0,
+    learningStep: 0, createdAt: 10, lastReviewed: 0, lastUpdated: 10,
+    ...overrides,
+  };
+}
+
+describe('flashcardStorage level backfill', () => {
+  let loadFlashcards: () => Promise<FlashcardStore>;
+
+  beforeEach(async () => {
+    tempDir = createTempDir('mlearn-fc-backfill-');
+    vi.resetModules();
+    mockLoadLangData.mockReset();
+    ({ loadFlashcards } = await import('./flashcardStorage'));
+  });
+  afterEach(() => tempDir.cleanup());
+
+  it('stamps content.level from frequency data for level-less word cards', async () => {
+    mockLoadLangData.mockReturnValue({ ja: jaLangData });
+    write(store({
+      flashcards: {
+        food: jaCard('food', '食べ物'),
+        plane: jaCard('plane', '飛行機'),
+        cat: jaCard('cat', '猫'),
+      },
+    }));
+
+    const migrated = await loadFlashcards();
+    expect(migrated.flashcards.food.content.level).toBe(5);
+    expect(migrated.flashcards.plane.content.level).toBe(5);
+    expect(migrated.flashcards.cat.content.level).toBe(1);
+  });
+
+  it('leaves cards that already carry a level untouched', async () => {
+    mockLoadLangData.mockReturnValue({ ja: jaLangData });
+    write(store({
+      flashcards: {
+        custom: jaCard('custom', '食べ物', { content: { type: 'word', front: '食べ物', back: 'food', word: '食べ物', level: 3 } }),
+      },
+    }));
+
+    const migrated = await loadFlashcards();
+    expect(migrated.flashcards.custom.content.level).toBe(3);
+  });
+
+  it('skips words absent from frequency data and languages without installed data', async () => {
+    mockLoadLangData.mockReturnValue({ ja: jaLangData });
+    write(store({
+      flashcards: {
+        rare: jaCard('rare', '存在しない語'),
+        german: { ...jaCard('german', 'Haus'), id: 'german', language: 'de' },
+      },
+    }));
+
+    const migrated = await loadFlashcards();
+    expect(migrated.flashcards.rare.content.level).toBeUndefined();
+    expect(migrated.flashcards.german.content.level).toBeUndefined();
+  });
+
+  it('no-ops when no language data is installed', async () => {
+    mockLoadLangData.mockReturnValue({});
+    const original = store({ flashcards: { food: jaCard('food', '食べ物') } });
+    write(original);
+
+    const migrated = await loadFlashcards();
+    expect(migrated.flashcards.food.content.level).toBeUndefined();
+    expect(migrated.version).toBe(3);
+  });
+
+  it('is idempotent: no freq reads once every card has a level', async () => {
+    mockLoadLangData.mockReturnValue({ ja: jaLangData });
+    write(store({ flashcards: { food: jaCard('food', '食べ物') } }));
+
+    const once = await loadFlashcards();
+    expect(once.flashcards.food.content.level).toBe(5);
+    mockLoadLangData.mockClear();
+    const twice = await loadFlashcards();
+    expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
+    expect(mockLoadLangData).not.toHaveBeenCalled();
   });
 });

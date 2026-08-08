@@ -466,7 +466,8 @@
       },
       "Banner": {
         "AIWarning": "⚠️ Les réponses générées par l'IA peuvent être inexactes ou inappropriées. Cet agent n'est pas un humain et ne peut fournir de conseils professionnels.",
-        "SafetyNotice": "🛡️ Le filtrage de sécurité est {status} (utilise de la puissance de calcul supplémentaire).",
+        "LocalPrivacyNotice": "S'exécute entièrement sur votre appareil — vos messages ne quittent jamais votre machine.",
+        "SafetyNotice": "🛡️ Le filtrage de sécurité est {status}.",
         "SettingsLink": "Paramètres",
         "TerminationNotice": "Si du contenu nuisible est détecté, le chat sera terminé."
       },

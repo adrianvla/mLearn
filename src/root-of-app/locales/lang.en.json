@@ -471,7 +471,8 @@
       },
       "Banner": {
         "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "SafetyNotice": "🛡️ Safety screening is {status} (uses extra compute).",
+        "LocalPrivacyNotice": "Runs entirely on your device — your messages never leave this machine.",
+        "SafetyNotice": "🛡️ Safety screening is {status}.",
         "SettingsLink": "Settings",
         "TerminationNotice": "If harmful content is detected, the chat will be terminated."
       },
