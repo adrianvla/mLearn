@@ -350,6 +350,11 @@
         "Title": "Catalogue de langues",
         "Url": "URL du catalogue"
       },
+      "RuntimeCatalog": {
+        "Description": "URL du manifeste des archives du runtime Python (utilisée lors de la première configuration).",
+        "Title": "Catalogue du runtime Python",
+        "Url": "URL du catalogue du runtime"
+      },
       "Mode": "Mode",
       "ModeLocal": "Local",
       "ModeTethered": "Relié",

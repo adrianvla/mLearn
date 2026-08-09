@@ -350,6 +350,11 @@
         "Title": "语言目录",
         "Url": "目录 URL"
       },
+      "RuntimeCatalog": {
+        "Description": "Python 运行时归档文件的清单 URL（首次设置时使用）。",
+        "Title": "Python 运行时目录",
+        "Url": "运行时目录 URL"
+      },
       "Mode": "模式",
       "ModeLocal": "本地",
       "ModeTethered": "绑定模式",

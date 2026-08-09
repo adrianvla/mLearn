@@ -1058,7 +1058,8 @@ describe('pythonBackend', () => {
         Array.isArray(call[1]) && call[1][0] === 'install'
       ));
       expect(pipInstallCall?.[1]).toEqual(expect.arrayContaining([
-        'kokoro',
+        // kokoro is version-pinned in pip_requirements.json — match the name, not the pin
+        expect.stringMatching(/^kokoro(==|$)/),
         'ja-voice-extra-one',
         'ja-voice-extra-two',
       ]));

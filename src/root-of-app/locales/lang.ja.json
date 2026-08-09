@@ -350,6 +350,11 @@
         "Title": "言語カタログ",
         "Url": "カタログURL"
       },
+      "RuntimeCatalog": {
+        "Description": "Python ランタイムアーカイブのマニフェスト URL（初回セットアップ時に使用）。",
+        "Title": "Python ランタイムカタログ",
+        "Url": "ランタイムカタログ URL"
+      },
       "Mode": "モード",
       "ModeLocal": "ローカル",
       "ModeTethered": "テザリング",

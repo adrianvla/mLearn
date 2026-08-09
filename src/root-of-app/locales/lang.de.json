@@ -350,6 +350,11 @@
         "Title": "Sprachkatalog",
         "Url": "Katalog-URL"
       },
+      "RuntimeCatalog": {
+        "Description": "Manifest-URL für die Python-Laufzeitarchive (wird bei der Ersteinrichtung verwendet).",
+        "Title": "Python-Laufzeitkatalog",
+        "Url": "Laufzeitkatalog-URL"
+      },
       "Mode": "Modus",
       "ModeLocal": "Lokal",
       "ModeTethered": "Angebunden",
