@@ -86,7 +86,6 @@
   justify-content: center;
   border-radius: var(--radius-md);
   font-size: var(--font-size-xl);
-  cursor: pointer;
   transition: transform 0.1s ease, opacity 0.2s ease;
   border: 1px solid var(--border-color);
 }
@@ -266,7 +265,7 @@
   opacity: 0.8;
 }
 
-.cg-empty-state h3 {
+.cg-empty-state h2 {
   font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 0.5rem;

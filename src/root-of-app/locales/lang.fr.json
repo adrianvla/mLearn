@@ -2375,9 +2375,27 @@
         },
         "CurrentStreak": "Série actuelle",
         "DaysStudied": "Jours étudiés",
+        "DayActivity": "{date} : {reviews} révisions, {newCards} nouvelles",
+        "DueForecast": {
+          "Title": "Prévisions de révision",
+          "Today": "À réviser aujourd'hui",
+          "Tomorrow": "Demain",
+          "Next7Days": "7 prochains jours",
+          "Next30Days": "30 prochains jours"
+        },
+        "EmptyState": {
+          "Title": "Pas encore de statistiques",
+          "Description": "Vos statistiques d'apprentissage apparaîtront ici une fois que vous aurez commencé à étudier.",
+          "Hint": "Révisez des cartes ou immergez-vous avec l'extension du navigateur pour commencer."
+        },
         "EaseDistribution": "Distribution de facilité",
         "Forecast": "Prévision de révision sur 14 jours",
         "Graduated": "Terminées",
+        "Heatmap": {
+          "Less": "Moins",
+          "More": "Plus",
+          "Max": "Max : {count}"
+        },
         "ImmersionHeatmap": "Carte thermique d'immersion",
         "ImmersionTime": "Temps d'immersion",
         "IntervalDistribution": "Distribution des intervalles",
@@ -2431,6 +2449,16 @@
           "WordsTracked": "Mots suivis"
         },
         "WordKnowledge": "Connaissance des mots"
+      },
+      "Intervals": {
+        "Lt1d": "moins d'1 jour",
+        "1t3d": "1-3 jours",
+        "3t7d": "3-7 jours",
+        "1t2w": "1-2 semaines",
+        "2w1m": "2 sem.-1 mois",
+        "1t3m": "1-3 mois",
+        "3t6m": "3-6 mois",
+        "Gt6m": "6+ mois"
       },
       "Description": "Suivez votre progression et votre parcours d'apprentissage",
       "Legend": {
@@ -3026,7 +3054,9 @@
       "Tooltip": {
         "KnownCount": "Connus",
         "LearningCount": "En apprentissage",
+        "MoreWords": "+{count} autres",
         "Score": "Score",
+        "UnknownCount": "Inconnus",
         "WordsContaining": "Mots contenant {char}"
       }
     }

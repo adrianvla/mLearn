@@ -881,6 +881,7 @@ export const FlashcardsContent: Component = () => {
               orientation="vertical"
               variant="pills"
               size="md"
+              idBase="flashcards-tabs"
             />
           </nav>
           
@@ -907,6 +908,7 @@ export const FlashcardsContent: Component = () => {
         {/* Main Content */}
         <main class="flashcards-main">
           {/* Review Tab */}
+          <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review">
           <Show when={activeTab() === 'review'}>
             <Show
               when={counts().total > 0}
@@ -926,8 +928,10 @@ export const FlashcardsContent: Component = () => {
               <FlashcardReview />
             </Show>
           </Show>
+          </div>
 
           {/* Browse Tab */}
+          <div role="tabpanel" id="flashcards-tabs-panel-browse" aria-labelledby="flashcards-tabs-tab-browse">
           <Show when={activeTab() === 'browse'}>
             {(() => {
               let browseRef: HTMLDivElement | undefined;
@@ -1087,8 +1091,10 @@ export const FlashcardsContent: Component = () => {
               );
             })()}
           </Show>
+          </div>
 
           {/* Generate Tab */}
+          <div role="tabpanel" id="flashcards-tabs-panel-generate" aria-labelledby="flashcards-tabs-tab-generate">
           <Show when={activeTab() === 'generate'}>
             <div class="flashcards-generate">
               <h2 class="flashcards-generate-title">{t('mlearn.Flashcards.UI.Tabs.Generate')}</h2>
@@ -1214,16 +1220,21 @@ export const FlashcardsContent: Component = () => {
               </Show>
             </div>
           </Show>
+          </div>
 
           {/* Suggested Tab */}
+          <div role="tabpanel" id="flashcards-tabs-panel-suggested" aria-labelledby="flashcards-tabs-tab-suggested">
           <Show when={activeTab() === 'suggested'}>
             <FlashcardsSuggested />
           </Show>
+          </div>
 
           {/* Stats Tab */}
+          <div role="tabpanel" id="flashcards-tabs-panel-stats" aria-labelledby="flashcards-tabs-tab-stats">
           <Show when={activeTab() === 'stats'}>
             <FlashcardStats />
           </Show>
+          </div>
         </main>
       </div>
 

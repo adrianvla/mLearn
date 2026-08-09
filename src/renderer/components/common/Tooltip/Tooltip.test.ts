@@ -160,4 +160,22 @@ describe('Tooltip', () => {
     dispose();
     vi.useRealTimers();
   });
+
+  it('shows tooltip on focusin', async () => {
+    const { dispose } = await renderTooltip();
+    const trigger = container.querySelector('.tooltip-trigger')!;
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
+    dispose();
+  });
+
+  it('hides tooltip on focusout', async () => {
+    const { dispose } = await renderTooltip();
+    const trigger = container.querySelector('.tooltip-trigger')!;
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
+    trigger.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
+    dispose();
+  });
 });

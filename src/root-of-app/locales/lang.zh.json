@@ -2375,9 +2375,27 @@
         },
         "CurrentStreak": "当前连续天数",
         "DaysStudied": "学习天数",
+        "DayActivity": "{date}：{reviews} 次复习，{newCards} 张新卡",
+        "DueForecast": {
+          "Title": "复习预测",
+          "Today": "今日到期",
+          "Tomorrow": "明天",
+          "Next7Days": "未来 7 天",
+          "Next30Days": "未来 30 天"
+        },
+        "EmptyState": {
+          "Title": "暂无统计数据",
+          "Description": "开始学习后，您的学习统计数据将显示在这里。",
+          "Hint": "复习闪卡，或使用浏览器扩展沉浸式学习以开始。"
+        },
         "EaseDistribution": "难度系数分布",
         "Forecast": "14 天复习预测",
         "Graduated": "已毕业",
+        "Heatmap": {
+          "Less": "较少",
+          "More": "较多",
+          "Max": "最大：{count}"
+        },
         "ImmersionHeatmap": "沉浸式学习热力图",
         "ImmersionTime": "沉浸式学习时间",
         "IntervalDistribution": "间隔分布",
@@ -2431,6 +2449,16 @@
           "WordsTracked": "追踪单词数"
         },
         "WordKnowledge": "单词掌握"
+      },
+      "Intervals": {
+        "Lt1d": "不到1天",
+        "1t3d": "1-3天",
+        "3t7d": "3-7天",
+        "1t2w": "1-2周",
+        "2w1m": "2周-1个月",
+        "1t3m": "1-3个月",
+        "3t6m": "3-6个月",
+        "Gt6m": "6个月以上"
       },
       "Description": "追踪您的进度和学习历程",
       "Legend": {
@@ -3026,7 +3054,9 @@
       "Tooltip": {
         "KnownCount": "已掌握",
         "LearningCount": "学习中",
+        "MoreWords": "还有{count}个",
         "Score": "分数",
+        "UnknownCount": "未知",
         "WordsContaining": "包含{char}的单词"
       }
     }

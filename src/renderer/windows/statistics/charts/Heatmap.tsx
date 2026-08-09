@@ -5,6 +5,7 @@
 
 import { Component, For, createMemo } from 'solid-js';
 import { Tooltip } from '../../../components/common';
+import { useLocalization } from '../../../context';
 import './Heatmap.css';
 
 interface HeatmapDay {
@@ -19,9 +20,12 @@ interface HeatmapProps {
   class?: string;
   /** Custom tooltip formatter. Receives (date, value). Defaults to "{date}: {value} reviews" */
   formatTooltip?: (date: string, value: number) => string;
+  /** Formatter for the legend max-value caption. Defaults to "Max: {count}". */
+  formatMax?: (max: number) => string;
 }
 
 export const Heatmap: Component<HeatmapProps> = (props) => {
+  const { t } = useLocalization();
   const weeks = () => props.weeks ?? 20;
 
   const colorScale = () => props.colorScale ?? [
@@ -65,8 +69,24 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
       days.push(currentWeek);
     }
 
+    const monthLabels: string[] = [];
+    let prevMonth = -1;
+    for (const week of days) {
+      if (!week[0]) {
+        monthLabels.push('');
+        continue;
+      }
+      const month = new Date(week[0].date + 'T00:00:00').getMonth();
+      if (month !== prevMonth) {
+        monthLabels.push(new Date(week[0].date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' }));
+        prevMonth = month;
+      } else {
+        monthLabels.push('');
+      }
+    }
+
     const maxVal = Math.max(...allValues, 1);
-    return { weeks: days, maxVal };
+    return { weeks: days, maxVal, monthLabels };
   });
 
   const getColor = (value: number, maxVal: number) => {
@@ -84,31 +104,55 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
   const formatTooltip = (date: string, value: number) =>
     props.formatTooltip ? props.formatTooltip(date, value) : `${date}: ${value}`;
 
+  const maxCaption = () =>
+    props.formatMax ? props.formatMax(grid().maxVal) : t('mlearn.Statistics.Dashboard.Heatmap.Max', { count: grid().maxVal });
+
   return (
     <div class={`heatmap-container ${props.class ?? ''}`}>
       <div class="heatmap-grid">
-        <div class="heatmap-day-labels">
-          <For each={dayLabels}>
-            {(label) => <div class="heatmap-day-label">{label}</div>}
+        <div class="heatmap-month-labels">
+          <div class="heatmap-month-label-spacer" />
+          <For each={grid().monthLabels}>
+            {(label) => <div class="heatmap-month-label">{label}</div>}
           </For>
         </div>
-        <div class="heatmap-weeks">
-          <For each={grid().weeks}>
-            {(week) => (
-              <div class="heatmap-week">
-                <For each={week}>
-                  {(day) => (
-                    <Tooltip content={formatTooltip(day.date, day.value)} position="top">
-                      <div
-                        class="heatmap-cell"
-                        style={{ background: getColor(day.value, grid().maxVal) }}
-                      />
-                    </Tooltip>
-                  )}
-                </For>
-              </div>
-            )}
-          </For>
+        <div class="heatmap-body">
+          <div class="heatmap-row">
+            <div class="heatmap-day-labels">
+              <For each={dayLabels}>
+                {(label) => <div class="heatmap-day-label">{label}</div>}
+              </For>
+            </div>
+            <div class="heatmap-weeks">
+              <For each={grid().weeks}>
+                {(week) => (
+                  <div class="heatmap-week">
+                    <For each={week}>
+                      {(day) => (
+                        <Tooltip content={formatTooltip(day.date, day.value)} position="top">
+                          <div
+                            class="heatmap-cell"
+                            role="img"
+                            tabindex={0}
+                            aria-label={formatTooltip(day.date, day.value)}
+                            style={{ background: getColor(day.value, grid().maxVal) }}
+                          />
+                        </Tooltip>
+                      )}
+                    </For>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+          <div class="heatmap-legend">
+            <span>{t('mlearn.Statistics.Dashboard.Heatmap.Less')}</span>
+            <For each={colorScale()}>
+              {(color) => <span class="heatmap-legend-swatch" style={{ background: color }} />}
+            </For>
+            <span>{t('mlearn.Statistics.Dashboard.Heatmap.More')}</span>
+            <span class="heatmap-legend-max">{maxCaption()}</span>
+          </div>
         </div>
       </div>
     </div>

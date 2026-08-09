@@ -2375,9 +2375,27 @@
         },
         "CurrentStreak": "Aktuelle Serie",
         "DaysStudied": "Tage gelernt",
+        "DayActivity": "{date}: {reviews} Wiederholungen, {newCards} neue",
+        "DueForecast": {
+          "Title": "Wiederholungsvorschau",
+          "Today": "Heute fällig",
+          "Tomorrow": "Morgen",
+          "Next7Days": "Nächste 7 Tage",
+          "Next30Days": "Nächste 30 Tage"
+        },
+        "EmptyState": {
+          "Title": "Noch keine Statistiken",
+          "Description": "Ihre Lernstatistiken erscheinen hier, sobald Sie mit dem Lernen beginnen.",
+          "Hint": "Wiederholen Sie Karteikarten oder tauchen Sie mit der Browsererweiterung in Inhalte ein."
+        },
         "EaseDistribution": "Leichtigkeitsverteilung",
         "Forecast": "14-Tage-Wiederholungsvorhersage",
         "Graduated": "Abgeschlossen",
+        "Heatmap": {
+          "Less": "Weniger",
+          "More": "Mehr",
+          "Max": "Max: {count}"
+        },
         "ImmersionHeatmap": "Immersions-Heatmap",
         "ImmersionTime": "Immersionszeit",
         "IntervalDistribution": "Intervallverteilung",
@@ -2431,6 +2449,16 @@
           "WordsTracked": "Verfolgte Wörter"
         },
         "WordKnowledge": "Wortwissen"
+      },
+      "Intervals": {
+        "Lt1d": "unter 1 Tag",
+        "1t3d": "1-3 Tage",
+        "3t7d": "3-7 Tage",
+        "1t2w": "1-2 Wochen",
+        "2w1m": "2 Wochen-1 Monat",
+        "1t3m": "1-3 Monate",
+        "3t6m": "3-6 Monate",
+        "Gt6m": "6+ Monate"
       },
       "Description": "Verfolgen Sie Ihren Fortschritt und Ihre Lernreise",
       "Legend": {
@@ -3026,7 +3054,9 @@
       "Tooltip": {
         "KnownCount": "Bekannte",
         "LearningCount": "Lernende",
+        "MoreWords": "+{count} weitere",
         "Score": "Punktzahl",
+        "UnknownCount": "Unbekannte",
         "WordsContaining": "Wörter mit {char}"
       }
     }

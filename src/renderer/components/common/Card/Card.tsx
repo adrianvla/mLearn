@@ -4,10 +4,12 @@
  */
 
 import { Component, JSX, Show, splitProps, mergeProps } from 'solid-js';
+import { Dynamic } from 'solid-js/web';
 import { Panel, type PanelProps } from '../Panel';
 
 export interface CardProps extends Omit<PanelProps, 'title'> {
   title?: string | JSX.Element;
+  titleTag?: 'h2' | 'h3';
   subtitle?: string | JSX.Element;
   header?: JSX.Element;
   footer?: JSX.Element;
@@ -25,6 +27,7 @@ export const Card: Component<CardProps> = (props) => {
 
   const [local, rest] = splitProps(merged, [
     'title',
+    'titleTag',
     'subtitle',
     'header',
     'footer',
@@ -50,7 +53,8 @@ export const Card: Component<CardProps> = (props) => {
           <div style={{ display: 'flex', 'flex-direction': 'column', gap: '0.25rem' }}>
             <Show when={local.header}>{local.header}</Show>
             <Show when={local.title}>
-              <h3
+              <Dynamic
+                component={local.titleTag ?? 'h3'}
                 style={{
                   margin: '0',
                   'font-size': '1.125rem',
@@ -59,7 +63,7 @@ export const Card: Component<CardProps> = (props) => {
                 }}
               >
                 {local.title}
-              </h3>
+              </Dynamic>
             </Show>
             <Show when={local.subtitle}>
               <p

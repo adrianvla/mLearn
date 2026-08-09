@@ -2380,9 +2380,27 @@
         },
         "CurrentStreak": "Current Streak",
         "DaysStudied": "Days studied",
+        "DayActivity": "{date}: {reviews} reviews, {newCards} new",
+        "DueForecast": {
+          "Title": "Review Forecast",
+          "Today": "Due today",
+          "Tomorrow": "Tomorrow",
+          "Next7Days": "Next 7 days",
+          "Next30Days": "Next 30 days"
+        },
+        "EmptyState": {
+          "Title": "No statistics yet",
+          "Description": "Your learning statistics will appear here once you start studying.",
+          "Hint": "Review flashcards or immerse with the browser extension to begin."
+        },
         "EaseDistribution": "Ease Factor Distribution",
         "Forecast": "14-Day Review Forecast",
         "Graduated": "Graduated",
+        "Heatmap": {
+          "Less": "Less",
+          "More": "More",
+          "Max": "Max: {count}"
+        },
         "ImmersionHeatmap": "Immersion Heatmap",
         "ImmersionTime": "Immersion Time",
         "IntervalDistribution": "Interval Distribution",
@@ -2436,6 +2454,16 @@
           "WordsTracked": "Words Tracked"
         },
         "WordKnowledge": "Word Knowledge"
+      },
+      "Intervals": {
+        "Lt1d": "<1 day",
+        "1t3d": "1-3 days",
+        "3t7d": "3-7 days",
+        "1t2w": "1-2 weeks",
+        "2w1m": "2 weeks-1 month",
+        "1t3m": "1-3 months",
+        "3t6m": "3-6 months",
+        "Gt6m": "6+ months"
       },
       "Description": "Track your progress and learning journey",
       "Legend": {
@@ -3031,7 +3059,9 @@
       "Tooltip": {
         "KnownCount": "known",
         "LearningCount": "learning",
+        "MoreWords": "+{count} more",
         "Score": "score",
+        "UnknownCount": "unknown",
         "WordsContaining": "Words containing {char}"
       }
     }

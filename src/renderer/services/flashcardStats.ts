@@ -31,7 +31,7 @@ export interface StateDistribution {
 }
 
 export interface IntervalBucket {
-  label: string;
+  key: string;
   max: number;
   count: number;
 }
@@ -216,14 +216,14 @@ export function computeEaseDistribution(
  */
 export function computeIntervalDistribution(cards: Flashcard[]): IntervalBucket[] {
   const buckets: IntervalBucket[] = [
-    { label: '<1d', max: DAY, count: 0 },
-    { label: '1-3d', max: 3 * DAY, count: 0 },
-    { label: '3-7d', max: 7 * DAY, count: 0 },
-    { label: '1-2w', max: 14 * DAY, count: 0 },
-    { label: '2w-1m', max: 30 * DAY, count: 0 },
-    { label: '1-3m', max: 90 * DAY, count: 0 },
-    { label: '3-6m', max: 180 * DAY, count: 0 },
-    { label: '6m+', max: Infinity, count: 0 },
+    { key: 'Lt1d', max: DAY, count: 0 },
+    { key: '1t3d', max: 3 * DAY, count: 0 },
+    { key: '3t7d', max: 7 * DAY, count: 0 },
+    { key: '1t2w', max: 14 * DAY, count: 0 },
+    { key: '2w1m', max: 30 * DAY, count: 0 },
+    { key: '1t3m', max: 90 * DAY, count: 0 },
+    { key: '3t6m', max: 180 * DAY, count: 0 },
+    { key: 'Gt6m', max: Infinity, count: 0 },
   ];
 
   const reviewed = cards.filter((c) => !c.suspended && !c.buried && c.state === 'review');
@@ -302,7 +302,7 @@ export function computeRetentionStats(
       const d = dailyStats[k];
       return d.reviewCardsStudied + d.newCardsStudied > 0;
     }).length,
-    totalDays: keys.length,
+    totalDays: days,
     totalTime,
   };
 }
@@ -387,6 +387,35 @@ export function computeDueCounts(cards: Flashcard[], newDayHour: number = 4): Du
     review,
     relearning,
     total: newCards + learning + review + relearning,
+  };
+}
+
+// ============================================================================
+// Due Forecast (cumulative)
+// ============================================================================
+
+export interface DueForecast {
+  today: number;
+  tomorrow: number;
+  next7: number;
+  next30: number;
+}
+
+/**
+ * Cumulative due counts over expanding SRS-day horizons.
+ * New-state cards are counted in every bucket (consistent with computeDueCounts).
+ */
+export function computeDueForecast(cards: Flashcard[], newDayHour: number = 4): DueForecast {
+  const dayEnd = getEndOfSRSDay(newDayHour);
+  const horizon = (k: number) => dayEnd + k * DAY;
+  const countDue = (limit: number) =>
+    cards.filter((c) => !c.suspended && !c.buried && (c.state === 'new' || c.dueDate <= limit)).length;
+
+  return {
+    today: countDue(horizon(0)),
+    tomorrow: countDue(horizon(1)),
+    next7: countDue(horizon(7)),
+    next30: countDue(horizon(30)),
   };
 }
 

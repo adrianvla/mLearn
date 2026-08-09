@@ -46,8 +46,20 @@
   line-height: 1.2;
 }
 
-.stats-metric-retention {
+.stats-metric-retention--success {
   color: var(--color-success);
+}
+
+.stats-metric-retention--warning {
+  color: var(--color-warning);
+}
+
+.stats-metric-retention--error {
+  color: var(--color-error);
+}
+
+.stats-metric-retention--default {
+  color: var(--text-primary);
 }
 
 .stats-metric-label {
@@ -57,7 +69,7 @@
 }
 
 .stats-metric-sublabel {
-  font-size: var(--font-size-xxs);
+  font-size: 0.6875rem;
   color: var(--text-tertiary);
 }
 
@@ -234,6 +246,19 @@
   color: var(--text-tertiary);
   margin: 0.5rem 0 0;
   font-style: italic;
+}
+
+/* Visually hidden helper for screen-reader chart text */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Responsive */

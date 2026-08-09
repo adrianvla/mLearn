@@ -77,6 +77,8 @@ export const Tooltip: Component<TooltipProps> = (props) => {
         class={`tooltip-trigger ${props.class ?? ''}`}
         onMouseEnter={show}
         onMouseLeave={hide}
+        onFocusIn={show}
+        onFocusOut={hide}
       >
         {props.children}
       </span>

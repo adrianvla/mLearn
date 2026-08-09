@@ -55,6 +55,7 @@ export const PieChart: Component<PieChartProps> = (props) => {
         height={size()}
         viewBox={`0 0 ${size()} ${size()}`}
         class="pie-chart-svg"
+        aria-hidden="true"
       >
         {/* Background circle */}
         <circle

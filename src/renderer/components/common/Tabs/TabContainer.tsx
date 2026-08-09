@@ -39,9 +39,13 @@ export interface TabContainerProps {
   responsiveSidebarLabel?: string;
   /** Compact mobile-bar title, normally the active section. */
   responsiveSidebarTitle?: string;
+  /** Stable base for tab/panel DOM ids. Defaults to a module-scoped counter. */
+  idBase?: string;
   /** Render content for each tab */
   children?: JSX.Element;
 }
+
+let tabIdCounter = 0;
 
 export const TabContainer: Component<TabContainerProps> = (props) => {
   const merged = mergeProps({
@@ -64,15 +68,63 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
     'responsiveSidebarId',
     'responsiveSidebarLabel',
     'responsiveSidebarTitle',
+    'idBase',
     'children',
   ]);
   const [isResponsiveSidebarOpen, setIsResponsiveSidebarOpen] = createSignal(false);
   const responsiveSidebarId = () => local.responsiveSidebarId || undefined;
   const responsiveSidebarLabel = () => local.responsiveSidebarLabel || local.responsiveSidebarTitle || '';
+  const idBase = () => local.idBase ?? `tabs-${++tabIdCounter}`;
 
   const handleTabChange = (tabId: string) => {
     local.onTabChange(tabId);
     setIsResponsiveSidebarOpen(false);
+  };
+
+  let tabListRef: HTMLDivElement | undefined;
+
+  const focusTabButton = (tabId: string) => {
+    tabListRef?.querySelector<HTMLButtonElement>(`[id="${idBase()}-tab-${tabId}"]`)?.focus();
+  };
+
+  const handleTabListKeyDown = (e: KeyboardEvent) => {
+    const tabs = local.tabs;
+    if (tabs.length === 0) return;
+    const currentIndex = tabs.findIndex((tab) => tab.id === local.activeTab);
+    const vertical = local.orientation === 'vertical';
+    const horizontal = local.orientation === 'horizontal';
+    let nextIndex: number | null = null;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        if (vertical) nextIndex = currentIndex + 1;
+        break;
+      case 'ArrowUp':
+        if (vertical) nextIndex = currentIndex - 1;
+        break;
+      case 'ArrowRight':
+        if (horizontal) nextIndex = currentIndex + 1;
+        break;
+      case 'ArrowLeft':
+        if (horizontal) nextIndex = currentIndex - 1;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = tabs.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    e.preventDefault();
+    if (nextIndex === null) return;
+    const wrapped = (nextIndex + tabs.length) % tabs.length;
+    const next = tabs[wrapped];
+    if (!next || next.disabled) return;
+    handleTabChange(next.id);
+    focusTabButton(next.id);
   };
   
   return (
@@ -105,10 +157,12 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
         />
       </Show>
       <div
+        ref={tabListRef}
         id={responsiveSidebarId()}
         class={`tab-list ${local.responsiveSidebar && isResponsiveSidebarOpen() ? 'tab-list--responsive-sidebar-open' : ''}`}
         role="tablist"
         aria-orientation={local.orientation}
+        onKeyDown={handleTabListKeyDown}
       >
         <Show when={local.sidebarTop}>
           <div class="tab-list-header">{local.sidebarTop}</div>
@@ -118,8 +172,11 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
             <button
               type="button"
               role="tab"
-              class={`tab-item ${local.activeTab === tab.id ? 'active' : ''} ${tab.badge !== undefined ? 'tab-item--with-badge' : ''}`}
+              id={`${idBase()}-tab-${tab.id}`}
+              aria-controls={`${idBase()}-panel-${tab.id}`}
               aria-selected={local.activeTab === tab.id}
+              tabIndex={local.activeTab === tab.id ? 0 : -1}
+              class={`tab-item ${local.activeTab === tab.id ? 'active' : ''} ${tab.badge !== undefined ? 'tab-item--with-badge' : ''}`}
               disabled={tab.disabled}
               onClick={() => !tab.disabled && handleTabChange(tab.id)}
             >

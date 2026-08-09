@@ -51,7 +51,6 @@
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
   font-size: inherit;
   font-family: inherit;
   white-space: nowrap;
@@ -182,7 +181,6 @@
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   border-radius: var(--radius-full);
-  transition: all var(--transition-normal);
   box-sizing: border-box;
 }
 

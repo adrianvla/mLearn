@@ -34,37 +34,6 @@ interface StudyCharacterData {
   level?: number;
 }
 
-// Linear interpolation
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * Math.max(0, Math.min(1, t));
-}
-
-// Mix two hex colors
-function mixHex(c1: string, c2: string, t: number): string {
-  const hexToRgb = (hex: string) => {
-    const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
-    if (!m) return { r: 0, g: 0, b: 0 };
-    return {
-      r: parseInt(m[1], 16),
-      g: parseInt(m[2], 16),
-      b: parseInt(m[3], 16),
-    };
-  };
-
-  const rgbToHex = ({ r, g, b }: { r: number; g: number; b: number }) => {
-    const c = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
-    return `#${c(r)}${c(g)}${c(b)}`;
-  };
-
-  const a = hexToRgb(c1);
-  const b = hexToRgb(c2);
-  return rgbToHex({
-    r: lerp(a.r, b.r, t),
-    g: lerp(a.g, b.g, t),
-    b: lerp(a.b, b.b, t),
-  });
-}
-
 export const CharacterGridContent: Component = () => {
   const { getWordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
   const { t } = useLocalization();
@@ -74,6 +43,7 @@ export const CharacterGridContent: Component = () => {
   const [characterData, setCharacterData] = createSignal<StudyCharacterData[]>([]);
   const [hoveredCharacter, setHoveredCharacter] = createSignal<StudyCharacterData | null>(null);
   const [hoveredLevel, setHoveredLevel] = createSignal<number | null>(null);
+  const [pinnedLevel, setPinnedLevel] = createSignal<number | null>(null);
   const [isLoading, setIsLoading] = createSignal(true);
   const [levelCharacters, setLevelCharacters] = createSignal<Record<number, Set<string>>>({});
 
@@ -292,22 +262,30 @@ export const CharacterGridContent: Component = () => {
     }
   };
 
+  // Max scores per category, hoisted so cell coloring is O(1) per cell.
+  const colorMaxes = createMemo(() => {
+    const data = characterData();
+    return {
+      maxKnown: Math.max(1, ...data.filter(entry => entry.category === 'known').map(entry => entry.score)),
+      maxLearn: Math.max(0.5, ...data.filter(entry => entry.category === 'learning').map(entry => entry.score)),
+    };
+  });
+
   const getColorForCharacter = (item: StudyCharacterData): string => {
-    const maxKnown = Math.max(1, ...characterData().filter(entry => entry.category === 'known').map(entry => entry.score));
-    const maxLearn = Math.max(0.5, ...characterData().filter(entry => entry.category === 'learning').map(entry => entry.score));
+    const { maxKnown, maxLearn } = colorMaxes();
 
     if (item.category === 'known') {
       const t = maxKnown > 1 ? (item.score - 1) / (maxKnown - 1) : 0;
-      return mixHex('#2E7D32', '#81C784', t);
+      return `color-mix(in srgb, var(--color-success-lighter) ${t * 100}%, var(--color-success))`;
     } else if (item.category === 'learning') {
       const t = maxLearn > 0.5 ? (item.score - 0.5) / (maxLearn - 0.5) : 0;
-      return mixHex('#E65100', '#FFEB3B', t);
+      return `color-mix(in srgb, var(--color-warning) ${t * 100}%, var(--pos-auxiliary))`;
     }
     return 'var(--character-grid-unknown-bg)';
   };
 
   const isCharacterDimmed = (item: StudyCharacterData) => {
-    const level = hoveredLevel();
+    const level = pinnedLevel() ?? hoveredLevel();
     if (level === null) return false;
     
     const charactersInLevel = levelCharacters()[level];
@@ -344,8 +322,12 @@ export const CharacterGridContent: Component = () => {
                 <div
                   class={`cg-cell ${isCharacterDimmed(item) ? 'dimmed' : ''} ${item.category !== 'unknown' ? 'cg-cell-colored' : 'cg-cell-unknown'}`}
                   style={{ background: getColorForCharacter(item) }}
+                  tabindex={0}
+                  aria-label={item.character}
                   onMouseEnter={() => setHoveredCharacter(item)}
                   onMouseLeave={() => setHoveredCharacter(null)}
+                  onFocus={() => setHoveredCharacter(item)}
+                  onBlur={() => setHoveredCharacter(null)}
                 >
                   <span class="study-character">{item.character}</span>
                 </div>
@@ -356,7 +338,7 @@ export const CharacterGridContent: Component = () => {
           <Show when={!isLoading() && supportsCharacterStudy() && characterData().length === 0}>
             <div class="cg-empty-state">
               <div class="empty-icon"><BookIcon size={40} /></div>
-              <h3>{characterStudyText('emptyTitle', 'mlearn.CharacterGrid.EmptyState.Title')}</h3>
+              <h2>{characterStudyText('emptyTitle', 'mlearn.CharacterGrid.EmptyState.Title')}</h2>
               <p>{characterStudyText('emptyDescription', 'mlearn.CharacterGrid.EmptyState.Description')}</p>
               <p class="hint">{characterStudyText('emptyHint', 'mlearn.CharacterGrid.EmptyState.Hint')}</p>
             </div>
@@ -365,7 +347,7 @@ export const CharacterGridContent: Component = () => {
           <Show when={!isLoading() && !supportsCharacterStudy()}>
             <div class="cg-empty-state">
               <div class="empty-icon"><BookIcon size={40} /></div>
-              <h3>{characterStudyText('unsupportedTitle', 'mlearn.CharacterGrid.Unsupported.Title')}</h3>
+              <h2>{characterStudyText('unsupportedTitle', 'mlearn.CharacterGrid.Unsupported.Title')}</h2>
               <p>{characterStudyText('unsupportedDescription', 'mlearn.CharacterGrid.Unsupported.Description')}</p>
             </div>
           </Show>
@@ -412,8 +394,8 @@ export const CharacterGridContent: Component = () => {
                       <PillLabel
                         level={level}
                         clickable
-                        class={hoveredLevel() === level ? 'active' : ''}
-                        onClick={() => {}}
+                        class={(pinnedLevel() ?? hoveredLevel()) === level ? 'active' : ''}
+                        onClick={() => setPinnedLevel(pinnedLevel() === level ? null : level)}
                         onMouseEnter={() => setHoveredLevel(level)}
                         onMouseLeave={() => setHoveredLevel(null)}
                         count={count() > 0 ? count() : undefined}
@@ -435,7 +417,13 @@ export const CharacterGridContent: Component = () => {
           <div class="tooltip-title">
             {t('mlearn.CharacterGrid.Tooltip.WordsContaining', { char: hoveredCharacter()!.character })}
             <span class="tooltip-meta">
-              {hoveredCharacter()!.category} ({t('mlearn.CharacterGrid.Tooltip.Score')} {Math.round(hoveredCharacter()!.score * 10) / 10},
+              {(() => {
+                const category = hoveredCharacter()!.category;
+                if (category === 'known') return t('mlearn.CharacterGrid.Tooltip.KnownCount');
+                if (category === 'learning') return t('mlearn.CharacterGrid.Tooltip.LearningCount');
+                return t('mlearn.CharacterGrid.Tooltip.UnknownCount');
+              })()}
+              ({t('mlearn.CharacterGrid.Tooltip.Score')} {Math.round(hoveredCharacter()!.score * 10) / 10},
               {t('mlearn.CharacterGrid.Tooltip.KnownCount')}: {hoveredCharacter()!.knownCount}, {t('mlearn.CharacterGrid.Tooltip.LearningCount')}: {hoveredCharacter()!.learnCount})
             </span>
           </div>
@@ -443,12 +431,21 @@ export const CharacterGridContent: Component = () => {
             <For each={hoveredCharacter()!.wordsKnown.slice(0, 10)}>
               {(word) => <PillLabel variant="green" size="sm">{word}</PillLabel>}
             </For>
+            <Show when={hoveredCharacter()!.wordsKnown.length > 10}>
+              <PillLabel variant="gray" size="sm">{t('mlearn.CharacterGrid.Tooltip.MoreWords', { count: hoveredCharacter()!.wordsKnown.length - 10 })}</PillLabel>
+            </Show>
             <For each={hoveredCharacter()!.wordsLearning.slice(0, 10)}>
               {(word) => <PillLabel variant="orange" size="sm">{word}</PillLabel>}
             </For>
+            <Show when={hoveredCharacter()!.wordsLearning.length > 10}>
+              <PillLabel variant="gray" size="sm">{t('mlearn.CharacterGrid.Tooltip.MoreWords', { count: hoveredCharacter()!.wordsLearning.length - 10 })}</PillLabel>
+            </Show>
             <For each={hoveredCharacter()!.wordsUnknown.slice(0, 10)}>
               {(word) => <PillLabel variant="gray" size="sm">{word}</PillLabel>}
             </For>
+            <Show when={hoveredCharacter()!.wordsUnknown.length > 10}>
+              <PillLabel variant="gray" size="sm">{t('mlearn.CharacterGrid.Tooltip.MoreWords', { count: hoveredCharacter()!.wordsUnknown.length - 10 })}</PillLabel>
+            </Show>
           </div>
         </div>
       </Show>

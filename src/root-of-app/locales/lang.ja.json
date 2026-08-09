@@ -2375,9 +2375,27 @@
         },
         "CurrentStreak": "現在の連続日数",
         "DaysStudied": "学習日数",
+        "DayActivity": "{date}: 復習 {reviews}件、新規 {newCards}件",
+        "DueForecast": {
+          "Title": "復習予測",
+          "Today": "今日が期限",
+          "Tomorrow": "明日",
+          "Next7Days": "次の7日間",
+          "Next30Days": "次の30日間"
+        },
+        "EmptyState": {
+          "Title": "統計はまだありません",
+          "Description": "学習を始めると、ここに学習統計が表示されます。",
+          "Hint": "フラッシュカードを復習するか、ブラウザ拡張機能でイマージョンして始めましょう。"
+        },
         "EaseDistribution": "容易度分布",
         "Forecast": "14日間の復習予測",
         "Graduated": "修了",
+        "Heatmap": {
+          "Less": "少ない",
+          "More": "多い",
+          "Max": "最大: {count}"
+        },
         "ImmersionHeatmap": "没入ヒートマップ",
         "ImmersionTime": "没入時間",
         "IntervalDistribution": "間隔分布",
@@ -2431,6 +2449,16 @@
           "WordsTracked": "追跡中の単語"
         },
         "WordKnowledge": "語彙知識"
+      },
+      "Intervals": {
+        "Lt1d": "1日未満",
+        "1t3d": "1〜3日",
+        "3t7d": "3〜7日",
+        "1t2w": "1〜2週間",
+        "2w1m": "2週間〜1か月",
+        "1t3m": "1〜3か月",
+        "3t6m": "3〜6か月",
+        "Gt6m": "6か月以上"
       },
       "Description": "進捗と学習の旅を追跡",
       "Legend": {
@@ -3026,7 +3054,9 @@
       "Tooltip": {
         "KnownCount": "既知",
         "LearningCount": "学習中",
+        "MoreWords": "+{count}語",
         "Score": "スコア",
+        "UnknownCount": "未知",
         "WordsContaining": "{char}を含む単語"
       }
     }

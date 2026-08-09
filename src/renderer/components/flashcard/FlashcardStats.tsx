@@ -9,6 +9,7 @@ import { Component, createMemo, onMount, onCleanup, createSignal, Show, For } fr
 import { useFlashcards, useSettings } from '../../context';
 import { useLocalization } from '../../context';
 import { formatDurationHM } from '../../utils/timeFormatting';
+import { retentionDisplay } from '../../utils/retentionDisplay';
 import {
   computeStateDistribution,
   computeEaseDistribution,
@@ -282,6 +283,9 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   const maturityBreakdown = createMemo(() => computeMaturityBreakdown(cards()));
   const aggregatedDailyStats = createMemo(() => aggregateDailyStats(store.dailyStats));
   const retentionStats = createMemo(() => computeRetentionStats(aggregatedDailyStats()));
+  const retentionCard = createMemo(() =>
+    retentionDisplay(retentionStats().retention, retentionStats().totalReviews)
+  );
   const averageEase = createMemo(() => computeAverageEase(cards()));
   const dailyActivity = createMemo(() => computeDailyActivity(aggregatedDailyStats()));
 
@@ -292,6 +296,9 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   const formatDayLabel = (dateStr: string): string => {
     return dateStr.split('-')[2];
   };
+
+  const intervalLabel = (bucket: { key: string }): string =>
+    t(`mlearn.Statistics.Intervals.${bucket.key}`);
 
   // ---- Chart Colors ----
 
@@ -305,6 +312,17 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
     young: getComputedCSSVar('--color-primary'),
     lapse: getComputedCSSVar('--color-error'),
   }));
+
+  const stateItems = createMemo<PieSlice[]>(() => {
+    const dist = stateDistribution();
+    const colors = chartColors();
+    return [
+      { label: t('mlearn.Flashcards.Statistics.New'), value: dist.new, color: colors.new },
+      { label: t('mlearn.Flashcards.Statistics.Learning'), value: dist.learning, color: colors.learning },
+      { label: t('mlearn.Flashcards.Statistics.Review'), value: dist.review, color: colors.review },
+      { label: t('mlearn.Flashcards.Statistics.Suspended'), value: dist.suspended, color: colors.suspended },
+    ];
+  });
 
   // ---- Render Charts ----
 
@@ -325,7 +343,6 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
         holeSublabel: t('mlearn.Flashcards.Statistics.TotalCards'),
       });
     }
-
     // Ease distribution bar chart
     if (easeChartRef) {
       const dist = easeDistribution();
@@ -340,7 +357,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
     if (intervalChartRef) {
       const dist = intervalDistribution();
       drawBarChart(intervalChartRef, dist.map(b => ({
-        label: b.label,
+        label: intervalLabel(b),
         value: b.count,
         color: colors.review,
       })), { showLabels: true });
@@ -465,8 +482,8 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       <div class="flashcard-stats-metrics">
         <Card class="flashcard-stats-metric-card">
           <div class="stats-metric">
-            <span class="stats-metric-value stats-metric-retention">
-              {retentionStats().retention}%
+            <span class={`stats-metric-value stats-metric-retention--${retentionCard().color}`}>
+              {retentionCard().text}
             </span>
             <span class="stats-metric-label">
               {t('mlearn.Flashcards.Statistics.Advanced.RetentionRate')}
@@ -511,22 +528,41 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       {/* Charts Row 1: State Distribution + Daily Activity */}
       <div class="flashcard-stats-charts-row">
         {/* State Distribution Pie */}
-        <Card title={t('mlearn.Flashcards.Statistics.CardBreakdown')} class="flashcard-stats-chart-card">
+        <Card title={t('mlearn.Flashcards.Statistics.CardBreakdown')} titleTag="h2" class="flashcard-stats-chart-card">
           <div class="stats-chart-container">
-            <canvas ref={stateChartRef} class="stats-pie-canvas" />
-            <PieLegend items={[
-              { label: t('mlearn.Flashcards.Statistics.New'), value: stateDistribution().new, color: chartColors().new },
-              { label: t('mlearn.Flashcards.Statistics.Learning'), value: stateDistribution().learning, color: chartColors().learning },
-              { label: t('mlearn.Flashcards.Statistics.Review'), value: stateDistribution().review, color: chartColors().review },
-              { label: t('mlearn.Flashcards.Statistics.Suspended'), value: stateDistribution().suspended, color: chartColors().suspended },
-            ]} />
+            <canvas
+              ref={stateChartRef}
+              class="stats-pie-canvas"
+              role="img"
+              aria-label={t('mlearn.Flashcards.Statistics.CardBreakdown')}
+            />
+            <PieLegend items={stateItems()} />
+            <ul class="visually-hidden">
+              <For each={stateItems()}>
+                {(item) => (
+                  <li>{item.label}: {item.value}</li>
+                )}
+              </For>
+            </ul>
           </div>
         </Card>
 
         {/* Daily Activity */}
-        <Card title={t('mlearn.Flashcards.Statistics.Advanced.DailyActivity')} class="flashcard-stats-chart-card">
+        <Card title={t('mlearn.Flashcards.Statistics.Advanced.DailyActivity')} titleTag="h2" class="flashcard-stats-chart-card">
           <div class="stats-chart-container stats-chart-container--bar">
-            <canvas ref={activityChartRef} class="stats-bar-canvas" />
+            <canvas
+              ref={activityChartRef}
+              class="stats-bar-canvas"
+              role="img"
+              aria-label={t('mlearn.Flashcards.Statistics.Advanced.DailyActivity')}
+            />
+            <ul class="visually-hidden">
+              <For each={dailyActivity()}>
+                {(day) => (
+                  <li>{day.date}: {day.reviews}/{day.newCards}</li>
+                )}
+              </For>
+            </ul>
             <div class="stats-activity-summary">
               <div class="stats-activity-stat">
                 <span class="stats-activity-value">{retentionStats().totalReviews}</span>
@@ -548,24 +584,57 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       {/* Charts Row 2: Ease Distribution + Interval Distribution */}
       <div class="flashcard-stats-charts-row">
         {/* Ease Distribution */}
-        <Card title={t('mlearn.Flashcards.Statistics.Advanced.EaseDistribution')} class="flashcard-stats-chart-card">
+        <Card title={t('mlearn.Flashcards.Statistics.Advanced.EaseDistribution')} titleTag="h2" class="flashcard-stats-chart-card">
           <div class="stats-chart-container stats-chart-container--bar">
-            <canvas ref={easeChartRef} class="stats-bar-canvas" />
+            <canvas
+              ref={easeChartRef}
+              class="stats-bar-canvas"
+              role="img"
+              aria-label={t('mlearn.Flashcards.Statistics.Advanced.EaseDistribution')}
+            />
+            <ul class="visually-hidden">
+              <For each={easeDistribution()}>
+                {(bucket) => (
+                  <li>{bucket.label}: {bucket.count}</li>
+                )}
+              </For>
+            </ul>
           </div>
         </Card>
 
         {/* Interval Distribution */}
-        <Card title={t('mlearn.Flashcards.Statistics.Advanced.IntervalDistribution')} class="flashcard-stats-chart-card">
+        <Card title={t('mlearn.Flashcards.Statistics.Advanced.IntervalDistribution')} titleTag="h2" class="flashcard-stats-chart-card">
           <div class="stats-chart-container stats-chart-container--bar">
-            <canvas ref={intervalChartRef} class="stats-bar-canvas" />
+            <canvas
+              ref={intervalChartRef}
+              class="stats-bar-canvas"
+              role="img"
+              aria-label={t('mlearn.Flashcards.Statistics.Advanced.IntervalDistribution')}
+            />
+            <ul class="visually-hidden">
+              <For each={intervalDistribution()}>
+                {(bucket) => (
+                  <li>{intervalLabel(bucket)}: {bucket.count}</li>
+                )}
+              </For>
+            </ul>
           </div>
         </Card>
       </div>
 
       {/* Maturity Progress Bar */}
-      <Card title={t('mlearn.Flashcards.Statistics.Advanced.CardMaturity')} class="flashcard-stats-maturity">
+      <Card title={t('mlearn.Flashcards.Statistics.Advanced.CardMaturity')} titleTag="h2" class="flashcard-stats-maturity">
         <div class="stats-maturity-container">
-          <canvas ref={maturityBarRef} class="stats-maturity-canvas" />
+          <canvas
+            ref={maturityBarRef}
+            class="stats-maturity-canvas"
+            role="img"
+            aria-label={t('mlearn.Flashcards.Statistics.Advanced.CardMaturity')}
+          />
+          <ul class="visually-hidden">
+            <li>{t('mlearn.Flashcards.Statistics.Advanced.Young')}: {maturityBreakdown().young}</li>
+            <li>{t('mlearn.Flashcards.Statistics.Advanced.Mature')}: {maturityBreakdown().mature}</li>
+          </ul>
           <div class="stats-maturity-labels">
             <div class="stats-maturity-label">
               <span class="stats-legend-dot" style={{ background: chartColors().young }} />
@@ -582,7 +651,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       </Card>
 
       {/* Today's Progress */}
-      <Card title={t('mlearn.Flashcards.Statistics.TodayProgress')} class="flashcard-stats-today">
+      <Card title={t('mlearn.Flashcards.Statistics.TodayProgress')} titleTag="h2" class="flashcard-stats-today">
         <BreakdownRow
           label={t('mlearn.Flashcards.Statistics.NewCardsStudied')}
           value={`${store.meta.newCardsToday} / ${store.meta.maxNewCardsPerDayLearning === -1 ? '∞' : store.meta.maxNewCardsPerDayLearning}`}
@@ -594,7 +663,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       </Card>
 
       {/* Quick Learning Limits */}
-      <Card title={t('mlearn.Flashcards.Statistics.LearningLimits')} class="flashcard-stats-limits">
+      <Card title={t('mlearn.Flashcards.Statistics.LearningLimits')} titleTag="h2" class="flashcard-stats-limits">
         <div class="breakdown-row">
           <span class="breakdown-label">{t('mlearn.Flashcards.Statistics.MaxNewCardsPerDay')}</span>
           <input

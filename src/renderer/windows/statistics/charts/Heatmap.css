@@ -12,6 +12,37 @@
   gap: 2px;
 }
 
+.heatmap-month-labels {
+  display: flex;
+  gap: 2px;
+  padding-bottom: 2px;
+}
+
+.heatmap-month-label-spacer {
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.heatmap-month-label {
+  width: 12px;
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.heatmap-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.heatmap-row {
+  display: flex;
+}
+
 .heatmap-day-labels {
   display: flex;
   flex-direction: column;
@@ -52,4 +83,30 @@
 .heatmap-cell:hover {
   opacity: 0.75;
   outline: 1px solid var(--border-color-intense);
+}
+
+.heatmap-cell:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.heatmap-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.heatmap-legend-max {
+  color: var(--text-secondary);
 }

@@ -5,8 +5,8 @@ import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 
 const getFreqLevelNamesMock = vi.fn((): Record<string, string> => ({}));
-const localizationMock = vi.fn((key: string) => key);
-const getComprehensiveWordStatusSyncMock = vi.fn(() => 'unknown');
+const localizationMock = vi.fn((key: string, _params?: Record<string, number | string>) => key);
+const getComprehensiveWordStatusSyncMock = vi.fn((_word: string) => 'unknown');
 let currentLangDataMock: Record<string, unknown> = {};
 let flashcardStoreMock: {
   wordKnowledge: Record<string, { word: string; language: string }>;
@@ -44,8 +44,26 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../components/common', () => ({
   Spinner: (props: { text?: string }) => <div>{props.text}</div>,
-  PillLabel: (props: { children?: JSX.Element; class?: string; level?: number; onMouseEnter?: () => void; onMouseLeave?: () => void }) => (
-    <span class={props.class} data-level={props.level} onMouseEnter={props.onMouseEnter} onMouseLeave={props.onMouseLeave}>{props.children}</span>
+  PillLabel: (props: {
+    children?: JSX.Element;
+    class?: string;
+    level?: number;
+    count?: number;
+    onClick?: () => void;
+    onMouseEnter?: () => void;
+    onMouseLeave?: () => void;
+  }) => (
+    <button
+      type="button"
+      class={props.class}
+      data-level={props.level}
+      data-count={props.count}
+      onClick={props.onClick}
+      onMouseEnter={props.onMouseEnter}
+      onMouseLeave={props.onMouseLeave}
+    >
+      {props.children}
+    </button>
   ),
   LegendItem: (props: { label: string }) => <div>{props.label}</div>,
   BookIcon: () => <span>book</span>,
@@ -76,7 +94,7 @@ describe('CharacterGridContent', () => {
       ignoredWords: {},
     };
 
-    localizationMock.mockImplementation((key: string) => {
+    localizationMock.mockImplementation((key: string, params?: Record<string, number | string>) => {
       switch (key) {
         case 'mlearn.CharacterGrid.Title':
           return 'Character Knowledge Overview';
@@ -104,6 +122,14 @@ describe('CharacterGridContent', () => {
           return 'Known';
         case 'mlearn.CharacterGrid.Legend.Unknown':
           return 'Unknown';
+        case 'mlearn.CharacterGrid.Tooltip.KnownCount':
+          return 'KnownCategory';
+        case 'mlearn.CharacterGrid.Tooltip.LearningCount':
+          return 'LearningCategory';
+        case 'mlearn.CharacterGrid.Tooltip.UnknownCount':
+          return 'UnknownCategory';
+        case 'mlearn.CharacterGrid.Tooltip.MoreWords':
+          return `+${params?.count ?? 0} more`;
         default:
           return key;
       }
@@ -363,6 +389,158 @@ describe('CharacterGridContent', () => {
       expect(container.textContent).toContain('This language package does not define character-study scripts.');
       expect(container.textContent).not.toContain('No tracked characters yet');
       expect(container.querySelector('.study-character')).toBeNull();
+    });
+
+    dispose();
+  });
+
+  it('pins the level filter when a level pill is clicked and keeps it after mouseleave', async () => {
+    languageMock = 'ar';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      characterStudy: { scripts: ['Arab'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {
+      'سلام': { raw_level: 1 },
+      'سفر': { raw_level: 2 },
+    };
+    getFreqLevelNamesMock.mockReturnValue({ '1': 'A1', '2': 'A2' });
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-level="1"]')).not.toBeNull();
+    });
+
+    const cellFor = (char: string) => Array.from(container.querySelectorAll<HTMLElement>('.cg-cell'))
+      .find((c) => c.querySelector('.study-character')?.textContent === char)!;
+    const fa = cellFor('ف');
+    const lam = cellFor('ل');
+    const pill1 = container.querySelector<HTMLElement>('[data-level="1"]')!;
+
+    pill1.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(fa.classList.contains('dimmed')).toBe(true);
+      expect(pill1.classList.contains('active')).toBe(true);
+    });
+    expect(lam.classList.contains('dimmed')).toBe(false);
+
+    pill1.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(fa.classList.contains('dimmed')).toBe(true);
+
+    pill1.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(fa.classList.contains('dimmed')).toBe(false);
+      expect(pill1.classList.contains('active')).toBe(false);
+    });
+
+    dispose();
+  });
+
+  it('shows a "+N more" pill when a character has more than ten known words', async () => {
+    languageMock = 'ar';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      characterStudy: { scripts: ['Arab'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {};
+    getFreqLevelNamesMock.mockReturnValue({});
+    getComprehensiveWordStatusSyncMock.mockReturnValue('known');
+    const words = ['سا', 'سب', 'سج', 'سد', 'سر', 'سع', 'سف', 'سق', 'سك', 'سل', 'سم'];
+    flashcardStoreMock = {
+      wordKnowledge: Object.fromEntries(words.map((word) => [word, { word, language: 'ar' }])),
+      flashcards: {},
+      ignoredWords: {},
+    };
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(Array.from(container.querySelectorAll('.study-character')).some((n) => n.textContent === 'س')).toBe(true);
+    });
+
+    const seen = Array.from(container.querySelectorAll<HTMLElement>('.cg-cell'))
+      .find((c) => c.querySelector('.study-character')?.textContent === 'س')!;
+    seen.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('+1 more');
+    });
+
+    dispose();
+  });
+
+  it('uses localized labels for the tooltip category', async () => {
+    languageMock = 'ar';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      characterStudy: { scripts: ['Arab'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {};
+    getFreqLevelNamesMock.mockReturnValue({});
+    getComprehensiveWordStatusSyncMock.mockImplementation((word: string) => (word === 'سلام' ? 'known' : 'unknown'));
+    flashcardStoreMock = {
+      wordKnowledge: {
+        k: { word: 'سلام', language: 'ar' },
+        u: { word: 'بيت', language: 'ar' },
+      },
+      flashcards: {},
+      ignoredWords: {},
+    };
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll('.cg-cell').length).toBeGreaterThan(0);
+    });
+
+    const cellFor = (char: string) => Array.from(container.querySelectorAll<HTMLElement>('.cg-cell'))
+      .find((c) => c.querySelector('.study-character')?.textContent === char)!;
+
+    cellFor('س').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(container.querySelector('.cg-tooltip .tooltip-meta')?.textContent).toContain('KnownCategory');
+    });
+    cellFor('س').dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+
+    cellFor('ب').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(container.querySelector('.cg-tooltip .tooltip-meta')?.textContent).toContain('UnknownCategory');
+    });
+
+    dispose();
+  });
+
+  it('renders the empty state and unsupported state titles as h2', async () => {
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+      characterStudy: { scripts: ['Latn'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {};
+    getFreqLevelNamesMock.mockReturnValue({});
+
+    const { CharacterGridContent } = await import('./App');
+    let dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('.cg-empty-state h2')?.textContent).toBe('No tracked characters yet');
+    });
+
+    dispose();
+    container.innerHTML = '';
+
+    languageMock = 'de';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+      characterStudy: { enabled: false },
+    };
+    dispose = render(() => <CharacterGridContent />, container);
+    await vi.waitFor(() => {
+      expect(container.querySelector('.cg-empty-state h2')?.textContent).toBe('Character study is not available');
     });
 
     dispose();

@@ -4,6 +4,7 @@
  */
 
 import { Component, For, Show, createMemo } from 'solid-js';
+import { Tooltip } from '../../../components/common';
 import './BarChart.css';
 
 export interface BarChartDataPoint {
@@ -12,6 +13,7 @@ export interface BarChartDataPoint {
   color?: string;
   secondaryValue?: number;
   secondaryColor?: string;
+  tooltip?: string;
 }
 
 interface BarChartProps {
@@ -40,6 +42,40 @@ export const BarChart: Component<BarChartProps> = (props) => {
             const primaryHeight = () => (point.value / maxValue()) * 100;
             const secondaryHeight = () => ((point.secondaryValue ?? 0) / maxValue()) * 100;
 
+            const barSlot = (
+              <div class="bar-chart-bar-wrapper" role="img" tabindex={point.tooltip ? 0 : undefined} aria-label={point.tooltip}>
+                <Show when={props.stacked}>
+                  <div class="bar-chart-bar-stacked">
+                    <div
+                      class="bar-chart-bar"
+                      style={{
+                        height: `${primaryHeight()}%`,
+                        background: point.color ?? 'var(--color-primary)',
+                      }}
+                    />
+                    <Show when={point.secondaryValue}>
+                      <div
+                        class="bar-chart-bar"
+                        style={{
+                          height: `${secondaryHeight()}%`,
+                          background: point.secondaryColor ?? 'var(--color-success)',
+                        }}
+                      />
+                    </Show>
+                  </div>
+                </Show>
+                <Show when={!props.stacked}>
+                  <div
+                    class="bar-chart-bar"
+                    style={{
+                      height: `${primaryHeight()}%`,
+                      background: point.color ?? 'var(--color-primary)',
+                    }}
+                  />
+                </Show>
+              </div>
+            );
+
             return (
               <div class="bar-chart-column">
                 <Show when={props.showValues !== false && (point.value > 0 || (point.secondaryValue ?? 0) > 0)}>
@@ -49,37 +85,9 @@ export const BarChart: Component<BarChartProps> = (props) => {
                       : point.value}
                   </div>
                 </Show>
-                <div class="bar-chart-bar-wrapper">
-                  <Show when={props.stacked}>
-                    <div class="bar-chart-bar-stacked">
-                      <div
-                        class="bar-chart-bar"
-                        style={{
-                          height: `${primaryHeight()}%`,
-                          background: point.color ?? 'var(--color-primary)',
-                        }}
-                      />
-                      <Show when={point.secondaryValue}>
-                        <div
-                          class="bar-chart-bar"
-                          style={{
-                            height: `${secondaryHeight()}%`,
-                            background: point.secondaryColor ?? 'var(--color-success)',
-                          }}
-                        />
-                      </Show>
-                    </div>
-                  </Show>
-                  <Show when={!props.stacked}>
-                    <div
-                      class="bar-chart-bar"
-                      style={{
-                        height: `${primaryHeight()}%`,
-                        background: point.color ?? 'var(--color-primary)',
-                      }}
-                    />
-                  </Show>
-                </div>
+                <Show when={point.tooltip} fallback={barSlot}>
+                  <Tooltip content={point.tooltip!}>{barSlot}</Tooltip>
+                </Show>
                 <div class="bar-chart-label">{point.label}</div>
               </div>
             );

@@ -148,7 +148,7 @@ describe('computeRetentionStats', () => {
     expect(stats.totalGraduated).toBe(5);
     expect(stats.totalTime).toBe(105000);
     expect(stats.daysStudied).toBe(2);
-    expect(stats.totalDays).toBe(2);
+    expect(stats.totalDays).toBe(30); // totalDays is the requested window, not days-with-data
   });
 
   it('returns 0 retention when no reviews', () => {

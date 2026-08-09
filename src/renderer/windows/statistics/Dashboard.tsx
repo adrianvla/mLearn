@@ -6,14 +6,16 @@
 
 import { Component, createMemo, createSignal, For, onMount, Show } from 'solid-js';
 import { useFlashcards, useSettings, useLanguage, useLocalization } from '../../context';
-import { StatCard, Panel } from '../../components/common';
+import { StatCard, Panel, BookIcon } from '../../components/common';
 import { PieChart, BarChart, Heatmap } from './charts';
 import type { PieSegment, BarChartDataPoint } from './charts';
 import type { MediaStats } from '../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 
 import { initTimeWatched } from '../../services/statsService';
 import { computeWordLevelStats } from '../../utils/wordLevelStats';
+import { retentionDisplay } from '../../utils/retentionDisplay';
 import {
   computeStateDistribution,
   computeMaturityBreakdown,
@@ -22,6 +24,7 @@ import {
   computeStreaks,
   getTodayStats,
   aggregateDailyStats,
+  computeDueForecast,
 } from '../../services/flashcardStats';
 import './Dashboard.css';
 
@@ -117,11 +120,6 @@ export const Dashboard: Component = () => {
     const intervals = computeIntervalDistribution(all);
     const retention = computeRetentionStats(flatDailyStats());
 
-    const intervalBuckets: Record<string, number> = {};
-    for (const b of intervals) {
-      intervalBuckets[b.label] = b.count;
-    }
-
     return {
       total: stateDist.total,
       newCards: stateDist.new,
@@ -133,9 +131,15 @@ export const Dashboard: Component = () => {
       totalLapses: retention.totalLapses,
       matureCount: maturity.mature,
       youngCount: maturity.young,
-      intervalBuckets,
+      intervalBuckets: intervals,
     };
   });
+
+  const dueForecast = createMemo(() =>
+    computeDueForecast(cards(), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!),
+  );
+
+  const retentionCard = createMemo(() => retentionDisplay(cardStats().retentionRate, cardStats().totalReviews));
 
   // ── Daily stats aggregation ──
 
@@ -170,7 +174,7 @@ export const Dashboard: Component = () => {
         ? t('mlearn.Statistics.Dashboard.Today')
         : i <= 6
           ? d.toLocaleDateString(undefined, { weekday: 'short' })
-          : `${d.getMonth() + 1}/${d.getDate()}`;
+          : d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
 
       last30.push({
         label: i % 3 === 0 ? dayLabel : '',
@@ -178,6 +182,11 @@ export const Dashboard: Component = () => {
         color: 'var(--color-primary)',
         secondaryValue: stat?.newCardsStudied ?? 0,
         secondaryColor: 'var(--color-success)',
+        tooltip: t('mlearn.Statistics.Dashboard.DayActivity', {
+          date: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          reviews: stat?.reviewCardsStudied ?? 0,
+          newCards: stat?.newCardsStudied ?? 0,
+        }),
       });
     }
 
@@ -196,6 +205,10 @@ export const Dashboard: Component = () => {
       todayGraduated: todayStats.graduated,
     };
   });
+
+  const isEmpty = createMemo(() =>
+    cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0
+  );
 
   const wordStats = createMemo(() =>
     computeWordLevelStats(
@@ -336,19 +349,27 @@ export const Dashboard: Component = () => {
 
   return (
     <div class="statistics-dashboard">
+      <Show when={!isEmpty()} fallback={
+        <div class="dashboard-empty-state">
+          <div class="dashboard-empty-icon"><BookIcon size={40} /></div>
+          <h2>{t('mlearn.Statistics.Dashboard.EmptyState.Title')}</h2>
+          <p>{t('mlearn.Statistics.Dashboard.EmptyState.Description')}</p>
+          <p class="dashboard-empty-hint">{t('mlearn.Statistics.Dashboard.EmptyState.Hint')}</p>
+        </div>
+      }>
 
       {/* ─── Header Stats ─── */}
       <div class="dashboard-stats-row">
         <StatCard label={t('mlearn.Statistics.Dashboard.TotalCards')} value={cardStats().total} size="md" variant="elevated" />
-        <StatCard label={t('mlearn.Statistics.Dashboard.RetentionRate')} value={`${cardStats().retentionRate.toFixed(1)}%`} size="md" variant="elevated"
-          color={cardStats().retentionRate >= 90 ? 'success' : cardStats().retentionRate >= 80 ? 'warning' : 'error'} />
+        <StatCard label={t('mlearn.Statistics.Dashboard.RetentionRate')} value={retentionCard().text} size="md" variant="elevated"
+          color={retentionCard().color} />
         <StatCard label={t('mlearn.Statistics.Dashboard.CurrentStreak')} value={`${dailyStatsData().streakCurrent}d`} size="md" variant="elevated" color="primary" />
         <StatCard label={t('mlearn.Statistics.Dashboard.TotalImmersion')} value={formatDuration(mediaTimeStats().totalImmersion)} size="md" variant="elevated" />
       </div>
 
       {/* ─── Today's Session ─── */}
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-        <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.TodaysSession')}</h3>
+        <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.TodaysSession')}</h2>
         <div class="dashboard-stats-row compact">
           <StatCard label={t('mlearn.Statistics.Dashboard.Reviews')} value={dailyStatsData().todayReviews} size="sm" />
           <StatCard label={t('mlearn.Statistics.Dashboard.NewLearned')} value={dailyStatsData().todayNew} size="sm" color="success" />
@@ -380,10 +401,21 @@ export const Dashboard: Component = () => {
         </div>
       </Panel>
 
+      {/* ─── Due Forecast ─── */}
+      <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+        <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.DueForecast.Title')}</h2>
+        <div class="dashboard-stats-row">
+          <StatCard label={t('mlearn.Statistics.Dashboard.DueForecast.Today')} value={dueForecast().today} size="md" variant="elevated" />
+          <StatCard label={t('mlearn.Statistics.Dashboard.DueForecast.Tomorrow')} value={dueForecast().tomorrow} size="md" variant="elevated" />
+          <StatCard label={t('mlearn.Statistics.Dashboard.DueForecast.Next7Days')} value={dueForecast().next7} size="md" variant="elevated" />
+          <StatCard label={t('mlearn.Statistics.Dashboard.DueForecast.Next30Days')} value={dueForecast().next30} size="md" variant="elevated" />
+        </div>
+      </Panel>
+
       {/* ─── Review Activity (Last 30 Days) ─── */}
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
         <div class="dashboard-section-header">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewActivity')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewActivity')}</h2>
           <div class="dashboard-legend-inline">
             <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-primary)' }} />{t('mlearn.Statistics.Dashboard.Reviews')}</span>
             <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-success)' }} />{t('mlearn.Statistics.Dashboard.CardState.New')}</span>
@@ -395,7 +427,7 @@ export const Dashboard: Component = () => {
       {/* ─── Heatmaps ─── */}
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
         <div class="dashboard-section-header">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewHeatmap')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewHeatmap')}</h2>
           <div class="dashboard-meta-stats">
             <span>{t('mlearn.Statistics.Dashboard.BestStreak')}: {dailyStatsData().streakMax}d</span>
             <span>{t('mlearn.Statistics.Dashboard.DaysStudied')}: {dailyStatsData().totalDaysStudied}</span>
@@ -406,30 +438,31 @@ export const Dashboard: Component = () => {
           data={dailyStatsData().reviewHeatmap}
           weeks={20}
           colorScale={reviewColorScale}
-          formatTooltip={(date, val) => `${date}: ${val} ${t('mlearn.Statistics.Dashboard.Reviews').toLowerCase()}`}
+          formatTooltip={(date, val) => `${new Date(date + 'T00:00:00').toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${val} ${t('mlearn.Statistics.Dashboard.Reviews').toLowerCase()}`}
         />
       </Panel>
 
       <Show when={Object.keys(dailyStatsData().lapsesHeatmap).length > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.LapseHeatmap')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.LapseHeatmap')}</h2>
           <Heatmap
             data={dailyStatsData().lapsesHeatmap}
             weeks={20}
             colorScale={lapseColorScale}
-            formatTooltip={(date, val) => `${date}: ${val} ${t('mlearn.Statistics.Dashboard.Lapses').toLowerCase()}`}
+            formatTooltip={(date, val) => `${new Date(date + 'T00:00:00').toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${val} ${t('mlearn.Statistics.Dashboard.Lapses').toLowerCase()}`}
           />
         </Panel>
       </Show>
 
       <Show when={Object.keys(immersionHeatmap()).length > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ImmersionHeatmap')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ImmersionHeatmap')}</h2>
           <Heatmap
             data={immersionHeatmap()}
             weeks={20}
             colorScale={immersionColorScale}
-            formatTooltip={(date, val) => `${date}: ${formatMinutes(val)}`}
+            formatTooltip={(date, val) => `${new Date(date + 'T00:00:00').toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${formatMinutes(val)}`}
+            formatMax={formatMinutes}
           />
         </Panel>
       </Show>
@@ -437,7 +470,7 @@ export const Dashboard: Component = () => {
       {/* ─── Level Breakdown ─── */}
       <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.WordsByLevel')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.WordsByLevel')}</h2>
           <table class="level-table">
             <thead>
               <tr>
@@ -478,7 +511,7 @@ export const Dashboard: Component = () => {
 
       <Show when={outsideLevels().total > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.OutsideLevels')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.OutsideLevels')}</h2>
           <div class="dashboard-stats-row compact">
             <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={outsideLevels().known} size="sm" color="success" />
             <StatCard label={t('mlearn.Statistics.Legend.Learning')} value={outsideLevels().learning} size="sm" color="warning" />
@@ -491,7 +524,7 @@ export const Dashboard: Component = () => {
       {/* ─── Card Analysis ─── */}
       <div class="dashboard-charts-row">
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.CardStates')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.CardStates')}</h2>
           <PieChart
             segments={cardStatePie()}
             size={160}
@@ -502,7 +535,7 @@ export const Dashboard: Component = () => {
         </Panel>
 
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.Maturity.Title')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.Maturity.Title')}</h2>
           <PieChart
             segments={maturityPie()}
             size={160}
@@ -514,7 +547,7 @@ export const Dashboard: Component = () => {
 
         <Show when={wordStats().allEncountered.total > 0}>
           <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-            <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.WordKnowledge')}</h3>
+            <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.WordKnowledge')}</h2>
             <PieChart
               segments={wordStatusPie()}
               size={160}
@@ -528,18 +561,18 @@ export const Dashboard: Component = () => {
 
       {/* ─── Interval Distribution ─── */}
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-        <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.IntervalDistribution')}</h3>
+        <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.IntervalDistribution')}</h2>
         <div class="horizontal-bars">
-          <For each={Object.entries(cardStats().intervalBuckets)}>
-            {([label, count]) => {
-              const max = Math.max(...Object.values(cardStats().intervalBuckets), 1);
+          <For each={cardStats().intervalBuckets}>
+            {(bucket) => {
+              const max = Math.max(...cardStats().intervalBuckets.map(b => b.count), 1);
               return (
                 <div class="h-bar-row">
-                  <span class="h-bar-label">{label}</span>
+                  <span class="h-bar-label">{t('mlearn.Statistics.Intervals.' + bucket.key)}</span>
                   <div class="h-bar-track">
-                    <div class="h-bar-fill" style={{ width: `${(count / max) * 100}%` }} />
+                    <div class="h-bar-fill" style={{ width: `${(bucket.count / max) * 100}%` }} />
                   </div>
-                  <span class="h-bar-value">{count}</span>
+                  <span class="h-bar-value">{bucket.count}</span>
                 </div>
               );
             }}
@@ -550,7 +583,7 @@ export const Dashboard: Component = () => {
       {/* ─── Word Acquisition ─── */}
       <Show when={wordAcquisitionStats().count > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.WordAcquisition.Title')}</h3>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.WordAcquisition.Title')}</h2>
           <div class="dashboard-stats-row compact">
             <StatCard label={t('mlearn.Statistics.Dashboard.WordAcquisition.WordsTracked')} value={wordAcquisitionStats().count} size="sm" />
             <StatCard label={t('mlearn.Statistics.Dashboard.WordAcquisition.AvgEncounters')} value={wordAcquisitionStats().average} size="sm" />
@@ -573,6 +606,7 @@ export const Dashboard: Component = () => {
             </For>
           </div>
         </Panel>
+      </Show>
       </Show>
     </div>
   );
