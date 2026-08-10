@@ -125,9 +125,10 @@
 /* ─── Horizontal Bars ─── */
 
 .horizontal-bars {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: max-content 1fr auto;
   gap: var(--spacing-2);
+  align-items: center;
 }
 
 .horizontal-bars-spaced {
@@ -135,15 +136,12 @@
 }
 
 .h-bar-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
+  display: contents;
 }
 
 .h-bar-label {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
-  min-width: 60px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

@@ -69,20 +69,16 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
       days.push(currentWeek);
     }
 
+    // Label each month at the week containing its 1st — month starts are ≥28
+    // days apart, so labels can never land on adjacent week slots and collide.
     const monthLabels: string[] = [];
-    let prevMonth = -1;
     for (const week of days) {
-      if (!week[0]) {
-        monthLabels.push('');
-        continue;
-      }
-      const month = new Date(week[0].date + 'T00:00:00').getMonth();
-      if (month !== prevMonth) {
-        monthLabels.push(new Date(week[0].date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' }));
-        prevMonth = month;
-      } else {
-        monthLabels.push('');
-      }
+      const firstOfMonth = week.find((d) => d.date.endsWith('-01'));
+      monthLabels.push(
+        firstOfMonth
+          ? new Date(firstOfMonth.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' })
+          : '',
+      );
     }
 
     const maxVal = Math.max(...allValues, 1);
