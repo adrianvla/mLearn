@@ -337,6 +337,11 @@
       "AuthStatus": "Cloud-Konto",
       "BackendMode": "Backend-Modus",
       "BackendUrl": "Backend-URL",
+      "CatalogMirrors": {
+        "Description": "Wenn ein Katalog nicht erreichbar ist, werden Mirrors als mirror0.<Domain>, mirror1.<Domain>, ... versucht. Leer lassen, um zu deaktivieren.",
+        "Domain": "Mirror-Domain",
+        "Title": "Katalog-Mirrors"
+      },
       "CloudApiUrl": "Cloud-API-URL",
       "CloudLoginUrl": "Cloud-Login-URL",
       "CompleteSignIn": "Anmeldung abschließen",

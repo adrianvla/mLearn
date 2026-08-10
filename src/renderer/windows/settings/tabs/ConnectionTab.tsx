@@ -396,6 +396,19 @@ export const ConnectionTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
+      <SettingGroup title={t('mlearn.Connection.CatalogMirrors.Title')}>
+        <SettingRow
+          label={t('mlearn.Connection.CatalogMirrors.Domain')}
+          description={t('mlearn.Connection.CatalogMirrors.Description')}
+        >
+          <Input
+            value={settings.catalogMirrorDomain ?? DEFAULT_SETTINGS.catalogMirrorDomain}
+            onInput={(e) => updateSetting('catalogMirrorDomain', e.currentTarget.value)}
+            placeholder={DEFAULT_SETTINGS.catalogMirrorDomain}
+          />
+        </SettingRow>
+      </SettingGroup>
+
       {/* ── Node Server (Tethered) ── */}
       <Show when={settings.backendMode === 'tethered'}>
         <SettingGroup title={t('mlearn.Connection.NodeServer') || 'Desktop Server'}>

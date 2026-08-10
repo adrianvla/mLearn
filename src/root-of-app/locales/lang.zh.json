@@ -337,6 +337,11 @@
       "AuthStatus": "云账户",
       "BackendMode": "后端模式",
       "BackendUrl": "后端 URL",
+      "CatalogMirrors": {
+        "Description": "当目录无法访问时，将依次尝试 mirror0.<域名>、mirror1.<域名> 等镜像。留空则禁用。",
+        "Domain": "镜像域名",
+        "Title": "目录镜像"
+      },
       "CloudApiUrl": "云 API URL",
       "CloudLoginUrl": "云登录 URL",
       "CompleteSignIn": "完成登录",

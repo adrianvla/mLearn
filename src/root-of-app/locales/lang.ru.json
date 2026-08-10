@@ -337,6 +337,11 @@
       "AuthStatus": "Облачный аккаунт",
       "BackendMode": "Режим бэкенда",
       "BackendUrl": "URL бэкенда",
+      "CatalogMirrors": {
+        "Description": "Если каталог недоступен, по очереди пробуются зеркала mirror0.<домен>, mirror1.<домен>, ... Оставьте пустым, чтобы отключить.",
+        "Domain": "Домен зеркал",
+        "Title": "Зеркала каталога"
+      },
       "CloudApiUrl": "URL API облака",
       "CloudLoginUrl": "URL входа в облако",
       "CompleteSignIn": "Завершить вход",

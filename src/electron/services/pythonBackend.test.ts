@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DEFAULT_RUNTIME_CATALOG_URL } from '../../shared/constants';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import path from 'path';
 import fs from 'fs';
@@ -84,6 +85,7 @@ const mockLoadSettings = vi.fn(() => ({
   dictionaryTargetLanguages: {},
   llmEnabled: true,
   ocrEnabled: true,
+  catalogMirrorDomain: 'cdn.kikan.net',
 }));
 
 vi.mock('./settings', () => ({
@@ -238,6 +240,7 @@ describe('pythonBackend', () => {
       dictionaryTargetLanguages: {},
       llmEnabled: true,
       ocrEnabled: true,
+      catalogMirrorDomain: 'cdn.kikan.net',
     });
     mockPlatformPaths.resourcePath = '/tmp/test-resources';
     mockPlatformPaths.appPath = '/tmp/test-resources';
@@ -716,6 +719,7 @@ describe('pythonBackend', () => {
         dictionaryTargetLanguages: { ja: 'fr' },
         llmEnabled: true,
         ocrEnabled: true,
+        catalogMirrorDomain: 'cdn.kikan.net',
       });
 
       Object.defineProperty(process, 'resourcesPath', {
@@ -1013,6 +1017,35 @@ describe('pythonBackend', () => {
       await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
 
       expect(mockHttpsGet).toHaveBeenCalled();
+    });
+
+    it('falls back to a probed mirror runtime catalog when the default is unreachable', async () => {
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+
+      mockHttpsGet.mockImplementation((url: string, callback: (res: MockHttpRes) => void) => {
+        if (!url.startsWith('https://mirror0.')) {
+          const req = createMockHttpReq();
+          queueMicrotask(() => req._callbacks['error']?.forEach((cb) => { cb(new Error('read ECONNRESET')); }));
+          return req;
+        }
+        const catalogJson = JSON.stringify(mockRuntimeCatalog);
+        const res = createMockHttpRes(200);
+        res.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+          if (event === 'data') cb(Buffer.from(catalogJson));
+          if (event === 'end') cb();
+          return res;
+        });
+        callback(res);
+        return createMockHttpReq();
+      });
+
+      await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+
+      expect(mockHttpsGet).toHaveBeenCalledWith(DEFAULT_RUNTIME_CATALOG_URL, expect.any(Function));
+      expect(mockHttpsGet).toHaveBeenCalledWith('https://mirror0.cdn.kikan.net/runtime-catalog.json', expect.any(Function));
+      expect(mockHttpsGet).toHaveBeenCalledWith('https://mirror1.cdn.kikan.net/runtime-catalog.json', expect.any(Function));
+      expect(mockDownloadFileWithProgress).toHaveBeenCalled();
     });
 
     it('adds installed language-declared voice requirements to pip install', async () => {

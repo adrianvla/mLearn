@@ -282,6 +282,11 @@ export interface Settings {
   tetheredServerEnabled: boolean;
   /** Single provider-agnostic manifest URL describing downloadable language data. */
   languageCatalogUrl: string;
+  /**
+   * Domain used to probe catalog fallback mirrors (mirror0.<domain>, mirror1.<domain>, ...)
+   * when a configured catalog URL is unreachable. Empty string disables mirror fallback.
+   */
+  catalogMirrorDomain: string;
   /** Manifest URL for the Python runtime archives (used during first-time setup). */
   runtimeCatalogUrl: string;
   /**
@@ -578,6 +583,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backendUrl: '',
   tetheredServerEnabled: false,
   languageCatalogUrl: DEFAULT_LANGUAGE_CATALOG_URL,
+  catalogMirrorDomain: 'cdn.kikan.net',
   runtimeCatalogUrl: DEFAULT_RUNTIME_CATALOG_URL,
   cloudAuthToken: '',
   cloudAuthAccessToken: '',

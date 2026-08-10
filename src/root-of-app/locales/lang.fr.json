@@ -337,6 +337,11 @@
       "AuthStatus": "Compte cloud",
       "BackendMode": "Mode Backend",
       "BackendUrl": "URL du backend",
+      "CatalogMirrors": {
+        "Description": "Si un catalogue est inaccessible, les miroirs mirror0.<domaine>, mirror1.<domaine>, ... sont essayés. Laisser vide pour désactiver.",
+        "Domain": "Domaine miroir",
+        "Title": "Miroirs des catalogues"
+      },
       "CloudApiUrl": "URL de l'API cloud",
       "CloudLoginUrl": "URL de connexion cloud",
       "CompleteSignIn": "Finaliser la connexion",

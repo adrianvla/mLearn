@@ -337,6 +337,11 @@
       "AuthStatus": "Cloud Account",
       "BackendMode": "Backend Mode",
       "BackendUrl": "Backend URL",
+      "CatalogMirrors": {
+        "Description": "When a catalog cannot be reached, fallback mirrors are tried as mirror0.<domain>, mirror1.<domain>, ... Leave empty to disable.",
+        "Domain": "Mirror domain",
+        "Title": "Catalog Mirrors"
+      },
       "CloudApiUrl": "Cloud API URL",
       "CloudLoginUrl": "Cloud Login URL",
       "CompleteSignIn": "Complete sign in",

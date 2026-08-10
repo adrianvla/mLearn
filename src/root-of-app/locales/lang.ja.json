@@ -337,6 +337,11 @@
       "AuthStatus": "クラウドアカウント",
       "BackendMode": "バックエンドモード",
       "BackendUrl": "バックエンドURL",
+      "CatalogMirrors": {
+        "Description": "カタログに接続できない場合、mirror0.<ドメイン>, mirror1.<ドメイン>, ... を順に試します。空欄で無効化します。",
+        "Domain": "ミラードメイン",
+        "Title": "カタログミラー"
+      },
       "CloudApiUrl": "クラウドAPI URL",
       "CloudLoginUrl": "クラウドログインURL",
       "CompleteSignIn": "サインインを完了",

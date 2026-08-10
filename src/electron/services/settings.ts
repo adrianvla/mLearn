@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { app, ipcMain, webContents } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
+import { probeMirrorCatalog } from './catalogMirrors';
 import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { isLanguageMetadataFileName } from '../utils/languageCode';
@@ -736,9 +737,14 @@ export async function loadLanguagePackageCatalog(settings: Settings = loadSettin
   try {
     return await fetchRemoteLanguageCatalog(catalogUrl);
   } catch (error) {
-    log.warn('Failed to load remote language catalog:', error);
-    return {};
+    log.warn(`Failed to load remote language catalog from ${catalogUrl}:`, error);
   }
+  const mirrored = await probeMirrorCatalog(catalogUrl, settings.catalogMirrorDomain, fetchRemoteLanguageCatalog);
+  if (mirrored) {
+    return mirrored;
+  }
+  log.warn('No catalog mirror reachable; returning empty language catalog.');
+  return {};
 }
 
 export async function loadLanguageCatalogData(_settings: Settings = loadSettings()): Promise<LanguageDataMap> {

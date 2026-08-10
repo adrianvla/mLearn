@@ -31,6 +31,7 @@ import { getLogger, type LogLevel } from '../../shared/utils/logger';
 import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFeatures';
 import { getPythonExecutableCandidates } from './pythonRuntimePaths';
 import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
+import { probeMirrorCatalog } from './catalogMirrors';
 import { downloadFileWithProgress } from '../utils/downloadManager';
 
 const pyLog = getLogger('python');
@@ -1252,7 +1253,17 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
   let catalogVersion: string;
   try {
     const runtimeCatalogUrl = loadSettings().runtimeCatalogUrl?.trim() || DEFAULT_RUNTIME_CATALOG_URL;
-    const catalog = await fetchRuntimeCatalog(runtimeCatalogUrl);
+    let catalog: RuntimeCatalog;
+    try {
+      catalog = await fetchRuntimeCatalog(runtimeCatalogUrl);
+    } catch (primaryError) {
+      log.warn('Runtime catalog unavailable, probing mirrors:', primaryError);
+      const mirrored = await probeMirrorCatalog(runtimeCatalogUrl, loadSettings().catalogMirrorDomain, fetchRuntimeCatalog);
+      if (!mirrored) {
+        throw primaryError;
+      }
+      catalog = mirrored;
+    }
     catalogVersion = catalog.version;
     const target = getRuntimeTarget();
     const entry = catalog.runtimes[target];

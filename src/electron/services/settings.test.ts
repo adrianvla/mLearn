@@ -6,6 +6,7 @@ import * as tar from 'tar';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
 import { DEFAULT_SETTINGS } from '../../shared/types';
+import { DEFAULT_LANGUAGE_CATALOG_URL } from '../../shared/constants';
 
 const mockIpcListeners = new Map<string, ((event: MockIpcEvent, ...args: unknown[]) => void)[]>();
 
@@ -1137,6 +1138,104 @@ describe('loadLanguagePackageCatalog', () => {
     });
 
     expect(langData).toEqual({});
+  });
+
+  it('falls back to a probed mirror when the configured catalog is unavailable', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.startsWith('https://mirror0.')) {
+        return Promise.resolve({
+          ok: true,
+          json: vi.fn().mockResolvedValue({
+            languages: {
+              es: {
+                name: 'Spanish',
+                version: 'es-package-v1',
+                bundle: { href: './language-data/language-es-package-v1.tar.gz', sizeBytes: 456, sha256: 'f'.repeat(64) },
+                files: [{ id: 'dictionary', path: 'dictionaries/es/dictionary.db', required: true }],
+              },
+            },
+          }),
+        });
+      }
+      return Promise.reject(new Error('read ECONNRESET'));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: DEFAULT_LANGUAGE_CATALOG_URL,
+    });
+
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      DEFAULT_LANGUAGE_CATALOG_URL,
+      'https://mirror0.cdn.kikan.net/language-catalog.json',
+      'https://mirror1.cdn.kikan.net/language-catalog.json',
+    ]);
+    expect(langData['es']?.languageData?.bundle?.url).toBe('https://mirror0.cdn.kikan.net/language-data/language-es-package-v1.tar.gz');
+  });
+
+  it('returns an empty catalog when no mirror responds', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('read ECONNRESET'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: DEFAULT_LANGUAGE_CATALOG_URL,
+    });
+
+    expect(langData).toEqual({});
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      DEFAULT_LANGUAGE_CATALOG_URL,
+      'https://mirror0.cdn.kikan.net/language-catalog.json',
+    ]);
+  });
+
+  it('probes mirrors preserving the path of a custom catalog URL', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url === 'https://mirror0.cdn.kikan.net/v1/language-catalog.json') {
+        return Promise.resolve({
+          ok: true,
+          json: vi.fn().mockResolvedValue({
+            languages: {
+              es: {
+                name: 'Spanish',
+                version: 'es-package-v1',
+                bundle: { url: 'https://github.com/x/releases/download/v1/es.tar.gz', sizeBytes: 456, sha256: 'f'.repeat(64) },
+                files: [{ id: 'dictionary', path: 'dictionaries/es/dictionary.db', required: true }],
+              },
+            },
+          }),
+        });
+      }
+      return Promise.reject(new Error('read ECONNRESET'));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: 'https://pages.example.com/v1/language-catalog.json',
+    });
+
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      'https://pages.example.com/v1/language-catalog.json',
+      'https://mirror0.cdn.kikan.net/v1/language-catalog.json',
+      'https://mirror1.cdn.kikan.net/v1/language-catalog.json',
+    ]);
+    expect(langData['es']?.name).toBe('Spanish');
+  });
+
+  it('does not probe mirrors when the mirror domain is empty', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('read ECONNRESET'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const langData = await mod.loadLanguagePackageCatalog({
+      ...mod.loadSettings(),
+      languageCatalogUrl: DEFAULT_LANGUAGE_CATALOG_URL,
+      catalogMirrorDomain: '',
+    });
+
+    expect(langData).toEqual({});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
