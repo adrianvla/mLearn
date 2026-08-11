@@ -945,6 +945,10 @@
   border-radius: var(--radius-full);
 }
 
+.wfv-tutor-composer:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+}
+
 .wfv-tutor-input {
   flex: 1;
   min-width: 0;
@@ -962,9 +966,7 @@
 }
 
 .wfv-tutor-input:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
-  border-radius: var(--radius-full);
+  outline: 0;
 }
 
 .wfv-tutor-input:disabled {

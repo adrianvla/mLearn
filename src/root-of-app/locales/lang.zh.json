@@ -1079,7 +1079,7 @@
           "Title": "闪卡"
         },
         "Reader": {
-          "Description": "使用 OCR 阅读漫画或其他文档",
+          "Description": "使用 OCR 阅读书籍、漫画、PDF、EPUB、图片文件夹或其他文档",
           "Title": "阅读器"
         },
         "Settings": {

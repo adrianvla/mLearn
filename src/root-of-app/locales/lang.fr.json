@@ -1079,7 +1079,7 @@
           "Title": "Cartes mémoire"
         },
         "Reader": {
-          "Description": "Lisez des mangas et documents avec OCR",
+          "Description": "Lisez des livres, mangas, PDF, EPUB, dossiers d'images et autres documents avec OCR",
           "Title": "Lecteur"
         },
         "Settings": {

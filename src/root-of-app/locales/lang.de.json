@@ -1079,7 +1079,7 @@
           "Title": "Lernkarten"
         },
         "Reader": {
-          "Description": "Manga und Dokumente mit OCR lesen",
+          "Description": "Bücher, Manga, PDFs, EPUBs, Bilderordner und andere Dokumente mit OCR lesen",
           "Title": "Reader"
         },
         "Settings": {

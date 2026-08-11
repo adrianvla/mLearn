@@ -1079,7 +1079,7 @@
           "Title": "Flashcards"
         },
         "Reader": {
-          "Description": "Read manga or other documents with OCR",
+          "Description": "Read books, manga, PDFs, EPUBs, image folders, or other documents with OCR",
           "Title": "Reader"
         },
         "Settings": {

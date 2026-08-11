@@ -1079,7 +1079,7 @@
           "Title": "フラッシュカード"
         },
         "Reader": {
-          "Description": "OCRで漫画やその他の文書を読む",
+          "Description": "OCRで本、漫画、PDF、EPUB、画像フォルダ、その他の文書を読む",
           "Title": "リーダー"
         },
         "Settings": {
