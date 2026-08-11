@@ -206,9 +206,14 @@ describe('isWordEligible', () => {
     expect(isWordEligible(stale, false, true, staleDaysMs, now)).toBe(true);
   });
 
-  it('excludes explicitly rated unknown words during sync-seen cooldown', () => {
+  it('includes explicitly rated unknown words during sync-seen cooldown', () => {
     const unknown = { ease: 1.3, wordSyncRatedAt: now - 1000 };
-    expect(isWordEligible(unknown, true, true, staleDaysMs, now)).toBe(false);
+    expect(isWordEligible(unknown, true, true, staleDaysMs, now)).toBe(true);
+  });
+
+  it('excludes stale rated learning words seen recently during sync-seen cooldown', () => {
+    const learning = { ease: 1.55, wordSyncRatedAt: now - staleDaysMs - 1 };
+    expect(isWordEligible(learning, true, true, staleDaysMs, now)).toBe(false);
   });
 
   it('includes explicitly rated unknown words after cooldown expires', () => {

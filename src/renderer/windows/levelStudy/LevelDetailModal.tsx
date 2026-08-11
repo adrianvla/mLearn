@@ -1,6 +1,8 @@
 import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
-import { Modal, Btn } from '../../components/common';
-import { WordWithReading } from '../../components/language-specific';
+import type { JSX } from 'solid-js';
+import { Modal, Btn, PillBtn } from '../../components/common';
+import { ProsodyOverlay, WordWithReading } from '../../components/language-specific';
+import type { WordWithReadingRenderTextOptions } from '../../components/language-specific/WordWithReading';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
@@ -11,6 +13,9 @@ import {
 } from '../../utils/wordLevelStats';
 import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
 import { getReadingAnnotationScripts } from '../../../shared/languageFeatures';
+import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
+import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
+import { prosodyVisible } from '../../../shared/prosodySettings';
 import type { LanguageData } from '../../../shared/types';
 
 interface LevelDetailModalProps {
@@ -30,6 +35,7 @@ interface WordListItem {
 const SLIDER_LABELS = ['Unknown', 'Learning', 'Known'] as const;
 const SLIDER_FILTER_VALUES = ['unknown', 'learning', 'known'] as const;
 const SLIDER_TARGET_STATUS: Array<'new' | 'learning' | 'known'> = ['new', 'learning', 'known'];
+const SLIDER_PILL_VARIANTS = ['red', 'orange', 'green'] as const;
 const ROW_HEIGHT = 40;
 
 export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
@@ -46,6 +52,34 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
   const usesReadingAnnotationRenderer = createMemo(() => (
     getReadingAnnotationScripts(activeLanguageData()).length > 0
   ));
+  const canRenderProsodyOverlay = createMemo(() => (
+    prosodyVisible(settings)
+    && getProsodyOverlayRenderer(activeLanguageData(), undefined) !== null
+  ));
+
+  const renderProsodyText = (wordItem: WordListItem) => (
+    text: JSX.Element,
+    options: WordWithReadingRenderTextOptions,
+  ) => {
+    if (!canRenderProsodyOverlay()) {
+      return <span class={options.class} style={options.style}>{text}</span>;
+    }
+    const overlayTarget = getProsodyOverlayTextTarget(wordItem.word, wordItem.reading, options);
+    return (
+      <ProsodyOverlay
+        word={overlayTarget.word}
+        reading={overlayTarget.reading}
+        language={activeLanguage()}
+        languageData={activeLanguageData()}
+        mode="overlay"
+        isReadingScript={options.isReadingScript}
+        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
+        style={options.style}
+      >
+        {text}
+      </ProsodyOverlay>
+    );
+  };
 
   const buildWordsForLevelSnapshot = (): WordListItem[] => {
     const lang = activeLanguage();
@@ -179,37 +213,25 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
       }
     >
       <div class="level-detail-modal-content">
-        <div class="level-detail-slider-section">
-          <div class="level-detail-slider-labels">
+        <div class="level-detail-status-section">
+          <div class="level-detail-status-pills">
             <For each={SLIDER_LABELS}>
               {(label, idx) => (
-                <button
-                  type="button"
-                  class={`level-detail-slider-label ${sliderIndex() === idx() ? 'active' : ''}`}
+                <PillBtn
+                  variant={SLIDER_PILL_VARIANTS[idx()]}
+                  label={t(`mlearn.LevelStudy.LevelCard.${label}` as const)}
+                  badge={idx() === 0
+                    ? countsByStatus().untracked + countsByStatus().unknown
+                    : idx() === 1
+                    ? countsByStatus().untracked + countsByStatus().unknown + countsByStatus().learning
+                    : countsByStatus().untracked + countsByStatus().unknown + countsByStatus().learning + countsByStatus().known}
+                  active={sliderIndex() === idx()}
                   onClick={() => setSliderIndex(idx())}
-                >
-                  {t(`mlearn.LevelStudy.LevelCard.${label}` as const)}
-                  <span class="level-detail-slider-count">
-                    {idx() === 0
-                      ? countsByStatus().untracked + countsByStatus().unknown
-                      : idx() === 1
-                      ? countsByStatus().untracked + countsByStatus().unknown + countsByStatus().learning
-                      : countsByStatus().untracked + countsByStatus().unknown + countsByStatus().learning + countsByStatus().known}
-                  </span>
-                </button>
+                />
               )}
             </For>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={2}
-            step={1}
-            value={sliderIndex()}
-            onInput={(e) => setSliderIndex(Number(e.currentTarget.value))}
-            class="level-detail-slider"
-          />
-          <p class="level-detail-slider-hint">
+          <p class="level-detail-status-hint">
             {t('mlearn.LevelStudy.DetailModal.SliderHint', {
               status: t(`mlearn.LevelStudy.LevelCard.${SLIDER_LABELS[sliderIndex()]}` as const),
             })}
@@ -254,6 +276,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
                             languageData={activeLanguageData()}
                             class="level-detail-word-text"
                             forceShowReadingAnnotation={!!wordItem.reading}
+                            renderText={renderProsodyText(wordItem)}
                           />
                         </Show>
                       </div>

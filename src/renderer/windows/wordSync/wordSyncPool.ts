@@ -62,8 +62,9 @@ export function isWordEligible(
       if (lastChange !== undefined && (now - lastChange) < staleDaysMs) return false;
     }
 
-    // Explicitly rated unknown → sync-seen cooldown
-    if (skipSeen && isSyncSeenRecently) return false;
+    // Explicitly rated unknown stays in rotation — the user asked to see these again.
+    // The sync-seen cooldown only gates rated words above the unknown ease band.
+    if (ease > SRS_EASE.MIN && skipSeen && isSyncSeenRecently) return false;
   } else {
     if (skipSeen && isSyncSeenRecently) return false;
   }

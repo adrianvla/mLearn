@@ -20,6 +20,12 @@ vi.mock('../../components/common', () => ({
   Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
+  PillBtn: (props: { label?: string; badge?: string | number; active?: boolean; onClick?: () => void }) => (
+    <button type="button" class={props.active ? 'active' : ''} onClick={props.onClick}>
+      {props.label}
+      {props.badge !== undefined && props.badge !== null ? ` (${props.badge})` : ''}
+    </button>
+  ),
 }));
 
 vi.mock('../../context', () => ({
