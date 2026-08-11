@@ -111,6 +111,29 @@ export function buildWordSyncFields(
   return { fields, paletteItems: buildPaletteItems(fields, t) };
 }
 
+export function buildLevelStudyBulkAddFields(
+  levelNames: Record<string, string>,
+  t: Translate,
+  languageData?: LanguageData | null,
+): { fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] } {
+  const fields: FieldConfig<unknown>[] = [
+    buildStatusField(t, { includeUntracked: true }),
+    buildLevelField(levelNames, t, languageData),
+  ];
+
+  return { fields, paletteItems: buildPaletteItems(fields, t) };
+}
+
+export function buildUntrackedStatusPreset(): FilterToken[] {
+  return [{
+    instanceId: uniqueId(),
+    kind: 'operand',
+    field: STATUS_FIELD,
+    op: 'eq',
+    value: WORD_SYNC_STATUS_UNTRACKED,
+  }];
+}
+
 export function buildWordDbEditorFields(
   levelNames: Record<string, string>,
   t: Translate,

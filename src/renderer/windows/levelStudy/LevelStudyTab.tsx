@@ -2,10 +2,16 @@ import { Component, createEffect, createMemo, createSignal, For, Show } from 'so
 import { useLocalization, useFlashcards, useLanguage, useSettings } from '../../context';
 import { LevelCard } from './LevelCard';
 import { LevelDetailModal } from './LevelDetailModal';
-import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../utils/wordLevelStats';
-import { ProgressBar, EmptyState, TargetIcon, Btn } from '../../components/common';
+import { BulkAddModal } from './BulkAddModal';
+import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames } from '../../utils/wordLevelStats';
+import { EmptyState, TargetIcon, Btn, PillBtn } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
-import { isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
+import {
+  getFrequencyLevelLabel,
+  getLearningLanguageLevelForLanguage,
+  isFrequencyLevelAtOrEasierThanTarget,
+} from '../../../shared/languageFeatures';
+import { getBridge } from '../../../shared/bridges';
 import type { LanguageData } from '../../../shared/types';
 
 function resolveLevelStudyLanguage(
@@ -43,8 +49,6 @@ export const LevelStudyTab: Component = () => {
   const { settings } = useSettings();
   const [selectedLevel, setSelectedLevel] = createSignal<LevelStats | null>(null);
   const [showBulkAdd, setShowBulkAdd] = createSignal(false);
-  const [bulkStatus, setBulkStatus] = createSignal<'new' | 'learning' | 'known' | 'mastered'>('learning');
-  const [isBulkAdding, setIsBulkAdding] = createSignal(false);
   let lastEmptyRefreshLanguage: string | null = null;
 
   const resolvedLanguageData = createMemo(() => (
@@ -84,9 +88,53 @@ export const LevelStudyTab: Component = () => {
     );
   });
 
-  const coverage = createMemo(() => summarizeLevelCoverage(stats()));
+  const userLevel = createMemo(() => (
+    getLearningLanguageLevelForLanguage(settings, resolvedLanguageData().language || null)
+  ));
+
+  const userLevelLabel = createMemo(() => {
+    const level = userLevel();
+    if (level === null) return '';
+    return getFrequencyLevelLabel(level, levelNames(), resolvedLanguageData().data);
+  });
+
+  const scopedStats = createMemo(() => {
+    const level = userLevel();
+    if (level === null) return stats();
+    return stats().filter((levelStat) => (
+      isFrequencyLevelAtOrEasierThanTarget(levelStat.level, level, resolvedLanguageData().data)
+    ));
+  });
+
+  const coverageTotals = createMemo(() => {
+    const totals = { known: 0, learning: 0, unknown: 0, untracked: 0 };
+    for (const levelStat of scopedStats()) {
+      totals.known += levelStat.known;
+      totals.learning += levelStat.learning;
+      totals.unknown += levelStat.unknown;
+      totals.untracked += levelStat.untracked;
+    }
+    const total = totals.known + totals.learning + totals.unknown + totals.untracked;
+    return {
+      ...totals,
+      total,
+      tracked: total - totals.untracked,
+      complete: total > 0 && totals.untracked === 0,
+    };
+  });
+
+  const coverageWidths = createMemo(() => {
+    const { known, learning, unknown, untracked, total } = coverageTotals();
+    if (total === 0) return { known: 0, learning: 0, unknown: 0, untracked: 0 };
+    const pct = (count: number) => (count / total) * 100;
+    return { known: pct(known), learning: pct(learning), unknown: pct(unknown), untracked: pct(untracked) };
+  });
 
   const hasFrequencyData = createMemo(() => stats().length > 0);
+
+  const openBehaviourSettings = () => {
+    getBridge().window.openWindow({ type: 'settings', context: { section: 'behaviour' } });
+  };
 
   createEffect(() => {
     const currentLanguage = settings.language;
@@ -114,88 +162,73 @@ export const LevelStudyTab: Component = () => {
       >
         <div class="level-study-coverage-bar">
           <div class="level-study-coverage-header">
-            <span>{t('mlearn.LevelStudy.Coverage.Title')}</span>
+            <span class="level-study-coverage-title">
+              <Show
+                when={userLevel() !== null}
+                fallback={t('mlearn.LevelStudy.Coverage.AllLevels')}
+              >
+                {t('mlearn.LevelStudy.Coverage.UpTo')}
+                <PillBtn size="sm" variant="primary" label={userLevelLabel()} onClick={openBehaviourSettings} />
+              </Show>
+            </span>
             <span>
-              {coverage().tracked} / {coverage().total} {t('mlearn.LevelStudy.Coverage.Words')}
+              {coverageTotals().tracked} / {coverageTotals().total} {t('mlearn.LevelStudy.Coverage.Words')}
             </span>
           </div>
-          <ProgressBar value={coverage().pct} showPercent />
-          <span class="level-study-coverage-hint">
-            {coverage().complete
-              ? t('mlearn.LevelStudy.Coverage.Complete')
-              : t('mlearn.LevelStudy.Coverage.Hint')}
-          </span>
-        </div>
-
-        <Show when={!coverage().complete}>
-          <div class="level-study-bulk-add">
-            <Show
-              when={showBulkAdd()}
-              fallback={
-                <Btn variant="primary" onClick={() => setShowBulkAdd(true)}>
-                  {t('mlearn.LevelStudy.BulkAdd.Button')}
-                </Btn>
-              }
-            >
-              <div class="level-study-bulk-add-panel">
-                <span class="level-study-bulk-add-label">
-                  {t('mlearn.LevelStudy.BulkAdd.UntrackedCount', {
-                    count: String(coverage().total - coverage().tracked),
-                  })}
-                </span>
-                <div class="level-study-bulk-add-statuses">
-                  <Btn size="sm" variant={bulkStatus() === 'new' ? 'primary' : 'secondary'} onClick={() => setBulkStatus('new')}>
-                    {t('mlearn.LevelStudy.DetailModal.StatusNew')}
-                  </Btn>
-                  <Btn size="sm" variant={bulkStatus() === 'learning' ? 'primary' : 'secondary'} onClick={() => setBulkStatus('learning')}>
-                    {t('mlearn.LevelStudy.DetailModal.StatusLearning')}
-                  </Btn>
-                  <Btn size="sm" variant={bulkStatus() === 'known' ? 'primary' : 'secondary'} onClick={() => setBulkStatus('known')}>
-                    {t('mlearn.LevelStudy.DetailModal.StatusKnown')}
-                  </Btn>
-                  <Btn size="sm" variant={bulkStatus() === 'mastered' ? 'primary' : 'secondary'} onClick={() => setBulkStatus('mastered')}>
-                    {t('mlearn.LevelStudy.DetailModal.StatusMastered')}
-                  </Btn>
-                </div>
-                <div class="level-study-bulk-add-actions">
-                  <Btn size="sm" variant="secondary" onClick={() => setShowBulkAdd(false)}>
-                    {t('mlearn.LevelStudy.BulkAdd.Cancel')}
-                  </Btn>
-                  <Btn
-                    size="sm"
-                    variant="primary"
-                    onClick={async () => {
-                      const allUntracked: string[] = [];
-                      const { language: resolvedLanguage, data: langData } = resolvedLanguageData();
-                      const freq = frequency();
-                      const names = levelNames();
-                      for (const [word, entry] of Object.entries(freq)) {
-                        if (!isDisplayableFrequencyLevel(entry.raw_level, names, langData)) continue;
-                        const status = flashcards.getComprehensiveWordStatusSync(word, resolvedLanguage);
-                        if (status === 'unknown' && !flashcards.hasWordSync(word, resolvedLanguage)) {
-                          allUntracked.push(word);
-                        }
-                      }
-                      if (allUntracked.length === 0) return;
-                      setIsBulkAdding(true);
-                      try {
-                        await flashcards.addLevelStudyFlashcards(allUntracked, bulkStatus(), resolvedLanguage);
-                        setShowBulkAdd(false);
-                      } finally {
-                        setIsBulkAdding(false);
-                      }
-                    }}
-                    disabled={isBulkAdding()}
-                  >
-                    {isBulkAdding()
-                      ? t('mlearn.LevelStudy.BulkAdd.Adding')
-                      : t('mlearn.LevelStudy.BulkAdd.Confirm')}
-                  </Btn>
-                </div>
-              </div>
+          <div class="level-card-bar level-study-coverage-progress">
+            <Show when={coverageWidths().known > 0}>
+              <div
+                class="level-card-bar-segment level-card-bar-known"
+                style={{ width: `${coverageWidths().known}%` }}
+                title={`${t('mlearn.LevelStudy.LevelCard.Known')}: ${coverageTotals().known}`}
+              />
+            </Show>
+            <Show when={coverageWidths().learning > 0}>
+              <div
+                class="level-card-bar-segment level-card-bar-learning"
+                style={{ width: `${coverageWidths().learning}%` }}
+                title={`${t('mlearn.LevelStudy.LevelCard.Learning')}: ${coverageTotals().learning}`}
+              />
+            </Show>
+            <Show when={coverageWidths().unknown > 0}>
+              <div
+                class="level-card-bar-segment level-card-bar-unknown"
+                style={{ width: `${coverageWidths().unknown}%` }}
+                title={`${t('mlearn.LevelStudy.LevelCard.Unknown')}: ${coverageTotals().unknown}`}
+              />
+            </Show>
+            <Show when={coverageWidths().untracked > 0}>
+              <div
+                class="level-card-bar-segment level-card-bar-untracked"
+                style={{ width: `${coverageWidths().untracked}%` }}
+                title={`${t('mlearn.LevelStudy.LevelCard.Untracked')}: ${coverageTotals().untracked}`}
+              />
             </Show>
           </div>
-        </Show>
+          <Show
+            when={!coverageTotals().complete}
+            fallback={
+              <span class="level-study-coverage-hint">{t('mlearn.LevelStudy.Coverage.Complete')}</span>
+            }
+          >
+            <Show
+              when={userLevel() === null}
+              fallback={
+                <span class="level-study-coverage-hint">{t('mlearn.LevelStudy.Coverage.Hint')}</span>
+              }
+            >
+              <button type="button" class="level-study-set-level-link" onClick={openBehaviourSettings}>
+                {t('mlearn.LevelStudy.Coverage.SetLevelHint')}
+              </button>
+            </Show>
+          </Show>
+        </div>
+
+        <div class="level-study-bulk-add">
+          <Btn variant="primary" onClick={() => setShowBulkAdd(true)}>
+            {t('mlearn.LevelStudy.BulkAdd.Button')}
+          </Btn>
+        </div>
 
         <div class="level-study-levels-grid">
           <For each={stats()}>
@@ -215,6 +248,15 @@ export const LevelStudyTab: Component = () => {
             onClose={() => setSelectedLevel(null)}
           />
         )}
+      </Show>
+      <Show when={showBulkAdd()}>
+        <BulkAddModal
+          language={resolvedLanguageData().language}
+          languageData={resolvedLanguageData().data}
+          frequency={frequency()}
+          levelNames={levelNames()}
+          onClose={() => setShowBulkAdd(false)}
+        />
       </Show>
     </div>
   );

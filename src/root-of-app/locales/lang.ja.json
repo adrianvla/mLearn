@@ -1222,6 +1222,9 @@
       },
       "Coverage": {
         "Title": "レベル単語カバレッジ",
+        "UpTo": "学習レベルまでの単語",
+        "AllLevels": "全レベルの単語",
+        "SetLevelHint": "設定で学習レベルを設定",
         "Words": "語",
         "Complete": "すべてのレベル単語が追跡されています!",
         "Hint": "下のレベルをクリックして単語を表示・追加"
@@ -1232,11 +1235,12 @@
         "Complete": "すべてのフラッシュカードが作成済み"
       },
       "BulkAdd": {
-        "Button": "未追跡単語を一括追加",
-        "UntrackedCount": "{count}件の未追跡単語",
+        "Button": "一括追加",
+        "Title": "フラッシュカードを一括追加",
+        "Hint": "フィルターで追加する単語を選択します。一致した単語は選択したステータスでフラッシュカードになります。",
+        "MatchingCount": "{count} 語が一致",
         "Cancel": "キャンセル",
-        "Adding": "追加中...",
-        "Confirm": "すべて追加"
+        "Adding": "追加中..."
       },
       "LevelCard": {
         "TotalWords": "{count}語",

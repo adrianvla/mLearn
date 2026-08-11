@@ -1222,6 +1222,9 @@
       },
       "Coverage": {
         "Title": "等级单词覆盖率",
+        "UpTo": "学习级别以内的单词",
+        "AllLevels": "所有级别的单词",
+        "SetLevelHint": "在设置中设定学习级别",
         "Words": "个单词",
         "Complete": "所有等级单词已追踪!",
         "Hint": "点击下方等级查看并添加单词"
@@ -1232,11 +1235,12 @@
         "Complete": "所有闪卡已填充"
       },
       "BulkAdd": {
-        "Button": "批量添加未追踪单词",
-        "UntrackedCount": "{count} 个未追踪单词",
+        "Button": "批量添加",
+        "Title": "批量添加闪卡",
+        "Hint": "使用筛选器选择要添加的单词。匹配的单词将以所选状态成为闪卡。",
+        "MatchingCount": "匹配 {count} 个单词",
         "Cancel": "取消",
-        "Adding": "添加中...",
-        "Confirm": "全部添加"
+        "Adding": "添加中..."
       },
       "LevelCard": {
         "TotalWords": "{count} 个单词",

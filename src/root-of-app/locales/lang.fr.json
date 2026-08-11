@@ -1222,6 +1222,9 @@
       },
       "Coverage": {
         "Title": "Couverture des mots par niveau",
+        "UpTo": "Mots jusqu'à",
+        "AllLevels": "Mots de tous les niveaux",
+        "SetLevelHint": "Définissez votre niveau d'apprentissage dans les paramètres",
         "Words": "mots",
         "Complete": "Tous les mots de niveau sont suivis!",
         "Hint": "Cliquez sur un niveau ci-dessous pour voir et ajouter des mots"
@@ -1232,11 +1235,12 @@
         "Complete": "Toutes les flashcards sont remplies"
       },
       "BulkAdd": {
-        "Button": "Ajouter en masse les mots non suivis",
-        "UntrackedCount": "{count} mots non suivis",
+        "Button": "Ajout en masse",
+        "Title": "Ajouter des flashcards en masse",
+        "Hint": "Choisissez les mots à ajouter avec le filtre. Les mots correspondants deviendront des flashcards avec le statut sélectionné.",
+        "MatchingCount": "{count} mots correspondent",
         "Cancel": "Annuler",
-        "Adding": "Ajout...",
-        "Confirm": "Tout ajouter"
+        "Adding": "Ajout..."
       },
       "LevelCard": {
         "TotalWords": "{count} mots",

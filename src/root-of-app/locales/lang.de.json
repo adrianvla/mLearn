@@ -1222,6 +1222,9 @@
       },
       "Coverage": {
         "Title": "Wortabdeckung nach Stufe",
+        "UpTo": "Wörter bis",
+        "AllLevels": "Wörter aller Stufen",
+        "SetLevelHint": "Lege deine Lernstufe in den Einstellungen fest",
         "Words": "Wörter",
         "Complete": "Alle Stufenwörter werden verfolgt!",
         "Hint": "Klicke auf eine Stufe unten, um Wörter anzusehen und hinzuzufügen"
@@ -1232,11 +1235,12 @@
         "Complete": "Alle Karteikarten befüllt"
       },
       "BulkAdd": {
-        "Button": "Unverfolgte Wörter massenhinzufügen",
-        "UntrackedCount": "{count} unverfolgte Wörter",
+        "Button": "Mehrere hinzufügen",
+        "Title": "Mehrere Karteikarten hinzufügen",
+        "Hint": "Wähle mit dem Filter, welche Wörter hinzugefügt werden. Passende Wörter werden Karteikarten mit dem gewählten Status.",
+        "MatchingCount": "{count} Wörter passen",
         "Cancel": "Abbrechen",
-        "Adding": "Hinzufügen...",
-        "Confirm": "Alle hinzufügen"
+        "Adding": "Hinzufügen..."
       },
       "LevelCard": {
         "TotalWords": "{count} Wörter",

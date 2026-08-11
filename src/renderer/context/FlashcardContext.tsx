@@ -173,7 +173,7 @@ export interface SetWordBankStatusOptions {
   content?: Partial<FlashcardContent> & { front: string; back: string };
 }
 
-type LevelStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
+export type LevelStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
 
 export interface WordTrackingSyncResult {
   tracker: 'flashcards' | 'anki' | 'nothing';

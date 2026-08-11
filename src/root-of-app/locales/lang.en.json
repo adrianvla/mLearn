@@ -1222,6 +1222,9 @@
       },
       "Coverage": {
         "Title": "Level Word Coverage",
+        "UpTo": "Words up to",
+        "AllLevels": "Words across all levels",
+        "SetLevelHint": "Set your learning level in Settings",
         "Words": "words",
         "Complete": "All level words are tracked!",
         "Hint": "Click a level below to view and add words"
@@ -1231,13 +1234,14 @@
         "Populated": "{populated} of {total} populated",
         "Complete": "All flashcards populated"
       },
-      "BulkAdd": {
-        "Button": "Bulk Add Untracked Words",
-        "UntrackedCount": "{count} untracked words",
-        "Cancel": "Cancel",
-        "Adding": "Adding...",
-        "Confirm": "Add All"
-      },
+        "BulkAdd": {
+          "Button": "Bulk Add",
+          "Title": "Bulk Add Flashcards",
+          "Hint": "Choose which words to add with the filter. Matching words become flashcards with the selected status.",
+          "MatchingCount": "{count} words match",
+          "Cancel": "Cancel",
+          "Adding": "Adding..."
+        },
       "LevelCard": {
         "TotalWords": "{count} words",
         "Known": "Known",

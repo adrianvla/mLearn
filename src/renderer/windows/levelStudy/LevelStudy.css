@@ -78,40 +78,71 @@
   color: var(--text-tertiary);
 }
 
+.level-study-coverage-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.level-card-bar.level-study-coverage-progress {
+  height: 10px;
+}
+
+.level-study-set-level-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.level-study-set-level-link:hover {
+  text-decoration: underline;
+}
+
 .level-study-bulk-add {
   display: flex;
   justify-content: center;
 }
 
-.level-study-bulk-add-panel {
+.bulk-add-modal-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.bulk-add-modal-footer {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  width: 100%;
-  max-width: 480px;
-}
-
-.level-study-bulk-add-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.level-study-bulk-add-statuses {
-  display: flex;
-  gap: 8px;
+  gap: 16px;
   flex-wrap: wrap;
-  justify-content: center;
+  width: 100%;
 }
 
-.level-study-bulk-add-actions {
+.bulk-add-target-status {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bulk-add-target-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.bulk-add-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-add-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .level-study-levels-grid {
@@ -238,6 +269,10 @@
 .level-detail-status-pills .btn-pill.btn-active {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+.level-detail-status-pills .btn-pill .btn-badge {
+  color: inherit;
 }
 
 .level-detail-status-hint {

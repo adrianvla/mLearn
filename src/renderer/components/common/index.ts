@@ -183,6 +183,8 @@ export {
   WORD_SYNC_STATUS_UNTRACKED,
   buildEmptyPreset,
   buildWordSyncFields,
+  buildLevelStudyBulkAddFields,
+  buildUntrackedStatusPreset,
   buildWordDbEditorFields,
   buildFlashcardBrowseFields,
   statusResolver,
