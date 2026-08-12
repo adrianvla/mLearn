@@ -1234,14 +1234,14 @@
         "Populated": "{populated} of {total} populated",
         "Complete": "All flashcards populated"
       },
-        "BulkAdd": {
-          "Button": "Bulk Add",
-          "Title": "Bulk Add Flashcards",
-          "Hint": "Choose which words to add with the filter. Matching words become flashcards with the selected status.",
-          "MatchingCount": "{count} words match",
-          "Cancel": "Cancel",
-          "Adding": "Adding..."
-        },
+      "BulkAdd": {
+        "Button": "Bulk Add",
+        "Title": "Bulk Add Flashcards",
+        "Hint": "Choose which words to add with the filter. Matching words become flashcards with the selected status.",
+        "MatchingCount": "{count} words match",
+        "Cancel": "Cancel",
+        "Adding": "Adding..."
+      },
       "LevelCard": {
         "TotalWords": "{count} words",
         "Known": "Known",
@@ -1598,6 +1598,10 @@
           "ResetAll": "Reset prosody palette"
         },
         "Preview": "Colored prosody preview",
+        "RelevantOnly": {
+          "Label": "Color only when relevant",
+          "Description": "Limit prosody coloring to immersion contexts like subtitles. When off, prosody colors also apply in the reader, word database, word sync, and word lists."
+        },
         "Saturation": {
           "Description": "Adjust the intensity of every prosody color.",
           "Label": "Color saturation"

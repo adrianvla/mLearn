@@ -16,7 +16,8 @@ import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } fro
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
-import { compareFrequencyLevelsForDisplay, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import { createWordRenderText } from '../../utils/wordRenderText';
+import { compareFrequencyLevelsForDisplay, getFrequencyLevelVisualRank, getPartOfSpeechColor } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import './UnknownWordsSidebar.css';
 
@@ -78,13 +79,35 @@ const UnknownWordRow: Component<{
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
-  const { getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
+  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word, settings.language));
   const isTracked = createMemo(() => props.isAdding || currentFlashcard() !== null);
   const currentEase = createMemo(() => currentFlashcard()?.ease);
   const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(props.entry.word, settings.language));
+  const comprehensiveKnowledge = createMemo(() => (
+    getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language)
+  ));
+  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  const getWordColor = createMemo((): string | undefined => {
+    if (!settings.enableWordColoring) return undefined;
+    if (!settings.colorKnownWords && wordIsKnown()) return undefined;
+    if (!settings.do_colour_codes) return undefined;
+    const pos = props.entry.token.partOfSpeech || props.entry.token.type;
+    if (!pos) return undefined;
+    return getPartOfSpeechColor(pos, settings.colour_codes, currentLangData());
+  });
+  const renderColoredProsodyText = createWordRenderText({
+    languageData: currentLangData,
+    prosodyPosition: () => rowProsody()?.position ?? null,
+    ease: () => comprehensiveKnowledge().ease,
+    partOfSpeechColor: getWordColor,
+    status: () => comprehensiveKnowledge().status,
+    isKnown: wordIsKnown,
+    surface: 'other',
+    settings: () => settings,
+  });
 
   const wordForms = createMemo(() => (
     getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants, {
@@ -126,9 +149,10 @@ const UnknownWordRow: Component<{
     });
   });
   const renderReadingText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
+    const coloredText = renderColoredProsodyText(text, options);
     const prosody = rowProsody();
     if (!prosody || prosody.renderer !== 'inline-overlay') {
-      return <span class={options.class} style={options.style}>{text}</span>;
+      return coloredText;
     }
     const overlayTarget = getProsodyOverlayTextTarget(
       props.entry.word,
@@ -148,7 +172,7 @@ const UnknownWordRow: Component<{
         class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
         style={options.style}
       >
-        {text}
+        {coloredText}
       </ProsodyOverlay>
     );
   };

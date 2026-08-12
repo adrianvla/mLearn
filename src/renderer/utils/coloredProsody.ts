@@ -64,14 +64,24 @@ const pitchAccentCategoryRenderer: ColoredProsodyRenderer = (input) => {
   return category ? [{ text: input.text, paletteKey: category.type }] : null;
 };
 
-const COLOR_RENDERERS: Record<string, ColoredProsodyRenderer> = {
-  'tone-marked-syllables': toneMarkedSyllablesRenderer,
-  'pitch-accent-category': pitchAccentCategoryRenderer,
+interface ColoredProsodyRendererEntry {
+  render: ColoredProsodyRenderer;
+  /** True when the renderer needs a dictionary-provided prosody position. */
+  needsProsodyPosition: boolean;
+}
+
+const COLOR_RENDERERS: Record<string, ColoredProsodyRendererEntry> = {
+  'tone-marked-syllables': { render: toneMarkedSyllablesRenderer, needsProsodyPosition: false },
+  'pitch-accent-category': { render: pitchAccentCategoryRenderer, needsProsodyPosition: true },
 };
 
 export function getColoredProsodyConfig(data?: LanguageData | null): LanguageColoredProsodyConfig | null {
   const config = data?.prosody?.coloring;
   return config && COLOR_RENDERERS[config.renderer] ? config : null;
+}
+
+export function coloredProsodyNeedsDictionaryLookup(config: LanguageColoredProsodyConfig): boolean {
+  return COLOR_RENDERERS[config.renderer]?.needsProsodyPosition ?? false;
 }
 
 export function getColoredProsodyPalette(
@@ -88,7 +98,7 @@ export function buildColoredProsodySegments(
   config: LanguageColoredProsodyConfig,
   input: ColoredProsodyRenderInput,
 ): ColoredProsodySegment[] | null {
-  return COLOR_RENDERERS[config.renderer]?.(input) ?? null;
+  return COLOR_RENDERERS[config.renderer]?.render?.(input) ?? null;
 }
 
 export function coloredProsodyAllowsStatus(status: WordStatus, limit: Settings['coloredProsodyStatusLimit']): boolean {

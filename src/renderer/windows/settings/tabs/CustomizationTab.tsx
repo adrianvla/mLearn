@@ -524,6 +524,16 @@ export const CustomizationTab: Component = () => {
               />
             </SettingRow>
 
+            <SettingRow
+              label={t('mlearn.Settings.ColoredProsody.RelevantOnly.Label')}
+              description={t('mlearn.Settings.ColoredProsody.RelevantOnly.Description')}
+            >
+              <ToggleSwitch
+                checked={settings.coloredProsodyRelevantOnly ?? DEFAULT_SETTINGS.coloredProsodyRelevantOnly}
+                onChange={(checked) => updateSettings({ coloredProsodyRelevantOnly: checked })}
+              />
+            </SettingRow>
+
             <Show when={settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled}>
               <SettingRow
                 label={t('mlearn.Settings.ColoredProsody.StatusLimit.Label')}

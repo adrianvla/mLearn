@@ -8,21 +8,28 @@ import { FlashcardWordTitle } from './FlashcardWordTitle';
 let mockLanguageData: LanguageData | null = null;
 let mockLanguageMap: Record<string, LanguageData> = {};
 let mockHasProsodyOverlay = false;
+let mockSettings: {
+  language: string;
+  uiLanguage: string;
+  dictionaryTargetLanguages: Record<string, string>;
+  showProsody: boolean;
+  coloredProsodyRelevantOnly?: boolean;
+} = {
+  language: 'de',
+  uiLanguage: 'en',
+  dictionaryTargetLanguages: {
+    de: 'en',
+    ja: 'fr',
+  },
+  showProsody: true,
+};
 const mockGetCachedTranslation = vi.fn();
 const mockGetCanonicalFormForLanguage = vi.fn((language: string, word: string) => `${language}:${word}:canonical`);
 const mockGetWordVariantsForLanguage = vi.fn((language: string, word: string) => [`${language}:${word}:variant`]);
 
 vi.mock('../../context', () => ({
   useSettings: () => ({
-    settings: {
-      language: 'de',
-      uiLanguage: 'en',
-      dictionaryTargetLanguages: {
-        de: 'en',
-        ja: 'fr',
-      },
-      showProsody: true,
-    },
+    settings: mockSettings,
   }),
   useLanguage: () => ({
     langData: mockLanguageMap,
@@ -34,12 +41,16 @@ vi.mock('../../context', () => ({
     getWordVariants: (word: string) => [word],
     getCanonicalFormForLanguage: mockGetCanonicalFormForLanguage,
     getWordVariantsForLanguage: mockGetWordVariantsForLanguage,
+    getReadingVariantsForLanguage: (language: string, reading: string) => [`${language}:${reading}:variant`],
   }),
   useLocalization: () => ({
     t: (key: string) => {
       if (key === 'mlearn.CardEditor.Fields.ProsodyPosition') return 'Prosody position';
       return key;
     },
+  }),
+  useFlashcards: () => ({
+    getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
   }),
 }));
 
@@ -67,6 +78,15 @@ describe('FlashcardWordTitle', () => {
     mockGetCachedTranslation.mockClear();
     mockGetCanonicalFormForLanguage.mockClear();
     mockGetWordVariantsForLanguage.mockClear();
+    mockSettings = {
+      language: 'de',
+      uiLanguage: 'en',
+      dictionaryTargetLanguages: {
+        de: 'en',
+        ja: 'fr',
+      },
+      showProsody: true,
+    };
     mockLanguageData = makeLanguageData({
       name: 'German',
       textProcessing: {
@@ -419,6 +439,88 @@ describe('FlashcardWordTitle', () => {
     expect(options.dictionaryTargetLanguage()).toBe('fr');
     expect(options.getCanonicalForm('将来')).toBe('ja:将来:canonical');
     expect(options.getWordVariants('将来')).toEqual(['ja:将来:variant']);
+
+    dispose();
+  });
+
+  it('colors prosody segments on the flashcard title when relevant-only is off', () => {
+    mockLanguageData = makeLanguageData({
+      name: 'Chinese',
+      prosody: {
+        coloring: {
+          renderer: 'tone-marked-syllables',
+          paletteId: 'tones',
+          colors: {
+            'tone-1': '#ff00ff',
+            'tone-2': '#ffff00',
+            'tone-3': '#00b84a',
+            'tone-4': '#ff0000',
+            neutral: '#006eff',
+          },
+          labels: {},
+        },
+      },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Han'] },
+        readingAnnotation: { type: 'none' },
+      },
+    });
+
+    const dispose = render(() => (
+      <FlashcardWordTitle content={{
+        type: 'word',
+        front: '妈',
+        reading: 'ma1',
+        back: 'mother',
+      }} />
+    ), container);
+
+    const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
+    expect(segments.length).toBeGreaterThan(0);
+    expect(segments[0].dataset.prosodyValue).toBe('tone-1');
+    expect(segments[0].style.color).toBe('#ff00ff');
+
+    dispose();
+  });
+
+  it('does not color prosody segments on the flashcard title when relevant-only is on', () => {
+    mockSettings = {
+      ...mockSettings,
+      coloredProsodyRelevantOnly: true,
+    };
+    mockLanguageData = makeLanguageData({
+      name: 'Chinese',
+      prosody: {
+        coloring: {
+          renderer: 'tone-marked-syllables',
+          paletteId: 'tones',
+          colors: {
+            'tone-1': '#ff00ff',
+            'tone-2': '#ffff00',
+            'tone-3': '#00b84a',
+            'tone-4': '#ff0000',
+            neutral: '#006eff',
+          },
+          labels: {},
+        },
+      },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Han'] },
+        readingAnnotation: { type: 'none' },
+      },
+    });
+
+    const dispose = render(() => (
+      <FlashcardWordTitle content={{
+        type: 'word',
+        front: '妈',
+        reading: 'ma1',
+        back: 'mother',
+      }} />
+    ), container);
+
+    expect(container.querySelector('.colored-prosody__segment')).toBeNull();
+    expect(container.textContent).toContain('妈');
 
     dispose();
   });

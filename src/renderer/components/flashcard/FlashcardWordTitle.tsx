@@ -6,10 +6,12 @@
 import { Component, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { ProsodyOverlay, WordWithReading } from '../language-specific';
-import { useLanguage, useLocalization, useSettings } from '../../context';
+import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import {
+  getPartOfSpeechColor,
   getProsodyDisplayValueFromContent,
   getProsodyPositionFromContent,
+  getProsodyPositionFromOverride,
   getProsodyPositionLabel,
   getReadingAnnotationScripts,
 } from '../../../shared/languageFeatures';
@@ -20,6 +22,10 @@ import {
   getProsodyOverlayRenderer,
 } from '../../utils/prosodyPresentation';
 import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
+import { createWordRenderText } from '../../utils/wordRenderText';
+import { cacheVersion, getCachedTranslation } from '../../hooks/useTranslation';
+import { extractProsodyData } from '../../utils/translationCacheParsers';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import './FlashcardWordTitle.css';
 
 export interface FlashcardWordTitleProps {
@@ -29,9 +35,10 @@ export interface FlashcardWordTitleProps {
 }
 
 export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) => {
-  const { currentLangData, langData } = useLanguage();
+  const { currentLangData, langData, getCanonicalFormForLanguage, getWordVariantsForLanguage, getReadingVariantsForLanguage } = useLanguage();
   const { settings } = useSettings();
   const { t } = useLocalization();
+  const flashcards = useFlashcards();
   const word = () => props.content.front;
   const reading = () => props.content.reading || props.content.front;
   const languageData = createMemo(() => (
@@ -42,6 +49,53 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   const storedProsodyPosition = createMemo(() => (
     props.content.prosody?.position ?? null
   ));
+  const dictionaryTargetLanguage = createMemo(() => (
+    getDictionaryTargetLanguageForSettings(settings, props.language ?? settings.language)
+  ));
+  const lookupLanguage = () => props.language ?? settings.language;
+  const lookupOptions = {
+    getCanonicalForm: (word: string) => getCanonicalFormForLanguage(lookupLanguage(), word),
+    getWordVariants: (word: string) => getWordVariantsForLanguage(lookupLanguage(), word),
+    getReadingVariants: (reading: string) => getReadingVariantsForLanguage(lookupLanguage(), reading),
+    dictionaryTargetLanguage,
+    languageData,
+  };
+  const cachedTranslation = createMemo(() => {
+    cacheVersion();
+    const w = word();
+    if (!w) return null;
+    return getCachedTranslation(w, lookupLanguage(), lookupOptions);
+  });
+  const coloredProsodyPosition = createMemo(() => {
+    const stored = storedProsodyPosition();
+    if (stored !== null) return stored;
+    const prosody = extractProsodyData(cachedTranslation()?.data, languageData());
+    return getProsodyPositionFromOverride(null, prosody);
+  });
+  const comprehensiveKnowledge = createMemo(() => {
+    const w = word();
+    if (!w) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
+    return flashcards.getComprehensiveWordStatusWithSourceSync(w, props.language ?? settings.language);
+  });
+  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  const getWordColor = createMemo((): string | undefined => {
+    if (!settings.enableWordColoring) return undefined;
+    if (!settings.colorKnownWords && wordIsKnown()) return undefined;
+    if (!settings.do_colour_codes) return undefined;
+    const pos = props.content.pos;
+    if (!pos) return undefined;
+    return getPartOfSpeechColor(pos, settings.colour_codes, languageData());
+  });
+  const renderColoredProsodyText = createWordRenderText({
+    languageData,
+    prosodyPosition: coloredProsodyPosition,
+    ease: () => comprehensiveKnowledge().ease,
+    partOfSpeechColor: getWordColor,
+    status: () => comprehensiveKnowledge().status,
+    isKnown: wordIsKnown,
+    surface: 'other',
+    settings: () => settings,
+  });
   const prosodyOverlayRenderer = createMemo(() => (
     getProsodyOverlayRenderer(languageData(), props.content.prosody?.type)
   ));
@@ -74,8 +128,9 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     return getReadingAnnotationScripts(languageData()).length > 0;
   });
   const renderText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
+    const coloredText = renderColoredProsodyText(text, options);
     if (!canRenderProsodyOverlay()) {
-      return <span class={options.class} style={options.style}>{text}</span>;
+      return coloredText;
     }
     const overlayTarget = getProsodyOverlayTextTarget(word(), reading(), options);
     return (
@@ -93,7 +148,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
         class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
         style={options.style}
       >
-        {text}
+        {coloredText}
       </ProsodyOverlay>
     );
   };

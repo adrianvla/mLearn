@@ -1598,6 +1598,10 @@
           "ResetAll": "Réinitialiser la palette prosodique"
         },
         "Preview": "Aperçu de la prosodie colorée",
+        "RelevantOnly": {
+          "Label": "Colorer uniquement si pertinent",
+          "Description": "Limite la coloration prosodique aux contextes d'immersion comme les sous-titres. Désactivée, elle applique aussi les couleurs prosodiques au lecteur, à la base de mots, à la synchronisation des mots et aux listes de mots."
+        },
         "Saturation": {
           "Description": "Réglez l'intensité de toutes les couleurs prosodiques.",
           "Label": "Saturation des couleurs"

@@ -1598,6 +1598,10 @@
           "ResetAll": "Prosodiepalette zurücksetzen"
         },
         "Preview": "Vorschau der farbigen Prosodie",
+        "RelevantOnly": {
+          "Label": "Nur wenn relevant färben",
+          "Description": "Begrenzt die Prosodiefärbung auf Immersionskontexte wie Untertitel. Ist sie deaktiviert, werden Prosodiefarben auch im Reader, in der Wortdatenbank, beim Wortabgleich und in Wortlisten angewendet."
+        },
         "Saturation": {
           "Description": "Passe die Intensität aller Prosodiefarben an.",
           "Label": "Farbsättigung"

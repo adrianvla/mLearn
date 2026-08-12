@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { OcrWord } from './OcrWord';
 import type { LanguageData, Token } from '../../../shared/types';
+import type { ComprehensiveWordStatusResult } from '../../utils/comprehensiveKnowledge';
 
 const mockSettings: Record<string, unknown> = {
   readerWordHoverTrigger: 'hover',
@@ -32,6 +33,17 @@ let mockLanguageData: LanguageData = {
 const mockTrackWordHovered = vi.fn();
 const mockCancelWordHover = vi.fn();
 const mockGetCanonicalForm = vi.fn((word: string) => (word === 'يكتب' ? 'كتب' : word));
+const originalMockLanguageData = mockLanguageData;
+const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
+  (): ComprehensiveWordStatusResult => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
+);
+const mockGetCachedTranslation = vi.fn();
+
+vi.mock('../../hooks/useTranslation', () => ({
+  cacheVersion: () => 0,
+  getCachedReading: () => null,
+  getCachedTranslation: (...args: unknown[]) => mockGetCachedTranslation(...args),
+}));
 
 vi.mock('../../context', () => ({
   useSettings: () => ({ settings: mockSettings }),
@@ -39,6 +51,7 @@ vi.mock('../../context', () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordHovered: mockTrackWordHovered,
     cancelWordHover: mockCancelWordHover,
+    getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
   }),
   useLanguage: () => ({
     currentLangData: () => mockLanguageData,
@@ -48,6 +61,9 @@ vi.mock('../../context', () => ({
         providesLemmas: true,
       },
     }),
+    getCanonicalForm: (word: string) => mockGetCanonicalForm(word),
+    getWordVariants: (word: string) => [word],
+    getReadingVariants: (reading: string) => [reading],
   }),
 }));
 
@@ -61,6 +77,7 @@ describe('OcrWord', () => {
     mockTrackWordHovered.mockClear();
     mockCancelWordHover.mockClear();
     mockGetCanonicalForm.mockClear();
+    mockGetComprehensiveWordStatusWithSourceSync.mockClear();
   });
 
   afterEach(() => {
@@ -195,6 +212,164 @@ describe('OcrWord', () => {
 
       expect(container.querySelector('ruby')).toBeNull();
       expect(container.querySelector('.ocr-word')?.textContent).toBe('豚');
+      dispose();
+    });
+  });
+
+  describe('colored prosody', () => {
+    const coloredSettings: Record<string, unknown> = {
+      coloredProsodyEnabled: true,
+      enableWordColoring: true,
+      colorKnownWords: true,
+      do_colour_codes: true,
+      colour_codes: {},
+      coloredProsodyPalettes: {},
+      coloredProsodyStatusLimit: 'known',
+      coloredProsodyEaseMixEnabled: false,
+      coloredProsodyEaseMixTarget: 'white',
+      coloredProsodySaturation: 100,
+      coloredProsodyRelevantOnly: false,
+    };
+
+    const toneMarkedLanguageData: LanguageData = {
+      name: 'Mandarin',
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hani', 'Latn'] },
+      },
+      prosody: {
+        type: 'tone',
+        coloring: {
+          renderer: 'tone-marked-syllables',
+          paletteId: 'tones',
+          colors: { 'tone-1': '#ff00ff', neutral: '#006eff' },
+          labels: {},
+        },
+      },
+    };
+
+    const pitchAccentLanguageData: LanguageData = {
+      name: 'Japanese',
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        readingAnnotation: {
+          type: 'script-reading',
+          display: 'ruby',
+          annotationScripts: ['Han'],
+          surfaceSuffixScripts: ['Hira', 'Kana'],
+          readingSeparator: '',
+          stripParentheticalReadings: true,
+        },
+      },
+      prosody: {
+        type: 'japanese-pitch-accent',
+        coloring: {
+          renderer: 'pitch-accent-category',
+          paletteId: 'pitch',
+          colors: { heiban: '#00b84a', atamadaka: '#ffa500', nakadaka: '#00aaff', odaka: '#ff0000' },
+          labels: {},
+        },
+      },
+    };
+
+    const toneToken: Token = {
+      word: '妈妈',
+      surface: '妈妈',
+      actual_word: '妈妈',
+      reading: 'mā ma',
+      type: 'noun',
+      partOfSpeech: 'noun',
+    };
+
+    beforeEach(() => {
+      mockLanguageData = toneMarkedLanguageData;
+      Object.assign(mockSettings, coloredSettings);
+      mockGetCachedTranslation.mockReset();
+      mockGetCachedTranslation.mockReturnValue(null);
+    });
+
+    afterEach(() => {
+      mockLanguageData = originalMockLanguageData;
+      for (const key of Object.keys(coloredSettings)) {
+        delete mockSettings[key];
+      }
+    });
+
+    it('colors the word slot via the tone-marked renderer when reading annotations are shown', () => {
+      const dispose = render(() => (
+        <OcrWord token={toneToken} withReadingAnnotation />
+      ), container);
+
+      const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
+      expect(segments).toHaveLength(2);
+      expect(segments[0]?.dataset.prosodyValue).toBe('tone-1');
+      expect(segments[0]?.style.color).toBe('#ff00ff');
+      expect(segments[1]?.dataset.prosodyValue).toBe('neutral');
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('妈妈');
+      dispose();
+    });
+
+    it('colors the word slot through the no-annotation fallback when reading annotations are disabled', () => {
+      mockSettings.showReadingAnnotations = false;
+
+      const dispose = render(() => (
+        <OcrWord token={toneToken} withReadingAnnotation />
+      ), container);
+
+      const segment = container.querySelector<HTMLElement>('.colored-prosody__segment');
+      expect(segment).not.toBeNull();
+      expect(segment?.dataset.prosodyValue).toBe('tone-1');
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('妈妈');
+      dispose();
+    });
+
+    it('keeps plain text when colored prosody is disabled', () => {
+      mockSettings.coloredProsodyEnabled = false;
+
+      const dispose = render(() => <OcrWord token={toneToken} />, container);
+
+      expect(container.querySelector('.colored-prosody__segment')).toBeNull();
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('妈妈');
+      dispose();
+    });
+
+    it('restores old behavior (no reader coloring) when relevantOnly is on', () => {
+      mockSettings.coloredProsodyRelevantOnly = true;
+
+      const dispose = render(() => <OcrWord token={toneToken} />, container);
+
+      expect(container.querySelector('.colored-prosody__segment')).toBeNull();
+      expect(container.querySelector('.ocr-word')?.textContent).toBe('妈妈');
+      dispose();
+    });
+
+    it('colors the reading slot via the pitch-accent renderer using the cached prosody position', () => {
+      mockLanguageData = pitchAccentLanguageData;
+      mockGetCachedTranslation.mockReturnValue({
+        data: [
+          { definitions: ['when'], reading: 'いつ' },
+          undefined,
+          { pitches: [{ position: 1 }] },
+        ],
+      });
+      const pitchToken: Token = {
+        word: '何時',
+        surface: '何時',
+        actual_word: '何時',
+        reading: 'いつ',
+        type: '名詞',
+        partOfSpeech: '名詞',
+      };
+
+      const dispose = render(() => (
+        <OcrWord token={pitchToken} withReadingAnnotation />
+      ), container);
+
+      const segment = container.querySelector<HTMLElement>('.colored-prosody__segment');
+      expect(segment).not.toBeNull();
+      expect(segment?.dataset.prosodyValue).toBe('atamadaka');
+      expect(segment?.style.color).toBe('#ffa500');
       dispose();
     });
   });

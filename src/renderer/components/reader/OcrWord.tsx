@@ -10,6 +10,13 @@ import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { readingAnnotationsEnabled } from '../../../shared/readingAnnotationSettings';
+import { getPartOfSpeechColor, getProsodyPositionFromOverride } from '../../../shared/languageFeatures';
+import { coloredProsodyAllowedOnSurface } from '../../../shared/prosodySettings';
+import { getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
+import { extractProsodyData } from '../../utils/translationCacheParsers';
+import { getColoredProsodyConfig } from '../../utils/coloredProsody';
+import { createWordRenderText } from '../../utils/wordRenderText';
+import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { WordWithReading } from '../language-specific/WordWithReading';
 import './OcrOverlay.css';
 
@@ -29,7 +36,7 @@ const LONG_HOVER_DELAY = 500;
 export const OcrWord: Component<OcrWordProps> = (props) => {
   const { settings } = useSettings();
   const flashcardCtx = useFlashcards();
-  const { getLanguageFeatures } = useLanguage();
+  const { currentLangData, getLanguageFeatures, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   
   // Reference to the word span element - used to get stable getBoundingClientRect
   // This is necessary because event.currentTarget becomes null after event handlers return,
@@ -58,6 +65,67 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     props.withReadingAnnotation === true
     && readingAnnotationsEnabled(settings)
     && Boolean(props.token.reading)
+  );
+
+  const getPos = () => props.token.partOfSpeech ?? props.token.type ?? '';
+
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+
+  const comprehensiveKnowledge = createMemo(() => {
+    const word = lookupWord();
+    if (!word) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
+    return flashcardCtx.getComprehensiveWordStatusWithSourceSync(word, settings.language);
+  });
+
+  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+
+  // Get color from user overrides or package POS metadata.
+  const getWordColor = createMemo((): string | undefined => {
+    if (!settings.enableWordColoring) return undefined;
+    if (!settings.colorKnownWords && wordIsKnown()) return undefined;
+    if (!settings.do_colour_codes) return undefined;
+    const pos = getPos();
+    if (!pos) return undefined;
+    return getPartOfSpeechColor(pos, settings.colour_codes, currentLangData());
+  });
+
+  const cachedTranslation = createMemo(() => {
+    cacheVersion(); // reactive dependency: recompute when cache changes
+    const word = lookupWord();
+    if (!word) return null;
+    return getCachedTranslation(word, settings.language, lookupOptions);
+  });
+
+  const prosodyPosition = createMemo(() => {
+    const prosody = extractProsodyData(cachedTranslation()?.data, currentLangData());
+    return getProsodyPositionFromOverride(null, prosody);
+  });
+
+  // True when the current language + settings would color this word slot even
+  // without reading annotations (e.g. tone-marked languages color the word text).
+  const coloredProsodyActive = createMemo(() => {
+    if (!getColoredProsodyConfig(currentLangData())) return false;
+    const enabled = settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled;
+    if (!enabled) return false;
+    return coloredProsodyAllowedOnSurface(settings, 'other');
+  });
+
+  const renderColoredProsodyText = createWordRenderText({
+    languageData: currentLangData,
+    prosodyPosition,
+    ease: () => comprehensiveKnowledge().ease,
+    partOfSpeechColor: getWordColor,
+    status: () => comprehensiveKnowledge().status,
+    isKnown: wordIsKnown,
+    surface: 'other',
+    settings: () => settings,
+  });
+
+  // The reading is passed through even when annotations are hidden so the
+  // word slot renderer can color tone-marked text (hanzi chars → tone syllables).
+  const readingForDisplay = () => (
+    showReading() || coloredProsodyActive() ? props.token.reading : undefined
   );
   
   // Trigger hover using the stable element reference
@@ -172,9 +240,14 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <Show when={showReading()} fallback={displayWord()}>
+      <Show when={showReading() || coloredProsodyActive()} fallback={displayWord()}>
         {/* reader text page owns the font (serif/mono styles) — don't force the language content font */}
-        <WordWithReading word={displayWord()} reading={props.token.reading} inheritFontFamily />
+        <WordWithReading
+          word={displayWord()}
+          reading={readingForDisplay()}
+          inheritFontFamily
+          renderText={renderColoredProsodyText}
+        />
       </Show>
     </span>
   );

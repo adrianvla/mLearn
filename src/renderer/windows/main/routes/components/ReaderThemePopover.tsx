@@ -4,6 +4,7 @@ import { useSettings, useLocalization, useLanguage } from '../../../../context';
 import { DEFAULT_SETTINGS, ReaderTextFontStyle } from '@shared/types';
 import { getReadingAnnotationDisplay } from '@shared/languageFeatures';
 import { readingAnnotationMoreContrastEnabled, readingAnnotationSizePercent } from '@shared/readingAnnotationSettings';
+import { getColoredProsodyConfig } from '../../../../utils/coloredProsody';
 import { READER_TEXT_THEME_IDS, stepReaderTextSize } from '../readerTextThemes';
 import { listInstalledSystemFonts } from '../../../../services/systemFonts';
 import './ReaderThemePopover.css';
@@ -29,6 +30,8 @@ export const ReaderThemePopover: Component<ReaderThemePopoverProps> = (props) =>
   const supportsReadingAppearance = createMemo(() => (
     getLanguageFeatures().supportsReadings && getReadingAnnotationDisplay(currentLangData()) !== 'replace'
   ));
+
+  const coloredProsodyConfig = createMemo(() => getColoredProsodyConfig(currentLangData()));
 
   const [fontFamilies] = createResource(() => listInstalledSystemFonts());
 
@@ -119,6 +122,17 @@ export const ReaderThemePopover: Component<ReaderThemePopoverProps> = (props) =>
             />
             <output class="reader-theme-reading-size-value">{readingSizePercent()}%</output>
           </div>
+        </div>
+      </Show>
+
+      <Show when={coloredProsodyConfig()}>
+        <div class="reader-theme-divider" />
+        <div class="reader-theme-row">
+          <span class="reader-theme-label">{t('mlearn.Settings.ColoredProsody.RelevantOnly.Label')}</span>
+          <ToggleSwitch
+            checked={settings.coloredProsodyRelevantOnly ?? DEFAULT_SETTINGS.coloredProsodyRelevantOnly}
+            onChange={(checked) => updateSettings({ coloredProsodyRelevantOnly: checked })}
+          />
         </div>
       </Show>
 

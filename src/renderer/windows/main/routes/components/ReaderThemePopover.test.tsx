@@ -3,9 +3,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
+import type { LanguageData } from '@shared/types';
 
 const updateSettingsMock = vi.fn();
 let mockSupportsReadings = true;
+let mockLanguageData: LanguageData | null = null;
 
 const testSettings: Record<string, unknown> = {
   readerTextSize: 1.05,
@@ -41,6 +43,7 @@ const translations: Record<string, string> = {
   'mlearn.Settings.Reader.TextAppearance.Font.Options.Custom': 'Custom…',
   'mlearn.Settings.ReadingAppearance.MoreContrast.Label': 'More contrast in reading text',
   'mlearn.Settings.ReadingAppearance.Size.Label': 'Reading size',
+  'mlearn.Settings.ColoredProsody.RelevantOnly.Label': 'Color only when relevant',
 };
 
 vi.mock('../../../../context', () => ({
@@ -57,7 +60,7 @@ vi.mock('../../../../context', () => ({
     },
   }),
   useLanguage: () => ({
-    currentLangData: () => null,
+    currentLangData: () => mockLanguageData,
     getLanguageFeatures: () => ({ supportsReadings: mockSupportsReadings }),
   }),
 }));
@@ -97,6 +100,7 @@ describe('ReaderThemePopover', () => {
     onCloseMock = vi.fn<() => void>();
     updateSettingsMock.mockReset();
     mockSupportsReadings = true;
+    mockLanguageData = null;
     triggerRef = undefined;
   });
 
@@ -312,5 +316,62 @@ describe('ReaderThemePopover', () => {
     const p = panel() as HTMLElement;
     p.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     expect(onCloseMock).not.toHaveBeenCalled();
+  });
+
+  describe('colored prosody relevant-only toggle', () => {
+    const coloredLanguageData: LanguageData = {
+      name: 'Japanese',
+      settings: { fixed: {} },
+      prosody: {
+        type: 'japanese-pitch-accent',
+        coloring: {
+          renderer: 'pitch-accent-category',
+          paletteId: 'pitch',
+          colors: { heiban: '#00b84a' },
+          labels: {},
+        },
+      },
+    };
+
+    const coloredToggle = (): HTMLInputElement | undefined => {
+      const labels = Array.from(document.body.querySelectorAll('.reader-theme-row .reader-theme-label'));
+      const row = labels
+        .find((label) => label.textContent === 'Color only when relevant')
+        ?.closest('.reader-theme-row');
+      return row?.querySelector('input[type="checkbox"]') as HTMLInputElement | undefined;
+    };
+
+    beforeEach(() => {
+      mockLanguageData = coloredLanguageData;
+    });
+
+    it('shows the toggle when the language has a colored prosody config', () => {
+      setOpen(true);
+      mount();
+      expect(document.body.textContent).toContain('Color only when relevant');
+      expect(coloredToggle()?.checked).toBe(false);
+    });
+
+    it('hides the toggle when the language has no colored prosody config', () => {
+      mockLanguageData = null;
+      setOpen(true);
+      mount();
+      expect(document.body.textContent).not.toContain('Color only when relevant');
+    });
+
+    it('calls updateSettings with the relevant-only key when the toggle is clicked', () => {
+      setOpen(true);
+      mount();
+      click(coloredToggle()!);
+      expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyRelevantOnly: true });
+    });
+
+    it('reflects the current relevant-only setting', () => {
+      testSettings.coloredProsodyRelevantOnly = true;
+      setOpen(true);
+      mount();
+      expect(coloredToggle()?.checked).toBe(true);
+      delete testSettings.coloredProsodyRelevantOnly;
+    });
   });
 });

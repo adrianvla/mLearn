@@ -43,6 +43,12 @@ vi.mock('../../context', () => ({
   useLanguage: () => ({
     langData: mockLanguageMap,
     currentLangData: () => mockCurrentLanguageData,
+    getCanonicalFormForLanguage: () => undefined,
+    getWordVariantsForLanguage: () => [],
+    getReadingVariantsForLanguage: () => [],
+  }),
+  useFlashcards: () => ({
+    getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
   }),
   useLocalization: () => ({
     t: (key: string) => {

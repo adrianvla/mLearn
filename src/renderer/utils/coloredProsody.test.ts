@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, type LanguageColoredProsodyConfig, type LanguageData 
 import {
   buildColoredProsodySegments,
   coloredProsodyAllowsStatus,
+  coloredProsodyNeedsDictionaryLookup,
   getColoredProsodyConfig,
   getColoredProsodyPalette,
   resolveColoredProsodyStyle,
@@ -80,6 +81,12 @@ describe('colored prosody renderer registry', () => {
       name: 'Future language',
       prosody: { coloring: { ...toneConfig, renderer: 'not-installed' } },
     })).toBeNull();
+  });
+
+  it('flags renderers that need a dictionary lookup for the prosody position', () => {
+    expect(coloredProsodyNeedsDictionaryLookup({ ...toneConfig, renderer: 'tone-marked-syllables' })).toBe(false);
+    expect(coloredProsodyNeedsDictionaryLookup({ ...toneConfig, renderer: 'pitch-accent-category' })).toBe(true);
+    expect(coloredProsodyNeedsDictionaryLookup({ ...toneConfig, renderer: 'not-installed' })).toBe(false);
   });
 });
 

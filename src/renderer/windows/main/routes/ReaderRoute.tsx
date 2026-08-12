@@ -11,11 +11,11 @@ import { OcrOverlay, MagnifyingGlass, OcrWord, type OcrBox, type OcrResult, type
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
-import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
+import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats, warmTranslationCache } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
 import { isLLMReady } from '../../../services/llmProvider';
-import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection } from '../../../../shared/types';
+import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, Settings, LanguageData } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
@@ -78,6 +78,8 @@ import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldCle
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
+import { coloredProsodyAllowedOnSurface } from '../../../../shared/prosodySettings';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { formatFrequencyLevelLabel } from '../../../utils/levelLabels';
 import {
@@ -208,6 +210,10 @@ function normalizeReaderOcrResult(result: ReaderCompatibleOcrResult): OcrResult 
 const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const [tokenParagraphs, setTokenParagraphs] = createSignal<Token[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
+  const { settings } = useSettings();
+  const { currentLangData, getLanguageFeatures } = useLanguage();
+  const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
+  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const text = () => props.page.text ?? '';
   const textBlocks = () => text().split(/\n{2,}/u).map((block) => block.trim()).filter(Boolean);
   const headingText = () => {
@@ -245,12 +251,19 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
       .then((nextParagraphs) => {
         if (!cancelled) {
           const spans = props.page.readingSpans;
-          setTokenParagraphs(nextParagraphs.map((tokens, index) => {
+          const nextTokenParagraphs = nextParagraphs.map((tokens, index) => {
             const { block, start } = paragraphs[index];
             return applyReadingSpansToTokens(block, tokens, sliceReadingSpansForRange(spans, start, start + block.length));
-          }));
+          });
+          setTokenParagraphs(nextTokenParagraphs);
           setTokenizeFailed(false);
           props.onTokenized?.();
+          warmReaderPageTranslations(props.page.id, nextTokenParagraphs, {
+            settings,
+            languageData: currentLangData(),
+            dictionaryTargetLanguage: dictionaryTargetLanguage(),
+            tokenizerCapabilities: tokenizerCapabilities(),
+          });
         }
       })
       .catch(() => {
@@ -312,6 +325,39 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
     </article>
   );
 };
+
+// Once-per-page guard so re-tokenization of the same page does not re-warm the cache.
+const warmedPageTranslationIds = new Set<string>();
+
+export function warmReaderPageTranslations(
+  pageId: string,
+  paragraphTokens: Token[][],
+  options: {
+    settings: Settings;
+    languageData: LanguageData | null;
+    dictionaryTargetLanguage?: string;
+    tokenizerCapabilities?: { providesLemmas: boolean };
+  },
+): void {
+  const config = getColoredProsodyConfig(options.languageData);
+  const enabled = options.settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled;
+  if (!config || !enabled || !coloredProsodyAllowedOnSurface(options.settings, 'other')) return;
+  if (!coloredProsodyNeedsDictionaryLookup(config)) return;
+  if (warmedPageTranslationIds.has(pageId)) return;
+  warmedPageTranslationIds.add(pageId);
+  const uniquePageWords = [...new Set(
+    paragraphTokens.flat().map((token) => getTokenLookupWord(token, options.tokenizerCapabilities) || token.surface || token.word),
+  )].filter(Boolean);
+  if (uniquePageWords.length === 0) return;
+  void warmTranslationCache(
+    uniquePageWords,
+    undefined,
+    undefined,
+    options.settings.language,
+    options.dictionaryTargetLanguage,
+    options.languageData,
+  );
+}
 
 // OCR results cache by page id
 const [ocrResults, setOcrResults] = createStore<Record<string, OcrResult>>({});

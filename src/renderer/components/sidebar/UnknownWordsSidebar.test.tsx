@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { TranslationResponse } from '../../../shared/types';
+import type { LanguageColoredProsodyConfig, LanguageData } from '../../../shared/types';
 
 const translationByWord = new Map<string, TranslationResponse | null | undefined>();
 const trackedWords = new Set<string>();
@@ -24,6 +25,20 @@ const mockResolveProsodyForHover = vi.fn(() => null as {
 } | null);
 let mockShowProsody = false;
 let mockLanguageFeatures = { prosodyRenderer: undefined, supportsProsody: false };
+let mockLanguageData: LanguageData | null = null;
+let mockSettings: Record<string, unknown> = {
+  use_anki: true,
+  language: 'ja',
+  enable_flashcard_creation: true,
+  show_pos: false,
+  showProsody: mockShowProsody,
+  ankiLearningThreshold: 1500,
+  ankiKnownThreshold: 1800,
+  ankiLearningEase: 1500,
+  ankiKnownEase: 1800,
+  knowledgeSourceOrder: ['srs', 'anki', 'manual'],
+  knowledgeResolutionMode: 'highest',
+};
 
 vi.mock('../common', () => ({
   Btn: (props: { label?: string; onClick?: () => void; disabled?: boolean }) => (
@@ -51,13 +66,28 @@ vi.mock('../common', () => ({
 
 vi.mock('../language-specific', () => ({
   ProsodyOverlay: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
-  WordWithReading: (props: { word: string; reading?: string | null }) => (
+  WordWithReading: (props: {
+    word: string;
+    reading?: string | null;
+    renderText?: (text: JSX.Element, options: { slot: 'word' | 'reading'; word: string; reading: string; displayReading: string; isReadingScript: boolean }) => JSX.Element;
+  }) => (
     <span
       class="mock-word-with-reading"
       data-word={props.word}
       data-reading={props.reading ?? ''}
     >
-      {props.reading ? `${props.word}:${props.reading}` : props.word}
+      {(() => {
+        const text = <span>{props.reading ? `${props.word}:${props.reading}` : props.word}</span>;
+        return props.renderText
+          ? props.renderText(text, {
+              slot: 'word',
+              word: props.word,
+              reading: props.reading ?? '',
+              displayReading: props.reading ?? '',
+              isReadingScript: false,
+            })
+          : text;
+      })()}
     </span>
   ),
 }));
@@ -100,25 +130,14 @@ vi.mock('../../context', () => ({
     },
   }),
   useSettings: () => ({
-    settings: {
-      use_anki: true,
-      language: 'ja',
-      enable_flashcard_creation: true,
-      show_pos: false,
-      showProsody: mockShowProsody,
-      ankiLearningThreshold: 1500,
-      ankiKnownThreshold: 1800,
-      ankiLearningEase: 1500,
-      ankiKnownEase: 1800,
-      knowledgeSourceOrder: ['srs', 'anki', 'manual'],
-      knowledgeResolutionMode: 'highest',
-    },
+    settings: { ...mockSettings, showProsody: mockShowProsody },
   }),
   useFlashcards: () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     hasWordSync: mockHasWordSync,
     getCardByWordSync: mockGetCardByWordSync,
     getComprehensiveWordStatusSync: mockGetComprehensiveWordStatusSync,
+    getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
     isWordIgnoredSync: mockIsWordIgnoredSync,
   }),
   useLanguage: () => ({
@@ -128,7 +147,7 @@ vi.mock('../../context', () => ({
     getCanonicalForm: (word: string) => word,
     getWordVariants: (word: string) => [word],
     getReadingVariants: (word: string) => [word],
-    currentLangData: () => null,
+    currentLangData: () => mockLanguageData,
   }),
 }));
 
@@ -193,6 +212,19 @@ describe('UnknownWordsSidebar', () => {
     mockResolveProsodyForHover.mockReturnValue(null);
     mockShowProsody = false;
     mockLanguageFeatures = { prosodyRenderer: undefined, supportsProsody: false };
+    mockLanguageData = null;
+    mockSettings = {
+      use_anki: true,
+      language: 'ja',
+      enable_flashcard_creation: true,
+      show_pos: false,
+      ankiLearningThreshold: 1500,
+      ankiKnownThreshold: 1800,
+      ankiLearningEase: 1500,
+      ankiKnownEase: 1800,
+      knowledgeSourceOrder: ['srs', 'anki', 'manual'],
+      knowledgeResolutionMode: 'highest',
+    };
 
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -391,6 +423,95 @@ describe('UnknownWordsSidebar', () => {
     expect(mockHasWordSync).toHaveBeenCalledWith('赤い', 'ja');
     expect(mockIsWordIgnoredSync).toHaveBeenCalledWith('赤い', 'ja');
     expect(wordStatusPillProps).toContainEqual({ word: '赤い', language: 'ja' });
+    dispose();
+  });
+
+  it('colors prosody segments on unknown word rows when relevant-only is off', async () => {
+    const toneConfig: LanguageColoredProsodyConfig = {
+      renderer: 'tone-marked-syllables',
+      paletteId: 'tones',
+      colors: { 'tone-1': '#ff00ff', 'tone-2': '#ffff00', 'tone-3': '#00b84a', 'tone-4': '#ff0000', neutral: '#006eff' },
+      labels: {},
+    };
+    mockLanguageData = { name: 'Chinese', prosody: { coloring: toneConfig } };
+    translationByWord.set('妈麻马骂吗', {
+      data: [{ definitions: ['mom, hemp, horse, scold, question'], reading: 'mā má mǎ mà ma' }],
+    } as TranslationResponse);
+
+    const words = [{
+      key: 'word-1',
+      word: '妈麻马骂吗',
+      token: { word: '妈麻马骂吗', actual_word: '妈麻马骂吗', partOfSpeech: 'noun', type: 'word' },
+      contextPhrase: '妈麻马骂吗 context',
+    }];
+
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+
+    const dispose = render(() => (
+      <UnknownWordsSidebar
+        words={() => words}
+        addingWordKeys={() => new Set<string>()}
+        isAddingAll={() => false}
+        onAddWord={() => undefined}
+        onIgnoreWord={() => undefined}
+        sortOptions={() => [{ value: 'word', label: 'Word' }]}
+        defaultSort="word"
+        emptyMessage="No unknown words"
+        onAddAllClick={() => undefined}
+      />
+    ), container);
+
+    await Promise.resolve();
+
+    const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
+    expect(segments.length).toBe(5);
+    expect(segments[0].dataset.prosodyValue).toBe('tone-1');
+    expect(segments[0].style.color).toBe('#ff00ff');
+
+    dispose();
+  });
+
+  it('does not color unknown word rows when relevant-only is on', async () => {
+    const toneConfig: LanguageColoredProsodyConfig = {
+      renderer: 'tone-marked-syllables',
+      paletteId: 'tones',
+      colors: { 'tone-1': '#ff00ff', 'tone-2': '#ffff00', 'tone-3': '#00b84a', 'tone-4': '#ff0000', neutral: '#006eff' },
+      labels: {},
+    };
+    mockLanguageData = { name: 'Chinese', prosody: { coloring: toneConfig } };
+    mockSettings = { ...mockSettings, coloredProsodyRelevantOnly: true };
+    translationByWord.set('妈麻马骂吗', {
+      data: [{ definitions: ['mom, hemp, horse, scold, question'], reading: 'mā má mǎ mà ma' }],
+    } as TranslationResponse);
+
+    const words = [{
+      key: 'word-1',
+      word: '妈麻马骂吗',
+      token: { word: '妈麻马骂吗', actual_word: '妈麻马骂吗', partOfSpeech: 'noun', type: 'word' },
+      contextPhrase: '妈麻马骂吗 context',
+    }];
+
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+
+    const dispose = render(() => (
+      <UnknownWordsSidebar
+        words={() => words}
+        addingWordKeys={() => new Set<string>()}
+        isAddingAll={() => false}
+        onAddWord={() => undefined}
+        onIgnoreWord={() => undefined}
+        sortOptions={() => [{ value: 'word', label: 'Word' }]}
+        defaultSort="word"
+        emptyMessage="No unknown words"
+        onAddAllClick={() => undefined}
+      />
+    ), container);
+
+    await Promise.resolve();
+
+    expect(container.querySelector('.colored-prosody__segment')).toBeNull();
+    expect(container.textContent).toContain('妈麻马骂吗');
+
     dispose();
   });
 });

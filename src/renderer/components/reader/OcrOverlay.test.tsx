@@ -27,6 +27,7 @@ vi.mock('../../context', () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordHovered: mocks.trackWordHovered,
     cancelWordHover: mocks.cancelWordHover,
+    getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
   }),
   useLanguage: () => ({
     isTokenTranslatable: () => true,
@@ -36,6 +37,9 @@ vi.mock('../../context', () => ({
       tokenizerCapabilities: {},
     }),
     currentLangData: () => null,
+    getCanonicalForm: (word: string) => word,
+    getWordVariants: (word: string) => [word],
+    getReadingVariants: (reading: string) => [reading],
   }),
 }));
 

@@ -1598,6 +1598,10 @@
           "ResetAll": "重置韵律调色板"
         },
         "Preview": "韵律着色预览",
+        "RelevantOnly": {
+          "Label": "仅相关时着色",
+          "Description": "将韵律着色限制在字幕等沉浸式环境中。关闭后，韵律颜色也适用于阅读器、单词库、单词同步和单词列表。"
+        },
         "Saturation": {
           "Description": "调整所有韵律颜色的鲜艳程度。",
           "Label": "颜色饱和度"

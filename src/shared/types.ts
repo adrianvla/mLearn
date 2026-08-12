@@ -140,6 +140,8 @@ export interface Settings {
   do_colour_codes: boolean;
   colour_codes: ColorCodes;
   coloredProsodyEnabled: boolean;
+  /** When on, colored prosody only applies on immersion surfaces (e.g. subtitles). */
+  coloredProsodyRelevantOnly: boolean;
   coloredProsodyPalettes: ColoredProsodyPaletteOverrides;
   coloredProsodyStatusLimit: ColoredProsodyStatusLimit;
   coloredProsodyEaseMixEnabled: boolean;
@@ -536,6 +538,7 @@ export const DEFAULT_SETTINGS: Settings = {
   do_colour_codes: true,
   colour_codes: {},
   coloredProsodyEnabled: true,
+  coloredProsodyRelevantOnly: false,
   coloredProsodyPalettes: {},
   coloredProsodyStatusLimit: 'known',
   coloredProsodyEaseMixEnabled: false,

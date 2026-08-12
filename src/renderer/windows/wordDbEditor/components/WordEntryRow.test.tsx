@@ -17,6 +17,7 @@ const getCachedReadingMock = vi.fn();
 const fetchTranslationMock = vi.fn();
 const prosodyOverlayProps: Array<{ word: string; prosodyPosition?: number | null; prosodyType?: string; class?: string }> = [];
 let mockLanguageData: LanguageData | null = null;
+let mockSettings: { language: string; coloredProsodyRelevantOnly?: boolean } = { language: 'ja' };
 
 vi.mock('../../../../shared/backends', () => ({
   getBackend: () => ({
@@ -34,15 +35,14 @@ vi.mock('../../../context', () => ({
     },
   }),
   useSettings: () => ({
-    settings: {
-      language: 'ja',
-    },
+    settings: mockSettings,
   }),
   useLanguage: () => ({
     currentLangData: () => mockLanguageData,
   }),
   useFlashcards: () => ({
     getWordTrackingSync: getWordTrackingSyncMock,
+    getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
   }),
 }));
 
@@ -152,6 +152,7 @@ describe('WordEntryRow', () => {
     extractProsodyDataForReadingMock.mockReturnValue(undefined);
     extractReadingValueMock.mockReset();
     extractReadingValueMock.mockReturnValue(null);
+    mockSettings = { language: 'ja' };
     mockLanguageData = makeLanguageData({
       name: 'Japanese',
       prosody: { type: 'japanese-pitch-accent' },
@@ -1215,6 +1216,109 @@ describe('WordEntryRow', () => {
 
     expect(container.querySelector<HTMLElement>('.word-text')?.style.getPropertyValue('font-family'))
       .toBe('"Noto Serif CJK SC"');
+
+    dispose();
+  });
+
+  it('colors prosody segments on word database rows when relevant-only is off', async () => {
+    mockLanguageData = makeLanguageData({
+      name: 'Chinese',
+      prosody: {
+        coloring: {
+          renderer: 'tone-marked-syllables',
+          paletteId: 'tones',
+          colors: {
+            'tone-1': '#ff00ff',
+            'tone-2': '#ffff00',
+            'tone-3': '#00b84a',
+            'tone-4': '#ff0000',
+            neutral: '#006eff',
+          },
+          labels: {},
+        },
+      },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Han', 'Latn'] },
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+          readingNormalizer: 'lowercase-strip-diacritics',
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          readingSeparator: ' ',
+        },
+      },
+    });
+    const { WordEntryRow } = await import('./WordEntryRow');
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('妈麻马骂吗', { reading: 'mā má mǎ mà ma' })}
+        levelNames={{ 0: 'HSK 1' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
+    expect(segments.length).toBeGreaterThan(0);
+    expect(segments[0].dataset.prosodyValue).toBe('tone-1');
+    expect(segments[0].style.color).toBe('#ff00ff');
+
+    dispose();
+  });
+
+  it('does not color prosody segments on word database rows when relevant-only is on', async () => {
+    mockSettings = { language: 'ja', coloredProsodyRelevantOnly: true };
+    mockLanguageData = makeLanguageData({
+      name: 'Chinese',
+      prosody: {
+        coloring: {
+          renderer: 'tone-marked-syllables',
+          paletteId: 'tones',
+          colors: {
+            'tone-1': '#ff00ff',
+            'tone-2': '#ffff00',
+            'tone-3': '#00b84a',
+            'tone-4': '#ff0000',
+            neutral: '#006eff',
+          },
+          labels: {},
+        },
+      },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Han', 'Latn'] },
+        lexemeNormalization: {
+          type: 'reading',
+          surfaceScripts: ['Han'],
+          readingScripts: ['Latn'],
+          readingNormalizer: 'lowercase-strip-diacritics',
+        },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          readingSeparator: ' ',
+        },
+      },
+    });
+    const { WordEntryRow } = await import('./WordEntryRow');
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('妈麻马骂吗', { reading: 'mā má mǎ mà ma' })}
+        levelNames={{ 0: 'HSK 1' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    expect(container.querySelector('.colored-prosody__segment')).toBeNull();
+    expect(container.textContent).toContain('妈麻马骂吗');
 
     dispose();
   });

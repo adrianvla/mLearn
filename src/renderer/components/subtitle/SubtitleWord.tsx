@@ -33,13 +33,7 @@ import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
-import {
-  buildColoredProsodySegments,
-  coloredProsodyAllowsStatus,
-  getColoredProsodyConfig,
-  getColoredProsodyPalette,
-  resolveColoredProsodyStyle,
-} from '../../utils/coloredProsody';
+import { createWordRenderText } from '../../utils/wordRenderText';
 import '../language-specific/RubyText.css';
 import './SubtitleWord.css';
 
@@ -351,62 +345,16 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     showReadingAnnotation() ? effectiveReading() : null
   ));
 
-  const coloredProsodyConfig = createMemo(() => getColoredProsodyConfig(currentLangData()));
-
-  const renderColoredProsodyText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
-    const config = coloredProsodyConfig();
-    const enabled = settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled;
-    const statusLimit = settings.coloredProsodyStatusLimit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit;
-    const coloringEnabled = settings.enableWordColoring ?? DEFAULT_SETTINGS.enableWordColoring;
-    if (!config || !enabled || !coloringEnabled) {
-      return <span class={options.class} style={options.style}>{text}</span>;
-    }
-    if (!(settings.colorKnownWords ?? DEFAULT_SETTINGS.colorKnownWords) && wordIsKnown()) {
-      return <span class={options.class} style={options.style}>{text}</span>;
-    }
-    if (!coloredProsodyAllowsStatus(comprehensiveKnowledge().status, statusLimit)) {
-      return <span class={options.class} style={options.style}>{text}</span>;
-    }
-
-    const displayText = typeof text === 'string'
-      ? text
-      : options.slot === 'reading'
-        ? options.displayReading
-        : options.word;
-    const segments = buildColoredProsodySegments(config, {
-      text: displayText,
-      word: options.word,
-      reading: options.reading,
-      slot: options.slot,
-      prosodyPosition: prosodyPosition(),
-    });
-    if (!segments?.some((segment) => segment.paletteKey)) {
-      return <span class={options.class} style={options.style}>{text}</span>;
-    }
-
-    const palette = getColoredProsodyPalette(settings, config);
-    return (
-      <span class={options.class} style={options.style}>
-        {segments.map((segment) => {
-          const color = segment.paletteKey ? palette[segment.paletteKey] : undefined;
-          return color ? (
-            <span
-              class="colored-prosody__segment"
-              data-prosody-value={segment.paletteKey}
-              style={resolveColoredProsodyStyle(
-                color,
-                settings,
-                comprehensiveKnowledge().ease,
-                getWordColor(),
-              )}
-            >
-              {segment.text}
-            </span>
-          ) : segment.text;
-        })}
-      </span>
-    );
-  };
+  const renderColoredProsodyText = createWordRenderText({
+    languageData: currentLangData,
+    prosodyPosition,
+    ease: () => comprehensiveKnowledge().ease,
+    partOfSpeechColor: getWordColor,
+    status: () => comprehensiveKnowledge().status,
+    isKnown: wordIsKnown,
+    surface: 'subtitle',
+    settings: () => settings,
+  });
 
   const renderSubtitleText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
     const coloredText = renderColoredProsodyText(text, options);

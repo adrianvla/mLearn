@@ -17,6 +17,7 @@ import { ankiCacheVersion, findAnkiWordMatchInCache } from '../../../services/an
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import { getProsodyOverlayRenderer } from '../../../utils/prosodyPresentation';
 import { getProsodyOverlayTextTarget } from '../../../utils/prosodyOverlayTarget';
+import { createWordRenderText } from '../../../utils/wordRenderText';
 import {
   extractProsodyFromTranslationData,
   normalizeDictionaryReading,
@@ -143,7 +144,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const { getWordTrackingSync } = useFlashcards();
+  const { getWordTrackingSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -156,6 +157,23 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     && prosodyVisible(settings)
   ));
   let rowRef: HTMLDivElement | undefined;
+
+  const comprehensiveKnowledge = createMemo(() => {
+    const word = props.entry.word;
+    if (!word) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
+    return getComprehensiveWordStatusWithSourceSync(word, settings.language);
+  });
+  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  const renderColoredProsodyText = createWordRenderText({
+    languageData: currentLangData,
+    prosodyPosition: () => prosodyPositionForDisplayedReading(effectiveReading()),
+    ease: () => comprehensiveKnowledge().ease,
+    partOfSpeechColor: () => undefined,
+    status: () => comprehensiveKnowledge().status,
+    isKnown: wordIsKnown,
+    surface: 'other',
+    settings: () => settings,
+  });
 
   // Effective reading: translation cache reading > freq data > word
   const effectiveReading = createMemo(() => {
@@ -227,8 +245,9 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   ));
 
   const renderEntryWordText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
+    const coloredText = renderColoredProsodyText(text, options);
     if (!canRenderProsodyOverlay()) {
-      return <span class={options.class} style={options.style}>{text}</span>;
+      return coloredText;
     }
 
     const overlayTarget = getProsodyOverlayTextTarget(props.entry.word, effectiveReading(), options);
@@ -246,7 +265,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
         style={options.style}
       >
-        {text}
+        {coloredText}
       </ProsodyOverlay>
     );
   };
