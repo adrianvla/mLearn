@@ -1,5 +1,5 @@
 import { Component, For, Show, createEffect, createMemo, createSignal } from 'solid-js';
-import { Btn, CheckboxCard, Modal, PillLabel, Select, type SelectOption } from '../../../../components/common';
+import { Btn, CheckboxCard, LEVEL_VALUE_BEYOND_EXAM, Modal, PillLabel, Select, type SelectOption } from '../../../../components/common';
 import { useLanguage, useLocalization } from '../../../../context';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, isDisplayableFrequencyLevel, isFrequencyLevelAtOrEasierThanTarget, sortFrequencyLevelsForDisplay } from '../../../../../shared/languageFeatures';
 import type { ReaderUnknownWordEntry } from './ReaderUnknownWordsSidebar';
@@ -53,9 +53,22 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
     return opts.length > 0 ? opts[opts.length - 1].value : '';
   });
 
+  const selectOptions = createMemo<SelectOption[]>(() => [
+    ...levelOptions(),
+    { value: LEVEL_VALUE_BEYOND_EXAM, label: t('mlearn.FilterBuilder.Level.BeyondExam') },
+  ]);
+
   const effectiveLevel = createMemo(() => selectedLevel() || defaultLevel());
 
   const levelFilteredEntries = createMemo(() => {
+    if (effectiveLevel() === LEVEL_VALUE_BEYOND_EXAM) {
+      const names = getFreqLevelNames();
+      const languageData = currentLangData();
+      return props.allEntries.filter((entry) => {
+        const freq = getFrequency(entry.word);
+        return freq && !isDisplayableFrequencyLevel(freq.raw_level, names, languageData);
+      });
+    }
     const threshold = Number(effectiveLevel());
     if (!Number.isFinite(threshold)) return [];
     return props.allEntries.filter((entry) => {
@@ -195,7 +208,7 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
               description={t('mlearn.Reader.Sidebar.AddModal.LevelFilterDescription')}
             >
               <Select
-                options={levelOptions()}
+                options={selectOptions()}
                 value={effectiveLevel()}
                 onChange={(e) => setSelectedLevel(e.currentTarget.value)}
                 disabled={!levelFilterEnabled()}

@@ -3,7 +3,7 @@ import { useLocalization, useFlashcards, useLanguage, useSettings } from '../../
 import { LevelCard } from './LevelCard';
 import { LevelDetailModal } from './LevelDetailModal';
 import { BulkAddModal } from './BulkAddModal';
-import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames } from '../../utils/wordLevelStats';
+import { computeBeyondExamLevelStats, computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { EmptyState, TargetIcon, Btn, PillBtn } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
 import {
@@ -71,6 +71,7 @@ export const LevelStudyTab: Component = () => {
   });
 
   const stats = createMemo(() => {
+    if (flashcards.isLoading()) return [];
     const resolved = resolvedLanguageData();
     const langData = resolved.data;
     if (!langData) return [];
@@ -86,6 +87,26 @@ export const LevelStudyTab: Component = () => {
       langData,
       language.getCanonicalFormForLanguage,
     );
+  });
+
+  const beyondCard = createMemo<LevelStats | null>(() => {
+    if (flashcards.isLoading()) return null;
+    const resolved = resolvedLanguageData();
+    const langData = resolved.data;
+    if (!langData) return null;
+    const freq = frequency();
+    if (!freq || Object.keys(freq).length === 0) return null;
+    const beyond = computeBeyondExamLevelStats(
+      flashcards.store,
+      freq,
+      resolved.language,
+      settings.known_ease_threshold,
+      settings.srsLearningThreshold,
+      levelNames(),
+      langData,
+      language.getCanonicalFormForLanguage,
+    );
+    return beyond != null ? { ...beyond, name: t('mlearn.LevelStudy.LevelCard.BeyondExam') } : null;
   });
 
   const userLevel = createMemo(() => (
@@ -130,7 +151,7 @@ export const LevelStudyTab: Component = () => {
     return { known: pct(known), learning: pct(learning), unknown: pct(unknown), untracked: pct(untracked) };
   });
 
-  const hasFrequencyData = createMemo(() => stats().length > 0);
+  const hasFrequencyData = createMemo(() => stats().length > 0 || beyondCard() !== null);
 
   const openBehaviourSettings = () => {
     getBridge().window.openWindow({ type: 'settings', context: { section: 'behaviour' } });
@@ -138,7 +159,7 @@ export const LevelStudyTab: Component = () => {
 
   createEffect(() => {
     const currentLanguage = settings.language;
-    if (language.isLoading() || hasFrequencyData() || lastEmptyRefreshLanguage === currentLanguage) {
+    if (language.isLoading() || flashcards.isLoading() || hasFrequencyData() || lastEmptyRefreshLanguage === currentLanguage) {
       return;
     }
 
@@ -148,7 +169,8 @@ export const LevelStudyTab: Component = () => {
 
   return (
     <div class="level-study-tab">
-      <Show
+      <Show when={!flashcards.isLoading()}>
+        <Show
         when={hasFrequencyData()}
         fallback={
           <EmptyState
@@ -160,6 +182,7 @@ export const LevelStudyTab: Component = () => {
           />
         }
       >
+        <Show when={stats().length > 0}>
         <div class="level-study-coverage-bar">
           <div class="level-study-coverage-header">
             <span class="level-study-coverage-title">
@@ -223,6 +246,7 @@ export const LevelStudyTab: Component = () => {
             </Show>
           </Show>
         </div>
+        </Show>
 
         <div class="level-study-bulk-add">
           <Btn variant="primary" onClick={() => setShowBulkAdd(true)}>
@@ -236,7 +260,13 @@ export const LevelStudyTab: Component = () => {
               <LevelCard stats={levelStat} onClick={() => setSelectedLevel(levelStat)} />
             )}
           </For>
+          <Show when={beyondCard()}>
+            {(card) => (
+              <LevelCard stats={card()} onClick={() => setSelectedLevel(card())} />
+            )}
+          </Show>
         </div>
+        </Show>
       </Show>
       <Show when={selectedLevel()}>
         {(level) => (
@@ -255,6 +285,7 @@ export const LevelStudyTab: Component = () => {
           languageData={resolvedLanguageData().data}
           frequency={frequency()}
           levelNames={levelNames()}
+          targetLevel={userLevel()}
           onClose={() => setShowBulkAdd(false)}
         />
       </Show>

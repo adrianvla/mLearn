@@ -1240,7 +1240,9 @@
         "Hint": "Choose which words to add with the filter. Matching words become flashcards with the selected status.",
         "MatchingCount": "{count} words match",
         "Cancel": "Cancel",
-        "Adding": "Adding..."
+        "Adding": "Adding...",
+        "SearchPlaceholder": "Search words",
+        "AddingProgress": "Adding {current}/{total}..."
       },
       "LevelCard": {
         "TotalWords": "{count} words",
@@ -1249,7 +1251,8 @@
         "Unknown": "Unknown",
         "Untracked": "Untracked",
         "ClickToView": "Click to view words",
-        "ViewWords": "View words"
+        "ViewWords": "View words",
+        "BeyondExam": "Beyond exam"
       },
       "DetailModal": {
         "Title": "{levelName} Words",
@@ -3037,6 +3040,10 @@
       "Bool": {
         "True": "Yes",
         "False": "No"
+      },
+      "Level": {
+        "NoLevel": "No level",
+        "BeyondExam": "Beyond exam"
       }
     },
     "CharacterGrid": {

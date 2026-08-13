@@ -31,6 +31,12 @@ export interface WordWithReadingRenderTextOptions {
   style?: JSX.CSSProperties;
   language?: string;
   languageData?: LanguageData | null;
+  /**
+   * Hint that a per-mora prosody overlay would misalign on this text (e.g. the
+   * ruby word base carries non-reading-script glyphs whose geometry is defined
+   * per mora of the reading). Text coloring still applies.
+   */
+  suppressOverlay?: boolean;
 }
 
 export interface WordWithReadingProps {
@@ -123,7 +129,11 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
           when={annotationDisplay() === 'inline'}
           fallback={
             <ruby class={`ruby-text ${props.class || ''}`} style={contentStyle()}>
-              {props.word}
+              {renderText(props.word, {
+                slot: 'word',
+                isReadingScript: wordUsesReadingScript(),
+                suppressOverlay: true,
+              })}
               <rp>(</rp>
               <rt>
                 {renderText(displayReading(), {

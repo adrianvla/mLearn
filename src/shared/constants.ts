@@ -49,6 +49,7 @@ export const API_ENDPOINTS = {
 export const API_PATHS = {
   tokenize: '/tokenize',
   translate: '/translate',
+  dictionaryWords: '/dictionary-words',
   ankiCard: '/api/anki/card',
   ankiWords: '/api/anki/words',
   ankiReload: '/api/anki/reload',

@@ -3,7 +3,7 @@ import type { LanguageData } from '@shared/types';
 import { makeToken } from './fieldConfig';
 import type { FilterToken } from './filterExpr';
 import { validateTokens } from './filterExpr';
-import { buildEmptyPreset, buildWordDbEditorFields, buildWordSyncFields, buildWordSyncPreset } from './presets';
+import { buildEmptyPreset, buildFlashcardBrowseFields, buildWordDbEditorFields, buildWordSyncFields, buildWordSyncPreset, LEVEL_VALUE_BEYOND_EXAM, LEVEL_VALUE_NO_LEVEL } from './presets';
 
 type TokenShape =
   | { kind: 'operand'; field: string; op: string; value: string }
@@ -243,11 +243,49 @@ describe('buildWordSyncFields', () => {
       },
     };
 
-    expect(levelValues({ '0': 'Starter', '1': 'A1' }, languageData)).toEqual(['0', '1']);
+    expect(levelValues({ '0': 'Starter', '1': 'A1' }, languageData)).toEqual(['0', '1', LEVEL_VALUE_NO_LEVEL, LEVEL_VALUE_BEYOND_EXAM]);
   });
 
   it('omits sentinel level names from the selectable frequency-level palette', () => {
-    expect(levelValues({ '-1': 'Unlisted', '5': 'N5' })).toEqual(['5']);
+    expect(levelValues({ '-1': 'Unlisted', '5': 'N5' })).toEqual(['5', LEVEL_VALUE_NO_LEVEL, LEVEL_VALUE_BEYOND_EXAM]);
+  });
+});
+
+describe('level sentinel values', () => {
+  const t = (key: string) => key;
+
+  it('appends No level and Beyond exam options with localized labels to the level palette', () => {
+    const { fields } = buildWordDbEditorFields({ '5': 'N5' }, t, null);
+    const levelField = fields.find((field) => field.field === 'level');
+
+    expect(levelField?.values.map((value) => value.value)).toEqual(['5', LEVEL_VALUE_NO_LEVEL, LEVEL_VALUE_BEYOND_EXAM]);
+    expect(levelField?.values.map((value) => value.label)).toEqual([
+      'N5',
+      'mlearn.FilterBuilder.Level.NoLevel',
+      'mlearn.FilterBuilder.Level.BeyondExam',
+    ]);
+  });
+
+  it('normalizes word row levels to sentinel values', () => {
+    const { fields } = buildWordDbEditorFields({ '5': 'N5' }, t, null);
+    const levelField = fields.find((field) => field.field === 'level');
+    const read = (record: Record<string, unknown>) => levelField?.resolver.read(record as never);
+
+    expect(read({ level: 5 })).toBe(5);
+    expect(read({ level: -1 })).toBe(LEVEL_VALUE_BEYOND_EXAM);
+    expect(read({ level: null })).toBe(LEVEL_VALUE_NO_LEVEL);
+    expect(read({})).toBe(LEVEL_VALUE_NO_LEVEL);
+  });
+
+  it('normalizes flashcard content levels to sentinel values', () => {
+    const { fields } = buildFlashcardBrowseFields({}, t, { levelNames: { '5': 'N5' }, languageData: null });
+    const levelField = fields.find((field) => field.field === 'level');
+    const read = (record: Record<string, unknown>) => levelField?.resolver.read(record as never);
+
+    expect(read({ content: { level: 5 } })).toBe(5);
+    expect(read({ content: { level: -1 } })).toBe(LEVEL_VALUE_BEYOND_EXAM);
+    expect(read({ content: {} })).toBe(LEVEL_VALUE_NO_LEVEL);
+    expect(read({})).toBe(LEVEL_VALUE_NO_LEVEL);
   });
 });
 

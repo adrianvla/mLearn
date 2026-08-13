@@ -1240,7 +1240,9 @@
         "Hint": "Выберите слова для добавления с помощью фильтра. Подходящие слова станут карточками с выбранным статусом.",
         "MatchingCount": "Подходит слов: {count}",
         "Cancel": "Отмена",
-        "Adding": "Добавление..."
+        "Adding": "Добавление...",
+        "SearchPlaceholder": "Слова поиск",
+        "AddingProgress": "Добавление {current}/{total}..."
       },
       "LevelCard": {
         "TotalWords": "{count} слов",
@@ -1249,7 +1251,8 @@
         "Unknown": "Неизвестно",
         "Untracked": "Не отслеживается",
         "ClickToView": "Нажмите, чтобы просмотреть слова",
-        "ViewWords": "Просмотреть слова"
+        "ViewWords": "Просмотреть слова",
+        "BeyondExam": "Вне экзамена"
       },
       "DetailModal": {
         "Title": "Слова уровня {levelName}",
@@ -3037,6 +3040,10 @@
       "Bool": {
         "True": "Да",
         "False": "Нет"
+      },
+      "Level": {
+        "NoLevel": "Без уровня",
+        "BeyondExam": "Вне экзамена"
       }
     },
     "CharacterGrid": {

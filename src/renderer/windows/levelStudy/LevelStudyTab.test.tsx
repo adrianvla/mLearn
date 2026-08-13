@@ -44,6 +44,7 @@ vi.mock('../../context', () => ({
       ignoredWords: {},
       wordCandidates: {},
     },
+    isLoading: () => false,
     getComprehensiveWordStatusSync: getComprehensiveWordStatusSyncMock,
     hasWordSync: hasWordSyncMock,
     addLevelStudyFlashcards: addLevelStudyFlashcardsMock,
@@ -158,7 +159,7 @@ describe('LevelStudyTab', () => {
     dispose();
   });
 
-  it('does not render a fake level card when installed frequency rows have no declared level system', async () => {
+  it('renders the beyond-exam card when installed frequency rows have no declared level system', async () => {
     currentLangDataMock = {
       name: 'Unlevelled Language',
       freq: [
@@ -170,9 +171,37 @@ describe('LevelStudyTab', () => {
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
 
-    expect(container.querySelector('[data-testid="empty-state"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="level-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="empty-state"]')).toBeNull();
+    const cards = container.querySelectorAll('[data-testid="level-card"]');
+    expect(cards).toHaveLength(1);
+    expect(cards[0].textContent).toContain('mlearn.LevelStudy.LevelCard.BeyondExam');
     expect(container.textContent).not.toContain('Level -1');
+    expect(container.querySelector('.level-study-coverage-bar')).toBeNull();
+
+    dispose();
+  });
+
+  it('appends the beyond-exam card after real level cards', async () => {
+    currentLangDataMock = {
+      name: 'Japanese',
+      freq: [
+        ['猫', 'ねこ', 5],
+        ['犬', 'いぬ', 5],
+        ['馬', 'うま', -1],
+      ],
+      frequencyLevels: {
+        rowLevelIndex: 2,
+        names: { '5': 'N5' },
+      },
+    };
+
+    const { LevelStudyTab } = await import('./LevelStudyTab');
+    const dispose = render(() => <LevelStudyTab />, container);
+
+    const cards = container.querySelectorAll('[data-testid="level-card"]');
+    expect(cards).toHaveLength(2);
+    expect(cards[0].textContent).toContain('N5');
+    expect(cards[1].textContent).toContain('mlearn.LevelStudy.LevelCard.BeyondExam');
 
     dispose();
   });

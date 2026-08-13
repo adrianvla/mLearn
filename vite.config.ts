@@ -98,6 +98,7 @@ export default defineConfig(({ mode }) => {
           target: `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
           ws: true,
         },
+        '/dictionary-words': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
         '/control': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
         '/health': `http://127.0.0.1:${PYTHON_BACKEND_PORT}`,
       },

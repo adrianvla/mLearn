@@ -408,6 +408,73 @@ export function computeWordLevelStats(
 }
 
 /**
+ * Synthetic level id for the "Beyond exam" bucket: frequency-listed words with
+ * no displayable exam level (unleveled languages, or words past the exam range).
+ * LevelStudyTab renders it as a pseudo-card; LevelDetailModal filters on it.
+ */
+export const BEYOND_EXAM_LEVEL = -1;
+
+export function computeBeyondExamLevelStats(
+  store: FlashcardStore,
+  wordFrequency: WordFrequencyMap,
+  language: string,
+  knownThreshold: number,
+  learningThreshold: number,
+  levelNames: Record<string, string>,
+  languageData?: LanguageData | null,
+  canonicalizeWord?: CanonicalizeWordForLanguage,
+): LevelStats | null {
+  const knownSet = buildKnownWordSet(
+    store.flashcards,
+    store.wordToCardMap,
+    store.knownUntracked,
+    store.ignoredWords,
+    store.wordKnowledge,
+    knownThreshold,
+  );
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
+  const trackedSet = buildTrackedWordSet(store, language);
+
+  let known = 0;
+  let learning = 0;
+  let unknown = 0;
+  let untracked = 0;
+  let total = 0;
+
+  for (const [word, entry] of Object.entries(wordFrequency)) {
+    if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, languageData)) continue;
+    total++;
+
+    const lk = wordKey(language, word, canonicalizeWord);
+    if (knownSet.has(lk)) {
+      known++;
+    } else if (learningSet.has(lk)) {
+      learning++;
+    } else if (trackedSet.has(lk)) {
+      unknown++;
+    } else {
+      untracked++;
+    }
+  }
+
+  if (total === 0) return null;
+
+  return {
+    level: BEYOND_EXAM_LEVEL,
+    name: '',
+    total,
+    known,
+    learning,
+    unknown,
+    untracked,
+    knownPct: roundPct(known, total),
+    learningPct: roundPct(learning, total),
+    unknownPct: roundPct(unknown, total),
+    untrackedPct: roundPct(untracked, total),
+  };
+}
+
+/**
  * Lightweight variant that only computes per-level totals and known counts.
  * Useful for quick coverage percentages without full breakdown.
  */

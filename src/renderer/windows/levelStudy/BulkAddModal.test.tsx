@@ -12,6 +12,7 @@ const showToastMock = vi.fn();
 const getComprehensiveWordStatusSyncMock = vi.fn();
 const hasWordSyncMock = vi.fn();
 const onCloseMock = vi.fn();
+const enumerateDictionaryWordsMock = vi.fn();
 
 vi.mock('../../context', () => ({
   useLocalization: () => ({
@@ -29,6 +30,12 @@ vi.mock('../../components/common/Feedback/Toast', () => ({
   showToast: showToastMock,
 }));
 
+vi.mock('../../../shared/backends', () => ({
+  getBackend: () => ({
+    enumerateDictionaryWords: enumerateDictionaryWordsMock,
+  }),
+}));
+
 vi.mock('../../components/common', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../components/common')>();
   return {
@@ -39,6 +46,7 @@ vi.mock('../../components/common', async (importOriginal) => {
         {props.footer}
       </div>
     ),
+    ProgressBar: () => <div data-testid="progress-bar" />,
     FilterBuilder: (props: { tokens: FilterToken[]; onChange: (tokens: FilterToken[]) => void }) => (
       <div data-testid="filter-builder">
         <button type="button" data-testid="clear-tokens" onClick={() => props.onChange([])}>
@@ -56,6 +64,17 @@ vi.mock('../../components/common', async (importOriginal) => {
           }
         >
           or known
+        </button>
+        <button
+          type="button"
+          data-testid="filter-beyond"
+          onClick={() =>
+            props.onChange([
+              { instanceId: 'beyond-1', kind: 'operand', field: 'level', op: 'eq', value: '__beyond_exam__' },
+            ])
+          }
+        >
+          beyond exam
         </button>
         <button
           type="button"
@@ -128,7 +147,7 @@ describe('BulkAddModal', () => {
     ), container);
   }
 
-  it('defaults to the untracked filter and adds matching words as learning', async () => {
+  it('defaults to the untracked|unknown|learning filter and adds matching words as learning', async () => {
     const dispose = await renderModal();
 
     expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[2]');
@@ -136,9 +155,30 @@ describe('BulkAddModal', () => {
     findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
     await Promise.resolve();
 
-    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(['猫', '犬'], 'learning', 'ja');
+    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
+      ['猫', '犬'],
+      'learning',
+      'ja',
+      expect.objectContaining({ onProgress: expect.any(Function) }),
+    );
     expect(showToastMock).toHaveBeenCalled();
     expect(onCloseMock).toHaveBeenCalled();
+
+    dispose();
+  });
+
+  it('renders the progress bar while the bulk add reports progress', async () => {
+    addLevelStudyFlashcardsMock.mockImplementation((_w, _s, _l, opts: { onProgress?: (c: number, t: number) => void }) => {
+      opts.onProgress?.(1, 2);
+      return new Promise(() => {});
+    });
+    const dispose = await renderModal();
+
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.AddingProgress');
+    expect(container.querySelector('[data-testid="progress-bar"]')).not.toBeNull();
 
     dispose();
   });
@@ -150,7 +190,12 @@ describe('BulkAddModal', () => {
     findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
     await Promise.resolve();
 
-    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(['猫', '犬'], 'known', 'ja');
+    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
+      ['猫', '犬'],
+      'known',
+      'ja',
+      expect.objectContaining({ onProgress: expect.any(Function) }),
+    );
 
     dispose();
   });
@@ -165,7 +210,12 @@ describe('BulkAddModal', () => {
     findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
     await Promise.resolve();
 
-    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(['猫', '犬', '鳥'], 'learning', 'ja');
+    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
+      ['猫', '犬', '鳥'],
+      'learning',
+      'ja',
+      expect.objectContaining({ onProgress: expect.any(Function) }),
+    );
 
     dispose();
   });
@@ -187,6 +237,98 @@ describe('BulkAddModal', () => {
 
     expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[0]');
     expect(findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.disabled).toBe(true);
+
+    dispose();
+  });
+
+  it('includes beyond-exam frequency rows in the default learning-status universe', async () => {
+    const beyondFrequency = {
+      '猫': { raw_level: 5 },
+      '兎': { raw_level: -1 },
+      '熊': { raw_level: -1 },
+    } as unknown as WordFrequencyMap;
+    const { BulkAddModal } = await import('./BulkAddModal');
+    const dispose = render(() => (
+      <BulkAddModal
+        language="ja"
+        languageData={LANG_DATA}
+        frequency={beyondFrequency}
+        levelNames={{ '5': 'N5' }}
+        onClose={onCloseMock}
+      />
+    ), container);
+
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[3]');
+
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    await Promise.resolve();
+
+    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
+      ['猫', '兎', '熊'],
+      'learning',
+      'ja',
+      expect.objectContaining({ onProgress: expect.any(Function) }),
+    );
+
+    dispose();
+  });
+
+  it('selects only beyond-exam rows with the level filter', async () => {
+    const beyondFrequency = {
+      '猫': { raw_level: 5 },
+      '兎': { raw_level: -1 },
+      '熊': { raw_level: -1 },
+    } as unknown as WordFrequencyMap;
+    const { BulkAddModal } = await import('./BulkAddModal');
+    const dispose = render(() => (
+      <BulkAddModal
+        language="ja"
+        languageData={LANG_DATA}
+        frequency={beyondFrequency}
+        levelNames={{ '5': 'N5' }}
+        onClose={onCloseMock}
+      />
+    ), container);
+
+    (container.querySelector('[data-testid="filter-beyond"]') as HTMLElement).click();
+
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[2]');
+
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    await Promise.resolve();
+
+    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
+      ['兎', '熊'],
+      'learning',
+      'ja',
+      expect.objectContaining({ onProgress: expect.any(Function) }),
+    );
+
+    dispose();
+  });
+
+  it('includes dictionary-only words in the beyond-exam bucket', async () => {
+    enumerateDictionaryWordsMock.mockResolvedValue([
+      ['鮫', 'さめ'],
+      ['鰯', 'いわし'],
+    ]);
+    const dispose = await renderModal();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    (container.querySelector('[data-testid="filter-beyond"]') as HTMLElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[2]');
+
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    await Promise.resolve();
+
+    expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
+      ['鮫', '鰯'],
+      'learning',
+      'ja',
+      expect.objectContaining({ onProgress: expect.any(Function) }),
+    );
 
     dispose();
   });

@@ -74,3 +74,27 @@ def get_translation(req: TranslationRequest):
         with dictionary_target_language_override(language, target_language):
             return mod.LANGUAGE_TRANSLATE(req.word)
     return mod.LANGUAGE_TRANSLATE(req.word)
+
+
+class DictionaryWordsRequest(BaseModel):
+    language: Optional[str] = Field(default=None, max_length=32)
+
+
+class DictionaryWordsResponse(BaseModel):
+    words: List
+
+
+@router.post("/dictionary-words", response_model=DictionaryWordsResponse)
+def dictionary_words(req: DictionaryWordsRequest):
+    """Enumerate all dictionary headwords for a language.
+
+    Used by bulk-add surfaces to offer words that have no frequency-list entry
+    (the "No level" filter bucket). Response is a list of (word, reading)
+    pairs ordered by headword; reading is empty for dictionary schemas that
+    do not separate it (simple-headword).
+    """
+    log.info(f"requested dictionary words:  {req.language or 'active'}")
+    mod = _resolve_module(req.language)
+    if mod is None:
+        return {"words": []}
+    return mod.LANGUAGE_DICTIONARY_WORDS()

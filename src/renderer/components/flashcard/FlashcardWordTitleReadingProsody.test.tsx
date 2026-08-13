@@ -214,6 +214,41 @@ describe('FlashcardWordTitle', () => {
     dispose();
   });
 
+  it('keeps the pitch overlay on the ruby reading without wrapping the word base', () => {
+    mockHasProsodyOverlay = true;
+    mockLanguageData = makeLanguageData({
+      name: 'Japanese-like',
+            prosody: { type: 'japanese-pitch-accent' },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          surfaceSuffixScripts: ['Hira', 'Kana'],
+        },
+      },
+    });
+
+    const dispose = render(() => (
+      <FlashcardWordTitle content={{
+        type: 'word',
+        front: '赤い',
+        reading: 'あかい',
+        back: 'red',
+        prosody: {
+          type: 'japanese-pitch-accent',
+          position: 2,
+        },
+      }} />
+    ), container);
+
+    const overlays = container.querySelectorAll('.pitch-accent');
+    expect(overlays.length).toBe(1);
+    expect(overlays[0].closest('rt')).not.toBeNull();
+
+    dispose();
+  });
+
   it('keeps stored pitch-accent card readings visible when installed language metadata is stale', () => {
     mockHasProsodyOverlay = false;
     mockLanguageData = makeLanguageData({

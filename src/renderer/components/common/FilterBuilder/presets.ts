@@ -18,6 +18,32 @@ const FLASHCARD_BURIED_FIELD = 'buried';
 const EQ_OPS = ['eq'] as const;
 export const WORD_SYNC_STATUS_UNTRACKED = 'untracked';
 
+/**
+ * Synthetic level filter values for words without a displayable exam level:
+ * NO_LEVEL = not on the frequency list at all; BEYOND_EXAM = on the list but unleveled.
+ */
+export const LEVEL_VALUE_NO_LEVEL = '__no_level__';
+export const LEVEL_VALUE_BEYOND_EXAM = '__beyond_exam__';
+
+function normalizeLevelValue(level: unknown, levelNames: Record<string, string>, languageData?: LanguageData | null): unknown {
+  if (typeof level === 'number' && Number.isFinite(level)) {
+    return isDisplayableFrequencyLevel(level, levelNames, languageData) ? level : LEVEL_VALUE_BEYOND_EXAM;
+  }
+  return LEVEL_VALUE_NO_LEVEL;
+}
+
+function buildLevelValues(levelNames: Record<string, string>, t: Translate, languageData?: LanguageData | null): { value: string; label: string }[] {
+  const sortedLevels = sortFrequencyLevelsForDisplay(
+    Object.keys(levelNames).map(Number).filter((level) => isDisplayableFrequencyLevel(level, levelNames, languageData)),
+    languageData,
+  );
+  return [
+    ...sortedLevels.map((level) => ({ value: String(level), label: getFrequencyLevelLabel(level, levelNames, languageData) })),
+    { value: LEVEL_VALUE_NO_LEVEL, label: t('mlearn.FilterBuilder.Level.NoLevel') },
+    { value: LEVEL_VALUE_BEYOND_EXAM, label: t('mlearn.FilterBuilder.Level.BeyondExam') },
+  ];
+}
+
 export function buildWordSyncPreset(
   levelNames: Record<string, string>,
   targetLevel: number | null | undefined,
@@ -41,10 +67,42 @@ export function buildWordSyncPreset(
     return tokens;
   }
 
-  tokens.push(
+  return tokens.concat(buildLevelRangeClause(levels));
+}
+
+// Status clause stays meaningful without a target level (unlike buildWordSyncPreset).
+export function buildBulkAddDefaultPreset(
+  levelNames: Record<string, string>,
+  targetLevel: number | null | undefined,
+  languageData?: LanguageData | null,
+): FilterToken[] {
+  const tokens: FilterToken[] = [
+    { instanceId: uniqueId(), kind: 'paren', dir: 'open' },
+    statusUntrackedToken(),
+    { instanceId: uniqueId(), kind: 'operator', op: 'OR' },
+    statusUnknownToken(),
+    { instanceId: uniqueId(), kind: 'operator', op: 'OR' },
+    statusLearningToken(),
+    { instanceId: uniqueId(), kind: 'paren', dir: 'close' },
+  ];
+
+  if (targetLevel === null || targetLevel === undefined) {
+    return tokens;
+  }
+
+  const levels = getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
+  if (levels.length === 0) {
+    return tokens;
+  }
+
+  return tokens.concat(buildLevelRangeClause(levels));
+}
+
+function buildLevelRangeClause(levels: number[]): FilterToken[] {
+  const tokens: FilterToken[] = [
     { instanceId: uniqueId(), kind: 'operator', op: 'AND' },
     { instanceId: uniqueId(), kind: 'paren', dir: 'open' },
-  );
+  ];
 
   levels.forEach((level, index) => {
     if (index > 0) {
@@ -124,16 +182,6 @@ export function buildLevelStudyBulkAddFields(
   return { fields, paletteItems: buildPaletteItems(fields, t) };
 }
 
-export function buildUntrackedStatusPreset(): FilterToken[] {
-  return [{
-    instanceId: uniqueId(),
-    kind: 'operand',
-    field: STATUS_FIELD,
-    op: 'eq',
-    value: WORD_SYNC_STATUS_UNTRACKED,
-  }];
-}
-
 export function buildWordDbEditorFields(
   levelNames: Record<string, string>,
   t: Translate,
@@ -193,6 +241,16 @@ function statusUntrackedToken(): FilterToken {
   };
 }
 
+function statusLearningToken(): FilterToken {
+  return {
+    instanceId: uniqueId(),
+    kind: 'operand',
+    field: STATUS_FIELD,
+    op: 'eq',
+    value: String(WORD_STATUS.LEARNING),
+  };
+}
+
 function buildStatusField(t: Translate, options: { includeUntracked?: boolean } = {}): FieldConfig<unknown> {
   return {
     field: STATUS_FIELD,
@@ -211,8 +269,7 @@ function buildStatusField(t: Translate, options: { includeUntracked?: boolean } 
 }
 
 // Reads the per-language frequency level off a flashcard's nested content.
-// Missing level resolves to '' so an empty filter value matches untagged cards,
-// mirroring the language field's convention.
+// Missing/non-numeric level resolves to '', which normalizeLevelValue maps to NO_LEVEL.
 function flashcardLevelResolver(record: unknown): unknown {
   const content = record && typeof record === 'object' ? (record as { content?: { level?: number } }).content : undefined;
   return typeof content?.level === 'number' ? content.level : '';
@@ -223,37 +280,29 @@ function buildFlashcardLevelField(
   t: Translate,
   languageData?: LanguageData | null,
 ): FieldConfig<unknown> {
-  const sortedLevels = sortFrequencyLevelsForDisplay(
-    Object.keys(levelNames).map(Number).filter((level) => isDisplayableFrequencyLevel(level, levelNames, languageData)),
-    languageData,
-  );
   return {
     field: LEVEL_FIELD,
     label: t('mlearn.FilterBuilder.Field.Level'),
     allowedOps: [...EQ_OPS],
-    values: [
-      ...sortedLevels.map((level) => ({ value: String(level), label: getFrequencyLevelLabel(level, levelNames, languageData) })),
-    ],
+    values: buildLevelValues(levelNames, t, languageData),
     resolver: {
-      read: flashcardLevelResolver,
+      read: (record) => normalizeLevelValue(flashcardLevelResolver(record), levelNames, languageData),
       valueLabel: (value) => value,
     },
   };
 }
 
 function buildLevelField(levelNames: Record<string, string>, t: Translate, languageData?: LanguageData | null): FieldConfig<unknown> {
-  const sortedLevels = sortFrequencyLevelsForDisplay(
-    Object.keys(levelNames).map(Number).filter((level) => isDisplayableFrequencyLevel(level, levelNames, languageData)),
-    languageData,
-  );
+  const readRawLevel = propertyResolver('level').read;
   return {
     field: LEVEL_FIELD,
     label: t('mlearn.FilterBuilder.Field.Level'),
     allowedOps: [...EQ_OPS],
-    values: [
-      ...sortedLevels.map((level) => ({ value: String(level), label: getFrequencyLevelLabel(level, levelNames, languageData) })),
-    ],
-    resolver: propertyResolver('level'),
+    values: buildLevelValues(levelNames, t, languageData),
+    resolver: {
+      read: (record) => normalizeLevelValue(readRawLevel(record), levelNames, languageData),
+      valueLabel: (value) => value,
+    },
   };
 }
 

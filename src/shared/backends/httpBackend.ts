@@ -11,6 +11,7 @@ import { API_PATHS } from '../constants';
 import type {
   AnkiWordStatusRecord,
   BackendAdapter,
+  DictionaryWordPair,
   OCRRequestOptions,
   OCRResult,
   OCRWarmupResult,
@@ -132,6 +133,22 @@ export class HttpBackend implements BackendAdapter {
 
     await this.throwOnError(res, 'Translation request');
     return (await res.json()) as TranslationResponse;
+  }
+
+  async enumerateDictionaryWords(language?: string): Promise<DictionaryWordPair[]> {
+    const body: Record<string, string> = {};
+    if (language) body.language = language;
+
+    const res = await fetch(this.buildUrl(API_PATHS.dictionaryWords), {
+      method: 'POST',
+      headers: this.pythonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    await this.throwOnError(res, 'Dictionary enumeration');
+    const data = (await res.json()) as { words?: DictionaryWordPair[] };
+    return data.words ?? [];
   }
 
   async ocr(imageData: string | Blob, options?: OCRRequestOptions): Promise<OCRResult> {

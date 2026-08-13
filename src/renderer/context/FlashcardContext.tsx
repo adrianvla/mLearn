@@ -268,6 +268,7 @@ interface FlashcardContextValue {
     words: string[],
     targetStatus: LevelStudyTargetStatus,
     language?: string,
+    options?: { onProgress?: (done: number, total: number) => void },
   ) => Promise<{ created: number; promoted: number; skipped: number }>;
 
   // Passive word knowledge tracking
@@ -2113,98 +2114,119 @@ export const FlashcardProvider: ParentComponent = (props) => {
     words: string[],
     targetStatus: LevelStudyTargetStatus,
     language?: string,
+    options?: { onProgress?: (done: number, total: number) => void },
   ): Promise<{ created: number; promoted: number; skipped: number }> => {
     const lang = language ?? settings.language;
     let created = 0;
     let promoted = 0;
     let skipped = 0;
+    const onProgress = options?.onProgress;
+    const total = words.length;
 
-    // Collect suggestion ids to promote and (canonical, lk) pairs to build as fresh
-    // shells in ONE pass, so a bulk add isn't O(n) separate store re-renders / translates.
-    const promotes: Array<{ id: string; word: string }> = [];
-    const shells: Array<{ canonical: string; lk: string }> = [];
+    // Staggered bulk add: ~176k words through SHA-256 + store lookups in ONE sync pass
+    // would block the main thread for seconds, then one giant store mutation. Process
+    // bounded chunks, yielding between each so the UI repaints and onProgress (the
+    // caller's progress bar) can render. BULK_ADD_CHUNK keeps a slice ~16ms at the
+    // measured ~10-50µs/word (hash + lookups + wordStats).
+    const BULK_ADD_CHUNK = 500;
+    let processed = 0;
 
-    for (const word of words) {
-      if (!word.trim()) {
-        skipped++;
-        continue;
-      }
+    while (processed < total) {
+      const chunkEnd = Math.min(processed + BULK_ADD_CHUNK, total);
+      const chunkWords = words.slice(processed, chunkEnd);
 
-      const canonical = getPrimaryWordFormForLanguage(word, lang);
-      const wordHash = SRS.hashWordSync(canonical);
-      const lk = langKey(lang, wordHash);
-      const suggestion = store.suggestedFlashcards[lk];
+      // Collect suggestion ids to promote and (canonical, lk) pairs to build as fresh
+      // shells for THIS chunk, so the add stays O(1) store re-renders / translates.
+      const promotes: Array<{ id: string; word: string }> = [];
+      const shells: Array<{ canonical: string; lk: string }> = [];
 
-      if (suggestion) {
-        promotes.push({ id: suggestion.id, word: canonical });
-        continue;
-      }
-
-      const existingCardIds = store.wordToCardMap[lk] ?? [];
-
-      if (existingCardIds.some((id) => store.flashcards[id])) {
-        skipped++;
-        continue;
-      }
-
-      shells.push({ canonical, lk });
-    }
-
-    // Promote all pending suggestions in a single batched call (one translate + one save inside).
-    if (promotes.length > 0) {
-      await promoteSuggestedFlashcards(promotes.map((p) => p.id));
-      // Re-apply level-study scheduling to the card created for each promoted word.
-      for (const { word } of promotes) {
-        const card = findUnpopulatedFlashcardForWord(word, lang) ?? getCardByWordSync(word, lang);
-        if (card) {
-          applyLevelStudyScheduling(card.id, targetStatus);
-          promoted++;
-        } else {
+      for (const word of chunkWords) {
+        if (!word.trim()) {
           skipped++;
+          continue;
+        }
+
+        const canonical = getPrimaryWordFormForLanguage(word, lang);
+        const wordHash = SRS.hashWordSync(canonical);
+        const lk = langKey(lang, wordHash);
+        const suggestion = store.suggestedFlashcards[lk];
+
+        if (suggestion) {
+          promotes.push({ id: suggestion.id, word: canonical });
+          continue;
+        }
+
+        const existingCardIds = store.wordToCardMap[lk] ?? [];
+
+        if (existingCardIds.some((id) => store.flashcards[id])) {
+          skipped++;
+          continue;
+        }
+
+        shells.push({ canonical, lk });
+      }
+
+      // Promote this chunk's pending suggestions in a single batched call (one translate + one save inside).
+      if (promotes.length > 0) {
+        await promoteSuggestedFlashcards(promotes.map((p) => p.id));
+        // Re-apply level-study scheduling to the card created for each promoted word.
+        for (const { word } of promotes) {
+          const card = findUnpopulatedFlashcardForWord(word, lang) ?? getCardByWordSync(word, lang);
+          if (card) {
+            applyLevelStudyScheduling(card.id, targetStatus);
+            promoted++;
+          } else {
+            skipped++;
+          }
         }
       }
-    }
 
-    // Create all new shells in a single batched store mutation (avoids one re-render per word).
-    if (shells.length > 0) {
-      const now = Date.now();
-      const schedule = getLevelStudyScheduling(targetStatus);
-      const newCards: Flashcard[] = shells.map(({ canonical }) => ({
-        id: SRS.generateUUID(),
-        content: {
-          type: 'word',
-          front: canonical,
-          back: '',
-          word: canonical,
-          unpopulated: true,
-          level: getFrequencyForLanguage(lang, canonical)?.raw_level,
-          userEditedFields: [],
-        },
-        state: schedule.state,
-        ease: schedule.ease,
-        interval: schedule.interval,
-        dueDate: now + schedule.interval,
-        reviews: 0,
-        lapses: 0,
-        learningStep: 0,
-        createdAt: now,
-        lastReviewed: now,
-        lastUpdated: now,
-        language: lang,
-      }));
-      setStore(produce((s) => {
-        for (let i = 0; i < shells.length; i++) {
-          const { lk } = shells[i];
-          s.flashcards[newCards[i].id] = newCards[i];
-          if (!s.wordToCardMap[lk]) {
-            s.wordToCardMap[lk] = [];
+      // Create this chunk's new shells in a single batched store mutation.
+      if (shells.length > 0) {
+        const now = Date.now();
+        const schedule = getLevelStudyScheduling(targetStatus);
+        const newCards: Flashcard[] = shells.map(({ canonical }) => ({
+          id: SRS.generateUUID(),
+          content: {
+            type: 'word',
+            front: canonical,
+            back: '',
+            word: canonical,
+            unpopulated: true,
+            level: getFrequencyForLanguage(lang, canonical)?.raw_level,
+            userEditedFields: [],
+          },
+          state: schedule.state,
+          ease: schedule.ease,
+          interval: schedule.interval,
+          dueDate: now + schedule.interval,
+          reviews: 0,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: now,
+          lastReviewed: now,
+          lastUpdated: now,
+          language: lang,
+        }));
+        setStore(produce((s) => {
+          for (let i = 0; i < shells.length; i++) {
+            const { lk } = shells[i];
+            s.flashcards[newCards[i].id] = newCards[i];
+            if (!s.wordToCardMap[lk]) {
+              s.wordToCardMap[lk] = [];
+            }
+            s.wordToCardMap[lk].push(newCards[i].id);
+            const cards = s.wordToCardMap[lk].map((cardId) => s.flashcards[cardId]).filter(Boolean);
+            s.wordStatsMap[lk] = calculateWordStats(cards);
           }
-          s.wordToCardMap[lk].push(newCards[i].id);
-          const cards = s.wordToCardMap[lk].map((cardId) => s.flashcards[cardId]).filter(Boolean);
-          s.wordStatsMap[lk] = calculateWordStats(cards);
-        }
-      }));
-      created = shells.length;
+        }));
+        created += shells.length;
+      }
+
+      processed = chunkEnd;
+      onProgress?.(processed, total);
+      // Yield so the renderer repaints and the caller's progress bar updates.
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
     if (created > 0 || promoted > 0) {

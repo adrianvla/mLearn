@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  BEYOND_EXAM_LEVEL,
   buildWordFrequencyMapFromLanguageData,
+  computeBeyondExamLevelStats,
   computeWordLevelStats,
   computeLevelCoverage,
   computeLevelStats,
@@ -718,5 +720,62 @@ describe('computeLevelCoverage', () => {
       [1, 'Level 1', 1],
       [4, 'Level 4', 1],
     ]);
+  });
+});
+
+describe('computeBeyondExamLevelStats', () => {
+  it('returns null when no frequency rows are beyond the exam levels', () => {
+    const result = computeBeyondExamLevelStats(
+      makeStore(),
+      { 猫: { reading: 'ねこ', level: 'N5', raw_level: 5 } },
+      'ja',
+      1800,
+      1550,
+      { '5': 'N5' },
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('counts non-displayable frequency rows as untracked when the store is empty', () => {
+    const result = computeBeyondExamLevelStats(
+      makeStore(),
+      {
+        猫: { reading: 'ねこ', level: 'N5', raw_level: 5 },
+        赤い: { reading: 'あかい', level: '', raw_level: -1 },
+      },
+      'ja',
+      1800,
+      1550,
+      { '5': 'N5' },
+    );
+
+    expect(result).toMatchObject({
+      level: BEYOND_EXAM_LEVEL,
+      total: 1,
+      known: 0,
+      learning: 0,
+      unknown: 0,
+      untracked: 1,
+    });
+  });
+
+  it('resolves beyond-exam word status from the store', () => {
+    const store = makeStore({
+      wordKnowledge: {
+        [lk('ja', '赤い')]: { ease: 4, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '赤い', language: 'ja' },
+      },
+    });
+
+    const result = computeBeyondExamLevelStats(
+      store,
+      { 赤い: { reading: 'あかい', level: '', raw_level: -1 } },
+      'ja',
+      1800,
+      1550,
+      { '5': 'N5' },
+    );
+
+    expect(result).toMatchObject({ total: 1, known: 1, untracked: 0 });
   });
 });

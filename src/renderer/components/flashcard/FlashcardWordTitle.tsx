@@ -129,7 +129,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   });
   const renderText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
     const coloredText = renderColoredProsodyText(text, options);
-    if (!canRenderProsodyOverlay()) {
+    if (options.suppressOverlay || !canRenderProsodyOverlay()) {
       return coloredText;
     }
     const overlayTarget = getProsodyOverlayTextTarget(word(), reading(), options);

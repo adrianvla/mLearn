@@ -40,10 +40,12 @@ export {
 export {
   buildWordSyncPreset,
   WORD_SYNC_STATUS_UNTRACKED,
+  LEVEL_VALUE_NO_LEVEL,
+  LEVEL_VALUE_BEYOND_EXAM,
   buildEmptyPreset,
   buildWordSyncFields,
   buildLevelStudyBulkAddFields,
-  buildUntrackedStatusPreset,
+  buildBulkAddDefaultPreset,
   buildWordDbEditorFields,
   buildFlashcardBrowseFields,
   statusResolver,

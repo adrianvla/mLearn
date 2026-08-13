@@ -730,6 +730,40 @@ class GenericLanguageModule:
             return self._translate_simple_headword(word)
         return {"data": []}
 
+    def LANGUAGE_DICTIONARY_WORDS(self):
+        """Enumerate dictionary headwords as (word, reading) pairs.
+
+        Serves dictionary-backed bulk flows: every standalone headword is a
+        candidate word regardless of frequency-list membership. The reading is
+        empty for schemas without a separate reading column.
+        """
+        if not self._dictionary_schema:
+            return {"words": []}
+        self._ensure_dictionary_connection()
+        conn = self._require_db_conn()
+        with self._db_lock:
+            if self._dictionary_schema == "headword-reading-zlib-json":
+                rows = conn.execute(
+                    "SELECT headword, reading FROM entries ORDER BY headword, reading"
+                ).fetchall()
+            elif self._dictionary_schema == "simple-headword-zlib-json":
+                rows = conn.execute("SELECT headword FROM entries ORDER BY headword").fetchall()
+            else:
+                return {"words": []}
+        pairs = []
+        seen = set()
+        for row in rows:
+            word = row["headword"] or ""
+            reading = row["reading"] if self._dictionary_schema == "headword-reading-zlib-json" else ""
+            if not word:
+                continue
+            key = (word, reading)
+            if key in seen:
+                continue
+            seen.add(key)
+            pairs.append([word, reading])
+        return {"words": pairs}
+
     def _tokenizer_config(self) -> dict[str, Any]:
         runtime = self.metadata.get("runtime", {})
         nlp_config = runtime.get("nlp", {}) if isinstance(runtime, dict) else {}

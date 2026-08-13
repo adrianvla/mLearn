@@ -1,4 +1,4 @@
-import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../shared/languageFeatures';
+import { getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, isFrequencyLevelAtOrEasierThanTarget, sortFrequencyLevelsByDifficulty } from '../../shared/languageFeatures';
 import { DEFAULT_SETTINGS, type LanguageData } from '../../shared/types';
 import { isWordInLanguageScript } from '../../shared/utils/textUtils';
 import { hashWordSync } from '../services/srsAlgorithm';
@@ -103,11 +103,18 @@ export function shouldKeepSuggestion(
     input.language,
   );
   const effectiveUserLevel = userLevel === undefined ? settingsLevel : userLevel;
-  if (
-    effectiveUserLevel != null
-    && (input.level == null || !isFrequencyLevelAtOrEasierThanTarget(input.level, effectiveUserLevel, languageData))
-  ) {
-    return false;
+  if (effectiveUserLevel != null) {
+    if (input.level == null || !isDisplayableFrequencyLevel(input.level, undefined, languageData)) {
+      // Off-list/beyond-exam words are kept only when the target is the hardest
+      // displayable level — there, off-list vocabulary is the learner's frontier.
+      const displayable = sortFrequencyLevelsByDifficulty(
+        Object.keys(languageData?.frequencyLevels?.names ?? {}).map(Number),
+        languageData,
+      );
+      if (effectiveUserLevel !== displayable.at(-1)) return false;
+    } else if (!isFrequencyLevelAtOrEasierThanTarget(input.level, effectiveUserLevel, languageData)) {
+      return false;
+    }
   }
 
   for (const candidate of getDictionaryCandidateWords(input.word, dictionaryOptions)) {

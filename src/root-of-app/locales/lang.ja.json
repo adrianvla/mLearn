@@ -1240,7 +1240,9 @@
         "Hint": "フィルターで追加する単語を選択します。一致した単語は選択したステータスでフラッシュカードになります。",
         "MatchingCount": "{count} 語が一致",
         "Cancel": "キャンセル",
-        "Adding": "追加中..."
+        "Adding": "追加中...",
+        "SearchPlaceholder": "言葉を検索",
+        "AddingProgress": "追加中 {current}/{total}..."
       },
       "LevelCard": {
         "TotalWords": "{count}語",
@@ -1249,7 +1251,8 @@
         "Unknown": "未知",
         "Untracked": "未追跡",
         "ClickToView": "クリックして単語を表示",
-        "ViewWords": "単語を表示"
+        "ViewWords": "単語を表示",
+        "BeyondExam": "試験範囲外"
       },
       "DetailModal": {
         "Title": "{levelName}の単語",
@@ -3037,6 +3040,10 @@
       "Bool": {
         "True": "はい",
         "False": "いいえ"
+      },
+      "Level": {
+        "NoLevel": "レベルなし",
+        "BeyondExam": "試験範囲外"
       }
     },
     "CharacterGrid": {

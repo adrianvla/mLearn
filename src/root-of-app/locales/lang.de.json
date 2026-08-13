@@ -1240,7 +1240,9 @@
         "Hint": "Wähle mit dem Filter, welche Wörter hinzugefügt werden. Passende Wörter werden Karteikarten mit dem gewählten Status.",
         "MatchingCount": "{count} Wörter passen",
         "Cancel": "Abbrechen",
-        "Adding": "Hinzufügen..."
+        "Adding": "Hinzufügen...",
+        "SearchPlaceholder": "Wörter suchen",
+        "AddingProgress": "Hinzufügen {current}/{total}..."
       },
       "LevelCard": {
         "TotalWords": "{count} Wörter",
@@ -1249,7 +1251,8 @@
         "Unknown": "Unbekannt",
         "Untracked": "Nicht verfolgt",
         "ClickToView": "Zum Anzeigen der Wörter klicken",
-        "ViewWords": "Wörter ansehen"
+        "ViewWords": "Wörter ansehen",
+        "BeyondExam": "Über die Prüfung hinaus"
       },
       "DetailModal": {
         "Title": "Wörter für {levelName}",
@@ -3037,6 +3040,10 @@
       "Bool": {
         "True": "Ja",
         "False": "Nein"
+      },
+      "Level": {
+        "NoLevel": "Kein Level",
+        "BeyondExam": "Über die Prüfung hinaus"
       }
     },
     "CharacterGrid": {

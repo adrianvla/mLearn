@@ -63,6 +63,9 @@ export interface TranslateRequestOptions {
   dictionaryTargetLanguage?: string;
 }
 
+/** A dictionary headword with its reading; reading is empty when the schema has none. */
+export type DictionaryWordPair = [word: string, reading: string];
+
 export interface AnkiWordStatusRecord {
   word: string;
   cardId?: number | null;
@@ -79,6 +82,8 @@ export interface BackendAdapter {
   tokenize(text: string, language?: string): Promise<Token[]>;
   /** Translate/look up a word */
   translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse>;
+  /** Enumerate all dictionary headwords as (word, reading) pairs */
+  enumerateDictionaryWords(language?: string): Promise<DictionaryWordPair[]>;
   /** Run OCR on image data */
   ocr(imageData: string | Blob, options?: OCRRequestOptions): Promise<OCRResult>;
   /** Warm up local OCR models when supported */

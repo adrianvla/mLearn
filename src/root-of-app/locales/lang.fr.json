@@ -1240,7 +1240,9 @@
         "Hint": "Choisissez les mots à ajouter avec le filtre. Les mots correspondants deviendront des flashcards avec le statut sélectionné.",
         "MatchingCount": "{count} mots correspondent",
         "Cancel": "Annuler",
-        "Adding": "Ajout..."
+        "Adding": "Ajout...",
+        "SearchPlaceholder": "Rechercher des mots",
+        "AddingProgress": "Ajout {current}/{total}..."
       },
       "LevelCard": {
         "TotalWords": "{count} mots",
@@ -1249,7 +1251,8 @@
         "Unknown": "Inconnu",
         "Untracked": "Non suivi",
         "ClickToView": "Cliquez pour afficher les mots",
-        "ViewWords": "Voir les mots"
+        "ViewWords": "Voir les mots",
+        "BeyondExam": "Au-delà de l'examen"
       },
       "DetailModal": {
         "Title": "Mots {levelName}",
@@ -3037,6 +3040,10 @@
       "Bool": {
         "True": "Oui",
         "False": "Non"
+      },
+      "Level": {
+        "NoLevel": "Aucun niveau",
+        "BeyondExam": "Au-delà de l'examen"
       }
     },
     "CharacterGrid": {

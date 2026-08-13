@@ -264,7 +264,7 @@ describe('language-specific rendering metadata resolution', () => {
   });
 
   it('marks reading annotation slots as reading-script text for generic renderers', () => {
-    const seenSlots: Array<{ slot: string; isReadingScript: boolean; text: string }> = [];
+    const seenSlots: Array<{ slot: string; isReadingScript: boolean; suppressOverlay: boolean; text: string }> = [];
     mockLanguageMap = {
       zh: makeLanguageData({
         name: 'Chinese saved-card language',
@@ -287,6 +287,7 @@ describe('language-specific rendering metadata resolution', () => {
           seenSlots.push({
             slot: options.slot,
             isReadingScript: options.isReadingScript,
+            suppressOverlay: options.suppressOverlay ?? false,
             text: String(text),
           });
           return <span class={options.class}>{text}</span>;
@@ -295,14 +296,15 @@ describe('language-specific rendering metadata resolution', () => {
     ), container);
 
     expect(seenSlots).toEqual([
-      { slot: 'reading', isReadingScript: true, text: 'ni hao' },
+      { slot: 'word', isReadingScript: false, suppressOverlay: true, text: '你好' },
+      { slot: 'reading', isReadingScript: true, suppressOverlay: false, text: 'ni hao' },
     ]);
 
     dispose();
   });
 
   it('marks inline reading annotation slots as reading-script text for generic renderers', () => {
-    const seenSlots: Array<{ slot: string; isReadingScript: boolean; text: string }> = [];
+    const seenSlots: Array<{ slot: string; isReadingScript: boolean; suppressOverlay: boolean; text: string }> = [];
     mockLanguageMap = {
       ar: makeLanguageData({
         name: 'Arabic saved-card language',
@@ -326,6 +328,7 @@ describe('language-specific rendering metadata resolution', () => {
           seenSlots.push({
             slot: options.slot,
             isReadingScript: options.isReadingScript,
+            suppressOverlay: options.suppressOverlay ?? false,
             text: String(text),
           });
           return <span class={options.class}>{text}</span>;
@@ -334,8 +337,8 @@ describe('language-specific rendering metadata resolution', () => {
     ), container);
 
     expect(seenSlots).toEqual([
-      { slot: 'word', isReadingScript: false, text: 'بيت' },
-      { slot: 'reading', isReadingScript: true, text: 'bayt' },
+      { slot: 'word', isReadingScript: false, suppressOverlay: false, text: 'بيت' },
+      { slot: 'reading', isReadingScript: true, suppressOverlay: false, text: 'bayt' },
     ]);
 
     dispose();

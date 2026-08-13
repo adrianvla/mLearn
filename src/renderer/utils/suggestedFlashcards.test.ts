@@ -174,6 +174,64 @@ describe('shouldKeepSuggestion', () => {
     expect(result).toBe(false);
   });
 
+  it('keeps off-list and beyond-exam suggestions when the target is the hardest displayable level', () => {
+    const leveledLanguage: LanguageData = {
+      name: 'Leveled Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        rowLevelIndex: 2,
+        names: { '1': 'N1', '5': 'N5' },
+      },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        readingAnnotation: { type: 'none' },
+      },
+    };
+
+    expect(shouldKeepSuggestion(
+      { word: 'word', language: 'ja' },
+      settings({ learningLanguageLevels: { ja: 1 } }),
+      new Set<string>(),
+      undefined,
+      undefined,
+      leveledLanguage,
+    )).toBe(true);
+    expect(shouldKeepSuggestion(
+      { word: 'word', language: 'ja', level: -1 },
+      settings({ learningLanguageLevels: { ja: 1 } }),
+      new Set<string>(),
+      undefined,
+      undefined,
+      leveledLanguage,
+    )).toBe(true);
+  });
+
+  it('rejects off-list suggestions when the target is not the hardest displayable level', () => {
+    const leveledLanguage: LanguageData = {
+      name: 'Leveled Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        rowLevelIndex: 2,
+        names: { '1': 'N1', '5': 'N5' },
+      },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        readingAnnotation: { type: 'none' },
+      },
+    };
+
+    expect(shouldKeepSuggestion(
+      { word: 'word', language: 'ja' },
+      settings({ learningLanguageLevels: { ja: 5 } }),
+      new Set<string>(),
+      undefined,
+      undefined,
+      leveledLanguage,
+    )).toBe(false);
+  });
+
   it('returns true when the suggestion level equals the user level', () => {
     const result = shouldKeepSuggestion(
       { word: 'word', language: 'ja', level: 3 },

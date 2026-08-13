@@ -5,6 +5,8 @@ import {
   evaluateAst,
   parseTokens,
   validateTokens,
+  LEVEL_VALUE_BEYOND_EXAM,
+  LEVEL_VALUE_NO_LEVEL,
   type FilterToken,
 } from '../../components/common';
 
@@ -135,16 +137,16 @@ describe('buildFlashcardBrowseFields', () => {
     expect(evaluateWithLevel(levelToken('5'), card)).toBe(false);
   });
 
-  it('matches a missing content level against no level value', () => {
+  it('matches a missing content level against the no level value', () => {
     const card = makeCard();
-    expect(evaluateWithLevel(levelToken(''), card)).toBe(true);
+    expect(evaluateWithLevel(levelToken(LEVEL_VALUE_NO_LEVEL), card)).toBe(true);
     expect(evaluateWithLevel(levelToken('1'), card)).toBe(false);
   });
 
-  it('enumerates level palette values from the passed level names', () => {
+  it('enumerates level palette values from the passed level names plus the no-level and beyond-exam values', () => {
     const { fields } = buildFlashcardBrowseFields(LANGUAGE_NAMES, t, { levelNames: LEVEL_NAMES });
     const levelField = fields.find((field) => field.field === 'level');
-    expect(levelField?.values.map((value) => value.value)).toEqual(['5', '4', '3', '2', '1']);
+    expect(levelField?.values.map((value) => value.value)).toEqual(['5', '4', '3', '2', '1', LEVEL_VALUE_NO_LEVEL, LEVEL_VALUE_BEYOND_EXAM]);
   });
 });
 

@@ -28,6 +28,7 @@ import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
+import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
 import { fetchTranslation } from '../../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
@@ -289,12 +290,19 @@ export const WelcomeRoute: Component = () => {
       language.getCanonicalFormForLanguage,
     );
     if (stats.length === 0) return null;
-    return { levels: stats, ...summarizeLevelCoverage(stats) };
+    return { levels: stats };
   });
   const levelCoverage = createMemo(() => {
     const data = levelStudy();
     if (data === null) return null;
-    return { total: data.total, tracked: data.tracked, pct: data.pct };
+    const examLevel = getLearningLanguageLevelForLanguage(settings, settings.language || null);
+    const scoped = examLevel === null
+      ? data.levels
+      : data.levels.filter((level) => (
+        isFrequencyLevelAtOrEasierThanTarget(level.level, examLevel, language.currentLangData())
+      ));
+    const { total, tracked, pct } = summarizeLevelCoverage(scoped);
+    return { total, tracked, pct };
   });
   const levelChips = createMemo(() => selectLevelChips(levelStudy()?.levels ?? []));
 

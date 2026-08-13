@@ -10,9 +10,11 @@ import {
   getWordLevelStatus,
   buildLearningWordSet,
   resolveLevelStudyWordFrequency,
+  getLevelStudyLevelNames,
+  BEYOND_EXAM_LEVEL,
 } from '../../utils/wordLevelStats';
 import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
-import { getReadingAnnotationScripts } from '../../../shared/languageFeatures';
+import { getReadingAnnotationScripts, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -61,7 +63,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     text: JSX.Element,
     options: WordWithReadingRenderTextOptions,
   ) => {
-    if (!canRenderProsodyOverlay()) {
+    if (!canRenderProsodyOverlay() || options.suppressOverlay) {
       return <span class={options.class} style={options.style}>{text}</span>;
     }
     const overlayTarget = getProsodyOverlayTextTarget(wordItem.word, wordItem.reading, options);
@@ -95,8 +97,11 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
       const trackedSet = buildTrackedWordSet(store, lang);
 
       const result: WordListItem[] = [];
+      const levelNames = getLevelStudyLevelNames(langData, freq);
       for (const [word, entry] of Object.entries(freq)) {
-        if (entry.raw_level !== props.level) continue;
+        if (props.level === BEYOND_EXAM_LEVEL) {
+          if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, langData)) continue;
+        } else if (entry.raw_level !== props.level) continue;
         const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet, language.getCanonicalFormForLanguage);
         result.push({ word, reading: entry.reading || '', status });
       }
@@ -112,6 +117,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     activeLanguageData();
     settings.known_ease_threshold;
     settings.srsLearningThreshold;
+    flashcards.isLoading();
     setWordsForLevel(buildWordsForLevelSnapshot());
   });
 

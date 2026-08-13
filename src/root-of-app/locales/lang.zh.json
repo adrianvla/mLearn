@@ -1240,7 +1240,9 @@
         "Hint": "使用筛选器选择要添加的单词。匹配的单词将以所选状态成为闪卡。",
         "MatchingCount": "匹配 {count} 个单词",
         "Cancel": "取消",
-        "Adding": "添加中..."
+        "Adding": "添加中...",
+        "SearchPlaceholder": "搜索单词",
+        "AddingProgress": "添加中 {current}/{total}..."
       },
       "LevelCard": {
         "TotalWords": "{count} 个单词",
@@ -1249,7 +1251,8 @@
         "Unknown": "未知",
         "Untracked": "未追踪",
         "ClickToView": "点击查看单词",
-        "ViewWords": "查看单词"
+        "ViewWords": "查看单词",
+        "BeyondExam": "超出考纲"
       },
       "DetailModal": {
         "Title": "{levelName} 单词",
@@ -3037,6 +3040,10 @@
       "Bool": {
         "True": "是",
         "False": "否"
+      },
+      "Level": {
+        "NoLevel": "无级别",
+        "BeyondExam": "超出考纲"
       }
     },
     "CharacterGrid": {
