@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createEffect, createSignal, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 
 const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
@@ -120,6 +121,14 @@ vi.mock('../../components/common', () => ({
     <button class={props.class} onClick={props.onClick}>{props.children}</button>
   ),
   EmptyState: (props: { title?: string }) => <div>{props.title}</div>,
+  Popover: (props: {
+    open?: boolean | (() => boolean);
+    children?: JSX.Element;
+  }) => {
+    const [rendered, setRendered] = createSignal(false);
+    createEffect(() => setRendered(Boolean(typeof props.open === 'function' ? props.open() : props.open)));
+    return <Show when={rendered()}>{props.children}</Show>;
+  },
   FilterBuilder: (props: {
     tokens: Array<{ kind: string; field?: string; op?: string; value?: string }>;
     onChange: (tokens: Array<{ kind: string; field?: string; op?: string; value?: string }>) => void;
@@ -134,6 +143,13 @@ vi.mock('../../components/common', () => ({
     );
   },
   PillLabel: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+  ToggleSwitch: (props: { checked?: boolean; onChange?: (checked: boolean) => void }) => (
+    <input
+      type="checkbox"
+      checked={props.checked ?? false}
+      onChange={(e) => props.onChange?.(e.currentTarget.checked)}
+    />
+  ),
   WORD_SYNC_STATUS_UNTRACKED: 'untracked',
   buildWordSyncFields: () => ({ fields: [], paletteItems: [] }),
   buildWordSyncPreset: mockCommonState.buildWordSyncPreset,
@@ -286,6 +302,34 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
+  it('renders the word as pure text when additional info is part of the answer', async () => {
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Default (toggle off): full word render with reading.
+    expect(container.textContent).toContain('赤い:あかい');
+
+    // Toggle on: hidden answer shows the bare word.
+    const toggle = container.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    toggle!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('赤い');
+    expect(container.textContent).not.toContain('赤い:あかい');
+
+    // Revealing the answer restores the full render.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('赤い:あかい');
+    dispose();
+  });
+
   it('undoes the last word sync rating with Cmd+Z', async () => {
     const { hashWordSync } = await import('../../services/srsAlgorithm');
     const previousKnowledge = {
@@ -381,6 +425,11 @@ describe('WordSyncContent', () => {
     const { WordSyncContent } = await import('./App');
 
     const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // When the filter dropdown is opened (closed by default)
+    container.querySelector<HTMLButtonElement>('.word-sync-filter-toggle')?.click();
     await Promise.resolve();
     await Promise.resolve();
 

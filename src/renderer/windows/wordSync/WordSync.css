@@ -23,6 +23,19 @@
   gap: var(--spacing-3);
 }
 
+.word-sync-filter-toggle {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.word-sync-filter-popover {
+  width: min(30rem, calc(100vw - var(--spacing-8)));
+  max-height: min(24rem, 60vh);
+  overflow-y: auto;
+  padding: var(--spacing-4);
+  box-sizing: border-box;
+}
+
 .word-sync-counter {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
@@ -57,6 +70,18 @@
 }
 
 .word-sync-translation-toggle {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.word-sync-answer-options {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.word-sync-answer-options .toggle-label {
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
 }

@@ -11,6 +11,8 @@ import {
   EmptyState,
   FilterBuilder,
   PillLabel,
+  Popover,
+  ToggleSwitch,
   buildWordSyncFields,
   buildWordSyncPreset,
   WORD_SYNC_STATUS_UNTRACKED,
@@ -101,6 +103,13 @@ export const WordSyncContent: Component = () => {
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
   const [filterPresetInitialized, setFilterPresetInitialized] = createSignal(false);
   const [showTranslation, setShowTranslation] = createSignal(false);
+  const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(false);
+  const [filterOpen, setFilterOpen] = createSignal(false);
+  let filterTriggerRef: HTMLButtonElement | undefined;
+  const closeFilter = () => {
+    setFilterOpen(false);
+    filterTriggerRef?.focus();
+  };
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
@@ -524,6 +533,10 @@ export const WordSyncContent: Component = () => {
     };
   });
 
+  // "Additional information part of answer": when the answer is hidden, the
+  // word itself renders as pure text — no prosody coloring, no reading.
+  const pureWordMode = createMemo(() => additionalInfoInAnswer() && !showTranslation());
+
   return (
     <div class="word-sync">
 
@@ -551,23 +564,45 @@ export const WordSyncContent: Component = () => {
               total: String(totalAvailable()),
             })}
           </span>
-          <FilterBuilder
-            fields={filterContext().fields}
-            paletteItems={filterContext().paletteItems}
-            tokens={filterTokens()}
-            onChange={(tokens) => {
-              setFilterTokens(tokens);
-              levelCursors = new Map();
-              setFinished(false);
-              setLastRating(null);
-              setLastUndoEntry(null);
-              queueMicrotask(() => {
-                rebuildWordPool();
-                pickNext();
-              });
+          <Btn
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              filterTriggerRef = e.currentTarget;
+              setFilterOpen((open) => !open);
             }}
-            evaluation={filterValidation()}
-          />
+            active={filterOpen()}
+            aria-haspopup="true"
+            aria-expanded={filterOpen()}
+            class="word-sync-filter-toggle"
+          >
+            {t('mlearn.WordSync.Filter')}
+          </Btn>
+          <Popover
+            open={filterOpen}
+            anchor={() => filterTriggerRef}
+            onClose={closeFilter}
+            label={t('mlearn.WordSync.Filter')}
+            class="word-sync-filter-popover"
+          >
+            <FilterBuilder
+              fields={filterContext().fields}
+              paletteItems={filterContext().paletteItems}
+              tokens={filterTokens()}
+              onChange={(tokens) => {
+                setFilterTokens(tokens);
+                levelCursors = new Map();
+                setFinished(false);
+                setLastRating(null);
+                setLastUndoEntry(null);
+                queueMicrotask(() => {
+                  rebuildWordPool();
+                  pickNext();
+                });
+              }}
+              evaluation={filterValidation()}
+            />
+          </Popover>
           <Show when={currentWord()}>
             <PillLabel level={currentWord()!.level} visualLevel={currentWordVisualLevel()}>
               {levelLabel()}
@@ -580,30 +615,46 @@ export const WordSyncContent: Component = () => {
             <div class="word-sync-card">
               <div class="word-sync-word">
                 <Show
-                  when={currentWordContent()}
-                  fallback={<WordWithReading word={w().word} reading={w().reading} />}
+                  when={pureWordMode()}
+                  fallback={
+                    <Show
+                      when={currentWordContent()}
+                      fallback={<WordWithReading word={w().word} reading={w().reading} />}
+                    >
+                      {(content) => (
+                        <FlashcardWordTitle
+                          content={content()}
+                          language={settings.language}
+                        />
+                      )}
+                    </Show>
+                  }
                 >
-                  {(content) => (
-                    <FlashcardWordTitle
-                      content={content()}
-                      language={settings.language}
-                    />
-                  )}
+                  <span>{w().word}</span>
                 </Show>
               </div>
               <Show when={showTranslation() && translationText()}>
                 <div class="word-sync-translation">{translationText()}</div>
               </Show>
-              <Btn
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowTranslation((v) => !v)}
-                class="word-sync-translation-toggle"
-              >
-                {showTranslation()
-                  ? t('mlearn.WordSync.HideTranslation')
-                  : t('mlearn.WordSync.ShowTranslation')}
-              </Btn>
+              <div class="word-sync-answer-options">
+                <Btn
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTranslation((v) => !v)}
+                  class="word-sync-translation-toggle"
+                >
+                  {showTranslation()
+                    ? t('mlearn.WordSync.HideTranslation')
+                    : t('mlearn.WordSync.ShowTranslation')}
+                </Btn>
+                <ToggleSwitch
+                  checked={additionalInfoInAnswer()}
+                  onChange={setAdditionalInfoInAnswer}
+                  label={t('mlearn.WordSync.AdditionalInfoInAnswer')}
+                  size="sm"
+                  class="word-sync-additional-info-toggle"
+                />
+              </div>
             </div>
           )}
         </Show>
