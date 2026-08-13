@@ -1,8 +1,6 @@
 import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
-import type { JSX } from 'solid-js';
 import { Modal, Btn, PillBtn } from '../../components/common';
-import { ProsodyOverlay, WordWithReading } from '../../components/language-specific';
-import type { WordWithReadingRenderTextOptions } from '../../components/language-specific/WordWithReading';
+import { WordWithReading } from '../../components/language-specific';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
@@ -16,8 +14,8 @@ import {
 import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
 import { getReadingAnnotationScripts, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
-import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import type { WordProsodyOverlayData } from '../../utils/wordRenderText';
 import type { LanguageData } from '../../../shared/types';
 
 interface LevelDetailModalProps {
@@ -59,29 +57,9 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     && getProsodyOverlayRenderer(activeLanguageData(), undefined) !== null
   ));
 
-  const renderProsodyText = (wordItem: WordListItem) => (
-    text: JSX.Element,
-    options: WordWithReadingRenderTextOptions,
-  ) => {
-    if (!canRenderProsodyOverlay() || options.suppressOverlay) {
-      return <span class={options.class} style={options.style}>{text}</span>;
-    }
-    const overlayTarget = getProsodyOverlayTextTarget(wordItem.word, wordItem.reading, options);
-    return (
-      <ProsodyOverlay
-        word={overlayTarget.word}
-        reading={overlayTarget.reading}
-        language={activeLanguage()}
-        languageData={activeLanguageData()}
-        mode="overlay"
-        isReadingScript={options.isReadingScript}
-        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
-        style={options.style}
-      >
-        {text}
-      </ProsodyOverlay>
-    );
-  };
+  const prosodyOverlayData = (): WordProsodyOverlayData | null => (
+    canRenderProsodyOverlay() ? {} : null
+  );
 
   const buildWordsForLevelSnapshot = (): WordListItem[] => {
     const lang = activeLanguage();
@@ -282,7 +260,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
                             languageData={activeLanguageData()}
                             class="level-detail-word-text"
                             forceShowReadingAnnotation={!!wordItem.reading}
-                            renderText={renderProsodyText(wordItem)}
+                            prosodyOverlay={prosodyOverlayData()}
                           />
                         </Show>
                       </div>

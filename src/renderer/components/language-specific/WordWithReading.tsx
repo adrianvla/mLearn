@@ -19,6 +19,7 @@ import {
 } from '../../../shared/languageFeatures';
 import { useLanguage, useSettings } from '../../context';
 import type { LanguageData } from '../../../shared/types';
+import { applyWordDecorations, type WordProsodyOverlayData, type WordRenderTextContext } from '../../utils/wordRenderText';
 import './RubyText.css';
 
 export interface WordWithReadingRenderTextOptions {
@@ -54,8 +55,10 @@ export interface WordWithReadingProps {
   forceShowReadingAnnotation?: boolean;
   /** Skip forcing the language content font — the surrounding content surface owns the font */
   inheritFontFamily?: boolean;
-  /** Optional wrapper for prosody or script-specific text renderers. */
-  renderText?: (text: JSX.Element, options: WordWithReadingRenderTextOptions) => JSX.Element;
+  /** Feature-agnostic colored-prosody context applied to every slot (see createWordRenderText). */
+  coloredProsody?: WordRenderTextContext | null;
+  /** Per-mora prosody overlay data, applied to every non-suppressed slot (reading slot, inline/replace/fallback word slots — never the ruby word base). */
+  prosodyOverlay?: WordProsodyOverlayData | null;
 }
 
 export const WordWithReading: Component<WordWithReadingProps> = (props) => {
@@ -86,27 +89,28 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
     direction: getLanguageCssDirection(resolvedLanguageData(), props.language),
     'unicode-bidi': 'isolate',
   }));
-  const renderText = (
+  const decorate = (
     text: JSX.Element,
     options: Omit<WordWithReadingRenderTextOptions, 'word' | 'reading' | 'displayReading' | 'language' | 'languageData'>,
-  ) => props.renderText?.(text, {
+  ) => applyWordDecorations(text, {
     ...options,
     word: props.word,
     reading: effectiveReading(),
     displayReading: displayReading(),
     language: props.language,
     languageData: resolvedLanguageData(),
-  }) ?? (
-    <span class={options.class} style={options.style}>
-      {text}
-    </span>
-  );
+  }, {
+    coloredProsody: props.coloredProsody,
+    prosodyOverlay: props.prosodyOverlay,
+    surfaceWord: props.word,
+    surfaceReading: effectiveReading(),
+  });
 
   return (
     <Show
       when={needsReadingAnnotation()}
       fallback={
-        renderText(props.word, {
+        decorate(props.word, {
           slot: 'word',
           isReadingScript: wordUsesReadingScript(),
           class: props.class,
@@ -117,7 +121,7 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
       <Show
         when={annotationDisplay() !== 'replace'}
         fallback={
-          renderText(displayReading(), {
+          decorate(displayReading(), {
             slot: 'word',
             isReadingScript: true,
             class: props.class,
@@ -129,14 +133,14 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
           when={annotationDisplay() === 'inline'}
           fallback={
             <ruby class={`ruby-text ${props.class || ''}`} style={contentStyle()}>
-              {renderText(props.word, {
+              {decorate(props.word, {
                 slot: 'word',
                 isReadingScript: wordUsesReadingScript(),
                 suppressOverlay: true,
               })}
               <rp>(</rp>
               <rt>
-                {renderText(displayReading(), {
+                {decorate(displayReading(), {
                   slot: 'reading',
                   isReadingScript: true,
                   class: 'reading-overlay-wrapper--ruby',
@@ -147,13 +151,13 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
           }
         >
           <span class={`ruby-text ruby-text-inline ${props.class || ''}`} style={contentStyle()}>
-            {renderText(props.word, {
+            {decorate(props.word, {
               slot: 'word',
               isReadingScript: wordUsesReadingScript(),
               class: 'ruby-text-inline__word',
             })}
             <span class="ruby-text-inline__reading" aria-label={displayReading()}>
-              {renderText(displayReading(), {
+              {decorate(displayReading(), {
                 slot: 'reading',
                 isReadingScript: true,
                 class: 'ruby-text-inline__reading-text',

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render } from 'solid-js/web';
+import type { JSX } from 'solid-js';
 import type { WordStatus } from '../../shared/constants';
 import {
   DEFAULT_SETTINGS,
@@ -10,9 +11,26 @@ import {
   type Settings,
 } from '../../shared/types';
 import {
+  applyWordDecorations,
   createWordRenderText,
   type WordRenderTextContext,
 } from './wordRenderText';
+
+const { prosodySpy } = vi.hoisted(() => ({ prosodySpy: vi.fn() }));
+
+vi.mock('../components/language-specific/ProsodyOverlay', () => ({
+  ProsodyOverlay: (props: {
+    children?: unknown;
+    class?: string;
+    word?: string;
+    reading?: string;
+    prosodyPosition?: unknown;
+    prosodyType?: unknown;
+  }) => {
+    prosodySpy(props);
+    return <span data-prosody-spy class={props.class}>{props.children as never}</span>;
+  },
+}));
 
 const toneConfig: LanguageColoredProsodyConfig = {
   renderer: 'tone-marked-syllables',
@@ -178,6 +196,126 @@ describe('createWordRenderText', () => {
     }));
     expect(container.querySelector('.colored-prosody__segment')).toBeNull();
     expect(container.querySelector('span')?.textContent).toBe(word);
+    dispose();
+  });
+});
+
+describe('applyWordDecorations', () => {
+  beforeEach(() => {
+    prosodySpy.mockClear();
+  });
+
+  function renderDecorations(
+    text: JSX.Element,
+    slotOptions: Parameters<typeof applyWordDecorations>[1],
+    decorations: Parameters<typeof applyWordDecorations>[2],
+  ) {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(() => applyWordDecorations(text, slotOptions, decorations), container);
+    return { container, dispose };
+  }
+
+  it('wraps a non-suppressed reading slot in the prosody overlay', () => {
+    const { container, dispose } = renderDecorations('text', {
+      ...options,
+      slot: 'reading',
+      isReadingScript: true,
+    }, {
+      prosodyOverlay: { position: 3 },
+      surfaceWord: word,
+      surfaceReading: reading,
+    });
+    expect(container.querySelector('[data-prosody-spy]')).not.toBeNull();
+    expect(prosodySpy).toHaveBeenCalledWith(expect.objectContaining({
+      word: reading,
+      reading,
+      prosodyPosition: 3,
+      class: 'prosody-overlay-wrapper--reading',
+    }));
+    dispose();
+  });
+
+  it('never wraps a suppressed slot (ruby word base) in the prosody overlay', () => {
+    const { container, dispose } = renderDecorations('text', {
+      ...options,
+      suppressOverlay: true,
+    }, {
+      prosodyOverlay: { position: 4 },
+      surfaceWord: word,
+      surfaceReading: reading,
+    });
+    expect(container.querySelector('[data-prosody-spy]')).toBeNull();
+    expect(container.textContent).toBe('text');
+    dispose();
+  });
+
+  it('keeps colored prosody on a suppressed slot while dropping the overlay', () => {
+    const { container, dispose } = renderDecorations(word, {
+      ...options,
+      suppressOverlay: true,
+    }, {
+      coloredProsody: makeCtx({ surface: 'other' }),
+      prosodyOverlay: { position: 4 },
+      surfaceWord: word,
+      surfaceReading: reading,
+    });
+    expect(container.querySelector('[data-prosody-spy]')).toBeNull();
+    expect(container.querySelectorAll('.colored-prosody__segment')).toHaveLength(5);
+    dispose();
+  });
+
+  it('resolves a function position against the target slot reading', () => {
+    const { dispose } = renderDecorations('text', {
+      ...options,
+      slot: 'reading',
+    }, {
+      prosodyOverlay: { position: (r: string) => (r === reading ? 7 : 0) },
+      surfaceWord: word,
+      surfaceReading: reading,
+    });
+    expect(prosodySpy).toHaveBeenCalledWith(expect.objectContaining({ prosodyPosition: 7 }));
+    dispose();
+  });
+
+  it('honors the reading-slot word override', () => {
+    const { dispose } = renderDecorations('text', {
+      ...options,
+      slot: 'reading',
+    }, {
+      prosodyOverlay: { overlayWordForReadingSlot: '仏像' },
+      surfaceWord: word,
+      surfaceReading: reading,
+    });
+    expect(prosodySpy).toHaveBeenCalledWith(expect.objectContaining({ word: '仏像' }));
+    dispose();
+  });
+
+  it('wraps plain text in a class/style span when no decoration applies', () => {
+    const { container, dispose } = renderDecorations('text', options, {
+      surfaceWord: word,
+      surfaceReading: reading,
+    });
+    const span = container.querySelector('span');
+    expect(span?.className).toBe('fixture-word');
+    expect(span?.style.color).toBe('rgb(1, 2, 3)');
+    expect(span?.textContent).toBe('text');
+    dispose();
+  });
+
+  it('composes colored prosody inside the overlay', () => {
+    const { container, dispose } = renderDecorations(word, {
+      ...options,
+      slot: 'reading',
+    }, {
+      coloredProsody: makeCtx({ surface: 'other' }),
+      prosodyOverlay: { position: 3 },
+      surfaceWord: word,
+      surfaceReading: reading,
+    });
+    const spy = container.querySelector('[data-prosody-spy]');
+    expect(spy).not.toBeNull();
+    expect(spy?.querySelector('.colored-prosody__segment')).not.toBeNull();
     dispose();
   });
 });

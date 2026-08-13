@@ -4,8 +4,7 @@
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import type { JSX } from 'solid-js';
-import { ProsodyOverlay, WordWithReading } from '../language-specific';
+import { WordWithReading } from '../language-specific';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import {
   getPartOfSpeechColor,
@@ -16,13 +15,11 @@ import {
   getReadingAnnotationScripts,
 } from '../../../shared/languageFeatures';
 import type { FlashcardContent } from '../../../shared/types';
-import type { WordWithReadingRenderTextOptions } from '../language-specific/WordWithReading';
 import {
   canRenderStoredProsodyWithoutMetadata,
   getProsodyOverlayRenderer,
 } from '../../utils/prosodyPresentation';
-import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
-import { createWordRenderText } from '../../utils/wordRenderText';
+import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import { cacheVersion, getCachedTranslation } from '../../hooks/useTranslation';
 import { extractProsodyData } from '../../utils/translationCacheParsers';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
@@ -86,7 +83,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     if (!pos) return undefined;
     return getPartOfSpeechColor(pos, settings.colour_codes, languageData());
   });
-  const renderColoredProsodyText = createWordRenderText({
+  const coloredProsodyCtx: WordRenderTextContext = {
     languageData,
     prosodyPosition: coloredProsodyPosition,
     ease: () => comprehensiveKnowledge().ease,
@@ -95,7 +92,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
-  });
+  };
   const prosodyOverlayRenderer = createMemo(() => (
     getProsodyOverlayRenderer(languageData(), props.content.prosody?.type)
   ));
@@ -106,6 +103,15 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   const prosodyOverlayPosition = createMemo(() => (
     canRenderProsodyOverlay() ? storedProsodyPosition() : null
   ));
+  const prosodyOverlayData = createMemo<WordProsodyOverlayData | null>(() => {
+    if (!canRenderProsodyOverlay()) return null;
+    return {
+      position: prosodyOverlayPosition(),
+      type: props.content.prosody?.type,
+      pos: props.content.pos,
+      allowStoredProsodyWithoutMetadata: hasStoredProsodyOverlay(),
+    };
+  });
   const genericProsodyPreview = createMemo(() => {
     if (canRenderProsodyOverlay()) return null;
     const position = getProsodyPositionFromContent(props.content, languageData());
@@ -127,31 +133,6 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     if (hasStoredProsodyOverlay()) return true;
     return getReadingAnnotationScripts(languageData()).length > 0;
   });
-  const renderText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
-    const coloredText = renderColoredProsodyText(text, options);
-    if (options.suppressOverlay || !canRenderProsodyOverlay()) {
-      return coloredText;
-    }
-    const overlayTarget = getProsodyOverlayTextTarget(word(), reading(), options);
-    return (
-      <ProsodyOverlay
-        word={overlayTarget.word}
-        reading={overlayTarget.reading}
-        prosodyPosition={prosodyOverlayPosition()}
-        prosodyType={props.content.prosody?.type}
-        allowStoredProsodyWithoutMetadata={hasStoredProsodyOverlay()}
-        language={props.language}
-        languageData={languageData()}
-        pos={props.content.pos}
-        mode="overlay"
-        isReadingScript={options.isReadingScript}
-        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
-        style={options.style}
-      >
-        {coloredText}
-      </ProsodyOverlay>
-    );
-  };
 
   return (
     <div class="flashcard-word-title fc-prosody">
@@ -162,7 +143,8 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
         languageData={languageData()}
         class="flashcard-word-title__reading fc-reading-annotation"
         forceShowReadingAnnotation={shouldForceStoredReading()}
-        renderText={renderText}
+        coloredProsody={coloredProsodyCtx}
+        prosodyOverlay={prosodyOverlayData()}
       />
       <Show when={genericProsodyPreview()}>
         {(preview) => (

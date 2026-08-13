@@ -15,7 +15,7 @@ import { coloredProsodyAllowedOnSurface } from '../../../shared/prosodySettings'
 import { getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
 import { extractProsodyData } from '../../utils/translationCacheParsers';
 import { getColoredProsodyConfig } from '../../utils/coloredProsody';
-import { createWordRenderText } from '../../utils/wordRenderText';
+import type { WordRenderTextContext } from '../../utils/wordRenderText';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { WordWithReading } from '../language-specific/WordWithReading';
 import './OcrOverlay.css';
@@ -111,7 +111,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     return coloredProsodyAllowedOnSurface(settings, 'other');
   });
 
-  const renderColoredProsodyText = createWordRenderText({
+  const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition,
     ease: () => comprehensiveKnowledge().ease,
@@ -120,7 +120,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
-  });
+  };
 
   // The reading is passed through even when annotations are hidden so the
   // word slot renderer can color tone-marked text (hanzi chars → tone syllables).
@@ -246,7 +246,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
           word={displayWord()}
           reading={readingForDisplay()}
           inheritFontFamily
-          renderText={renderColoredProsodyText}
+          coloredProsody={coloredProsodyCtx}
         />
       </Show>
     </span>

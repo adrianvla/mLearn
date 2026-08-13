@@ -2,8 +2,7 @@ import { Component, For, Show, Accessor, createEffect, createMemo, createSignal,
 import { createStore } from 'solid-js/store';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
 import { Btn, CloseIcon, CollapsibleStickyHeader, IconBtn, PillBtn, PillLabel, Select } from '../common';
-import { ProsodyOverlay, WordWithReading } from '../language-specific';
-import type { WordWithReadingRenderTextOptions } from '../language-specific/WordWithReading';
+import { WordWithReading } from '../language-specific';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation';
@@ -15,8 +14,7 @@ import { normalizeDictionaryReading } from '../../utils/readingProsody';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
-import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
-import { createWordRenderText } from '../../utils/wordRenderText';
+import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import { compareFrequencyLevelsForDisplay, getFrequencyLevelVisualRank, getPartOfSpeechColor } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import './UnknownWordsSidebar.css';
@@ -98,7 +96,7 @@ const UnknownWordRow: Component<{
     if (!pos) return undefined;
     return getPartOfSpeechColor(pos, settings.colour_codes, currentLangData());
   });
-  const renderColoredProsodyText = createWordRenderText({
+  const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => rowProsody()?.position ?? null,
     ease: () => comprehensiveKnowledge().ease,
@@ -107,7 +105,7 @@ const UnknownWordRow: Component<{
     isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
-  });
+  };
 
   const wordForms = createMemo(() => (
     getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants, {
@@ -148,34 +146,17 @@ const UnknownWordRow: Component<{
       fallbackLabel: t('mlearn.CardEditor.Fields.ProsodyPosition'),
     });
   });
-  const renderReadingText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
-    const coloredText = renderColoredProsodyText(text, options);
+
+  const prosodyOverlayData = createMemo<WordProsodyOverlayData | null>(() => {
     const prosody = rowProsody();
-    if (!prosody || prosody.renderer !== 'inline-overlay') {
-      return coloredText;
-    }
-    const overlayTarget = getProsodyOverlayTextTarget(
-      props.entry.word,
-      prosody.reading || dictionaryReading() || props.entry.word,
-      options,
-    );
-    return (
-      <ProsodyOverlay
-        word={overlayTarget.word}
-        reading={overlayTarget.reading}
-        pos={props.entry.token.partOfSpeech || props.entry.token.type}
-        prosodyPosition={prosody.position}
-        prosodyType={prosody.type}
-        languageData={currentLangData()}
-        mode="overlay"
-        isReadingScript={options.isReadingScript}
-        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
-        style={options.style}
-      >
-        {coloredText}
-      </ProsodyOverlay>
-    );
-  };
+    if (!prosody || prosody.renderer !== 'inline-overlay') return null;
+    return {
+      position: prosody.position,
+      type: prosody.type,
+      pos: props.entry.token.partOfSpeech || props.entry.token.type,
+      surfaceReading: prosody.reading || dictionaryReading() || props.entry.word,
+    };
+  });
 
   const levelData = createMemo(() => {
     const freq = getFrequency(props.entry.word);
@@ -213,7 +194,8 @@ const UnknownWordRow: Component<{
           <WordWithReading
             word={props.entry.word}
             reading={dictionaryReading()}
-            renderText={renderReadingText}
+            coloredProsody={coloredProsodyCtx}
+            prosodyOverlay={prosodyOverlayData()}
           />
         </div>
         <Show when={shortMeaning()}>

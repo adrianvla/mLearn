@@ -103,6 +103,13 @@ vi.mock('../../../components/language-specific', async (importOriginal) => {
   };
 });
 
+vi.mock('../../../components/language-specific/ProsodyOverlay', () => ({
+  ProsodyOverlay: (props: { word: string; children?: JSX.Element; prosodyPosition?: number | null; prosodyType?: string; class?: string }) => {
+    prosodyOverlayProps.push({ word: props.word, prosodyPosition: props.prosodyPosition, prosodyType: props.prosodyType, class: props.class });
+    return <span data-testid="pitch-accent-overlay">{props.children ?? props.word}</span>;
+  },
+}));
+
 vi.mock('../../../components/common/Smart', () => ({
   WordStatusPill: () => <span data-testid="word-status-pill" />,
 }));

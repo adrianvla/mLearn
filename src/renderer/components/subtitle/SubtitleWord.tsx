@@ -25,15 +25,13 @@ import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { getCachedReading, getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
 import { extractProsodyData } from '../../utils/translationCacheParsers';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
-import { getProsodyOverlayTextTarget } from '../../utils/prosodyOverlayTarget';
 import { FrequencyStars } from '../common';
-import { ProsodyOverlay, WordWithReading } from '../language-specific';
-import type { WordWithReadingRenderTextOptions } from '../language-specific/WordWithReading';
+import { WordWithReading } from '../language-specific';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
-import { createWordRenderText } from '../../utils/wordRenderText';
+import { applyWordDecorations, type WordProsodyOverlayData, type WordRenderTextContext } from '../../utils/wordRenderText';
 import '../language-specific/RubyText.css';
 import './SubtitleWord.css';
 
@@ -345,7 +343,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     showReadingAnnotation() ? effectiveReading() : null
   ));
 
-  const renderColoredProsodyText = createWordRenderText({
+  const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition,
     ease: () => comprehensiveKnowledge().ease,
@@ -354,50 +352,48 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     isKnown: wordIsKnown,
     surface: 'subtitle',
     settings: () => settings,
-  });
-
-  const renderSubtitleText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
-    const coloredText = renderColoredProsodyText(text, options);
-    if (hideProsodyForKnown() || !canRenderProsodyOverlay()) {
-      return coloredText;
-    }
-    const overlayTarget = getProsodyOverlayTextTarget(actualWord(), effectiveReading() || displayWord(), options);
-
-    return (
-      <ProsodyOverlay
-        word={options.slot === 'reading' ? actualWord() : overlayTarget.word}
-        reading={overlayTarget.reading}
-        pos={getPos()}
-        nextPos={props.lookAheadPos}
-        mode="overlay"
-        languageData={currentLangData()}
-        isReadingScript={options.isReadingScript}
-        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
-        style={options.style}
-      >
-        {coloredText}
-      </ProsodyOverlay>
-    );
   };
+
+  const prosodyOverlayData = createMemo<WordProsodyOverlayData | null>(() => {
+    if (hideProsodyForKnown() || !canRenderProsodyOverlay()) return null;
+    return {
+      pos: getPos(),
+      nextPos: props.lookAheadPos,
+      overlayWordForReadingSlot: actualWord(),
+    };
+  });
 
   const renderRubyReading = () => (
     <ruby>
-      {renderColoredProsodyText(displayWord(), {
+      {applyWordDecorations(displayWord(), {
         slot: 'word',
         word: displayWord(),
         reading: effectiveReading() || displayWord(),
         displayReading: displayReading(),
         isReadingScript: wordUsesReadingScript(),
+        suppressOverlay: true,
+      }, {
+        coloredProsody: coloredProsodyCtx,
+        prosodyOverlay: null,
+        surfaceWord: actualWord(),
+        surfaceReading: effectiveReading() || displayWord(),
       })}
       <rp>(</rp>
       <rt>
-        {renderSubtitleText(displayReading(), {
+        {applyWordDecorations(displayReading(), {
           slot: 'reading',
           word: displayWord(),
           reading: effectiveReading() || displayWord(),
           displayReading: displayReading(),
           isReadingScript: true,
+          language: settings.language,
+          languageData: currentLangData(),
           class: 'subtitle-word__reading-overlay prosody-overlay-wrapper--reading',
+        }, {
+          coloredProsody: coloredProsodyCtx,
+          prosodyOverlay: prosodyOverlayData(),
+          surfaceWord: actualWord(),
+          surfaceReading: effectiveReading() || displayWord(),
         })}
       </rt>
       <rp>)</rp>
@@ -416,7 +412,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
         language={settings.language}
         languageData={currentLangData()}
         forceShowReadingAnnotation={showReadingAnnotation()}
-        renderText={renderSubtitleText}
+        coloredProsody={coloredProsodyCtx}
+        prosodyOverlay={prosodyOverlayData()}
       />
     );
   };

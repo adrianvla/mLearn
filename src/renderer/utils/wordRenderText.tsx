@@ -1,8 +1,10 @@
 import type { JSX } from 'solid-js';
 import type { WordStatus } from '../../shared/constants';
-import { DEFAULT_SETTINGS, type LanguageData, type Settings } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardProsody, type LanguageData, type Settings } from '../../shared/types';
 import { coloredProsodyAllowedOnSurface } from '../../shared/prosodySettings';
+import { ProsodyOverlay } from '../components/language-specific/ProsodyOverlay';
 import type { WordWithReadingRenderTextOptions } from '../components/language-specific/WordWithReading';
+import { getProsodyOverlayTextTarget } from './prosodyOverlayTarget';
 import {
   buildColoredProsodySegments,
   coloredProsodyAllowsStatus,
@@ -83,4 +85,90 @@ export function createWordRenderText(
       </span>
     );
   };
+}
+
+/**
+ * Data driving the per-mora prosody overlay on a word+reading surface.
+ * Resolution/gating of the values stays in the surface; the composition rule
+ * (which slots may carry the overlay) lives in applyWordDecorations.
+ */
+export interface WordProsodyOverlayData {
+  /** Explicit pitch position. A function is resolved against the target slot reading. */
+  position?: number | null | ((reading: string) => number | null | undefined);
+  /** Explicit prosody type. A function is resolved against the target slot reading. */
+  type?: FlashcardProsody['type'] | ((reading: string) => FlashcardProsody['type'] | undefined);
+  pos?: string;
+  nextPos?: string;
+  homogenous?: boolean;
+  showParticleBox?: boolean;
+  allowStoredProsodyWithoutMetadata?: boolean;
+  /** Override the overlay `word` prop for the reading slot (e.g. subtitle surfaces pass the surface headword). */
+  overlayWordForReadingSlot?: string;
+  /** Override the surface reading used to resolve the overlay target. */
+  surfaceReading?: string;
+}
+
+/**
+ * Applies word-level decorations (colored prosody text, then per-mora prosody
+ * overlay) to a single word/reading slot. The overlay is skipped for slots
+ * marked suppressOverlay (the ruby word base — per-mora geometry misaligns on
+ * kanji glyphs). This is THE single enforcement point of that rule; surfaces
+ * pass decoration data, never callbacks.
+ */
+export function applyWordDecorations(
+  text: JSX.Element,
+  options: WordWithReadingRenderTextOptions,
+  decorations: {
+    coloredProsody?: WordRenderTextContext | null;
+    prosodyOverlay?: WordProsodyOverlayData | null;
+    surfaceWord: string;
+    surfaceReading: string | null | undefined;
+  },
+): JSX.Element {
+  let node: JSX.Element = text;
+  if (decorations.coloredProsody) {
+    node = createWordRenderText(decorations.coloredProsody)(node, options);
+  }
+  const overlay = decorations.prosodyOverlay;
+  if (overlay && !options.suppressOverlay) {
+    const target = getProsodyOverlayTextTarget(
+      decorations.surfaceWord,
+      overlay.surfaceReading ?? decorations.surfaceReading,
+      options,
+    );
+    const overlayWord = options.slot === 'reading'
+      ? (overlay.overlayWordForReadingSlot ?? target.word)
+      : target.word;
+    const position = typeof overlay.position === 'function' ? overlay.position(target.reading) : overlay.position;
+    const type = typeof overlay.type === 'function' ? overlay.type(target.reading) : overlay.type;
+    node = (
+      <ProsodyOverlay
+        word={overlayWord}
+        reading={target.reading}
+        prosodyPosition={position}
+        prosodyType={type}
+        language={options.language}
+        languageData={options.languageData}
+        pos={overlay.pos}
+        nextPos={overlay.nextPos}
+        mode="overlay"
+        homogenous={overlay.homogenous}
+        showParticleBox={overlay.showParticleBox}
+        allowStoredProsodyWithoutMetadata={overlay.allowStoredProsodyWithoutMetadata}
+        isReadingScript={options.isReadingScript}
+        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
+        style={options.style}
+      >
+        {node}
+      </ProsodyOverlay>
+    );
+  } else if (!decorations.coloredProsody) {
+    // createWordRenderText already wraps colored slots; only wrap plain ones.
+    node = (
+      <span class={options.class} style={options.style}>
+        {node}
+      </span>
+    );
+  }
+  return node;
 }

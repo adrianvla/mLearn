@@ -263,83 +263,68 @@ describe('language-specific rendering metadata resolution', () => {
     dispose();
   });
 
-  it('marks reading annotation slots as reading-script text for generic renderers', () => {
-    const seenSlots: Array<{ slot: string; isReadingScript: boolean; suppressOverlay: boolean; text: string }> = [];
-    mockLanguageMap = {
-      zh: makeLanguageData({
-        name: 'Chinese saved-card language',
-        textProcessing: {
-          scriptProfile: { acceptedScripts: ['Han'] },
-          readingAnnotation: {
-            type: 'script-reading',
-            annotationScripts: ['Han'],
-          },
+  it('applies the per-mora overlay to the reading but never the ruby word base', () => {
+    mockActiveLanguageData = makeLanguageData({
+      name: 'Japanese active language',
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        readingAnnotation: {
+          type: 'script-reading',
+          annotationScripts: ['Han'],
+          surfaceSuffixScripts: ['Hira', 'Kana'],
         },
-      }),
-    };
+      },
+      prosody: { type: 'japanese-pitch-accent' },
+    });
+    mockLanguageMap = { ja: mockActiveLanguageData };
 
     const dispose = render(() => (
       <WordWithReading
-        word="你好"
-        reading="ni hao"
-        language="zh"
-        renderText={(text, options) => {
-          seenSlots.push({
-            slot: options.slot,
-            isReadingScript: options.isReadingScript,
-            suppressOverlay: options.suppressOverlay ?? false,
-            text: String(text),
-          });
-          return <span class={options.class}>{text}</span>;
-        }}
+        word="仏像"
+        reading="ぶつぞう"
+        language="ja"
+        prosodyOverlay={{ position: 4 }}
       />
     ), container);
 
-    expect(seenSlots).toEqual([
-      { slot: 'word', isReadingScript: false, suppressOverlay: true, text: '你好' },
-      { slot: 'reading', isReadingScript: true, suppressOverlay: false, text: 'ni hao' },
-    ]);
+    const ruby = container.querySelector('ruby');
+    expect(ruby).not.toBeNull();
+    const base = ruby?.firstElementChild;
+    const rtReading = ruby?.querySelector('rt')?.firstElementChild;
+    expect(base?.classList.contains('prosody-overlay-wrapper')).toBe(false);
+    expect(base?.querySelector('.pitch-accent')).toBeNull();
+    expect(rtReading?.querySelector('.pitch-accent')).not.toBeNull();
 
     dispose();
   });
 
-  it('marks inline reading annotation slots as reading-script text for generic renderers', () => {
-    const seenSlots: Array<{ slot: string; isReadingScript: boolean; suppressOverlay: boolean; text: string }> = [];
-    mockLanguageMap = {
-      ar: makeLanguageData({
-        name: 'Arabic saved-card language',
-        textProcessing: {
-          scriptProfile: { acceptedScripts: ['Arab'] },
-          readingAnnotation: {
-            type: 'script-reading',
-            display: 'inline',
-            annotationScripts: ['Arab'],
-          },
+  it('applies the per-mora overlay to both word and reading slots in inline display', () => {
+    mockActiveLanguageData = makeLanguageData({
+      name: 'Japanese inline language',
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        readingAnnotation: {
+          type: 'script-reading',
+          display: 'inline',
+          annotationScripts: ['Han'],
+          surfaceSuffixScripts: ['Hira', 'Kana'],
         },
-      }),
-    };
+      },
+      prosody: { type: 'japanese-pitch-accent' },
+    });
+    mockLanguageMap = { ja: mockActiveLanguageData };
 
     const dispose = render(() => (
       <WordWithReading
-        word="بيت"
-        reading="bayt"
-        language="ar"
-        renderText={(text, options) => {
-          seenSlots.push({
-            slot: options.slot,
-            isReadingScript: options.isReadingScript,
-            suppressOverlay: options.suppressOverlay ?? false,
-            text: String(text),
-          });
-          return <span class={options.class}>{text}</span>;
-        }}
+        word="仏像"
+        reading="ぶつぞう"
+        language="ja"
+        prosodyOverlay={{ position: 4 }}
       />
     ), container);
 
-    expect(seenSlots).toEqual([
-      { slot: 'word', isReadingScript: false, suppressOverlay: false, text: 'بيت' },
-      { slot: 'reading', isReadingScript: true, suppressOverlay: false, text: 'bayt' },
-    ]);
+    expect(container.querySelectorAll('.prosody-overlay-wrapper')).toHaveLength(2);
+    expect(container.querySelector('.pitch-accent')).not.toBeNull();
 
     dispose();
   });

@@ -64,33 +64,42 @@ vi.mock('../common', () => ({
   ),
 }));
 
-vi.mock('../language-specific', () => ({
-  ProsodyOverlay: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
-  WordWithReading: (props: {
-    word: string;
-    reading?: string | null;
-    renderText?: (text: JSX.Element, options: { slot: 'word' | 'reading'; word: string; reading: string; displayReading: string; isReadingScript: boolean }) => JSX.Element;
-  }) => (
-    <span
-      class="mock-word-with-reading"
-      data-word={props.word}
-      data-reading={props.reading ?? ''}
-    >
-      {(() => {
-        const text = <span>{props.reading ? `${props.word}:${props.reading}` : props.word}</span>;
-        return props.renderText
-          ? props.renderText(text, {
-              slot: 'word',
-              word: props.word,
-              reading: props.reading ?? '',
-              displayReading: props.reading ?? '',
-              isReadingScript: false,
-            })
-          : text;
-      })()}
-    </span>
-  ),
-}));
+vi.mock('../language-specific', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../language-specific')>();
+  const { applyWordDecorations } = await import('../../utils/wordRenderText');
+  return {
+    ...actual,
+    ProsodyOverlay: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+    WordWithReading: (props: {
+      word: string;
+      reading?: string | null;
+      coloredProsody?: import('../../utils/wordRenderText').WordRenderTextContext | null;
+      prosodyOverlay?: import('../../utils/wordRenderText').WordProsodyOverlayData | null;
+    }) => {
+      const text = <span>{props.reading ? `${props.word}:${props.reading}` : props.word}</span>;
+      return (
+        <span
+          class="mock-word-with-reading"
+          data-word={props.word}
+          data-reading={props.reading ?? ''}
+        >
+          {applyWordDecorations(text, {
+            slot: 'word',
+            word: props.word,
+            reading: props.reading ?? '',
+            displayReading: props.reading ?? '',
+            isReadingScript: false,
+          }, {
+            coloredProsody: props.coloredProsody ?? null,
+            prosodyOverlay: props.prosodyOverlay ?? null,
+            surfaceWord: props.word,
+            surfaceReading: props.reading ?? '',
+          })}
+        </span>
+      );
+    },
+  };
+});
 
 vi.mock('../common/Smart', () => ({
   ResourcePill: (props: { word: string }) => <span class="mock-resource-pill">{`resource:${props.word}`}</span>,

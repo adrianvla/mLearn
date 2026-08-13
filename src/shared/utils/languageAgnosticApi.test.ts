@@ -219,7 +219,8 @@ describe('language-agnostic runtime API naming', () => {
   it('keeps generic reading annotation rendering independent from Japanese pitch overlays', () => {
     const wordWithReading = readRepoFile('src/renderer/components/language-specific/WordWithReading.tsx');
 
-    expect(wordWithReading).toContain('renderText?:');
+    expect(wordWithReading).toContain('coloredProsody?:');
+    expect(wordWithReading).toContain('prosodyOverlay?:');
     expect(wordWithReading).not.toMatch(/import\s+\{\s*JapanesePitchAccentOverlay\s*\}/);
     expect(wordWithReading).not.toMatch(/<JapanesePitchAccentOverlay\b/);
   });
@@ -242,13 +243,6 @@ describe('language-agnostic runtime API naming', () => {
       'src/renderer/windows/wordDbEditor/components/WordEntryRow.tsx',
       'src/renderer/windows/wordDbEditor/components/EditTranslationDialog.tsx',
     ];
-    const readingProsodyWrapperPaths = [
-      'src/renderer/components/flashcard/FlashcardWordTitle.tsx',
-      'src/renderer/components/subtitle/SubtitleWord.tsx',
-      'src/renderer/components/sidebar/UnknownWordsSidebar.tsx',
-      'src/renderer/windows/wordDbEditor/components/WordEntryRow.tsx',
-    ];
-
     expect(prosodyOverlayProps).toContain('prosodyPosition?:');
     expect(prosodyOverlayProps).toContain('allowStoredProsodyWithoutMetadata?:');
     expect(prosodyOverlayProps).toContain('isReadingScript?:');
@@ -276,7 +270,7 @@ describe('language-agnostic runtime API naming', () => {
 
     for (const relativePath of genericRendererPaths) {
       const source = readRepoFile(relativePath);
-      expect(source).toContain('ProsodyOverlay');
+      expect(source).toMatch(/ProsodyOverlay|prosodyOverlay/);
       expect(source).not.toContain('getInlineProsodyOverlayRenderer');
       expect(source).not.toContain('InlineProsodyOverlayRenderer');
       expect(source).not.toMatch(/<ProsodyOverlay[\s\S]*?\bpitchPosition=/);
@@ -290,9 +284,9 @@ describe('language-agnostic runtime API naming', () => {
       expect(source).not.toContain('pitch-overlay-wrapper--ruby');
     }
 
-    for (const relativePath of readingProsodyWrapperPaths) {
-      expect(readRepoFile(relativePath)).toContain('prosody-overlay-wrapper--reading');
-    }
+    // The reading-slot overlay wrapper class is enforced at the single decoration
+    // composition point; word surfaces route through it via data props.
+    expect(readRepoFile('src/renderer/utils/wordRenderText.tsx')).toContain('prosody-overlay-wrapper--reading');
   });
 
   it('keeps Japanese pitch accent names out of generic hover and lookup state APIs', () => {

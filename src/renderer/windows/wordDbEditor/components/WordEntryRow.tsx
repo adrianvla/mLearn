@@ -4,10 +4,9 @@
  * Lazily fetches translation from backend when visible
  */
 
-import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup, type JSX } from 'solid-js';
+import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { Btn, PillLabel, AnkiHoverPreview } from '../../../components/common';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
-import type { WordWithReadingRenderTextOptions } from '../../../components/language-specific/WordWithReading';
 import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
@@ -16,8 +15,7 @@ import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionar
 import { ankiCacheVersion, findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import { getProsodyOverlayRenderer } from '../../../utils/prosodyPresentation';
-import { getProsodyOverlayTextTarget } from '../../../utils/prosodyOverlayTarget';
-import { createWordRenderText } from '../../../utils/wordRenderText';
+import type { WordProsodyOverlayData, WordRenderTextContext } from '../../../utils/wordRenderText';
 import {
   extractProsodyFromTranslationData,
   normalizeDictionaryReading,
@@ -164,7 +162,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     return getComprehensiveWordStatusWithSourceSync(word, settings.language);
   });
   const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
-  const renderColoredProsodyText = createWordRenderText({
+  const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => prosodyPositionForDisplayedReading(effectiveReading()),
     ease: () => comprehensiveKnowledge().ease,
@@ -173,6 +171,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
+  };
+
+  const prosodyOverlayData = createMemo<WordProsodyOverlayData | null>(() => {
+    if (!canRenderProsodyOverlay()) return null;
+    return {
+      position: (reading) => prosodyPositionForDisplayedReading(reading),
+      type: (reading) => prosodyTypeForDisplayedReading(reading),
+      homogenous: true,
+    };
   });
 
   // Effective reading: translation cache reading > freq data > word
@@ -243,32 +250,6 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const renderedLevel = createMemo((): number | null => (
     displayableLevel() ? props.entry.level : null
   ));
-
-  const renderEntryWordText = (text: JSX.Element, options: WordWithReadingRenderTextOptions) => {
-    const coloredText = renderColoredProsodyText(text, options);
-    if (!canRenderProsodyOverlay()) {
-      return coloredText;
-    }
-
-    const overlayTarget = getProsodyOverlayTextTarget(props.entry.word, effectiveReading(), options);
-
-    return (
-      <ProsodyOverlay
-        word={overlayTarget.word}
-        reading={overlayTarget.reading}
-        prosodyPosition={prosodyPositionForDisplayedReading(overlayTarget.reading)}
-        prosodyType={prosodyTypeForDisplayedReading(overlayTarget.reading)}
-        languageData={currentLangData()}
-        mode="overlay"
-        homogenous={true}
-        isReadingScript={options.isReadingScript}
-        class={options.slot === 'reading' ? 'prosody-overlay-wrapper--reading' : options.class}
-        style={options.style}
-      >
-        {coloredText}
-      </ProsodyOverlay>
-    );
-  };
 
   // Determine the translation to display: prop > cache > empty
   const displayTranslation = createMemo(() => {
@@ -409,7 +390,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           language={settings.language}
           languageData={currentLangData()}
           class="word-text"
-          renderText={renderEntryWordText}
+          coloredProsody={coloredProsodyCtx}
+          prosodyOverlay={prosodyOverlayData()}
         />
         <Show when={props.onEdit}>
           <Btn
