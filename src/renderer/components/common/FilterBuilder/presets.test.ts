@@ -75,7 +75,7 @@ describe('buildWordSyncPreset', () => {
     },
   };
 
-  it('builds (Untracked OR Unknown) AND (N5 OR N4 OR N3 OR N2) for target level 2', () => {
+  it('builds (Untracked OR Unknown) AND (N5 OR N4 OR N3 OR N2) AND Not recently rated for target level 2', () => {
     const tokens = buildWordSyncPreset(allLevelNames, 2);
 
     expect(shapes(tokens)).toEqual([
@@ -94,10 +94,12 @@ describe('buildWordSyncPreset', () => {
       { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'level', op: 'eq', value: '2' },
       { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
   });
 
-  it('builds (Untracked OR Unknown) AND (N5) for target level 5', () => {
+  it('builds (Untracked OR Unknown) AND (N5) AND Not recently rated for target level 5', () => {
     const tokens = buildWordSyncPreset({ '5': 'N5' }, 5);
 
     expect(shapes(tokens)).toEqual([
@@ -110,20 +112,24 @@ describe('buildWordSyncPreset', () => {
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'level', op: 'eq', value: '5' },
       { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
   });
 
-  it('builds only Untracked OR Unknown when no requested levels are available', () => {
+  it('builds Untracked OR Unknown AND Not recently rated when no requested levels are available', () => {
     expect(shapes(buildWordSyncPreset({}, 2))).toEqual([
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
       { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'status', op: 'eq', value: '0' },
       { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
   });
 
-  it('builds ascending-difficulty presets from easier levels through the target', () => {
+  it('builds ascending-difficulty presets from easier levels through the target, plus Not recently rated', () => {
     const tokens = buildWordSyncPreset({ '1': 'A1', '2': 'A2', '3': 'B1' }, 2, ascendingDifficultyLanguage);
 
     expect(shapes(tokens)).toEqual([
@@ -138,10 +144,12 @@ describe('buildWordSyncPreset', () => {
       { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'level', op: 'eq', value: '2' },
       { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
   });
 
-  it('builds zero-based presets when the language declares zero as a real level', () => {
+  it('builds zero-based presets when the language declares zero as a real level, plus Not recently rated', () => {
     const zeroBasedLanguage: LanguageData = {
       name: 'Zero Based Language',
       colour_codes: {},
@@ -166,10 +174,12 @@ describe('buildWordSyncPreset', () => {
       { kind: 'operator', op: 'OR' },
       { kind: 'operand', field: 'level', op: 'eq', value: '1' },
       { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
   });
 
-  it('does not include sentinel levels in word sync presets', () => {
+  it('does not include sentinel levels in word sync presets, still adds Not recently rated', () => {
     const tokens = buildWordSyncPreset({ '-1': 'Unlisted', '5': 'N5' }, 5);
 
     expect(shapes(tokens)).toEqual([
@@ -182,15 +192,23 @@ describe('buildWordSyncPreset', () => {
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'level', op: 'eq', value: '5' },
       { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
   });
 
-  it('builds an empty preset for null target level', () => {
-    expect(buildWordSyncPreset(allLevelNames, null)).toEqual([]);
+  it('builds only the Not recently rated clause for null target level', () => {
+    expect(shapes(buildWordSyncPreset(allLevelNames, null))).toEqual([
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
+    ]);
   });
 
-  it('builds an empty preset for undefined target level', () => {
-    expect(buildWordSyncPreset(allLevelNames, undefined)).toEqual([]);
+  it('builds only the Not recently rated clause for undefined target level', () => {
+    expect(shapes(buildWordSyncPreset(allLevelNames, undefined))).toEqual([
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
+    ]);
   });
 
   it('assigns unique instanceIds to all preset tokens', () => {

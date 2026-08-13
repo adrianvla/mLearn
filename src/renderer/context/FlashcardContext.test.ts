@@ -268,6 +268,7 @@ type FlashcardCtx = {
     words: string[],
     targetStatus: 'new' | 'learning' | 'known' | 'mastered',
     language?: string,
+    options?: { onProgress?: (done: number, total: number) => void; preserveExistingStatus?: boolean },
   ) => Promise<{ created: number; promoted: number; skipped: number }>;
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
   pushUndoState: (options?: { type?: string; restore?: () => void | Promise<void> }) => void;
@@ -938,9 +939,12 @@ describe('FlashcardProvider', () => {
     }));
 
     ctx.answerCard('good', cardId);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(ctx.store.wordStatsMap[primaryKey]?.totalReviews).toBe(6);
+    // The word-stats recompute is a fire-and-forget async IIFE whose hashWord
+    // round-trips through a worker — a single setTimeout(0) tick races it under
+    // load. Poll until the recompute lands instead.
+    await vi.waitFor(() => {
+      expect(ctx.store.wordStatsMap[primaryKey]?.totalReviews).toBe(6);
+    });
     dispose();
   });
 
@@ -3613,6 +3617,54 @@ describe('FlashcardProvider', () => {
       console.log(
         `[bench] promote suggestion -> created=${result.created} promoted=${result.promoted} skipped=${result.skipped}`,
       );
+      dispose();
+    });
+
+    it('skips already-tracked words when preserveExistingStatus is set', async () => {
+      const { ctx, dispose } = await mountProvider();
+      const lk = `ja:${SRS.hashWordSync('テスト')}`;
+      flashcardsCb(makeEmptyStore({ knownUntracked: { [lk]: true } }));
+      mockBridge.flashcards.saveFlashcards.mockClear();
+      mockBackend.translate.mockClear();
+
+      // Known-untracked entries resolve to 'known' via the comprehensive status resolver,
+      // so the preserve mode must skip the word instead of overwriting its status.
+      const preserved = await ctx.addLevelStudyFlashcards(['テスト'], 'new', 'ja', {
+        preserveExistingStatus: true,
+      });
+      expect(preserved.created).toBe(0);
+      expect(preserved.skipped).toBe(1);
+      expect(Object.keys(ctx.store.flashcards)).toHaveLength(0);
+
+      // Without the option the same word is re-stamped as a fresh shell (the data-loss path).
+      const overwritten = await ctx.addLevelStudyFlashcards(['テスト'], 'new', 'ja');
+      expect(overwritten.created).toBe(1);
+      expect(overwritten.skipped).toBe(0);
+      dispose();
+    });
+
+    it('skips a word with an existing card before promoting its pending suggestion', async () => {
+      const { ctx, dispose } = await mountProvider();
+      const lk = `ja:${SRS.hashWordSync('キャプチャテスト')}`;
+      flashcardsCb(
+        makeEmptyStore({
+          flashcards: { 'card-existing': makeCard({ id: 'card-existing' }) },
+          wordToCardMap: { [lk]: ['card-existing'] },
+        }),
+      );
+      await ctx.captureSuggestedFlashcard({ word: 'キャプチャテスト', language: 'ja' });
+
+      mockBackend.translate.mockClear();
+      const result = await ctx.addLevelStudyFlashcards(['キャプチャテスト'], 'new', 'ja', {
+        preserveExistingStatus: true,
+      });
+
+      // The existing-card check runs before the suggestion check, so a real card is
+      // never clobbered by a stale pending suggestion's promote re-stamp.
+      expect(result.created).toBe(0);
+      expect(result.promoted).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(mockBackend.translate).not.toHaveBeenCalled();
       dispose();
     });
   });

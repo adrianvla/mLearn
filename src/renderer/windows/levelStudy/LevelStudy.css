@@ -113,10 +113,6 @@
   color: var(--text-secondary);
 }
 
-.bulk-add-search {
-  margin-bottom: 12px;
-}
-
 .bulk-add-modal-footer {
   display: flex;
   justify-content: space-between;

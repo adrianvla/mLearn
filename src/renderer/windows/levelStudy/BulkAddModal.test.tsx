@@ -147,7 +147,7 @@ describe('BulkAddModal', () => {
     ), container);
   }
 
-  it('defaults to the untracked|unknown|learning filter and adds matching words as learning', async () => {
+  it('defaults to the untracked|unknown|learning filter and adds matching words keeping their existing status', async () => {
     const dispose = await renderModal();
 
     expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[2]');
@@ -157,9 +157,9 @@ describe('BulkAddModal', () => {
 
     expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
       ['猫', '犬'],
-      'learning',
+      'new',
       'ja',
-      expect.objectContaining({ onProgress: expect.any(Function) }),
+      expect.objectContaining({ onProgress: expect.any(Function), preserveExistingStatus: true }),
     );
     expect(showToastMock).toHaveBeenCalled();
     expect(onCloseMock).toHaveBeenCalled();
@@ -200,6 +200,44 @@ describe('BulkAddModal', () => {
     dispose();
   });
 
+  it('passes the keep-existing status option to the bulk add', async () => {
+    const dispose = await renderModal();
+
+    // Default: keep-existing is selected — adds as new with preservation on.
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    await Promise.resolve();
+    expect(addLevelStudyFlashcardsMock).toHaveBeenLastCalledWith(
+      ['猫', '犬'],
+      'new',
+      'ja',
+      expect.objectContaining({ preserveExistingStatus: true }),
+    );
+
+    // Selecting an explicit status disables preservation.
+    findButton(container, 'mlearn.LevelStudy.DetailModal.StatusKnown')?.click();
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    await Promise.resolve();
+    expect(addLevelStudyFlashcardsMock).toHaveBeenLastCalledWith(
+      ['猫', '犬'],
+      'known',
+      'ja',
+      expect.objectContaining({ preserveExistingStatus: false }),
+    );
+
+    // Selecting keep-existing again restores the default mapping.
+    findButton(container, 'mlearn.LevelStudy.BulkAdd.PreserveStatus')?.click();
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    await Promise.resolve();
+    expect(addLevelStudyFlashcardsMock).toHaveBeenLastCalledWith(
+      ['猫', '犬'],
+      'new',
+      'ja',
+      expect.objectContaining({ preserveExistingStatus: true }),
+    );
+
+    dispose();
+  });
+
   it('matches every displayable word when the filter is cleared', async () => {
     const dispose = await renderModal();
 
@@ -212,7 +250,7 @@ describe('BulkAddModal', () => {
 
     expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
       ['猫', '犬', '鳥'],
-      'learning',
+      'new',
       'ja',
       expect.objectContaining({ onProgress: expect.any(Function) }),
     );
@@ -265,7 +303,7 @@ describe('BulkAddModal', () => {
 
     expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
       ['猫', '兎', '熊'],
-      'learning',
+      'new',
       'ja',
       expect.objectContaining({ onProgress: expect.any(Function) }),
     );
@@ -299,7 +337,7 @@ describe('BulkAddModal', () => {
 
     expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
       ['兎', '熊'],
-      'learning',
+      'new',
       'ja',
       expect.objectContaining({ onProgress: expect.any(Function) }),
     );
@@ -325,7 +363,7 @@ describe('BulkAddModal', () => {
 
     expect(addLevelStudyFlashcardsMock).toHaveBeenCalledWith(
       ['鮫', '鰯'],
-      'learning',
+      'new',
       'ja',
       expect.objectContaining({ onProgress: expect.any(Function) }),
     );

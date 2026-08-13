@@ -3,7 +3,6 @@ import {
   Modal,
   Btn,
   FilterBuilder,
-  Input,
   ProgressBar,
   validateTokens,
   parseTokens,
@@ -13,6 +12,7 @@ import {
   WORD_SYNC_STATUS_UNTRACKED,
   type FilterToken,
   type FieldResolver,
+  type ExprNode,
 } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { useFlashcards, useLocalization } from '../../context';
@@ -38,7 +38,11 @@ interface BulkAddModalProps {
   onClose: () => void;
 }
 
-const TARGET_STATUS_OPTIONS: { value: LevelStudyTargetStatus; labelKey: string }[] = [
+// 'keep-existing' is the default: it maps to preserveExistingStatus (never clobber an existing
+// card's status) and creates genuinely new words as 'new'. The other four are explicit
+// overwrite statuses.
+const TARGET_STATUS_OPTIONS: { value: LevelStudyTargetStatus | 'keep-existing'; labelKey: string }[] = [
+  { value: 'keep-existing', labelKey: 'mlearn.LevelStudy.BulkAdd.PreserveStatus' },
   { value: 'new', labelKey: 'mlearn.LevelStudy.DetailModal.StatusNew' },
   { value: 'learning', labelKey: 'mlearn.LevelStudy.DetailModal.StatusLearning' },
   { value: 'known', labelKey: 'mlearn.LevelStudy.DetailModal.StatusKnown' },
@@ -50,14 +54,27 @@ interface BulkAddWordRecord {
   level: number | string | null | undefined;
 }
 
+// Dict records always resolve level -1 → __beyond_exam__ (normalizeLevelValue), and status to
+// one of toFilterStatus' four outputs. If no probe passes the AST, no dict word can pass the
+// filter — skip the scan so dictBuilding doesn't hold the Add button disabled (e.g. the default
+// filter's level clause never admits __beyond_exam__).
+function dictScanCanMatch(ast: ExprNode, resolvers: Record<string, FieldResolver<BulkAddWordRecord>>): boolean {
+  const probes: BulkAddWordRecord[] = [
+    { status: WORD_SYNC_STATUS_UNTRACKED, level: -1 },
+    { status: String(WORD_STATUS.UNKNOWN), level: -1 },
+    { status: String(WORD_STATUS.LEARNING), level: -1 },
+    { status: String(WORD_STATUS.KNOWN), level: -1 },
+  ];
+  return probes.some((record) => evaluateAst(ast, record, resolvers));
+}
+
 export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const [tokens, setTokens] = createSignal<FilterToken[]>(
     buildBulkAddDefaultPreset(props.levelNames, props.targetLevel, props.languageData),
   );
-  const [targetStatus, setTargetStatus] = createSignal<LevelStudyTargetStatus>('learning');
-  const [searchQuery, setSearchQuery] = createSignal('');
+  const [targetStatus, setTargetStatus] = createSignal<LevelStudyTargetStatus | 'keep-existing'>('keep-existing');
   const [isAdding, setIsAdding] = createSignal(false);
   const [addProgress, setAddProgress] = createSignal<{ current: number; total: number } | null>(null);
 
@@ -102,14 +119,8 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
     const ast = filterAst();
     if (tokens().length > 0 && !ast) return [];
 
-    const query = searchQuery().trim().toLowerCase();
-    const matchesSearch = (word: string, reading?: string): boolean => (
-      query.length === 0 || word.toLowerCase().includes(query) || (reading?.toLowerCase().includes(query) ?? false)
-    );
-
     const words: string[] = [];
     for (const [word, entry] of Object.entries(props.frequency)) {
-      if (!matchesSearch(word)) continue;
       if (!ast) {
         words.push(word);
         continue;
@@ -139,7 +150,13 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
       return;
     }
 
-    const query = searchQuery().trim().toLowerCase();
+    if (ast && !dictScanCanMatch(ast, resolvers())) {
+      setDictWords([]);
+      setDictCount(0);
+      setDictBuilding(false);
+      return;
+    }
+
     const inFrequency = new Set(Object.keys(props.frequency));
     const token = ++dictBuildToken;
     setDictBuilding(true);
@@ -151,15 +168,8 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
       if (token !== dictBuildToken) return;
       const end = Math.min(i + DICT_BUILD_CHUNK, pairs.length);
       for (; i < end; i++) {
-        const [word, reading] = pairs[i];
+        const [word] = pairs[i];
         if (inFrequency.has(word)) continue;
-        if (
-          query.length !== 0
-          && !word.toLowerCase().includes(query)
-          && !(reading?.toLowerCase().includes(query) ?? false)
-        ) {
-          continue;
-        }
         if (ast) {
           // -1: not on the exam frequency list — normalizeLevelValue maps it to the beyond-exam bucket.
           const record: BulkAddWordRecord = { status: toFilterStatus(word), level: -1 };
@@ -186,8 +196,11 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
     if (words.length === 0 || isAdding()) return;
     setIsAdding(true);
     try {
-      const result = await flashcards.addLevelStudyFlashcards(words, targetStatus(), props.language, {
+      const status = targetStatus();
+      const keepExisting = status === 'keep-existing';
+      const result = await flashcards.addLevelStudyFlashcards(words, keepExisting ? 'new' : status, props.language, {
         onProgress: (current, total) => setAddProgress({ current, total }),
+        preserveExistingStatus: keepExisting,
       });
       showToast({
         message: t('mlearn.LevelStudy.DetailModal.WordsAdded', {
@@ -269,14 +282,6 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
       }
     >
       <p class="bulk-add-modal-hint">{t('mlearn.LevelStudy.BulkAdd.Hint')}</p>
-      <Input
-        class="bulk-add-search"
-        type="search"
-        fullWidth
-        placeholder={t('mlearn.LevelStudy.BulkAdd.SearchPlaceholder')}
-        value={searchQuery()}
-        onInput={(e) => setSearchQuery(e.currentTarget.value)}
-      />
       <FilterBuilder
         fields={filterSetup().fields}
         paletteItems={filterSetup().paletteItems}

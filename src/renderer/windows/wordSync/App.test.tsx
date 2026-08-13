@@ -97,6 +97,7 @@ vi.mock('../../context', () => ({
   }),
   useFlashcards: () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
+    isLoading: () => false,
     store: {
       wordKnowledge: mockWordSyncState.wordKnowledge,
       wordSyncSeen: mockWordSyncState.wordSyncSeen,

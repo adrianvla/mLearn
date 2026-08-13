@@ -50,10 +50,10 @@ export function buildWordSyncPreset(
   languageData?: LanguageData | null,
 ): FilterToken[] {
   if (targetLevel === null || targetLevel === undefined) {
-    return [];
+    // The default filter was empty without a target level; keep that and
+    // add only the not-recently-rated clause.
+    return buildNotRecentlyRatedClause();
   }
-
-  const levels = getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
 
   const tokens: FilterToken[] = [
     { instanceId: uniqueId(), kind: 'paren', dir: 'open' },
@@ -63,14 +63,19 @@ export function buildWordSyncPreset(
     { instanceId: uniqueId(), kind: 'paren', dir: 'close' },
   ];
 
-  if (levels.length === 0) {
-    return tokens;
+  const levels = getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
+
+  if (levels.length > 0) {
+    tokens.push(...buildLevelRangeClause(levels));
   }
 
-  return tokens.concat(buildLevelRangeClause(levels));
+  // Unconditional: the pool default never re-shows words rated within the
+  // cooldown window, whether or not an exam level is set.
+  return tokens.concat(buildNotRecentlyRatedClause());
 }
 
-// Status clause stays meaningful without a target level (unlike buildWordSyncPreset).
+// Status clause stays meaningful without a target level; wordSync's preset
+// returns only its not-recently-rated clause in that case.
 export function buildBulkAddDefaultPreset(
   levelNames: Record<string, string>,
   targetLevel: number | null | undefined,
@@ -121,6 +126,13 @@ function buildLevelRangeClause(levels: number[]): FilterToken[] {
   tokens.push({ instanceId: uniqueId(), kind: 'paren', dir: 'close' });
 
   return tokens;
+}
+
+function buildNotRecentlyRatedClause(): FilterToken[] {
+  return [
+    { instanceId: uniqueId(), kind: 'operator', op: 'AND' },
+    { instanceId: uniqueId(), kind: 'operand', field: RECENCY_FIELD, op: 'eq', value: 'false' },
+  ];
 }
 
 export function buildEmptyPreset(): FilterToken[] {

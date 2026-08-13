@@ -268,7 +268,10 @@ interface FlashcardContextValue {
     words: string[],
     targetStatus: LevelStudyTargetStatus,
     language?: string,
-    options?: { onProgress?: (done: number, total: number) => void },
+    options?: {
+      onProgress?: (done: number, total: number) => void;
+      preserveExistingStatus?: boolean;
+    },
   ) => Promise<{ created: number; promoted: number; skipped: number }>;
 
   // Passive word knowledge tracking
@@ -2114,7 +2117,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     words: string[],
     targetStatus: LevelStudyTargetStatus,
     language?: string,
-    options?: { onProgress?: (done: number, total: number) => void },
+    options?: {
+      onProgress?: (done: number, total: number) => void;
+      preserveExistingStatus?: boolean;
+    },
   ): Promise<{ created: number; promoted: number; skipped: number }> => {
     const lang = language ?? settings.language;
     let created = 0;
@@ -2149,17 +2155,31 @@ export const FlashcardProvider: ParentComponent = (props) => {
         const canonical = getPrimaryWordFormForLanguage(word, lang);
         const wordHash = SRS.hashWordSync(canonical);
         const lk = langKey(lang, wordHash);
+        const existingCardIds = store.wordToCardMap[lk] ?? [];
+
+        // Preserve-existing-status mode: skip any word that is already tracked in any
+        // knowledge bank (knownUntracked, ignored, SRS, passive) so bulk add never
+        // overwrites learning data. New-state cards resolve to 'unknown' here and fall
+        // through to the existing-card check below.
+        if (
+          options?.preserveExistingStatus &&
+          getComprehensiveWordStatusSync(canonical, lang) !== 'unknown'
+        ) {
+          skipped++;
+          continue;
+        }
+
+        // An existing card must never be promoted/re-stamped: check BEFORE suggestions so
+        // a stale pending suggestion cannot clobber a real card's state (the data-loss path).
+        if (existingCardIds.some((id) => store.flashcards[id])) {
+          skipped++;
+          continue;
+        }
+
         const suggestion = store.suggestedFlashcards[lk];
 
         if (suggestion) {
           promotes.push({ id: suggestion.id, word: canonical });
-          continue;
-        }
-
-        const existingCardIds = store.wordToCardMap[lk] ?? [];
-
-        if (existingCardIds.some((id) => store.flashcards[id])) {
-          skipped++;
           continue;
         }
 

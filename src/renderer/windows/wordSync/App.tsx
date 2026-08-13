@@ -84,6 +84,7 @@ export const WordSyncContent: Component = () => {
   const langCtx = useLanguage();
   const {
     store,
+    isLoading,
     setWordKnowledgeEase,
     markWordSyncSeen,
     clearAllWordSyncSeen,
@@ -468,7 +469,7 @@ export const WordSyncContent: Component = () => {
       return;
     }
 
-    if (!langCtx.isLoading() && !initialized()) {
+    if (!langCtx.isLoading() && !isLoading() && !initialized()) {
       setInitialized(true);
       const levels = sortedLevels();
       if (levels.length > 0) setSamplingLevel(levels[0]);

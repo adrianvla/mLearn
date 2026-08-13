@@ -1241,8 +1241,8 @@
         "MatchingCount": "{count} words match",
         "Cancel": "Cancel",
         "Adding": "Adding...",
-        "SearchPlaceholder": "Search words",
-        "AddingProgress": "Adding {current}/{total}..."
+        "AddingProgress": "Adding {current}/{total}...",
+        "PreserveStatus": "Keep existing status"
       },
       "LevelCard": {
         "TotalWords": "{count} words",
@@ -3030,8 +3030,8 @@
         "Known": "Known"
       },
       "Recency": {
-        "Recent": "Recently seen",
-        "NotRecent": "Not recently seen"
+        "Recent": "Recently rated",
+        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",

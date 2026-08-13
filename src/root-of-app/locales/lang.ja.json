@@ -1241,8 +1241,8 @@
         "MatchingCount": "{count} 語が一致",
         "Cancel": "キャンセル",
         "Adding": "追加中...",
-        "SearchPlaceholder": "言葉を検索",
-        "AddingProgress": "追加中 {current}/{total}..."
+        "AddingProgress": "追加中 {current}/{total}...",
+        "PreserveStatus": "既存のステータスを保持"
       },
       "LevelCard": {
         "TotalWords": "{count}語",
@@ -3030,8 +3030,8 @@
         "Known": "Known"
       },
       "Recency": {
-        "Recent": "Recently seen",
-        "NotRecent": "Not recently seen"
+        "Recent": "Recently rated",
+        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",

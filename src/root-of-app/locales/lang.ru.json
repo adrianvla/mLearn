@@ -1241,8 +1241,8 @@
         "MatchingCount": "Подходит слов: {count}",
         "Cancel": "Отмена",
         "Adding": "Добавление...",
-        "SearchPlaceholder": "Слова поиск",
-        "AddingProgress": "Добавление {current}/{total}..."
+        "AddingProgress": "Добавление {current}/{total}...",
+        "PreserveStatus": "Сохранить текущий статус"
       },
       "LevelCard": {
         "TotalWords": "{count} слов",
@@ -3030,8 +3030,8 @@
         "Known": "Known"
       },
       "Recency": {
-        "Recent": "Recently seen",
-        "NotRecent": "Not recently seen"
+        "Recent": "Recently rated",
+        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",
