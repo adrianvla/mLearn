@@ -14,7 +14,7 @@ const mockClearAllWordSyncSeen = vi.fn();
 const mockSetWordKnowledgeEase = vi.fn();
 const mockMarkWordSyncSeen = vi.fn();
 const mockRestoreWordSyncRating = vi.fn();
-const mockFetchTranslation = vi.hoisted(() => vi.fn(async (): Promise<{ data: Array<{ definitions: string[] }> }> => ({ data: [] })));
+const mockFetchTranslation = vi.hoisted(() => vi.fn(async (): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
 const mockWordSyncState = vi.hoisted(() => ({
   settings: {
     language: 'ja',
@@ -327,6 +327,29 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(container.textContent).toContain('赤い:あかい');
+    dispose();
+  });
+
+  it('displays and stores the dictionary entry reading instead of the freq-list primary', async () => {
+    // 赤い has freq primary あかい, but the dictionary's chosen entry reads あか
+    // (different senses of the same kanji — like 仏: ほとけ Buddha vs ふつ France).
+    mockFetchTranslation.mockResolvedValue({ data: [{ reading: 'あか', definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The displayed reading follows the dictionary entry, not the freq primary.
+    expect(container.textContent).toContain('赤い:あか');
+    expect(container.textContent).not.toContain('赤い:あかい');
+
+    // Rating stores the displayed (dictionary) reading so the word DB pairs it
+    // with the same definition.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', expect.any(Number), 'あか', 'ja');
     dispose();
   });
 

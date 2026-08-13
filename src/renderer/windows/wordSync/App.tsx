@@ -372,7 +372,7 @@ export const WordSyncContent: Component = () => {
       previousShowTranslation: showTranslation(),
     });
 
-    setWordKnowledgeEase(w.word, RATING_EASE[rating], w.reading, settings.language);
+    setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
 
     if (rating === 'unknown') {
       markWordSyncSeen(w.word, settings.language);
@@ -514,10 +514,20 @@ export const WordSyncContent: Component = () => {
     return total;
   });
 
+  // The definition comes from the dictionary's chosen entry; pair it with that
+  // entry's own reading (data[0].reading) so reading and definition belong to
+  // the same sense. The freq-list primary may be a different sense (仏: ほとけ
+  // Buddha vs ふつ France) and must not be glued to the wrong definition.
+  const displayedReading = createMemo(() => {
+    const w = currentWord();
+    if (!w) return '';
+    return translation()?.data?.[0]?.reading || w.reading;
+  });
+
   const currentWordProsody = createMemo(() => {
     const w = currentWord();
     if (!w) return undefined;
-    return extractProsodyFromTranslationData(translation() ?? undefined, langCtx.currentLangData(), w.reading);
+    return extractProsodyFromTranslationData(translation() ?? undefined, langCtx.currentLangData(), displayedReading());
   });
 
   const currentWordContent = createMemo(() => {
@@ -527,7 +537,7 @@ export const WordSyncContent: Component = () => {
       type: 'word' as const,
       front: w.word,
       back: translationText(),
-      reading: w.reading,
+      reading: displayedReading(),
       level: w.level,
       prosody: currentWordProsody(),
     };
@@ -619,7 +629,7 @@ export const WordSyncContent: Component = () => {
                   fallback={
                     <Show
                       when={currentWordContent()}
-                      fallback={<WordWithReading word={w().word} reading={w().reading} />}
+                      fallback={<WordWithReading word={w().word} reading={displayedReading()} />}
                     >
                       {(content) => (
                         <FlashcardWordTitle
