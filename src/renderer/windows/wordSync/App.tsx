@@ -81,6 +81,9 @@ const RATING_EASE: Record<Rating, number> = {
   known: SRS_EASE.DEFAULT_KNOWN,
 };
 
+// Bounded undo history mirroring flashcard review (MAX_UNDO_STACK_SIZE there is also 50).
+const MAX_UNDO_STACK_SIZE = 50;
+
 export const WordSyncContent: Component = () => {
   const { t } = useLocalization();
   const { settings } = useSettings();
@@ -115,7 +118,7 @@ export const WordSyncContent: Component = () => {
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
-  const [lastUndoEntry, setLastUndoEntry] = createSignal<WordSyncUndoEntry | null>(null);
+  const [undoStack, setUndoStack] = createSignal<WordSyncUndoEntry[]>([]);
 
   // ─── Translation for current word ───────────────────
   const [translation] = createResource(
@@ -362,16 +365,23 @@ export const WordSyncContent: Component = () => {
 
     const lk = w.storageKey;
     const previousKnowledge = store.wordKnowledge[lk];
-    setLastUndoEntry({
-      word: w,
-      language: settings.language,
-      previousKnowledge: previousKnowledge ? { ...previousKnowledge } : undefined,
-      previousSeenAt: store.wordSyncSeen[lk],
-      previousRatedCount: ratedCount(),
-      previousLastRating: lastRating(),
-      previousSamplingLevel: samplingLevel(),
-      previousLevelCursors: new Map(levelCursors),
-      previousShowTranslation: showTranslation(),
+    setUndoStack((prev) => {
+      const next = [
+        ...prev,
+        {
+          word: w,
+          language: settings.language,
+          previousKnowledge: previousKnowledge ? { ...previousKnowledge } : undefined,
+          previousSeenAt: store.wordSyncSeen[lk],
+          previousRatedCount: ratedCount(),
+          previousLastRating: lastRating(),
+          previousSamplingLevel: samplingLevel(),
+          previousLevelCursors: new Map(levelCursors),
+          previousShowTranslation: showTranslation(),
+        },
+      ];
+      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
+      return next;
     });
 
     setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
@@ -403,7 +413,7 @@ export const WordSyncContent: Component = () => {
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
-    setLastUndoEntry(null);
+    setUndoStack([]);
     setSessionRatedSet(new Set<string>());
     levelCursors = new Map();
 
@@ -416,8 +426,11 @@ export const WordSyncContent: Component = () => {
   }
 
   function undoLastWordSyncRating() {
-    const undoEntry = lastUndoEntry();
+    const stack = undoStack();
+    const undoEntry = stack[stack.length - 1];
     if (!undoEntry) return;
+
+    setUndoStack((prev) => prev.slice(0, -1));
 
     restoreWordSyncRating(
       undoEntry.word.word,
@@ -437,7 +450,6 @@ export const WordSyncContent: Component = () => {
     setShowTranslation(undoEntry.previousShowTranslation);
     setFinished(false);
     setCurrentWord(undoEntry.word);
-    setLastUndoEntry(null);
   }
 
   function shouldIgnoreWordSyncShortcut(e: KeyboardEvent): boolean {
@@ -589,7 +601,7 @@ export const WordSyncContent: Component = () => {
               levelCursors = new Map();
               setFinished(false);
               setLastRating(null);
-              setLastUndoEntry(null);
+              setUndoStack([]);
               queueMicrotask(() => {
                 rebuildWordPool();
                 pickNext();

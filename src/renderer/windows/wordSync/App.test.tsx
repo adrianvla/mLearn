@@ -404,6 +404,60 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
+  it('undoes multiple word sync ratings with repeated Cmd+Z', async () => {
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    const prevA = {
+      ease: 0.2, lastSeen: 100, timesSeen: 2, timesHovered: 0,
+      word: '赤い', reading: 'あかい', language: 'ja', lastStatusChange: 100,
+    };
+    const prevB = {
+      ease: 0.3, lastSeen: 200, timesSeen: 1, timesHovered: 0,
+      word: '青い', reading: 'あおい', language: 'ja', lastStatusChange: 200,
+    };
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    mockWordSyncState.wordKnowledge = {
+      [`ja:${hashWordSync('赤い')}`]: prevA,
+      [`ja:${hashWordSync('青い')}`]: prevB,
+    };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Pool order within a level is shuffled, so detect which word came up first.
+    const firstWord = container.textContent!.includes('赤い:あかい') ? '赤い' : '青い';
+    const secondWord = firstWord === '赤い' ? '青い' : '赤い';
+    const prevFirst = firstWord === '赤い' ? prevA : prevB;
+    const prevSecond = secondWord === '赤い' ? prevA : prevB;
+
+    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    await Promise.resolve();
+    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await Promise.resolve();
+
+    expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(1);
+    expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(secondWord, prevSecond, undefined, 'ja');
+    expect(container.textContent).toContain(`${secondWord}:`);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await Promise.resolve();
+
+    expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(2);
+    expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(firstWord, prevFirst, undefined, 'ja');
+    expect(container.textContent).toContain(`${firstWord}:`);
+
+    dispose();
+  });
+
   it('filters seen-recently words by the active language canonical form', async () => {
     const { hashWordSync } = await import('../../services/srsAlgorithm');
     mockWordSyncState.settings.language = 'ar';
