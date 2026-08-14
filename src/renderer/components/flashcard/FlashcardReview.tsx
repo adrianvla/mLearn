@@ -19,6 +19,7 @@ import type { Rating } from '../../services/srsAlgorithm';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
+import { isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
 import './FlashcardReview.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -108,16 +109,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Keyboard shortcuts
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore held-down key repeats to prevent accidental multi-reviews
-      if (e.repeat) return;
-
-      // Ignore if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
+      // Shared press semantics: ignore held-down key repeats and typing in
+      // editable/control elements (single source of truth with Word Sync).
+      if (isRatingKeyIgnored(e)) return;
 
       // Check for Ctrl+Z / Cmd+Z for undo
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+      if (isUndoShortcut(e)) {
         e.preventDefault();
         if (canUndo()) {
           handleUndo();

@@ -29,9 +29,13 @@ import {
 } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
+import { prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
+import { isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
+import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import {
   extractStudyCharacters,
   getCharacterStudyScripts,
@@ -47,9 +51,7 @@ import {
   isWordEligible,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
-import { FlashcardWordTitle } from '../../components/flashcard/FlashcardWordTitle';
-import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
-import type { PassiveWordKnowledge } from '../../../shared/types';
+import { extractProsodyFromTranslationData } from '../../utils/readingProsody';import type { PassiveWordKnowledge } from '../../../shared/types';
 import './WordSync.css';
 
 type Rating = 'unknown' | 'learning' | 'known';
@@ -96,6 +98,7 @@ export const WordSyncContent: Component = () => {
     clearAllWordSyncSeen,
     restoreWordSyncRating,
     getWordKnowledge,
+    getComprehensiveWordStatusWithSourceSync,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
@@ -453,16 +456,18 @@ export const WordSyncContent: Component = () => {
   }
 
   function shouldIgnoreWordSyncShortcut(e: KeyboardEvent): boolean {
+    if (isRatingKeyIgnored(e)) return true;
     const target = e.target;
     if (!(target instanceof HTMLElement)) return false;
-    if (target.isContentEditable) return true;
-    return target.matches('input, textarea, select, button, [role="textbox"]');
+    // A focused rating button must not double-fire on Space (native activation
+    // + the window handler's translation toggle).
+    return target.matches('button');
   }
 
   // ─── Keyboard shortcuts ─────────────────────────────
   function handleKeyDown(e: KeyboardEvent) {
     if (shouldIgnoreWordSyncShortcut(e)) return;
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+    if (isUndoShortcut(e)) {
       e.preventDefault();
       undoLastWordSyncRating();
       return;
@@ -544,16 +549,32 @@ export const WordSyncContent: Component = () => {
     return extractProsodyFromTranslationData(translation() ?? undefined, langCtx.currentLangData(), displayedReading());
   });
 
-  const currentWordContent = createMemo(() => {
+  // Word Sync renders the word with the shared WordWithReading primitive and
+  // its own decoration context — no flashcard-display components/classes.
+  const comprehensiveKnowledge = createMemo(() => {
     const w = currentWord();
-    if (!w) return null;
+    if (!w) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0, ease: undefined };
+    return getComprehensiveWordStatusWithSourceSync(w.word, settings.language);
+  });
+  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  const wordColoredProsodyCtx: WordRenderTextContext = {
+    languageData: langCtx.currentLangData,
+    prosodyPosition: () => currentWordProsody()?.position ?? null,
+    ease: () => comprehensiveKnowledge().ease,
+    partOfSpeechColor: () => undefined,
+    status: () => comprehensiveKnowledge().status,
+    isKnown: wordIsKnown,
+    surface: 'other',
+    settings: () => settings,
+  };
+  const wordProsodyOverlay = createMemo<WordProsodyOverlayData | null>(() => {
+    const prosody = currentWordProsody();
+    if (!prosody || !prosodyVisible(settings)) return null;
+    if (getProsodyOverlayRenderer(langCtx.currentLangData(), prosody.type) === null) return null;
     return {
-      type: 'word' as const,
-      front: w.word,
-      back: translationText(),
-      reading: displayedReading(),
-      level: w.level,
-      prosody: currentWordProsody(),
+      position: prosody.position ?? null,
+      type: prosody.type,
+      homogenous: true,
     };
   });
 
@@ -641,17 +662,14 @@ export const WordSyncContent: Component = () => {
                 <Show
                   when={pureWordMode()}
                   fallback={
-                    <Show
-                      when={currentWordContent()}
-                      fallback={<WordWithReading word={w().word} reading={displayedReading()} />}
-                    >
-                      {(content) => (
-                        <FlashcardWordTitle
-                          content={content()}
-                          language={settings.language}
-                        />
-                      )}
-                    </Show>
+                    <WordWithReading
+                      word={w().word}
+                      reading={displayedReading()}
+                      language={settings.language}
+                      languageData={langCtx.currentLangData()}
+                      coloredProsody={wordColoredProsodyCtx}
+                      prosodyOverlay={wordProsodyOverlay()}
+                    />
                   }
                 >
                   <span>{w().word}</span>

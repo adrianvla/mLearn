@@ -174,14 +174,6 @@ vi.mock('../../components/language-specific', () => ({
   WordWithReading: (props: { word: string; reading?: string }) => <span>{props.reading ? `${props.word}:${props.reading}` : props.word}</span>,
 }));
 
-vi.mock('../../components/flashcard/FlashcardWordTitle', () => ({
-  FlashcardWordTitle: (props: { content: { front: string; reading?: string; prosody?: unknown } }) => (
-    <span data-prosody={props.content.prosody ? 'yes' : 'no'}>
-      {props.content.reading ? `${props.content.front}:${props.content.reading}` : props.content.front}
-    </span>
-  ),
-}));
-
 vi.mock('../../utils/readingProsody', () => ({
   extractProsodyFromTranslationData: vi.fn(() => undefined),
 }));
@@ -256,7 +248,8 @@ describe('WordSyncContent', () => {
     const dispose = render(() => <WordSyncContent />, container);
     await Promise.resolve();
 
-    expect(mockGetComprehensiveWordStatusWithSourceSync).not.toHaveBeenCalled();
+    // The word stays eligible (shown) even though the Anki-aware resolver would
+    // call it 'known' — pool eligibility comes from the store, not that resolver.
     expect(container.textContent).toContain('赤い:あかい');
     dispose();
   });
@@ -323,6 +316,8 @@ describe('WordSyncContent', () => {
 
     // Default (toggle off): full word render with reading.
     expect(container.textContent).toContain('赤い:あかい');
+    // Word Sync owns its word display — no flashcard-display classes leak in.
+    expect(container.querySelector('.flashcard-word-title')).toBeNull();
 
     // Toggle on: hidden answer shows the bare word.
     const toggle = container.querySelector<HTMLInputElement>('input[type="checkbox"]');
@@ -332,6 +327,7 @@ describe('WordSyncContent', () => {
 
     expect(container.textContent).toContain('赤い');
     expect(container.textContent).not.toContain('赤い:あかい');
+    expect(container.querySelector('.flashcard-word-title')).toBeNull();
 
     // Revealing the answer restores the full render.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
@@ -339,6 +335,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(container.textContent).toContain('赤い:あかい');
+    expect(container.querySelector('.flashcard-word-title')).toBeNull();
     dispose();
   });
 
@@ -454,6 +451,30 @@ describe('WordSyncContent', () => {
     expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(2);
     expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(firstWord, prevFirst, undefined, 'ja');
     expect(container.textContent).toContain(`${firstWord}:`);
+
+    dispose();
+  });
+
+  it('rates once per press, ignoring held-down key auto-repeat', async () => {
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('赤い:あかい');
+
+    // Held-down key: OS auto-repeat keydowns must not rate again.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', repeat: true }));
+    await Promise.resolve();
+    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('赤い:あかい');
+
+    // A fresh press rates exactly once.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    expect(mockSetWordKnowledgeEase).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
     dispose();
   });
