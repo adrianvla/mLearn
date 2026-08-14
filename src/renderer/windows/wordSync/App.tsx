@@ -8,6 +8,7 @@ import {
 } from '../../context';
 import {
   Btn,
+  ConfirmDialog,
   EmptyState,
   FilterBuilder,
   PillLabel,
@@ -105,6 +106,7 @@ export const WordSyncContent: Component = () => {
   const [showTranslation, setShowTranslation] = createSignal(false);
   const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(false);
   const [filterOpen, setFilterOpen] = createSignal(false);
+  const [confirmRecheckOpen, setConfirmRecheckOpen] = createSignal(false);
   let filterTriggerRef: HTMLButtonElement | undefined;
   const closeFilter = () => {
     setFilterOpen(false);
@@ -550,6 +552,59 @@ export const WordSyncContent: Component = () => {
   return (
     <div class="word-sync">
 
+      <div class="word-sync-header">
+        <span class="word-sync-counter">
+          {t('mlearn.WordSync.Progress', {
+            rated: String(ratedCount()),
+            total: String(totalAvailable()),
+          })}
+        </span>
+        <Btn
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            filterTriggerRef = e.currentTarget;
+            setFilterOpen((open) => !open);
+          }}
+          active={filterOpen()}
+          aria-haspopup="true"
+          aria-expanded={filterOpen()}
+          class="word-sync-filter-toggle"
+        >
+          {t('mlearn.WordSync.Filter')}
+        </Btn>
+        <Popover
+          open={filterOpen}
+          anchor={() => filterTriggerRef}
+          onClose={closeFilter}
+          label={t('mlearn.WordSync.Filter')}
+          class="word-sync-filter-popover"
+        >
+          <FilterBuilder
+            fields={filterContext().fields}
+            paletteItems={filterContext().paletteItems}
+            tokens={filterTokens()}
+            onChange={(tokens) => {
+              setFilterTokens(tokens);
+              levelCursors = new Map();
+              setFinished(false);
+              setLastRating(null);
+              setLastUndoEntry(null);
+              queueMicrotask(() => {
+                rebuildWordPool();
+                pickNext();
+              });
+            }}
+            evaluation={filterValidation()}
+          />
+        </Popover>
+        <Show when={currentWord()}>
+          <PillLabel level={currentWord()!.level} visualLevel={currentWordVisualLevel()}>
+            {levelLabel()}
+          </PillLabel>
+        </Show>
+      </div>
+
       <Show when={!finished()} fallback={
         <div class="word-sync-finished">
           <EmptyState
@@ -560,66 +615,13 @@ export const WordSyncContent: Component = () => {
           <Btn
             variant="secondary"
             size="md"
-            onClick={recheckAll}
+            onClick={() => setConfirmRecheckOpen(true)}
             class="word-sync-recheck-btn"
           >
-            {t('mlearn.WordSync.RecheckAll')}
+            {t('mlearn.WordSync.StartOver')}
           </Btn>
         </div>
       }>
-        <div class="word-sync-header">
-          <span class="word-sync-counter">
-            {t('mlearn.WordSync.Progress', {
-              rated: String(ratedCount()),
-              total: String(totalAvailable()),
-            })}
-          </span>
-          <Btn
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              filterTriggerRef = e.currentTarget;
-              setFilterOpen((open) => !open);
-            }}
-            active={filterOpen()}
-            aria-haspopup="true"
-            aria-expanded={filterOpen()}
-            class="word-sync-filter-toggle"
-          >
-            {t('mlearn.WordSync.Filter')}
-          </Btn>
-          <Popover
-            open={filterOpen}
-            anchor={() => filterTriggerRef}
-            onClose={closeFilter}
-            label={t('mlearn.WordSync.Filter')}
-            class="word-sync-filter-popover"
-          >
-            <FilterBuilder
-              fields={filterContext().fields}
-              paletteItems={filterContext().paletteItems}
-              tokens={filterTokens()}
-              onChange={(tokens) => {
-                setFilterTokens(tokens);
-                levelCursors = new Map();
-                setFinished(false);
-                setLastRating(null);
-                setLastUndoEntry(null);
-                queueMicrotask(() => {
-                  rebuildWordPool();
-                  pickNext();
-                });
-              }}
-              evaluation={filterValidation()}
-            />
-          </Popover>
-          <Show when={currentWord()}>
-            <PillLabel level={currentWord()!.level} visualLevel={currentWordVisualLevel()}>
-              {levelLabel()}
-            </PillLabel>
-          </Show>
-        </div>
-
         <Show when={currentWord()}>
           {(w) => (
             <div class="word-sync-card">
@@ -701,6 +703,16 @@ export const WordSyncContent: Component = () => {
 
 
       </Show>
+
+      <ConfirmDialog
+        isOpen={confirmRecheckOpen()}
+        onClose={() => setConfirmRecheckOpen(false)}
+        onConfirm={recheckAll}
+        title={t('mlearn.WordSync.RestartConfirmTitle')}
+        message={t('mlearn.WordSync.RestartConfirmMessage')}
+        variant="danger"
+        confirmText={t('mlearn.WordSync.StartOver')}
+      />
     </div>
   );
 };

@@ -116,8 +116,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-4);
-  height: 100%;
+  flex: 1;
+  width: 100%;
   padding: var(--spacing-8);
+  box-sizing: border-box;
 }
 
 .word-sync-recheck-btn {

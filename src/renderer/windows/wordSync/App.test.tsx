@@ -118,7 +118,7 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../components/common', () => ({
   Btn: (props: { children?: JSX.Element; onClick?: () => void; class?: string }) => (
-    <button class={props.class} onClick={props.onClick}>{props.children}</button>
+    <button type="button" class={props.class} onClick={props.onClick}>{props.children}</button>
   ),
   EmptyState: (props: { title?: string }) => <div>{props.title}</div>,
   Popover: (props: {
@@ -136,6 +136,7 @@ vi.mock('../../components/common', () => ({
     mockCommonState.filterBuilderProps = props;
     return (
       <button
+        type="button"
         class="mock-filter-clear"
         data-token-count={String(props.tokens.length)}
         onClick={() => props.onChange([])}
@@ -149,6 +150,17 @@ vi.mock('../../components/common', () => ({
       checked={props.checked ?? false}
       onChange={(e) => props.onChange?.(e.currentTarget.checked)}
     />
+  ),
+  ConfirmDialog: (props: {
+    isOpen?: boolean;
+    onClose?: () => void;
+    onConfirm?: () => void;
+    confirmText?: string;
+  }) => (
+    <Show when={props.isOpen}>
+      <button type="button" class="mock-confirm-dialog-cancel" onClick={props.onClose}>cancel</button>
+      <button type="button" class="mock-confirm-dialog-confirm" onClick={props.onConfirm}>{props.confirmText}</button>
+    </Show>
   ),
   WORD_SYNC_STATUS_UNTRACKED: 'untracked',
   buildWordSyncFields: () => ({ fields: [], paletteItems: [] }),
@@ -444,7 +456,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('restores the default word sync filter when rechecking all words', async () => {
+  it('restores the default word sync filter when starting over after confirmation', async () => {
     const { WordSyncContent } = await import('./App');
 
     const dispose = render(() => <WordSyncContent />, container);
@@ -479,6 +491,13 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    // Nothing resets until the confirmation dialog is confirmed.
+    expect(mockClearAllWordSyncSeen).not.toHaveBeenCalled();
+
+    container.querySelector<HTMLButtonElement>('.mock-confirm-dialog-confirm')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
     expect(mockCommonState.filterBuilderProps?.tokens).toMatchObject([
       { kind: 'paren', dir: 'open' },
       { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
@@ -489,6 +508,61 @@ describe('WordSyncContent', () => {
     expect(mockCommonState.buildWordSyncPreset).toHaveBeenCalledTimes(2);
     expect(mockClearAllWordSyncSeen).toHaveBeenCalledTimes(1);
 
+    dispose();
+  });
+
+  it('keeps the filter available on the finished screen', async () => {
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    // The filter toggle stays reachable on the finished screen instead of
+    // forcing a full restart just to adjust the scope.
+    const filterToggle = container.querySelector<HTMLButtonElement>('.word-sync-filter-toggle');
+    expect(filterToggle).not.toBeNull();
+    filterToggle!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockCommonState.filterBuilderProps).not.toBeNull();
+    dispose();
+  });
+
+  it('requires confirmation before starting over', async () => {
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    container.querySelector<HTMLButtonElement>('.word-sync-recheck-btn')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Opening the dialog must not clear seen history or restart the session.
+    expect(mockClearAllWordSyncSeen).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    // Cancelling keeps the finished screen untouched.
+    container.querySelector<HTMLButtonElement>('.mock-confirm-dialog-cancel')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    expect(mockClearAllWordSyncSeen).not.toHaveBeenCalled();
     dispose();
   });
 });
