@@ -996,7 +996,14 @@
         "PromoteFailed": "Не удалось продвинуть предложения.",
         "Removed": "Удалено предложений: {count}",
         "SeenCount": "Замечено: {count}x",
-        "NoPreviewImage": "Нет превью"
+        "NoPreviewImage": "Нет превью",
+        "SortDefault": "По умолчанию",
+        "SortCountDesc": "Сначала частые",
+        "SortCountAsc": "Сначала редкие",
+        "SortWordAsc": "Слово (А–Я)",
+        "SortWordDesc": "Слово (Я–А)",
+        "SortNewest": "Сначала новые",
+        "SortOldest": "Сначала старые"
       }
     },
     "Global": {

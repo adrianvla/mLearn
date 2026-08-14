@@ -48,6 +48,7 @@ export {
   buildBulkAddDefaultPreset,
   buildWordDbEditorFields,
   buildFlashcardBrowseFields,
+  buildSuggestedFlashcardFields,
   statusResolver,
   levelResolver,
   sourceResolver,

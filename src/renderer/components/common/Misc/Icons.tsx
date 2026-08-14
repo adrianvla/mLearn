@@ -269,6 +269,13 @@ export const SparklesIcon = createIcon([
   'M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z',
 ]);
 
+/** Image/Picture icon */
+export const ImageIcon = createIcon([
+  'M21 15l-4.5-4.5L12 15l-3.5-3.5L3 17.5V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+  'M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  'M21 19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2l5.5-5.5L12 15l4.5-4.5L21 15z',
+]);
+
 /** Book/Reading icon */
 export const BookIcon = createIcon([
   'M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z',

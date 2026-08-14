@@ -233,6 +233,62 @@ export function buildFlashcardBrowseFields(
   return { fields, paletteItems: buildPaletteItems(fields, t) };
 }
 
+/**
+ * Filter fields for the Suggested tab's suggested-flashcard pool.
+ * SuggestedFlashcard has no SRS state/suspended/buried, so the fields are
+ * language, source (media name), and level (single-language gated).
+ */
+export function buildSuggestedFlashcardFields(
+  languageNames: Record<string, string>,
+  t: Translate,
+  sourceValues: { value: string; label: string }[],
+  levelContext?: { levelNames: Record<string, string>; languageData?: LanguageData | null },
+): { fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] } {
+  const fields: FieldConfig<unknown>[] = [
+    buildFlashcardLanguageField(languageNames, t),
+    buildSuggestedSourceField(sourceValues, t),
+  ];
+
+  if (levelContext) {
+    fields.push(buildSuggestedLevelField(levelContext.levelNames, t, levelContext.languageData));
+  }
+
+  return { fields, paletteItems: buildPaletteItems(fields, t) };
+}
+
+function buildSuggestedSourceField(sourceValues: { value: string; label: string }[], t: Translate): FieldConfig<unknown> {
+  return {
+    field: SOURCE_FIELD,
+    label: t('mlearn.FilterBuilder.Field.Source'),
+    allowedOps: [...EQ_OPS],
+    values: sourceValues,
+    resolver: propertyResolver('source', 'None'),
+    valueSelect: true,
+  };
+}
+
+function buildSuggestedLevelField(
+  levelNames: Record<string, string>,
+  t: Translate,
+  languageData?: LanguageData | null,
+): FieldConfig<unknown> {
+  return {
+    field: LEVEL_FIELD,
+    label: t('mlearn.FilterBuilder.Field.Level'),
+    allowedOps: [...EQ_OPS],
+    values: buildLevelValues(levelNames, t, languageData),
+    resolver: {
+      read: (record) => normalizeLevelValue(suggestedLevelResolver(record), levelNames, languageData),
+      valueLabel: (value) => value,
+    },
+  };
+}
+
+function suggestedLevelResolver(record: unknown): unknown {
+  const level = record && typeof record === 'object' ? (record as { level?: number | null }).level : undefined;
+  return typeof level === 'number' ? level : '';
+}
+
 function statusUnknownToken(): FilterToken {
   return {
     instanceId: uniqueId(),
@@ -404,12 +460,22 @@ function buildFlashcardBuriedField(t: Translate): FieldConfig<unknown> {
 }
 
 function buildPaletteItems(fields: FieldConfig<unknown>[], t: Translate): PaletteItem[] {
-  const operands = fields.flatMap((field) => field.values.flatMap((value) => field.allowedOps.map((op) => ({
-    field: field.field,
-    op,
-    value: value.value,
-    label: value.label,
-  }))));
+  const operands = fields.flatMap((field) => {
+    if (field.valueSelect) {
+      return field.allowedOps.map((op) => ({
+        field: field.field,
+        op,
+        value: field.values[0]?.value ?? '',
+        label: field.label,
+      }));
+    }
+    return field.values.flatMap((value) => field.allowedOps.map((op) => ({
+      field: field.field,
+      op,
+      value: value.value,
+      label: value.label,
+    })));
+  });
 
   return [
     ...operands,

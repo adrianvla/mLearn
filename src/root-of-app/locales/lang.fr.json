@@ -996,7 +996,14 @@
         "PromoteFailed": "Échec de la promotion des suggestions.",
         "Removed": "{count} suggestion(s) supprimée(s)",
         "SeenCount": "Vu {count}x",
-        "NoPreviewImage": "Aucune image de prévisualisation"
+        "NoPreviewImage": "Aucune image de prévisualisation",
+        "SortDefault": "Par défaut",
+        "SortCountDesc": "Vu le plus souvent",
+        "SortCountAsc": "Vu le moins souvent",
+        "SortWordAsc": "Mot (A–Z)",
+        "SortWordDesc": "Mot (Z–A)",
+        "SortNewest": "Plus récents d'abord",
+        "SortOldest": "Plus anciens d'abord"
       }
     },
     "Global": {

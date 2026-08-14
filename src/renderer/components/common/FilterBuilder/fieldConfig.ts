@@ -7,6 +7,8 @@ export interface FieldConfig<R> {
   allowedOps: ComparisonOp[];
   values: { value: string; label: string }[];
   resolver: FieldResolver<R>;
+  /** Render one palette pill per allowedOp and a Select inside the committed token instead of one pill per value. */
+  valueSelect?: boolean;
 }
 
 export interface OperandSpec {

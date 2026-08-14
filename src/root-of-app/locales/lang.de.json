@@ -996,7 +996,14 @@
         "PromoteFailed": "Vorschläge konnten nicht befördert werden.",
         "Removed": "{count} Vorschlag/Vorschläge entfernt",
         "SeenCount": "{count}x gesehen",
-        "NoPreviewImage": "Kein Vorschaubild"
+        "NoPreviewImage": "Kein Vorschaubild",
+        "SortDefault": "Standard",
+        "SortCountDesc": "Am häufigsten gesehen",
+        "SortCountAsc": "Am seltensten gesehen",
+        "SortWordAsc": "Wort (A–Z)",
+        "SortWordDesc": "Wort (Z–A)",
+        "SortNewest": "Neueste zuerst",
+        "SortOldest": "Älteste zuerst"
       }
     },
     "Global": {

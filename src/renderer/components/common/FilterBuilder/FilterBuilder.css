@@ -212,6 +212,23 @@
   color: inherit;
 }
 
+.filter-builder-token-select {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 0 var(--spacing-1);
+  max-width: 200px;
+  font-weight: var(--font-weight-medium);
+}
+
+.filter-builder-token-select:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 40%, transparent);
+  border-radius: var(--radius-sm);
+}
+
 .filter-builder-token-remove {
   display: inline-flex;
   align-items: center;

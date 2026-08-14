@@ -44,6 +44,7 @@ export {
   VideoIcon,
   GlobeIcon,
   SparklesIcon,
+  ImageIcon,
   BookIcon,
   BarChartIcon,
   BatteryLowIcon,

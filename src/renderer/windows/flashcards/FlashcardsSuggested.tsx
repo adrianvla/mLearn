@@ -27,6 +27,19 @@ import {
   SelectableCard,
   CollapsibleStickyHeader,
   Spinner,
+  FilterBuilder,
+  buildEmptyPreset,
+  buildSuggestedFlashcardFields,
+  validateTokens,
+  parseTokens,
+  evaluateAst,
+  type FilterToken,
+  type FieldConfig,
+  type PaletteItem,
+  type FieldResolver,
+  type ExprNode,
+  type ValidationError,
+  ImageIcon,
 } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
 import { FlashcardWordTitle } from '../../components/flashcard';
@@ -36,10 +49,12 @@ import { cacheVersion, getCachedReading, getCachedTranslation } from '../../hook
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
-import type { FlashcardContent, SuggestedFlashcard } from '../../../shared/types';
+import type { FlashcardContent, LanguageData, SuggestedFlashcard } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './FlashcardsSuggested.css';
 import { getLogger } from '@shared/utils/logger';
+import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
+import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import {
   buildSuggestedFlashcardPreviewContent,
   buildSuggestedLevelFilterOptions,
@@ -71,6 +86,8 @@ export const FlashcardsSuggested: Component = () => {
   const [search, setSearch] = createSignal('');
   const [quickFilter, setQuickFilter] = createSignal<QuickFilter>('all');
   const [levelFilter, setLevelFilter] = createSignal<string>('all');
+  const [sortBy, setSortBy] = createSignal('default');
+  const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
@@ -122,13 +139,98 @@ export const FlashcardsSuggested: Component = () => {
     return keys;
   });
 
+  const singleLanguageScope = (tokens: FilterToken[]): string | null => {
+    const langs = new Set<string>();
+    for (const token of tokens) {
+      if (token.kind !== 'operand' || token.field !== 'language') continue;
+      if (!token.value) return null;
+      langs.add(token.value);
+    }
+    return langs.size === 1 ? [...langs][0] : null;
+  };
+
+  const sortOptions = createMemo(() => [
+    { value: 'default', label: t('mlearn.Flashcards.Suggested.SortDefault') },
+    { value: 'count-desc', label: t('mlearn.Flashcards.Suggested.SortCountDesc') },
+    { value: 'count-asc', label: t('mlearn.Flashcards.Suggested.SortCountAsc') },
+    { value: 'word-asc', label: t('mlearn.Flashcards.Suggested.SortWordAsc') },
+    { value: 'word-desc', label: t('mlearn.Flashcards.Suggested.SortWordDesc') },
+    { value: 'newest', label: t('mlearn.Flashcards.Suggested.SortNewest') },
+    { value: 'oldest', label: t('mlearn.Flashcards.Suggested.SortOldest') },
+  ]);
+
+  const filterFields = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() => {
+    const languageNames: Record<string, string> = {};
+    for (const [code, data] of Object.entries(langCtx.langData)) {
+      if (!data) continue;
+      languageNames[code] = getLanguageDisplayName(code, data, settings.uiLanguage);
+    }
+
+    const sourceNames = new Map<string, string>();
+    for (const suggestion of suggestions()) {
+      if (suggestion.source) sourceNames.set(suggestion.source, suggestion.source);
+    }
+    const sourceValues = [
+      ...sourceNames.values().map((name) => ({ value: name, label: name })),
+      { value: 'None', label: t('mlearn.WordDbEditor.SourceFilter.None') },
+    ];
+
+    const scopedLanguage = singleLanguageScope(filterTokens());
+    let levelContext: { levelNames: Record<string, string>; languageData?: LanguageData | null } | undefined;
+    if (scopedLanguage) {
+      const scopedData = langCtx.langData[scopedLanguage] ?? (scopedLanguage === settings.language ? langCtx.currentLangData() : null);
+      if (scopedData) {
+        levelContext = {
+          levelNames: getLevelStudyLevelNames(scopedData),
+          languageData: scopedData,
+        };
+      }
+    }
+
+    return buildSuggestedFlashcardFields(languageNames, t, sourceValues, levelContext);
+  });
+
+  const filterResolvers = createMemo<Record<string, FieldResolver<unknown>>>(() => {
+    const resolvers: Record<string, FieldResolver<unknown>> = {};
+    for (const field of filterFields().fields) {
+      resolvers[field.field] = field.resolver;
+    }
+    return resolvers;
+  });
+
+  const filterAst = createMemo<
+    | { ok: true; ast: ExprNode | null }
+    | { ok: false; errors: ValidationError[] }
+  >(() => {
+    const tokens = filterTokens();
+    if (tokens.length === 0) return { ok: true, ast: null };
+
+    const validation = validateTokens(tokens);
+    if (!validation.ok) return { ok: false, errors: validation.errors };
+
+    try {
+      return { ok: true, ast: parseTokens(tokens) };
+    } catch {
+      return { ok: false, errors: [{ index: -1, message: 'parse_error' }] };
+    }
+  });
+
+  const filterValidation = createMemo(() => {
+    const result = filterAst();
+    if (result.ok) return { ok: true as const };
+    return { ok: false as const, errors: result.errors };
+  });
+
   const filtered = createMemo<SuggestedFlashcard[]>(() => {
     const q = search().trim().toLowerCase();
     const qf = quickFilter();
     const lvl = levelFilter();
     const failedKeys = qf === 'failed' ? failedSuggestionWordKeys() : null;
+    const ast = filterAst();
+    const activeAst = ast.ok && ast.ast ? ast.ast : null;
+    const resolvers = filterResolvers();
 
-    return suggestions().filter((s) => {
+    let result = suggestions().filter((s) => {
       if (q && !s.word.toLowerCase().includes(q) && !(s.reading || '').toLowerCase().includes(q)) {
         return false;
       }
@@ -146,8 +248,29 @@ export const FlashcardsSuggested: Component = () => {
         if (!failedKeys?.has(`${s.language}:${s.word}`)) return false;
       }
 
+      if (activeAst && !evaluateAst(activeAst, s, resolvers)) {
+        return false;
+      }
+
       return true;
     });
+
+    const sort = sortBy();
+    if (sort !== 'default') {
+      result = [...result].sort((a, b) => {
+        switch (sort) {
+          case 'count-desc': return b.count - a.count;
+          case 'count-asc': return a.count - b.count;
+          case 'word-asc': return a.word.localeCompare(b.word);
+          case 'word-desc': return b.word.localeCompare(a.word);
+          case 'newest': return b.createdAt - a.createdAt;
+          case 'oldest': return a.createdAt - b.createdAt;
+          default: return 0;
+        }
+      });
+    }
+
+    return result;
   });
 
   const [containerWidth, setContainerWidth] = createSignal(0);
@@ -389,7 +512,21 @@ export const FlashcardsSuggested: Component = () => {
                 class="flashcards-suggested-filter"
               />
             </Show>
+            <Select
+              options={sortOptions()}
+              value={sortBy()}
+              onChange={(e) => setSortBy(e.currentTarget.value)}
+              class="flashcards-suggested-sort"
+            />
           </div>
+
+          <FilterBuilder
+            fields={filterFields().fields}
+            paletteItems={filterFields().paletteItems}
+            tokens={filterTokens()}
+            onChange={setFilterTokens}
+            evaluation={filterValidation()}
+          />
 
           <div class="flashcards-suggested-bulkbar">
             <div class="flashcards-suggested-bulkbar-left">
@@ -517,7 +654,10 @@ export const FlashcardsSuggested: Component = () => {
                                   <img src={s.imageUrl} alt="" class="flashcards-suggested-image" loading="lazy" />
                                 </Show>
                                 <Show when={!s.imageUrl}>
-                                  <div class="flashcards-suggested-no-image">{t('mlearn.Flashcards.Suggested.NoPreviewImage')}</div>
+                                  <div class="flashcards-suggested-no-image">
+                                    <ImageIcon size={32} />
+                                    <span>{t('mlearn.Flashcards.Suggested.NoPreviewImage')}</span>
+                                  </div>
                                 </Show>
                               </div>
                             }

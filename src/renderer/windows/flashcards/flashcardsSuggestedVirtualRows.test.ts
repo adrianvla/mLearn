@@ -5,8 +5,8 @@ import { createSuggestedVirtualRowItems, getSuggestedCardHeight } from './flashc
 
 describe('createSuggestedVirtualRowItems', () => {
   it('allocates more vertical space when cards are narrow enough for four columns', () => {
-    expect(getSuggestedCardHeight(3)).toBe(250);
-    expect(getSuggestedCardHeight(4)).toBe(280);
+    expect(getSuggestedCardHeight(3)).toBe(290);
+    expect(getSuggestedCardHeight(4)).toBe(320);
   });
 
   it('updates an existing virtual row when the filtered suggestions change', () => {

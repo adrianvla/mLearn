@@ -996,7 +996,14 @@
         "PromoteFailed": "候補の昇格に失敗しました。",
         "Removed": "{count} 件の候補を削除しました",
         "SeenCount": "{count} 回表示",
-        "NoPreviewImage": "プレビュー画像なし"
+        "NoPreviewImage": "プレビュー画像なし",
+        "SortDefault": "デフォルト",
+        "SortCountDesc": "よく見た順",
+        "SortCountAsc": "あまり見ない順",
+        "SortWordAsc": "単語 (A–Z)",
+        "SortWordDesc": "単語 (Z–A)",
+        "SortNewest": "新しい順",
+        "SortOldest": "古い順"
       }
     },
     "Global": {

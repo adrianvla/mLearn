@@ -1,7 +1,7 @@
 import { createMemo, type Accessor } from 'solid-js';
 
 export function getSuggestedCardHeight(columns: number): number {
-  return columns >= 4 ? 280 : 250;
+  return columns >= 4 ? 320 : 290;
 }
 
 export function createSuggestedVirtualRowItems<T>(

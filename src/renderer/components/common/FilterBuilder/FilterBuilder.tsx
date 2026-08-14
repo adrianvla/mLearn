@@ -255,6 +255,20 @@ export const FilterBuilder: Component<FilterBuilderProps> = (props) => {
     return valueEntry?.label ?? `${token.field}=${token.value}`;
   };
 
+  const valueOptionsFor = (token: FilterToken): { value: string; label: string }[] | undefined => {
+    if (token.kind !== 'operand') return undefined;
+    const fieldConfig = props.fields.find((field) => field.field === token.field);
+    return fieldConfig?.valueSelect ? fieldConfig.values : undefined;
+  };
+
+  const handleTokenValueChange = (instanceId: string, value: string) => {
+    props.onChange(props.tokens.map((token) =>
+      token.instanceId === instanceId && token.kind === 'operand'
+        ? { ...token, value }
+        : token,
+    ));
+  };
+
   return (
     <div class={rootClass()}>
       <div class="filter-builder-palette" role="group" aria-label={t('mlearn.FilterBuilder.Palette')}>
@@ -300,6 +314,8 @@ export const FilterBuilder: Component<FilterBuilderProps> = (props) => {
                     onDragStart={handleTokenDragStart}
                     onMoveUp={handleMoveUp}
                     onMoveDown={handleMoveDown}
+                    valueOptions={valueOptionsFor(token)}
+                    onValueChange={handleTokenValueChange}
                   />
                 </span>
               )}

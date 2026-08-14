@@ -996,7 +996,14 @@
         "PromoteFailed": "Failed to promote suggestions.",
         "Removed": "{count} suggestion(s) removed",
         "SeenCount": "Seen {count}x",
-        "NoPreviewImage": "No preview image"
+        "NoPreviewImage": "No preview image",
+        "SortDefault": "Default",
+        "SortCountDesc": "Seen most often",
+        "SortCountAsc": "Seen least often",
+        "SortWordAsc": "Word (A–Z)",
+        "SortWordDesc": "Word (Z–A)",
+        "SortNewest": "Newest first",
+        "SortOldest": "Oldest first"
       }
     },
     "Global": {

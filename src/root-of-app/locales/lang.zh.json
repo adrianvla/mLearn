@@ -996,7 +996,14 @@
         "PromoteFailed": "升级推荐失败。",
         "Removed": "已移除 {count} 条推荐",
         "SeenCount": "已见 {count} 次",
-        "NoPreviewImage": "无预览图片"
+        "NoPreviewImage": "无预览图片",
+        "SortDefault": "默认",
+        "SortCountDesc": "最常见",
+        "SortCountAsc": "最少见",
+        "SortWordAsc": "单词 (A–Z)",
+        "SortWordDesc": "单词 (Z–A)",
+        "SortNewest": "最新优先",
+        "SortOldest": "最早优先"
       }
     },
     "Global": {
