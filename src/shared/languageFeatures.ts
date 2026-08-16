@@ -365,9 +365,10 @@ export function detectScriptForm(
     if (applyMappingTableNormalizer(word, language) !== word) return variantId;
   }
 
-  return variants.find(([, variant]) => (
-    !Object.prototype.hasOwnProperty.call(variant.overrides, 'runtime.adapter.config.pinyinInputConversion')
-  ))?.[0];
+  return variants.find(([, variant]) => {
+    const config = variant.overrides['runtime.adapter.config'];
+    return !(typeof config === 'object' && config !== null && 'pinyinInputConversion' in config);
+  })?.[0];
 }
 
 function applyTextNormalizer(value: string, step: NormalizerStep, language?: string): string {
