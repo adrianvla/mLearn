@@ -891,7 +891,18 @@
         "Undo": "↩",
         "UndoTooltip": "撤销",
         "StealthMode": "隐身模式",
-        "MuteAudio": "静音"
+        "MuteAudio": "静音",
+        "Modes": {
+          "Label": "侧重点",
+          "Meaning": "词义",
+          "Reading": "读音",
+          "Prosody": "韵律"
+        },
+        "Attribution": {
+          "WrongReading": "读音错误",
+          "WrongProsody": "韵律错误",
+          "Marked": "已将{aspect}标记为学习中"
+        }
       },
       "State": {
         "Learning": "学习中",
@@ -1214,6 +1225,41 @@
         "DisplayLanguage": "显示语言：{language}",
         "DictionaryLanguage": "词典语言：{language}",
         "NotAvailable": "不可用"
+      }
+    },
+    "Knowledge": {
+      "Aspect": {
+        "Meaning": "词义",
+        "Reading": "读音",
+        "Prosody": "韵律"
+      },
+      "AspectInherited": "(继承)",
+      "History": {
+        "Empty": "暂无知识历史。",
+        "Kind": {
+          "Status": "状态变更",
+          "Review": "复习",
+          "Rating": "手动评级",
+          "Rollup": "被动接触"
+        },
+        "Source": {
+          "KnownWordsList": "已知词列表",
+          "IgnoredWords": "忽略词列表",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "被动追踪",
+          "Manual": "手动"
+        },
+        "Table": {
+          "Time": "时间",
+          "Event": "事件",
+          "Source": "来源",
+          "Details": "详情"
+        }
+      },
+      "Actions": {
+        "DowngradeToLearning": "降级为学习中",
+        "MarkUnknown": "标记为未知"
       }
     },
     "LevelStudy": {
@@ -1978,6 +2024,14 @@
             "Label": "启用 Anki"
           },
           "Failed": "失败",
+          "ImportHistory": {
+            "Label": "导入复习历史",
+            "Description": "将 Anki 复习记录一次性回填到知识历史中。可安全重复运行——已导入的复习会被跳过",
+            "Button": "导入历史",
+            "Running": "导入中…",
+            "Success": "已导入 {words} 个单词的 {imported} 条复习记录（跳过 {skipped} 条）",
+            "Failed": "导入失败——Anki 是否正在运行并启用了 AnkiConnect？"
+          },
           "FieldMapping": {
             "Description": "将 Anki 笔记字段映射到 mLearn 闪卡字段",
             "Expression": {
@@ -2500,7 +2554,20 @@
       "WordsByLevel": "按等级的单词",
       "WordsByStatus": "按状态的单词",
       "WordsLearned": "已学单词",
-      "WordsTracked": "追踪单词"
+      "WordsTracked": "追踪单词",
+      "WordHistory": {
+        "Title": "单词历史",
+        "SearchPlaceholder": "搜索已追踪的单词…",
+        "Empty": "该单词暂无历史记录。",
+        "Prompt": "选择一个单词以查看其知识历史。"
+      },
+      "LearningVelocity": {
+        "Title": "学习速度",
+        "Empty": "历史记录还不够——继续学习，稍后再来查看。",
+        "DaysToKnown": "达到稳定「已知」的中位天数",
+        "AcquisitionSlope": "14 天习得速度",
+        "RetentionAfterKnown": "「已知」后 30 天保持率"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "同步到下一字幕",

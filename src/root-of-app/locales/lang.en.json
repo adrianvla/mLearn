@@ -891,7 +891,18 @@
         "Undo": "↩",
         "UndoTooltip": "Undo",
         "StealthMode": "Stealth Mode",
-        "MuteAudio": "Mute Audio"
+        "MuteAudio": "Mute Audio",
+        "Modes": {
+          "Label": "Focus",
+          "Meaning": "Meaning",
+          "Reading": "Reading",
+          "Prosody": "Prosody"
+        },
+        "Attribution": {
+          "WrongReading": "Wrong reading",
+          "WrongProsody": "Wrong prosody",
+          "Marked": "Marked {aspect} as learning"
+        }
       },
       "State": {
         "Learning": "Learning",
@@ -1214,6 +1225,41 @@
         "DisplayLanguage": "Display language: {language}",
         "DictionaryLanguage": "Dictionary language: {language}",
         "NotAvailable": "not available"
+      }
+    },
+    "Knowledge": {
+      "Aspect": {
+        "Meaning": "Meaning",
+        "Reading": "Reading",
+        "Prosody": "Prosody"
+      },
+      "AspectInherited": "(inherited)",
+      "History": {
+        "Empty": "No knowledge history yet.",
+        "Kind": {
+          "Status": "Status change",
+          "Review": "Review",
+          "Rating": "Manual rating",
+          "Rollup": "Passive exposure"
+        },
+        "Source": {
+          "KnownWordsList": "Known words list",
+          "IgnoredWords": "Ignored words",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "Passive tracking",
+          "Manual": "Manual"
+        },
+        "Table": {
+          "Time": "Time",
+          "Event": "Event",
+          "Source": "Source",
+          "Details": "Details"
+        }
+      },
+      "Actions": {
+        "DowngradeToLearning": "Downgrade to Learning",
+        "MarkUnknown": "Mark Unknown"
       }
     },
     "LevelStudy": {
@@ -1978,6 +2024,14 @@
             "Label": "Enable Anki"
           },
           "Failed": "Failed",
+          "ImportHistory": {
+            "Label": "Import Review History",
+            "Description": "One-time backfill of your Anki review log into the knowledge history. Safe to re-run — already imported reviews are skipped",
+            "Button": "Import History",
+            "Running": "Importing…",
+            "Success": "Imported {imported} reviews across {words} words ({skipped} skipped)",
+            "Failed": "Import failed — is Anki running with AnkiConnect?"
+          },
           "FieldMapping": {
             "Description": "Map Anki note fields to mLearn flashcard fields",
             "Expression": {
@@ -2500,7 +2554,20 @@
       "WordsByLevel": "Words by Level",
       "WordsByStatus": "Words by Status",
       "WordsLearned": "Words Learned",
-      "WordsTracked": "Words Tracked"
+      "WordsTracked": "Words Tracked",
+      "WordHistory": {
+        "Title": "Word History",
+        "SearchPlaceholder": "Search tracked words…",
+        "Empty": "No history for this word.",
+        "Prompt": "Select a word to see its knowledge history."
+      },
+      "LearningVelocity": {
+        "Title": "Learning velocity",
+        "Empty": "Not enough history yet — keep learning and check back.",
+        "DaysToKnown": "Median days to stable known",
+        "AcquisitionSlope": "14-day acquisition slope",
+        "RetentionAfterKnown": "30-day retention after known"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "Sync to next subtitle",

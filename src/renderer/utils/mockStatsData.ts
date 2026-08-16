@@ -8,9 +8,11 @@ import type {
   MediaStats,
   MediaSession,
 } from '../../shared/types';
+import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { getBridge } from '../../shared/bridges';
 import { hashWordSync } from '../services/srsAlgorithm';
 import { getTodayDateString } from '../services/srsAlgorithm';
+import { appendEvents } from '../services/knowledgeEvents';
 
 const DAY = 24 * 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
@@ -411,6 +413,165 @@ function buildMockFlashcardStore(language: string): FlashcardStore {
   };
 }
 
+function createSeededRng(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Seeded mock event histories for the knowledge-history graph: passive ramp →
+ * SRS learning → known, with a share of lapse→recovery arcs. Replays through
+ * replayKnowledgeHistory to the arc's final ease by construction.
+ */
+export function generateKnowledgeEvents(
+  words: readonly string[],
+  opts: { seed?: number; now?: number; language?: string } = {},
+): KnowledgeEventLog {
+  const language = opts.language ?? DEFAULT_MOCK_LANGUAGE;
+  const now = opts.now ?? Date.now();
+  const log: KnowledgeEventLog = {};
+
+  words.forEach((word, index) => {
+    const rng = createSeededRng((opts.seed ?? 1) * 100003 + index);
+    const key = langKey(language, hashWordSync(word));
+    const events: KnowledgeEvent[] = [];
+
+    let t = now - Math.floor(40 + rng() * 50) * DAY;
+    let ease = 1.3;
+    const rollups = 3 + Math.floor(rng() * 4);
+    for (let i = 0; i < rollups; i++) {
+      ease = Math.min(1.54, ease + 0.04 + rng() * 0.05);
+      events.push({
+        t, kind: 'rollup', source: 'passiveTracking', aspect: 'meaning',
+        easeAfter: ease, timesSeenDelta: 1 + Math.floor(rng() * 3),
+      });
+      t += DAY + Math.floor(rng() * 2 * DAY);
+    }
+
+    const reviews = 2 + Math.floor(rng() * 4);
+    let interval = 1;
+    for (let i = 0; i < reviews; i++) {
+      const rating = rng() < 0.2 ? 'hard' : 'good';
+      ease = Math.max(1.3, Math.min(2.2, ease + (rating === 'good' ? 0.06 + rng() * 0.08 : -0.05 * rng())));
+      interval = Math.max(1, Math.round(interval * (1.8 + rng())));
+      events.push({
+        t, kind: 'review', source: 'srs', aspect: 'meaning', rating,
+        easeBefore: ease - 0.05, easeAfter: ease, intervalAfter: interval,
+      });
+      t += interval * DAY;
+    }
+
+    const outcome = rng();
+    if (outcome < 0.5) {
+      ease = Math.max(1.8, ease);
+      events.push({
+        t, kind: 'review', source: 'srs', aspect: 'meaning', rating: rng() < 0.5 ? 'good' : 'easy',
+        easeBefore: ease - 0.1, easeAfter: ease, intervalAfter: interval * 2,
+      });
+    } else if (outcome < 0.75) {
+      ease = 1.35 + rng() * 0.1;
+      events.push({
+        t, kind: 'review', source: 'srs', aspect: 'meaning', rating: 'again',
+        easeBefore: 1.9, easeAfter: ease, intervalAfter: 1,
+      });
+      const recovery = 1 + Math.floor(rng() * 3);
+      for (let i = 0; i < recovery; i++) {
+        t += (1 + Math.floor(rng() * 3)) * DAY;
+        ease = Math.min(1.85, ease + 0.12 + rng() * 0.1);
+        events.push({
+          t, kind: 'review', source: 'srs', aspect: 'meaning', rating: 'good',
+          easeBefore: ease - 0.12, easeAfter: ease, intervalAfter: 3 + i * 2,
+        });
+      }
+    }
+
+    if (rng() < 0.4) {
+      const readingEase = 1.35 + rng() * 0.3;
+      events.push({
+        t: events[0].t + DAY, kind: 'review', source: 'srs', aspect: 'reading', rating: 'good',
+        easeBefore: 1.3, easeAfter: readingEase, intervalAfter: 2,
+      });
+    }
+    if (rng() < 0.25) {
+      events.push({
+        t: events[0].t + 2 * DAY, kind: 'rating', source: 'manual', aspect: 'prosody',
+        fromStatus: 'unknown', toStatus: 'learning', easeAfter: 1.55,
+      });
+    }
+
+    log[key] = events.filter((e) => e.t <= now);
+  });
+
+  return log;
+}
+
+/**
+ * Multi-month acquisition cohorts for the Learning velocity charts: words are
+ * acquired across several months with days-to-known shrinking per newer month
+ * (the "learning rate improving" narrative), plus a share of within-30d
+ * lapse→recovery arcs so the retention chart has signal. Synthetic words keep
+ * these out of the per-word history panel's vocabulary lists.
+ */
+export function generateCohortKnowledgeEvents(
+  opts: { seed?: number; now?: number; language?: string; months?: number; wordsPerMonth?: number } = {},
+): KnowledgeEventLog {
+  const language = opts.language ?? DEFAULT_MOCK_LANGUAGE;
+  const now = opts.now ?? Date.now();
+  const months = opts.months ?? 5;
+  const wordsPerMonth = opts.wordsPerMonth ?? 24;
+  const log: KnowledgeEventLog = {};
+  const rng = createSeededRng(opts.seed ?? 7);
+
+  for (let m = months - 1; m >= 0; m--) {
+    // Newer cohorts reach known faster: oldest ~12+m*5 days, newest ~12.
+    const baseDays = 12 + m * 5;
+    const monthStart = now - m * 30 * DAY;
+    for (let i = 0; i < wordsPerMonth; i++) {
+      const word = `cohort-${m}-${i}`;
+      const key = langKey(language, hashWordSync(word));
+      const t0 = monthStart - Math.floor(rng() * 25) * DAY;
+      const daysToKnown = Math.max(4, Math.round(baseDays + (rng() - 0.5) * 8));
+      const events: KnowledgeEvent[] = [
+        {
+          t: t0, kind: 'status', source: 'passiveTracking', aspect: 'meaning',
+          fromStatus: 'unknown', toStatus: 'learning', easeAfter: 1.35,
+        },
+        // Mid-ramp review so acquisition slopes differ between cohorts.
+        {
+          t: t0 + Math.floor(daysToKnown / 2) * DAY, kind: 'review', source: 'srs', aspect: 'meaning',
+          rating: 'good', easeBefore: 1.35, easeAfter: 1.5 + (months - 1 - m) * 0.05, intervalAfter: 3,
+        },
+        {
+          t: t0 + daysToKnown * DAY, kind: 'status', source: 'srs', aspect: 'meaning',
+          fromStatus: 'learning', toStatus: 'known', easeAfter: 1.8 + rng() * 0.2,
+        },
+      ];
+      if (rng() < 0.18) {
+        const lapseAt = t0 + (daysToKnown + 5 + Math.floor(rng() * 15)) * DAY;
+        events.push({
+          t: lapseAt, kind: 'status', source: 'srs', aspect: 'meaning',
+          fromStatus: 'known', toStatus: 'learning', easeAfter: 1.5,
+        });
+        if (rng() < 0.6) {
+          events.push({
+            t: lapseAt + (10 + Math.floor(rng() * 15)) * DAY, kind: 'status', source: 'srs', aspect: 'meaning',
+            fromStatus: 'learning', toStatus: 'known', easeAfter: 1.85,
+          });
+        }
+      }
+      log[key] = events.filter((e) => e.t <= now);
+    }
+  }
+
+  return log;
+}
+
 export async function populateMockStatsData(): Promise<void> {
   try {
     const language = DEFAULT_MOCK_LANGUAGE;
@@ -428,6 +589,9 @@ export async function populateMockStatsData(): Promise<void> {
     for (const media of mediaStats) {
       getBridge().mediaStats.saveMediaStats(media.mediaHash, media);
     }
+
+    await appendEvents(generateKnowledgeEvents(SAMPLE_WORDS, { language }));
+    await appendEvents(generateCohortKnowledgeEvents({ language }));
 
     setTimeout(() => {
       getBridge().mediaStats.listMediaStats();

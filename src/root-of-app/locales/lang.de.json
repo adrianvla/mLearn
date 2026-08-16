@@ -891,7 +891,18 @@
         "Undo": "↩",
         "UndoTooltip": "Rückgängig",
         "StealthMode": "Tarnmodus",
-        "MuteAudio": "Audio stummschalten"
+        "MuteAudio": "Audio stummschalten",
+        "Modes": {
+          "Label": "Fokus",
+          "Meaning": "Bedeutung",
+          "Reading": "Lesung",
+          "Prosody": "Prosodie"
+        },
+        "Attribution": {
+          "WrongReading": "Falsche Lesung",
+          "WrongProsody": "Falsche Prosodie",
+          "Marked": "{aspect} zum Lernen markiert"
+        }
       },
       "State": {
         "Learning": "Lernen",
@@ -1214,6 +1225,41 @@
         "DisplayLanguage": "Anzeigesprache: {language}",
         "DictionaryLanguage": "Wörterbuchsprache: {language}",
         "NotAvailable": "nicht verfügbar"
+      }
+    },
+    "Knowledge": {
+      "Aspect": {
+        "Meaning": "Bedeutung",
+        "Reading": "Lesung",
+        "Prosody": "Prosodie"
+      },
+      "AspectInherited": "(geerbt)",
+      "History": {
+        "Empty": "Noch keine Wissenshistorie.",
+        "Kind": {
+          "Status": "Statusänderung",
+          "Review": "Wiederholung",
+          "Rating": "Manuelle Bewertung",
+          "Rollup": "Passive Exposition"
+        },
+        "Source": {
+          "KnownWordsList": "Liste bekannter Wörter",
+          "IgnoredWords": "Liste ignorierter Wörter",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "Passives Tracking",
+          "Manual": "Manuell"
+        },
+        "Table": {
+          "Time": "Zeit",
+          "Event": "Ereignis",
+          "Source": "Quelle",
+          "Details": "Details"
+        }
+      },
+      "Actions": {
+        "DowngradeToLearning": "Zu Lernend herabstufen",
+        "MarkUnknown": "Als Unbekannt markieren"
       }
     },
     "LevelStudy": {
@@ -1955,6 +2001,14 @@
             "Label": "Anki aktivieren"
           },
           "Failed": "Fehlgeschlagen",
+          "ImportHistory": {
+            "Label": "Wiederholungsverlauf importieren",
+            "Description": "Einmaliger Import deines Anki-Wiederholungsprotokolls in den Wissensverlauf. Wiederholtes Ausführen ist sicher — bereits importierte Wiederholungen werden übersprungen",
+            "Button": "Verlauf importieren",
+            "Running": "Importiere…",
+            "Success": "{imported} Wiederholungen für {words} Wörter importiert ({skipped} übersprungen)",
+            "Failed": "Import fehlgeschlagen — läuft Anki mit AnkiConnect?"
+          },
           "FieldMapping": {
             "Description": "Anki-Notizfelder den mLearn-Kartenfeldern zuordnen",
             "Expression": {
@@ -2500,7 +2554,20 @@
       "WordsByLevel": "Wörter nach Stufe",
       "WordsByStatus": "Wörter nach Status",
       "WordsLearned": "Gelernte Wörter",
-      "WordsTracked": "Verfolgte Wörter"
+      "WordsTracked": "Verfolgte Wörter",
+      "WordHistory": {
+        "Title": "Worthistorie",
+        "SearchPlaceholder": "Erfasste Wörter suchen…",
+        "Empty": "Keine Historie für dieses Wort.",
+        "Prompt": "Wähle ein Wort, um seine Wissenshistorie zu sehen."
+      },
+      "LearningVelocity": {
+        "Title": "Lerntempo",
+        "Empty": "Noch nicht genug Verlauf — lerne weiter und schau später wieder vorbei.",
+        "DaysToKnown": "Median-Tage bis stabil bekannt",
+        "AcquisitionSlope": "14-Tage-Lernsteigung",
+        "RetentionAfterKnown": "30-Tage-Behaltensquote nach bekannt"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "Mit nächstem Untertitel synchronisieren",

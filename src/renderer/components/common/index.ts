@@ -416,3 +416,15 @@ export {
 } from './Misc';
 
 export { default as TitleBar } from './TitleBar/TitleBar';
+
+// KnowledgeHistoryGraph
+export {
+  KnowledgeHistoryGraph,
+  type KnowledgeHistoryGraphProps,
+} from './KnowledgeHistoryGraph';
+
+// WordStatusPillKnowledge
+export {
+  WordStatusPillKnowledge,
+  type WordStatusPillKnowledgeProps,
+} from './WordStatusPillKnowledge';

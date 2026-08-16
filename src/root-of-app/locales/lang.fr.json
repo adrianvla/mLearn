@@ -891,7 +891,18 @@
         "Undo": "↩",
         "UndoTooltip": "Annuler",
         "StealthMode": "Mode furtif",
-        "MuteAudio": "Couper le son"
+        "MuteAudio": "Couper le son",
+        "Modes": {
+          "Label": "Focus",
+          "Meaning": "Sens",
+          "Reading": "Lecture",
+          "Prosody": "Prosodie"
+        },
+        "Attribution": {
+          "WrongReading": "Lecture incorrecte",
+          "WrongProsody": "Prosodie incorrecte",
+          "Marked": "{aspect} marqué comme en cours d'apprentissage"
+        }
       },
       "State": {
         "Learning": "En apprentissage",
@@ -1214,6 +1225,41 @@
         "DisplayLanguage": "Langue de l'application : {language}",
         "DictionaryLanguage": "Langue du dictionnaire : {language}",
         "NotAvailable": "non disponible"
+      }
+    },
+    "Knowledge": {
+      "Aspect": {
+        "Meaning": "Sens",
+        "Reading": "Lecture",
+        "Prosody": "Prosodie"
+      },
+      "AspectInherited": "(hérité)",
+      "History": {
+        "Empty": "Pas encore d'historique de connaissance.",
+        "Kind": {
+          "Status": "Changement de statut",
+          "Review": "Révision",
+          "Rating": "Évaluation manuelle",
+          "Rollup": "Exposition passive"
+        },
+        "Source": {
+          "KnownWordsList": "Liste de mots connus",
+          "IgnoredWords": "Liste de mots ignorés",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "Suivi passif",
+          "Manual": "Manuel"
+        },
+        "Table": {
+          "Time": "Heure",
+          "Event": "Événement",
+          "Source": "Source",
+          "Details": "Détails"
+        }
+      },
+      "Actions": {
+        "DowngradeToLearning": "Rétrograder en apprentissage",
+        "MarkUnknown": "Marquer inconnu"
       }
     },
     "LevelStudy": {
@@ -1955,6 +2001,14 @@
             "Label": "Activer Anki"
           },
           "Failed": "Échec",
+          "ImportHistory": {
+            "Label": "Importer l'historique des révisions",
+            "Description": "Import unique de votre journal de révisions Anki dans l'historique des connaissances. Réexécution sans risque — les révisions déjà importées sont ignorées",
+            "Button": "Importer l'historique",
+            "Running": "Importation…",
+            "Success": "{imported} révisions importées pour {words} mots ({skipped} ignorées)",
+            "Failed": "Échec de l'import — Anki est-il lancé avec AnkiConnect ?"
+          },
           "FieldMapping": {
             "Description": "Associer les champs de notes Anki aux champs de cartes mLearn",
             "Expression": {
@@ -2500,7 +2554,20 @@
       "WordsByLevel": "Mots par niveau",
       "WordsByStatus": "Mots par statut",
       "WordsLearned": "Mots appris",
-      "WordsTracked": "Mots suivis"
+      "WordsTracked": "Mots suivis",
+      "WordHistory": {
+        "Title": "Historique du mot",
+        "SearchPlaceholder": "Rechercher des mots suivis…",
+        "Empty": "Aucun historique pour ce mot.",
+        "Prompt": "Sélectionnez un mot pour voir son historique de connaissance."
+      },
+      "LearningVelocity": {
+        "Title": "Vitesse d'apprentissage",
+        "Empty": "Pas encore assez d'historique — continuez à apprendre et revenez plus tard.",
+        "DaysToKnown": "Jours médians jusqu'à connu stable",
+        "AcquisitionSlope": "Pente d'acquisition sur 14 jours",
+        "RetentionAfterKnown": "Rétention à 30 jours après connu"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "Synchroniser avec le sous-titre suivant",

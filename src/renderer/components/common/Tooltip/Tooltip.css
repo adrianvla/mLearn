@@ -22,6 +22,11 @@
   transform: translateX(-50%) translateY(-100%);
 }
 
+.tooltip-content--interactive {
+  pointer-events: auto;
+  white-space: normal;
+}
+
 .tooltip-content--bottom {
   transform: translateX(-50%);
 }

@@ -891,7 +891,18 @@
         "Undo": "↩",
         "UndoTooltip": "Отменить",
         "StealthMode": "Скрытый режим",
-        "MuteAudio": "Без звука"
+        "MuteAudio": "Без звука",
+        "Modes": {
+          "Label": "Фокус",
+          "Meaning": "Значение",
+          "Reading": "Чтение",
+          "Prosody": "Просодия"
+        },
+        "Attribution": {
+          "WrongReading": "Неверное чтение",
+          "WrongProsody": "Неверная просодия",
+          "Marked": "Отмечено: {aspect} — изучается"
+        }
       },
       "State": {
         "Learning": "Изучение",
@@ -1214,6 +1225,41 @@
         "DisplayLanguage": "Язык интерфейса: {language}",
         "DictionaryLanguage": "Язык словаря: {language}",
         "NotAvailable": "недоступно"
+      }
+    },
+    "Knowledge": {
+      "Aspect": {
+        "Meaning": "Значение",
+        "Reading": "Чтение",
+        "Prosody": "Просодия"
+      },
+      "AspectInherited": "(унаследовано)",
+      "History": {
+        "Empty": "Истории знания пока нет.",
+        "Kind": {
+          "Status": "Смена статуса",
+          "Review": "Повторение",
+          "Rating": "Ручная оценка",
+          "Rollup": "Пассивный контакт"
+        },
+        "Source": {
+          "KnownWordsList": "Список известных слов",
+          "IgnoredWords": "Список игнорируемых слов",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "Пассивное отслеживание",
+          "Manual": "Вручную"
+        },
+        "Table": {
+          "Time": "Время",
+          "Event": "Событие",
+          "Source": "Источник",
+          "Details": "Детали"
+        }
+      },
+      "Actions": {
+        "DowngradeToLearning": "Понизить до изучаемого",
+        "MarkUnknown": "Отметить неизвестным"
       }
     },
     "LevelStudy": {
@@ -1955,6 +2001,14 @@
             "Label": "Включить Anki"
           },
           "Failed": "Ошибка",
+          "ImportHistory": {
+            "Label": "Импорт истории повторений",
+            "Description": "Одноразовый перенос журнала повторений Anki в историю знаний. Повторный запуск безопасен — уже импортированные повторения пропускаются",
+            "Button": "Импортировать историю",
+            "Running": "Импорт…",
+            "Success": "Импортировано {imported} повторений для {words} слов (пропущено {skipped})",
+            "Failed": "Ошибка импорта — запущен ли Anki с AnkiConnect?"
+          },
           "FieldMapping": {
             "Description": "Сопоставить поля заметок Anki с полями карточек mLearn",
             "Expression": {
@@ -2500,7 +2554,20 @@
       "WordsByLevel": "Слова по уровню",
       "WordsByStatus": "Слова по статусу",
       "WordsLearned": "Слов выучено",
-      "WordsTracked": "Слов отслеживается"
+      "WordsTracked": "Слов отслеживается",
+      "WordHistory": {
+        "Title": "История слова",
+        "SearchPlaceholder": "Поиск отслеживаемых слов…",
+        "Empty": "Нет истории для этого слова.",
+        "Prompt": "Выберите слово, чтобы увидеть историю его изучения."
+      },
+      "LearningVelocity": {
+        "Title": "Скорость обучения",
+        "Empty": "Пока недостаточно истории — продолжайте учиться и загляните позже.",
+        "DaysToKnown": "Медиана дней до стабильного известного статуса",
+        "AcquisitionSlope": "Темп освоения за 14 дней",
+        "RetentionAfterKnown": "Удержание через 30 дней после изучения"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "Синхронизировать со следующим субтитром",

@@ -14,6 +14,7 @@ import { Tooltip } from '../Tooltip';
 import { AnkiModifyWarningModal } from '../../flashcard/AnkiModifyWarningModal';
 import { showToast } from '../Feedback/Toast';
 import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordStatusPillLogic';
+import { WordStatusPillKnowledge } from '../WordStatusPillKnowledge';
 
 const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
@@ -51,6 +52,9 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const [showAnkiModifyWarning, setShowAnkiModifyWarning] = createSignal(false);
   const [pendingStatus, setPendingStatus] = createSignal<WordStatus | null>(null);
   const [pendingSkipAnki, setPendingSkipAnki] = createSignal(false);
+  // The knowledge tooltip is interactive (Portal-mounted) — while open it counts
+  // as an internal modal so hover-popover parents don't close mid-interaction.
+  const [knowledgeTooltipOpen, setKnowledgeTooltipOpen] = createSignal(false);
 
   const targetLanguage = createMemo(() => props.language ?? settings.language);
   const isActiveLanguage = createMemo(() => targetLanguage() === settings.language);
@@ -109,7 +113,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   });
 
   createEffect(() => {
-    props.onModalOpenChange?.(showStatusSourceWarning() || showAnkiModifyWarning());
+    props.onModalOpenChange?.(showStatusSourceWarning() || showAnkiModifyWarning() || knowledgeTooltipOpen());
   });
 
   const applyStatusChange = (nextStatus: WordStatus, skipAnki = false) => {
@@ -256,7 +260,17 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
 
   return (
     <>
-      <Tooltip content={statusSourceLabel()}>
+      <Tooltip
+        interactive
+        onShow={() => setKnowledgeTooltipOpen(true)}
+        onHide={() => setKnowledgeTooltipOpen(false)}
+        content={
+          <>
+            <WordStatusPillKnowledge word={props.word} language={targetLanguage()} />
+            <span>{statusSourceLabel()}</span>
+          </>
+        }
+      >
         <PillBtn
           variant={statusVariant()}
           icon={statusIcon()}

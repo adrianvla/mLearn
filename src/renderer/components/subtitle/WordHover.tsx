@@ -561,10 +561,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   );
 
   // When an internal modal opens, cancel any pending hide from the parent
+  let wasBlockingHide = false;
   createEffect(() => {
-    if (isInternalModalOpen() || isAddingFlashcard()) {
+    const blocking = isInternalModalOpen() || isAddingFlashcard();
+    if (blocking) {
       props.onMouseEnter?.();
+    } else if (wasBlockingHide && subtitleHoverRef && !subtitleHoverRef.matches(':hover')) {
+      // The blocking element (modal/interactive tooltip) just closed. Its leave
+      // was suppressed, so re-check: pointer outside the popover means hide now.
+      props.onMouseLeave?.();
     }
+    wasBlockingHide = blocking;
   });
 
   // Handle adding flashcard when word is already in Anki (duplicate check)

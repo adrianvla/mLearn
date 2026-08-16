@@ -66,6 +66,8 @@ vi.mock('../../../context', () => ({
     trackWordStatusChange: trackWordStatusChangeMock,
     getComprehensiveWordStatusWithSourceSync: () => comprehensiveResultMock,
     setComprehensiveWordStatus: setComprehensiveWordStatusMock,
+    getWordKnowledge: () => undefined,
+    setAspectStatus: vi.fn(),
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string>) => (
@@ -93,9 +95,20 @@ vi.mock('../Button', () => ({
 }));
 
 vi.mock('../Tooltip', () => ({
-  Tooltip: (props: { content?: string; children?: JSX.Element }) => (
-    <span data-testid="tooltip" data-content={props.content}>{props.children}</span>
+  Tooltip: (props: { content?: JSX.Element; children?: JSX.Element }) => (
+    <span data-testid="tooltip">{props.content}{props.children}</span>
   ),
+}));
+
+vi.mock('../KnowledgeHistoryGraph', () => ({
+  KnowledgeHistoryGraph: () => <div data-testid="mock-knowledge-history-graph" />,
+}));
+
+vi.mock('../../../hooks/useKnowledgeHistory', () => ({
+  useKnowledgeHistory: () => ({
+    events: () => [],
+    replay: () => ({ points: [], bands: [] }),
+  }),
 }));
 
 vi.mock('../../flashcard/AnkiModifyWarningModal', () => ({
@@ -185,8 +198,8 @@ describe('WordStatusPill', () => {
       <WordStatusPill word="れんぞく" language="ja" />
     ), container);
 
-    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-content')).toBe(
-      'mlearn.WordHover.StatusSource.Prefixmlearn.Settings.KnowledgePriority.Source.KnownWordsList (→ 連続)',
+    expect(container.querySelector('[data-testid="tooltip"]')?.textContent).toContain(
+      'mlearn.Settings.KnowledgePriority.Source.KnownWordsList (→ 連続)',
     );
 
     dispose();
@@ -204,8 +217,8 @@ describe('WordStatusPill', () => {
       <WordStatusPill word="Haus" language="de" />
     ), container);
 
-    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-content')).toBe(
-      'mlearn.WordHover.StatusSource.Prefixmlearn.Settings.KnowledgePriority.Source.Manual + mlearn.WordHover.TimesSeen:10',
+    expect(container.querySelector('[data-testid="tooltip"]')?.textContent).toContain(
+      'mlearn.Settings.KnowledgePriority.Source.Manual + mlearn.WordHover.TimesSeen:10',
     );
 
     dispose();

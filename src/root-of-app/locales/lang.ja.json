@@ -891,7 +891,18 @@
         "Undo": "↩",
         "UndoTooltip": "元に戻す",
         "StealthMode": "ステルスモード",
-        "MuteAudio": "音声ミュート"
+        "MuteAudio": "音声ミュート",
+        "Modes": {
+          "Label": "フォーカス",
+          "Meaning": "意味",
+          "Reading": "読み",
+          "Prosody": "プロソディ"
+        },
+        "Attribution": {
+          "WrongReading": "読みを間違えた",
+          "WrongProsody": "プロソディを間違えた",
+          "Marked": "{aspect}を学習中にしました"
+        }
       },
       "State": {
         "Learning": "学習中",
@@ -1214,6 +1225,41 @@
         "DisplayLanguage": "表示言語: {language}",
         "DictionaryLanguage": "辞書言語: {language}",
         "NotAvailable": "利用できません"
+      }
+    },
+    "Knowledge": {
+      "Aspect": {
+        "Meaning": "意味",
+        "Reading": "読み",
+        "Prosody": "プロソディ"
+      },
+      "AspectInherited": "(継承)",
+      "History": {
+        "Empty": "知識の履歴はまだありません。",
+        "Kind": {
+          "Status": "ステータス変更",
+          "Review": "復習",
+          "Rating": "手動評価",
+          "Rollup": "パッシブ接触"
+        },
+        "Source": {
+          "KnownWordsList": "既知単語リスト",
+          "IgnoredWords": "無視単語リスト",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "パッシブトラッキング",
+          "Manual": "手動"
+        },
+        "Table": {
+          "Time": "時刻",
+          "Event": "イベント",
+          "Source": "ソース",
+          "Details": "詳細"
+        }
+      },
+      "Actions": {
+        "DowngradeToLearning": "学習中に戻す",
+        "MarkUnknown": "未知にする"
       }
     },
     "LevelStudy": {
@@ -1955,6 +2001,14 @@
             "Label": "Ankiを有効にする"
           },
           "Failed": "失敗",
+          "ImportHistory": {
+            "Label": "レビュー履歴をインポート",
+            "Description": "Ankiのレビューログを知識履歴に一度だけ取り込みます。再実行しても安全です（取り込み済みはスキップされます）",
+            "Button": "履歴をインポート",
+            "Running": "インポート中…",
+            "Success": "{words}語の{imported}件のレビューを取り込みました（{skipped}件スキップ）",
+            "Failed": "インポートに失敗しました。AnkiConnectを入れたAnkiは起動していますか？"
+          },
           "FieldMapping": {
             "Description": "Ankiのノートフィールドをmlearn flashcardフィールドに対応付ける",
             "Expression": {
@@ -2500,7 +2554,20 @@
       "WordsByLevel": "レベル別の単語",
       "WordsByStatus": "状態別の単語",
       "WordsLearned": "習得した単語",
-      "WordsTracked": "追跡中の単語"
+      "WordsTracked": "追跡中の単語",
+      "WordHistory": {
+        "Title": "単語の履歴",
+        "SearchPlaceholder": "追跡中の単語を検索…",
+        "Empty": "この単語の履歴はありません。",
+        "Prompt": "単語を選択すると知識の履歴が表示されます。"
+      },
+      "LearningVelocity": {
+        "Title": "学習速度",
+        "Empty": "履歴がまだ十分ではありません。学習を続けてからまた確認してください。",
+        "DaysToKnown": "安定して既知になるまでの中央日数",
+        "AcquisitionSlope": "14日間の習得ペース",
+        "RetentionAfterKnown": "既知後30日間の定着率"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "次の字幕に同期",

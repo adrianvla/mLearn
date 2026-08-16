@@ -13,6 +13,8 @@ export interface TooltipProps {
   onShow?: () => void;
   /** Called when tooltip is hidden */
   onHide?: () => void;
+  /** Keep content hoverable so interactive content (buttons) can be clicked */
+  interactive?: boolean;
   class?: string;
 }
 
@@ -20,6 +22,7 @@ export const Tooltip: Component<TooltipProps> = (props) => {
   const [visible, setVisible] = createSignal(false);
   const [pos, setPos] = createSignal({ left: 0, top: 0 });
   let delayTimer: ReturnType<typeof setTimeout> | null = null;
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let triggerRef: HTMLSpanElement | undefined;
 
   const updatePosition = () => {
@@ -62,9 +65,30 @@ export const Tooltip: Component<TooltipProps> = (props) => {
       clearTimeout(delayTimer);
       delayTimer = null;
     }
+    if (hideTimer !== null) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
     if (visible()) {
       setVisible(false);
       props.onHide?.();
+    }
+  };
+
+  // Interactive content lives in a Portal: the pointer crosses a gap between
+  // trigger and content, so trigger-mouseleave must grace before hiding or the
+  // tooltip closes before the pointer reaches the content.
+  const scheduleHide = () => {
+    if (props.interactive) {
+      hideTimer = setTimeout(hide, 200);
+    } else {
+      hide();
+    }
+  };
+  const cancelHide = () => {
+    if (hideTimer !== null) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
     }
   };
 
@@ -76,7 +100,7 @@ export const Tooltip: Component<TooltipProps> = (props) => {
         ref={triggerRef}
         class={`tooltip-trigger ${props.class ?? ''}`}
         onMouseEnter={show}
-        onMouseLeave={hide}
+        onMouseLeave={scheduleHide}
         onFocusIn={show}
         onFocusOut={hide}
       >
@@ -85,7 +109,9 @@ export const Tooltip: Component<TooltipProps> = (props) => {
       <Show when={visible()}>
         <Portal mount={document.body}>
           <span
-            class={`tooltip-content tooltip-content--${props.position ?? 'top'}`}
+            class={`tooltip-content tooltip-content--${props.position ?? 'top'}${props.interactive ? ' tooltip-content--interactive' : ''}`}
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
             style={{
               position: 'fixed',
               left: `${pos().left}px`,
