@@ -8,7 +8,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
-import type { WordStatus } from '../../shared/constants';
+import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -32,6 +32,10 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
+import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay } from '../utils/aspectKnowledge';
+import { appendEvents } from '../services/knowledgeEvents';
+import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
+import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
@@ -291,14 +295,18 @@ interface FlashcardContextValue {
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   trackWordStatusChange: (word: string, language?: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
+  /** Snapshot wordKnowledge entries across all surface-form hashes (undo support for multi-hash writes) */
+  getWordKnowledgeSnapshotForForms: (word: string, language?: string) => Record<string, PassiveWordKnowledge | undefined>;
   restoreWordSyncRating: (
     word: string,
-    previousKnowledge: PassiveWordKnowledge | undefined,
+    previousKnowledge: PassiveWordKnowledge | undefined | Record<string, PassiveWordKnowledge | undefined>,
     previousSeenAt: number | undefined,
     language?: string,
   ) => void;
   /** Directly set a word's comprehensive status by adjusting its passive ease and clearing conflicting banks */
   setComprehensiveWordStatus: (word: string, status: WordStatus, language?: string) => void;
+  /** Write a reading/prosody aspect status with down-init/down-squash cascade across all surface-form hashes */
+  setAspectStatus: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
   // Word sync seen tracking
@@ -1151,6 +1159,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wasNew = card.state === 'new';
     const wasReview = card.state === 'review';
     const updated = SRS.answerCard(card, rating, store.meta);
+    const cardLang = card.language || settings.language;
+    const cardForm = getPrimaryWordFormForLanguage(card.content.front, cardLang);
+    appendEvents({
+      [langKey(cardLang, SRS.hashWordSync(cardForm))]: [{
+        t: Date.now(),
+        kind: 'review',
+        source: 'srs',
+        aspect: 'meaning',
+        rating,
+        easeBefore: card.ease,
+        easeAfter: updated.ease,
+        intervalBefore: card.interval,
+        intervalAfter: updated.interval,
+      }],
+    }).catch((e) => log.warn('knowledge event append failed:', e));
 
     // Update queue - remove from current position, may need to re-add if still learning
     let newQueue = SRS.removeFromQueue(queue(), card.id);
@@ -2343,6 +2366,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           word: storageWord,
           reading,
           language: lang,
+          firstSeen: now,
         };
       }
       const k = s.wordKnowledge[lk];
@@ -2370,6 +2394,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Notify media stats listeners so per-media tracking stays in sync
     const newEase = store.wordKnowledge[lk]?.ease ?? SRS.MIN_EASE;
     window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, language: lang, ease: newEase } }));
+    if (shouldCount) accumulateWordSeen(lk, newEase, 1);
   };
 
   // Track that a word was hovered (user doesn't know it)
@@ -2508,6 +2533,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const match = findAnkiWordMatchInCache(forms, {
       language,
       languageData: languageDataFor(language),
+      ankiLearningThreshold: settings.ankiLearningThreshold,
+      ankiKnownThreshold: settings.ankiKnownThreshold,
     });
     if (!match?.cards?.length) return null;
     return getAnkiWordKnowledgeStatus(match.cards, settings.ankiLearningThreshold, settings.ankiKnownThreshold);
@@ -2522,6 +2549,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const match = findAnkiWordMatchInCache(getWordFormsForLanguage(word, language), {
         language,
         languageData: languageDataFor(language),
+        ankiLearningThreshold: settings.ankiLearningThreshold,
+        ankiKnownThreshold: settings.ankiKnownThreshold,
       });
       if (match) return { tracker: 'anki', ankiLookupWord: match.word };
     }
@@ -2617,50 +2646,71 @@ export const FlashcardProvider: ParentComponent = (props) => {
    * Used by the "Sync with me" word assessment window to record user ratings.
    */
   const setWordKnowledgeEase = (word: string, ease: number, reading?: string, language = settings.language) => {
-    const storageWord = getPrimaryWordFormForLanguage(word, language);
-    const wordHash = SRS.hashWordSync(storageWord);
+    // Multi-hash rule (#230): the resolver reads every surface-form hash, so a
+    // single-hash rating write is shadowed by sibling forms' stale entries.
+    const forms = getWordFormsForLanguage(word, language);
     const lang = language;
-    const lk = langKey(lang, wordHash);
     const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
-    if (store.knownUntracked[lk]) return;
     const now = Date.now();
     const eased = ease + settings.manualStatusEaseBuffer;
+    const ratingEvents: Record<string, KnowledgeEvent[]> = {};
+    const easeToStatus = (e: number): WordStatus =>
+      e >= passiveKnownEaseThreshold() ? 'known'
+        : e >= passiveLearningEaseThreshold() ? 'learning' : 'unknown';
 
     setStore(produce((s) => {
-      if (!s.wordKnowledge[lk]) {
-        s.wordKnowledge[lk] = {
-          ease: eased,
-          lastSeen: now,
-          timesSeen: 0,
-          timesHovered: 0,
-          word: storageWord,
-          reading,
-          language: lang,
-          lastStatusChange: now,
-          wordSyncRatedAt: now,
-        };
-      } else {
-        s.wordKnowledge[lk].ease = eased;
-        s.wordKnowledge[lk].lastSeen = now;
-        s.wordKnowledge[lk].lastStatusChange = now;
-        s.wordKnowledge[lk].wordSyncRatedAt = now;
-      }
-      const entry = s.wordKnowledge[lk];
-      if (scriptForm) {
-        const recognize = entry.forms?.[scriptForm]?.recognize ?? {
-          ease: entry.ease,
-          lastSeen: entry.lastSeen,
-          timesSeen: entry.timesSeen,
-          timesHovered: entry.timesHovered,
-        };
-        recognize.ease = eased;
-        recognize.lastSeen = now;
-        recognize.lastStatusChange = now;
-        entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
-        entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
+      for (const form of forms) {
+        const wordHash = SRS.hashWordSync(form);
+        const lk = langKey(lang, wordHash);
+        if (s.knownUntracked[lk]) continue;
+        const prior = s.wordKnowledge[lk];
+        const fromStatus = prior ? easeToStatus(prior.ease) : 'unknown';
+        const easeBefore = prior?.ease;
+        if (!s.wordKnowledge[lk]) {
+          s.wordKnowledge[lk] = {
+            ease: eased,
+            lastSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word: form,
+            reading,
+            language: lang,
+            lastStatusChange: now,
+            wordSyncRatedAt: now,
+          };
+        } else {
+          s.wordKnowledge[lk].ease = eased;
+          s.wordKnowledge[lk].lastSeen = now;
+          s.wordKnowledge[lk].lastStatusChange = now;
+          s.wordKnowledge[lk].wordSyncRatedAt = now;
+        }
+        const entry = s.wordKnowledge[lk];
+        if (scriptForm) {
+          const recognize = entry.forms?.[scriptForm]?.recognize ?? {
+            ease: entry.ease,
+            lastSeen: entry.lastSeen,
+            timesSeen: entry.timesSeen,
+            timesHovered: entry.timesHovered,
+          };
+          recognize.ease = eased;
+          recognize.lastSeen = now;
+          recognize.lastStatusChange = now;
+          entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
+          entry.ease = Math.max(...Object.values(entry.forms).flatMap((f) => f?.recognize ? [f.recognize.ease] : [entry.ease]));
+        }
+        const toStatus = easeToStatus(eased);
+        if (fromStatus !== toStatus) {
+          ratingEvents[lk] = [{
+            t: now, kind: 'rating', source: 'manual', aspect: 'meaning',
+            fromStatus, toStatus, easeBefore, easeAfter: eased,
+          }];
+        }
       }
     }));
     saveFlashcards();
+    if (Object.keys(ratingEvents).length > 0) {
+      appendEvents(ratingEvents).catch((e) => log.warn('knowledge event append failed:', e));
+    }
   };
 
   const setComprehensiveWordStatus = (word: string, status: WordStatus, language = settings.language) => {
@@ -2678,10 +2728,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (status === 'learning') targetEase = settings.easeThresholdLearning + buffer;
     else if (status === 'known') targetEase = settings.easeThresholdKnown + buffer;
 
+    const previousMeaningStatus = getComprehensiveWordStatusSync(word, lang);
+    const manualEvents: Record<string, KnowledgeEvent[]> = {};
+    const easeToStatus = (ease: number): WordStatus =>
+      ease >= passiveKnownEaseThreshold() ? 'known'
+        : ease >= passiveLearningEaseThreshold() ? 'learning' : 'unknown';
+
     setStore(produce((s) => {
       for (const form of forms) {
         const wordHash = SRS.hashWordSync(form);
         const lk = langKey(lang, wordHash);
+        const prior = s.wordKnowledge[lk];
+        const fromStatus = prior ? easeToStatus(prior.ease) : 'unknown';
+        const easeBefore = prior?.ease;
         if (status !== 'known' && s.knownUntracked[lk]) {
           delete s.knownUntracked[lk];
         }
@@ -2705,6 +2764,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
           s.wordKnowledge[lk].timesHovered = 0;
         }
         const entry = s.wordKnowledge[lk];
+        applyMeaningCascade(entry, status, now, 'Manual', (st) => {
+          if (st === 'learning') return settings.easeThresholdLearning + buffer;
+          if (st === 'known') return settings.easeThresholdKnown + buffer;
+          return settings.easeThresholdUnknown + buffer;
+        }, previousMeaningStatus);
         if (scriptForm) {
           const recognize = entry.forms?.[scriptForm]?.recognize ?? {
             ease: entry.ease,
@@ -2718,9 +2782,75 @@ export const FlashcardProvider: ParentComponent = (props) => {
           entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
           entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
         }
+        if (fromStatus !== status) {
+          manualEvents[lk] = [{
+            t: now, kind: 'rating', source: 'manual', aspect: 'meaning',
+            fromStatus, toStatus: status, easeBefore, easeAfter: targetEase,
+          }];
+        }
       }
     }));
     saveFlashcards();
+    if (Object.keys(manualEvents).length > 0) {
+      appendEvents(manualEvents).catch((e) => log.warn('knowledge event append failed:', e));
+    }
+  };
+
+  const setAspectStatus = (
+    word: string,
+    aspect: Exclude<KnowledgeAspect, 'meaning'>,
+    status: WordStatus,
+    source: KnowledgeSource | 'manual',
+    language = settings.language,
+  ) => {
+    const lang = language;
+    const forms = getWordFormsForLanguage(word, lang);
+    const now = Date.now();
+    const buffer = settings.manualStatusEaseBuffer;
+    const easeForStatus = (st: WordStatus) => {
+      if (st === 'learning') return settings.easeThresholdLearning + buffer;
+      if (st === 'known') return settings.easeThresholdKnown + buffer;
+      return settings.easeThresholdUnknown + buffer;
+    };
+    const aspectEvents: Record<string, KnowledgeEvent[]> = {};
+
+    setStore(produce((s) => {
+      for (const form of forms) {
+        const wordHash = SRS.hashWordSync(form);
+        const lk = langKey(lang, wordHash);
+        const prior = s.wordKnowledge[lk]?.aspects?.[aspect]?.status ?? 'unknown';
+        if (!s.wordKnowledge[lk]) {
+          s.wordKnowledge[lk] = {
+            ease: easeForStatus(status),
+            lastSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word: form,
+            language: lang,
+            lastStatusChange: now,
+          };
+        }
+        const entry = s.wordKnowledge[lk];
+        applyAspectWrite(entry, {
+          aspect,
+          status,
+          ease: easeForStatus(status),
+          source: aspectSourceToDisplay(source),
+          now,
+        }, easeForStatus);
+        entry.lastStatusChange = now;
+        if (prior !== status) {
+          aspectEvents[lk] = [{
+            t: now, kind: 'status', source, aspect,
+            fromStatus: prior, toStatus: status, easeAfter: easeForStatus(status),
+          }];
+        }
+      }
+    }));
+    saveFlashcards();
+    if (Object.keys(aspectEvents).length > 0) {
+      appendEvents(aspectEvents).catch((e) => log.warn('knowledge event append failed:', e));
+    }
   };
 
   const setWordBankStatus = async (
@@ -2827,9 +2957,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  const getWordKnowledgeSnapshotForForms = (word: string, language = settings.language): Record<string, PassiveWordKnowledge | undefined> => {
+    const snapshot: Record<string, PassiveWordKnowledge | undefined> = {};
+    for (const form of getWordFormsForLanguage(word, language)) {
+      const lk = langKey(language, SRS.hashWordSync(form));
+      const entry = store.wordKnowledge[lk];
+      snapshot[lk] = entry ? { ...entry } : undefined;
+    }
+    return snapshot;
+  };
+
   const restoreWordSyncRating = (
     word: string,
-    previousKnowledge: PassiveWordKnowledge | undefined,
+    previousKnowledge: PassiveWordKnowledge | undefined | Record<string, PassiveWordKnowledge | undefined>,
     previousSeenAt: number | undefined,
     language = settings.language,
   ) => {
@@ -2838,8 +2978,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const lk = langKey(language, wordHash);
 
     setStore(produce((s) => {
-      if (previousKnowledge) {
-        s.wordKnowledge[lk] = { ...previousKnowledge };
+      const snapshot = previousKnowledge as Record<string, PassiveWordKnowledge | undefined> | undefined;
+      if (snapshot && !('ease' in snapshot)) {
+        for (const form of getWordFormsForLanguage(word, language)) {
+          const formLk = langKey(language, SRS.hashWordSync(form));
+          const prev = snapshot[formLk];
+          if (prev) {
+            s.wordKnowledge[formLk] = { ...prev };
+          } else {
+            delete s.wordKnowledge[formLk];
+          }
+        }
+      } else if (previousKnowledge) {
+        s.wordKnowledge[lk] = { ...(previousKnowledge as PassiveWordKnowledge) };
       } else {
         delete s.wordKnowledge[lk];
       }
@@ -3283,6 +3434,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   // Handle new day event (also triggered by "Force recreate" menu)
   const handleNewDay = async () => {
     const today = SRS.getTodayDateString(newDayHour());
+    await flushKnowledgeRollup();
     setStore(produce((s) => {
       // Unbury all cards
       s.flashcards = SRS.unburyCards(s.flashcards);
@@ -3501,9 +3653,14 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     // Listen for visibility changes to reload on window focus
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    setKnowledgeRollupTodayFn(() => SRS.getTodayDateString(newDayHour()));
+    window.addEventListener('beforeunload', flushOnUnload);
+
     loadFlashcards();
     startSession();
   });
+
+  const flushOnUnload = () => { void flushKnowledgeRollup(); };
 
   onCleanup(() => {
     // Flush any pending save before cleanup
@@ -3511,6 +3668,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
       clearTimeout(saveTimer);
       saveFlashcardsImmediate();
     }
+    window.removeEventListener('beforeunload', flushOnUnload);
+    void flushKnowledgeRollup();
     // Remove all IPC listeners
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
@@ -3578,8 +3737,10 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     isWordKnownComprehensiveSync,
     trackWordStatusChange,
     setWordKnowledgeEase,
+    getWordKnowledgeSnapshotForForms,
     restoreWordSyncRating,
     setComprehensiveWordStatus,
+    setAspectStatus,
     setWordBankStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,

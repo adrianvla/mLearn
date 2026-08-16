@@ -22,6 +22,7 @@ import type {
   SpeechBridge,
   VoiceBridge,
   MediaStatsBridge,
+  KnowledgeEventsBridge,
   WatchTogetherBridge,
   OverlayBridge,
   CrossWindowBridge,
@@ -260,6 +261,14 @@ const mediaStatsBridge: MediaStatsBridge = {
   onMediaStatsList: (cb) => getIPC().onMediaStatsList(cb),
 };
 
+const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  appendKnowledgeEvents: (eventsByKey) => getIPC().appendKnowledgeEvents(eventsByKey),
+  queryKnowledgeEvents: (keys) => getIPC().queryKnowledgeEvents(keys),
+  queryKnowledgeEventsForLanguage: (language) => getIPC().queryKnowledgeEventsForLanguage(language),
+  getKnowledgeEvents: (key) => getIPC().getKnowledgeEvents(key),
+  onKnowledgeEventsChanged: (callback) => getIPC().onKnowledgeEventsChanged(callback),
+};
+
 const watchTogetherBridge: WatchTogetherBridge = {
   isWatchingTogether: () => getIPC().isWatchingTogether(),
   watchTogetherSend: (msg) => getIPC().watchTogetherSend(msg),
@@ -371,6 +380,7 @@ export function createElectronBridge(): PlatformBridge {
     speech: speechBridge,
     voice: voiceBridge,
     mediaStats: mediaStatsBridge,
+    knowledgeEvents: knowledgeEventsBridge,
     watchTogether: watchTogetherBridge,
     overlay: overlayBridge,
     crossWindow: crossWindowBridge,

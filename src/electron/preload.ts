@@ -9,6 +9,7 @@ import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus'
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
+import type { KnowledgeEventLog } from '../shared/knowledgeEvents';
 import { getLogger } from '../shared/utils/logger';
 
 const log = getLogger('electron.preload');
@@ -68,6 +69,18 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => callback()),
   onReviewFlashcardRequest: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback()),
+
+  // ========== Knowledge Events ==========
+  appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, eventsByKey),
+  queryKnowledgeEvents: (keys: string[]): Promise<KnowledgeEventLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, keys),
+  queryKnowledgeEventsForLanguage: (language: string): Promise<KnowledgeEventLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY_LANGUAGE, language),
+  getKnowledgeEvents: (key: string): Promise<KnowledgeEventLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, key),
+  onKnowledgeEventsChanged: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, () => callback()),
   
   // ========== Flashcard Images ==========
   saveFlashcardImage: (cardId: string, dataUrl: string): Promise<string | null> =>

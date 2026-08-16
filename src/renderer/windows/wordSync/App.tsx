@@ -68,7 +68,7 @@ interface PoolEntry {
 interface WordSyncUndoEntry {
   word: PoolEntry;
   language: string;
-  previousKnowledge: PassiveWordKnowledge | undefined;
+  previousKnowledge: Record<string, PassiveWordKnowledge | undefined>;
   previousSeenAt: number | undefined;
   previousRatedCount: number;
   previousLastRating: Rating | null;
@@ -98,6 +98,7 @@ export const WordSyncContent: Component = () => {
     clearAllWordSyncSeen,
     restoreWordSyncRating,
     getWordKnowledge,
+    getWordKnowledgeSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
   } = useFlashcards();
 
@@ -367,14 +368,14 @@ export const WordSyncContent: Component = () => {
     if (!w) return;
 
     const lk = w.storageKey;
-    const previousKnowledge = store.wordKnowledge[lk];
+    const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
     setUndoStack((prev) => {
       const next = [
         ...prev,
         {
           word: w,
           language: settings.language,
-          previousKnowledge: previousKnowledge ? { ...previousKnowledge } : undefined,
+          previousKnowledge,
           previousSeenAt: store.wordSyncSeen[lk],
           previousRatedCount: ratedCount(),
           previousLastRating: lastRating(),

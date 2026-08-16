@@ -45,6 +45,7 @@ import type {
   PluginState,
   PluginWindowPayload,
 } from '../plugins/types';
+import type { KnowledgeEventLog } from '../knowledgeEvents';
 
 // ============================================================================
 // Sub-Interfaces
@@ -277,6 +278,14 @@ export interface MediaStatsBridge {
   onMediaStatsList: (callback: (stats: MediaStats[]) => void) => () => void;
 }
 
+export interface KnowledgeEventsBridge {
+  appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
+  queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
+  queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
+  getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
+  onKnowledgeEventsChanged: (callback: () => void) => () => void;
+}
+
 export interface WatchTogetherBridge {
   isWatchingTogether: () => void;
   watchTogetherSend: (message: unknown) => void;
@@ -404,6 +413,7 @@ export interface PlatformBridge {
   speech: SpeechBridge;
   voice: VoiceBridge;
   mediaStats: MediaStatsBridge;
+  knowledgeEvents: KnowledgeEventsBridge;
   watchTogether: WatchTogetherBridge;
   overlay: OverlayBridge;
   crossWindow: CrossWindowBridge;

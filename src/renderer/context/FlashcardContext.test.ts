@@ -87,6 +87,20 @@ vi.mock('../../shared/backends', () => ({
   getBackend: vi.fn(() => mockBackend),
 }));
 
+const mockAppendEvents = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockAccumulateWordSeen = vi.hoisted(() => vi.fn());
+const mockFlushKnowledgeRollup = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock('../services/knowledgeEvents', () => ({
+  appendEvents: mockAppendEvents,
+}));
+
+vi.mock('../services/knowledgeRollup', () => ({
+  accumulateWordSeen: mockAccumulateWordSeen,
+  flushKnowledgeRollup: mockFlushKnowledgeRollup,
+  setKnowledgeRollupTodayFn: vi.fn(),
+}));
+
 vi.mock('../../shared/platform', () => ({
   isElectron: () => true,
   isCapacitor: () => false,
@@ -421,6 +435,9 @@ describe('FlashcardProvider', () => {
     mockSettings.dictionaryTargetLanguages = {};
     mockSettings.use_anki = false;
     mockStreamChat.mockReset();
+    mockAppendEvents.mockClear();
+    mockAccumulateWordSeen.mockClear();
+    mockFlushKnowledgeRollup.mockClear();
     setupMockImplementations();
   });
 
@@ -861,6 +878,65 @@ describe('FlashcardProvider', () => {
     const stats = langStats['ja'];
     expect(stats).toBeDefined();
     expect(stats.newCardsStudied).toBe(1);
+    dispose();
+  });
+
+  it('answerCard appends a review event with ease/interval before→after', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'evt-1', state: 'new', content: { type: 'word', front: 'テスト', back: 'test' } });
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('テスト');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      flashcards: { 'evt-1': card },
+      wordToCardMap: { [lk]: ['evt-1'] },
+    }));
+    ctx.refreshQueue();
+
+    const easeBefore = ctx.store.flashcards['evt-1'].ease;
+    ctx.answerCard('good');
+    const easeAfter = ctx.store.flashcards['evt-1'].ease;
+
+    const reviewCalls = mockAppendEvents.mock.calls.filter(([byKey]) =>
+      Object.values(byKey as Record<string, Array<{ kind: string }>>).some((events) => events.some((e) => e.kind === 'review')));
+    expect(reviewCalls).toHaveLength(1);
+    const [byKey] = reviewCalls[0] as [Record<string, Array<Record<string, unknown>>>];
+    const events = byKey[lk];
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'review', source: 'srs', aspect: 'meaning', rating: 'good',
+      easeBefore, easeAfter,
+    });
+    dispose();
+  });
+
+  it('trackWordSeen accumulates a rollup bucket only when the seen actually counts', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.passiveEaseEnabled = true;
+
+    ctx.trackWordSeen('積算');
+    expect(mockAccumulateWordSeen).toHaveBeenCalledTimes(1);
+    const [lkArg, easeArg, deltaArg] = mockAccumulateWordSeen.mock.calls[0] as [string, number, number];
+    expect(lkArg.startsWith('ja:')).toBe(true);
+    expect(typeof easeArg).toBe('number');
+    expect(deltaArg).toBe(1);
+
+    // Second immediate call is throttled — no extra accumulation.
+    ctx.trackWordSeen('積算');
+    expect(mockAccumulateWordSeen).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it('trackWordSeen sets firstSeen on a fresh knowledge entry', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.passiveEaseEnabled = true;
+
+    ctx.trackWordSeen('初見');
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('初見')}`;
+    expect(ctx.store.wordKnowledge[lk]?.firstSeen).toBeTypeOf('number');
     dispose();
   });
 
@@ -1560,6 +1636,15 @@ describe('FlashcardProvider', () => {
     expect(ctx.store.wordKnowledge[sasugaLk]?.lastStatusChange).toBeDefined();
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.lastStatusChange).toBeDefined();
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.ease).toBeLessThan(mockSettings.easeThresholdLearning);
+
+    const manualCalls = mockAppendEvents.mock.calls.filter(([byKey]) =>
+      Object.values(byKey as Record<string, Array<{ kind: string; source: string }>>).some((events) => events.some((e) => e.kind === 'rating' && e.source === 'manual')));
+    expect(manualCalls.length).toBeGreaterThanOrEqual(1);
+    interface CapturedEvent { lk: string; kind?: string; source?: string; aspect?: string; fromStatus?: string; toStatus?: string }
+    const ratingEvents: CapturedEvent[] = manualCalls.flatMap(([byKey]) =>
+      Object.entries(byKey as Record<string, Array<Record<string, unknown>>>).flatMap(([lk, events]) => events.map((e) => ({ lk, ...e }) as CapturedEvent)));
+    expect(ratingEvents.some((e) => e.lk === sasugaKanjiLk && e.fromStatus === 'known' && e.toStatus === 'unknown')).toBe(true);
+    expect(ratingEvents.every((e) => e.aspect === 'meaning')).toBe(true);
     dispose();
   });
 

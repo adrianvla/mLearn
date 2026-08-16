@@ -22,6 +22,7 @@ import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
 import { setupMediaStatsIPC } from './services/mediaStatsStorage';
+import { setupKnowledgeEventsIPC } from './services/knowledgeEvents';
 import { setupOllamaIPC } from './services/ollamaService';
 import { setupBuiltinLLMIPC } from './services/builtinLLMService';
 import { setupLLMRouterIPC } from './services/llmRouter';
@@ -300,6 +301,7 @@ function setupAllIPC(): void {
   setupFileOperationsIPC();
   setupMigrationIPC();
   setupMediaStatsIPC();
+  setupKnowledgeEventsIPC();
   setupOllamaIPC();
   setupBuiltinLLMIPC();
   setupLLMRouterIPC();

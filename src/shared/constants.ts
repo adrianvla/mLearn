@@ -100,6 +100,13 @@ export const IPC_CHANNELS = {
   FORCE_NEWDAY_FLASHCARDS: 'force-newday-flashcards',
   FLASHCARD_CONNECT_OPEN: 'flashcard-connect-open',
   REVIEW_FLASHCARDS_REQUEST: 'review-flashcards-request',
+
+  // Knowledge events
+  KNOWLEDGE_EVENTS_APPEND: 'knowledge-events-append',
+  KNOWLEDGE_EVENTS_QUERY: 'knowledge-events-query',
+  KNOWLEDGE_EVENTS_QUERY_LANGUAGE: 'knowledge-events-query-language',
+  KNOWLEDGE_EVENTS_GET: 'knowledge-events-get',
+  KNOWLEDGE_EVENTS_CHANGED: 'knowledge-events-changed',
   // Migration
   FLASHCARD_MIGRATION_COMPLETE: 'flashcard-migration-complete',
   GET_FLASHCARD_MIGRATION_INFO: 'get-flashcard-migration-info',
@@ -394,6 +401,9 @@ export const ANKI_EASE = {
 export const WORD_STATUS_VALUES = ['unknown', 'learning', 'known'] as const;
 export type WordStatus = typeof WORD_STATUS_VALUES[number];
 
+export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody'] as const;
+export type KnowledgeAspect = typeof KNOWLEDGE_ASPECTS[number];
+
 // Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {
   UNKNOWN: 0,
@@ -417,6 +427,18 @@ export const KNOWLEDGE_SOURCE_DISPLAY_NAMES = {
 
 export type KnowledgeSourceDisplayName = typeof KNOWLEDGE_SOURCE_DISPLAY_NAMES[KnowledgeSource];
 export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None';
+
+// Surface-specific aspect weights for getEffectiveKnowledge (read-time only, never persisted).
+// 'other' is the identity profile: every surface not listed resolves exactly as before (meaning only).
+export const KNOWLEDGE_SURFACES = ['video', 'reader', 'review', 'other'] as const;
+export type KnowledgeSurface = typeof KNOWLEDGE_SURFACES[number];
+
+export const SURFACE_WEIGHTS: Record<KnowledgeSurface, { meaning: number; reading: number; prosody: number }> = {
+  video: { meaning: 0.5, reading: 0.35, prosody: 0.15 },
+  reader: { meaning: 0.8, reading: 0.15, prosody: 0.05 },
+  review: { meaning: 1, reading: 0, prosody: 0 },
+  other: { meaning: 1, reading: 0, prosody: 0 },
+};
 
 // Knowledge resolution modes
 export const KNOWLEDGE_RESOLUTION_MODES = ['order', 'highest', 'lowest'] as const;

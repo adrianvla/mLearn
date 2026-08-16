@@ -21,6 +21,7 @@ import type {
   SpeechBridge,
   VoiceBridge,
   MediaStatsBridge,
+  KnowledgeEventsBridge,
   WatchTogetherBridge,
   OverlayBridge,
   CrossWindowBridge,
@@ -1570,6 +1571,14 @@ const mediaStatsBridge: MediaStatsBridge = {
   },
 };
 
+const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  appendKnowledgeEvents: async () => false,
+  queryKnowledgeEvents: async () => ({}),
+  queryKnowledgeEventsForLanguage: async () => ({}),
+  getKnowledgeEvents: async () => ({}),
+  onKnowledgeEventsChanged: noopCleanup,
+};
+
 // ============================================================================
 // Watch Together Bridge
 // ============================================================================
@@ -1850,6 +1859,7 @@ export function createCapacitorBridge(): PlatformBridge {
     speech: speechBridge,
     voice: voiceBridge,
     mediaStats: mediaStatsBridge,
+    knowledgeEvents: knowledgeEventsBridge,
     watchTogether: watchTogetherBridge,
     overlay: overlayBridge,
     crossWindow: crossWindowBridge,

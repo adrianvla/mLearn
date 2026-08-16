@@ -33,7 +33,7 @@ const mockWordSyncState = vi.hoisted(() => ({
   wordSyncSeen: {} as Record<string, number>,
   knownUntracked: {} as Record<string, unknown>,
   ignoredWords: {} as Record<string, unknown>,
-  wordKnowledge: {} as Record<string, unknown>,
+  wordKnowledge: {} as Record<string, { word: string; [key: string]: unknown }>,
   getCanonicalFormForLanguage: vi.fn((_language: string, word: string) => word),
 }));
 
@@ -112,6 +112,16 @@ vi.mock('../../context', () => ({
     clearAllWordSyncSeen: mockClearAllWordSyncSeen,
     restoreWordSyncRating: mockRestoreWordSyncRating,
     getWordKnowledge: vi.fn(() => null),
+    getWordKnowledgeSnapshotForForms: vi.fn((word: string, language?: string) => {
+      const lang = language ?? 'ja';
+      const snapshot: Record<string, typeof mockWordSyncState.wordKnowledge[string] | undefined> = {};
+      for (const [lk, entry] of Object.entries(mockWordSyncState.wordKnowledge)) {
+        if (lk.startsWith(`${lang}:`) && entry?.word === word) {
+          snapshot[lk] = entry ? { ...entry } : undefined;
+        }
+      }
+      return snapshot;
+    }),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
   }),
 }));
@@ -396,7 +406,12 @@ describe('WordSyncContent', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await Promise.resolve();
 
-    expect(mockRestoreWordSyncRating).toHaveBeenCalledWith('赤い', previousKnowledge, 1234, 'ja');
+    expect(mockRestoreWordSyncRating).toHaveBeenCalledWith(
+      '赤い',
+      { [`ja:${hashWordSync('赤い')}`]: previousKnowledge },
+      1234,
+      'ja',
+    );
     expect(container.textContent).toContain('赤い:あかい');
     dispose();
   });
@@ -442,14 +457,24 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(1);
-    expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(secondWord, prevSecond, undefined, 'ja');
+    expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(
+      secondWord,
+      { [`ja:${hashWordSync(secondWord)}`]: prevSecond },
+      undefined,
+      'ja',
+    );
     expect(container.textContent).toContain(`${secondWord}:`);
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await Promise.resolve();
 
     expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(2);
-    expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(firstWord, prevFirst, undefined, 'ja');
+    expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(
+      firstWord,
+      { [`ja:${hashWordSync(firstWord)}`]: prevFirst },
+      undefined,
+      'ja',
+    );
     expect(container.textContent).toContain(`${firstWord}:`);
 
     dispose();

@@ -4,7 +4,10 @@
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
-import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeAspect, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction, WordKnowledgeSource, WordStatus } from './constants';
+
+export { KNOWLEDGE_ASPECTS } from './constants';
+export type { KnowledgeAspect } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -1413,6 +1416,13 @@ export interface LanguageData {
   languageData?: LanguageDataManifest;
 }
 
+export function getAvailableAspects(language?: LanguageData): KnowledgeAspect[] {
+  const aspects: KnowledgeAspect[] = ['meaning'];
+  if (language?.textProcessing?.readingAnnotation) aspects.push('reading');
+  if (language?.prosody?.type && language.prosody.type !== 'none') aspects.push('prosody');
+  return aspects;
+}
+
 export interface LanguageDataMap {
   [langCode: string]: LanguageData;
 }
@@ -1900,6 +1910,8 @@ export interface PassiveWordKnowledge {
   ease: number;
   /** Timestamp of last encounter */
   lastSeen: number;
+  /** Timestamp of first encounter, lazily backfilled on the next write for legacy entries. */
+  firstSeen?: number;
   /** Total times word was displayed on screen */
   timesSeen: number;
   /** Times a hover lasted long enough to count toward failed-word tracking */
@@ -1918,6 +1930,17 @@ export interface PassiveWordKnowledge {
   wordSyncRatedAt?: number;
   /** Per-script-form skill tracking under one word identity. Keyed by variantId. */
   forms?: Partial<Record<string, FormKnowledge>>;
+  /** Reading and prosody knowledge; meaning remains derived through bank resolution. */
+  aspects?: Partial<Record<Exclude<KnowledgeAspect, 'meaning'>, AspectKnowledge>>;
+}
+
+export interface AspectKnowledge {
+  status: WordStatus;
+  ease: number;
+  source: WordKnowledgeSource;
+  lastStatusChange: number;
+  updatedAt: number;
+  inherited?: true;
 }
 
 /** Ignored word entry tracked per language for browse/unignore workflows */

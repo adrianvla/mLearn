@@ -13,6 +13,11 @@ import type { LanguageData } from '../../shared/types';
 import { getResolvedScriptProfile } from '../../shared/languageScriptProfile';
 import { normalizeWordLookupText } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
+import type { WordStatus } from '../../shared/constants';
+import { hashWordSync } from './srsAlgorithm';
+import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
+import { appendEvents } from './knowledgeEvents';
 
 const log = getLogger("renderer.services.ankiWordsCache");
 
@@ -35,7 +40,16 @@ const cachesBySignature = new Map<string, AnkiWordsCacheEntry>();
 export interface AnkiWordsCacheOptions {
   language?: string;
   languageData?: LanguageData | null;
+  ankiLearningThreshold?: number;
+  ankiKnownThreshold?: number;
 }
+
+interface DiffConfig {
+  learning: number;
+  known: number;
+}
+const diffConfigBySignature = new Map<string, DiffConfig>();
+const lastAnkiStatusByLk = new Map<string, WordStatus>();
 
 function getCacheSignature(options?: AnkiWordsCacheOptions): string {
   const language = options?.language ?? '';
@@ -71,6 +85,12 @@ function getCacheEntry(options?: AnkiWordsCacheOptions): AnkiWordsCacheEntry {
   if (options && 'languageData' in options) {
     entry.languageData = options.languageData;
   }
+  if (options?.ankiLearningThreshold != null && options?.ankiKnownThreshold != null) {
+    diffConfigBySignature.set(signature, {
+      learning: options.ankiLearningThreshold,
+      known: options.ankiKnownThreshold,
+    });
+  }
   return entry;
 }
 
@@ -80,6 +100,35 @@ function getActiveCacheEntry(): AnkiWordsCacheEntry {
     if (active) return active;
   }
   return getCacheEntry();
+}
+
+function diffAnkiStatuses(signature: string, language: string, cards: AnkiWordStatusRecord[]): void {
+  const cfg = diffConfigBySignature.get(signature);
+  if (!cfg) return;
+  const byWord = new Map<string, AnkiWordStatusRecord[]>();
+  for (const card of cards) {
+    const existing = byWord.get(card.word);
+    if (existing) existing.push(card);
+    else byWord.set(card.word, [card]);
+  }
+  const eventsByKey: Record<string, KnowledgeEvent[]> = {};
+  const now = Date.now();
+  for (const [word, wordCards] of byWord) {
+    const toStatus = getAnkiWordKnowledgeStatus(wordCards, cfg.learning, cfg.known);
+    if (!toStatus || toStatus === 'unknown') continue;
+    const lk = `${language}:${hashWordSync(word)}`;
+    const fromStatus = lastAnkiStatusByLk.get(lk) ?? 'unknown';
+    lastAnkiStatusByLk.set(lk, toStatus);
+    if (fromStatus !== toStatus) {
+      eventsByKey[lk] = [{
+        t: now, kind: 'status', source: 'anki', aspect: 'meaning',
+        fromStatus, toStatus,
+      }];
+    }
+  }
+  if (Object.keys(eventsByKey).length > 0) {
+    appendEvents(eventsByKey).catch((e) => log.warn('anki status diff append failed:', e));
+  }
 }
 
 function getLookupKeys(word: string, entry: AnkiWordsCacheEntry): string[] {
@@ -146,6 +195,7 @@ export async function fetchAnkiWordsCache(options?: AnkiWordsCacheOptions): Prom
       entry.wordCardsMap = nextMap;
       entry.fetched = true;
       entry.lastError = null;
+      diffAnkiStatuses(getCacheSignature(options), options?.language ?? '', cards);
     } catch (e) {
       log.error("error", e);
       // Silently fail — this cache entry stays empty

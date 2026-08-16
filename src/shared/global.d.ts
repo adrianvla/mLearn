@@ -7,6 +7,7 @@ import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataM
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
+import type { KnowledgeEventLog } from './knowledgeEvents';
 
 export interface MLearnIPC {
   // Settings
@@ -22,6 +23,13 @@ export interface MLearnIPC {
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
+
+  // Knowledge events
+  appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
+  queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
+  queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
+  getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
+  onKnowledgeEventsChanged: (callback: () => void) => () => void;
   
   // Flashcard Images
   saveFlashcardImage: (cardId: string, dataUrl: string) => Promise<string>;
