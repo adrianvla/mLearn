@@ -20,6 +20,7 @@ import {
 } from '../../../components/common';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useAnki, type AnkiNoteInfo } from '../../../hooks/useAnki';
+import { importAnkiReviewHistory } from '../../../services/ankiReviewImport';
 import '../SettingsForm.css';
 import './AnkiFieldPreview.css';
 import Icon from "@renderer/components/common/Icons/Icon";
@@ -48,6 +49,30 @@ export const SRSTab: Component = () => {
   // Nuke all flashcards modal state
   const [showNukeModal, setShowNukeModal] = createSignal(false);
   const [nukeConfirmPhrase, setNukeConfirmPhrase] = createSignal('');
+
+  const [importingHistory, setImportingHistory] = createSignal(false);
+
+  const importReviewHistory = async () => {
+    if (importingHistory()) return;
+    setImportingHistory(true);
+    try {
+      const result = await importAnkiReviewHistory(settings.language, {
+        fetchReviews: (ids: number[]) => anki.getReviewsOfCards(ids),
+      });
+      showToast({
+        message: t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Success', {
+          imported: result.imported,
+          words: result.words,
+          skipped: result.skipped,
+        }),
+        variant: 'success',
+      });
+    } catch {
+      showToast({ message: t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Failed'), variant: 'error' });
+    } finally {
+      setImportingHistory(false);
+    }
+  };
 
   const RESET_PHRASE = 'RESET';
   const NUKE_PHRASE = 'DELETE';
@@ -243,6 +268,17 @@ export const SRSTab: Component = () => {
             <Show when={ankiStatus() === 'error'}>
               <span class="anki-status-text--error">{t('mlearn.Settings.SRS.AnkiIntegration.Failed')}</span>
             </Show>
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Description')}
+          >
+            <Btn size="sm" disabled={importingHistory()} onClick={importReviewHistory}>
+              {t(importingHistory()
+                ? 'mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Running'
+                : 'mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Button')}
+            </Btn>
           </SettingRow>
 
           <SettingRow
