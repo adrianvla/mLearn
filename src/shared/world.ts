@@ -54,6 +54,37 @@ export interface JournalEvent {
 export type JournalEventDraft = Omit<JournalEvent, 'id' | 'seq' | 'createdAt'>;
 
 // ---------------------------------------------------------------------------
+// Event payload contracts (consumer-side; JournalEvent.payload stays unknown)
+// ---------------------------------------------------------------------------
+
+/** 'membership' — harness-recorded roster change; drives compiler absence intervals. */
+export interface MembershipPayload {
+  participantId: string;
+  action: 'added' | 'removed';
+}
+
+/** 'message.user' / 'message.character'. */
+export interface MessagePayload {
+  text: string;
+  widget?: unknown;
+  widgets?: unknown[];
+  modality?: 'text' | 'voice';
+  replyToEventId?: string;
+}
+
+/** 'memory.belief' — carries every MemoryEntry kind despite the event-type name. */
+export interface MemoryEventPayload {
+  ownerId: string;
+  kind: MemoryEntry['kind'];
+  text: string;
+  sourceMemoryId?: string;
+  sourceEventIds?: string[];
+  /** kind 'relationship' only: directional edge target + label (D5). */
+  toId?: string;
+  label?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Entities
 // ---------------------------------------------------------------------------
 
