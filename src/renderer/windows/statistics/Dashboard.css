@@ -343,3 +343,29 @@
   font-weight: var(--font-weight-medium);
   font-variant-numeric: tabular-nums;
 }
+
+/* ─── Learning Velocity ─── */
+
+.learning-velocity-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-4);
+}
+
+.learning-velocity-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.learning-velocity-chart-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.learning-velocity-empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}

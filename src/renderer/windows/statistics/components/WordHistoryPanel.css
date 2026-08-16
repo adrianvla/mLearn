@@ -1,0 +1,89 @@
+/**
+ * Statistics Word History Panel Styles
+ * Theme variables only — no hardcoded colors.
+ */
+
+.word-history-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.word-history-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+.word-history-matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.word-history-match {
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  background: var(--bg-primary-tint);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  cursor: pointer;
+}
+
+.word-history-match:hover {
+  border-color: var(--color-primary);
+}
+
+.word-history-prompt,
+.word-history-empty {
+  margin: 0;
+  padding: var(--spacing-3) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.word-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.word-history-table th,
+.word-history-table td {
+  padding: var(--spacing-2);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.word-history-table th {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.word-history-time-column {
+  width: 110px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.word-history-kind {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.word-history-transition {
+  margin-left: var(--spacing-2);
+  color: var(--text-secondary);
+}
+
+.word-history-source-column {
+  color: var(--text-secondary);
+}
