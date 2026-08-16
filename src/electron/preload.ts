@@ -537,6 +537,18 @@ const mLearnIPC = {
   kvSetBatch: (entries: Record<string, string>): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.KV_SET_BATCH, entries),
 
+  // ========== Journal ==========
+  appendEvent: (roomId: string, draft: import('../shared/world').JournalEventDraft): Promise<import('../shared/world').JournalEvent> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_APPEND, roomId, draft),
+  subscribeRoom: (roomId: string, limit: number): Promise<{ events: import('../shared/world').JournalEvent[]; headSeq: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_SUBSCRIBE, roomId, limit),
+  queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }): Promise<import('../shared/world').JournalEvent[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_QUERY, roomId, opts),
+  readSeaProjection: (roomId: string, limit?: number): Promise<import('../shared/world').JournalEvent[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_READ_SEA, roomId, limit),
+  readThread: (roomId: string, threadId: string): Promise<import('../shared/world').JournalEvent[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_READ_THREAD, roomId, threadId),
+
   // ========== Diagnostics ==========
   runDiagnostics: (): Promise<import('../shared/diagnostics/types').DiagnosticsReport> =>
     ipcRenderer.invoke('diagnostics-run-all'),

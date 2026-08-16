@@ -348,6 +348,13 @@ export const IPC_CHANNELS = {
   KV_GET_ALL: 'kv-get-all',
   KV_SET_BATCH: 'kv-set-batch',
 
+  // Journal (append-only per-room event journal)
+  JOURNAL_APPEND: 'journal-append',
+  JOURNAL_SUBSCRIBE: 'journal-subscribe',
+  JOURNAL_QUERY: 'journal-query',
+  JOURNAL_READ_SEA: 'journal-read-sea',
+  JOURNAL_READ_THREAD: 'journal-read-thread',
+
   // Plugins
   ...PLUGIN_IPC_CHANNELS,
 } as const;

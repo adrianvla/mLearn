@@ -504,6 +504,12 @@ export interface Settings {
   /** Cloud LLM tier for word explainer */
   cloudLLMTierExplanation: CloudLLMTier;
 
+  // Inference policy settings
+  /** Cloud inference tier for autonomous background cognition (conservative | budgeted | unrestricted) */
+  inferenceCloudTier: 'conservative' | 'budgeted' | 'unrestricted';
+  /** Daily budget for budgeted-tier cloud inference requests (consumed by the Dreamer phase) */
+  inferenceCloudBudgetPerDay: number;
+
   // Conversation agent settings
   /** Whether the agent memory feature is enabled */
   agentMemoryEnabled: boolean;
@@ -727,6 +733,8 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudLLMTierConversation: 'cheap',
   cloudLLMTierVoice: 'fast',
   cloudLLMTierExplanation: 'cheap',
+  inferenceCloudTier: 'conservative',
+  inferenceCloudBudgetPerDay: 20,
 };
 
 // ============================================================================

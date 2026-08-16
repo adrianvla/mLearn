@@ -46,6 +46,7 @@ import type {
   PluginWindowPayload,
 } from '../plugins/types';
 import type { KnowledgeEventLog } from '../knowledgeEvents';
+import type { JournalEvent, JournalEventDraft } from '../world';
 
 // ============================================================================
 // Sub-Interfaces
@@ -395,6 +396,14 @@ export interface KVStoreBridge {
   kvSetBatch: (entries: Record<string, string>) => Promise<void>;
 }
 
+export interface JournalBridge {
+  appendEvent: (roomId: string, draft: JournalEventDraft) => Promise<JournalEvent>;
+  subscribeRoom: (roomId: string, limit: number) => Promise<{ events: JournalEvent[]; headSeq: number }>;
+  queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }) => Promise<JournalEvent[]>;
+  readSeaProjection: (roomId: string, limit?: number) => Promise<JournalEvent[]>;
+  readThread: (roomId: string, threadId: string) => Promise<JournalEvent[]>;
+}
+
 // ============================================================================
 // Combined PlatformBridge
 // ============================================================================
@@ -422,6 +431,7 @@ export interface PlatformBridge {
   generic: GenericIPCBridge;
   data: DataBridge;
   kvStore: KVStoreBridge;
+  journal: JournalBridge;
   browser: BrowserBridge;
   diagnostics: DiagnosticsBridge;
 }

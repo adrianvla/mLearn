@@ -31,6 +31,7 @@ import type {
   GenericIPCBridge,
   DataBridge,
   KVStoreBridge,
+  JournalBridge,
   BrowserBridge,
   DiagnosticsBridge,
 } from './types';
@@ -350,6 +351,14 @@ const kvStoreBridge: KVStoreBridge = {
   kvSetBatch: (entries) => getIPC().kvSetBatch(entries),
 };
 
+const journalBridge: JournalBridge = {
+  appendEvent: (roomId, draft) => getIPC().appendEvent(roomId, draft),
+  subscribeRoom: (roomId, limit) => getIPC().subscribeRoom(roomId, limit),
+  queryEvents: (roomId, opts) => getIPC().queryEvents(roomId, opts),
+  readSeaProjection: (roomId, limit) => getIPC().readSeaProjection(roomId, limit),
+  readThread: (roomId, threadId) => getIPC().readThread(roomId, threadId),
+};
+
 const browserBridge: BrowserBridge = {
   detectBrowsers: (customPaths) => getIPC().detectBrowsers(customPaths),
   installExtension: (browser) => getIPC().installExtension(browser),
@@ -389,6 +398,7 @@ export function createElectronBridge(): PlatformBridge {
     generic: genericBridge,
     data: dataBridge,
     kvStore: kvStoreBridge,
+    journal: journalBridge,
     browser: browserBridge,
     diagnostics: diagnosticsBridge,
   };

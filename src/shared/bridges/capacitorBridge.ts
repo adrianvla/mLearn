@@ -30,6 +30,7 @@ import type {
   GenericIPCBridge,
   DataBridge,
   KVStoreBridge,
+  JournalBridge,
   BrowserBridge,
   DiagnosticsBridge,
 } from './types';
@@ -48,6 +49,7 @@ import type {
   VoiceSample,
 } from '../types';
 import type { AppUpdateState } from '../appUpdate';
+import type { JournalEvent } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
@@ -1841,6 +1843,29 @@ const kvStoreBridge: KVStoreBridge = {
 };
 
 // ============================================================================
+// Journal Bridge (not supported on mobile; journal access arrives via the HTTP
+// backend in a later phase — reads resolve empty, writes reject)
+// ============================================================================
+
+const journalBridge: JournalBridge = {
+  async appendEvent(): Promise<JournalEvent> {
+    throw new Error('Not supported on mobile');
+  },
+  async subscribeRoom(): Promise<{ events: JournalEvent[]; headSeq: number }> {
+    return { events: [], headSeq: 0 };
+  },
+  async queryEvents(): Promise<JournalEvent[]> {
+    return [];
+  },
+  async readSeaProjection(): Promise<JournalEvent[]> {
+    return [];
+  },
+  async readThread(): Promise<JournalEvent[]> {
+    return [];
+  },
+};
+
+// ============================================================================
 // Factory
 // ============================================================================
 
@@ -1868,6 +1893,7 @@ export function createCapacitorBridge(): PlatformBridge {
     generic: genericBridge,
     data: dataBridge,
     kvStore: kvStoreBridge,
+    journal: journalBridge,
     browser: browserBridge,
     diagnostics: diagnosticsBridge,
   };

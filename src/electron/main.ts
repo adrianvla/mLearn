@@ -30,6 +30,8 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
+import { setupJournalIPC } from './services/journalService';
+import { runLegacyMigration } from './services/legacyMigration';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
 import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
@@ -309,6 +311,7 @@ function setupAllIPC(): void {
   setupVoiceIPC();
   setupDataExportImportIPC();
   setupKVStoreIPC();
+  setupJournalIPC();
   setupBrowserDetectionIPC();
   setupExtensionInstallerIPC();
   setupPluginIPC();
@@ -372,6 +375,13 @@ async function initialize(): Promise<void> {
   // Perform localStorage migration before creating windows
   // This migrates data from the old app's file:// localStorage to file-based storage
   await migrateLocalStorage();
+
+  // One-time legacy conversational-state migration (agent configs/sessions/memories
+  // → Room/Thread/Participant + journal). Idempotent; no-ops after the first run.
+  const worldMigration = await runLegacyMigration();
+  if (worldMigration.migrated) {
+    log.info('Legacy conversation state migrated to world model', worldMigration);
+  }
 
   // Create windows and start services
   await createAppWindows();

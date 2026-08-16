@@ -8,6 +8,7 @@ import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowP
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
 import type { KnowledgeEventLog } from './knowledgeEvents';
+import type { JournalEvent, JournalEventDraft } from './world';
 
 export interface MLearnIPC {
   // Settings
@@ -309,6 +310,13 @@ sendLogRecord: (record: unknown) => void;
   kvRemove: (key: string) => Promise<void>;
   kvGetAll: () => Promise<Record<string, string>>;
   kvSetBatch: (entries: Record<string, string>) => Promise<void>;
+
+  // Journal
+  appendEvent: (roomId: string, draft: JournalEventDraft) => Promise<JournalEvent>;
+  subscribeRoom: (roomId: string, limit: number) => Promise<{ events: JournalEvent[]; headSeq: number }>;
+  queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }) => Promise<JournalEvent[]>;
+  readSeaProjection: (roomId: string, limit?: number) => Promise<JournalEvent[]>;
+  readThread: (roomId: string, threadId: string) => Promise<JournalEvent[]>;
 
   // Data Export/Import
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
