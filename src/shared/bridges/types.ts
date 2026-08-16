@@ -46,7 +46,7 @@ import type {
   PluginWindowPayload,
 } from '../plugins/types';
 import type { KnowledgeEventLog } from '../knowledgeEvents';
-import type { JournalEvent, JournalEventDraft } from '../world';
+import type { JournalEvent, JournalEventDraft, MembershipChangeResult, Thread, WorldSnapshot } from '../world';
 
 // ============================================================================
 // Sub-Interfaces
@@ -161,6 +161,7 @@ export interface WindowBridge {
   onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => () => void;
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
   onLookupDeepLink: (callback: (word: string) => void) => () => void;
+  onOpenRoomEvent: (callback: (payload: import('../world').OpenRoomEventPayload) => void) => () => void;
   promptOutput: (text: string) => void;
 }
 
@@ -404,6 +405,12 @@ export interface JournalBridge {
   readThread: (roomId: string, threadId: string) => Promise<JournalEvent[]>;
 }
 
+export interface WorldBridge {
+  getWorldState: () => Promise<WorldSnapshot>;
+  applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<MembershipChangeResult>;
+  createThread: (roomId: string, title?: string) => Promise<Thread>;
+}
+
 // ============================================================================
 // Combined PlatformBridge
 // ============================================================================
@@ -432,6 +439,7 @@ export interface PlatformBridge {
   data: DataBridge;
   kvStore: KVStoreBridge;
   journal: JournalBridge;
+  world: WorldBridge;
   browser: BrowserBridge;
   diagnostics: DiagnosticsBridge;
 }

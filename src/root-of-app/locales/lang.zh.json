@@ -1100,7 +1100,22 @@
           "Description": "使用 OCR 阅读书籍、漫画、PDF、EPUB、图片文件夹或其他文档",
           "Title": "阅读器"
         },
-        "Settings": {
+    "Room": {
+      "AddParticipant": "添加参与者",
+      "EmptyThread": "还没有消息。开始对话吧。",
+      "InputPlaceholder": "输入消息...",
+      "Loading": "正在加载房间...",
+      "NewThread": "新建会话",
+      "NoThread": "没有活动会话。创建一个即可开始聊天。",
+      "RemoveParticipant": "移除参与者",
+      "RoomNotFound": "未找到房间。",
+      "Roster": "参与者",
+      "SelectParticipant": "添加参与者",
+      "Send": "发送",
+      "Title": "房间",
+      "You": "你"
+    },
+    "Settings": {
           "Description": "按您的喜好配置 mLearn",
           "Title": "设置"
         },

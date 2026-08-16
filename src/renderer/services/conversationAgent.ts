@@ -79,6 +79,10 @@ interface AgentDeps {
   getIncludeKnowledgeInfo?: () => boolean;
   /** Set of tool names the user has manually disabled */
   getDisabledTools?: () => Set<string>;
+  /** Optional compiled-context seam (room orchestrator). When present, its result
+   *  replaces the internally built system prompt. The room window supplies all
+   *  room state through this closure. */
+  compileContext?: () => string;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -1759,9 +1763,11 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     const systemMsg: LLMChatMessage = {
       role: 'system',
-      content: isVoice
-        ? buildVoiceSystemPrompt(langName, mediaCtx, langFeatures)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures),
+      content: deps.compileContext
+        ? deps.compileContext()
+        : isVoice
+          ? buildVoiceSystemPrompt(langName, mediaCtx, langFeatures)
+          : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures),
     };
 
     const messages: LLMChatMessage[] = [

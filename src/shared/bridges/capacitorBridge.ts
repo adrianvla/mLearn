@@ -31,6 +31,7 @@ import type {
   DataBridge,
   KVStoreBridge,
   JournalBridge,
+  WorldBridge,
   BrowserBridge,
   DiagnosticsBridge,
 } from './types';
@@ -49,7 +50,7 @@ import type {
   VoiceSample,
 } from '../types';
 import type { AppUpdateState } from '../appUpdate';
-import type { JournalEvent } from '../world';
+import type { JournalEvent, MembershipChangeResult, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
@@ -1049,6 +1050,7 @@ const windowBridge: WindowBridge = {
   onOpenPrompt: noopCleanup,
   onAuthDeepLink: noopCleanup,
   onLookupDeepLink: noopCleanup,
+  onOpenRoomEvent: noopCleanup,
   promptOutput: noop,
 };
 
@@ -1865,6 +1867,18 @@ const journalBridge: JournalBridge = {
   },
 };
 
+const worldBridge: WorldBridge = {
+  async getWorldState(): Promise<WorldSnapshot> {
+    return { rooms: [], threads: [], participants: [] };
+  },
+  async applyMembership(): Promise<MembershipChangeResult> {
+    throw new Error('Not supported on mobile');
+  },
+  async createThread(): Promise<Thread> {
+    throw new Error('Not supported on mobile');
+  },
+};
+
 // ============================================================================
 // Factory
 // ============================================================================
@@ -1894,6 +1908,7 @@ export function createCapacitorBridge(): PlatformBridge {
     data: dataBridge,
     kvStore: kvStoreBridge,
     journal: journalBridge,
+    world: worldBridge,
     browser: browserBridge,
     diagnostics: diagnosticsBridge,
   };

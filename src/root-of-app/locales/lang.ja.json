@@ -1100,7 +1100,22 @@
           "Description": "OCRで本、漫画、PDF、EPUB、画像フォルダ、その他の文書を読む",
           "Title": "リーダー"
         },
-        "Settings": {
+    "Room": {
+      "AddParticipant": "参加者を追加",
+      "EmptyThread": "メッセージはまだありません。会話を始めましょう。",
+      "InputPlaceholder": "メッセージを入力...",
+      "Loading": "ルームを読み込み中...",
+      "NewThread": "新しいスレッド",
+      "NoThread": "アクティブなスレッドがありません。作成してチャットを始めましょう。",
+      "RemoveParticipant": "参加者を削除",
+      "RoomNotFound": "ルームが見つかりません。",
+      "Roster": "参加者",
+      "SelectParticipant": "参加者を追加",
+      "Send": "送信",
+      "Title": "ルーム",
+      "You": "あなた"
+    },
+    "Settings": {
           "Description": "mLearnをカスタマイズする",
           "Title": "設定"
         },

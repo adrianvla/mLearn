@@ -1100,7 +1100,22 @@
           "Description": "Lisez des livres, mangas, PDF, EPUB, dossiers d'images et autres documents avec OCR",
           "Title": "Lecteur"
         },
-        "Settings": {
+    "Room": {
+      "AddParticipant": "Ajouter un participant",
+      "EmptyThread": "Aucun message. Lancez la conversation.",
+      "InputPlaceholder": "Écrivez un message...",
+      "Loading": "Chargement de la salle...",
+      "NewThread": "Nouveau fil",
+      "NoThread": "Aucun fil actif. Créez-en un pour discuter.",
+      "RemoveParticipant": "Retirer le participant",
+      "RoomNotFound": "Salle introuvable.",
+      "Roster": "Participants",
+      "SelectParticipant": "Ajouter un participant",
+      "Send": "Envoyer",
+      "Title": "Salle",
+      "You": "Vous"
+    },
+    "Settings": {
           "Description": "Personnalisez mLearn",
           "Title": "Paramètres"
         },

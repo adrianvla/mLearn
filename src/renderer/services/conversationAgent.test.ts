@@ -100,6 +100,7 @@ interface MockDeps {
   onMemorySaved?: (_content: string) => void;
   getIncludeKnowledgeInfo?: () => boolean;
   getDisabledTools?: () => Set<string>;
+  compileContext?: () => string;
 }
 
 function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
@@ -553,6 +554,36 @@ describe('createConversationAgent', () => {
       sendError('LLM failed');
 
       expect(onError).toHaveBeenCalledWith('LLM failed');
+    });
+  });
+
+  // ==========================================================================
+  // compiled-context seam
+  // ==========================================================================
+
+  describe('compiled-context seam', () => {
+    it('uses the injected compileContext result as the system prompt', () => {
+      const deps = createMockDeps({ compileContext: () => 'INJECTED' });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toBe('INJECTED');
+    });
+
+    it('keeps the legacy prompt path when compileContext is absent', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('Japanese');
+      expect(sysMsg.content).not.toBe('INJECTED');
     });
   });
 

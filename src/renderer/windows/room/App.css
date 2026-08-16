@@ -1,0 +1,308 @@
+/* Room Window Styles */
+
+.room {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Header */
+.room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-1);
+  padding-block-start: var(--window-controls-block-start-inset);
+  border-bottom: 1px solid var(--border-color);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+  gap: var(--spacing-2);
+}
+
+.room-header-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  margin-left: var(--window-controls-inline-start-inset);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-header-action {
+  -webkit-app-region: no-drag;
+  padding: var(--spacing-1) var(--spacing-3);
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.room-header-action:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--color-primary);
+}
+
+.room-header-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Body */
+.room-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.room-loading,
+.room-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--spacing-5);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
+}
+
+/* Roster */
+.room-roster {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3) var(--spacing-2);
+  overflow-y: auto;
+}
+
+.room-roster-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  padding: 0 var(--spacing-1);
+}
+
+.room-roster-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2);
+  border-radius: var(--radius-sm);
+}
+
+.room-roster-item:hover {
+  background: var(--bg-intense);
+}
+
+.room-roster-name {
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-roster-remove,
+.room-roster-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.room-roster-remove:hover:not(:disabled),
+.room-roster-add-btn:hover:not(:disabled) {
+  color: var(--color-danger);
+}
+
+.room-roster-remove:disabled,
+.room-roster-add-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.room-roster-add {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-top: auto;
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--border-color);
+}
+
+.room-roster-select {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.room-roster-select:disabled {
+  opacity: 0.5;
+}
+
+/* Chat */
+.room-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.room-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+}
+
+.room-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-width: 70%;
+  align-self: flex-start;
+}
+
+.room-msg--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.room-msg-name {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.room-msg-text {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.room-msg--user .room-msg-text {
+  background: var(--accent-bg);
+  border-color: var(--color-primary);
+}
+
+.room-msg--streaming .room-msg-text {
+  border-color: var(--border-color-intense);
+}
+
+.room-empty-thread {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  color: var(--text-tertiary);
+  text-align: center;
+  font-size: var(--font-size-sm);
+}
+
+.room-empty-action {
+  padding: var(--spacing-2) var(--spacing-4);
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.room-empty-action:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--color-primary);
+}
+
+.room-empty-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Input */
+.room-input-area {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: 1px solid var(--border-color);
+  background: var(--bg);
+}
+
+.room-input {
+  flex: 1;
+  resize: none;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  max-height: 120px;
+}
+
+.room-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.room-input:disabled {
+  opacity: 0.5;
+}
+
+.room-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.room-send:hover:not(:disabled) {
+  color: var(--text-on-strong);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.room-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

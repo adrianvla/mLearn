@@ -1100,7 +1100,22 @@
           "Description": "Читайте книги, мангу, PDF, EPUB, папки с картинками и другие документы с OCR",
           "Title": "Читалка"
         },
-        "Settings": {
+    "Room": {
+      "AddParticipant": "Добавить участника",
+      "EmptyThread": "Сообщений пока нет. Начните разговор.",
+      "InputPlaceholder": "Введите сообщение...",
+      "Loading": "Загрузка комнаты...",
+      "NewThread": "Новая ветка",
+      "NoThread": "Нет активной ветки. Создайте её, чтобы начать чат.",
+      "RemoveParticipant": "Удалить участника",
+      "RoomNotFound": "Комната не найдена.",
+      "Roster": "Участники",
+      "SelectParticipant": "Добавить участника",
+      "Send": "Отправить",
+      "Title": "Комната",
+      "You": "Вы"
+    },
+    "Settings": {
           "Description": "Настройте mLearn под себя",
           "Title": "Настройки"
         },

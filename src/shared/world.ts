@@ -217,3 +217,28 @@ export interface ScenarioGrounding {
   provenance: SourceRef[];
   fillSegments: string[]; // generated fill, flagged
 }
+
+// ---------------------------------------------------------------------------
+// World IPC contract (Phase 2)
+// ---------------------------------------------------------------------------
+
+/** Full entity snapshot handed to the renderer over WORLD_GET_STATE. */
+export interface WorldSnapshot {
+  rooms: Room[];
+  threads: Thread[];
+  participants: Participant[];
+}
+
+/** Result of WORLD_APPLY_MEMBERSHIP — updated room plus the journaled membership event. */
+export interface MembershipChangeResult {
+  room: Room;
+  event: JournalEvent | null; // null when the change was a no-op (already present/absent)
+}
+
+/** Payload broadcast on OPEN_ROOM_EVENT: open/focus the room window at this room. */
+export interface OpenRoomEventPayload {
+  roomId: string;
+  threadId?: string;
+  eventId?: string; // deep-link target — room window scrolls to/highlights this event
+  callId?: string; // D20+ — present when the open is a voice-call accept
+}

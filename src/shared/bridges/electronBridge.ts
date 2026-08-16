@@ -32,6 +32,7 @@ import type {
   DataBridge,
   KVStoreBridge,
   JournalBridge,
+  WorldBridge,
   BrowserBridge,
   DiagnosticsBridge,
 } from './types';
@@ -151,6 +152,7 @@ const windowBridge: WindowBridge = {
   onOpenPrompt: (cb) => getIPC().onOpenPrompt(cb),
   onAuthDeepLink: (cb) => getIPC().onAuthDeepLink(cb),
   onLookupDeepLink: (cb) => getIPC().onLookupDeepLink(cb),
+  onOpenRoomEvent: (cb) => getIPC().onOpenRoomEvent(cb),
   promptOutput: (text) => getIPC().promptOutput(text),
 };
 
@@ -359,6 +361,12 @@ const journalBridge: JournalBridge = {
   readThread: (roomId, threadId) => getIPC().readThread(roomId, threadId),
 };
 
+const worldBridge: WorldBridge = {
+  getWorldState: () => getIPC().getWorldState(),
+  applyMembership: (roomId, participantId, kind) => getIPC().applyMembership(roomId, participantId, kind),
+  createThread: (roomId, title) => getIPC().createThread(roomId, title),
+};
+
 const browserBridge: BrowserBridge = {
   detectBrowsers: (customPaths) => getIPC().detectBrowsers(customPaths),
   installExtension: (browser) => getIPC().installExtension(browser),
@@ -399,6 +407,7 @@ export function createElectronBridge(): PlatformBridge {
     data: dataBridge,
     kvStore: kvStoreBridge,
     journal: journalBridge,
+    world: worldBridge,
     browser: browserBridge,
     diagnostics: diagnosticsBridge,
   };

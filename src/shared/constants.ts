@@ -355,6 +355,14 @@ export const IPC_CHANNELS = {
   JOURNAL_READ_SEA: 'journal-read-sea',
   JOURNAL_READ_THREAD: 'journal-read-thread',
 
+  // World (rooms/threads/participants entity state)
+  WORLD_GET_STATE: 'world-get-state',
+  WORLD_APPLY_MEMBERSHIP: 'world-apply-membership',
+  WORLD_CREATE_THREAD: 'world-create-thread',
+
+  // Open the room window at a specific room (optionally deep-linked to an event)
+  OPEN_ROOM_EVENT: 'open-room-event',
+
   // Plugins
   ...PLUGIN_IPC_CHANNELS,
 } as const;
@@ -373,6 +381,7 @@ export const WINDOW_TYPES = {
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
   CONVERSATION_AGENT: 'conversation-agent',
+  ROOM: 'room',
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',

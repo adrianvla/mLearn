@@ -549,6 +549,16 @@ const mLearnIPC = {
   readThread: (roomId: string, threadId: string): Promise<import('../shared/world').JournalEvent[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_READ_THREAD, roomId, threadId),
 
+  // ========== World ==========
+  getWorldState: (): Promise<import('../shared/world').WorldSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_GET_STATE),
+  applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove'): Promise<import('../shared/world').MembershipChangeResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_APPLY_MEMBERSHIP, roomId, participantId, kind),
+  createThread: (roomId: string, title?: string): Promise<import('../shared/world').Thread> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_THREAD, roomId, title),
+  onOpenRoomEvent: (callback: (payload: import('../shared/world').OpenRoomEventPayload) => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_ROOM_EVENT, (_event, payload) => callback(payload)),
+
   // ========== Diagnostics ==========
   runDiagnostics: (): Promise<import('../shared/diagnostics/types').DiagnosticsReport> =>
     ipcRenderer.invoke('diagnostics-run-all'),

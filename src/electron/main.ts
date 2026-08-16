@@ -31,6 +31,7 @@ import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
 import { setupJournalIPC } from './services/journalService';
+import { setupWorldIPC, openRoomAt } from './services/worldIpc';
 import { runLegacyMigration } from './services/legacyMigration';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
 import { setupExtensionInstallerIPC } from './services/extensionInstaller';
@@ -40,6 +41,7 @@ import { setupDiagnosticsIPC } from './services/diagnostics';
 import { createAppUpdaterService, setupAppUpdaterIpc, type AppUpdaterService } from './services/appUpdater';
 import { createTray, destroyTray } from './services/trayManager';
 import { IPC_CHANNELS } from '../shared/constants';
+import type { OpenRoomEventPayload } from '../shared/world';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
 
@@ -100,6 +102,27 @@ function isDiagnosticsDeepLink(rawUrl: string): boolean {
     return parsed.protocol === 'mlearn:' && parsed.hostname === 'diagnostics';
   } catch {
     return false;
+  }
+}
+
+function parseRoomDeepLink(rawUrl: string): OpenRoomEventPayload | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'mlearn:') {
+      return null;
+    }
+    if (parsed.hostname !== 'room') {
+      return null;
+    }
+    const roomId = parsed.pathname.replace(/^\//, '');
+    if (!roomId) {
+      return null;
+    }
+    const eventId = parsed.searchParams.get('event');
+    return { roomId, eventId: eventId ?? undefined };
+  } catch (e) {
+    log.error('parseRoomDeepLink failed', e);
+    return null;
   }
 }
 
@@ -165,6 +188,11 @@ function handlePossibleDeepLinkValue(value: string): void {
   }
   if (isDiagnosticsDeepLink(value)) {
     createDiagnosticsWindow();
+    return;
+  }
+  const roomPayload = parseRoomDeepLink(value);
+  if (roomPayload) {
+    openRoomAt(roomPayload);
     return;
   }
 }
@@ -312,6 +340,7 @@ function setupAllIPC(): void {
   setupDataExportImportIPC();
   setupKVStoreIPC();
   setupJournalIPC();
+  setupWorldIPC();
   setupBrowserDetectionIPC();
   setupExtensionInstallerIPC();
   setupPluginIPC();
