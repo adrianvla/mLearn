@@ -53,6 +53,7 @@ import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
 import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider } from '../../../shared/types';
+import type { KnowledgeAspect } from '../../../shared/constants';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
 import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
@@ -114,6 +115,7 @@ export const FlashcardsContent: Component = () => {
   const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
+  const [reviewMode, setReviewMode] = createSignal<KnowledgeAspect>('meaning');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
@@ -925,7 +927,7 @@ export const FlashcardsContent: Component = () => {
                 </div>
               }
             >
-              <FlashcardReview />
+              <FlashcardReview reviewMode={reviewMode()} onReviewModeChange={setReviewMode} />
             </Show>
           </Show>
           </div>

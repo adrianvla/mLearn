@@ -8,12 +8,14 @@ import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
-import { Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
+import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
+import { getAvailableAspects } from '../../../shared/types';
+import type { KnowledgeAspect } from '../../../shared/constants';
 import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
@@ -29,6 +31,9 @@ export interface FlashcardReviewProps {
   onComplete?: () => void;
   onClose?: () => void;
   style?: JSX.CSSProperties;
+  /** Session-local review focus mode (never persisted). */
+  reviewMode?: KnowledgeAspect;
+  onReviewModeChange?: (mode: KnowledgeAspect) => void;
 }
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
@@ -48,6 +53,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
     updateFlashcard,
+    setAspectStatus,
   } = useFlashcards();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
@@ -93,6 +99,77 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // Current card
   const currentCard = createMemo(() => getCurrentCard());
+
+  const cardHasReadingData = (card: Flashcard): boolean => {
+    const r = card.content.reading;
+    return !!r && r !== card.content.front;
+  };
+
+  const cardHasProsodyData = (card: Flashcard): boolean => {
+    const p = card.content.prosody;
+    return !!p && (p.position !== undefined || !!p.display);
+  };
+
+  // Review modes available for the current card: language capability
+  // (getAvailableAspects) intersected with per-card data presence.
+  const availableAspects = createMemo<KnowledgeAspect[]>(() => {
+    const card = currentCard();
+    if (!card) return ['meaning'];
+    const supported = getAvailableAspects(languageDataForCard(card) ?? undefined);
+    const aspects: KnowledgeAspect[] = ['meaning'];
+    if (supported.includes('reading')) aspects.push('reading');
+    if (supported.includes('prosody') && cardHasProsodyData(card)) aspects.push('prosody');
+    return aspects;
+  });
+
+  const effectiveMode = createMemo<KnowledgeAspect>(() => {
+    const mode = props.reviewMode ?? 'meaning';
+    return availableAspects().includes(mode) ? mode : 'meaning';
+  });
+
+  // Fall back to meaning when the active mode is unavailable for the next card.
+  createEffect(on(
+    () => currentCard()?.id,
+    () => {
+      const mode = props.reviewMode ?? 'meaning';
+      if (mode !== 'meaning' && !availableAspects().includes(mode)) {
+        props.onReviewModeChange?.('meaning');
+      }
+    }
+  ));
+
+  const modeOptions = createMemo(() => (
+    availableAspects().map((aspect) => ({
+      value: aspect,
+      label: t(aspect === 'meaning'
+        ? 'mlearn.Flashcards.Review.Modes.Meaning'
+        : aspect === 'reading'
+          ? 'mlearn.Flashcards.Review.Modes.Reading'
+          : 'mlearn.Flashcards.Review.Modes.Prosody'),
+    }))
+  ));
+
+  const attributionTargets = createMemo(() => {
+    const card = currentCard();
+    if (!card) return { reading: false, prosody: false };
+    const supported = getAvailableAspects(languageDataForCard(card) ?? undefined);
+    return {
+      reading: supported.includes('reading') && cardHasReadingData(card),
+      prosody: supported.includes('prosody') && cardHasProsodyData(card),
+    };
+  });
+
+  const handleAttribution = (aspect: 'reading' | 'prosody') => {
+    const card = currentCard();
+    if (!card) return;
+    setAspectStatus(card.content.front, aspect, 'learning', 'manual', languageForCard(card));
+    showToast({
+      message: t('mlearn.Flashcards.Review.Attribution.Marked', {
+        aspect: t(aspect === 'reading' ? 'mlearn.Knowledge.Aspect.Reading' : 'mlearn.Knowledge.Aspect.Prosody'),
+      }),
+      variant: 'success',
+    });
+  };
 
   // Preview due dates for buttons
   const previewDates = createMemo(() => getPreviewDueDates());
@@ -415,6 +492,18 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </div>
 
           <div class="flashcard-header-actions">
+            <Show when={availableAspects().length > 1}>
+              <label class="flashcard-mode-select" for="flashcard-review-mode">
+                <span class="flashcard-mode-select__label">{t('mlearn.Flashcards.Review.Modes.Label')}</span>
+                <Select
+                  id="flashcard-review-mode"
+                  options={modeOptions()}
+                  value={effectiveMode()}
+                  onChange={(e) => props.onReviewModeChange?.(e.currentTarget.value as KnowledgeAspect)}
+                  class="flashcard-mode-select__control"
+                />
+              </label>
+            </Show>
             <ToggleSwitch
               checked={settings.flashcardStealthMode}
               onChange={(checked) => updateSetting('flashcardStealthMode', checked)}
@@ -542,6 +631,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   ttsMetadata={ttsMetadata()}
                   onRegenerateExample={handleRegenerateExample}
                   regeneratingExample={regeneratingExample()}
+                  reviewMode={effectiveMode()}
               />
             )}
           </Show>
@@ -573,6 +663,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                     </Button>
                 )}
               </For>
+              <Show when={attributionTargets().reading}>
+                <Button
+                    buttonType="default"
+                    variant="ghost"
+                    size="sm"
+                    class="flashcard-attribution-btn"
+                    onClick={() => handleAttribution('reading')}
+                >
+                  {t('mlearn.Flashcards.Review.Attribution.WrongReading')}
+                </Button>
+              </Show>
+              <Show when={attributionTargets().prosody}>
+                <Button
+                    buttonType="default"
+                    variant="ghost"
+                    size="sm"
+                    class="flashcard-attribution-btn"
+                    onClick={() => handleAttribution('prosody')}
+                >
+                  {t('mlearn.Flashcards.Review.Attribution.WrongProsody')}
+                </Button>
+              </Show>
             </div>
           </Show>
         </div>
