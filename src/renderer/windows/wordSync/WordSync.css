@@ -88,7 +88,13 @@
 
 .word-sync-actions {
   display: flex;
+  align-items: center;
   gap: var(--spacing-4);
+}
+
+.word-sync-attribution-prompt {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .word-sync-btn {

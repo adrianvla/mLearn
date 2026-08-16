@@ -1100,22 +1100,22 @@
           "Description": "Read books, manga, PDFs, EPUBs, image folders, or other documents with OCR",
           "Title": "Reader"
         },
-    "Room": {
-      "AddParticipant": "Add participant",
-      "EmptyThread": "No messages yet. Start the conversation.",
-      "InputPlaceholder": "Type a message...",
-      "Loading": "Loading room...",
-      "NewThread": "New thread",
-      "NoThread": "No active thread. Create one to start chatting.",
-      "RemoveParticipant": "Remove participant",
-      "RoomNotFound": "Room not found.",
-      "Roster": "Participants",
-      "SelectParticipant": "Add participant",
-      "Send": "Send",
-      "Title": "Room",
-      "You": "You"
-    },
-    "Settings": {
+        "Room": {
+          "AddParticipant": "Add participant",
+          "EmptyThread": "No messages yet. Start the conversation.",
+          "InputPlaceholder": "Type a message...",
+          "Loading": "Loading room...",
+          "NewThread": "New thread",
+          "NoThread": "No active thread. Create one to start chatting.",
+          "RemoveParticipant": "Remove participant",
+          "RoomNotFound": "Room not found.",
+          "Roster": "Participants",
+          "SelectParticipant": "Add participant",
+          "Send": "Send",
+          "Title": "Room",
+          "You": "You"
+        },
+        "Settings": {
           "Description": "Configure mLearn to your liking",
           "Title": "Settings"
         },
@@ -2880,6 +2880,7 @@
       "FinishedTitle": "All done!",
       "FinishedDescription": "You checked {count} words. Your word knowledge has been updated.",
       "Progress": "{rated} / {total} words",
+      "AttributionPrompt": "What didn't you know?",
       "Unknown": "Unknown",
       "Learning": "Learning",
       "Known": "Known",

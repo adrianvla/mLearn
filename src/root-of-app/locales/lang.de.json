@@ -1100,22 +1100,22 @@
           "Description": "Bücher, Manga, PDFs, EPUBs, Bilderordner und andere Dokumente mit OCR lesen",
           "Title": "Reader"
         },
-    "Room": {
-      "AddParticipant": "Teilnehmer hinzufügen",
-      "EmptyThread": "Noch keine Nachrichten. Beginne das Gespräch.",
-      "InputPlaceholder": "Nachricht eingeben...",
-      "Loading": "Raum wird geladen...",
-      "NewThread": "Neuer Thread",
-      "NoThread": "Kein aktiver Thread. Erstelle einen, um zu chatten.",
-      "RemoveParticipant": "Teilnehmer entfernen",
-      "RoomNotFound": "Raum nicht gefunden.",
-      "Roster": "Teilnehmer",
-      "SelectParticipant": "Teilnehmer hinzufügen",
-      "Send": "Senden",
-      "Title": "Raum",
-      "You": "Du"
-    },
-    "Settings": {
+        "Room": {
+          "AddParticipant": "Teilnehmer hinzufügen",
+          "EmptyThread": "Noch keine Nachrichten. Beginne das Gespräch.",
+          "InputPlaceholder": "Nachricht eingeben...",
+          "Loading": "Raum wird geladen...",
+          "NewThread": "Neuer Thread",
+          "NoThread": "Kein aktiver Thread. Erstelle einen, um zu chatten.",
+          "RemoveParticipant": "Teilnehmer entfernen",
+          "RoomNotFound": "Raum nicht gefunden.",
+          "Roster": "Teilnehmer",
+          "SelectParticipant": "Teilnehmer hinzufügen",
+          "Send": "Senden",
+          "Title": "Raum",
+          "You": "Du"
+        },
+        "Settings": {
           "Description": "mLearn anpassen",
           "Title": "Einstellungen"
         },
@@ -2880,6 +2880,7 @@
       "FinishedTitle": "Fertig!",
       "FinishedDescription": "Du hast {count} Wörter geprüft. Dein Wortwissen wurde aktualisiert.",
       "Progress": "{rated} / {total} Wörter",
+      "AttributionPrompt": "Was war unbekannt?",
       "Unknown": "Unbekannt",
       "Learning": "Lernend",
       "Known": "Bekannt",

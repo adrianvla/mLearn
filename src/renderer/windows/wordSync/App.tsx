@@ -51,7 +51,9 @@ import {
   isWordEligible,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
-import { extractProsodyFromTranslationData } from '../../utils/readingProsody';import type { PassiveWordKnowledge } from '../../../shared/types';
+import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
+import { getAvailableAspects, type PassiveWordKnowledge } from '../../../shared/types';
+import { showToast } from '../../components/common/Feedback/Toast';
 import './WordSync.css';
 
 type Rating = 'unknown' | 'learning' | 'known';
@@ -69,7 +71,7 @@ interface WordSyncUndoEntry {
   word: PoolEntry;
   language: string;
   previousKnowledge: Record<string, PassiveWordKnowledge | undefined>;
-  previousSeenAt: number | undefined;
+  previousSeenAt: Record<string, number | undefined>;
   previousRatedCount: number;
   previousLastRating: Rating | null;
   previousSamplingLevel: number;
@@ -94,11 +96,13 @@ export const WordSyncContent: Component = () => {
     store,
     isLoading,
     setWordKnowledgeEase,
+    setAspectStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,
     restoreWordSyncRating,
     getWordKnowledge,
     getWordKnowledgeSnapshotForForms,
+    getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
   } = useFlashcards();
 
@@ -123,6 +127,7 @@ export const WordSyncContent: Component = () => {
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
   const [undoStack, setUndoStack] = createSignal<WordSyncUndoEntry[]>([]);
+  const [pendingAttribution, setPendingAttribution] = createSignal(false);
 
   // ─── Translation for current word ───────────────────
   const [translation] = createResource(
@@ -323,6 +328,7 @@ export const WordSyncContent: Component = () => {
   }
 
   function pickNext() {
+    setPendingAttribution(false);
     const levels = sortedLevels();
     if (levels.length === 0) { setFinished(true); return; }
 
@@ -364,10 +370,21 @@ export const WordSyncContent: Component = () => {
   }
 
   function rate(rating: Rating) {
+    // Unknown gates on attribution when the word carries reading/prosody data:
+    // a narrow surface failure must not squash whole-word knowledge (mirrors
+    // FlashcardReview's attribution row, P3.2). Key 1 = meaning = word-level write.
+    if (rating === 'unknown' && hasAttributionTargets()) {
+      setPendingAttribution(true);
+      return;
+    }
+    applyRating(rating, 'meaning');
+  }
+
+  function applyRating(rating: Rating, aspect: 'meaning' | 'reading' | 'prosody') {
     const w = currentWord();
     if (!w) return;
+    setPendingAttribution(false);
 
-    const lk = w.storageKey;
     const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
     setUndoStack((prev) => {
       const next = [
@@ -376,7 +393,7 @@ export const WordSyncContent: Component = () => {
           word: w,
           language: settings.language,
           previousKnowledge,
-          previousSeenAt: store.wordSyncSeen[lk],
+          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
           previousRatedCount: ratedCount(),
           previousLastRating: lastRating(),
           previousSamplingLevel: samplingLevel(),
@@ -388,7 +405,17 @@ export const WordSyncContent: Component = () => {
       return next;
     });
 
-    setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
+    if (aspect === 'meaning') {
+      setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
+    } else {
+      setAspectStatus(w.word, aspect, 'learning', 'manual', settings.language);
+      showToast({
+        message: t('mlearn.Flashcards.Review.Attribution.Marked', {
+          aspect: t(aspect === 'reading' ? 'mlearn.Knowledge.Aspect.Reading' : 'mlearn.Knowledge.Aspect.Prosody'),
+        }),
+        variant: 'success',
+      });
+    }
 
     if (rating === 'unknown') {
       markWordSyncSeen(w.word, settings.language);
@@ -483,6 +510,13 @@ export const WordSyncContent: Component = () => {
       return;
     }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (pendingAttribution()) {
+      if (e.key === 'Escape') setPendingAttribution(false);
+      else if (e.key === '1') applyRating('unknown', 'meaning');
+      else if (e.key === '2' && attributionTargets().reading) applyRating('unknown', 'reading');
+      else if (e.key === '3' && attributionTargets().prosody) applyRating('unknown', 'prosody');
+      return;
+    }
     if (e.key === '1') rate('unknown');
     else if (e.key === '2') rate('learning');
     else if (e.key === '3') rate('known');
@@ -552,6 +586,16 @@ export const WordSyncContent: Component = () => {
 
   // Word Sync renders the word with the shared WordWithReading primitive and
   // its own decoration context — no flashcard-display components/classes.
+  const attributionTargets = createMemo(() => {
+    if (!currentWord()) return { reading: false, prosody: false };
+    const supported = getAvailableAspects(langCtx.currentLangData() ?? undefined);
+    return {
+      reading: supported.includes('reading') && !!displayedReading(),
+      prosody: supported.includes('prosody') && !!currentWordProsody(),
+    };
+  });
+  const hasAttributionTargets = () => attributionTargets().reading || attributionTargets().prosody;
+
   const comprehensiveKnowledge = createMemo(() => {
     const w = currentWord();
     if (!w) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0, ease: undefined };
@@ -703,33 +747,68 @@ export const WordSyncContent: Component = () => {
         </Show>
 
         <div class="word-sync-actions">
-          <Btn
-            variant="danger"
-            size="lg"
-            onClick={() => rate('unknown')}
-            class="word-sync-btn word-sync-btn--unknown"
-          >
-            <span class="word-sync-btn-key">1</span>
-            {t('mlearn.WordSync.Unknown')}
-          </Btn>
-          <Btn
-            variant="secondary"
-            size="lg"
-            onClick={() => rate('learning')}
-            class="word-sync-btn word-sync-btn--learning"
-          >
-            <span class="word-sync-btn-key">2</span>
-            {t('mlearn.WordSync.Learning')}
-          </Btn>
-          <Btn
-            variant="primary"
-            size="lg"
-            onClick={() => rate('known')}
-            class="word-sync-btn word-sync-btn--known"
-          >
-            <span class="word-sync-btn-key">3</span>
-            {t('mlearn.WordSync.Known')}
-          </Btn>
+          <Show when={pendingAttribution()} fallback={<>
+            <Btn
+              variant="danger"
+              size="lg"
+              onClick={() => rate('unknown')}
+              class="word-sync-btn word-sync-btn--unknown"
+            >
+              <span class="word-sync-btn-key">1</span>
+              {t('mlearn.WordSync.Unknown')}
+            </Btn>
+            <Btn
+              variant="secondary"
+              size="lg"
+              onClick={() => rate('learning')}
+              class="word-sync-btn word-sync-btn--learning"
+            >
+              <span class="word-sync-btn-key">2</span>
+              {t('mlearn.WordSync.Learning')}
+            </Btn>
+            <Btn
+              variant="primary"
+              size="lg"
+              onClick={() => rate('known')}
+              class="word-sync-btn word-sync-btn--known"
+            >
+              <span class="word-sync-btn-key">3</span>
+              {t('mlearn.WordSync.Known')}
+            </Btn>
+          </>}>
+            <span class="word-sync-attribution-prompt">{t('mlearn.WordSync.AttributionPrompt')}</span>
+            <Btn
+              variant="danger"
+              size="lg"
+              onClick={() => applyRating('unknown', 'meaning')}
+              class="word-sync-btn word-sync-btn--unknown"
+            >
+              <span class="word-sync-btn-key">1</span>
+              {t('mlearn.Knowledge.Aspect.Meaning')}
+            </Btn>
+            <Show when={attributionTargets().reading}>
+              <Btn
+                variant="secondary"
+                size="lg"
+                onClick={() => applyRating('unknown', 'reading')}
+                class="word-sync-btn word-sync-btn--learning"
+              >
+                <span class="word-sync-btn-key">2</span>
+                {t('mlearn.Knowledge.Aspect.Reading')}
+              </Btn>
+            </Show>
+            <Show when={attributionTargets().prosody}>
+              <Btn
+                variant="secondary"
+                size="lg"
+                onClick={() => applyRating('unknown', 'prosody')}
+                class="word-sync-btn word-sync-btn--learning"
+              >
+                <span class="word-sync-btn-key">3</span>
+                {t('mlearn.Knowledge.Aspect.Prosody')}
+              </Btn>
+            </Show>
+          </Show>
         </div>
 
 

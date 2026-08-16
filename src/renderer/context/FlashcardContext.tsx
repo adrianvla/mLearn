@@ -297,10 +297,12 @@ interface FlashcardContextValue {
   setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
   /** Snapshot wordKnowledge entries across all surface-form hashes (undo support for multi-hash writes) */
   getWordKnowledgeSnapshotForForms: (word: string, language?: string) => Record<string, PassiveWordKnowledge | undefined>;
+  /** Snapshot wordSyncSeen timestamps across all surface-form hashes (undo support for multi-hash writes) */
+  getWordSyncSeenSnapshotForForms: (word: string, language?: string) => Record<string, number | undefined>;
   restoreWordSyncRating: (
     word: string,
     previousKnowledge: PassiveWordKnowledge | undefined | Record<string, PassiveWordKnowledge | undefined>,
-    previousSeenAt: number | undefined,
+    previousSeenAt: Record<string, number | undefined>,
     language?: string,
   ) => void;
   /** Directly set a word's comprehensive status by adjusting its passive ease and clearing conflicting banks */
@@ -2947,14 +2949,34 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Word Sync Seen
   // ========================
 
+  // Multi-hash rule (#230): the sync pool filters on the canonical-form hash,
+  // so the seen mark must cover the canonical form plus every surface form.
+  const getWordSyncSeenKeysForLanguage = (word: string, language = settings.language): string[] => {
+    const keys = new Set<string>();
+    const canonical = getCanonicalFormForLanguage(language, word);
+    if (canonical) keys.add(langKey(language, SRS.hashWordSync(canonical)));
+    for (const form of getWordFormsForLanguage(word, language)) {
+      keys.add(langKey(language, SRS.hashWordSync(form)));
+    }
+    return [...keys];
+  };
+
   const markWordSyncSeen = (word: string, language = settings.language) => {
-    const storageWord = getPrimaryWordFormForLanguage(word, language);
-    const wordHash = SRS.hashWordSync(storageWord);
-    const lk = langKey(language, wordHash);
+    const now = Date.now();
     setStore(produce((s) => {
-      s.wordSyncSeen[lk] = Date.now();
+      for (const lk of getWordSyncSeenKeysForLanguage(word, language)) {
+        s.wordSyncSeen[lk] = now;
+      }
     }));
     saveFlashcards();
+  };
+
+  const getWordSyncSeenSnapshotForForms = (word: string, language = settings.language): Record<string, number | undefined> => {
+    const snapshot: Record<string, number | undefined> = {};
+    for (const lk of getWordSyncSeenKeysForLanguage(word, language)) {
+      snapshot[lk] = store.wordSyncSeen[lk];
+    }
+    return snapshot;
   };
 
   const getWordKnowledgeSnapshotForForms = (word: string, language = settings.language): Record<string, PassiveWordKnowledge | undefined> => {
@@ -2970,7 +2992,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const restoreWordSyncRating = (
     word: string,
     previousKnowledge: PassiveWordKnowledge | undefined | Record<string, PassiveWordKnowledge | undefined>,
-    previousSeenAt: number | undefined,
+    previousSeenAt: Record<string, number | undefined>,
     language = settings.language,
   ) => {
     const storageWord = getPrimaryWordFormForLanguage(word, language);
@@ -2995,10 +3017,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
         delete s.wordKnowledge[lk];
       }
 
-      if (previousSeenAt !== undefined) {
-        s.wordSyncSeen[lk] = previousSeenAt;
-      } else {
-        delete s.wordSyncSeen[lk];
+      for (const [seenLk, prev] of Object.entries(previousSeenAt)) {
+        if (prev === undefined) {
+          delete s.wordSyncSeen[seenLk];
+        } else {
+          s.wordSyncSeen[seenLk] = prev;
+        }
       }
     }));
     saveFlashcards();
@@ -3738,6 +3762,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     trackWordStatusChange,
     setWordKnowledgeEase,
     getWordKnowledgeSnapshotForForms,
+    getWordSyncSeenSnapshotForForms,
     restoreWordSyncRating,
     setComprehensiveWordStatus,
     setAspectStatus,

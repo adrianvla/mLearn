@@ -306,7 +306,7 @@ type FlashcardCtx = {
   restoreWordSyncRating: (
     word: string,
     previousKnowledge: { ease: number; lastSeen: number; timesSeen: number; timesHovered: number; word: string; reading?: string; language?: string } | undefined,
-    previousSeenAt: number | undefined,
+    previousSeenAt: Record<string, number | undefined>,
     language?: string,
   ) => void;
   setComprehensiveWordStatus: (word: string, status: 'unknown' | 'learning' | 'known', language?: string) => void;
@@ -2674,6 +2674,27 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('markWordSyncSeen writes the canonical hash alongside variant surface hashes', async () => {
+    mockSettings.language = 'ja';
+    mockGetCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
+    // Active-language path (language === settings.language) reads getWordVariants.
+    mockGetWordVariants.mockImplementation((word: string) => (word === '流石' ? ['さすが'] : []));
+    mockGetWordVariantsForLanguage.mockImplementation((_language: string, word: string) => (
+      word === '流石' ? ['さすが'] : []
+    ));
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    flashcardsCb(makeEmptyStore());
+
+    ctx.markWordSyncSeen('流石', 'ja');
+
+    // The sync pool filters on the canonical hash (流石) while the primary form
+    // is さすが — a single primary-form write never matched the filter key.
+    expect(ctx.store.wordSyncSeen[`ja:${SRS.hashWordSync('流石')}`]).toEqual(expect.any(Number));
+    expect(ctx.store.wordSyncSeen[`ja:${SRS.hashWordSync('さすが')}`]).toEqual(expect.any(Number));
+    dispose();
+  });
+
   it('restoreWordSyncRating restores previous knowledge and seen state for an explicit language', async () => {
     mockSettings.language = 'ja';
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
@@ -2708,7 +2729,7 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    ctx.restoreWordSyncRating('يكتب', previousKnowledge, 1234, 'ar');
+    ctx.restoreWordSyncRating('يكتب', previousKnowledge, { [arKey]: 1234 }, 'ar');
 
     expect(ctx.store.wordKnowledge[arKey]).toEqual(previousKnowledge);
     expect(ctx.store.wordSyncSeen[arKey]).toBe(1234);
@@ -2737,7 +2758,7 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    ctx.restoreWordSyncRating('赤い', undefined, undefined, 'ja');
+    ctx.restoreWordSyncRating('赤い', undefined, { [jaKey]: undefined }, 'ja');
 
     expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
     expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();

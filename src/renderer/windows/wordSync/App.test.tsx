@@ -12,6 +12,8 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
 }));
 const mockClearAllWordSyncSeen = vi.fn();
 const mockSetWordKnowledgeEase = vi.fn();
+const mockSetAspectStatus = vi.fn();
+const mockShowToast = vi.hoisted(() => vi.fn());
 const mockMarkWordSyncSeen = vi.fn();
 const mockRestoreWordSyncRating = vi.fn();
 const mockFetchTranslation = vi.hoisted(() => vi.fn(async (): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
@@ -34,6 +36,7 @@ const mockWordSyncState = vi.hoisted(() => ({
   knownUntracked: {} as Record<string, unknown>,
   ignoredWords: {} as Record<string, unknown>,
   wordKnowledge: {} as Record<string, { word: string; [key: string]: unknown }>,
+  currentLangData: null as { textProcessing?: { readingAnnotation?: boolean }; prosody?: { type?: string } } | null,
   getCanonicalFormForLanguage: vi.fn((_language: string, word: string) => word),
 }));
 
@@ -80,14 +83,16 @@ mockCommonState.buildWordSyncPreset.mockImplementation(() => (
   mockCommonState.defaultPreset.map((token) => ({ ...token }))
 ));
 
-vi.mock('../../context', () => ({
+vi.mock('../../context', async () => {
+  const { hashWordSync } = await import('../../services/srsAlgorithm');
+  return {
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   useLocalization: () => ({ t: (key: string, params?: Record<string, string>) => params?.rated ?? key }),
   useSettings: () => ({
     settings: mockWordSyncState.settings,
   }),
   useLanguage: () => ({
-    currentLangData: () => null,
+    currentLangData: () => mockWordSyncState.currentLangData,
     getFreqLevelNames: () => ({ 5: 'N5' }),
     isLoading: () => false,
     wordFrequency: mockWordSyncState.wordFrequency,
@@ -108,6 +113,7 @@ vi.mock('../../context', () => ({
       flashcards: {},
     },
     setWordKnowledgeEase: mockSetWordKnowledgeEase,
+    setAspectStatus: mockSetAspectStatus,
     markWordSyncSeen: mockMarkWordSyncSeen,
     clearAllWordSyncSeen: mockClearAllWordSyncSeen,
     restoreWordSyncRating: mockRestoreWordSyncRating,
@@ -122,9 +128,14 @@ vi.mock('../../context', () => ({
       }
       return snapshot;
     }),
+    getWordSyncSeenSnapshotForForms: vi.fn((word: string, language?: string) => {
+      const lang = language ?? 'ja';
+      return { [`${lang}:${hashWordSync(word)}`]: mockWordSyncState.wordSyncSeen[`${lang}:${hashWordSync(word)}`] };
+    }),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
   }),
-}));
+  };
+});
 
 vi.mock('../../components/common', () => ({
   Btn: (props: { children?: JSX.Element; onClick?: () => void; class?: string }) => (
@@ -188,6 +199,10 @@ vi.mock('../../utils/readingProsody', () => ({
   extractProsodyFromTranslationData: vi.fn(() => undefined),
 }));
 
+vi.mock('../../components/common/Feedback/Toast', () => ({
+  showToast: mockShowToast,
+}));
+
 vi.mock('../../hooks/useTranslation', () => ({
   fetchTranslation: mockFetchTranslation,
 }));
@@ -236,8 +251,11 @@ describe('WordSyncContent', () => {
     mockCommonState.buildWordSyncPreset.mockClear();
     mockClearAllWordSyncSeen.mockClear();
     mockSetWordKnowledgeEase.mockClear();
+    mockSetAspectStatus.mockClear();
+    mockShowToast.mockClear();
     mockMarkWordSyncSeen.mockClear();
     mockRestoreWordSyncRating.mockClear();
+    mockWordSyncState.currentLangData = null;
     mockFetchTranslation.mockReset();
     mockFetchTranslation.mockResolvedValue({ data: [] });
   });
@@ -409,10 +427,114 @@ describe('WordSyncContent', () => {
     expect(mockRestoreWordSyncRating).toHaveBeenCalledWith(
       '赤い',
       { [`ja:${hashWordSync('赤い')}`]: previousKnowledge },
-      1234,
+      { [`ja:${hashWordSync('赤い')}`]: 1234 },
       'ja',
     );
     expect(container.textContent).toContain('赤い:あかい');
+    dispose();
+  });
+
+  it('gates unknown on aspect attribution when the word has reading data', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+
+    // Nothing written yet: the user must say WHAT failed.
+    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('mlearn.WordSync.AttributionPrompt');
+
+    // Key 1 again = meaning: the word-level ease write, exactly as before.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', expect.any(Number), 'あかい', 'ja');
+    expect(mockSetAspectStatus).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('attributes an unknown rating to the reading aspect without touching word-level ease', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+    await Promise.resolve();
+
+    expect(mockSetAspectStatus).toHaveBeenCalledWith('赤い', 'reading', 'learning', 'manual', 'ja');
+    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    // An aspect failure still counts as a sync encounter.
+    expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
+    expect(mockShowToast).toHaveBeenCalled();
+    dispose();
+  });
+
+  it('cancels attribution with Escape without rating', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await Promise.resolve();
+
+    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    expect(mockSetAspectStatus).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('mlearn.WordSync.AttributionPrompt');
+    expect(container.textContent).toContain('mlearn.WordSync.Unknown');
+    dispose();
+  });
+
+  it('undoes an aspect-attributed rating via the per-hash snapshot', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    const previousKnowledge = {
+      ease: 0.2,
+      lastSeen: 100,
+      timesSeen: 2,
+      timesHovered: 0,
+      word: '赤い',
+      reading: 'あかい',
+      language: 'ja',
+      lastStatusChange: 100,
+    };
+    mockWordSyncState.wordKnowledge = {
+      [`ja:${hashWordSync('赤い')}`]: previousKnowledge,
+    };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+    await Promise.resolve();
+    expect(mockSetAspectStatus).toHaveBeenCalled();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await Promise.resolve();
+
+    expect(mockRestoreWordSyncRating).toHaveBeenCalledWith(
+      '赤い',
+      { [`ja:${hashWordSync('赤い')}`]: previousKnowledge },
+      { [`ja:${hashWordSync('赤い')}`]: undefined },
+      'ja',
+    );
     dispose();
   });
 
@@ -460,7 +582,7 @@ describe('WordSyncContent', () => {
     expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(
       secondWord,
       { [`ja:${hashWordSync(secondWord)}`]: prevSecond },
-      undefined,
+      { [`ja:${hashWordSync(secondWord)}`]: undefined },
       'ja',
     );
     expect(container.textContent).toContain(`${secondWord}:`);
@@ -472,7 +594,7 @@ describe('WordSyncContent', () => {
     expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(
       firstWord,
       { [`ja:${hashWordSync(firstWord)}`]: prevFirst },
-      undefined,
+      { [`ja:${hashWordSync(firstWord)}`]: undefined },
       'ja',
     );
     expect(container.textContent).toContain(`${firstWord}:`);

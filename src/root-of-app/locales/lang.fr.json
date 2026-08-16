@@ -1100,22 +1100,22 @@
           "Description": "Lisez des livres, mangas, PDF, EPUB, dossiers d'images et autres documents avec OCR",
           "Title": "Lecteur"
         },
-    "Room": {
-      "AddParticipant": "Ajouter un participant",
-      "EmptyThread": "Aucun message. Lancez la conversation.",
-      "InputPlaceholder": "Écrivez un message...",
-      "Loading": "Chargement de la salle...",
-      "NewThread": "Nouveau fil",
-      "NoThread": "Aucun fil actif. Créez-en un pour discuter.",
-      "RemoveParticipant": "Retirer le participant",
-      "RoomNotFound": "Salle introuvable.",
-      "Roster": "Participants",
-      "SelectParticipant": "Ajouter un participant",
-      "Send": "Envoyer",
-      "Title": "Salle",
-      "You": "Vous"
-    },
-    "Settings": {
+        "Room": {
+          "AddParticipant": "Ajouter un participant",
+          "EmptyThread": "Aucun message. Lancez la conversation.",
+          "InputPlaceholder": "Écrivez un message...",
+          "Loading": "Chargement de la salle...",
+          "NewThread": "Nouveau fil",
+          "NoThread": "Aucun fil actif. Créez-en un pour discuter.",
+          "RemoveParticipant": "Retirer le participant",
+          "RoomNotFound": "Salle introuvable.",
+          "Roster": "Participants",
+          "SelectParticipant": "Ajouter un participant",
+          "Send": "Envoyer",
+          "Title": "Salle",
+          "You": "Vous"
+        },
+        "Settings": {
           "Description": "Personnalisez mLearn",
           "Title": "Paramètres"
         },
@@ -2880,6 +2880,7 @@
       "FinishedTitle": "Terminé !",
       "FinishedDescription": "Vous avez vérifié {count} mots. Votre connaissance des mots a été mise à jour.",
       "Progress": "{rated} / {total} mots",
+      "AttributionPrompt": "Qu'est-ce qui était inconnu ?",
       "Unknown": "Inconnu",
       "Learning": "En apprentissage",
       "Known": "Connu",
