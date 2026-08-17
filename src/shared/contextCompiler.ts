@@ -22,6 +22,7 @@ import type {
   MemoryEntry,
   Participant,
   ScenarioGrounding,
+  ThreadMediaRef,
 } from './world';
 import { projectionForCaller, type RoomMemoryProjection } from './memoryProjection';
 
@@ -42,6 +43,7 @@ export interface CompiledContext {
   memories: { kind: MemoryEntry['kind']; text: string; createdAt: number }[];
   openLoops: { text: string; createdAt: number }[];
   learnerProjection?: LearnerProjection;
+  threadMedia?: ThreadMediaRef;
   recentThreadEvents: { seq: number; type: EventType; actorId: string; text?: string; createdAt: number }[];
   /** The caller's own witness-scoped view of the room's memory state. */
   callerProjection: RoomMemoryProjection;
@@ -55,6 +57,7 @@ export interface CompileContextInput {
   threadEvents?: JournalEvent[]; // active thread stream, unfiltered; the compiler filters
   grounding?: ScenarioGrounding; // per-participant doesNotKnow source
   learnerProjection?: LearnerProjection;
+  threadMedia?: ThreadMediaRef; // media the active thread was launched from
 }
 
 const MEMORY_KINDS: readonly MemoryEntry['kind'][] = [
@@ -140,7 +143,7 @@ export function visibleEventsFor(
  * both streams; malformed payloads are skipped defensively, never thrown.
  */
 export function compileContext(input: CompileContextInput): CompiledContext {
-  const { participant, seaEvents, threadEvents, grounding, learnerProjection } = input;
+  const { participant, seaEvents, threadEvents, grounding, learnerProjection, threadMedia } = input;
   const { capabilities } = participant;
 
   // Membership events are sea-scoped (durable roster changes); the intervals
@@ -212,6 +215,10 @@ export function compileContext(input: CompileContextInput): CompiledContext {
 
   if (learnerProjection) {
     context.learnerProjection = learnerProjection;
+  }
+
+  if (threadMedia) {
+    context.threadMedia = threadMedia;
   }
 
   return context;

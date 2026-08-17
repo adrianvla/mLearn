@@ -82,6 +82,7 @@ const mockBridge = {
   world: {
     getWorldState: vi.fn(async () => currentWorld),
     createThread: vi.fn(async (roomId: string) => ({ id: 'thread-new', roomId, state: 'active' as const, createdAt: Date.now() })),
+    updateThread: vi.fn(async (thread: WorldSnapshot['threads'][number]) => thread),
     clearRoomUnread: vi.fn(async () => {}),
   },
   journal: {
@@ -143,6 +144,7 @@ vi.mock('../../context', () => ({
     getLanguageFeatures: () => ({ supportsFrequencyLevels: false, tokenizerCapabilities: {} }),
     getFrequency: () => null,
     getFreqLevelNames: () => ({}),
+    getGrammarLevelNames: () => ({}),
     getLevelName: () => undefined,
     getCanonicalForm: (word: string) => word,
     getWordVariants: (word: string) => [word],
@@ -202,7 +204,9 @@ vi.mock('../../components/common', () => ({
   FormField: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   VoiceSamplePicker: () => <span />,
   FloatingStatus: () => <span />,
-  TabContainer: () => <div />,
+  TabContainer: (props: { tabs?: Array<{ id: string; label: string }>; onTabChange?: (id: string) => void }) => (
+    <div>{props.tabs?.map((tab) => <button type="button" onClick={() => props.onTabChange?.(tab.id)}>{tab.label}</button>)}</div>
+  ),
   TabPanel: (props: { tabId?: string; activeTab?: string; children?: JSX.Element }) => (
     props.tabId === props.activeTab ? <div>{props.children}</div> : null
   ),
@@ -311,6 +315,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
     };
     testSettings = { ...DEFAULT_SETTINGS };
+    mockBridge.world.updateThread.mockClear();
+    mockBridge.llm.llmStream.mockClear();
   });
 
   afterEach(() => {
@@ -374,5 +380,58 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     emitChunk({ done: true });
     await vi.waitFor(() => expect(journalEvents.map((event) => event.type)).toEqual(['message.user', 'message.character']));
     expect(chatText(container)).toContain('こんにちは、元気？');
+  });
+
+  it('translates arriving media context into the active thread and renders it in Thread', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+
+    windowContextCallback({
+      roomId: 'room-a',
+      threadId: 'thread-a',
+      mediaHash: 'video-1',
+      mediaName: 'Episode One',
+      mediaType: 'video',
+      assessedLevel: null,
+      assessedLevelName: 'N3',
+      language: 'ja',
+      failedWords: [],
+      failedGrammar: [],
+      wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+    });
+
+    await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'thread-a',
+      mediaRef: expect.objectContaining({ mediaHash: 'video-1', mediaName: 'Episode One', mediaType: 'video' }),
+    })));
+  });
+
+  it('merges legacy tutor selections into the compiled learner projection', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    windowContextCallback({
+      roomId: 'room-a',
+      threadId: 'thread-a',
+      tutorConfig: {
+        selectedGrammar: [{ pattern: 'て-form', meaning: 'connector', level: 5 }],
+        selectedWords: [{ word: '猫', ease: 1 }],
+        selectedMedia: [],
+        customInstructions: 'Practice cats',
+      },
+    });
+    const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea).toBeTruthy());
+    textarea.value = 'hello';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const sendButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(sendButton.disabled).toBe(false));
+    sendButton.click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    const [messages] = mockBridge.llm.llmStream.mock.calls.at(-1) as [{ content: string }[]];
+    expect(messages[0].content).toContain('猫');
+    expect(messages[0].content).toContain('て-form');
   });
 });

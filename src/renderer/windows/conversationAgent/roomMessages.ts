@@ -107,6 +107,20 @@ export function renderCompiledContext(
     }
     if (parts.length > 0) sections.push(`## Learner\n${parts.join('\n')}`);
   }
+  if (ctx.threadMedia) {
+    const media = ctx.threadMedia;
+    const mediaLines = [`The learner is currently ${media.mediaType === 'video' ? 'watching' : 'reading'}: "${media.mediaName}"`];
+    if (media.assessedLevelName) mediaLines.push(`Assessed difficulty level: ${media.assessedLevelName}`);
+    sections.push(`## Current Media Context\n${mediaLines.join('\n')}`);
+    if (media.characterContext) {
+      sections.push(`## Characters\n${media.characterContext}`);
+    }
+    if (media.subtitleHistory && media.subtitleHistory.length > 0) {
+      sections.push(
+        `## Recent Dialogue (from subtitles)\nThe following are recent subtitle lines from what the learner is watching. Use this as context for discussion — ask about character actions, opinions, or plot points rather than generic topics.\n${media.subtitleHistory.join('\n')}`,
+      );
+    }
+  }
   if (ctx.recentThreadEvents.length > 0) {
     sections.push(
       `## Recent Conversation\n${ctx.recentThreadEvents

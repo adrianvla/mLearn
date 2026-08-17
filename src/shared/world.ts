@@ -143,11 +143,22 @@ export interface Room {
   createdAt: number;
 }
 
+/** Media a thread was launched from — thread-scoped context, not a global signal. */
+export interface ThreadMediaRef {
+  mediaHash: string;
+  mediaName: string;
+  mediaType: 'video' | 'book';
+  assessedLevelName?: string;
+  subtitleHistory?: string[];
+  characterContext?: string;
+}
+
 export interface Thread {
   id: string;
   roomId?: string;
   title?: string;
   scenarioRef?: string;
+  mediaRef?: ThreadMediaRef;
   state: 'active' | 'archived' | 'integrated';
   createdAt: number;
 }

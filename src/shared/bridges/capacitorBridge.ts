@@ -1883,6 +1883,9 @@ const worldBridge: WorldBridge = {
   async createThread(): Promise<Thread> {
     throw new Error('Not supported on mobile');
   },
+  async updateThread(): Promise<Thread> {
+    throw new Error('Not supported on mobile');
+  },
   async rememberThis(): Promise<JournalEvent> {
     throw new Error('Not supported on mobile');
   },

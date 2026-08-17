@@ -84,6 +84,18 @@ export async function createThread(roomId: string, title?: string): Promise<Thre
   return thread;
 }
 
+export async function updateThread(thread: Thread): Promise<Thread> {
+  const state = await loadWorld();
+  const index = state.threads.findIndex((item) => item.id === thread.id);
+  if (index === -1) {
+    throw new Error(`[world] thread not found: ${thread.id}`);
+  }
+  const threads = [...state.threads];
+  threads[index] = thread;
+  await saveWorld({ ...state, threads });
+  return thread;
+}
+
 export async function rememberThis(input: RememberThisInput): Promise<JournalEvent> {
   return appendEvent(input.roomId, {
     roomId: input.roomId,
@@ -189,6 +201,11 @@ export function setupWorldIPC(): void {
   ipcMain.handle(
     IPC_CHANNELS.WORLD_CREATE_THREAD,
     async (_event, roomId: string, title?: string): Promise<Thread> => createThread(roomId, title)
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORLD_UPDATE_THREAD,
+    async (_event, thread: Thread): Promise<Thread> => updateThread(thread)
   );
 
   ipcMain.handle(IPC_CHANNELS.WORLD_REMEMBER_THIS, async (_event, input: RememberThisInput): Promise<JournalEvent> =>

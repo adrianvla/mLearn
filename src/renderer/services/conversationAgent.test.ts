@@ -5,7 +5,6 @@ import type {
   ConversationAgentContext,
   AgentConfig,
   AgentMemoryEntry,
-  TutorSessionConfig,
   WordFrequencyEntry,
   VoiceMistake,
   Token,
@@ -23,6 +22,7 @@ const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
   isLogographic: true,
   isRTL: false,
   supportsColorCodes: true,
+  supportsOcrRamSaver: false,
   usesLatinScript: false,
   supportsFrequencyLevels: true,
   hasFixedSettings: false,
@@ -37,6 +37,7 @@ const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
     providesLemmas: true,
     providesPartOfSpeech: true,
     providesReadings: true,
+    providesMorphology: true,
     allowsRoughFallback: false,
   },
   casualRegisterPromptGuidelines: [],
@@ -81,7 +82,6 @@ interface MockDeps {
   getLanguageName: () => string;
   getLanguageFeatures: () => LanguageFeatures;
   getMediaContext: () => ConversationAgentContext | null;
-  getSceneContext: () => string;
   flashcardCtx: {
     getWordKnowledge: (_word: string) => { ease: number; timesSeen: number } | undefined;
     trackGrammarFailed: (_pattern: string) => void;
@@ -94,7 +94,6 @@ interface MockDeps {
   isVoiceMode?: () => boolean;
   onVoiceMistake?: (_mistake: VoiceMistake) => void;
   onVoiceNudgeScheduled?: (_nudge: { seconds: number; prompt?: string }) => void;
-  getTutorConfig?: () => TutorSessionConfig | null;
   getAgentConfig?: () => AgentConfig | null;
   getAgentMemories?: () => AgentMemoryEntry[];
   onMemorySaved?: (_content: string) => void;
@@ -110,7 +109,6 @@ function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
     getLanguageName: () => 'Japanese',
     getLanguageFeatures: () => DEFAULT_LANGUAGE_FEATURES,
     getMediaContext: () => null,
-    getSceneContext: () => '',
     flashcardCtx: {
       getWordKnowledge: vi.fn<(_word: string) => { ease: number; timesSeen: number } | undefined>(),
       trackGrammarFailed: vi.fn<(_pattern: string) => void>(),
@@ -1911,7 +1909,7 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('Sakura');
     });
 
-    it('includes media context when provided', () => {
+    it('omits media prompt context when provided', () => {
       const mediaCtx: ConversationAgentContext = {
         mediaName: 'Dragon Ball',
         mediaType: 'video',
@@ -1931,7 +1929,7 @@ describe('createConversationAgent', () => {
       agent.processMessage('hi', [], callbacks);
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
-      expect(messages[0].content).toContain('Dragon Ball');
+      expect(messages[0].content).not.toContain('Dragon Ball');
     });
 
     it('includes target level restriction when targetLevelName is provided', () => {
@@ -1950,25 +1948,17 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('Vocabulary Level Restriction');
     });
 
-    it('includes tutor config grammar when provided', () => {
-      const tutorConfig: TutorSessionConfig = {
-        selectedGrammar: [{ pattern: 'て-form', meaning: 'te-form connector', level: 5 }],
-        selectedWords: [],
-        selectedMedia: [],
-        customInstructions: '',
-      };
-      const deps = createMockDeps({
-        getTutorConfig: () => tutorConfig,
-        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
-      });
+    it('omits legacy tutor prompt sections', () => {
+      const deps = createMockDeps({ getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }) });
       const agent = createConversationAgent(deps);
       const { callbacks } = createCallbacks();
 
       agent.processMessage('hi', [], callbacks);
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
-      expect(messages[0].content).toContain('て-form');
-      expect(messages[0].content).toContain('Grammar Focus');
+      expect(messages[0].content).not.toContain('Grammar Focus');
+      expect(messages[0].content).not.toContain('Vocabulary Focus');
+      expect(messages[0].content).not.toContain('Session Instructions');
     });
 
     it('includes memories when agentMemoryEnabled is true', () => {
@@ -2530,7 +2520,6 @@ describe('createConversationAgent', () => {
     it('uses language metadata when estimating history size for compaction', () => {
       const compactScriptLanguage: LanguageData = {
         name: 'Georgian compact test',
-        colour_codes: {},
         settings: { fixed: {} },
         textProcessing: {
           scriptProfile: { acceptedScripts: ['Geor'] },

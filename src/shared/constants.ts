@@ -363,6 +363,7 @@ export const IPC_CHANNELS = {
   WORLD_CREATE_ROOM: 'world-create-room',
   WORLD_APPLY_MEMBERSHIP: 'world-apply-membership',
   WORLD_CREATE_THREAD: 'world-create-thread',
+  WORLD_UPDATE_THREAD: 'world-update-thread',
   WORLD_REMEMBER_THIS: 'world-remember-this',
   WORLD_INTEGRATE: 'world-integrate',
   WORLD_PROMOTE_PARTICIPANT: 'world-promote-participant',

@@ -53,7 +53,7 @@ import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useDictionary, getCachedTranslation } from '../../hooks';
 import { ChatBubble } from './ChatBubble';
-import { SessionContextTab } from './SessionContextTab';
+import { ThreadInfoPanel } from './ThreadInfoPanel';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 import { AgentSetupModal } from './AgentSetupModal';
@@ -78,7 +78,7 @@ import { getConversationErrorMessage } from './errorUtils';
 import { shouldHideAssistantBubble } from './messageState';
 import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } from './journalRuntime';
 import { runRoomTurn } from '../../../shared/roomOrchestrator';
-import { compileContext, type CompiledContext } from '../../../shared/contextCompiler';
+import { compileContext, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
 import { renderCompiledContext } from './roomMessages';
 import { selectSpeaker } from '../../../shared/speakerSelection';
 import { HARNESS_ACTOR, USER_ACTOR, type MessagePayload, type Participant, type WorldSnapshot } from '../../../shared/world';
@@ -127,6 +127,32 @@ function stripPartialToolCall(text: string): string {
     }
   }
   return cleaned;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isConversationAgentContext(value: unknown): value is ConversationAgentContext {
+  if (!isRecord(value)) return false;
+  return typeof value.mediaHash === 'string'
+    && typeof value.mediaName === 'string'
+    && (value.mediaType === 'video' || value.mediaType === 'book')
+    && (typeof value.assessedLevel === 'number' || value.assessedLevel === null)
+    && typeof value.assessedLevelName === 'string'
+    && typeof value.language === 'string'
+    && Array.isArray(value.failedWords)
+    && Array.isArray(value.failedGrammar)
+    && isRecord(value.wordLevelPercentages)
+    && isRecord(value.grammarLevelPercentages);
+}
+
+function isTutorSessionConfig(value: unknown): value is TutorSessionConfig {
+  return isRecord(value)
+    && Array.isArray(value.selectedGrammar)
+    && Array.isArray(value.selectedWords)
+    && Array.isArray(value.selectedMedia)
+    && typeof value.customInstructions === 'string';
 }
 
 // Send icon SVG
@@ -191,7 +217,8 @@ export const ConversationContent: Component = () => {
 
   const [activeTab, setActiveTab] = createSignal<string>('chat');
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
-  const [tutorConfig, setTutorConfig] = createSignal<TutorSessionConfig | null>(null);
+  const [tutorSelections, setTutorSelections] = createSignal<Pick<TutorSessionConfig, 'selectedGrammar' | 'selectedWords'>>({ selectedGrammar: [], selectedWords: [] });
+  let translatedInstructions: string | null = null;
   const [inputText, setInputText] = createSignal('');
   const [isStreaming, setIsStreaming] = createSignal(false);
   const [isCompactingContext] = createSignal(false);
@@ -204,7 +231,6 @@ export const ConversationContent: Component = () => {
   const [isCheckingConnection, setIsCheckingConnection] = createSignal(true);
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
-  const [sceneContext, setSceneContext] = createSignal('');
 
   const [showSplash, setShowSplash] = createSignal(true);
   const [showDisclaimer, setShowDisclaimer] = createSignal(true);
@@ -294,7 +320,46 @@ export const ConversationContent: Component = () => {
   };
   const promptLangName = () => getConversationPromptLanguageName(settings.language, currentLangData());
   const youLabel = () => t('mlearn.Room.You') || 'You';
+  // Learner state as one implicit projection: media-scoped failures + level +
+  // (compat) legacy tutor selections, until the tutorConfig merge lands fully.
+  const learnerProjection = (): LearnerProjection => {
+    const media = mediaContext();
+    const tutor = tutorSelections();
+    const level = targetLevel();
+    return {
+      language: promptLangName(),
+      failedWords: [
+        ...(media?.failedWords ?? []).sort((a, b) => a.ease - b.ease).slice(0, 15).map((w) => w.word),
+        ...(tutor?.selectedWords ?? []).map((w) => w.word),
+      ],
+      grammarPoints: [
+        ...(media?.failedGrammar ?? []).sort((a, b) => a.ease - b.ease).slice(0, 10).map((g) => g.pattern),
+        ...(tutor?.selectedGrammar ?? []).map((g) => g.pattern),
+      ],
+      levelEstimate: level !== null ? (getLevelName(level) ?? undefined) : media?.assessedLevelName ?? undefined,
+    };
+  };
   const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? null;
+  const activeThread = () => world()?.threads.find((thread) => thread.id === selection()?.threadId) ?? null;
+  const mediaContextForTools = (): ConversationAgentContext | null => {
+    const context = mediaContext();
+    const media = activeThread()?.mediaRef;
+    if (!media) return context;
+    return {
+      mediaHash: media.mediaHash,
+      mediaName: media.mediaName,
+      mediaType: media.mediaType,
+      assessedLevel: context?.assessedLevel ?? null,
+      assessedLevelName: media.assessedLevelName ?? context?.assessedLevelName ?? '',
+      language: context?.language ?? settings.language,
+      failedWords: context?.failedWords ?? [],
+      failedGrammar: context?.failedGrammar ?? [],
+      wordLevelPercentages: context?.wordLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      grammarLevelPercentages: context?.grammarLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      subtitleHistory: media.subtitleHistory,
+      characterContext: media.characterContext,
+    };
+  };
   const rosterParticipants = () => {
     const room = activeRoom();
     if (!room) return [];
@@ -328,7 +393,7 @@ export const ConversationContent: Component = () => {
     { id: 'chat', label: t('mlearn.ConversationAgent.Tab.Chat') },
     { id: 'voice', label: t('mlearn.ConversationAgent.Tab.Voice') },
     { id: 'agents', label: t('mlearn.ConversationAgent.Tab.Agents') },
-    { id: 'stats', label: tutorConfig() ? t('mlearn.ConversationAgent.Tab.Context') : t('mlearn.ConversationAgent.Tab.Stats') },
+    { id: 'stats', label: 'Thread' },
   ];
 
   const getParticipantAgent = (participant: Participant): AgentInstance => {
@@ -339,9 +404,7 @@ export const ConversationContent: Component = () => {
     getLanguage: () => settings.language,
     getLanguageName: () => promptLangName(),
     getLanguageFeatures: () => getLanguageFeatures(),
-    getMediaContext: () => mediaContext(),
-    getSceneContext: () => sceneContext(),
-    getTutorConfig: () => tutorConfig(),
+    getMediaContext: mediaContextForTools,
     flashcardCtx,
     getFrequency,
     getTargetLevel: () => targetLevel(),
@@ -370,7 +433,7 @@ export const ConversationContent: Component = () => {
     getIncludeKnowledgeInfo: () => includeKnowledgeInfo(),
     getDisabledTools: () => disabledTools(),
     getWorldContext: () => renderCompiledContext(
-      compileContext({ participant, participants: rosterParticipants(), seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents() }),
+      compileContext({ participant, participants: rosterParticipants(), seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents(), learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef }),
       rosterParticipants(),
       youLabel(),
     ),
@@ -443,7 +506,7 @@ export const ConversationContent: Component = () => {
   };
 
   const runCheckerOnMessage = (userText: string, messageEventId: string, _assistantEventId?: string) => {
-    const customInstructions = tutorConfig()?.customInstructions || undefined;
+    const customInstructions = translatedInstructions || undefined;
     void enqueueCheckerTask(async () => {
       const result = await checkerAgent.checkMessage(userText, promptLangName(), customInstructions, {
         speakerRole: 'user',
@@ -691,23 +754,39 @@ export const ConversationContent: Component = () => {
   // Retrieve media context passed from the parent window
   onMount(() => {
     const bridge = getBridge();
-    const cleanup = bridge.window.onWindowContext((ctx) => {
-      if (ctx) {
-        const rawCtx = ctx as Record<string, unknown>;
+    const updateActiveThread = async (update: (thread: NonNullable<ReturnType<typeof activeThread>>) => NonNullable<ReturnType<typeof activeThread>>) => {
+      const thread = activeThread();
+      if (!thread) return;
+      const updatedThread = await bridge.world.updateThread(update(thread));
+      setWorld((current) => current ? { ...current, threads: current.threads.map((item) => item.id === updatedThread.id ? updatedThread : item) } : current);
+    };
+    const receiveContext = async (rawCtx: Record<string, unknown>) => {
         if (typeof rawCtx.roomId === 'string') {
-          void selectRoom(rawCtx.roomId, typeof rawCtx.threadId === 'string' ? rawCtx.threadId : undefined);
+          await selectRoom(rawCtx.roomId, typeof rawCtx.threadId === 'string' ? rawCtx.threadId : undefined);
         }
         if (rawCtx.initialTab === 'stats') {
           setActiveTab('stats');
         }
-        if (rawCtx.mediaHash) {
-          setMediaContext(ctx as unknown as ConversationAgentContext);
+        if (isConversationAgentContext(rawCtx)) {
+          setMediaContext(rawCtx);
+          await updateActiveThread((thread) => ({
+            ...thread,
+            mediaRef: {
+              mediaHash: rawCtx.mediaHash,
+              mediaName: rawCtx.mediaName,
+              mediaType: rawCtx.mediaType,
+              assessedLevelName: rawCtx.assessedLevelName || undefined,
+              subtitleHistory: rawCtx.subtitleHistory,
+              characterContext: rawCtx.characterContext,
+            },
+          }));
         }
-        if (rawCtx.tutorConfig) {
-          const config = rawCtx.tutorConfig as TutorSessionConfig;
-          setTutorConfig(config);
+        if (isTutorSessionConfig(rawCtx.tutorConfig)) {
+          const config = rawCtx.tutorConfig;
+          setTutorSelections({ selectedGrammar: config.selectedGrammar, selectedWords: config.selectedWords });
+          translatedInstructions = config.customInstructions || null;
           if (config.customInstructions) {
-            setSceneContext(config.customInstructions);
+            await updateActiveThread((thread) => thread.title ? thread : { ...thread, title: config.customInstructions.slice(0, 50) });
           }
         }
         if (typeof rawCtx.initialMessage === 'string' && rawCtx.initialMessage.trim()) {
@@ -716,7 +795,9 @@ export const ConversationContent: Component = () => {
             void handleSend();
           });
         }
-      }
+    };
+    const cleanup = bridge.window.onWindowContext((ctx) => {
+      if (isRecord(ctx)) void receiveContext(ctx);
     });
     bridge.window.getWindowContext('conversation-agent');
     if (cleanup) onCleanup(cleanup);
@@ -984,6 +1065,7 @@ export const ConversationContent: Component = () => {
       participants: world()?.participants ?? [],
       seaEvents: journal.seaEvents(),
       threadEvents: [...journal.threadEvents(), userEvent],
+      compileContextFn: (input) => compileContext({ ...input, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef }),
       runAgentTurn: async (participantId, context) => {
         const participant = (world()?.participants ?? []).find((candidate) => candidate.id === participantId);
         if (!participant) return { text: '' };
@@ -1690,12 +1772,11 @@ export const ConversationContent: Component = () => {
         />
       </TabPanel>
 
-      {/* Stats / Context panel */}
+      {/* Thread panel */}
       <TabPanel tabId="stats" activeTab={activeTab()} class="ca-stats-panel">
-        <SessionContextTab
+        <ThreadInfoPanel
+          thread={activeThread()}
           context={mediaContext()}
-          tutorConfig={tutorConfig()}
-          onTutorConfigChange={setTutorConfig}
         />
       </TabPanel>
 
