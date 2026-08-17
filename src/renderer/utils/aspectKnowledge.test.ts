@@ -46,6 +46,7 @@ function makeEntry(overrides: Partial<PassiveWordKnowledge> = {}): PassiveWordKn
 }
 
 const easeFor = (status: WordStatus) => (status === 'known' ? 1.8 : status === 'learning' ? 1.55 : 1.3);
+const ALL = ['meaning', 'reading', 'prosody'] as const;
 
 describe('getAspectStatusSync', () => {
   it('meaning delegates to comprehensive resolution (passive tracking known)', () => {
@@ -135,13 +136,16 @@ describe('getEffectiveKnowledge', () => {
 
   it('excludes unavailable aspects from the denominator', () => {
     const lk = langKey('ja', hashWordSync('猫'));
-    const deps = makeDeps({
-      wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 5 }) },
-    });
+    const entry = makeEntry({ ease: 2.0, timesSeen: 5 });
+    entry.aspects = {
+      reading: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+    };
+    const deps = makeDeps({ wordKnowledge: { [lk]: entry } });
     const withAll = getEffectiveKnowledge('猫', 'video', deps, ['meaning', 'reading', 'prosody']);
     const meaningOnly = getEffectiveKnowledge('猫', 'video', deps, ['meaning']);
     expect(meaningOnly.strength).toBe(1);
     expect(meaningOnly.status).toBe('known');
+    // Inherited-known prosody no longer drags the blend down (domain-correct ×1000 scaling).
     expect(withAll.strength).toBeLessThan(1);
   });
 
@@ -151,6 +155,20 @@ describe('getEffectiveKnowledge', () => {
     expect(effectiveStatusFromStrength(0.5)).toBe('learning');
     expect(effectiveStatusFromStrength(0.99)).toBe('learning');
     expect(effectiveStatusFromStrength(1)).toBe('known');
+  });
+
+  it('reader profile ignores prosody: meaning+reading known with prosody unknown stays known', () => {
+    const lk = langKey('ja', hashWordSync('猫'));
+    const entry = makeEntry({ ease: 2.0, timesSeen: 5 });
+    entry.aspects = {
+      reading: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+      prosody: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+    };
+    const deps = makeDeps({ wordKnowledge: { [lk]: entry } });
+
+    expect(getEffectiveKnowledge('猫', 'reader', deps, ['meaning', 'reading', 'prosody']).status).toBe('known');
+    // Video weights prosody: the same state is not fully known there.
+    expect(getEffectiveKnowledge('猫', 'video', deps, ['meaning', 'reading', 'prosody']).status).toBe('learning');
   });
 });
 
@@ -162,7 +180,7 @@ describe('applyAspectWrite', () => {
     entry.aspects = {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1, inherited: true },
     };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, ALL);
     expect(entry.aspects.reading?.status).toBe('learning');
     expect(entry.aspects.reading?.inherited).toBeUndefined();
   });
@@ -173,7 +191,7 @@ describe('applyAspectWrite', () => {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, ALL);
     expect(entry.aspects?.prosody?.status).toBe('learning');
     expect(entry.aspects?.prosody?.ease).toBe(1.55);
   });
@@ -184,13 +202,13 @@ describe('applyAspectWrite', () => {
       reading: { status: 'learning', ease: 1.55, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       prosody: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'known', ease: 1.8, ...base }, easeFor);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'known', ease: 1.8, ...base }, easeFor, ALL);
     expect(entry.aspects.prosody?.status).toBe('unknown');
   });
 
   it('down-inits prosody when it has no record', () => {
     const entry = makeEntry();
-    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, ALL);
     expect(entry.aspects?.prosody?.status).toBe('learning');
     expect(entry.aspects?.prosody?.inherited).toBe(true);
   });
@@ -201,18 +219,26 @@ describe('applyAspectWrite', () => {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'unknown', ease: 1.3, ...base }, easeFor);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'unknown', ease: 1.3, ...base }, easeFor, ALL);
     expect(entry.aspects.prosody?.status).toBe('unknown');
-    applyAspectWrite(entry, { aspect: 'prosody', status: 'known', ease: 1.9, ...base }, easeFor);
+    applyAspectWrite(entry, { aspect: 'prosody', status: 'known', ease: 1.9, ...base }, easeFor, ALL);
     expect(entry.aspects.prosody?.status).toBe('known');
     expect(entry.aspects.reading?.status).toBe('unknown');
+  });
+
+  it('cascades only to aspects the language makes available', () => {
+    // A language with reading but no prosody: no phantom prosody records.
+    const noProsody = ['meaning', 'reading'] as const;
+    const entry = makeEntry();
+    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, noProsody);
+    expect(entry.aspects?.prosody).toBeUndefined();
   });
 });
 
 describe('applyMeaningCascade', () => {
   it('down-inits reading and prosody inherited from meaning', () => {
     const entry = makeEntry();
-    applyMeaningCascade(entry, 'known', 100, 'Manual', easeFor, undefined);
+    applyMeaningCascade(entry, 'known', 100, 'Manual', easeFor, undefined, ALL);
     expect(entry.aspects?.reading?.status).toBe('known');
     expect(entry.aspects?.reading?.inherited).toBe(true);
     expect(entry.aspects?.prosody?.status).toBe('known');
@@ -225,7 +251,7 @@ describe('applyMeaningCascade', () => {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyMeaningCascade(entry, 'learning', 100, 'Manual', easeFor, 'known');
+    applyMeaningCascade(entry, 'learning', 100, 'Manual', easeFor, 'known', ALL);
     expect(entry.aspects.reading?.status).toBe('learning');
     expect(entry.aspects.prosody?.status).toBe('learning');
   });
@@ -235,7 +261,7 @@ describe('applyMeaningCascade', () => {
     entry.aspects = {
       reading: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyMeaningCascade(entry, 'known', 100, 'Manual', easeFor, 'learning');
+    applyMeaningCascade(entry, 'known', 100, 'Manual', easeFor, 'learning', ALL);
     expect(entry.aspects.reading?.status).toBe('unknown');
     expect(entry.aspects.prosody?.status).toBe('known');
     expect(entry.aspects.prosody?.inherited).toBe(true);

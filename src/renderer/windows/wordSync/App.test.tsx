@@ -13,6 +13,7 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn((): { status: string;
 const mockClearAllWordSyncSeen = vi.fn();
 const mockSetWordKnowledgeEase = vi.fn();
 const mockSetAspectStatus = vi.fn();
+const mockAttributeKnowledgeFailure = vi.fn();
 const mockShowToast = vi.hoisted(() => vi.fn());
 const mockMarkWordSyncSeen = vi.fn();
 const mockRestoreWordSyncRating = vi.fn();
@@ -114,6 +115,7 @@ vi.mock('../../context', async () => {
     },
     setWordKnowledgeEase: mockSetWordKnowledgeEase,
     setAspectStatus: mockSetAspectStatus,
+    attributeKnowledgeFailure: mockAttributeKnowledgeFailure,
     markWordSyncSeen: mockMarkWordSyncSeen,
     clearAllWordSyncSeen: mockClearAllWordSyncSeen,
     restoreWordSyncRating: mockRestoreWordSyncRating,
@@ -253,6 +255,7 @@ describe('WordSyncContent', () => {
     mockClearAllWordSyncSeen.mockClear();
     mockSetWordKnowledgeEase.mockClear();
     mockSetAspectStatus.mockClear();
+    mockAttributeKnowledgeFailure.mockClear();
     mockShowToast.mockClear();
     mockMarkWordSyncSeen.mockClear();
     mockRestoreWordSyncRating.mockClear();
@@ -436,11 +439,11 @@ describe('WordSyncContent', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     await Promise.resolve();
     expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', expect.any(Number), 'あかい', 'ja');
-    expect(mockSetAspectStatus).not.toHaveBeenCalled();
+    expect(mockAttributeKnowledgeFailure).not.toHaveBeenCalled();
     dispose();
   });
 
-  it('attributes the failure to the reading aspect and anchors word ease at learning', async () => {
+  it('routes an aspect failure through the centralized hierarchical attribution', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { WordSyncContent } = await import('./App');
 
@@ -453,46 +456,14 @@ describe('WordSyncContent', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
     await Promise.resolve();
 
-    // Failed aspect flagged unknown…
-    expect(mockSetAspectStatus).toHaveBeenCalledWith('赤い', 'reading', 'unknown', 'manual', 'ja');
-    // …while the "almost know the word" claim anchors word ease at learning (SRS_EASE.DEFAULT_LEARNING).
-    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', 1.55, 'あかい', 'ja');
+    // The evidence semantics (failed aspect unknown, coarser aspects positive)
+    // live in the context method — wordSync delegates and marks the encounter.
+    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('赤い', 'reading', 'ja');
+    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
     // An aspect failure still counts as a sync encounter.
     expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
     expect(mockShowToast).toHaveBeenCalled();
     dispose();
-  });
-
-  it('does not lower word-level ease for a known word on aspect attribution', async () => {
-    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
-    // The word must enter the pool first (resolver: unknown), then read as known
-    // at rating time — a globally-known mock would exclude it from the pool entirely.
-    let resolveKnown = false;
-    mockGetComprehensiveWordStatusWithSourceSync.mockImplementation(() => (resolveKnown
-      ? { status: 'known', source: 'SRS', timesSeen: 10, ease: 2.0 }
-      : { status: 'unknown', source: 'None', timesSeen: 0 }));
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = render(() => <WordSyncContent />, container);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    resolveKnown = true;
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
-    await Promise.resolve();
-
-    expect(mockSetAspectStatus).toHaveBeenCalledWith('赤い', 'reading', 'unknown', 'manual', 'ja');
-    // The aspect failure stands alone — known word knowledge must not be squashed.
-    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
-    dispose();
-    // Restore the shared mock's default shape (mockImplementation persists across tests).
-    mockGetComprehensiveWordStatusWithSourceSync.mockImplementation(() => ({
-      status: 'unknown',
-      source: 'None',
-      timesSeen: 0,
-    }));
   });
 
   it('never pools words the comprehensive resolver marks known (e.g. via anki)', async () => {
@@ -532,7 +503,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
-    expect(mockSetAspectStatus).not.toHaveBeenCalled();
+    expect(mockAttributeKnowledgeFailure).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain('mlearn.WordSync.AttributionPrompt');
     expect(container.textContent).toContain('mlearn.WordSync.Unknown');
     dispose();
@@ -564,7 +535,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
     await Promise.resolve();
-    expect(mockSetAspectStatus).toHaveBeenCalled();
+    expect(mockAttributeKnowledgeFailure).toHaveBeenCalled();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await Promise.resolve();

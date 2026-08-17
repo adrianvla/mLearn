@@ -120,9 +120,12 @@ export function getEffectiveKnowledge(
     const w = weights[aspect];
     if (w <= 0) continue;
     const aspectStatus = getAspectStatusSync(word, aspect, deps);
+    // Aspect eases and the deps thresholds are app-domain (1.3–1.8+); normalizedStrength
+    // anchors default to the raw-factor domain (1300+). Scale ×1000 — same domain split
+    // as eventStrength in knowledgeHistory.
     const strength = aspect === 'meaning'
       ? statusToStrength(aspectStatus.status)
-      : normalizedStrength(aspectStatus.ease, deps.learningThreshold, deps.knownEaseThreshold);
+      : normalizedStrength(aspectStatus.ease * 1000, deps.learningThreshold * 1000, deps.knownEaseThreshold * 1000);
     weightedSum += w * strength;
     weightTotal += w;
   }
@@ -144,11 +147,15 @@ export interface AspectWriteInput {
   now: number;
 }
 
-const FINER_ASPECTS: Record<KnowledgeAspect, readonly ReadableAspect[]> = {
-  meaning: ['reading', 'prosody'],
-  reading: ['prosody'],
-  prosody: [],
-};
+const ASPECT_ORDER: readonly KnowledgeAspect[] = ['meaning', 'reading', 'prosody'];
+
+/** Aspects strictly finer than `aspect` among the language's available aspects — the metadata-defined hierarchy. */
+function finerAspects(aspect: KnowledgeAspect, availableAspects: readonly KnowledgeAspect[]): readonly ReadableAspect[] {
+  const start = availableAspects.indexOf(aspect) >= 0 ? availableAspects.indexOf(aspect) : ASPECT_ORDER.indexOf(aspect);
+  return availableAspects.filter(
+    (candidate): candidate is ReadableAspect => candidate !== 'meaning' && availableAspects.indexOf(candidate) > start,
+  );
+}
 
 function minStatus(a: WordStatus, b: WordStatus): WordStatus {
   return RANK_STATUS[Math.min(STATUS_RANK[a], STATUS_RANK[b])];
@@ -166,6 +173,7 @@ export function applyAspectWrite(
   entry: PassiveWordKnowledge,
   input: AspectWriteInput,
   easeForStatus: (status: WordStatus) => number,
+  availableAspects: readonly KnowledgeAspect[],
 ): void {
   if (!entry.aspects) entry.aspects = {};
   const aspects = entry.aspects;
@@ -180,7 +188,7 @@ export function applyAspectWrite(
     updatedAt: input.now,
   };
 
-  for (const finer of FINER_ASPECTS[input.aspect]) {
+  for (const finer of finerAspects(input.aspect, availableAspects)) {
     const finerRecord = aspects[finer];
     if (!finerRecord) {
       aspects[finer] = {
@@ -213,13 +221,14 @@ export function applyMeaningCascade(
   now: number,
   source: WordKnowledgeSource,
   easeForStatus: (status: WordStatus) => number,
-  previousMeaningStatus?: WordStatus,
+  previousMeaningStatus: WordStatus | undefined,
+  availableAspects: readonly KnowledgeAspect[],
 ): void {
   if (!entry.aspects) entry.aspects = {};
   const aspects = entry.aspects;
   const downgraded = previousMeaningStatus !== undefined && STATUS_RANK[status] < STATUS_RANK[previousMeaningStatus];
 
-  for (const finer of FINER_ASPECTS.meaning) {
+  for (const finer of finerAspects('meaning', availableAspects)) {
     const record = aspects[finer];
     if (!record) {
       aspects[finer] = {

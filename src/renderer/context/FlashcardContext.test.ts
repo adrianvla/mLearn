@@ -131,6 +131,12 @@ const mockLangData = vi.hoisted(() => ({
       },
     },
   },
+  ja2: {
+    name: 'Japanese Aspects',
+    settings: { fixed: {} },
+    textProcessing: { readingAnnotation: { type: 'script-reading', annotationScripts: ['Han'] } },
+    prosody: { type: 'japanese-pitch-accent' },
+  },
   ja: {
     name: 'Japanese',
     name_translated: '日本語',
@@ -3773,5 +3779,93 @@ describe('FlashcardProvider', () => {
       expect(mockBackend.translate).not.toHaveBeenCalled();
       dispose();
     });
+  });
+});
+
+describe('attributeKnowledgeFailure', () => {
+  it('failed prosody records negative prosody evidence and positive reading evidence', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+
+    ctx.attributeKnowledgeFailure('学校', 'prosody', 'ja2');
+
+    const entry = ctx.store.wordKnowledge[lk];
+    expect(entry?.aspects?.prosody?.status).toBe('unknown');
+    // Reading was successfully traversed → explicit learning record (real evidence, not inheritance).
+    expect(entry?.aspects?.reading?.status).toBe('learning');
+    expect(entry?.aspects?.reading?.inherited).toBeUndefined();
+    // Meaning positive evidence: word-level ease anchored at the learning band.
+    expect(entry?.ease).toBeGreaterThanOrEqual(mockSettings.easeThresholdLearning);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('failed reading leaves prosody without inference', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.attributeKnowledgeFailure('学校', 'reading', 'ja2');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    const entry = ctx.store.wordKnowledge[lk];
+    expect(entry?.aspects?.reading?.status).toBe('unknown');
+    // Only the write-time down-init record (display-identical to the fallback);
+    // no status change was claimed for prosody.
+    expect(entry?.aspects?.prosody?.status).toBe('unknown');
+    expect(entry?.aspects?.prosody?.inherited).toBe(true);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('never lowers existing coarser evidence: known reading stays known, no anchor on known meaning', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2',
+          aspects: { reading: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 5, updatedAt: 5 } },
+        },
+      },
+    }));
+
+    ctx.attributeKnowledgeFailure('学校', 'prosody', 'ja2');
+
+    const entry = ctx.store.wordKnowledge[lk];
+    expect(entry?.aspects?.reading?.status).toBe('known');
+    expect(entry?.aspects?.reading?.lastStatusChange).toBe(5);
+    expect(entry?.ease).toBe(2.5);
+    expect(entry?.aspects?.prosody?.status).toBe('unknown');
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('does not overwrite an inherited-known reading down to explicit learning', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: { ease: 2.0, lastSeen: 1, timesSeen: 2, timesHovered: 0, word: '学校', language: 'ja2' },
+      },
+    }));
+
+    ctx.attributeKnowledgeFailure('学校', 'prosody', 'ja2');
+
+    const entry = ctx.store.wordKnowledge[lk];
+    // Reading inherited-known from meaning: writing explicit learning would LOWER the display.
+    expect(entry?.aspects?.reading).toBeUndefined();
+    expect(entry?.ease).toBe(2.0);
+    expect(entry?.aspects?.prosody?.status).toBe('unknown');
+    dispose();
+    mockSettings.language = 'ja';
   });
 });

@@ -1063,6 +1063,14 @@ export interface LanguageTypographyConfig {
 export interface LanguageProsodyConfig {
   /** Prosody data model used by this language. */
   type?: 'none' | 'japanese-pitch-accent' | (string & {});
+  /**
+   * Which knowledge aspect this language's accentuation feature belongs to.
+   * Pitch-nuance features (Japanese) stay 'prosody' by default; accentuation that
+   * is required to read/pronounce the word correctly (e.g. Russian stress) sets
+   * 'reading' — it then participates in reading knowledge and creates no prosody
+   * knowledge aspect.
+   */
+  knowledgeAspect?: 'prosody' | 'reading';
   /** Path to the numeric position in raw dictionary prosody payloads; "*" walks array entries, e.g. ["tones", "*", "number"]. */
   positionPath?: string[];
   /** Path to a concise display value in raw dictionary prosody payloads; "*" walks array entries, e.g. ["tones", "*", "label"]. */
@@ -1444,7 +1452,10 @@ export interface LanguageData {
 
 export function getAvailableAspects(language?: LanguageData): KnowledgeAspect[] {
   const aspects: KnowledgeAspect[] = ['meaning'];
-  if (language?.textProcessing?.readingAnnotation) aspects.push('reading');
+  // An accent feature declared as reading-critical participates in reading knowledge.
+  const accentInReading = language?.prosody?.knowledgeAspect === 'reading';
+  if (language?.textProcessing?.readingAnnotation || accentInReading) aspects.push('reading');
+  if (accentInReading) return aspects;
   if (language?.prosody?.type && language.prosody.type !== 'none') aspects.push('prosody');
   return aspects;
 }

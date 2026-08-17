@@ -37,4 +37,20 @@ describe('getAvailableAspects', () => {
   it('returns meaning only when language data is missing', () => {
     expect(getAvailableAspects()).toEqual(['meaning']);
   });
+
+  it('maps an accent feature declared reading-critical into the reading aspect (no prosody aspect)', () => {
+    // Russian-like metadata: stress accentuation that is required to read the word.
+    expect(getAvailableAspects({
+      name: 'Stress Language',
+      settings: { fixed: {} },
+      prosody: { type: 'stress-accent', knowledgeAspect: 'reading' },
+    })).toEqual(['meaning', 'reading']);
+  });
+
+  it('keeps a pitch-nuance accent feature in the prosody aspect', () => {
+    expect(getAvailableAspects({
+      ...readingLanguage,
+      prosody: { type: 'japanese-pitch-accent', knowledgeAspect: 'prosody' },
+    })).toEqual(['meaning', 'reading', 'prosody']);
+  });
 });

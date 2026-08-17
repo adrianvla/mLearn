@@ -17,6 +17,7 @@ let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
 const mockAnswerCard = vi.fn(() => false);
 const mockSetAspectStatus = vi.fn();
+const mockAttributeKnowledgeFailure = vi.fn();
 
 const flushEffects = () => new Promise<void>((resolve) => {
   const channel = new MessageChannel();
@@ -62,6 +63,7 @@ vi.mock('../../context', () => ({
     updateFlashcardContent: vi.fn(),
     updateFlashcard: vi.fn(),
     setAspectStatus: mockSetAspectStatus,
+    attributeKnowledgeFailure: mockAttributeKnowledgeFailure,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0, ease: 0 }),
     getWordKnowledge: () => ({}),
   }),
@@ -431,7 +433,7 @@ describe('FlashcardReview failure attribution', () => {
     if (!button) throw new Error('Wrong reading button missing');
     button.click();
 
-    expect(mockSetAspectStatus).toHaveBeenCalledWith('犬', 'reading', 'unknown', 'manual', 'ja');
+    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('犬', 'reading', 'ja');
     expect(toastMocks.showToast).toHaveBeenCalledWith(expect.objectContaining({
       message: 'Marked Reading as unknown',
       variant: 'success',
@@ -451,7 +453,7 @@ describe('FlashcardReview failure attribution', () => {
     if (!button) throw new Error('Wrong prosody button missing');
     button.click();
 
-    expect(mockSetAspectStatus).toHaveBeenCalledWith('犬', 'prosody', 'unknown', 'manual', 'ja');
+    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('犬', 'prosody', 'ja');
     expect(toastMocks.showToast).toHaveBeenCalledWith(expect.objectContaining({
       message: 'Marked Prosody as unknown',
       variant: 'success',

@@ -365,6 +365,10 @@ export const IPC_CHANNELS = {
   WORLD_REMEMBER_THIS: 'world-remember-this',
   WORLD_INTEGRATE: 'world-integrate',
   WORLD_PROMOTE_PARTICIPANT: 'world-promote-participant',
+  WORLD_CREATE_PARTICIPANT: 'world-create-participant',
+  WORLD_UPDATE_PARTICIPANT: 'world-update-participant',
+  WORLD_DELETE_PARTICIPANT: 'world-delete-participant',
+  WORLD_CLEAR_UNREAD: 'world-clear-unread',
 
   // Open the room window at a specific room (optionally deep-linked to an event)
   OPEN_ROOM_EVENT: 'open-room-event',
@@ -458,7 +462,9 @@ export type KnowledgeSurface = typeof KNOWLEDGE_SURFACES[number];
 
 export const SURFACE_WEIGHTS: Record<KnowledgeSurface, { meaning: number; reading: number; prosody: number }> = {
   video: { meaning: 0.5, reading: 0.35, prosody: 0.15 },
-  reader: { meaning: 0.8, reading: 0.15, prosody: 0.05 },
+  // Prosody is irrelevant to text comprehension: meaning+reading known with prosody
+  // unknown must resolve as known, not 0.95 → learning.
+  reader: { meaning: 0.85, reading: 0.15, prosody: 0 },
   review: { meaning: 1, reading: 0, prosody: 0 },
   other: { meaning: 1, reading: 0, prosody: 0 },
 };

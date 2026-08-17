@@ -97,7 +97,6 @@ export const WordSyncContent: Component = () => {
     store,
     isLoading,
     setWordKnowledgeEase,
-    setAspectStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,
     restoreWordSyncRating,
@@ -105,6 +104,7 @@ export const WordSyncContent: Component = () => {
     getWordKnowledgeSnapshotForForms,
     getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
+    attributeKnowledgeFailure,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
@@ -395,15 +395,9 @@ export const WordSyncContent: Component = () => {
     if (aspect === 'meaning') {
       setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
     } else {
-      // A narrow failure claim ("only the reading/prosody failed") implies the
-      // broader knowledge is intact — "almost know the word". Failed aspect →
-      // unknown; word-level ease anchored at learning, raised but never lowered
-      // (a known word stays known; the aspect failure stands alone).
-      setAspectStatus(w.word, aspect, 'unknown', 'manual', settings.language);
-      const resolved = getComprehensiveWordStatusWithSourceSync(w.word, settings.language);
-      if ((resolved?.ease ?? 0) < RATING_EASE.learning) {
-        setWordKnowledgeEase(w.word, RATING_EASE.learning, displayedReading(), settings.language);
-      }
+      // Centralized hierarchical attribution: failed aspect → unknown, coarser
+      // aspects (meaning, and reading when prosody failed) get positive evidence.
+      attributeKnowledgeFailure(w.word, aspect, settings.language);
       showToast({
         message: t('mlearn.Flashcards.Review.Attribution.Marked', {
           aspect: t(aspect === 'reading' ? 'mlearn.Knowledge.Aspect.Reading' : 'mlearn.Knowledge.Aspect.Prosody'),

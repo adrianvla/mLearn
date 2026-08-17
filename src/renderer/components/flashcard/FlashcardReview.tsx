@@ -53,7 +53,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
     updateFlashcard,
-    setAspectStatus,
+    attributeKnowledgeFailure,
   } = useFlashcards();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
@@ -162,9 +162,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleAttribution = (aspect: 'reading' | 'prosody') => {
     const card = currentCard();
     if (!card) return;
-    // The aspect is what failed → unknown. The card's SRS already recorded the
-    // overall failure; this only flags the weak surface (broader knowledge intact).
-    setAspectStatus(card.content.front, aspect, 'unknown', 'manual', languageForCard(card));
+    // Centralized hierarchical attribution: failed aspect → unknown, coarser
+    // aspects get positive evidence. The card's SRS already recorded the overall failure.
+    attributeKnowledgeFailure(card.content.front, aspect, languageForCard(card));
     showToast({
       message: t('mlearn.Flashcards.Review.Attribution.Marked', {
         aspect: t(aspect === 'reading' ? 'mlearn.Knowledge.Aspect.Reading' : 'mlearn.Knowledge.Aspect.Prosody'),

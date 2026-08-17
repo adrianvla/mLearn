@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
+import { DEFAULT_SETTINGS, getAvailableAspects, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
 import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -32,7 +32,7 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
-import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay } from '../utils/aspectKnowledge';
+import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync } from '../utils/aspectKnowledge';
 import { appendEvents } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
@@ -309,6 +309,8 @@ interface FlashcardContextValue {
   setComprehensiveWordStatus: (word: string, status: WordStatus, language?: string) => void;
   /** Write a reading/prosody aspect status with down-init/down-squash cascade across all surface-form hashes */
   setAspectStatus: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
+  /** Failure attribution: failed aspect → unknown, coarser aspects get positive evidence (hierarchical). */
+  attributeKnowledgeFailure: (word: string, failedAspect: Exclude<KnowledgeAspect, 'meaning'>, language?: string) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
   // Word sync seen tracking
@@ -2577,42 +2579,29 @@ export const FlashcardProvider: ParentComponent = (props) => {
     settings.easeThresholdKnown ?? ((settings.known_ease_threshold ?? DEFAULT_SETTINGS.known_ease_threshold) / 1000)
   );
 
+  const comprehensiveDeps = (word: string, language: string): Parameters<typeof getComprehensiveWordStatusWithSource>[1] => ({
+    getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
+    getWordForms: (value: string) => getWordFormsForLanguage(value, language),
+    hashWordSync: SRS.hashWordSync,
+    langKey,
+    language,
+    knownUntracked: store.knownUntracked,
+    ignoredWords: store.ignoredWords,
+    wordKnowledge: store.wordKnowledge,
+    knownEaseThreshold: passiveKnownEaseThreshold(),
+    learningThreshold: passiveLearningEaseThreshold(),
+    getCardByWordSync: (value: string) => getCardByWordForLanguageSync(value, language),
+    ankiStatus: getAnkiStatusForWord(word, language),
+    sourceOrder: settings.knowledgeSourceOrder,
+    resolutionMode: settings.knowledgeResolutionMode,
+  });
+
   const getComprehensiveWordStatusSync = (word: string, language = settings.language): WordStatus => {
-    return getComprehensiveWordStatus(word, {
-      getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
-      getWordForms: (value: string) => getWordFormsForLanguage(value, language),
-      hashWordSync: SRS.hashWordSync,
-      langKey,
-      language,
-      knownUntracked: store.knownUntracked,
-      ignoredWords: store.ignoredWords,
-      wordKnowledge: store.wordKnowledge,
-      knownEaseThreshold: passiveKnownEaseThreshold(),
-      learningThreshold: passiveLearningEaseThreshold(),
-      getCardByWordSync: (value: string) => getCardByWordForLanguageSync(value, language),
-      ankiStatus: getAnkiStatusForWord(word, language),
-      sourceOrder: settings.knowledgeSourceOrder,
-      resolutionMode: settings.knowledgeResolutionMode,
-    });
+    return getComprehensiveWordStatus(word, comprehensiveDeps(word, language));
   };
 
   const getComprehensiveWordStatusWithSourceSync = (word: string, language = settings.language) => {
-    return getComprehensiveWordStatusWithSource(word, {
-      getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
-      getWordForms: (value: string) => getWordFormsForLanguage(value, language),
-      hashWordSync: SRS.hashWordSync,
-      langKey,
-      language,
-      knownUntracked: store.knownUntracked,
-      ignoredWords: store.ignoredWords,
-      wordKnowledge: store.wordKnowledge,
-      knownEaseThreshold: passiveKnownEaseThreshold(),
-      learningThreshold: passiveLearningEaseThreshold(),
-      getCardByWordSync: (value: string) => getCardByWordForLanguageSync(value, language),
-      ankiStatus: getAnkiStatusForWord(word, language),
-      sourceOrder: settings.knowledgeSourceOrder,
-      resolutionMode: settings.knowledgeResolutionMode,
-    });
+    return getComprehensiveWordStatusWithSource(word, comprehensiveDeps(word, language));
   };
 
   const isWordKnownComprehensiveSync = (word: string, language = settings.language): boolean => (
@@ -2780,7 +2769,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           if (st === 'learning') return settings.easeThresholdLearning + buffer;
           if (st === 'known') return settings.easeThresholdKnown + buffer;
           return settings.easeThresholdUnknown + buffer;
-        }, previousMeaningStatus);
+        }, previousMeaningStatus, getAvailableAspects(languageDataFor(lang) ?? undefined));
         if (scriptForm) {
           const recognize = entry.forms?.[scriptForm]?.recognize ?? {
             ease: entry.ease,
@@ -2849,7 +2838,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           ease: easeForStatus(status),
           source: aspectSourceToDisplay(source),
           now,
-        }, easeForStatus);
+        }, easeForStatus, getAvailableAspects(languageDataFor(lang) ?? undefined));
         entry.lastStatusChange = now;
         if (prior !== status) {
           aspectEvents[lk] = [{
@@ -2862,6 +2851,45 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
     if (Object.keys(aspectEvents).length > 0) {
       appendEvents(aspectEvents).catch((e) => log.warn('knowledge event append failed:', e));
+    }
+  };
+
+  /**
+   * Failure attribution ("where did knowledge fail?"). The failed aspect records
+   * negative evidence (unknown). Every coarser aspect in the language's aspect
+   * hierarchy was successfully traversed by the same interaction and records
+   * positive evidence: meaning via the word-level ease anchor (raised to the
+   * learning band, never lowered — "almost know the word"), finer coarser aspects
+   * (e.g. reading when prosody failed) via an explicit learning write, only when
+   * currently below learning so inherited states are never overwritten down.
+   * Aspects finer than the failure get no inference. These are real interaction
+   * observations — unlike inheritance fallback, they emit events.
+   */
+  const attributeKnowledgeFailure = (
+    word: string,
+    failedAspect: Exclude<KnowledgeAspect, 'meaning'>,
+    language = settings.language,
+  ) => {
+    const available = getAvailableAspects(languageDataFor(language) ?? undefined);
+    setAspectStatus(word, failedAspect, 'unknown', 'manual', language);
+
+    // Aspect evidence first, judged against the PRE-anchor meaning state: the
+    // meaning anchor below raises meaning to learning, which reading would then
+    // inherit — and the explicit evidence write would be skipped as redundant.
+    const failedIndex = available.indexOf(failedAspect);
+    if (failedIndex >= 1) {
+      for (const aspect of available.slice(1, failedIndex)) {
+        if (aspect === 'meaning') continue;
+        const current = getAspectStatusSync(word, aspect, comprehensiveDeps(word, language));
+        if (current.status === 'unknown') {
+          setAspectStatus(word, aspect, 'learning', 'manual', language);
+        }
+      }
+    }
+
+    const meaning = getComprehensiveWordStatusWithSourceSync(word, language);
+    if ((meaning.ease ?? 0) < settings.easeThresholdLearning) {
+      setWordKnowledgeEase(word, settings.easeThresholdLearning + settings.manualStatusEaseBuffer, undefined, language);
     }
   };
 
@@ -3776,6 +3804,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     restoreWordSyncRating,
     setComprehensiveWordStatus,
     setAspectStatus,
+    attributeKnowledgeFailure,
     setWordBankStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,
