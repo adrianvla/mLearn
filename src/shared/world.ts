@@ -84,6 +84,13 @@ export interface MemoryEventPayload {
   label?: string;
 }
 
+/** 'consolidation' — Dreamer window marker; idempotency key for consolidation runs. */
+export interface ConsolidationPayload {
+  windowStart: number; // createdAt of oldest Sea event in the consolidated window
+  windowEnd: number; // createdAt of newest; a run covering <= existing windowEnd is a no-op
+  producedEventIds: string[]; // beliefs/resolutions this run appended (audit + resume)
+}
+
 // ---------------------------------------------------------------------------
 // Entities
 // ---------------------------------------------------------------------------
