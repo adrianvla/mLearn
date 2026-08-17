@@ -10,25 +10,13 @@
 import type { LLMChatMessage, LLMToolCall, LLMToolDefinition, LLMStreamChunk } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { getLogger } from '../../../shared/utils/logger';
+import { stripWikitext } from '../../services/wikiResearch';
 
 const log = getLogger("renderer.conversationAgent.wikiExplorationAgent");
 
 export interface WikiExplorationResult {
   storyContext: string;
   storyPageTitle?: string;
-}
-
-/** Strip wikitext markup to plain text */
-function stripWikitext(text: string): string {
-  return text
-    .replace(/\[\[(?:File|Image):[^\]]*\]\]/gi, '')
-    .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1')
-    .replace(/\{\{[^}]*\}\}/g, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/\{\{Ref\|[^}]*\}\}/gi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/^[ \t]+|[ \t]+$/gm, '')
-    .trim();
 }
 
 const WIKI_TOOLS: LLMToolDefinition[] = [

@@ -101,8 +101,13 @@ function inAbsence(source: AbsenceSource, seq: number): boolean {
   return removedAt >= 0 && seq > removedAt; // removed, never re-added
 }
 
-function isVisibleFor(participantId: string, absence: AbsenceSource, e: JournalEvent): boolean {
-  return e.witnesses.includes(participantId) && !inAbsence(absence, e.seq);
+function isVisibleFor(
+  participantId: string,
+  absence: AbsenceSource,
+  e: JournalEvent,
+  capabilities?: Participant['capabilities'],
+): boolean {
+  return (capabilities?.witnessScope === 'all' || e.witnesses.includes(participantId)) && !inAbsence(absence, e.seq);
 }
 
 function isMemoryKind(value: unknown): value is MemoryEntry['kind'] {
@@ -120,9 +125,13 @@ function messageText(payload: unknown): string | undefined {
  * witnessed that are not inside any of their absence intervals. Absence
  * intervals are derived from 'membership' events within `events` itself.
  */
-export function visibleEventsFor(participantId: string, events: JournalEvent[]): JournalEvent[] {
+export function visibleEventsFor(
+  participantId: string,
+  events: JournalEvent[],
+  capabilities?: Participant['capabilities'],
+): JournalEvent[] {
   const absence = absenceSource(participantId, events);
-  return events.filter((e) => isVisibleFor(participantId, absence, e));
+  return events.filter((e) => isVisibleFor(participantId, absence, e, capabilities));
 }
 
 /**
@@ -132,13 +141,14 @@ export function visibleEventsFor(participantId: string, events: JournalEvent[]):
  */
 export function compileContext(input: CompileContextInput): CompiledContext {
   const { participant, seaEvents, threadEvents, grounding, learnerProjection } = input;
+  const { capabilities } = participant;
 
   // Membership events are sea-scoped (durable roster changes); the intervals
   // they open apply to thread events too, so a removed participant sees
   // nothing of the gap in either stream.
   const absence = absenceSource(participant.id, seaEvents);
-  const visibleSea = seaEvents.filter((e) => isVisibleFor(participant.id, absence, e));
-  const visibleThread = (threadEvents ?? []).filter((e) => isVisibleFor(participant.id, absence, e));
+  const visibleSea = seaEvents.filter((e) => isVisibleFor(participant.id, absence, e, capabilities));
+  const visibleThread = (threadEvents ?? []).filter((e) => isVisibleFor(participant.id, absence, e, capabilities));
 
   const context: CompiledContext = {
     persona: { text: participant.personaText, facets: participant.facets ?? {} },

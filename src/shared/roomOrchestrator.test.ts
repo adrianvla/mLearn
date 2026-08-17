@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { visibleEventsFor } from './contextCompiler';
 import {
   applyMembershipChange,
   makeThread,
@@ -7,6 +8,7 @@ import {
   runRoomTurn,
   type RoomAgentRunner,
 } from './roomOrchestrator';
+import { selectSpeaker } from './speakerSelection';
 import {
   HARNESS_ACTOR,
   USER_ACTOR,
@@ -143,6 +145,50 @@ describe('projectHistoryForParticipant', () => {
     expect(projectHistoryForParticipant(events, 'p_a', [a])).toEqual([
       { role: 'user', content: 'Hi' },
     ]);
+  });
+});
+
+describe('recorder witness scope', () => {
+  it('lets an all-scope recorder project whispers without exposing them to other participants', () => {
+    const alice = participant('p_alice', 'Alice');
+    const bob = participant('p_bob', 'Bob');
+    const recorder: Participant = {
+      ...participant('p_recorder', '記録', { speaking_propensity: 0.05 }),
+      capabilities: { witnessScope: 'all' },    };
+    const events = [
+      messageEvent('evt_1', 1, USER_ACTOR, 'Hello everyone', [alice.id, bob.id, recorder.id, USER_ACTOR]),
+      messageEvent('evt_2', 2, alice.id, 'A private note', [alice.id, USER_ACTOR]),
+    ];
+
+    const recorderEvents = visibleEventsFor(recorder.id, events, recorder.capabilities);
+    const bobEvents = visibleEventsFor(bob.id, events);
+    const aliceEvents = visibleEventsFor(alice.id, events);
+
+    expect(recorderEvents).toEqual(events);
+    expect(bobEvents).toEqual([events[0]]);
+    expect(aliceEvents).toEqual(events);
+    expect(projectHistoryForParticipant(recorderEvents, recorder.id, [alice, bob, recorder]).map((e) => e.content)).toContain('Alice: A private note');
+    expect(projectHistoryForParticipant(bobEvents, bob.id, [alice, bob, recorder]).map((e) => e.content)).not.toContain('Alice: A private note');
+  });
+
+  it('keeps witness scope orthogonal to facet-based speaker eligibility', () => {
+    const alice = participant('p_alice', 'Alice');
+    const bob = participant('p_bob', 'Bob');
+    const recorder: Participant = {
+      ...participant('p_recorder', '記録', { speaking_propensity: 0.05 }),
+      capabilities: { witnessScope: 'all' },    };
+
+    for (const signals of [undefined, { lastEventText: 'generic text' }, { lastEventText: 'hello Alice' }]) {
+      expect(selectSpeaker([alice, bob, recorder], signals)).not.toBe(recorder.id);
+    }
+
+    const silent = participant('p_silent', 'Silent', { speaking_propensity: 0 });
+    expect(selectSpeaker([recorder, silent], { lastEventText: 'Hey 記録, what did she say?' })).toBe(recorder.id);
+
+    const observer: Participant = {
+      ...participant('p_observer', 'Observer'),
+      capabilities: { witnessScope: 'all' },    };
+    expect(selectSpeaker([observer, silent], { lastEventText: 'generic text' })).toBe(observer.id);
   });
 });
 

@@ -147,6 +147,7 @@ export interface Participant {
   facets?: Record<string, number | string>; // open-ended behavioral facets, provenance-tagged (D17+)
   canon?: CanonAnchor; // RP participants only
   snapshotOf?: string; // rewind snapshots → persistent participant id (D16+)
+  capabilities?: { witnessScope?: 'room' | 'all' }; // harness flags, not identity (D17+)
   voiceSampleId?: string;
   profilePhoto?: string;
   setupComplete: boolean;
