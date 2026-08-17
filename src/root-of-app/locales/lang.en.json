@@ -1380,6 +1380,23 @@
       "UnknownWords": "Unknown Words",
       "WordsSeen": "Words Seen"
     },
+    "MemoryBrowser": {
+      "Empty": "No memory entries yet.",
+      "Loading": "Loading memory...",
+      "Open": "Open Memory Browser",
+      "OpenInAgent": "Memory Browser",
+      "Sections": {
+        "Beliefs": "Beliefs",
+        "Episodes": "Episodes",
+        "OpenLoops": "Open Loops",
+        "Relationships": "Relationships",
+        "RoomCulture": "Room Culture"
+      },
+      "Tabs": {
+        "Room": "Room"
+      },
+      "Title": "Memory Browser"
+    },
     "Notifications": {
       "AnkiCacheLoaded": "Anki flashcards loaded from cache (Anki appears offline)",
       "MigrationComplete": "Data Migration Complete",

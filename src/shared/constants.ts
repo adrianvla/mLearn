@@ -354,11 +354,17 @@ export const IPC_CHANNELS = {
   JOURNAL_QUERY: 'journal-query',
   JOURNAL_READ_SEA: 'journal-read-sea',
   JOURNAL_READ_THREAD: 'journal-read-thread',
+  // Erasure physically removes thread-scoped lines and appends a 'deletion'
+  // Sea event carrying source ids only (journal is logically append-only, D11+).
+  JOURNAL_ERASE_THREAD: 'journal-erase-thread',
 
   // World (rooms/threads/participants entity state)
   WORLD_GET_STATE: 'world-get-state',
   WORLD_APPLY_MEMBERSHIP: 'world-apply-membership',
   WORLD_CREATE_THREAD: 'world-create-thread',
+  WORLD_REMEMBER_THIS: 'world-remember-this',
+  WORLD_INTEGRATE: 'world-integrate',
+  WORLD_PROMOTE_PARTICIPANT: 'world-promote-participant',
 
   // Open the room window at a specific room (optionally deep-linked to an event)
   OPEN_ROOM_EVENT: 'open-room-event',
@@ -382,6 +388,7 @@ export const WINDOW_TYPES = {
   CONNECT_QR: 'connect-qr',
   CONVERSATION_AGENT: 'conversation-agent',
   ROOM: 'room',
+  MEMORY_BROWSER: 'memory-browser',
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',

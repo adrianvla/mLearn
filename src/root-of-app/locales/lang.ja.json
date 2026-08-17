@@ -1380,6 +1380,23 @@
       "UnknownWords": "未知の単語",
       "WordsSeen": "見た単語"
     },
+    "MemoryBrowser": {
+      "Empty": "メモリエントリはまだありません。",
+      "Loading": "メモリを読み込み中...",
+      "Open": "メモリブラウザを開く",
+      "OpenInAgent": "メモリブラウザ",
+      "Sections": {
+        "Beliefs": "信念",
+        "Episodes": "エピソード",
+        "OpenLoops": "未解決ループ",
+        "Relationships": "関係",
+        "RoomCulture": "ルーム文化"
+      },
+      "Tabs": {
+        "Room": "ルーム"
+      },
+      "Title": "メモリブラウザ"
+    },
     "Notifications": {
       "AnkiCacheLoaded": "Ankiフラッシュカードをキャッシュから読み込みました（Ankiはオフラインのようです）",
       "MigrationComplete": "データ移行が完了しました",

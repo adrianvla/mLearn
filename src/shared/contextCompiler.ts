@@ -23,6 +23,7 @@ import type {
   Participant,
   ScenarioGrounding,
 } from './world';
+import { projectionForCaller, type RoomMemoryProjection } from './memoryProjection';
 
 /** Per-participant learner state merged into the compiled context (pass-through). */
 export interface LearnerProjection {
@@ -42,6 +43,8 @@ export interface CompiledContext {
   openLoops: { text: string; createdAt: number }[];
   learnerProjection?: LearnerProjection;
   recentThreadEvents: { seq: number; type: EventType; actorId: string; text?: string; createdAt: number }[];
+  /** The caller's own witness-scoped view of the room's memory state. */
+  callerProjection: RoomMemoryProjection;
 }
 
 /** Everything compileContext needs to project one participant's context. */
@@ -153,6 +156,7 @@ export function compileContext(input: CompileContextInput): CompiledContext {
         text: messageText(e.payload),
         createdAt: e.createdAt,
       })),
+    callerProjection: projectionForCaller(seaEvents, participant.id),
   };
 
   if (participant.canon) {

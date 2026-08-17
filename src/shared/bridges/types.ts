@@ -46,7 +46,7 @@ import type {
   PluginWindowPayload,
 } from '../plugins/types';
 import type { KnowledgeEventLog } from '../knowledgeEvents';
-import type { JournalEvent, JournalEventDraft, MembershipChangeResult, Thread, WorldSnapshot } from '../world';
+import type { IntegrateThreadInput, IntegrateThreadResult, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, RememberThisInput, Thread, WorldSnapshot } from '../world';
 
 // ============================================================================
 // Sub-Interfaces
@@ -403,12 +403,16 @@ export interface JournalBridge {
   queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }) => Promise<JournalEvent[]>;
   readSeaProjection: (roomId: string, limit?: number) => Promise<JournalEvent[]>;
   readThread: (roomId: string, threadId: string) => Promise<JournalEvent[]>;
+  eraseThread: (roomId: string, threadId: string) => Promise<{ deletedCount: number }>;
 }
 
 export interface WorldBridge {
   getWorldState: () => Promise<WorldSnapshot>;
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<MembershipChangeResult>;
   createThread: (roomId: string, title?: string) => Promise<Thread>;
+  rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
+  integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
+  promoteParticipant: (participantId: string) => Promise<Participant>;
 }
 
 // ============================================================================

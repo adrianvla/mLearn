@@ -1380,6 +1380,23 @@
       "UnknownWords": "Unbekannte Wörter",
       "WordsSeen": "Gesehene Wörter"
     },
+    "MemoryBrowser": {
+      "Empty": "Noch keine Speichereinträge.",
+      "Loading": "Speicher wird geladen...",
+      "Open": "Speicher-Browser öffnen",
+      "OpenInAgent": "Speicher-Browser",
+      "Sections": {
+        "Beliefs": "Überzeugungen",
+        "Episodes": "Episoden",
+        "OpenLoops": "Offene Schleifen",
+        "Relationships": "Beziehungen",
+        "RoomCulture": "Raumkultur"
+      },
+      "Tabs": {
+        "Room": "Raum"
+      },
+      "Title": "Speicher-Browser"
+    },
     "Notifications": {
       "AnkiCacheLoaded": "Anki-Lernkarten aus dem Cache geladen (Anki scheint offline zu sein)",
       "MigrationComplete": "Datenmigration abgeschlossen",

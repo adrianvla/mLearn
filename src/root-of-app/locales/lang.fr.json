@@ -1380,6 +1380,23 @@
       "UnknownWords": "Mots inconnus",
       "WordsSeen": "Mots vus"
     },
+    "MemoryBrowser": {
+      "Empty": "Aucune entrée de mémoire pour l'instant.",
+      "Loading": "Chargement de la mémoire...",
+      "Open": "Ouvrir le navigateur de mémoire",
+      "OpenInAgent": "Navigateur de mémoire",
+      "Sections": {
+        "Beliefs": "Croyances",
+        "Episodes": "Épisodes",
+        "OpenLoops": "Boucles ouvertes",
+        "Relationships": "Relations",
+        "RoomCulture": "Culture de la salle"
+      },
+      "Tabs": {
+        "Room": "Salle"
+      },
+      "Title": "Navigateur de mémoire"
+    },
     "Notifications": {
       "AnkiCacheLoaded": "Cartes Anki chargées depuis le cache (Anki semble hors ligne)",
       "MigrationComplete": "Migration des données terminée",

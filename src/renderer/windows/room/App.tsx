@@ -323,14 +323,29 @@ export const RoomApp: Component = () => {
       <div class="room">
         <header class="room-header">
           <span class="room-header-title">{room()?.title || t('mlearn.Room.Title')}</span>
-          <button
-            type="button"
-            class="room-header-action"
-            onClick={() => void handleNewThread()}
-            disabled={!room() || isStreaming()}
-          >
-            {t('mlearn.Room.NewThread')}
-          </button>
+          <div class="room-header-actions">
+            <button
+              type="button"
+              class="room-header-icon"
+              aria-label={t('mlearn.MemoryBrowser.Open')}
+              title={t('mlearn.MemoryBrowser.Open')}
+              disabled={!room()}
+              onClick={() => getBridge().window.openWindow({ type: WINDOW_TYPES.MEMORY_BROWSER })}
+            >
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <path d="M2 3h12v10H2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+                <path d="M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="room-header-action"
+              onClick={() => void handleNewThread()}
+              disabled={!room() || isStreaming()}
+            >
+              {t('mlearn.Room.NewThread')}
+            </button>
+          </div>
         </header>
         <div class="room-body">
           <Show when={!isBooting()} fallback={<div class="room-loading">{t('mlearn.Room.Loading')}</div>}>

@@ -359,12 +359,16 @@ const journalBridge: JournalBridge = {
   queryEvents: (roomId, opts) => getIPC().queryEvents(roomId, opts),
   readSeaProjection: (roomId, limit) => getIPC().readSeaProjection(roomId, limit),
   readThread: (roomId, threadId) => getIPC().readThread(roomId, threadId),
+  eraseThread: (roomId, threadId) => getIPC().eraseThread(roomId, threadId),
 };
 
 const worldBridge: WorldBridge = {
   getWorldState: () => getIPC().getWorldState(),
   applyMembership: (roomId, participantId, kind) => getIPC().applyMembership(roomId, participantId, kind),
   createThread: (roomId, title) => getIPC().createThread(roomId, title),
+  rememberThis: (input) => getIPC().rememberThis(input),
+  integrateThread: (input) => getIPC().integrateThread(input),
+  promoteParticipant: (participantId) => getIPC().promoteParticipant(participantId),
 };
 
 const browserBridge: BrowserBridge = {

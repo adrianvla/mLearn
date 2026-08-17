@@ -22,7 +22,8 @@ import { app, ipcMain } from 'electron';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { EventScope, JournalEvent, JournalEventDraft } from '../../shared/world';
+import { HARNESS_ACTOR } from '../../shared/world';
+import type { DeletionPayload, EventScope, JournalEvent, JournalEventDraft } from '../../shared/world';
 
 const log = getLogger('electron.journal');
 
@@ -119,23 +120,25 @@ async function readStream(roomId: string, scope: EventScope): Promise<JournalEve
   });
 }
 
+async function appendEventUnlocked(roomId: string, draft: JournalEventDraft): Promise<JournalEvent> {
+  const filePath = streamFilePath(roomId, draft.scope);
+  const state = await loadStreamHead(streamKey(roomId, draft.scope), filePath);
+  const seq = state.headSeq + 1;
+  const event: JournalEvent = {
+    ...draft,
+    id: `evt_${Date.now().toString(36)}_${seq}_${Math.random().toString(36).slice(2, 10)}`,
+    seq,
+    createdAt: Date.now(),
+  };
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf-8');
+  state.headSeq = seq;
+  return event;
+}
+
 /** Assigns id/seq/createdAt and appends one line to the scope's stream file. */
 export async function appendEvent(roomId: string, draft: JournalEventDraft): Promise<JournalEvent> {
-  return enqueueWrite(async () => {
-    const filePath = streamFilePath(roomId, draft.scope);
-    const state = await loadStreamHead(streamKey(roomId, draft.scope), filePath);
-    const seq = state.headSeq + 1;
-    const event: JournalEvent = {
-      ...draft,
-      id: `evt_${Date.now().toString(36)}_${seq}_${Math.random().toString(36).slice(2, 10)}`,
-      seq,
-      createdAt: Date.now(),
-    };
-    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf-8');
-    state.headSeq = seq;
-    return event;
-  });
+  return enqueueWrite(() => appendEventUnlocked(roomId, draft));
 }
 
 export async function subscribeRoom(
@@ -167,6 +170,39 @@ export async function readSeaProjection(roomId: string, limit?: number): Promise
 
 export async function readThread(roomId: string, threadId: string): Promise<JournalEvent[]> {
   return readStream(roomId, { kind: 'thread', threadId });
+}
+
+/** Physically removes a thread stream, retaining only its event ids in Sea provenance. */
+export async function eraseThread(roomId: string, threadId: string): Promise<{ deletedCount: number }> {
+  return enqueueWrite(async () => {
+    const scope: EventScope = { kind: 'thread', threadId };
+    const filePath = streamFilePath(roomId, scope);
+    await loadStreamHead(streamKey(roomId, scope), filePath);
+    let events: JournalEvent[] = [];
+    try {
+      const raw = await fs.promises.readFile(filePath, 'utf-8');
+      events = raw
+        .split('\n')
+        .filter((line) => line.length > 0)
+        .map((line) => JSON.parse(line) as JournalEvent);
+      await fs.promises.unlink(filePath);
+    } catch (error: unknown) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
+    }
+    streamHeads.delete(streamKey(roomId, scope));
+    const sourceEventIds = events.map((event) => event.id);
+    const payload: DeletionPayload = { threadId, sourceEventIds };
+    await appendEventUnlocked(roomId, {
+      roomId,
+      scope: { kind: 'sea' },
+      type: 'deletion',
+      actorId: HARNESS_ACTOR,
+      witnesses: [],
+      payload,
+      provenance: { sourceThreadEventIds: sourceEventIds },
+    });
+    return { deletedCount: events.length };
+  });
 }
 
 export async function flushJournal(): Promise<void> {
@@ -201,5 +237,10 @@ export function setupJournalIPC(): void {
 
   ipcMain.handle(IPC_CHANNELS.JOURNAL_READ_THREAD, async (_event, roomId: string, threadId: string): Promise<JournalEvent[]> =>
     readThread(roomId, threadId)
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.JOURNAL_ERASE_THREAD,
+    async (_event, roomId: string, threadId: string): Promise<{ deletedCount: number }> => eraseThread(roomId, threadId)
   );
 }

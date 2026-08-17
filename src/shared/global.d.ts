@@ -317,11 +317,15 @@ sendLogRecord: (record: unknown) => void;
   queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }) => Promise<JournalEvent[]>;
   readSeaProjection: (roomId: string, limit?: number) => Promise<JournalEvent[]>;
   readThread: (roomId: string, threadId: string) => Promise<JournalEvent[]>;
+  eraseThread: (roomId: string, threadId: string) => Promise<{ deletedCount: number }>;
 
   // World
   getWorldState: () => Promise<import('./world').WorldSnapshot>;
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<import('./world').MembershipChangeResult>;
   createThread: (roomId: string, title?: string) => Promise<import('./world').Thread>;
+  rememberThis: (input: import('./world').RememberThisInput) => Promise<import('./world').JournalEvent>;
+  integrateThread: (input: import('./world').IntegrateThreadInput) => Promise<import('./world').IntegrateThreadResult>;
+  promoteParticipant: (participantId: string) => Promise<import('./world').Participant>;
   onOpenRoomEvent: (callback: (payload: import('./world').OpenRoomEventPayload) => void) => () => void;
 
   // Data Export/Import

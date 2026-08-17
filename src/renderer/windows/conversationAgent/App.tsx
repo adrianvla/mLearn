@@ -1767,6 +1767,14 @@ export const ConversationContent: Component = () => {
             >
               [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
             </button>
+            {' '}
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text-link)', 'text-decoration': 'underline', cursor: 'pointer' }}
+              onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}
+            >
+              [{t('mlearn.MemoryBrowser.OpenInAgent')}]
+            </button>
             <Show when={settings.agentSafetyChecker}>
               {' '}
               {t('mlearn.ConversationAgent.Banner.TerminationNotice')}

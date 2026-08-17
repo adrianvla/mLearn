@@ -548,6 +548,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_READ_SEA, roomId, limit),
   readThread: (roomId: string, threadId: string): Promise<import('../shared/world').JournalEvent[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_READ_THREAD, roomId, threadId),
+  eraseThread: (roomId: string, threadId: string): Promise<{ deletedCount: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_ERASE_THREAD, roomId, threadId),
 
   // ========== World ==========
   getWorldState: (): Promise<import('../shared/world').WorldSnapshot> =>
@@ -556,6 +558,12 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_APPLY_MEMBERSHIP, roomId, participantId, kind),
   createThread: (roomId: string, title?: string): Promise<import('../shared/world').Thread> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_THREAD, roomId, title),
+  rememberThis: (input: import('../shared/world').RememberThisInput): Promise<import('../shared/world').JournalEvent> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_REMEMBER_THIS, input),
+  integrateThread: (input: import('../shared/world').IntegrateThreadInput): Promise<import('../shared/world').IntegrateThreadResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_INTEGRATE, input),
+  promoteParticipant: (participantId: string): Promise<import('../shared/world').Participant> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_PROMOTE_PARTICIPANT, participantId),
   onOpenRoomEvent: (callback: (payload: import('../shared/world').OpenRoomEventPayload) => void) =>
     ipcOn(IPC_CHANNELS.OPEN_ROOM_EVENT, (_event, payload) => callback(payload)),
 

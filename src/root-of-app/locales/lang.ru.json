@@ -1380,6 +1380,23 @@
       "UnknownWords": "Незнакомые слова",
       "WordsSeen": "Слов встречено"
     },
+    "MemoryBrowser": {
+      "Empty": "Записей памяти пока нет.",
+      "Loading": "Загрузка памяти...",
+      "Open": "Открыть обзор памяти",
+      "OpenInAgent": "Обзор памяти",
+      "Sections": {
+        "Beliefs": "Убеждения",
+        "Episodes": "Эпизоды",
+        "OpenLoops": "Открытые циклы",
+        "Relationships": "Отношения",
+        "RoomCulture": "Культура комнаты"
+      },
+      "Tabs": {
+        "Room": "Комната"
+      },
+      "Title": "Обзор памяти"
+    },
     "Notifications": {
       "AnkiCacheLoaded": "Карточки Anki загружены из кэша (похоже, Anki сейчас недоступен)",
       "MigrationComplete": "Миграция данных завершена",

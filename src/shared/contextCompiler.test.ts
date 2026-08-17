@@ -244,4 +244,53 @@ describe('context compiler', () => {
     const ctx = compileContext({ participant: a, participants: [a], seaEvents: [], learnerProjection: proj });
     expect(ctx.learnerProjection).toEqual(proj);
   });
+
+  it('exposes the caller projection with witnessed relationship state', () => {
+    const sea = [belief(1, 'A', 'relationship', 'Trusts the user.', ['A', 'user'], { toId: 'user' })];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({ participant: a, participants: [a], seaEvents: sea });
+
+    expect(ctx.callerProjection.relationships).toEqual([
+      { fromId: 'A', toId: 'user', text: 'Trusts the user.', sourceEventId: 'evt_1', createdAt: 1001 },
+    ]);
+  });
+
+  it('exposes the caller witnessed beliefs as private knowledge', () => {
+    const sea = [belief(1, 'A', 'belief', 'A private belief.', ['A', 'user'])];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({ participant: a, participants: [a], seaEvents: sea });
+
+    expect(ctx.callerProjection.beliefs.map((m) => m.text)).toEqual(['A private belief.']);
+  });
+
+  it('keeps unwitnessed relationship and belief events out of the caller projection', () => {
+    const sea = [
+      belief(1, 'A', 'belief', 'A secret.', ['A', 'user']),
+      belief(2, 'B', 'belief', 'B secret.', ['B', 'user']),
+      belief(3, 'B', 'relationship', 'B trusts C.', ['B', 'C'], { toId: 'C' }),
+    ];
+    const a = participant({ id: 'A' });
+    const b = participant({ id: 'B', displayName: 'Brody' });
+
+    const ctxA = compileContext({ participant: a, participants: [a, b], seaEvents: sea });
+
+    expect(ctxA.callerProjection.beliefs.map((m) => m.text)).toEqual(['A secret.']);
+    expect(ctxA.callerProjection.relationships).toEqual([]);
+  });
+
+  it('applies membership absence to the caller projection', () => {
+    const sea = [
+      membership(5, 'A', 'removed', ['A', 'user']),
+      belief(6, 'A', 'belief', 'Heard while gone.', ['A', 'user']),
+      membership(9, 'A', 'added', ['A', 'user']),
+      belief(10, 'A', 'belief', 'Heard after return.', ['A', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({ participant: a, participants: [a], seaEvents: sea });
+
+    expect(ctx.callerProjection.beliefs.map((m) => m.text)).toEqual(['Heard after return.']);
+  });
 });

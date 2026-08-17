@@ -242,3 +242,61 @@ export interface OpenRoomEventPayload {
   eventId?: string; // deep-link target — room window scrolls to/highlights this event
   callId?: string; // D20+ — present when the open is a voice-call accept
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3 — erasure, integration, remember-this (D: threads disposable)
+// ---------------------------------------------------------------------------
+
+/**
+ * 'deletion' — erasure record. Source ids ONLY, never content: the erased
+ * payloads are physically removed from the journal file; this event is the
+ * provenance that the erasure happened (journal is logically append-only).
+ */
+export interface DeletionPayload {
+  threadId?: string;
+  sourceEventIds: string[];
+  reason?: string;
+}
+
+/**
+ * 'integration' — batch marker for one integrate-into-world run. Idempotency
+ * key is integrationId; the marker carries ids only, never transcript content.
+ */
+export interface IntegrationPayload {
+  integrationId: string;
+  sourceThreadId: string;
+  sourceEventIds: string[];
+  promotedParticipantIds: string[];
+}
+
+/** WORLD_REMEMBER_THIS — one-fact immediate Sea append referencing a thread event. */
+export interface RememberThisInput {
+  roomId: string;
+  threadId: string;
+  sourceEventId: string;
+  ownerId: string;
+  kind: MemoryEntry['kind'];
+  text: string;
+}
+
+/** One Sea memory event the integration wants appended (witnesses explicit). */
+export interface IntegrationDraft {
+  actorId: string;
+  witnesses: string[];
+  payload: MemoryEventPayload;
+}
+
+/** WORLD_INTEGRATE — deterministic idempotent batch; renderer supplies drafts. */
+export interface IntegrateThreadInput {
+  roomId: string;
+  threadId: string;
+  integrationId: string;
+  drafts: IntegrationDraft[];
+  promoteParticipantIds: string[];
+}
+
+export interface IntegrateThreadResult {
+  appended: JournalEvent[];
+  /** True when this integrationId was already fully applied (no-op resume). */
+  alreadyApplied: boolean;
+}

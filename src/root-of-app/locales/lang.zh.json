@@ -1380,6 +1380,23 @@
       "UnknownWords": "未知单词",
       "WordsSeen": "已见单词"
     },
+    "MemoryBrowser": {
+      "Empty": "暂无记忆条目。",
+      "Loading": "正在加载记忆...",
+      "Open": "打开记忆浏览器",
+      "OpenInAgent": "记忆浏览器",
+      "Sections": {
+        "Beliefs": "信念",
+        "Episodes": "片段",
+        "OpenLoops": "未完成循环",
+        "Relationships": "关系",
+        "RoomCulture": "房间文化"
+      },
+      "Tabs": {
+        "Room": "房间"
+      },
+      "Title": "记忆浏览器"
+    },
     "Notifications": {
       "AnkiCacheLoaded": "从缓存加载了 Anki 闪卡（Anki 似乎离线）",
       "MigrationComplete": "数据迁移完成",

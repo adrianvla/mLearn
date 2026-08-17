@@ -50,7 +50,7 @@ import type {
   VoiceSample,
 } from '../types';
 import type { AppUpdateState } from '../appUpdate';
-import type { JournalEvent, MembershipChangeResult, Thread, WorldSnapshot } from '../world';
+import type { IntegrateThreadResult, JournalEvent, MembershipChangeResult, Participant, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
@@ -1865,6 +1865,9 @@ const journalBridge: JournalBridge = {
   async readThread(): Promise<JournalEvent[]> {
     return [];
   },
+  async eraseThread(): Promise<{ deletedCount: number }> {
+    return { deletedCount: 0 };
+  },
 };
 
 const worldBridge: WorldBridge = {
@@ -1875,6 +1878,15 @@ const worldBridge: WorldBridge = {
     throw new Error('Not supported on mobile');
   },
   async createThread(): Promise<Thread> {
+    throw new Error('Not supported on mobile');
+  },
+  async rememberThis(): Promise<JournalEvent> {
+    throw new Error('Not supported on mobile');
+  },
+  async integrateThread(): Promise<IntegrateThreadResult> {
+    throw new Error('Not supported on mobile');
+  },
+  async promoteParticipant(): Promise<Participant> {
     throw new Error('Not supported on mobile');
   },
 };
