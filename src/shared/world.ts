@@ -91,6 +91,30 @@ export interface ConsolidationPayload {
   producedEventIds: string[]; // beliefs/resolutions this run appended (audit + resume)
 }
 
+/** 'proactive_requested' / 'proactive_fulfilled' — v1 fulfills from pre-authorized text only. */
+export interface ProactivePayload {
+  candidateId: string; // ProjectionStore candidate; intent piggybacked on normal inference
+  text?: string; // pre-authorized text; absent candidate → drop ("nothing meaningful → nothing")
+  messageEventId?: string; // fulfilled only — the message.character event it produced
+}
+
+/** 'call_initiated' / 'call_accepted' / 'call_declined' / 'call_missed' / 'call_ended' (D19+). */
+export interface CallPayload {
+  callId: string;
+  reason?: string;
+}
+
+/** 'schedule' — a pending proactive intent; the main-process scheduler consumes these. */
+export interface SchedulePayload {
+  candidateId: string; // idempotency anchor — a fulfilled candidateId is never re-fired
+  kind: 'message' | 'call';
+  participantId: string;
+  fireAt: number;
+  text?: string; // pre-authorized text piggybacked on normal inference
+  score?: number; // intent score from normal cognition; re-checked at fire time
+  lastFiredAt?: number; // cooldown input
+}
+
 // ---------------------------------------------------------------------------
 // Entities
 // ---------------------------------------------------------------------------
@@ -101,6 +125,7 @@ export interface Room {
   titleUserSet?: boolean;
   participantIds: string[];
   cultureRef?: string; // room-culture document id (later phases)
+  unreadCount?: number; // proactive delivery while room window closed (Q3)
   createdAt: number;
 }
 

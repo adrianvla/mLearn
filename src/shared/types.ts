@@ -510,6 +510,18 @@ export interface Settings {
   /** Daily budget for budgeted-tier cloud inference requests (consumed by the Dreamer phase) */
   inferenceCloudBudgetPerDay: number;
 
+  // Proactivity settings
+  /** Master switch for proactive companion behavior (D7: opt-out model) */
+  proactivityEnabled: boolean;
+  /** Quiet hours suppress notification DELIVERY only; events still journal; reevaluated on expiry (Q3) */
+  proactiveQuietHoursEnabled: boolean;
+  /** Quiet-hours window, "HH:MM" local time */
+  proactiveQuietHoursStart: string;
+  proactiveQuietHoursEnd: string;
+  /** Per-participant opt-outs; calls are a separate, stricter tier (D20+) */
+  proactiveOptOutParticipantIds: string[];
+  proactiveCallOptOutParticipantIds: string[];
+
   // Conversation agent settings
   /** Whether the agent memory feature is enabled */
   agentMemoryEnabled: boolean;
@@ -735,6 +747,12 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudLLMTierExplanation: 'cheap',
   inferenceCloudTier: 'conservative',
   inferenceCloudBudgetPerDay: 20,
+  proactivityEnabled: true,
+  proactiveQuietHoursEnabled: false,
+  proactiveQuietHoursStart: '22:00',
+  proactiveQuietHoursEnd: '08:00',
+  proactiveOptOutParticipantIds: [],
+  proactiveCallOptOutParticipantIds: [],
 };
 
 // ============================================================================

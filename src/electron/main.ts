@@ -31,6 +31,7 @@ import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
 import { setupJournalIPC } from './services/journalService';
+import { startScheduler, stopScheduler } from './services/schedulerRuntime';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
 import { runLegacyMigration } from './services/legacyMigration';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
@@ -415,6 +416,8 @@ async function initialize(): Promise<void> {
   // Create windows and start services
   await createAppWindows();
 
+  startScheduler();
+
   const { getMainWindow } = require('./services/windowManager');
   const mainWindow = getMainWindow();
   if (mainWindow) {
@@ -468,6 +471,7 @@ app.on('before-quit', () => {
   log.info('App before-quit: setting isQuitting flag, cleaning up');
   (app as any).isQuitting = true;
   destroyTray();
+  stopScheduler();
   terminatePythonBackend();
 });
 
