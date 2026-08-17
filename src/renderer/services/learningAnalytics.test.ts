@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
-import { acquisitionSlope, daysToStableKnown, retentionAfterKnown } from './learningAnalytics';
+import { acquisitionSlope, daysToStableKnown, retentionAfterKnown, unifyEventLogByWord } from './learningAnalytics';
 
 const DAY = 24 * 60 * 60 * 1000;
 const start = Date.UTC(2026, 0, 1);
@@ -85,5 +85,38 @@ describe('learning analytics cohorts', () => {
     expect(daysToStableKnown(eventsByWord)).toEqual([]);
     expect(acquisitionSlope(eventsByWord)).toEqual([]);
     expect(retentionAfterKnown(eventsByWord, start)).toEqual([]);
+  });
+});
+
+describe('unifyEventLogByWord', () => {
+  const family = ['ja:a-hash', 'ja:b-hash'];
+
+  it('merges form-hash keys of one word into a single cohort sample', () => {
+    // One pill write fans out to both surface hashes of the same word (#230):
+    // per-key aggregation would count this word twice.
+    const log = {
+      'ja:a-hash': [event(0), event(5, { toStatus: 'known' })],
+      'ja:b-hash': [event(0), event(5, { toStatus: 'known' })],
+    };
+
+    const unified = unifyEventLogByWord(log, () => family);
+    expect(unified.size).toBe(1);
+
+    expect(daysToStableKnown(unified)).toEqual([
+      { month: '2026-01', medianDays: 5, wordCount: 1 },
+    ]);
+  });
+
+  it('keeps keys without a word or family as their own group', () => {
+    const log = {
+      'ja:a-hash': [event(0)],
+      'ja:lonely': [event(1)],
+    };
+
+    const unified = unifyEventLogByWord(log, (key) => (key === 'ja:a-hash' ? family : undefined));
+    expect(unified.size).toBe(2);
+    // The family member absent from the log must not create an empty group.
+    expect(unified.get('ja:a-hash')).toHaveLength(1);
+    expect(unified.get('ja:lonely')).toHaveLength(1);
   });
 });

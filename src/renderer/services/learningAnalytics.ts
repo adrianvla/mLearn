@@ -1,4 +1,4 @@
-import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { ANKI_EASE } from '../../shared/constants';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
 
@@ -22,6 +22,26 @@ export interface RetentionCohortPoint {
   month: string;
   lapseRate: number;
   knownWordCount: number;
+}
+
+// One word spans several `${language}:${hash}` keys when surface variants exist (さすが vs 流石).
+// Multi-hash writes emit one event per form hash, so per-key aggregation would count a single
+// learning event once per variant. Keys sharing a form family merge into one group, id = the
+// smallest family key present in the log (stable without needing the word text).
+export function unifyEventLogByWord(
+  log: KnowledgeEventLog,
+  familyKeysFor: (key: string) => readonly string[] | undefined,
+): Map<string, KnowledgeEvent[]> {
+  const logKeys = new Set(Object.keys(log));
+  const groups = new Map<string, KnowledgeEvent[]>();
+  for (const [key, events] of Object.entries(log)) {
+    const family = familyKeysFor(key)?.filter((familyKey) => logKeys.has(familyKey));
+    const group = family && family.length > 0 ? [...family].sort()[0] : key;
+    const existing = groups.get(group);
+    if (existing) existing.push(...events);
+    else groups.set(group, [...events]);
+  }
+  return groups;
 }
 
 function meaningEvents(events: readonly KnowledgeEvent[]): KnowledgeEvent[] {

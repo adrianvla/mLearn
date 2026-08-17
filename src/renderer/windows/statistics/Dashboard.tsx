@@ -14,7 +14,9 @@ import type { MediaStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { eventsVersion, getEventLogForLanguage } from '../../services/knowledgeEvents';
-import { acquisitionSlope, daysToStableKnown, retentionAfterKnown } from '../../services/learningAnalytics';
+import { acquisitionSlope, daysToStableKnown, retentionAfterKnown, unifyEventLogByWord } from '../../services/learningAnalytics';
+import { hashWordSync } from '../../services/srsAlgorithm';
+import { getWordFormCandidates } from '../../utils/wordForms';
 
 import { initTimeWatched } from '../../services/statsService';
 import { computeWordLevelStats } from '../../utils/wordLevelStats';
@@ -54,7 +56,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 export const Dashboard: Component = () => {
   const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
   const { t } = useLocalization();
 
   initTimeWatched(settings);
@@ -288,7 +290,17 @@ export const Dashboard: Component = () => {
     () => [settings.language, eventsVersion()] as const,
     async ([language]) => {
       const log = await getEventLogForLanguage(language);
-      const eventsByWord = new Map(Object.entries(log));
+      // Variant surfaces of one word live in several `${language}:${hash}` keys; unify before
+      // cohort aggregation or one multi-hash write counts once per variant (unifyEventLogByWord).
+      const eventsByWord = unifyEventLogByWord(log, (key) => {
+        const word = store.wordKnowledge[key]?.word;
+        if (!word) return undefined;
+        return getWordFormCandidates(
+          word,
+          (w) => getCanonicalFormForLanguage(language, w),
+          (w) => getWordVariantsForLanguage(language, w),
+        ).map((form) => `${language}:${hashWordSync(form)}`);
+      });
       return {
         days: daysToStableKnown(eventsByWord),
         slope: acquisitionSlope(eventsByWord),
