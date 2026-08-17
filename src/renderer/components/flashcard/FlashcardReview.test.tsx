@@ -32,7 +32,7 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Modes.Prosody': return 'Prosody';
     case 'mlearn.Flashcards.Review.Attribution.WrongReading': return 'Wrong reading';
     case 'mlearn.Flashcards.Review.Attribution.WrongProsody': return 'Wrong prosody';
-    case 'mlearn.Flashcards.Review.Attribution.Marked': return `Marked ${String(params?.aspect ?? '')} as learning`;
+    case 'mlearn.Flashcards.Review.Attribution.Marked': return `Marked ${String(params?.aspect ?? '')} as unknown`;
     case 'mlearn.Knowledge.Aspect.Reading': return 'Reading';
     case 'mlearn.Knowledge.Aspect.Prosody': return 'Prosody';
     case 'mlearn.Flashcards.Review.Again': return 'Again';
@@ -431,9 +431,9 @@ describe('FlashcardReview failure attribution', () => {
     if (!button) throw new Error('Wrong reading button missing');
     button.click();
 
-    expect(mockSetAspectStatus).toHaveBeenCalledWith('犬', 'reading', 'learning', 'manual', 'ja');
+    expect(mockSetAspectStatus).toHaveBeenCalledWith('犬', 'reading', 'unknown', 'manual', 'ja');
     expect(toastMocks.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'Marked Reading as learning',
+      message: 'Marked Reading as unknown',
       variant: 'success',
     }));
     dispose();
@@ -451,9 +451,9 @@ describe('FlashcardReview failure attribution', () => {
     if (!button) throw new Error('Wrong prosody button missing');
     button.click();
 
-    expect(mockSetAspectStatus).toHaveBeenCalledWith('犬', 'prosody', 'learning', 'manual', 'ja');
+    expect(mockSetAspectStatus).toHaveBeenCalledWith('犬', 'prosody', 'unknown', 'manual', 'ja');
     expect(toastMocks.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'Marked Prosody as learning',
+      message: 'Marked Prosody as unknown',
       variant: 'success',
     }));
     dispose();

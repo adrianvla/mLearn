@@ -901,7 +901,7 @@
         "Attribution": {
           "WrongReading": "Lecture incorrecte",
           "WrongProsody": "Prosodie incorrecte",
-          "Marked": "{aspect} marqué comme en cours d'apprentissage"
+          "Marked": "{aspect} marqué comme inconnu"
         }
       },
       "State": {

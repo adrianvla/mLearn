@@ -901,7 +901,7 @@
         "Attribution": {
           "WrongReading": "読みを間違えた",
           "WrongProsody": "プロソディを間違えた",
-          "Marked": "{aspect}を学習中にしました"
+          "Marked": "{aspect}を未知にしました"
         }
       },
       "State": {

@@ -901,7 +901,7 @@
         "Attribution": {
           "WrongReading": "Неверное чтение",
           "WrongProsody": "Неверная просодия",
-          "Marked": "Отмечено: {aspect} — изучается"
+          "Marked": "Отмечено: {aspect} — неизвестно"
         }
       },
       "State": {

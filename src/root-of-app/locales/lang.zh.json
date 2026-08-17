@@ -901,7 +901,7 @@
         "Attribution": {
           "WrongReading": "读音错误",
           "WrongProsody": "韵律错误",
-          "Marked": "已将{aspect}标记为学习中"
+          "Marked": "已将{aspect}标记为未知"
         }
       },
       "State": {
