@@ -554,6 +554,8 @@ const mLearnIPC = {
   // ========== World ==========
   getWorldState: (): Promise<import('../shared/world').WorldSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_GET_STATE),
+  createRoom: (title: string): Promise<import('../shared/world').Room> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_ROOM, title),
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove'): Promise<import('../shared/world').MembershipChangeResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_APPLY_MEMBERSHIP, roomId, participantId, kind),
   createThread: (roomId: string, title?: string): Promise<import('../shared/world').Thread> =>
@@ -564,6 +566,22 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_INTEGRATE, input),
   promoteParticipant: (participantId: string): Promise<import('../shared/world').Participant> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_PROMOTE_PARTICIPANT, participantId),
+  createParticipant: (input: {
+    displayName: string;
+    kind: 'persistent' | 'temporary';
+    personaText: string;
+    facets?: Record<string, number | string>;
+    canon?: import('../shared/world').Participant['canon'];
+    voiceSampleId?: string;
+    profilePhoto?: string;
+  }): Promise<import('../shared/world').Participant> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_PARTICIPANT, input),
+  updateParticipant: (participant: import('../shared/world').Participant): Promise<import('../shared/world').Participant> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_PARTICIPANT, participant),
+  deleteParticipant: (participantId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_DELETE_PARTICIPANT, participantId),
+  clearRoomUnread: (roomId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CLEAR_UNREAD, roomId),
   onOpenRoomEvent: (callback: (payload: import('../shared/world').OpenRoomEventPayload) => void) =>
     ipcOn(IPC_CHANNELS.OPEN_ROOM_EVENT, (_event, payload) => callback(payload)),
 

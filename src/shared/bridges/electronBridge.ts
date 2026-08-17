@@ -364,11 +364,16 @@ const journalBridge: JournalBridge = {
 
 const worldBridge: WorldBridge = {
   getWorldState: () => getIPC().getWorldState(),
+  createRoom: (title) => getIPC().createRoom(title),
   applyMembership: (roomId, participantId, kind) => getIPC().applyMembership(roomId, participantId, kind),
   createThread: (roomId, title) => getIPC().createThread(roomId, title),
   rememberThis: (input) => getIPC().rememberThis(input),
   integrateThread: (input) => getIPC().integrateThread(input),
   promoteParticipant: (participantId) => getIPC().promoteParticipant(participantId),
+  createParticipant: (input) => getIPC().createParticipant(input),
+  updateParticipant: (participant) => getIPC().updateParticipant(participant),
+  deleteParticipant: (participantId) => getIPC().deleteParticipant(participantId),
+  clearRoomUnread: (roomId) => getIPC().clearRoomUnread(roomId),
 };
 
 const browserBridge: BrowserBridge = {

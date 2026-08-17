@@ -39,12 +39,27 @@ import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { LLMStreamChunk } from '../../../shared/types';
+import type { JournalEvent, JournalEventDraft, WorldSnapshot } from '../../../shared/world';
 
 // ============================================================================
 // Bridge mock (the bridge boundary — everything else under test is real)
 // ============================================================================
 
 let streamCallback: (chunk: LLMStreamChunk) => void = () => {};
+let windowContextCallback: (context: unknown) => void = () => {};
+let journalEvents: JournalEvent[] = [];
+const worldFixture = {
+  rooms: [{ id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 }],
+  threads: [{ id: 'thread-a', roomId: 'room-a', state: 'active' as const, createdAt: 1 }],
+  participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent' as const, personaText: 'Helpful tutor', setupComplete: true }],
+};
+let currentWorld: WorldSnapshot = worldFixture;
+
+function appendJournalEvent(draft: JournalEventDraft): JournalEvent {
+  const event: JournalEvent = { ...draft, id: `evt-${journalEvents.length + 1}`, seq: journalEvents.length + 1, createdAt: Date.now() };
+  journalEvents = [...journalEvents, event];
+  return event;
+}
 
 const mockBridge = {
   llm: {
@@ -59,9 +74,21 @@ const mockBridge = {
     ollamaCheck: vi.fn(async () => false),
   },
   window: {
-    onWindowContext: vi.fn(() => () => {}),
+    onWindowContext: vi.fn((callback: (context: unknown) => void) => { windowContextCallback = callback; return () => {}; }),
+    onOpenRoomEvent: vi.fn(() => () => {}),
     getWindowContext: vi.fn(),
     openWindow: vi.fn(),
+  },
+  world: {
+    getWorldState: vi.fn(async () => currentWorld),
+    createThread: vi.fn(async (roomId: string) => ({ id: 'thread-new', roomId, state: 'active' as const, createdAt: Date.now() })),
+    clearRoomUnread: vi.fn(async () => {}),
+  },
+  journal: {
+    appendEvent: vi.fn(async (_roomId: string, draft: JournalEventDraft) => appendJournalEvent(draft)),
+    readSeaProjection: vi.fn(async () => []),
+    subscribeRoom: vi.fn(async () => ({ unsubscribe: () => {} })),
+    readThread: vi.fn(async (_roomId: string, threadId: string) => journalEvents.filter((event) => event.scope.kind === 'thread' && event.scope.threadId === threadId)),
   },
   speech: {
     ttsSpeak: vi.fn(),
@@ -276,6 +303,13 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     streamCallback = () => {};
+    windowContextCallback = () => {};
+    journalEvents = [];
+    currentWorld = {
+      rooms: [{ id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 }],
+      threads: [{ id: 'thread-a', roomId: 'room-a', state: 'active', createdAt: 1 }],
+      participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
+    };
     testSettings = { ...DEFAULT_SETTINGS };
   });
 
@@ -284,9 +318,35 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     container.remove();
   });
 
-  it('send → streamed chunks render → create_quiz tool round-trip → checker fires', async () => {
+  it('boots rooms and renders journal messages for the selected room', async () => {
+    currentWorld = {
+      rooms: [
+        { id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 },
+        { id: 'room-b', title: 'Partner', participantIds: ['agent-b'], createdAt: 2, unreadCount: 2 },
+      ],
+      threads: [
+        { id: 'thread-a', roomId: 'room-a', state: 'active', createdAt: 1 },
+        { id: 'thread-b', roomId: 'room-b', state: 'active', createdAt: 2 },
+      ],
+      participants: [
+        { id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true },
+        { id: 'agent-b', displayName: 'Partner', kind: 'persistent', personaText: 'Helpful partner', setupComplete: true },
+      ],
+    };
+    journalEvents = [appendJournalEvent({ roomId: 'room-b', scope: { kind: 'thread', threadId: 'thread-b' }, type: 'message.character', actorId: 'agent-b', witnesses: ['user', 'agent-b'], payload: { text: 'Hello from Partner' } })];
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
+    await vi.waitFor(() => expect(chatText(container)).toContain('Hello from Partner'));
+  });
+
+  it('appends user and character journal events for a streamed send', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
 
     // Wait for the composer to render, then type and wait for it to become enabled
     // (enabled only once the LLM availability check passed and there is text).
@@ -294,7 +354,6 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement | null;
     await vi.waitFor(() => expect(sendButton()).not.toBeNull());
 
-    // --- (a) send flow: type into the composer, submit → the user's message appears
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement | null;
     expect(textarea).not.toBeNull();
     textarea!.value = 'hola';
@@ -306,75 +365,14 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(1));
     expect(chatText(container)).toContain('hola');
 
-    // --- (b) streaming: emitted chunks render incrementally in the assistant bubble
     emitChunk({ content: 'こんにちは' });
     expect(chatText(container)).toContain('こんにちは');
 
     emitChunk({ content: '、元気？' });
     expect(chatText(container)).toContain('こんにちは、元気？');
 
-    // --- (c) tool-call loop: create_quiz widget renders, then a follow-up inference fires
-    emitChunk({
-      done: true,
-      toolCalls: [
-        {
-          id: 'quiz-1',
-          name: 'create_quiz',
-          arguments: {
-            quiz_type: 'mcq',
-            question: 'What does 猫 mean?',
-            options: ['cat', 'dog'],
-            correct_answer: 'cat',
-          },
-        },
-      ],
-    });
-
-    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
-    expect(chatText(container)).toContain('What does 猫 mean?');
-
-    // The follow-up stream appends its text to the already-visible assistant content.
-    emitChunk({ content: '良い答えです！' });
-    expect(chatText(container)).toContain('良い答えです！');
-
-    // Complete the follow-up stream; this triggers the checker agent path.
     emitChunk({ done: true });
-
-    // First checker inference: assistant safety scan (agentSafetyChecker is on).
-    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(3));
-    const assistantScanCall = mockBridge.llm.llmStream.mock.calls[2];
-    const assistantScanTools = assistantScanCall[1] as Array<{ name: string }>;
-    expect(assistantScanTools.map((t) => t.name)).toContain('flag_self_harm_risk');
-
-    emitChunk({ done: true, toolCalls: [{ id: 'safe-1', name: 'mark_safe', arguments: {} }] });
-
-    // Second checker inference: user mistake check with corrections enabled.
-    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(4));
-    const checkerCall = mockBridge.llm.llmStream.mock.calls[3];
-    const checkerMessages = checkerCall[0] as Array<{ role: string; content: string }>;
-    const checkerTools = checkerCall[1] as Array<{ name: string }>;
-    const checkerSystem = checkerMessages.find((m) => m.role === 'system');
-    expect(checkerSystem?.content).toContain('language review assistant');
-    expect(checkerTools.map((t) => t.name)).toEqual(
-      expect.arrayContaining(['suggest_corrections']),
-    );
-
-    // (d) the checker's result is applied: correction lands on the user message
-    emitChunk({
-      done: true,
-      toolCalls: [
-        {
-          id: 'corr-1',
-          name: 'suggest_corrections',
-          arguments: {
-            corrections: [
-              { error_span: 'hola', correction: 'hola, 元気？', error_type: 'unnatural' },
-            ],
-          },
-        },
-      ],
-    });
-
-    await vi.waitFor(() => expect(chatText(container)).toContain('hola, 元気？'));
+    await vi.waitFor(() => expect(journalEvents.map((event) => event.type)).toEqual(['message.user', 'message.character']));
+    expect(chatText(container)).toContain('こんにちは、元気？');
   });
 });

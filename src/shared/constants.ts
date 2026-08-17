@@ -360,6 +360,7 @@ export const IPC_CHANNELS = {
 
   // World (rooms/threads/participants entity state)
   WORLD_GET_STATE: 'world-get-state',
+  WORLD_CREATE_ROOM: 'world-create-room',
   WORLD_APPLY_MEMBERSHIP: 'world-apply-membership',
   WORLD_CREATE_THREAD: 'world-create-thread',
   WORLD_REMEMBER_THIS: 'world-remember-this',
@@ -391,7 +392,6 @@ export const WINDOW_TYPES = {
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
   CONVERSATION_AGENT: 'conversation-agent',
-  ROOM: 'room',
   MEMORY_BROWSER: 'memory-browser',
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',

@@ -100,7 +100,7 @@ interface MockDeps {
   onMemorySaved?: (_content: string) => void;
   getIncludeKnowledgeInfo?: () => boolean;
   getDisabledTools?: () => Set<string>;
-  compileContext?: () => string;
+  getWorldContext?: () => string;
 }
 
 function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
@@ -558,12 +558,12 @@ describe('createConversationAgent', () => {
   });
 
   // ==========================================================================
-  // compiled-context seam
+  // world-context seam
   // ==========================================================================
 
-  describe('compiled-context seam', () => {
-    it('uses the injected compileContext result as the system prompt', () => {
-      const deps = createMockDeps({ compileContext: () => 'INJECTED' });
+  describe('world-context seam', () => {
+    it('replaces personality and memories sections with the injected world context', () => {
+      const deps = createMockDeps({ getWorldContext: () => '## World Persona\nINJECTED' });
       const agent = createConversationAgent(deps);
       const { callbacks } = createCallbacks();
 
@@ -571,10 +571,12 @@ describe('createConversationAgent', () => {
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
-      expect(sysMsg.content).toBe('INJECTED');
+      expect(sysMsg.content).toContain('INJECTED');
+      expect(sysMsg.content).toContain('Japanese');
+      expect(sysMsg.content).toContain('INSTRUCTION PRIORITY');
     });
 
-    it('keeps the legacy prompt path when compileContext is absent', () => {
+    it('keeps the legacy prompt path when getWorldContext is absent', () => {
       const agent = createConversationAgent(createMockDeps());
       const { callbacks } = createCallbacks();
 
@@ -583,7 +585,7 @@ describe('createConversationAgent', () => {
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
       expect(sysMsg.content).toContain('Japanese');
-      expect(sysMsg.content).not.toBe('INJECTED');
+      expect(sysMsg.content).not.toContain('INJECTED');
     });
   });
 

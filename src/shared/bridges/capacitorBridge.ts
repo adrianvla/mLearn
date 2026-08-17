@@ -50,7 +50,7 @@ import type {
   VoiceSample,
 } from '../types';
 import type { AppUpdateState } from '../appUpdate';
-import type { IntegrateThreadResult, JournalEvent, MembershipChangeResult, Participant, Thread, WorldSnapshot } from '../world';
+import type { IntegrateThreadResult, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
@@ -1874,6 +1874,9 @@ const worldBridge: WorldBridge = {
   async getWorldState(): Promise<WorldSnapshot> {
     return { rooms: [], threads: [], participants: [] };
   },
+  async createRoom(): Promise<Room> {
+    throw new Error('Not supported on mobile');
+  },
   async applyMembership(): Promise<MembershipChangeResult> {
     throw new Error('Not supported on mobile');
   },
@@ -1887,6 +1890,18 @@ const worldBridge: WorldBridge = {
     throw new Error('Not supported on mobile');
   },
   async promoteParticipant(): Promise<Participant> {
+    throw new Error('Not supported on mobile');
+  },
+  async createParticipant(): Promise<Participant> {
+    throw new Error('Not supported on mobile');
+  },
+  async updateParticipant(): Promise<Participant> {
+    throw new Error('Not supported on mobile');
+  },
+  async deleteParticipant(): Promise<void> {
+    throw new Error('Not supported on mobile');
+  },
+  async clearRoomUnread(): Promise<void> {
     throw new Error('Not supported on mobile');
   },
 };

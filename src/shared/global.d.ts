@@ -321,11 +321,24 @@ sendLogRecord: (record: unknown) => void;
 
   // World
   getWorldState: () => Promise<import('./world').WorldSnapshot>;
+  createRoom: (title: string) => Promise<import('./world').Room>;
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<import('./world').MembershipChangeResult>;
   createThread: (roomId: string, title?: string) => Promise<import('./world').Thread>;
   rememberThis: (input: import('./world').RememberThisInput) => Promise<import('./world').JournalEvent>;
   integrateThread: (input: import('./world').IntegrateThreadInput) => Promise<import('./world').IntegrateThreadResult>;
   promoteParticipant: (participantId: string) => Promise<import('./world').Participant>;
+  createParticipant: (input: {
+    displayName: string;
+    kind: 'persistent' | 'temporary';
+    personaText: string;
+    facets?: Record<string, number | string>;
+    canon?: import('./world').Participant['canon'];
+    voiceSampleId?: string;
+    profilePhoto?: string;
+  }) => Promise<import('./world').Participant>;
+  updateParticipant: (participant: import('./world').Participant) => Promise<import('./world').Participant>;
+  deleteParticipant: (participantId: string) => Promise<void>;
+  clearRoomUnread: (roomId: string) => Promise<void>;
   onOpenRoomEvent: (callback: (payload: import('./world').OpenRoomEventPayload) => void) => () => void;
 
   // Data Export/Import

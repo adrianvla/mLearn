@@ -31,7 +31,9 @@ export type EventType =
   | 'call_accepted'
   | 'call_declined'
   | 'call_missed'
-  | 'call_ended';
+  | 'call_ended'
+  | 'correction'
+  | 'safety_flag';
 
 /** Reserved actor ids. Anything else is a Participant id. */
 export const USER_ACTOR = 'user';
@@ -102,6 +104,18 @@ export interface ProactivePayload {
 export interface CallPayload {
   callId: string;
   reason?: string;
+}
+
+/** 'correction' — checker output on a user message; folded into the referenced message's display. */
+export interface CorrectionPayload {
+  messageEventId: string;
+  corrections: unknown[]; // MistakeWidgetData[] — kept opaque here to avoid shared/type coupling
+}
+
+/** 'safety_flag' — checker safety verdict on any message; drives the safety lock UI. */
+export interface SafetyFlagPayload {
+  messageEventId: string;
+  flag: unknown; // ConversationSafetyFlag — kept opaque here to avoid shared/type coupling
 }
 
 /** 'schedule' — a pending proactive intent; the main-process scheduler consumes these. */

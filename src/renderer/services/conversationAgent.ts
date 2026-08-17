@@ -79,10 +79,11 @@ interface AgentDeps {
   getIncludeKnowledgeInfo?: () => boolean;
   /** Set of tool names the user has manually disabled */
   getDisabledTools?: () => Set<string>;
-  /** Optional compiled-context seam (room orchestrator). When present, its result
-   *  replaces the internally built system prompt. The room window supplies all
-   *  room state through this closure. */
-  compileContext?: () => string;
+  /** World-model context (converged Conversation AI). When present, replaces the
+   *  personality and memories sections of the system prompt with journal-compiled
+   *  world context (persona/canon/relationships/memories/recent thread); the tutor
+   *  runtime sections (rules, tools, media, level, safety) are kept. */
+  getWorldContext?: () => string;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -223,6 +224,7 @@ function buildSystemPrompt(
   inlineBackstory?: boolean,
   disabledTools?: Set<string>,
   features?: LanguageFeatures,
+  worldContextOverride?: string,
 ): string {
   const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
   const tutorPromptGuidelines = features?.tutorPromptGuidelines ?? [];
@@ -230,7 +232,9 @@ function buildSystemPrompt(
 
   // Build personality section
   let personalitySection: string;
-  if (agentConfig?.personality === 'polite') {
+  if (worldContextOverride !== undefined) {
+    personalitySection = worldContextOverride;
+  } else if (agentConfig?.personality === 'polite') {
     personalitySection = `## Personality
 - Polite, professional, and structured.
 - Use formal ${langName} — proper grammar and respectful language.
@@ -413,7 +417,7 @@ ${tutorConfig.customInstructions}`;
   }
 
   // Inject agent memories
-  if (memories && memories.length > 0) {
+  if (memories && memories.length > 0 && worldContextOverride === undefined) {
     const memoryLines = memories.map((m) => `- ${m.content}`).join('\n');
     prompt += `\n\n## Things You Remember About the Learner
 You have saved these facts from previous conversations. Use them naturally — do not explicitly mention that you "remember" them, just act on the knowledge:
@@ -1763,11 +1767,9 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     const systemMsg: LLMChatMessage = {
       role: 'system',
-      content: deps.compileContext
-        ? deps.compileContext()
-        : isVoice
-          ? buildVoiceSystemPrompt(langName, mediaCtx, langFeatures)
-          : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures),
+      content: isVoice
+        ? buildVoiceSystemPrompt(langName, mediaCtx, langFeatures)
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures, deps.getWorldContext?.()),
     };
 
     const messages: LLMChatMessage[] = [

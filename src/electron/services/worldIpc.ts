@@ -10,6 +10,7 @@
  */
 
 import { ipcMain } from 'electron';
+import { randomUUID } from 'crypto';
 import { IPC_CHANNELS, WINDOW_TYPES } from '../../shared/constants';
 import { applyMembershipChange, makeThread } from '../../shared/roomOrchestrator';
 import { HARNESS_ACTOR } from '../../shared/world';
@@ -22,6 +23,7 @@ import type {
   OpenRoomEventPayload,
   Participant,
   RememberThisInput,
+  Room,
   Thread,
   WorldSnapshot,
 } from '../../shared/world';
@@ -31,6 +33,18 @@ import { openManagedChildWindow } from './windowManager';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
   return loadWorld();
+}
+
+export async function createRoom(title: string): Promise<Room> {
+  const state = await loadWorld();
+  const room: Room = {
+    id: `room-${randomUUID()}`,
+    title,
+    participantIds: [],
+    createdAt: Date.now(),
+  };
+  await saveWorld({ ...state, rooms: [...state.rooms, room] });
+  return room;
 }
 
 export async function applyMembership(
@@ -145,9 +159,9 @@ export async function integrateThread(input: IntegrateThreadInput): Promise<Inte
   return { appended, alreadyApplied: false };
 }
 
-/** Open/focus the ROOM window at this room, then broadcast OPEN_ROOM_EVENT to all windows. */
+/** Open/focus the Conversation AI window at this room/thread, then broadcast OPEN_ROOM_EVENT to all windows. */
 export function openRoomAt(payload: OpenRoomEventPayload): void {
-  openManagedChildWindow(WINDOW_TYPES.ROOM, {}, { ...payload });
+  openManagedChildWindow(WINDOW_TYPES.CONVERSATION_AGENT, {}, { ...payload });
   const { BrowserWindow } = require('electron');
   const windows = BrowserWindow.getAllWindows();
   for (const win of windows) {
@@ -163,6 +177,8 @@ export function openRoomAt(payload: OpenRoomEventPayload): void {
  */
 export function setupWorldIPC(): void {
   ipcMain.handle(IPC_CHANNELS.WORLD_GET_STATE, async (): Promise<WorldSnapshot> => getWorldState());
+
+  ipcMain.handle(IPC_CHANNELS.WORLD_CREATE_ROOM, async (_event, title: string): Promise<Room> => createRoom(title));
 
   ipcMain.handle(
     IPC_CHANNELS.WORLD_APPLY_MEMBERSHIP,
@@ -187,4 +203,82 @@ export function setupWorldIPC(): void {
   ipcMain.handle(IPC_CHANNELS.WORLD_PROMOTE_PARTICIPANT, async (_event, participantId: string): Promise<Participant> =>
     promoteParticipant(participantId)
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORLD_CREATE_PARTICIPANT,
+    async (_event, input: {
+      displayName: string;
+      kind: 'persistent' | 'temporary';
+      personaText: string;
+      facets?: Record<string, number | string>;
+      canon?: Participant['canon'];
+      voiceSampleId?: string;
+      profilePhoto?: string;
+    }): Promise<Participant> => createParticipant(input)
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORLD_UPDATE_PARTICIPANT,
+    async (_event, participant: Participant): Promise<Participant> => updateParticipant(participant)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORLD_DELETE_PARTICIPANT, async (_event, participantId: string): Promise<void> => {
+    await deleteParticipant(participantId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.WORLD_CLEAR_UNREAD, async (_event, roomId: string): Promise<void> => {
+    await clearRoomUnread(roomId);
+  });
+}
+
+export async function createParticipant(input: {
+  displayName: string;
+  kind: 'persistent' | 'temporary';
+  personaText: string;
+  facets?: Record<string, number | string>;
+  canon?: Participant['canon'];
+  voiceSampleId?: string;
+  profilePhoto?: string;
+}): Promise<Participant> {
+  const world = await loadWorld();
+  const participant: Participant = {
+    id: `participant-${randomUUID()}`,
+    displayName: input.displayName,
+    kind: input.kind,
+    personaText: input.personaText,
+    facets: input.facets,
+    canon: input.canon,
+    voiceSampleId: input.voiceSampleId,
+    profilePhoto: input.profilePhoto,
+    setupComplete: true,
+  };
+  world.participants.push(participant);
+  await saveWorld(world);
+  return participant;
+}
+
+export async function updateParticipant(participant: Participant): Promise<Participant> {
+  const world = await loadWorld();
+  const index = world.participants.findIndex((item) => item.id === participant.id);
+  if (index === -1) throw new Error(`[world] participant not found: ${participant.id}`);
+  world.participants[index] = participant;
+  await saveWorld(world);
+  return participant;
+}
+
+export async function deleteParticipant(participantId: string): Promise<void> {
+  const world = await loadWorld();
+  world.participants = world.participants.filter((item) => item.id !== participantId);
+  for (const room of world.rooms) {
+    room.participantIds = room.participantIds.filter((id) => id !== participantId);
+  }
+  await saveWorld(world);
+}
+
+export async function clearRoomUnread(roomId: string): Promise<void> {
+  const world = await loadWorld();
+  const room = world.rooms.find((item) => item.id === roomId);
+  if (room === undefined) return;
+  room.unreadCount = 0;
+  await saveWorld(world);
 }

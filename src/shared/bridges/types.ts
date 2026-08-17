@@ -46,7 +46,7 @@ import type {
   PluginWindowPayload,
 } from '../plugins/types';
 import type { KnowledgeEventLog } from '../knowledgeEvents';
-import type { IntegrateThreadInput, IntegrateThreadResult, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, RememberThisInput, Thread, WorldSnapshot } from '../world';
+import type { IntegrateThreadInput, IntegrateThreadResult, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, RememberThisInput, Room, Thread, WorldSnapshot } from '../world';
 
 // ============================================================================
 // Sub-Interfaces
@@ -408,11 +408,16 @@ export interface JournalBridge {
 
 export interface WorldBridge {
   getWorldState: () => Promise<WorldSnapshot>;
+  createRoom: (title: string) => Promise<Room>;
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<MembershipChangeResult>;
   createThread: (roomId: string, title?: string) => Promise<Thread>;
   rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
   integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
   promoteParticipant: (participantId: string) => Promise<Participant>;
+  createParticipant: (input: { displayName: string; kind: 'persistent' | 'temporary'; personaText: string; facets?: Record<string, number | string>; canon?: Participant['canon']; voiceSampleId?: string; profilePhoto?: string }) => Promise<Participant>;
+  updateParticipant: (participant: Participant) => Promise<Participant>;
+  deleteParticipant: (participantId: string) => Promise<void>;
+  clearRoomUnread: (roomId: string) => Promise<void>;
 }
 
 // ============================================================================
