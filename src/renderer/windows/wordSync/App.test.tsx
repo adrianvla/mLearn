@@ -5,7 +5,7 @@ import { render } from 'solid-js/web';
 import { createEffect, createSignal, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 
-const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
+const mockGetComprehensiveWordStatusWithSourceSync = vi.fn((): { status: string; source: string; timesSeen: number; ease?: number } => ({
   status: 'unknown',
   source: 'None',
   timesSeen: 0,
@@ -210,6 +210,7 @@ vi.mock('../../hooks/useTranslation', () => ({
 vi.mock('../../services/ankiWordsCache', () => ({
   fetchAnkiWordsCache: vi.fn(async () => undefined),
   isAnkiCacheFetched: vi.fn(() => true),
+  ankiCacheVersion: vi.fn(() => 0),
 }));
 
 vi.mock('../../../shared/languageFeatures', () => ({
@@ -262,24 +263,6 @@ describe('WordSyncContent', () => {
 
   afterEach(() => {
     container.remove();
-  });
-
-  it('does not treat Anki-only words as tracked for word sync filter eligibility', async () => {
-    mockWordSyncState.settings.use_anki = true;
-    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
-      status: 'known',
-      source: 'Anki',
-      timesSeen: 1,
-    });
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = render(() => <WordSyncContent />, container);
-    await Promise.resolve();
-
-    // The word stays eligible (shown) even though the Anki-aware resolver would
-    // call it 'known' — pool eligibility comes from the store, not that resolver.
-    expect(container.textContent).toContain('赤い:あかい');
-    dispose();
   });
 
   it('does not rebuild the full candidate pool after a rating button press', async () => {
@@ -457,7 +440,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('attributes an unknown rating to the reading aspect without touching word-level ease', async () => {
+  it('attributes the failure to the reading aspect and anchors word ease at learning', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { WordSyncContent } = await import('./App');
 
@@ -470,12 +453,69 @@ describe('WordSyncContent', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
     await Promise.resolve();
 
-    expect(mockSetAspectStatus).toHaveBeenCalledWith('赤い', 'reading', 'learning', 'manual', 'ja');
-    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    // Failed aspect flagged unknown…
+    expect(mockSetAspectStatus).toHaveBeenCalledWith('赤い', 'reading', 'unknown', 'manual', 'ja');
+    // …while the "almost know the word" claim anchors word ease at learning (SRS_EASE.DEFAULT_LEARNING).
+    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', 1.55, 'あかい', 'ja');
     // An aspect failure still counts as a sync encounter.
     expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
     expect(mockShowToast).toHaveBeenCalled();
     dispose();
+  });
+
+  it('does not lower word-level ease for a known word on aspect attribution', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    // The word must enter the pool first (resolver: unknown), then read as known
+    // at rating time — a globally-known mock would exclude it from the pool entirely.
+    let resolveKnown = false;
+    mockGetComprehensiveWordStatusWithSourceSync.mockImplementation(() => (resolveKnown
+      ? { status: 'known', source: 'SRS', timesSeen: 10, ease: 2.0 }
+      : { status: 'unknown', source: 'None', timesSeen: 0 }));
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    resolveKnown = true;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+    await Promise.resolve();
+
+    expect(mockSetAspectStatus).toHaveBeenCalledWith('赤い', 'reading', 'unknown', 'manual', 'ja');
+    // The aspect failure stands alone — known word knowledge must not be squashed.
+    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    dispose();
+    // Restore the shared mock's default shape (mockImplementation persists across tests).
+    mockGetComprehensiveWordStatusWithSourceSync.mockImplementation(() => ({
+      status: 'unknown',
+      source: 'None',
+      timesSeen: 0,
+    }));
+  });
+
+  it('never pools words the comprehensive resolver marks known (e.g. via anki)', async () => {
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
+      status: 'known',
+      source: 'Anki',
+      timesSeen: 1,
+    });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Pool empty → the finished state renders instead of any word.
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    dispose();
+    // Restore the shared mock's default shape (mockReturnValue persists across tests).
+    mockGetComprehensiveWordStatusWithSourceSync.mockImplementation(() => ({
+      status: 'unknown',
+      source: 'None',
+      timesSeen: 0,
+    }));
   });
 
   it('cancels attribution with Escape without rating', async () => {
@@ -638,32 +678,6 @@ describe('WordSyncContent', () => {
     };
     mockWordSyncState.wordSyncSeen = {
       [`ar:${hashWordSync('كتب')}`]: Date.now(),
-    };
-    mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
-      language === 'ar' && word === 'يكتب' ? 'كتب' : word
-    ));
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = render(() => <WordSyncContent />, container);
-    await Promise.resolve();
-
-    expect(container.textContent).not.toContain('يكتب');
-    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
-    dispose();
-  });
-
-  it('filters known-untracked words by the active language canonical form', async () => {
-    const { hashWordSync } = await import('../../services/srsAlgorithm');
-    mockWordSyncState.settings.language = 'ar';
-    mockWordSyncState.wordFrequency = {
-      'يكتب': {
-        reading: 'yaktub',
-        raw_level: 5,
-        level: 'A1',
-      },
-    };
-    mockWordSyncState.knownUntracked = {
-      [`ar:${hashWordSync('كتب')}`]: { word: 'كتب', language: 'ar', knownAt: Date.now() },
     };
     mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
       language === 'ar' && word === 'يكتب' ? 'كتب' : word

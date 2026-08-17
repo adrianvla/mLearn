@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, createMemo, createEffect, onMount, onCleanup, createResource, untrack } from 'solid-js';
+import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
 import {
   WindowWrapper,
   useLocalization,
@@ -31,6 +31,7 @@ import { WordWithReading } from '../../components/language-specific';
 import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
+import { ankiCacheVersion } from '../../services/ankiWordsCache';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
@@ -197,26 +198,6 @@ export const WordSyncContent: Component = () => {
     return (now - ts) < THIRTY_DAYS_MS;
   }
 
-  function resolveWordSyncFilterStatus(lk: string, knowledge: ReturnType<typeof getWordKnowledge>): string {
-    if (store.knownUntracked[lk] || store.ignoredWords[lk]) return String(WORD_STATUS.KNOWN);
-
-    const cardIds = store.wordToCardMap?.[lk] ?? [];
-    for (const cardId of cardIds) {
-      const card = store.flashcards?.[cardId];
-      if (!card) continue;
-      if (card.state === 'review') return String(WORD_STATUS.KNOWN);
-      if (card.state === 'learning' || card.state === 'relearning') return String(WORD_STATUS.LEARNING);
-    }
-
-    if (knowledge) {
-      if (knowledge.ease >= settings.easeThresholdKnown) return String(WORD_STATUS.KNOWN);
-      if (knowledge.ease >= settings.easeThresholdLearning) return String(WORD_STATUS.LEARNING);
-      return String(WORD_STATUS.UNKNOWN);
-    }
-
-    return WORD_SYNC_STATUS_UNTRACKED;
-  }
-
   // ─── Known character set for language-defined study scripts ─────
   const characterStudyScripts = createMemo(() => getCharacterStudyScripts(langCtx.currentLangData()));
   function buildKnownCharacterSetSnapshot(scripts: readonly string[], lang: string): Set<string> {
@@ -262,13 +243,19 @@ export const WordSyncContent: Component = () => {
         const storageWord = langCtx.getCanonicalFormForLanguage(lang, word);
         const lk = `${lang}:${hashWordSync(storageWord)}`;
 
-        if (store.knownUntracked[lk]) continue;
-        if (store.ignoredWords[lk]) continue;
-
         const knowledge = getWordKnowledge(lk);
         const seenRecently = isSyncSeenRecentlyByKey(lk, now);
+        // Delegated to the comprehensive resolver (all banks, same precedence as the
+        // editor/pill): a local cascade here froze the bank list once already — the
+        // anki bank was missing and known-via-anki words kept entering the rotation.
+        const resolved = getComprehensiveWordStatusWithSourceSync(word, lang);
+        if (resolved.status === 'known') continue;
         const record = {
-          status: resolveWordSyncFilterStatus(lk, knowledge),
+          status: resolved.status === 'learning'
+            ? String(WORD_STATUS.LEARNING)
+            // The resolver flattens unknown and never-encountered; the pool's untracked
+            // bucket distinguishes them by this form's passive entry.
+            : knowledge ? String(WORD_STATUS.UNKNOWN) : WORD_SYNC_STATUS_UNTRACKED,
           level: entry.raw_level,
           seenRecently,
         };
@@ -408,7 +395,15 @@ export const WordSyncContent: Component = () => {
     if (aspect === 'meaning') {
       setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
     } else {
-      setAspectStatus(w.word, aspect, 'learning', 'manual', settings.language);
+      // A narrow failure claim ("only the reading/prosody failed") implies the
+      // broader knowledge is intact — "almost know the word". Failed aspect →
+      // unknown; word-level ease anchored at learning, raised but never lowered
+      // (a known word stays known; the aspect failure stands alone).
+      setAspectStatus(w.word, aspect, 'unknown', 'manual', settings.language);
+      const resolved = getComprehensiveWordStatusWithSourceSync(w.word, settings.language);
+      if ((resolved?.ease ?? 0) < RATING_EASE.learning) {
+        setWordKnowledgeEase(w.word, RATING_EASE.learning, displayedReading(), settings.language);
+      }
       showToast({
         message: t('mlearn.Flashcards.Review.Attribution.Marked', {
           aspect: t(aspect === 'reading' ? 'mlearn.Knowledge.Aspect.Reading' : 'mlearn.Knowledge.Aspect.Prosody'),
@@ -540,6 +535,16 @@ export const WordSyncContent: Component = () => {
       pickNext();
     }
   });
+
+  // The pool snapshot is built untracked; anki syncs must refresh it or words the
+  // cache just marked known keep appearing (and counts keep regressing) until restart.
+  // defer + untracked guard: never rebuild on the init flip itself — pickNext has
+  // already advanced cursors, and a reshuffle would re-present already-rated words.
+  createEffect(on(ankiCacheVersion, () => {
+    if (untrack(() => !initialized())) return;
+    levelCursors = new Map();
+    rebuildWordPool();
+  }, { defer: true }));
 
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown);
