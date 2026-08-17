@@ -263,6 +263,51 @@ export function findWordInAnkiCache(words: readonly string[], options?: AnkiWord
   return findAnkiWordMatchInCache(words, options)?.word ?? null;
 }
 
+/**
+ * Bulk anki-bank status keys for the O(n) set builders (level stats, suggestion
+ * filtering) that aggregate over every word at once and can't call the per-word
+ * resolver. Reads the cache version signal, so reactive callers rebuild on anki
+ * syncs. Keys follow the `${language}:${hash}` shape each caller queries with —
+ * pass the caller's own form expansion (canonical-only where queries canonicalize;
+ * the full form family where queries cover surface variants).
+ */
+export function buildAnkiStatusKeySets(
+  language: string,
+  ankiLearningThreshold: number,
+  ankiKnownThreshold: number,
+  formsForWord: (word: string) => readonly string[],
+  languageData?: LanguageData | null,
+): { known: ReadonlySet<string>; learning: ReadonlySet<string> } {
+  ankiCacheVersion();
+  const known = new Set<string>();
+  const learning = new Set<string>();
+  // Fetches are per-signature (language + language metadata) and not every caller
+  // fetches with full options — fall back to the last-fetched entry rather than
+  // reading an empty one.
+  const active = getActiveCacheEntry();
+  const preferred = getCacheEntry({ language, languageData, ankiLearningThreshold, ankiKnownThreshold });
+  const entry = preferred.fetched ? preferred : active;
+  if (!entry.fetched) return { known, learning };
+
+  const byWord = new Map<string, AnkiWordStatusRecord[]>();
+  for (const cards of entry.wordCardsMap.values()) {
+    for (const card of cards) {
+      const existing = byWord.get(card.word);
+      if (existing) existing.push(card);
+      else byWord.set(card.word, [card]);
+    }
+  }
+  for (const [word, cards] of byWord) {
+    const status = getAnkiWordKnowledgeStatus(cards, ankiLearningThreshold, ankiKnownThreshold);
+    if (!status || status === 'unknown') continue;
+    const target = status === 'known' ? known : learning;
+    for (const form of formsForWord(word)) {
+      target.add(`${language}:${hashWordSync(form)}`);
+    }
+  }
+  return { known, learning };
+}
+
 /** Check whether the cache has been populated */
 export function isAnkiCacheFetched(options?: AnkiWordsCacheOptions): boolean {
   const signature = options ? getCacheSignature(options) : activeCacheSignature;

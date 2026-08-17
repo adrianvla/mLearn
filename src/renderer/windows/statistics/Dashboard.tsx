@@ -14,6 +14,7 @@ import type { MediaStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { eventsVersion, getEventLogForLanguage } from '../../services/knowledgeEvents';
+import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
 import { acquisitionSlope, daysToStableKnown, retentionAfterKnown, unifyEventLogByWord } from '../../services/learningAnalytics';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { getWordFormCandidates } from '../../utils/wordForms';
@@ -225,6 +226,15 @@ export const Dashboard: Component = () => {
       getFreqLevelNames(),
       currentLangData(),
       getCanonicalFormForLanguage,
+      settings.use_anki
+        ? buildAnkiStatusKeySets(
+          settings.language,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+          (word) => [getCanonicalFormForLanguage(settings.language, word)],
+          currentLangData(),
+        )
+        : undefined,
     ),
   );
 

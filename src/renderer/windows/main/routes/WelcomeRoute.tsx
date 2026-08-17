@@ -28,6 +28,7 @@ import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
+import { buildAnkiStatusKeySets } from '../../../services/ankiWordsCache';
 import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
 import { fetchTranslation } from '../../../hooks/useTranslation';
@@ -288,6 +289,15 @@ export const WelcomeRoute: Component = () => {
       source.levelNames,
       source.langData,
       language.getCanonicalFormForLanguage,
+      settings.use_anki
+        ? buildAnkiStatusKeySets(
+          settings.language,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+          (word) => [language.getCanonicalFormForLanguage(settings.language, word)],
+          source.langData,
+        )
+        : undefined,
     );
     if (stats.length === 0) return null;
     return { levels: stats };

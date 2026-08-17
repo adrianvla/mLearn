@@ -20,7 +20,9 @@ import {
   isDisplayableFrequencyLevel,
 } from '../../shared/languageFeatures';
 import { hashWordSync } from '../services/srsAlgorithm';
-import { buildKnownWordSet, buildTrackedWordSet } from './knowledgeUtils';
+import { buildKnownWordSet, buildTrackedWordSet, type AnkiWordStatusKeys } from './knowledgeUtils';
+
+export type { AnkiWordStatusKeys };
 
 export { buildWordFrequencyMapFromLanguageData };
 
@@ -89,6 +91,7 @@ export function buildLearningWordSet(
   store: FlashcardStore,
   learningThreshold: number,
   knownThreshold: number,
+  ankiLearningKeys?: ReadonlySet<string>,
 ): Set<string> {
   const learning = new Set<string>();
   const knownEase = knownThreshold / 1000;
@@ -116,6 +119,8 @@ export function buildLearningWordSet(
   for (const lk of Object.keys(store.wordCandidates)) {
     learning.add(lk);
   }
+
+  if (ankiLearningKeys) for (const lk of ankiLearningKeys) learning.add(lk);
 
   return learning;
 }
@@ -246,6 +251,7 @@ export function computeLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  ankiKeys?: AnkiWordStatusKeys,
 ): LevelStats[] {
   const levelBuckets = buildLevelBuckets(wordFrequency, levelNames, languageData);
   if (levelBuckets.size === 0) return [];
@@ -257,9 +263,10 @@ export function computeLevelStats(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
+    ankiKeys?.known,
   );
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-  const trackedSet = buildTrackedWordSet(store, language);
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
+  const trackedSet = buildTrackedWordSet(store, language, ankiKeys);
 
   return [...levelBuckets.entries()]
     .sort(([a], [b]) => compareFrequencyLevelsForDisplay(a, b, languageData))
@@ -318,6 +325,7 @@ export function computeWordLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  ankiKeys?: AnkiWordStatusKeys,
 ): ComprehensiveWordStats {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -326,9 +334,10 @@ export function computeWordLevelStats(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
+    ankiKeys?.known,
   );
 
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
   const freqHashSet = buildFrequencyHashSet(wordFrequency, language, canonicalizeWord);
 
   // Bucket frequency words by level
@@ -423,6 +432,7 @@ export function computeBeyondExamLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  ankiKeys?: AnkiWordStatusKeys,
 ): LevelStats | null {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -431,9 +441,10 @@ export function computeBeyondExamLevelStats(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
+    ankiKeys?.known,
   );
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-  const trackedSet = buildTrackedWordSet(store, language);
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
+  const trackedSet = buildTrackedWordSet(store, language, ankiKeys);
 
   let known = 0;
   let learning = 0;
@@ -486,6 +497,7 @@ export function computeLevelCoverage(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  ankiKeys?: AnkiWordStatusKeys,
 ): Array<{ level: number; name: string; total: number; known: number; pct: number }> {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -494,6 +506,7 @@ export function computeLevelCoverage(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
+    ankiKeys?.known,
   );
 
   const levelTotals = new Map<number, number>();

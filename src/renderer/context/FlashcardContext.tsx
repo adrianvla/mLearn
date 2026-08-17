@@ -21,7 +21,7 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure, shouldUpdateFlashcardOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
-import { ankiCacheVersion, findAnkiWordMatchInCache } from '../services/ankiWordsCache';
+import { ankiCacheVersion, buildAnkiStatusKeySets, findAnkiWordMatchInCache } from '../services/ankiWordsCache';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
@@ -1385,10 +1385,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return index;
   });
 
-  const knownWordSet = createMemo(() =>
-    buildKnownWordSetFromStore(store, settings.known_ease_threshold)
-  );
-
   const getWordFormsForStatus = (word: string): string[] => (
     getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: languageData() })
   );
@@ -1401,6 +1397,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
       { languageData: languageDataFor(language) },
     )
   );
+
+  const knownWordSet = createMemo(() => buildKnownWordSetFromStore(
+    store,
+    settings.known_ease_threshold,
+    settings.use_anki
+      ? buildAnkiStatusKeySets(
+        settings.language,
+        settings.ankiLearningThreshold,
+        settings.ankiKnownThreshold,
+        (word) => getWordFormsForLanguage(word, settings.language),
+        languageData(),
+      ).known
+      : undefined,
+  ));
   const getPrimaryWordFormForLanguage = (word: string, language = settings.language): string => (
     getWordFormsForLanguage(word, language)[0] ?? word
   );

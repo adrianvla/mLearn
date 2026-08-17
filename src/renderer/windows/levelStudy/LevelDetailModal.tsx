@@ -12,6 +12,7 @@ import {
   BEYOND_EXAM_LEVEL,
 } from '../../utils/wordLevelStats';
 import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
+import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
 import { getReadingAnnotationScripts, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -70,9 +71,18 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
 
     return untrack(() => {
       const store = flashcards.store;
-      const knownSet = buildKnownWordSetFromStore(store, knownThreshold);
-      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-      const trackedSet = buildTrackedWordSet(store, lang);
+      const ankiKeys = settings.use_anki
+        ? buildAnkiStatusKeySets(
+          lang,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+          (word) => [language.getCanonicalFormForLanguage(lang, word)],
+          langData,
+        )
+        : undefined;
+      const knownSet = buildKnownWordSetFromStore(store, knownThreshold, ankiKeys?.known);
+      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
+      const trackedSet = buildTrackedWordSet(store, lang, ankiKeys);
 
       const result: WordListItem[] = [];
       const levelNames = getLevelStudyLevelNames(langData, freq);

@@ -1,5 +1,11 @@
 import type { Flashcard, FlashcardStore, PassiveWordKnowledge, IgnoredWordEntry } from '../../shared/types';
 
+/** Anki-bank status keys folded into the O(n) set builders (structural — produced by services/ankiWordsCache). */
+export interface AnkiWordStatusKeys {
+  known: ReadonlySet<string>;
+  learning: ReadonlySet<string>;
+}
+
 /**
  * Builds a Set of language-prefixed word hashes that are considered "known"
  * based on all in-store knowledge sources. O(n) to build, O(1) to query.
@@ -9,6 +15,7 @@ import type { Flashcard, FlashcardStore, PassiveWordKnowledge, IgnoredWordEntry 
  * - ignoredWords (user explicitly ignored)
  * - Flashcards in 'review' state (graduated via SRS)
  * - wordKnowledge with ease >= known_ease_threshold (passive tracking)
+ * - anki bank keys, when supplied (the store itself has no anki knowledge)
  */
 export function buildKnownWordSet(
   flashcards: Record<string, Flashcard>,
@@ -17,6 +24,7 @@ export function buildKnownWordSet(
   ignoredWords: Record<string, IgnoredWordEntry>,
   wordKnowledge: Record<string, PassiveWordKnowledge>,
   knownEaseThreshold: number,
+  ankiKnownKeys?: ReadonlySet<string>,
 ): Set<string> {
   const known = new Set<string>(Object.keys(knownUntracked));
   for (const key of Object.keys(ignoredWords)) {
@@ -39,6 +47,8 @@ export function buildKnownWordSet(
       known.add(lk);
     }
   }
+
+  if (ankiKnownKeys) for (const lk of ankiKnownKeys) known.add(lk);
 
   return known;
 }
@@ -67,6 +77,7 @@ export function isWordKnown(
 export function buildKnownWordSetFromStore(
   store: FlashcardStore,
   knownEaseThreshold: number,
+  ankiKnownKeys?: ReadonlySet<string>,
 ): Set<string> {
   return buildKnownWordSet(
     store.flashcards,
@@ -75,10 +86,11 @@ export function buildKnownWordSetFromStore(
     store.ignoredWords,
     store.wordKnowledge,
     knownEaseThreshold,
+    ankiKnownKeys,
   );
 }
 
-export function buildTrackedWordSet(store: FlashcardStore, language: string): Set<string> {
+export function buildTrackedWordSet(store: FlashcardStore, language: string, ankiKeys?: AnkiWordStatusKeys): Set<string> {
   const tracked = new Set<string>();
   const prefix = language + ':';
   for (const lk of Object.keys(store.wordToCardMap)) if (lk.startsWith(prefix)) tracked.add(lk);
@@ -86,5 +98,9 @@ export function buildTrackedWordSet(store: FlashcardStore, language: string): Se
   for (const lk of Object.keys(store.wordCandidates)) if (lk.startsWith(prefix)) tracked.add(lk);
   for (const lk of Object.keys(store.knownUntracked)) if (lk.startsWith(prefix)) tracked.add(lk);
   for (const lk of Object.keys(store.ignoredWords)) if (lk.startsWith(prefix)) tracked.add(lk);
+  if (ankiKeys) {
+    for (const lk of ankiKeys.known) if (lk.startsWith(prefix)) tracked.add(lk);
+    for (const lk of ankiKeys.learning) if (lk.startsWith(prefix)) tracked.add(lk);
+  }
   return tracked;
 }

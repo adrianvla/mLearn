@@ -335,3 +335,41 @@ describe('searchAnkiWordsCache', () => {
     expect(searchAnkiWordsCache('Apple', 6, { language: 'zh', languageData: null })).toEqual([]);
   });
 });
+
+
+describe('buildAnkiStatusKeySets', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockGetAnkiWords.mockReset();
+    mockGetAnkiWords.mockResolvedValue([]);
+    mockGetAnkiWordStatuses.mockReset();
+  });
+
+  it('splits cache words into known and learning keys with caller form expansion', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValue([
+      { word: '犬', factor: 2000, queue: 2, type: 2 },
+      { word: '猫', factor: 1600, queue: 1, type: 1 },
+      { word: '鳥', factor: 1000, queue: 0, type: 0 },
+    ]);
+
+    const { fetchAnkiWordsCache, buildAnkiStatusKeySets, ankiCacheVersion } = await import('./ankiWordsCache');
+    await fetchAnkiWordsCache();
+    ankiCacheVersion();
+
+    const { hashWordSync } = await import('./srsAlgorithm');
+    // Variant expansion: both surface forms of the same word get the status keys.
+    const sets = buildAnkiStatusKeySets('ja', 1550, 1800, (word) => word === '犬' ? ['犬', 'いぬ'] : [word]);
+
+    expect(sets.known).toEqual(new Set(['ja:' + hashWordSync('犬'), 'ja:' + hashWordSync('いぬ')]));
+    expect(sets.learning).toEqual(new Set(['ja:' + hashWordSync('猫')]));
+    // factor below the learning threshold contributes nothing.
+    expect(sets.known.has('ja:' + hashWordSync('鳥'))).toBe(false);
+  });
+
+  it('returns empty sets before any fetch', async () => {
+    const { buildAnkiStatusKeySets } = await import('./ankiWordsCache');
+    const sets = buildAnkiStatusKeySets('ja', 1550, 1800, (word) => [word]);
+    expect(sets.known.size).toBe(0);
+    expect(sets.learning.size).toBe(0);
+  });
+});
