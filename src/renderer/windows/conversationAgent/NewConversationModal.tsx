@@ -82,7 +82,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
 
       const participant = await getBridge().world.createParticipant({
         displayName: temporaryParticipantName(text),
-        kind: 'temporary',
+        kind: persistentParticipants().length === 0 ? 'persistent' : 'temporary',
         personaText: text,
       });
       await createConversation(participant, text.slice(0, 40));

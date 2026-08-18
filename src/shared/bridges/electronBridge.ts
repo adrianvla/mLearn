@@ -368,6 +368,7 @@ const worldBridge: WorldBridge = {
   applyMembership: (roomId, participantId, kind) => getIPC().applyMembership(roomId, participantId, kind),
   createThread: (roomId, title) => getIPC().createThread(roomId, title),
   updateThread: (thread) => getIPC().updateThread(thread),
+  deleteThread: (roomId, threadId) => getIPC().deleteThread(roomId, threadId),
   rememberThis: (input) => getIPC().rememberThis(input),
   integrateThread: (input) => getIPC().integrateThread(input),
   promoteParticipant: (participantId) => getIPC().promoteParticipant(participantId),

@@ -412,6 +412,7 @@ export interface WorldBridge {
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<MembershipChangeResult>;
   createThread: (roomId: string, title?: string) => Promise<Thread>;
   updateThread: (thread: Thread) => Promise<Thread>;
+  deleteThread: (roomId: string, threadId: string) => Promise<void>;
   rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
   integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
   promoteParticipant: (participantId: string) => Promise<Participant>;

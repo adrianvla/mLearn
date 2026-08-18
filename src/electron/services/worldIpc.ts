@@ -28,7 +28,7 @@ import type {
   WorldSnapshot,
 } from '../../shared/world';
 import { loadWorld, saveWorld } from './worldStore';
-import { appendEvent, readSeaProjection, readThread } from './journalService';
+import { appendEvent, eraseThread, readSeaProjection, readThread } from './journalService';
 import { openManagedChildWindow } from './windowManager';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
@@ -94,6 +94,13 @@ export async function updateThread(thread: Thread): Promise<Thread> {
   threads[index] = thread;
   await saveWorld({ ...state, threads });
   return thread;
+}
+
+/** Thread deletion is real erasure: the world record and the thread-scoped journal events both go. */
+export async function deleteThread(roomId: string, threadId: string): Promise<void> {
+  const state = await loadWorld();
+  await saveWorld({ ...state, threads: state.threads.filter((item) => item.id !== threadId) });
+  await eraseThread(roomId, threadId);
 }
 
 export async function rememberThis(input: RememberThisInput): Promise<JournalEvent> {
@@ -207,6 +214,10 @@ export function setupWorldIPC(): void {
     IPC_CHANNELS.WORLD_UPDATE_THREAD,
     async (_event, thread: Thread): Promise<Thread> => updateThread(thread)
   );
+
+  ipcMain.handle(IPC_CHANNELS.WORLD_DELETE_THREAD, async (_event, roomId: string, threadId: string): Promise<void> => {
+    await deleteThread(roomId, threadId);
+  });
 
   ipcMain.handle(IPC_CHANNELS.WORLD_REMEMBER_THIS, async (_event, input: RememberThisInput): Promise<JournalEvent> =>
     rememberThis(input)

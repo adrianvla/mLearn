@@ -82,7 +82,7 @@ describe('NewConversationModal', () => {
   it('creates a temporary participant from unresolved free text', async () => {
     const onCreated = vi.fn();
     const text = 'practice ordering coffee at a busy café';
-    dispose = render(() => <NewConversationModal world={world([])} onClose={vi.fn()} onCreated={onCreated} />, container);
+    dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
 
     const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
     textarea.value = text;
@@ -93,6 +93,18 @@ describe('NewConversationModal', () => {
     expect(createParticipant).toHaveBeenCalledWith({ displayName: 'Partner', kind: 'temporary', personaText: text });
     expect(createRoom).toHaveBeenCalledWith(text.slice(0, 40));
     expect(applyMembership).toHaveBeenCalledWith('room-1', 'temporary-1', 'add');
+  });
+
+  it('creates the first unresolved participant as persistent', async () => {
+    const text = 'practice ordering coffee at a busy café';
+    dispose = render(() => <NewConversationModal world={world([])} onClose={vi.fn()} onCreated={vi.fn()} />, container);
+
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    textarea.value = text;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    startButton().click();
+
+    await vi.waitFor(() => expect(createParticipant).toHaveBeenCalledWith({ displayName: 'Partner', kind: 'persistent', personaText: text }));
   });
 
   it('offers ambiguous matches for selection before starting a one-to-one room', async () => {

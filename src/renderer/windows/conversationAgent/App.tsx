@@ -243,6 +243,8 @@ export const ConversationContent: Component = () => {
   void allMemories;
   const [showSetupModal, setShowSetupModal] = createSignal(false);
   const [editingAgent, setEditingAgent] = createSignal<AgentConfig | null>(null);
+  const [legacyAgentsLoaded, setLegacyAgentsLoaded] = createSignal(false);
+  let firstRunModalHandled = false;
 
   const activeAgent = (): AgentConfig | null => {
     const id = activeAgentId();
@@ -353,6 +355,7 @@ export const ConversationContent: Component = () => {
     const byId = new Map((world()?.participants ?? []).map((participant) => [participant.id, participant]));
     return room.participantIds.map((id) => byId.get(id)).filter((participant): participant is Participant => participant !== undefined);
   };
+  const hasActiveRoomSelection = () => selection() !== null && activeRoom() !== null;
   const displayMessages = createMemo(() => eventsToDisplayMessages(journal.threadEvents(), rosterParticipants(), youLabel())
     .filter((message) => !supersededEvents.has((message as EventMessage).eventId))
     .map((message) => {
@@ -537,6 +540,16 @@ export const ConversationContent: Component = () => {
     if (firstRoom) await selectRoom(firstRoom.id);
   });
 
+  createEffect(() => {
+    if (firstRunModalHandled || !legacyAgentsLoaded() || agents().length > 0) return;
+    const snapshot = world();
+    if (!snapshot) return;
+    firstRunModalHandled = true;
+    if (!snapshot.participants.some((participant) => participant.kind === 'persistent')) {
+      setShowNewConversationModal(true);
+    }
+  });
+
   // Load agents and memories on mount (with migration from old format)
   onMount(async () => {
     const language = settings.language;
@@ -550,10 +563,9 @@ export const ConversationContent: Component = () => {
     } else if (loadedAgents.length > 0) {
       setActiveAgentId(loadedAgents[0].id);
       await saveActiveAgentId(loadedAgents[0].id);
-    } else {
-      // No agents — show setup modal
-      setShowSetupModal(true);
     }
+
+    setLegacyAgentsLoaded(true);
 
     const mems = await loadAllMemories(language);
     setAllMemories(mems);
@@ -627,6 +639,28 @@ export const ConversationContent: Component = () => {
     setWorld(snapshot);
     setShowNewConversationModal(false);
     await selectRoom(result.roomId, result.threadId);
+  };
+
+  const handleUpdateParticipant = async (participant: Participant): Promise<void> => {
+    await getBridge().world.updateParticipant(participant);
+    setWorld(await getBridge().world.getWorldState());
+  };
+
+  const handleDeleteThread = async (): Promise<void> => {
+    const room = activeRoom();
+    const thread = activeThread();
+    if (!room || !thread) return;
+
+    await getBridge().world.deleteThread(room.id, thread.id);
+    const snapshot = await getBridge().world.getWorldState();
+    setWorld(snapshot);
+    setShowDetailsDrawer(false);
+
+    if (snapshot.threads.some((candidate) => candidate.roomId === room.id)) {
+      await selectRoom(room.id);
+    } else {
+      setSelection(null);
+    }
   };
 
   // Check LLM availability reactively when provider/config changes
@@ -1389,8 +1423,8 @@ export const ConversationContent: Component = () => {
                     title={t('mlearn.ConversationAgent.Empty.Title')}
                     description={t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={{
-                      label: t('mlearn.ConversationAgent.Empty.StartConversation'),
-                      onClick: handleStartConversation,
+                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : 'New conversation',
+                      onClick: hasActiveRoomSelection() ? handleStartConversation : () => setShowNewConversationModal(true),
                       variant: 'primary',
                     }}
                     class="ca-empty"
@@ -1528,9 +1562,9 @@ export const ConversationContent: Component = () => {
               onIdleSilence={handleVoiceIdleSilence}
               scheduledNudge={voiceScheduledNudge()}
               onAbort={handleAbort}
-              defaultVoiceSampleId={activeAgent()?.voiceSampleId}
-              agentName={activeAgent()?.agentName}
-              profilePhoto={activeAgent()?.profilePhoto}
+              defaultVoiceSampleId={rosterParticipants()[0]?.voiceSampleId ?? activeAgent()?.voiceSampleId}
+              agentName={rosterParticipants()[0]?.displayName ?? activeAgent()?.agentName}
+              profilePhoto={rosterParticipants()[0]?.profilePhoto ?? activeAgent()?.profilePhoto}
               onCallStateChange={(active, reason) => {
                 setIsVoiceCallActive(active);
                 if (!active) cancelVoiceScheduledNudge();
@@ -1584,7 +1618,13 @@ export const ConversationContent: Component = () => {
         <>
         <button type="button" class="ca-details-backdrop" aria-label="Close conversation details" onClick={() => setShowDetailsDrawer(false)} />
         <aside class="ca-details-drawer">
-          <ThreadInfoPanel thread={activeThread()} context={mediaContext()} />
+          <ThreadInfoPanel
+            thread={activeThread()}
+            context={mediaContext()}
+            participants={rosterParticipants()}
+            onUpdateParticipant={handleUpdateParticipant}
+            onDeleteThread={handleDeleteThread}
+          />
         </aside>
         </>
       </Show>

@@ -502,6 +502,28 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
   });
 
+  it('opens NewConversationModal on first run when the world has no persistent participants', async () => {
+    currentWorld = { rooms: [], threads: [], participants: [] };
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
+  });
+
+  it('opens NewConversationModal from the empty state when no room is selected', async () => {
+    currentWorld = {
+      rooms: [],
+      threads: [],
+      participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
+    };
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'New conversation')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'New conversation')!.click();
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
+  });
+
   it('mounts VoiceTab with autoStartCall from the call button', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);

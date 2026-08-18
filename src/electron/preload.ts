@@ -562,6 +562,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_THREAD, roomId, title),
   updateThread: (thread: import('../shared/world').Thread): Promise<import('../shared/world').Thread> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_THREAD, thread),
+  deleteThread: (roomId: string, threadId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_DELETE_THREAD, roomId, threadId),
   rememberThis: (input: import('../shared/world').RememberThisInput): Promise<import('../shared/world').JournalEvent> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_REMEMBER_THIS, input),
   integrateThread: (input: import('../shared/world').IntegrateThreadInput): Promise<import('../shared/world').IntegrateThreadResult> =>
