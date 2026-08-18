@@ -32,7 +32,7 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
-import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync } from '../utils/aspectKnowledge';
+import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, prerequisitesOf } from '../utils/aspectKnowledge';
 import { appendEvents } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
@@ -2876,14 +2876,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Aspect evidence first, judged against the PRE-anchor meaning state: the
     // meaning anchor below raises meaning to learning, which reading would then
     // inherit — and the explicit evidence write would be skipped as redundant.
-    const failedIndex = available.indexOf(failedAspect);
-    if (failedIndex >= 1) {
-      for (const aspect of available.slice(1, failedIndex)) {
-        if (aspect === 'meaning') continue;
-        const current = getAspectStatusSync(word, aspect, comprehensiveDeps(word, language));
-        if (current.status === 'unknown') {
-          setAspectStatus(word, aspect, 'learning', 'manual', language);
-        }
+    // Positive evidence for the aspects the failure's prerequisite chain traversed
+    // (graph-derived: orthogonal aspects like gender can never appear here).
+    for (const aspect of prerequisitesOf(failedAspect, available)) {
+      if (aspect === 'meaning') continue;
+      const current = getAspectStatusSync(word, aspect, comprehensiveDeps(word, language));
+      if (current.status === 'unknown') {
+        setAspectStatus(word, aspect, 'learning', 'manual', language);
       }
     }
 

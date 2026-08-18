@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ASPECT_PREREQUISITES, KNOWLEDGE_ASPECTS } from '../../shared/constants';
 import type { ComprehensiveKnowledgeDeps } from './comprehensiveKnowledge';
 import {
   applyAspectWrite,
@@ -7,6 +8,7 @@ import {
   effectiveStatusFromStrength,
   getAspectStatusSync,
   getEffectiveKnowledge,
+  prerequisitesOf,
 } from './aspectKnowledge';
 import type { Flashcard, PassiveWordKnowledge } from '../../shared/types';
 import type { WordStatus } from '../../shared/constants';
@@ -272,5 +274,75 @@ describe('aspectSourceToDisplay', () => {
   it('maps raw sources to display names', () => {
     expect(aspectSourceToDisplay('passiveTracking')).toBe('PassiveTracking');
     expect(aspectSourceToDisplay('manual')).toBe('Manual');
+  });
+});
+
+describe('aspect dependency graph', () => {
+  const WITH_GENDER = ['meaning', 'reading', 'prosody', 'gender'] as const;
+
+  it('declares prerequisites for every aspect (extensibility: new aspect = one graph entry)', () => {
+    expect([...KNOWLEDGE_ASPECTS].sort()).toEqual(Object.keys(ASPECT_PREREQUISITES).sort());
+  });
+
+  it('traverses the linear chain: prosody prerequisites are reading then meaning', () => {
+    expect(prerequisitesOf('prosody', WITH_GENDER)).toEqual(['meaning', 'reading']);
+    expect(prerequisitesOf('reading', WITH_GENDER)).toEqual(['meaning']);
+    // Orthogonal aspects have an empty prerequisite closure.
+    expect(prerequisitesOf('gender', WITH_GENDER)).toEqual([]);
+  });
+
+  it('a meaning downgrade squashes the chain but never the orthogonal aspect', () => {
+    const entry = makeEntry();
+    entry.aspects = {
+      reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+      prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+      gender: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+    };
+    applyMeaningCascade(entry, 'learning', 100, 'Manual', easeFor, 'known', WITH_GENDER);
+    expect(entry.aspects.reading?.status).toBe('learning');
+    expect(entry.aspects.prosody?.status).toBe('learning');
+    // Gender is not on meaning's dependency chain — no inference reaches it.
+    expect(entry.aspects.gender?.status).toBe('known');
+    expect(entry.aspects.gender?.lastStatusChange).toBe(1);
+  });
+
+  it('a reading downgrade does not squash the orthogonal aspect', () => {
+    const entry = makeEntry();
+    entry.aspects = {
+      gender: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+    };
+    applyAspectWrite(entry, { aspect: 'reading', status: 'unknown', ease: 1.3, source: 'Manual', now: 100 }, easeFor, WITH_GENDER);
+    expect(entry.aspects.gender?.status).toBe('known');
+  });
+
+  it('orthogonal aspects do not inherit meaning: absent record reads as plain unknown', () => {
+    const lk = langKey('ja', hashWordSync('猫'));
+    const deps = makeDeps({
+      wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 5 }) },
+    });
+    const gender = getAspectStatusSync('猫', 'gender', deps);
+    expect(gender.status).toBe('unknown');
+    expect(gender.inherited).toBe(false);
+    // Chain aspects still inherit.
+    expect(getAspectStatusSync('猫', 'reading', deps).inherited).toBe(true);
+  });
+
+  it('gender evidence never changes effective knowledge on any current surface', () => {
+    const lk = langKey('ja', hashWordSync('猫'));
+    const known = makeDeps({ wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 5 }) } });
+    const withGenderFailed = makeDeps({
+      wordKnowledge: {
+        [lk]: {
+          ...makeEntry({ ease: 2.0, timesSeen: 5 }),
+          aspects: { gender: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 } },
+        },
+      },
+    });
+    for (const surface of ['video', 'reader', 'review', 'other'] as const) {
+      const baseline = getEffectiveKnowledge('猫', surface, known, WITH_GENDER);
+      const failed = getEffectiveKnowledge('猫', surface, withGenderFailed, WITH_GENDER);
+      expect(failed.status).toBe(baseline.status);
+      expect(failed.strength).toBeCloseTo(baseline.strength, 10);
+    }
   });
 });

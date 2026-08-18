@@ -1,6 +1,6 @@
-import type { KnowledgeSource, WordStatus } from './constants';
+import type { KnowledgeAspect, KnowledgeSource, WordStatus } from './constants';
 
-export type KnowledgeAspect = 'meaning' | 'reading' | 'prosody';
+export type { KnowledgeAspect };
 export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup';
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 

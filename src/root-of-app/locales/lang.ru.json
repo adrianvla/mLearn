@@ -896,7 +896,8 @@
           "Label": "Фокус",
           "Meaning": "Значение",
           "Reading": "Чтение",
-          "Prosody": "Просодия"
+          "Prosody": "Просодия",
+          "Gender": "Род"
         },
         "Attribution": {
           "WrongReading": "Неверное чтение",

@@ -896,7 +896,8 @@
           "Label": "侧重点",
           "Meaning": "词义",
           "Reading": "读音",
-          "Prosody": "韵律"
+          "Prosody": "韵律",
+          "Gender": "性"
         },
         "Attribution": {
           "WrongReading": "读音错误",

@@ -1,5 +1,7 @@
 import {
   type KnowledgeAspect,
+  ASPECT_PREREQUISITES,
+  KNOWLEDGE_ASPECTS,
   type KnowledgeSource,
   type KnowledgeSurface,
   SURFACE_WEIGHTS,
@@ -68,12 +70,20 @@ export function getAspectStatusSync(
   }
   if (best) return best.result;
 
-  return {
-    status: meaning.status,
-    ease: meaning.ease ?? (meaning.status === 'known' ? deps.knownEaseThreshold : meaning.status === 'learning' ? deps.learningThreshold : 0),
-    source: meaning.source,
-    inherited: true,
-  };
+  // Inheritance runs along the dependency chain only: an aspect whose
+  // prerequisites include meaning displays the meaning status until finer
+  // evidence exists. Orthogonal aspects (e.g. gender) have no chain to inherit
+  // from — an absent record is plain no-evidence unknown.
+  if (prerequisitesOf(aspect, KNOWLEDGE_ASPECTS).includes('meaning')) {
+    return {
+      status: meaning.status,
+      ease: meaning.ease ?? (meaning.status === 'known' ? deps.knownEaseThreshold : meaning.status === 'learning' ? deps.learningThreshold : 0),
+      source: meaning.source,
+      inherited: true,
+    };
+  }
+
+  return { status: 'unknown', ease: 0, source: 'None', inherited: false };
 }
 
 interface FormMatch {
@@ -147,14 +157,39 @@ export interface AspectWriteInput {
   now: number;
 }
 
-const ASPECT_ORDER: readonly KnowledgeAspect[] = ['meaning', 'reading', 'prosody'];
+/**
+ * Transitive prerequisites of `aspect` among `availableAspects` — the coarser
+ * aspects a learner necessarily traversed first (ASPECT_PREREQUISITES graph).
+ */
+export function prerequisitesOf(aspect: KnowledgeAspect, availableAspects: readonly KnowledgeAspect[]): readonly KnowledgeAspect[] {
+  const seen = new Set<KnowledgeAspect>();
+  const queue = [...ASPECT_PREREQUISITES[aspect]];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (seen.has(current)) continue;
+    seen.add(current);
+    queue.push(...ASPECT_PREREQUISITES[current]);
+  }
+  return availableAspects.filter((candidate) => seen.has(candidate));
+}
 
-/** Aspects strictly finer than `aspect` among the language's available aspects — the metadata-defined hierarchy. */
-function finerAspects(aspect: KnowledgeAspect, availableAspects: readonly KnowledgeAspect[]): readonly ReadableAspect[] {
-  const start = availableAspects.indexOf(aspect) >= 0 ? availableAspects.indexOf(aspect) : ASPECT_ORDER.indexOf(aspect);
-  return availableAspects.filter(
-    (candidate): candidate is ReadableAspect => candidate !== 'meaning' && availableAspects.indexOf(candidate) > start,
-  );
+/**
+ * Transitive dependents of `aspect` among `availableAspects` — the finer aspects
+ * whose prerequisite chain includes it. Meaning is never a dependent.
+ */
+function dependentsOf(aspect: KnowledgeAspect, availableAspects: readonly KnowledgeAspect[]): readonly ReadableAspect[] {
+  const seen = new Set<KnowledgeAspect>([aspect]);
+  const result: ReadableAspect[] = [];
+  const visit = (node: KnowledgeAspect) => {
+    for (const candidate of availableAspects) {
+      if (seen.has(candidate) || !ASPECT_PREREQUISITES[candidate].includes(node)) continue;
+      seen.add(candidate);
+      if (candidate !== 'meaning') result.push(candidate);
+      visit(candidate);
+    }
+  };
+  visit(aspect);
+  return result;
 }
 
 function minStatus(a: WordStatus, b: WordStatus): WordStatus {
@@ -188,7 +223,7 @@ export function applyAspectWrite(
     updatedAt: input.now,
   };
 
-  for (const finer of finerAspects(input.aspect, availableAspects)) {
+  for (const finer of dependentsOf(input.aspect, availableAspects)) {
     const finerRecord = aspects[finer];
     if (!finerRecord) {
       aspects[finer] = {
@@ -228,7 +263,7 @@ export function applyMeaningCascade(
   const aspects = entry.aspects;
   const downgraded = previousMeaningStatus !== undefined && STATUS_RANK[status] < STATUS_RANK[previousMeaningStatus];
 
-  for (const finer of finerAspects('meaning', availableAspects)) {
+  for (const finer of dependentsOf('meaning', availableAspects)) {
     const record = aspects[finer];
     if (!record) {
       aspects[finer] = {

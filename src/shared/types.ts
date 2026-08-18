@@ -1436,6 +1436,8 @@ export interface LanguageData {
   textProcessing?: LanguageTextProcessingConfig;
   /** Optional prosody/accent behavior for this language. */
   prosody?: LanguageProsodyConfig;
+  /** Grammatical-gender lexical knowledge supported by this language's data. */
+  gender?: LanguageGenderConfig;
   /** Character-level study/decomposition behavior. */
   characterStudy?: LanguageCharacterStudyConfig;
   /** Reader layout defaults supplied by the language package. */
@@ -1450,13 +1452,18 @@ export interface LanguageData {
   languageData?: LanguageDataManifest;
 }
 
+export interface LanguageGenderConfig {
+  /** Key in dictionary entry `attributes` carrying the lexical gender value (e.g. OpenRussian 'gender'). */
+  attributeKey?: string;
+}
+
 export function getAvailableAspects(language?: LanguageData): KnowledgeAspect[] {
   const aspects: KnowledgeAspect[] = ['meaning'];
   // An accent feature declared as reading-critical participates in reading knowledge.
   const accentInReading = language?.prosody?.knowledgeAspect === 'reading';
   if (language?.textProcessing?.readingAnnotation || accentInReading) aspects.push('reading');
-  if (accentInReading) return aspects;
-  if (language?.prosody?.type && language.prosody.type !== 'none') aspects.push('prosody');
+  if (!accentInReading && language?.prosody?.type && language.prosody.type !== 'none') aspects.push('prosody');
+  if (language?.gender) aspects.push('gender');
   return aspects;
 }
 

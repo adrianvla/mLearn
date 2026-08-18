@@ -896,7 +896,8 @@
           "Label": "フォーカス",
           "Meaning": "意味",
           "Reading": "読み",
-          "Prosody": "プロソディ"
+          "Prosody": "プロソディ",
+          "Gender": "性別"
         },
         "Attribution": {
           "WrongReading": "読みを間違えた",

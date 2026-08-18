@@ -429,8 +429,21 @@ export const ANKI_EASE = {
 export const WORD_STATUS_VALUES = ['unknown', 'learning', 'known'] as const;
 export type WordStatus = typeof WORD_STATUS_VALUES[number];
 
-export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody'] as const;
+export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody', 'gender'] as const;
 export type KnowledgeAspect = typeof KNOWLEDGE_ASPECTS[number];
+
+// Knowledge-aspect dependency graph: an aspect's prerequisites are the coarser
+// aspects a learner necessarily traverses first (meaning ← reading ← prosody).
+// Aspects outside each other's prerequisite closures are orthogonal — no
+// inference flows between them (gender is independent). Adding an aspect is one
+// entry here; language feature configs map INTO aspects and can never change
+// these relationships.
+export const ASPECT_PREREQUISITES: Record<KnowledgeAspect, readonly KnowledgeAspect[]> = {
+  meaning: [],
+  reading: ['meaning'],
+  prosody: ['reading'],
+  gender: [],
+};
 
 // Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {
@@ -458,16 +471,18 @@ export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None'
 
 // Surface-specific aspect weights for getEffectiveKnowledge (read-time only, never persisted).
 // 'other' is the identity profile: every surface not listed resolves exactly as before (meaning only).
+// Gender is weighted 0 in all current surfaces — no implemented context consumes it yet; a
+// productive-grammar context would weight it without touching this schema.
 export const KNOWLEDGE_SURFACES = ['video', 'reader', 'review', 'other'] as const;
 export type KnowledgeSurface = typeof KNOWLEDGE_SURFACES[number];
 
-export const SURFACE_WEIGHTS: Record<KnowledgeSurface, { meaning: number; reading: number; prosody: number }> = {
-  video: { meaning: 0.5, reading: 0.35, prosody: 0.15 },
+export const SURFACE_WEIGHTS: Record<KnowledgeSurface, { meaning: number; reading: number; prosody: number; gender: number }> = {
+  video: { meaning: 0.5, reading: 0.35, prosody: 0.15, gender: 0 },
   // Prosody is irrelevant to text comprehension: meaning+reading known with prosody
   // unknown must resolve as known, not 0.95 → learning.
-  reader: { meaning: 0.85, reading: 0.15, prosody: 0 },
-  review: { meaning: 1, reading: 0, prosody: 0 },
-  other: { meaning: 1, reading: 0, prosody: 0 },
+  reader: { meaning: 0.85, reading: 0.15, prosody: 0, gender: 0 },
+  review: { meaning: 1, reading: 0, prosody: 0, gender: 0 },
+  other: { meaning: 1, reading: 0, prosody: 0, gender: 0 },
 };
 
 // Knowledge resolution modes

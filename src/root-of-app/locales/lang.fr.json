@@ -896,7 +896,8 @@
           "Label": "Focus",
           "Meaning": "Sens",
           "Reading": "Lecture",
-          "Prosody": "Prosodie"
+          "Prosody": "Prosodie",
+          "Gender": "Genre"
         },
         "Attribution": {
           "WrongReading": "Lecture incorrecte",

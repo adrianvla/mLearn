@@ -15,6 +15,7 @@ const ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
   meaning: 'mlearn.Knowledge.Aspect.Meaning',
   reading: 'mlearn.Knowledge.Aspect.Reading',
   prosody: 'mlearn.Knowledge.Aspect.Prosody',
+  gender: 'mlearn.Knowledge.Aspect.Gender',
 };
 
 const STATUS_LABEL_KEYS: Record<WordStatus, string> = {

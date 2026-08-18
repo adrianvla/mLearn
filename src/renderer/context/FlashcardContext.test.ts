@@ -131,6 +131,12 @@ const mockLangData = vi.hoisted(() => ({
       },
     },
   },
+  ru2: {
+    name: 'Russian Aspects',
+    settings: { fixed: {} },
+    textProcessing: { readingAnnotation: { type: 'script-reading', annotationScripts: ['Cyrl'] } },
+    gender: { attributeKey: 'gender' },
+  },
   ja2: {
     name: 'Japanese Aspects',
     settings: { fixed: {} },
@@ -3865,6 +3871,55 @@ describe('attributeKnowledgeFailure', () => {
     expect(entry?.aspects?.reading).toBeUndefined();
     expect(entry?.ease).toBe(2.0);
     expect(entry?.aspects?.prosody?.status).toBe('unknown');
+    dispose();
+    mockSettings.language = 'ja';
+  });
+});
+
+describe('attributeKnowledgeFailure with orthogonal aspects', () => {
+  it('failed prosody leaves the orthogonal gender aspect untouched (no record, no inference)', async () => {
+    mockSettings.language = 'ru2x';
+    // ru2 + prosody: reuse ja-like chain plus gender by declaring prosody too.
+    mockLangData.ru2x = {
+      name: 'Chain + Gender',
+      settings: { fixed: {} },
+      textProcessing: { readingAnnotation: { type: 'script-reading', annotationScripts: ['Cyrl'] } },
+      prosody: { type: 'test-prosody' },
+      gender: { attributeKey: 'gender' },
+    };
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.attributeKnowledgeFailure('школа', 'prosody', 'ru2x');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ru2x:${await SRS.hashWord('школа')}`;
+    const entry = ctx.store.wordKnowledge[lk];
+    expect(entry?.aspects?.prosody?.status).toBe('unknown');
+    expect(entry?.aspects?.reading?.status).toBe('learning');
+    // Orthogonal aspect: no record at all — neither evidence nor phantom.
+    expect(entry?.aspects?.gender).toBeUndefined();
+    dispose();
+    delete mockLangData.ru2x;
+    mockSettings.language = 'ja';
+  });
+
+  it('failed gender anchors meaning only: no reading/prosody evidence fabricated', async () => {
+    mockSettings.language = 'ru2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.attributeKnowledgeFailure('школа', 'gender', 'ru2');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ru2:${await SRS.hashWord('школа')}`;
+    const entry = ctx.store.wordKnowledge[lk];
+    expect(entry?.aspects?.gender?.status).toBe('unknown');
+    // Gender has no prerequisite chain: nothing else got evidence.
+    expect(entry?.aspects?.reading).toBeUndefined();
+    expect(entry?.aspects?.prosody).toBeUndefined();
+    // Meaning still anchors at learning — the word itself was known, only gender failed.
+    expect(entry?.ease).toBeGreaterThanOrEqual(mockSettings.easeThresholdLearning);
     dispose();
     mockSettings.language = 'ja';
   });

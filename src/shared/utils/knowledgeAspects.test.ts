@@ -53,4 +53,25 @@ describe('getAvailableAspects', () => {
       prosody: { type: 'japanese-pitch-accent', knowledgeAspect: 'prosody' },
     })).toEqual(['meaning', 'reading', 'prosody']);
   });
+
+  it('enables the gender aspect when the language declares gender data', () => {
+    expect(getAvailableAspects({
+      ...readingLanguage,
+      gender: { attributeKey: 'gender' },
+    })).toEqual(['meaning', 'reading', 'gender']);
+  });
+
+  it('gender coexists with the full reading+prosody chain', () => {
+    expect(getAvailableAspects({
+      ...readingLanguage,
+      prosody: { type: 'japanese-pitch-accent' },
+      gender: { attributeKey: 'gender' },
+    })).toEqual(['meaning', 'reading', 'prosody', 'gender']);
+  });
+
+  it('real ru package: reading + gender, no prosody (stress belongs to reading)', async () => {
+    const { readFileSync } = await import('fs');
+    const ru = JSON.parse(readFileSync('scripts/language-data/source/root-of-app/languages/ru.json', 'utf-8'));
+    expect(getAvailableAspects(ru)).toEqual(['meaning', 'reading', 'gender']);
+  });
 });
