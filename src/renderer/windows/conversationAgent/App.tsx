@@ -3,13 +3,12 @@
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
  */
 
-import { Component, Show, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, Show, For, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../shared/backends';
-import { getFrequencyLevelLabel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import {
@@ -22,58 +21,42 @@ import {
   loadAgents,
   addAgent,
   updateAgent,
-  deleteAgent,
   loadActiveAgentId,
   saveActiveAgentId,
   migrateIfNeeded,
   loadAllMemories,
-  removeAgentMemory,
-  clearAgentMemories,
   generateAgentId,
 } from '../../services/agentConfigService';
 import {
   Btn,
   IconBtn,
   Modal,
-  TabContainer,
-  TabPanel,
   EmptyState,
   ConnectionStatus,
-  StatusBar,
   Textarea,
-  Select,
-  ToggleSwitch,
-  formatKeybindDisplay, Tag,
+  Tag,
   ChatIcon,
-  TrashIcon,
-  BatteryLowIcon,
 } from '../../components/common';
-import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
-import { useWordHover, useTranslation, useDictionary, getCachedTranslation } from '../../hooks';
+import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTranslation } from '../../hooks';
 import { ChatBubble } from './ChatBubble';
 import { ThreadInfoPanel } from './ThreadInfoPanel';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 import { AgentSetupModal } from './AgentSetupModal';
 import { AgeVerificationModal } from './AgeVerificationModal';
-import { AgentListPanel } from './AgentListPanel';
 import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
-import { ToolMenu } from './ToolMenu';
-import type { ToolMenuItem } from './ToolMenu';
 import { getConversationDisplayLanguageName, getConversationPromptLanguageName } from './languageNames';
 import { RoomSidebar } from './RoomSidebar';
-import { ScenarioEntryModal } from './ScenarioEntryModal';
-import { HistoryIcon } from '../../components/common/Misc/Icons';
+import { NewConversationModal } from './NewConversationModal';
 
 import { createConversationAgent, type AgentInstance } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
-import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { getConversationErrorMessage } from './errorUtils';
 import { shouldHideAssistantBubble } from './messageState';
 import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } from './journalRuntime';
@@ -82,11 +65,14 @@ import { compileContext, type CompiledContext, type LearnerProjection } from '..
 import { renderCompiledContext } from './roomMessages';
 import { selectSpeaker } from '../../../shared/speakerSelection';
 import { HARNESS_ACTOR, USER_ACTOR, type MessagePayload, type Participant, type WorldSnapshot } from '../../../shared/world';
+import { shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.conversationAgent.app");
 const HISTORY_WINDOW = 40;
+
+type EventMessage = ConversationMessage & { eventId: string };
 
 function windowTruncate<T>(history: T[]): T[] {
   return history.slice(-HISTORY_WINDOW);
@@ -180,6 +166,12 @@ const MicIcon: Component = () => (
   </svg>
 );
 
+const PhoneIcon: Component = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .4 2 .7 2.9a2 2 0 01-.5 2.1L8 10a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.5c.9.3 1.9.6 2.9.7a2 2 0 011.7 2z" />
+  </svg>
+);
+
 export const ConversationContent: Component = () => {
   const { settings, updateSettings, openCloudReLoginModal } = useSettings();
   const server = useServer();
@@ -188,7 +180,6 @@ export const ConversationContent: Component = () => {
     isTokenTranslatable,
     getLanguageFeatures,
     getFrequency,
-    getFreqLevelNames,
     getLevelName,
     getCanonicalForm,
     getWordVariants,
@@ -215,7 +206,6 @@ export const ConversationContent: Component = () => {
     return Boolean(word && context && correction && context.includes(word));
   };
 
-  const [activeTab, setActiveTab] = createSignal<string>('chat');
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
   const [tutorSelections, setTutorSelections] = createSignal<Pick<TutorSessionConfig, 'selectedGrammar' | 'selectedWords'>>({ selectedGrammar: [], selectedWords: [] });
   let translatedInstructions: string | null = null;
@@ -240,25 +230,17 @@ export const ConversationContent: Component = () => {
     && !isConnected()
   );
 
-  // Knowledge info toggle — controls whether failed words/grammar are included in the LLM context
-  const [includeKnowledgeInfo, setIncludeKnowledgeInfo] = createSignal(true);
-
-  // Disabled tools — user-toggled tool restrictions
-  const [disabledTools, setDisabledTools] = createSignal<Set<string>>(new Set());
-
   // Voice mode state
   const [isVoiceCallActive, setIsVoiceCallActive] = createSignal(false);
   const [voiceMistakes, setVoiceMistakes] = createSignal<VoiceMistake[]>([]);
   const [voiceSessionStart, setVoiceSessionStart] = createSignal<number>(0);
   const [voiceAftermath, setVoiceAftermath] = createSignal<VoiceSessionAftermath | null>(null);
 
-  // Level adaptation state
-  const [targetLevel, setTargetLevel] = createSignal<number | null>(null);
-
   // Agent setup & memory state
   const [agents, setAgents] = createSignal<AgentConfig[]>([]);
   const [activeAgentId, setActiveAgentId] = createSignal<string | null>(null);
   const [allMemories, setAllMemories] = createSignal<AgentMemoryEntry[]>([]);
+  void allMemories;
   const [showSetupModal, setShowSetupModal] = createSignal(false);
   const [editingAgent, setEditingAgent] = createSignal<AgentConfig | null>(null);
 
@@ -278,6 +260,7 @@ export const ConversationContent: Component = () => {
     ...wordLookupOptions,
   });
   const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
+  const { tokenize: tokenizeCached } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
@@ -288,12 +271,16 @@ export const ConversationContent: Component = () => {
   const journal = createJournalThreadStore();
   const [liveOverlay, setLiveOverlay] = createSignal<ConversationMessage | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
+  const tokenizedMessageIds = new Set<string>();
   const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
   const supersededEvents = new Set<string>();
   const participantAgents = new Map<string, AgentInstance>();
   let selectionSession = 0;
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
-  const [showScenarioModal, setShowScenarioModal] = createSignal(false);
+  const [showNewConversationModal, setShowNewConversationModal] = createSignal(false);
+  const [showOverflowMenu, setShowOverflowMenu] = createSignal(false);
+  const [showDetailsDrawer, setShowDetailsDrawer] = createSignal(false);
+  const [voiceOverlayRequested, setVoiceOverlayRequested] = createSignal(false);
   let voiceScheduledNudgeId = 0;
   const [voiceScheduledNudge, setVoiceScheduledNudge] = createSignal<{ id: number; seconds: number; prompt?: string } | null>(null);
 
@@ -325,7 +312,7 @@ export const ConversationContent: Component = () => {
   const learnerProjection = (): LearnerProjection => {
     const media = mediaContext();
     const tutor = tutorSelections();
-    const level = targetLevel();
+    const level = Number(settings.learningLanguageLevels?.[settings.language] ?? 0);
     return {
       language: promptLangName(),
       failedWords: [
@@ -336,7 +323,7 @@ export const ConversationContent: Component = () => {
         ...(media?.failedGrammar ?? []).sort((a, b) => a.ease - b.ease).slice(0, 10).map((g) => g.pattern),
         ...(tutor?.selectedGrammar ?? []).map((g) => g.pattern),
       ],
-      levelEstimate: level !== null ? (getLevelName(level) ?? undefined) : media?.assessedLevelName ?? undefined,
+      levelEstimate: level > 0 ? (getLevelName(level) ?? undefined) : media?.assessedLevelName ?? undefined,
     };
   };
   const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? null;
@@ -367,19 +354,39 @@ export const ConversationContent: Component = () => {
     return room.participantIds.map((id) => byId.get(id)).filter((participant): participant is Participant => participant !== undefined);
   };
   const displayMessages = createMemo(() => eventsToDisplayMessages(journal.threadEvents(), rosterParticipants(), youLabel())
-    .filter((message) => !supersededEvents.has((message as ConversationMessage & { eventId: string }).eventId))
+    .filter((message) => !supersededEvents.has((message as EventMessage).eventId))
     .map((message) => {
-      const eventId = (message as ConversationMessage & { eventId: string }).eventId;
+      const eventId = (message as EventMessage).eventId;
       const interrupted = interruptedSpokenText.get(eventId);
       return { ...message, ...messageOverrides().get(eventId), ...(interrupted ? { content: interrupted.text, interrupted: true, interruptedAt: interrupted.interruptedAt } : {}) };
     }));
   const messages = createMemo(() => liveOverlay() ? [...displayMessages(), liveOverlay()!] : displayMessages());
   const [streamingMessageIndex, setStreamingMessageIndex] = createSignal<number | null>(null);
   const updateMessageOverride = (eventId: string, update: (message: ConversationMessage) => ConversationMessage) => {
-    const message = displayMessages().find((item) => (item as ConversationMessage & { eventId: string }).eventId === eventId);
+    const message = displayMessages().find((item) => (item as EventMessage).eventId === eventId);
     if (!message) return;
     setMessageOverrides((overrides) => new Map(overrides).set(eventId, update(message)));
   };
+
+  createEffect(() => {
+    for (const message of displayMessages() as EventMessage[]) {
+      if (
+        (message.role !== 'assistant' && message.role !== 'user')
+        ||
+        message.tokens?.length
+        || tokenizedMessageIds.has(message.eventId)
+        || !shouldTokenizeTextForLanguage(message.content, settings.language, currentLangData())
+      ) continue;
+
+      tokenizedMessageIds.add(message.eventId);
+      void tokenizeCached(message.content)
+        .then((tokens) => {
+          if (!tokens.length || displayMessages().find((item) => (item as EventMessage).eventId === message.eventId)?.tokens?.length) return;
+          updateMessageOverride(message.eventId, (current) => ({ ...current, tokens }));
+        })
+        .catch((error: unknown) => log.error('error', error));
+    }
+  });
 
   const providerLabel = () => {
     switch (settings.llmProvider) {
@@ -388,13 +395,6 @@ export const ConversationContent: Component = () => {
       default: return t('mlearn.AI.Settings.Provider.Builtin');
     }
   };
-
-  const topTabs = (): TabItem[] => [
-    { id: 'chat', label: t('mlearn.ConversationAgent.Tab.Chat') },
-    { id: 'voice', label: t('mlearn.ConversationAgent.Tab.Voice') },
-    { id: 'agents', label: t('mlearn.ConversationAgent.Tab.Agents') },
-    { id: 'stats', label: 'Thread' },
-  ];
 
   const getParticipantAgent = (participant: Participant): AgentInstance => {
     const cached = participantAgents.get(participant.id);
@@ -407,10 +407,10 @@ export const ConversationContent: Component = () => {
     getMediaContext: mediaContextForTools,
     flashcardCtx,
     getFrequency,
-    getTargetLevel: () => targetLevel(),
+    getTargetLevel: () => Number(settings.learningLanguageLevels?.[settings.language] ?? 0) || null,
     getLanguageData: () => currentLangData(),
     getLevelName,
-    isVoiceMode: () => activeTab() === 'voice' && isVoiceCallActive(),
+    isVoiceMode: isVoiceCallActive,
     onVoiceMistake: (mistake: VoiceMistake) => {
       if (!isValidVoiceMistake(mistake)) return;
       setVoiceMistakes((prev) => [...prev, mistake]);
@@ -430,8 +430,7 @@ export const ConversationContent: Component = () => {
         payload: { ownerId: participant.id, kind: 'belief', text: content },
       });
     },
-    getIncludeKnowledgeInfo: () => includeKnowledgeInfo(),
-    getDisabledTools: () => disabledTools(),
+    getDisabledTools: () => new Set(settings.agentMemoryEnabled ? [] : ['save_memory']),
     getWorldContext: () => renderCompiledContext(
       compileContext({ participant, participants: rosterParticipants(), seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents(), learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef }),
       rosterParticipants(),
@@ -585,67 +584,6 @@ export const ConversationContent: Component = () => {
     }
   };
 
-  const handleDeleteAllAgents = async () => {
-    // Delete all agents one by one
-    const allAgents = agents();
-    for (const a of allAgents) {
-      await deleteAgent(a.id, settings.language);
-    }
-    await clearAgentMemories(undefined, settings.language);
-    setAgents([]);
-    setAllMemories([]);
-    setLiveOverlay(null);
-    clearAssistantStreamState();
-    agent.clearHistory();
-    setActiveAgentId(null);
-    setShowSetupModal(true);
-  };
-
-  const handleDeleteMemory = (id: string) => {
-    removeAgentMemory(id, settings.language).then(setAllMemories);
-  };
-
-  const handleSelectAgent = async (id: string) => {
-    cancelVoiceScheduledNudge();
-    setActiveAgentId(id);
-    await saveActiveAgentId(id);
-    // Clear conversation when switching agents
-    setLiveOverlay(null);
-    agent.clearHistory();
-    agent.unlockSafety();
-    setIsSafetyLockedState(false);
-  };
-
-  const handleCreateAgent = () => {
-    setEditingAgent(null);
-    setShowSetupModal(true);
-  };
-
-  const handleEditAgent = (agentCfg: AgentConfig) => {
-    setEditingAgent(agentCfg);
-    setShowSetupModal(true);
-  };
-
-  const handleDeleteAgent = async (id: string) => {
-    cancelVoiceScheduledNudge();
-    const updatedAgents = await deleteAgent(id, settings.language);
-    setAgents(updatedAgents);
-    setAllMemories((prev) => prev.filter((m) => m.agentId !== id));
-
-    if (activeAgentId() === id) {
-      if (updatedAgents.length > 0) {
-        setActiveAgentId(updatedAgents[0].id);
-        await saveActiveAgentId(updatedAgents[0].id);
-      } else {
-        setActiveAgentId(null);
-      }
-      setLiveOverlay(null);
-      agent.clearHistory();
-      agent.unlockSafety();
-      setIsSafetyLockedState(false);
-    }
-  };
-
   const selectRoom = async (roomId: string, requestedThreadId?: string): Promise<void> => {
     const mySession = ++selectionSession;
     const snapshot = await getBridge().world.getWorldState();
@@ -687,7 +625,7 @@ export const ConversationContent: Component = () => {
   const handleScenarioCreated = async (result: { roomId: string; threadId: string }): Promise<void> => {
     const snapshot = await getBridge().world.getWorldState();
     setWorld(snapshot);
-    setShowScenarioModal(false);
+    setShowNewConversationModal(false);
     await selectRoom(result.roomId, result.threadId);
   };
 
@@ -764,9 +702,7 @@ export const ConversationContent: Component = () => {
         if (typeof rawCtx.roomId === 'string') {
           await selectRoom(rawCtx.roomId, typeof rawCtx.threadId === 'string' ? rawCtx.threadId : undefined);
         }
-        if (rawCtx.initialTab === 'stats') {
-          setActiveTab('stats');
-        }
+        if (rawCtx.initialTab === 'stats') setShowDetailsDrawer(true);
         if (isConversationAgentContext(rawCtx)) {
           setMediaContext(rawCtx);
           await updateActiveThread((thread) => ({
@@ -887,38 +823,6 @@ export const ConversationContent: Component = () => {
 
   };
 
-  // Tool menu items — tools the user can toggle
-  const toolMenuItems = (): ToolMenuItem[] => {
-    const items: ToolMenuItem[] = [
-      { id: 'correct_mistake', label: t('mlearn.ConversationAgent.Tools.CorrectMistake') },
-      { id: 'create_quiz', label: t('mlearn.ConversationAgent.Tools.CreateQuiz') },
-      { id: 'fetch_url', label: t('mlearn.ConversationAgent.Tools.FetchUrl') },
-      { id: 'get_media_stats', label: t('mlearn.ConversationAgent.Tools.GetMediaStats') },
-      { id: 'search_wikipedia', label: t('mlearn.ConversationAgent.Tools.SearchWikipedia') },
-      { id: 'save_memory', label: t('mlearn.ConversationAgent.Tools.SaveMemory') },
-    ];
-    const agentCfg = activeAgent();
-    if (agentCfg?.roleplayFandomUrl) {
-      items.push({ id: 'search_fandom', label: t('mlearn.ConversationAgent.Tools.SearchFandom') });
-    }
-    if (agentCfg?.personality === 'roleplay' && agentCfg.roleplayContext) {
-      items.push({ id: 'recall_backstory', label: t('mlearn.ConversationAgent.Tools.RecallBackstory') });
-    }
-    return items;
-  };
-
-  const handleToolToggle = (toolId: string, enabled: boolean) => {
-    setDisabledTools((prev) => {
-      const next = new Set(prev);
-      if (enabled) {
-        next.delete(toolId);
-      } else {
-        next.add(toolId);
-      }
-      return next;
-    });
-  };
-
   // Auto-resize textarea + command palette detection
   const handleTextareaInput = (e: InputEvent) => {
     const target = e.currentTarget as HTMLTextAreaElement;
@@ -1000,7 +904,7 @@ export const ConversationContent: Component = () => {
     setExplainerOpen(false);
   };
 
-  const buildStreamCallbacks = (onDone?: number | ((text: string, widgets: ChatWidget[] | undefined) => void)): StreamCallbacks => {
+  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined) => void): StreamCallbacks => {
     let streamTokenizeId = 0;
     let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
     return {
@@ -1028,8 +932,8 @@ export const ConversationContent: Component = () => {
           return { ...overlay, widgets, widget };
         });
       },
-      onDone: (finalContent, _tokens, widgets) => {
-        if (typeof onDone === 'function') onDone(finalContent, widgets);
+      onDone: (finalContent, tokens, widgets) => {
+        onDone?.(finalContent, tokens, widgets);
         clearAssistantStreamState();
       },
       onError: (error) => {
@@ -1056,10 +960,10 @@ export const ConversationContent: Component = () => {
     }
     cancelVoiceScheduledNudge();
     const witnesses = [USER_ACTOR, ...room.participantIds];
-    const userEvent = await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: activeTab() === 'voice' ? 'voice' : 'text' } satisfies MessagePayload });
+    const userEvent = await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
     setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
     startAssistantStream(displayMessages().length);
-    let pendingWidgets: ChatWidget[] | undefined;
+    let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
     await runRoomTurn({
       room,
       participants: world()?.participants ?? [],
@@ -1072,13 +976,19 @@ export const ConversationContent: Component = () => {
         const runtimeAgent = getParticipantAgent(participant);
         runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(journal.threadEvents(), participant.id, world()?.participants ?? [])));
         return new Promise((resolve, reject) => runtimeAgent.processMessage(lastContextMessage(context), [], {
-          ...buildStreamCallbacks((final, widgets) => { pendingWidgets = widgets; resolve({ text: final }); }),
+          ...buildStreamCallbacks((final, tokens, widgets) => { pendingResponse = { tokens, widgets }; resolve({ text: final }); }),
           onError: (error) => reject(new Error(error)),
         }));
       },
-      appendEvent: async (draft) => journal.append(draft.type === 'message.character' && pendingWidgets
-        ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingWidgets, widget: pendingWidgets[pendingWidgets.length - 1] } }
-        : draft),
+      appendEvent: async (draft) => {
+        const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets
+          ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
+          : draft);
+        if (draft.type === 'message.character' && pendingResponse.tokens?.length) {
+          updateMessageOverride(event.id, (message) => ({ ...message, tokens: pendingResponse.tokens }));
+        }
+        return event;
+      },
     });
     setLiveOverlay(null);
     if (settings.agentMistakeChecker || settings.agentSafetyChecker) runCheckerOnMessage(text, userEvent.id, undefined);
@@ -1101,8 +1011,8 @@ export const ConversationContent: Component = () => {
     setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
     startAssistantStream(displayMessages().length);
     await new Promise<void>((resolve, reject) => runtimeAgent.continueWithContext(context, {
-      ...buildStreamCallbacks(async (text, widgets) => {
-        await journal.append({
+      ...buildStreamCallbacks(async (text, tokens, widgets) => {
+        const event = await journal.append({
           roomId: room.id,
           scope: { kind: 'thread', threadId },
           type: 'message.character',
@@ -1110,6 +1020,7 @@ export const ConversationContent: Component = () => {
           witnesses: [USER_ACTOR, ...room.participantIds],
           payload: { text, widgets, widget: widgets?.at(-1), modality } satisfies MessagePayload,
         });
+        if (tokens?.length) updateMessageOverride(event.id, (message) => ({ ...message, tokens }));
         setLiveOverlay(null);
         if (settings.autoSpeak && settings.speechEnabled) speakAssistantText(text);
         resolve();
@@ -1302,48 +1213,6 @@ export const ConversationContent: Component = () => {
   const currentTriggerMode = () => settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger!;
   const currentKey = () => settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!;
 
-  const getHoverTriggerLabel = (mode: WordHoverTriggerMode): string => {
-    switch (mode) {
-      case 'hover': return t('mlearn.ConversationAgent.TriggerHover');
-      case 'long-hover': return t('mlearn.ConversationAgent.TriggerLongHover');
-      case 'key-hover': return t('mlearn.ConversationAgent.TriggerKeyHover', { key: formatKeybindDisplay(currentKey(), t) });
-      default: return mode;
-    }
-  };
-
-  const triggerOptions = (): SelectOption[] => [
-    { value: 'hover', label: getHoverTriggerLabel('hover') },
-    { value: 'long-hover', label: getHoverTriggerLabel('long-hover') },
-    { value: 'key-hover', label: getHoverTriggerLabel('key-hover') },
-  ];
-
-  const handleTriggerModeChange = (e: Event) => {
-    const value = (e.target as HTMLSelectElement).value as WordHoverTriggerMode;
-    updateSettings({ readerWordHoverTrigger: value });
-  };
-
-  // Level adaptation options — derived from language frequency level names
-  const levelOptions = (): SelectOption[] => {
-    const names = getFreqLevelNames();
-    const options: SelectOption[] = [
-      { value: '', label: t('mlearn.ConversationAgent.LevelAdapt.None') },
-    ];
-    const levels = sortFrequencyLevelsForDisplay(
-      Object.keys(names).map(Number).filter((n) => !isNaN(n)),
-      currentLangData(),
-    );
-    for (const level of levels) {
-      options.push({ value: String(level), label: getFrequencyLevelLabel(level, names, currentLangData()) });
-    }
-    return options;
-  };
-
-  const hasLevelData = () => getLanguageFeatures().supportsFrequencyLevels;
-
-  const handleLevelChange = (e: Event) => {
-    const value = (e.target as HTMLSelectElement).value;
-    setTargetLevel(value ? Number(value) : null);
-  };
 
   /**
    * Check if a message at the given index should be hidden.
@@ -1404,58 +1273,79 @@ export const ConversationContent: Component = () => {
           </p>
         </div>
       </Modal>
-      {/* Header with integrated tabs */}
       <div class="ca-header">
-        <div class="ca-header-left">
-          <span class="ca-header-title">{t('mlearn.ConversationAgent.Title')}</span>
-          <button
-            type="button"
-            class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
-            onClick={handleConnectionStatusClick}
-            aria-disabled={!canOpenCloudSignIn()}
-            aria-label={canOpenCloudSignIn() ? t('mlearn.Connection.SignIn') : undefined}
-          >
-            <Tag class="ca-provider-label" headless size="sm">
-              {providerLabel()}
-            </Tag>
-            <ConnectionStatus
-                status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
-                showLabel={!isConnected()}
-                size="sm"
-            />
-          </button>
+        <IconBtn
+          variant="ghost"
+          icon="sidebar"
+          onClick={() => setSidebarVisible((visible) => !visible)}
+          aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
+        />
+        <div class="ca-header-identity">
+          <span class="ca-header-title">{activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
+          <Show when={activeThread()?.mediaRef} keyed>
+            {(media) => (
+              <button type="button" class="ca-media-chip" onClick={() => setShowDetailsDrawer(true)}>
+                {media.mediaName}
+              </button>
+            )}
+          </Show>
+        </div>
+        <div class="ca-header-spacer" />
+        <button
+          type="button"
+          class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
+          onClick={handleConnectionStatusClick}
+          aria-disabled={!canOpenCloudSignIn()}
+          aria-label={canOpenCloudSignIn() ? t('mlearn.Connection.SignIn') : undefined}
+        >
+          <Tag class="ca-provider-label" headless size="sm">{providerLabel()}</Tag>
+          <ConnectionStatus
+            status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
+            showLabel={isCheckingConnection() || !isConnected()}
+            size="sm"
+          />
           <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
             <span class="ca-header-status">{server.statusMessage()}</span>
           </Show>
-        </div>
-        <TabContainer
-          tabs={topTabs()}
-          activeTab={activeTab()}
-          onTabChange={setActiveTab}
-          variant="underline"
-          size="sm"
-          class="ca-header-tabs"
+        </button>
+        <IconBtn
+          variant="ghost"
+          icon={<PhoneIcon />}
+          disabled={rosterParticipants().length === 0}
+          onClick={() => setVoiceOverlayRequested(true)}
+          aria-label="Start call"
         />
-        <div class="ca-header-actions">
+        <div class="ca-overflow-anchor">
           <IconBtn
             variant="ghost"
-            onClick={() => setSidebarVisible((v) => !v)}
-            icon={<HistoryIcon size={14} />}
-            aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
-          />
-          <IconBtn
-            variant="ghost"
-            onClick={handleClear}
-            icon={<TrashIcon size={14} />}
-            aria-label={t('mlearn.ConversationAgent.Clear')}
-          />
+            onClick={() => setShowOverflowMenu((open) => !open)}
+            aria-label="Conversation menu"
+          >…</IconBtn>
+          <Show when={showOverflowMenu()}>
+            <>
+            <button type="button" class="ca-popover-backdrop" aria-label="Close conversation menu" onClick={() => setShowOverflowMenu(false)} />
+            <div class="ca-overflow-menu">
+              <button type="button" onClick={() => { void newThread(); setShowOverflowMenu(false); }}>New thread</button>
+              <button type="button" onClick={() => { setShowDetailsDrawer(true); setShowOverflowMenu(false); }}>Conversation details</button>
+              <div class="ca-overflow-word-hover">
+                <span>Word hover</span>
+                <div>
+                  <For each={['hover', 'long-hover', 'key-hover'] as const}>
+                    {(mode) => <button type="button" class={currentTriggerMode() === mode ? 'active' : ''} onClick={() => updateSettings({ readerWordHoverTrigger: mode })}>{mode}</button>}
+                  </For>
+                </div>
+              </div>
+              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>Settings</button>
+              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>Memory browser</button>
+            </div>
+            </>
+          </Show>
         </div>
       </div>
 
-      {/* Chat panel */}
-      <TabPanel tabId="chat" activeTab={activeTab()}>
-        <div class="ca-chat-panel">
+      <div class="ca-chat-panel">
           <Show when={sidebarVisible()}>
+            <>
             <button
               type="button"
               class="ca-history-sidebar-backdrop"
@@ -1470,9 +1360,10 @@ export const ConversationContent: Component = () => {
                 onSelectRoom={(roomId) => { void selectRoom(roomId); }}
                 onSelectThread={(threadId) => { const room = activeRoom(); if (room) void selectRoom(room.id, threadId); }}
                 onNewThread={() => { void newThread(); }}
-                onNewScenario={() => setShowScenarioModal(true)}
+          onNewConversation={() => { setShowNewConversationModal(true); }}
               />
             </div>
+            </>
           </Show>
           <div class={`ca-chat-content ${sidebarVisible() ? 'ca-chat-content--with-sidebar' : ''}`}>
             {/* TTS indicator */}
@@ -1620,55 +1511,16 @@ export const ConversationContent: Component = () => {
                 </div>
               </div>
             </div>
-            {/* Status bar with hover trigger selector, knowledge toggle, and level adaptation */}
-            <StatusBar>
-              <Show when={isLowPowerActive()}>
-                <button type="button" class="statusbar-toggle active" tabIndex={-1} title={t('mlearn.LowPowerGate.StatusBarTooltip')}>
-                  <BatteryLowIcon size={14} />
-                </button>
-              </Show>
-              <div class="hover-trigger-section">
-                  <span class="hover-trigger-label">{t('mlearn.ConversationAgent.ShowTooltipOn')}</span>
-                <Select
-                    class="hover-trigger-select"
-                    options={triggerOptions()}
-                    value={currentTriggerMode()}
-                    onChange={handleTriggerModeChange}
-                />
-              </div>
-              <div class="hover-trigger-section">
-                <ToggleSwitch
-                  checked={includeKnowledgeInfo()}
-                  onChange={setIncludeKnowledgeInfo}
-                  label={t('mlearn.ConversationAgent.IncludeKnowledge')}
-                />
-              </div>
-              <Show when={hasLevelData()}>
-                <div class="hover-trigger-section">
-                  <span class="hover-trigger-label">{t('mlearn.ConversationAgent.LevelAdapt.Label')}</span>
-                  <Select
-                      class="hover-trigger-select"
-                      options={levelOptions()}
-                      value={targetLevel() !== null ? String(targetLevel()) : ''}
-                      onChange={handleLevelChange}
-                  />
-                </div>
-              </Show>
-              <ToolMenu
-                tools={toolMenuItems()}
-                disabledTools={disabledTools()}
-                onToggle={handleToolToggle}
-              />
-            </StatusBar>
+            <Show when={isLowPowerActive()}>
+              <div class="ca-lowpower-chip">{t('mlearn.LowPowerGate.StatusBarTooltip')}</div>
+            </Show>
           </div>
         </div>
-      </TabPanel>
 
-      {/* Voice panel */}
-      <TabPanel tabId="voice" activeTab={activeTab()} class="ca-voice-panel">
-        <Show when={voiceAftermath()} fallback={
-          <>
-            <VoiceTab
+      <Show when={voiceOverlayRequested() || isVoiceCallActive() || voiceAftermath()}>
+        <div class="ca-voice-overlay">
+          <Show when={voiceAftermath()} fallback={<VoiceTab
+              autoStartCall={voiceOverlayRequested()}
               messages={messages()}
               isStreaming={isStreaming()}
               onSendMessage={sendTextMessage}
@@ -1689,6 +1541,7 @@ export const ConversationContent: Component = () => {
                 } else {
                   if (reason !== 'completed') {
                     setVoiceSessionStart(0);
+                    setVoiceOverlayRequested(false);
                     return;
                   }
 
@@ -1716,69 +1569,25 @@ export const ConversationContent: Component = () => {
               triggerKey={currentKey()}
               isConnected={isConnected()}
               language={settings.language}
-            />
-
-            <Show when={hoverData()} keyed>
-              {(data) => data.token ? (
-                <WordHover
-                  token={data.token}
-                  word={data.word}
-                  position={data.position}
-                  anchorRect={data.anchorRect}
-                  dictionaryEntries={dictionaryEntries()}
-                  translationData={translationData() || undefined}
-                  isLoading={isLoadingDict()}
-                  visible={isVisible()}
-                  contextPhrase={data.word}
-                  onMouseEnter={cancelHide}
-                  onMouseLeave={hideHover}
-                  onClose={hideHover}
-                  onOpenExplainer={handleOpenExplainer}
-                />
-              ) : null}
-            </Show>
-
-            <ExplainerPopup
-              isOpen={explainerOpen()}
-              onClose={handleCloseExplainer}
-              word={explainerWord()}
-              contextPhrase={explainerContext()}
-              initialPosition={explainerPosition()}
-            />
-          </>
-        }>
+            />}>
           {(aftermath) => (
             <VoiceAftermath
               aftermath={aftermath()}
-              onDismiss={() => setVoiceAftermath(null)}
+              onDismiss={() => { setVoiceAftermath(null); setVoiceOverlayRequested(false); }}
             />
           )}
-        </Show>
-      </TabPanel>
+          </Show>
+        </div>
+      </Show>
 
-      {/* Agents panel */}
-      <TabPanel tabId="agents" activeTab={activeTab()} class="ca-agents-panel">
-        <AgentListPanel
-          agents={agents()}
-          activeAgentId={activeAgentId()}
-          memories={allMemories()}
-          onSelect={handleSelectAgent}
-          onCreate={handleCreateAgent}
-          onEdit={handleEditAgent}
-          onDelete={handleDeleteAgent}
-          onDeleteMemory={handleDeleteMemory}
-          onClearAgentMemories={(agentId) => clearAgentMemories(agentId, settings.language).then(setAllMemories)}
-          onDeleteAll={handleDeleteAllAgents}
-        />
-      </TabPanel>
-
-      {/* Thread panel */}
-      <TabPanel tabId="stats" activeTab={activeTab()} class="ca-stats-panel">
-        <ThreadInfoPanel
-          thread={activeThread()}
-          context={mediaContext()}
-        />
-      </TabPanel>
+      <Show when={showDetailsDrawer()}>
+        <>
+        <button type="button" class="ca-details-backdrop" aria-label="Close conversation details" onClick={() => setShowDetailsDrawer(false)} />
+        <aside class="ca-details-drawer">
+          <ThreadInfoPanel thread={activeThread()} context={mediaContext()} />
+        </aside>
+        </>
+      </Show>
 
       {/* Agent setup modal */}
       <AgentSetupModal
@@ -1788,12 +1597,13 @@ export const ConversationContent: Component = () => {
         initialConfig={editingAgent()}
       />
 
-      {/* New scenario modal */}
-      <ScenarioEntryModal
-        isOpen={showScenarioModal()}
-        onClose={() => setShowScenarioModal(false)}
-        onCreated={(result) => { void handleScenarioCreated(result); }}
-      />
+      <Show when={showNewConversationModal()}>
+        <NewConversationModal
+          world={world()}
+          onClose={() => setShowNewConversationModal(false)}
+          onCreated={(result) => { void handleScenarioCreated(result); }}
+        />
+      </Show>
 
     </div>
   );

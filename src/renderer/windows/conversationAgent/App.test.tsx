@@ -113,7 +113,7 @@ const mockBridge = {
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => mockBridge }));
 
 const mockBackend = {
-  tokenize: vi.fn(async () => []),
+  tokenize: vi.fn(async (text: string) => [{ actual_word: text, word: text, type: 'NOUN' }]),
 };
 
 vi.mock('../../../shared/backends', () => ({
@@ -175,6 +175,9 @@ vi.mock('../../hooks', () => ({
   useTranslation: () => ({
     translateWord: async () => null,
   }),
+  useTokenizer: () => ({
+    tokenize: mockBackend.tokenize,
+  }),
   useDictionary: () => ({
     lookup: async () => [],
   }),
@@ -194,8 +197,8 @@ vi.mock('../../components/common', () => ({
   Modal: (props: { children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
     <div>{props.title}{props.children}{props.footer}</div>
   ),
-  ModalForm: (props: { children?: JSX.Element; footer?: JSX.Element }) => (
-    <div>{props.children}{props.footer}</div>
+  ModalForm: (props: { isOpen?: boolean; children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
+    props.isOpen === false ? null : <div>{props.title}{props.children}{props.footer}</div>
   ),
   Input: (props: { value?: string; onInput?: (e: InputEvent) => void; type?: string }) => (
     <input type={props.type ?? 'text'} value={props.value} onInput={(e) => props.onInput?.(e)} />
@@ -282,6 +285,14 @@ vi.mock('../../components/subtitle/ExplainerPopup', () => ({
   ExplainerPopup: () => null,
 }));
 
+vi.mock('./VoiceTab', () => ({
+  VoiceTab: (props: { autoStartCall?: boolean }) => <div data-testid="voice-tab" data-auto-start={String(props.autoStartCall)} />,
+}));
+
+vi.mock('./ThreadInfoPanel', () => ({
+  ThreadInfoPanel: () => <div data-testid="thread-info-panel" />,
+}));
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -317,6 +328,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     testSettings = { ...DEFAULT_SETTINGS };
     mockBridge.world.updateThread.mockClear();
     mockBridge.llm.llmStream.mockClear();
+    mockBackend.tokenize.mockClear();
   });
 
   afterEach(() => {
@@ -346,6 +358,22 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
     await vi.waitFor(() => expect(chatText(container)).toContain('Hello from Partner'));
+  });
+
+  it('tokenizes journal-restored messages without persisted tokens', async () => {
+    journalEvents = [appendJournalEvent({
+      roomId: 'room-a',
+      scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.character',
+      actorId: 'agent-a',
+      witnesses: ['user', 'agent-a'],
+      payload: { text: 'こんにちは' },
+    })];
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+
+    await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalledWith('こんにちは'));
+    await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
   });
 
   it('appends user and character journal events for a streamed send', async () => {
@@ -380,6 +408,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     emitChunk({ done: true });
     await vi.waitFor(() => expect(journalEvents.map((event) => event.type)).toEqual(['message.user', 'message.character']));
     expect(chatText(container)).toContain('こんにちは、元気？');
+    await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(2));
   });
 
   it('translates arriving media context into the active thread and renders it in Thread', async () => {
@@ -433,5 +462,53 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const [messages] = mockBridge.llm.llmStream.mock.calls.at(-1) as [{ content: string }[]];
     expect(messages[0].content).toContain('猫');
     expect(messages[0].content).toContain('て-form');
+  });
+
+  it('uses a single chat shell with header overflow controls', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="Conversation menu"]')).not.toBeNull());
+    expect(container.querySelector('[role="tab"]')).toBeNull();
+    (container.querySelector('button[aria-label="Conversation menu"]') as HTMLButtonElement).click();
+    expect(container.textContent).toContain('New thread');
+    expect(container.textContent).toContain('Conversation details');
+    expect(container.textContent).toContain('Word hover');
+  });
+
+  it('opens details from a media chip and initial stats context', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a', initialTab: 'stats' });
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="thread-info-panel"]')).not.toBeNull());
+  });
+
+  it('renders New conversation in the room sidebar', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'New conversation')).toBe(true));
+    expect(container.querySelector('.room-sidebar-new-conversation')).not.toBeNull();
+  });
+
+  it('opens the NewConversationModal from the room sidebar', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'New conversation')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'New conversation')!.click();
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
+  });
+
+  it('mounts VoiceTab with autoStartCall from the call button', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="Start call"]')).not.toBeNull());
+    const callButton = container.querySelector('button[aria-label="Start call"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(callButton.disabled).toBe(false));
+    callButton.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-auto-start')).toBe('true'));
   });
 });

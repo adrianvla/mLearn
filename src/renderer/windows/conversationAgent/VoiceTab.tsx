@@ -139,6 +139,8 @@ function providerFromVoiceTtsChoice(choice: VoiceTtsChoice): LocalVoiceTtsProvid
 }
 
 export interface VoiceTabProps {
+  /** Start a call immediately after the tab mounts. */
+  autoStartCall?: boolean;
   messages: ConversationMessage[];
   isStreaming: boolean;
   onSendMessage: (text: string) => void;
@@ -1309,6 +1311,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       activeTtsProvider(),
     );
   };
+
+  onMount(() => {
+    if (props.autoStartCall) void startCall();
+  });
 
   // Start audio capture when the voice session becomes ready.
   // Uses on() to limit reactive tracking to only the session-readiness signals

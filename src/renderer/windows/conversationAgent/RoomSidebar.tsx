@@ -9,7 +9,7 @@ interface RoomSidebarProps {
   onSelectRoom: (roomId: string) => void;
   onSelectThread: (threadId: string) => void;
   onNewThread: () => void;
-  onNewScenario: () => void;
+  onNewConversation: () => void;
 }
 
 export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
@@ -20,10 +20,8 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
 
   return (
     <aside class="room-sidebar">
-      <div class="room-sidebar-header">
-        <h3 class="room-sidebar-title">Conversations</h3>
-        <button type="button" class="room-sidebar-new-scenario" onClick={props.onNewScenario}>New scenario</button>
-      </div>
+      <div class="room-sidebar-header"><h3 class="room-sidebar-title">Conversations</h3></div>
+      <button type="button" class="room-sidebar-new-conversation" onClick={() => props.onNewConversation()}>New conversation</button>
       <div class="room-sidebar-rooms">
         <For each={props.world?.rooms ?? []}>
           {(room) => (

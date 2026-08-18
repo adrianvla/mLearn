@@ -9,12 +9,13 @@
 
 .room-sidebar-title { margin: 0; color: var(--text-primary); font-size: var(--font-size-lg); }
 .room-sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); }
-.room-sidebar-new-scenario {
+.room-sidebar-new-conversation {
+  width: 100%;
   border: 1px solid var(--border-color); border-radius: var(--radius-md);
-  background: var(--bg-primary); color: var(--text-link); cursor: pointer;
+  background: var(--bg-success); color: var(--text-primary); cursor: pointer;
   padding: var(--spacing-1) var(--spacing-2); font: inherit; font-size: var(--font-size-sm);
 }
-.room-sidebar-new-scenario:hover { border-color: var(--border-color-intense); background: var(--bg-secondary); }
+.room-sidebar-new-conversation:hover { border-color: var(--border-color-intense); background: var(--bg-secondary); }
 .room-sidebar-rooms, .room-sidebar-threads { display: flex; flex-direction: column; gap: var(--spacing-2); }
 .room-sidebar-room, .room-sidebar-thread {
   width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);
