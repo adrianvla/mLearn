@@ -21,10 +21,10 @@ import { cleanContextPhrase } from '../../utils/phraseExtraction';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
-import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent } from '../../components/subtitle/wordHoverHelpers';
+import { bulkAddWords } from '../../utils/bulkAddWords';
 import { getTokenLookupWord, getWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
-import { WORD_STATUS, ANKI_EASE } from '../../../shared/constants';
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
 import { showToast } from '../../components/common/Feedback/Toast';
@@ -769,24 +769,20 @@ export const App: Component = () => {
   const processAddAll = async (entries: VideoWordEntry[]) => {
     setIsAddingAllSidebarWords(true);
     try {
-      for (const entry of entries) {
-        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
-        if (trackedAnkiWord) {
-          const forms = getWordForms(entry.word);
-          const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
-          const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
-          const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
-          try {
-            await anki.updateWordCards(trackedAnkiWord, ankiEase);
-            await refreshAnkiWordsCache(ankiCacheOptions());
-          } catch (err) {
-            log.error(`Failed to update Anki cards for "${entry.word}":`, err);
-            showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
-          }
-        } else {
-          await addVideoWordFlashcard(entry);
-        }
-      }
+      const updatedAny = await bulkAddWords({
+        entries,
+        wordOf: (entry) => entry.word,
+        trackedAnkiWordOf: getTrackedAnkiWord,
+        formsOf: getWordForms,
+        statusOf: getWordStatus,
+        updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
+        addFlashcard: addVideoWordFlashcard,
+        onEntryError: (entry, err) => {
+          log.error(`Failed to update Anki cards for "${entry.word}":`, err);
+          showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+        },
+      });
+      if (updatedAny) await refreshAnkiWordsCache(ankiCacheOptions());
     } finally {
       setIsAddingAllSidebarWords(false);
     }

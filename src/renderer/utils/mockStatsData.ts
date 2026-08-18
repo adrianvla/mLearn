@@ -429,14 +429,13 @@ function createSeededRng(seed: number): () => number {
  * SRS learning → known, with a share of lapse→recovery arcs. Replays through
  * replayKnowledgeHistory to the arc's final ease by construction.
  */
-export function generateKnowledgeEvents(
+function generateKnowledgeEvents(
   words: readonly string[],
   opts: { seed?: number; now?: number; language?: string } = {},
 ): KnowledgeEventLog {
   const language = opts.language ?? DEFAULT_MOCK_LANGUAGE;
   const now = opts.now ?? Date.now();
   const log: KnowledgeEventLog = {};
-
   words.forEach((word, index) => {
     const rng = createSeededRng((opts.seed ?? 1) * 100003 + index);
     const key = langKey(language, hashWordSync(word));
@@ -518,7 +517,7 @@ export function generateKnowledgeEvents(
  * lapse→recovery arcs so the retention chart has signal. Synthetic words keep
  * these out of the per-word history panel's vocabulary lists.
  */
-export function generateCohortKnowledgeEvents(
+function generateCohortKnowledgeEvents(
   opts: { seed?: number; now?: number; language?: string; months?: number; wordsPerMonth?: number } = {},
 ): KnowledgeEventLog {
   const language = opts.language ?? DEFAULT_MOCK_LANGUAGE;

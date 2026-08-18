@@ -2,10 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   parseSubtitle,
   extractReadingAnnotations,
-  buildReadingAnnotationHtml,
   extractDisplayReading,
   parseWorkName,
-  shouldRemoveParentheticalContent,
   stripSpeakerNamePrefixes,
 } from './subtitleParsing';
 import * as subtitleParsingModule from './subtitleParsing';
@@ -347,47 +345,6 @@ describe('extractReadingAnnotations', () => {
   });
 });
 
-describe('buildReadingAnnotationHtml', () => {
-  it('returns empty string for empty array', () => {
-    expect(buildReadingAnnotationHtml([])).toBe('');
-  });
-
-  it('returns ruby HTML for segment with reading', () => {
-    expect(buildReadingAnnotationHtml([{ text: '漢字', reading: 'かんじ' }]))
-      .toBe('<ruby>漢字<rt>かんじ</rt></ruby>');
-  });
-
-  it('returns plain text for segment without reading', () => {
-    expect(buildReadingAnnotationHtml([{ text: 'こんにちは' }])).toBe('こんにちは');
-  });
-
-  it('concatenates multiple segments correctly', () => {
-    const segments = [
-      { text: '百夜', reading: 'ひゃくや' },
-      { text: '優一郎', reading: 'ゆういちろう' },
-    ];
-    expect(buildReadingAnnotationHtml(segments)).toBe(
-      '<ruby>百夜<rt>ひゃくや</rt></ruby><ruby>優一郎<rt>ゆういちろう</rt></ruby>'
-    );
-  });
-
-  it('handles mixed segments (with and without reading)', () => {
-    const segments = [
-      { text: '今日', reading: 'きょう' },
-      { text: 'は' },
-      { text: '天気', reading: 'てんき' },
-    ];
-    expect(buildReadingAnnotationHtml(segments)).toBe(
-      '<ruby>今日<rt>きょう</rt></ruby>は<ruby>天気<rt>てんき</rt></ruby>'
-    );
-  });
-
-  it('produces valid ruby tag format with rt inside ruby', () => {
-    const html = buildReadingAnnotationHtml([{ text: 'X', reading: 'Y' }]);
-    expect(html).toMatch(/^<ruby>.*<rt>.*<\/rt><\/ruby>$/);
-  });
-});
-
 describe('extractDisplayReading', () => {
   it('returns empty string for undefined', () => {
     expect(extractDisplayReading(undefined)).toBe('');
@@ -522,20 +479,6 @@ describe('extractDisplayReading', () => {
         },
       },
     })).toBe('漢字かな');
-  });
-});
-
-describe('shouldRemoveParentheticalContent', () => {
-  it('returns false without language metadata', () => {
-    expect(shouldRemoveParentheticalContent('ja')).toBe(false);
-  });
-
-  it('returns true when language metadata enables parenthetical readings', () => {
-    expect(shouldRemoveParentheticalContent('ja', jaReadingData)).toBe(true);
-  });
-
-  it('returns false for German', () => {
-    expect(shouldRemoveParentheticalContent('de')).toBe(false);
   });
 });
 

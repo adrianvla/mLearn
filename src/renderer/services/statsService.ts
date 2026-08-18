@@ -168,6 +168,9 @@ export function changeKnownStatus(word: string, status: number, aliases: readonl
 /**
  * Get a word's learning status
  * Checks the preferred word form first, then any aliases.
+ * @deprecated Returns UNKNOWN for every word unless loadWordsFromStorage ran first
+ * (silent init-before-read). Use FlashcardContext's getComprehensiveWordStatusSync
+ * — the comprehensive resolver across all knowledge banks.
  */
 export function getWordStatus(word: string, aliases: readonly string[] = []): number {
   const trackedWords = wordsLearnedInApp();
@@ -204,6 +207,9 @@ export async function getKnownStatus(word: string, srsCheck?: (word: string) => 
 /**
  * Load words from storage via KV store bridge
  * Safe to call multiple times - will only load once
+ * @deprecated Init-before-read legacy of the pre-FlashcardContext word-status layer.
+ * Consumers: wordDbEditor, VideoRoute/overlay/ReaderRoute add-all flows. New code
+ * reads knowledge via FlashcardContext instead.
  */
 export async function loadWordsFromStorage(language: string): Promise<void> {
   if (loadedWordStatusLanguage === language) return;

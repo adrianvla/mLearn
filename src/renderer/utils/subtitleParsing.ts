@@ -176,18 +176,6 @@ export function extractReadingAnnotations(text: string, data?: LanguageData | nu
   return segments;
 }
 
-/**
- * Build ruby HTML from reading annotation segments.
- */
-export function buildReadingAnnotationHtml(segments: ReadingAnnotationSegment[]): string {
-  return segments.map(segment => {
-    if (segment.reading) {
-      return `<ruby>${segment.text}<rt>${segment.reading}</rt></ruby>`;
-    }
-    return segment.text;
-  }).join('');
-}
-
 export { containsHanCharacters, normalizeReading, escapeHtml, stripRubyAnnotations } from '../../shared/utils/textUtils';
 
 function cleanReadingMarkup(reading: string, preserveSpaces: boolean): string {
@@ -276,10 +264,6 @@ export function extractDisplayReading(reading: string | undefined, data?: Langua
   const normalized = normalizeReading(reading, data);
 
   return normalized;
-}
-
-export function shouldRemoveParentheticalContent(language: string, data?: LanguageData | null): boolean {
-  return usesReadingOverrideParentheses(language, data);
 }
 
 function isSpeakerLabelCandidate(label: string, language: string, data?: LanguageData | null): boolean {

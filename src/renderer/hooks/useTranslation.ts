@@ -169,6 +169,8 @@ export function getCachedTranslation(
   language?: string,
   lookupOptions: WordLookupCandidateOptions = {},
 ): TranslationResponse | null {
+  // Intentional bare read: makes every caller reactive to cache writes.
+  cacheVersion();
   const languageData = resolveLanguageData(lookupOptions.languageData);
   const candidates = buildTranslationLookupCandidates(
     word,

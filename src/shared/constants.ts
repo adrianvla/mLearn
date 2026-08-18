@@ -24,18 +24,9 @@ export const PORTS = {
   PROXY_SERVER: PROXY_SERVER_PORT,
 } as const;
 
-// API endpoints (full URLs — for legacy/Electron direct usage)
+// Voice endpoints for legacy/Electron direct usage (all other endpoints go
+// through API_PATHS + the backend adapter).
 export const API_ENDPOINTS = {
-  tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
-  translate: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
-  /** @deprecated LLM moved to unified LLM backend */
-  llm: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm`,
-  /** @deprecated LLM moved to unified LLM backend */
-  llmStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm/status`,
-  ocr: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
-  control: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/control`,
-  quit: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/quit`,
-  // Voice endpoints
   voiceStream: `ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stream`,
   voiceTtsStream: `ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/stream`,
   voiceTts: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts`,

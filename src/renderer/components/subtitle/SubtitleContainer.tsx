@@ -11,7 +11,7 @@ import { SubtitleWord } from './SubtitleWord';
 import { WordHover, WordStatus } from './WordHover';
 import { ExplainerPopup } from './ExplainerPopup';
 import { initWordLookupBridge } from '../../services/wordLookupService';
-import { tokensToPlainText } from '../../utils/phraseExtraction';
+import { tokensToPlainText } from '../../../shared/languageFeatures';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
