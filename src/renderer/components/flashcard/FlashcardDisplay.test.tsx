@@ -99,6 +99,7 @@ vi.mock('./FlashcardWordTitle', () => ({
 }));
 
 vi.mock('../../services/ankiWordsCache', () => ({
+  ankiCacheVersion: () => 0,
   fetchAnkiWordsCache: ankiMocks.fetchAnkiWordsCacheMock,
   findWordInAnkiCache: ankiMocks.findWordInAnkiCacheMock,
   isAnkiCacheFetched: ankiMocks.isAnkiCacheFetchedMock,

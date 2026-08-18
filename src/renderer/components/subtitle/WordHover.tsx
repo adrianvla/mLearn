@@ -9,7 +9,7 @@ import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEnt
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
-import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml } from '../common';
 import { ProsodyOverlay } from '../language-specific';
@@ -489,14 +489,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   // Anki hover preview state
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
-
-  // Fetch Anki words cache once when use_anki is enabled
-  createEffect(() => {
-    const options = ankiCacheOptions();
-    if (settings.use_anki && !isAnkiCacheFetched(options)) {
-      fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true));
-    }
+  const ankiCacheReady = createMemo(() => {
+    ankiCacheVersion();
+    return settings.use_anki && isAnkiCacheFetched(ankiCacheOptions());
   });
 
   // Check if word is in Anki (synchronous, from cache)

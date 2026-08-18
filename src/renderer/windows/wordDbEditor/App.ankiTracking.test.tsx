@@ -235,7 +235,7 @@ describe('WordDbEditorContent Anki tracking', () => {
     dispose();
   });
 
-  it('shows an error toast and refetches on window focus when the Anki cache fetch fails', async () => {
+  it('refetches on window focus when the Anki cache fetch fails', async () => {
     setMockUseAnkiEnabled(true);
     mockGetAnkiWordStatuses.mockRejectedValue(new Error('anki down'));
     const { WordDbEditorContent } = await import('./App');
@@ -244,7 +244,6 @@ describe('WordDbEditorContent Anki tracking', () => {
     await flush();
     await flush();
 
-    expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'error' }));
     expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
 
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '赤い', queue: 2, type: 2 }]);

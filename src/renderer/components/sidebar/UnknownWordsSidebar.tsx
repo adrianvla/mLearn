@@ -11,7 +11,7 @@ import {
   resolveProsodyForHover,
 } from '../subtitle/wordHoverHelpers';
 import { normalizeDictionaryReading } from '../../utils/readingProsody';
-import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
@@ -264,23 +264,9 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
     language: settings.language,
     languageData: currentLangData(),
   }));
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
-
-  createEffect(() => {
-    if (!settings.use_anki) {
-      setAnkiCacheReady(false);
-      return;
-    }
-
-    const options = ankiCacheOptions();
-    if (isAnkiCacheFetched(options)) {
-      setAnkiCacheReady(true);
-      return;
-    }
-
-    void fetchAnkiWordsCache(options).then(() => {
-      setAnkiCacheReady(true);
-    });
+  const ankiCacheReady = createMemo(() => {
+    ankiCacheVersion();
+    return settings.use_anki && isAnkiCacheFetched(ankiCacheOptions());
   });
 
   createEffect(() => {

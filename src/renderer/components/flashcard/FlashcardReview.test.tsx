@@ -104,6 +104,7 @@ vi.mock('../../hooks/useTranslation', () => ({
 }));
 
 vi.mock('../../services/ankiWordsCache', () => ({
+  ankiCacheVersion: () => 0,
   fetchAnkiWordsCache: () => Promise.resolve(),
   findWordInAnkiCache: () => false,
   isAnkiCacheFetched: () => true,

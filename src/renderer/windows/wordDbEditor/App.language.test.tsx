@@ -81,6 +81,7 @@ vi.mock('../../hooks/useAnki', () => ({
 }));
 
 vi.mock('../../services/ankiWordsCache', () => ({
+  ankiCacheVersion: () => 0,
   fetchAnkiWordsCache: mockFetchAnkiWordsCache,
   isAnkiCacheFetched: mockIsAnkiCacheFetched,
   getAnkiCacheLastError: vi.fn(() => null),
@@ -239,7 +240,6 @@ describe('WordDbEditorContent', () => {
   it('loads the base word database while optional Anki enrichment is still pending', async () => {
     mockUseAnki = true;
     mockIsAnkiCacheFetched.mockReturnValue(false);
-    mockFetchAnkiWordsCache.mockReturnValue(new Promise<Set<string>>(() => undefined));
     const { WordDbEditorContent } = await import('./App');
 
     const dispose = render(() => <WordDbEditorContent />, container);
@@ -247,7 +247,6 @@ describe('WordDbEditorContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockFetchAnkiWordsCache).toHaveBeenCalledOnce();
     expect(renderedEntries.some((entry) => entry.word === '赤い')).toBe(true);
     dispose();
   });

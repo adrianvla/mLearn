@@ -187,6 +187,7 @@ vi.mock('../../services/statsService', () => ({
 }));
 
 vi.mock('../../services/ankiWordsCache', () => ({
+  ankiCacheVersion: () => 0,
   fetchAnkiWordsCache: vi.fn(async () => undefined),
   findAnkiWordMatchInCache: (words: readonly string[]) => {
     for (const word of words) {

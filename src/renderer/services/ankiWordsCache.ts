@@ -51,6 +51,9 @@ interface DiffConfig {
 const diffConfigBySignature = new Map<string, DiffConfig>();
 const lastAnkiStatusByLk = new Map<string, WordStatus>();
 
+const AUTO_REFETCH_BACKOFF_MS = 30_000;
+const lastAutoFetchAtBySignature = new Map<string, number>();
+
 function getCacheSignature(options?: AnkiWordsCacheOptions): string {
   const language = options?.language ?? '';
   const data = options?.languageData;
@@ -90,6 +93,17 @@ function getCacheEntry(options?: AnkiWordsCacheOptions): AnkiWordsCacheEntry {
       learning: options.ankiLearningThreshold,
       known: options.ankiKnownThreshold,
     });
+  }
+  // Reads own cache population (no per-surface wiring): the first read on an
+  // unfetched entry starts the fetch; the version bump on completion re-runs
+  // reactive readers. Failed fetches auto-retry at most once per backoff
+  // window; explicit fetch/refresh are never backoff-gated.
+  ankiCacheVersion();
+  if (!entry.fetched && !entry.fetchPromise) {
+    const lastAttempt = lastAutoFetchAtBySignature.get(signature) ?? 0;
+    if (Date.now() - lastAttempt >= AUTO_REFETCH_BACKOFF_MS) {
+      void startEntryFetch(entry, options, signature);
+    }
   }
   return entry;
 }
@@ -170,7 +184,15 @@ export async function fetchAnkiWordsCache(options?: AnkiWordsCacheOptions): Prom
   const entry = getCacheEntry(options);
   if (entry.fetched) return entry.wordsSet;
   if (entry.fetchPromise) return entry.fetchPromise;
+  return startEntryFetch(entry, options);
+}
 
+function startEntryFetch(
+  entry: AnkiWordsCacheEntry,
+  options?: AnkiWordsCacheOptions,
+  signature = getCacheSignature(options),
+): Promise<Set<string>> {
+  lastAutoFetchAtBySignature.set(signature, Date.now());
   entry.fetchPromise = (async () => {
     try {
       const cards = await getBackend().getAnkiWordStatuses();
@@ -342,6 +364,7 @@ export async function refreshAnkiWordsCache(options?: AnkiWordsCacheOptions): Pr
 
 export function clearAnkiWordsCache(): void {
   cachesBySignature.clear();
+  lastAutoFetchAtBySignature.clear();
   activeCacheSignature = '';
   setAnkiCacheVersion(v => v + 1);
 }

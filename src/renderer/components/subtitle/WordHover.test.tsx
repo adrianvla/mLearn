@@ -86,6 +86,7 @@ vi.mock('../../services/llmProvider', () => ({
 }));
 
 vi.mock('../../services/ankiWordsCache', () => ({
+  ankiCacheVersion: () => 0,
   fetchAnkiWordsCache: vi.fn(async () => undefined),
   findAnkiWordMatchInCache: (candidates: string[], options?: unknown) => findAnkiWordMatchInCacheMock(candidates, options),
   isAnkiCacheFetched: () => true,

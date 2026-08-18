@@ -57,7 +57,6 @@ describe('ankiWordsCache', () => {
   it('returns the first matching candidate word from the cache', async () => {
     const { refreshAnkiWordsCache, findWordInAnkiCache } = await import('./ankiWordsCache');
     await refreshAnkiWordsCache();
-
     expect(findWordInAnkiCache(['なかま', '仲間'])).toBe('仲間');
     expect(findWordInAnkiCache(['仲間', 'なかま'])).toBe('仲間');
   });
@@ -67,6 +66,34 @@ describe('ankiWordsCache', () => {
     await refreshAnkiWordsCache();
 
     expect(findWordInAnkiCache(['なかま', 'ともだち'])).toBeNull();
+  });
+
+  it('auto-fetches on the first read without explicit wiring', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 2300, queue: 2, type: 2 }]);
+
+    const { findAnkiWordMatchInCache } = await import('./ankiWordsCache');
+    expect(findAnkiWordMatchInCache(['仲間'])).toBeNull();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(findAnkiWordMatchInCache(['仲間'])?.word).toBe('仲間');
+  });
+
+  it('does not retry a failed auto-fetch within the backoff window', async () => {
+    mockGetAnkiWordStatuses.mockRejectedValue(new Error('AnkiConnect unreachable'));
+
+    const { findAnkiWordMatchInCache, getAnkiCacheLastError } = await import('./ankiWordsCache');
+    expect(findAnkiWordMatchInCache(['仲間'])).toBeNull();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    findAnkiWordMatchInCache(['仲間']);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockGetAnkiWordStatuses).toHaveBeenCalledTimes(1);
+    expect(getAnkiCacheLastError()).toContain('AnkiConnect unreachable');
   });
 
   it('returns the matched card metadata for the first matching candidate', async () => {
@@ -169,7 +196,11 @@ describe('ankiWordsCache', () => {
     expect(findWordInAnkiCache(['Example(かな)'], latinOptions)).toBe('Example(かな)');
     expect(findWordInAnkiCache(['Example'], hanOptions)).toBeNull();
     expect(findWordInAnkiCache(['Example(かな)'], latinOptions)).toBe('Example(かな)');
-    expect(mockGetAnkiWordStatuses).toHaveBeenCalledTimes(1);
+    // The han probe auto-fetches its own unfetched entry (one background call);
+    // it must not disturb the already-fetched latin entry.
+    expect(mockGetAnkiWordStatuses).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('keeps fetched indexes for multiple language metadata signatures', async () => {

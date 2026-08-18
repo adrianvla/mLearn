@@ -28,8 +28,7 @@ import {
 } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
-import { fetchAnkiWordsCache, getAnkiCacheLastError, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
-import { showToast } from '../../components/common/Feedback/Toast';
+  import { isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
 import { wordStatusToNumeric } from '../../components/subtitle/wordHoverHelpers';
 import './WordDbEditorLayout.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -145,20 +144,6 @@ export const WordDbEditorContent: Component = () => {
       log.error('Word DB Editor: Failed to load words:', e);
       setIsInitialized(true);
     }
-  });
-
-  // Reactively fetch Anki words when ankiEnabled becomes true (settings arrive async via IPC)
-  createEffect(() => {
-    if (!ankiEnabled()) return;
-
-    const options = ankiCacheOptions();
-    if (isAnkiCacheFetched(options)) return;
-
-    void fetchAnkiWordsCache(options).then(() => {
-      if (getAnkiCacheLastError(options)) {
-        showToast({ message: t('mlearn.WordDbEditor.Anki.WordsFetchFailed'), variant: 'error' });
-      }
-    });
   });
 
   createEffect(() => {

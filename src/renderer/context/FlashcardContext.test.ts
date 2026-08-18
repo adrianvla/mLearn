@@ -3647,7 +3647,7 @@ describe('FlashcardProvider', () => {
 
   it('getWordTrackingSync re-evaluates when the anki cache version bumps', async () => {
     mockSettings.use_anki = true;
-    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([]);
     const { createRoot, createMemo } = await import('solid-js');
     const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
     const { ctx, dispose } = await mountProvider();
@@ -3660,6 +3660,7 @@ describe('FlashcardProvider', () => {
     });
     expect(tracking?.tracker).toBe('nothing');
 
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
     await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
 
     expect(tracking?.tracker).toBe('anki');

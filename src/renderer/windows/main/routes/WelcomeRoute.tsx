@@ -33,7 +33,7 @@ import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarg
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
 import { fetchTranslation } from '../../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
-import { ankiCacheVersion, fetchAnkiWordsCache, isAnkiCacheFetched, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
+import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
@@ -253,17 +253,6 @@ export const WelcomeRoute: Component = () => {
   const submitLookup = () => {
     openWordLookup(lookupDraft());
   };
-
-  // Prefetch the Anki word cache when tracking is enabled so the first search has data.
-  createEffect(() => {
-    if (!settings.use_anki) return;
-    const options = {
-      language: settings.language,
-      languageData: language.currentLangData(),
-    };
-    if (isAnkiCacheFetched(options)) return;
-    void fetchAnkiWordsCache(options);
-  });
 
   const levelStudySource = createMemo(() => {
     const langData = language.currentLangData();

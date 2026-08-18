@@ -21,7 +21,7 @@ import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
 import { isElectron } from '../../../shared/platform';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
-import { findWordInAnkiCache, fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { ankiCacheVersion, findWordInAnkiCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import './FlashcardDisplay.css';
 
@@ -86,23 +86,13 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     return url;
   });
 
-  // Ensure the Anki words cache is populated so the duplicate indicator works
   const ankiCacheOptions = createMemo(() => ({
     language: cardLanguage(),
     languageData: cardLanguageData(),
   }));
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
-  createEffect(() => {
-    const options = ankiCacheOptions();
-    if (!settings.use_anki) {
-      setAnkiCacheReady(false);
-      return;
-    }
-    if (isAnkiCacheFetched(options)) {
-      setAnkiCacheReady(true);
-      return;
-    }
-    fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true));
+  const ankiCacheReady = createMemo(() => {
+    ankiCacheVersion();
+    return settings.use_anki && isAnkiCacheFetched(ankiCacheOptions());
   });
 
   // Check if this card's word exists in Anki (for duplicate indicator)
