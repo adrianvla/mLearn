@@ -426,7 +426,8 @@
       "Empty": {
         "Hint": "Практикуйте целевой язык с AI-репетитором. Он исправит ошибки, задаст вопросы и поможет в обучении.",
         "StartConversation": "Пусть ИИ начнёт",
-        "Title": "Начните беседу"
+        "Title": "Начните беседу",
+        "NewConversation": "Новый диалог"
       },
       "ExperimentalBanner": "Экспериментальная функция — ответы AI могут содержать ошибки. Проверяйте важные языковые моменты.",
       "Disclaimer": "Это ИИ, он может ошибаться. Пожалуйста, перепроверяйте ответы.",
@@ -697,6 +698,51 @@
         "FetchingChapters": "Загрузка кратких содержаний глав...",
         "ExploringWiki": "Исследование вики для контекста сюжета...",
         "ExploringWikiDetail": "Исследование вики: {detail}"
+      },
+      "Sidebar": {
+        "Title": "Диалоги",
+        "NewConversation": "Новый диалог",
+        "NewThread": "Новая ветка",
+        "UntitledThread": "Ветка без названия"
+      },
+      "NewConversation": {
+        "Title": "Новый диалог",
+        "Hint": "Выберите знакомого человека или опишите, с кем хотите поговорить и что хотите попрактиковать.",
+        "FieldLabel": "Диалог",
+        "Placeholder": "С кем вы хотите поговорить или что хотите попрактиковать?",
+        "Cancel": "Отмена",
+        "Start": "Начать",
+        "Starting": "Запуск…",
+        "PeopleLabel": "Знакомые люди",
+        "TalkTo": "Поговорить с {name}",
+        "DidYouMean": "Возможно, вы имели в виду:",
+        "Failed": "Не удалось создать диалог",
+        "StartAria": "Начать диалог"
+      },
+      "Menu": {
+        "OverflowAria": "Меню диалога",
+        "CloseAria": "Закрыть меню диалога",
+        "NewThread": "Новая ветка",
+        "Details": "Сведения о диалоге",
+        "WordHover": "Наведение на слова",
+        "Settings": "Настройки",
+        "MemoryBrowser": "Обзор памяти"
+      },
+      "Call": {
+        "StartAria": "Начать звонок"
+      },
+      "Details": {
+        "ThreadLabel": "Ветка",
+        "UntitledThread": "Ветка без названия",
+        "ParticipantsLabel": "Участники",
+        "NameLabel": "Имя",
+        "PersonaLabel": "Персона",
+        "Edit": "Изменить",
+        "Save": "Сохранить",
+        "Cancel": "Отмена",
+        "DeleteThread": "Удалить ветку",
+        "DeleteThreadConfirm": "Удалить ветку?",
+        "ConfirmDelete": "Подтвердить удаление"
       }
     },
     "ErrorModal": {
@@ -2403,7 +2449,8 @@
         "SRS": "SRS",
         "Statistics": "Статистика",
         "VideoPlayer": "Видеоплеер",
-        "BrowserExtension": "Расширение браузера"
+        "BrowserExtension": "Расширение браузера",
+        "EventAudit": "Журнал событий"
       },
       "SearchPlaceholder": "Поиск настроек...",
       "Behaviour": {

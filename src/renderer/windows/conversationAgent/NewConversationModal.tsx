@@ -3,6 +3,7 @@ import { getBridge } from '../../../shared/bridges';
 import type { Participant, WorldSnapshot } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
 import { Btn, FormField, HintText, ModalForm, Textarea } from '../../components/common';
+import { useLocalization } from '../../context';
 import './NewConversationModal.css';
 
 interface NewConversationModalProps {
@@ -25,6 +26,7 @@ function participantInitial(participant: Participant): string {
 }
 
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
+  const { t } = useLocalization();
   const [intent, setIntent] = createSignal('');
   const [selectedParticipant, setSelectedParticipant] = createSignal<Participant | null>(null);
   const [candidates, setCandidates] = createSignal<Participant[]>([]);
@@ -87,7 +89,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       });
       await createConversation(participant, text.slice(0, 40));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create conversation');
+      setError(err instanceof Error ? err.message : t('mlearn.ConversationAgent.NewConversation.Failed'));
     } finally {
       setBusy(false);
     }
@@ -97,7 +99,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     <ModalForm
       isOpen={true}
       onClose={props.onClose}
-      title="New conversation"
+      title={t('mlearn.ConversationAgent.NewConversation.Title')}
       size="md"
       showCloseButton={true}
       closeOnOverlay={!busy()}
@@ -105,33 +107,33 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       onSubmit={handleStart}
       footer={
         <div class="new-conversation-actions">
-          <Btn variant="ghost" onClick={props.onClose} disabled={busy()}>Cancel</Btn>
-          <Btn variant="primary" aria-label="Start conversation" onClick={handleStart} disabled={busy() || (!selectedParticipant() && !intent().trim())}>
-            {busy() ? 'Starting…' : 'Start'}
+          <Btn variant="ghost" onClick={props.onClose} disabled={busy()}>{t('mlearn.ConversationAgent.NewConversation.Cancel')}</Btn>
+          <Btn variant="primary" aria-label={t('mlearn.ConversationAgent.NewConversation.StartAria')} onClick={handleStart} disabled={busy() || (!selectedParticipant() && !intent().trim())}>
+            {busy() ? t('mlearn.ConversationAgent.NewConversation.Starting') : t('mlearn.ConversationAgent.NewConversation.Start')}
           </Btn>
         </div>
       }
     >
       <div class="new-conversation-form">
-        <HintText>Choose someone you know, or describe who you want to talk to and what you want to practice.</HintText>
-        <FormField label="Conversation">
+        <HintText>{t('mlearn.ConversationAgent.NewConversation.Hint')}</HintText>
+        <FormField label={t('mlearn.ConversationAgent.NewConversation.FieldLabel')}>
           <Textarea
             value={intent()}
             onInput={(event) => handleIntentInput(event.currentTarget.value)}
-            placeholder="Who do you want to talk to, or what do you want to practice?"
+            placeholder={t('mlearn.ConversationAgent.NewConversation.Placeholder')}
             rows={5}
           />
         </FormField>
         <Show when={persistentParticipants().length > 0}>
           <fieldset class="new-conversation-people">
-            <legend class="new-conversation-people-label">People you know</legend>
+            <legend class="new-conversation-people-label">{t('mlearn.ConversationAgent.NewConversation.PeopleLabel')}</legend>
             <div class="new-conversation-people-list">
               <For each={persistentParticipants()}>
                 {(participant) => (
                   <button
                     type="button"
                     class={`new-conversation-person ${selectedParticipant()?.id === participant.id ? 'new-conversation-person--selected' : ''}`}
-                    aria-label={`Talk to ${participant.displayName}`}
+                    aria-label={t('mlearn.ConversationAgent.NewConversation.TalkTo', { name: participant.displayName })}
                     aria-pressed={selectedParticipant()?.id === participant.id}
                     onClick={() => selectParticipant(participant)}
                     disabled={busy()}
@@ -151,7 +153,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
         </Show>
         <Show when={candidates().length > 0}>
           <div class="new-conversation-disambiguation">
-            <span>Did you mean:</span>
+            <span>{t('mlearn.ConversationAgent.NewConversation.DidYouMean')}</span>
             <div class="new-conversation-people-list">
               <For each={candidates()}>
                 {(participant) => (

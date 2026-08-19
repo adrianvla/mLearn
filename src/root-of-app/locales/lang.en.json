@@ -426,7 +426,8 @@
       "Empty": {
         "Hint": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn.",
         "StartConversation": "Let AI start",
-        "Title": "Start a conversation"
+        "Title": "Start a conversation",
+        "NewConversation": "New conversation"
       },
       "ExperimentalBanner": "Experimental — AI responses may contain errors. Verify important language points.",
       "Disclaimer": "This is AI and can make mistakes. Please double-check responses.",
@@ -697,6 +698,51 @@
         "FetchingChapters": "Fetching chapter summaries...",
         "ExploringWiki": "Exploring wiki for story context...",
         "ExploringWikiDetail": "Exploring wiki: {detail}"
+      },
+      "Sidebar": {
+        "Title": "Conversations",
+        "NewConversation": "New conversation",
+        "NewThread": "New thread",
+        "UntitledThread": "Untitled thread"
+      },
+      "NewConversation": {
+        "Title": "New conversation",
+        "Hint": "Choose someone you know, or describe who you want to talk to and what you want to practice.",
+        "FieldLabel": "Conversation",
+        "Placeholder": "Who do you want to talk to, or what do you want to practice?",
+        "Cancel": "Cancel",
+        "Start": "Start",
+        "Starting": "Starting…",
+        "PeopleLabel": "People you know",
+        "TalkTo": "Talk to {name}",
+        "DidYouMean": "Did you mean:",
+        "Failed": "Failed to create conversation",
+        "StartAria": "Start conversation"
+      },
+      "Menu": {
+        "OverflowAria": "Conversation menu",
+        "CloseAria": "Close conversation menu",
+        "NewThread": "New thread",
+        "Details": "Conversation details",
+        "WordHover": "Word hover",
+        "Settings": "Settings",
+        "MemoryBrowser": "Memory Browser"
+      },
+      "Call": {
+        "StartAria": "Start call"
+      },
+      "Details": {
+        "ThreadLabel": "Thread",
+        "UntitledThread": "Untitled thread",
+        "ParticipantsLabel": "Participants",
+        "NameLabel": "Name",
+        "PersonaLabel": "Persona",
+        "Edit": "Edit",
+        "Save": "Save",
+        "Cancel": "Cancel",
+        "DeleteThread": "Delete thread",
+        "DeleteThreadConfirm": "Delete thread?",
+        "ConfirmDelete": "Confirm delete"
       }
     },
     "ErrorModal": {
@@ -2426,7 +2472,8 @@
         "SRS": "SRS",
         "Statistics": "Statistics",
         "VideoPlayer": "Video Player",
-        "BrowserExtension": "Browser Extension"
+        "BrowserExtension": "Browser Extension",
+        "EventAudit": "Event journal"
       },
       "SearchPlaceholder": "Search settings..."
     },

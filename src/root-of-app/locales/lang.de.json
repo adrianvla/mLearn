@@ -426,7 +426,8 @@
       "Empty": {
         "Hint": "Üben Sie die Zielsprache mit dem KI-Tutor. Er korrigiert Fehler, stellt Fragen und unterstützt Ihr Lernen.",
         "StartConversation": "KI beginnen lassen",
-        "Title": "Gespräch beginnen"
+        "Title": "Gespräch beginnen",
+        "NewConversation": "Neue Unterhaltung"
       },
       "ExperimentalBanner": "Experimentelle Funktion — KI-Antworten können Fehler enthalten. Überprüfen Sie wichtige sprachliche Punkte.",
       "Disclaimer": "Dies ist KI und kann Fehler machen. Bitte Antworten überprüfen.",
@@ -697,6 +698,51 @@
         "FetchingChapters": "Kapitelzusammenfassungen werden abgerufen...",
         "ExploringWiki": "Wiki wird nach Handlungskontext durchsucht...",
         "ExploringWikiDetail": "Wiki-Erkundung: {detail}"
+      },
+      "Sidebar": {
+        "Title": "Unterhaltungen",
+        "NewConversation": "Neue Unterhaltung",
+        "NewThread": "Neuer Thread",
+        "UntitledThread": "Unbenannter Thread"
+      },
+      "NewConversation": {
+        "Title": "Neue Unterhaltung",
+        "Hint": "Wähle jemanden, den du kennst, oder beschreibe, mit wem du sprechen und was du üben möchtest.",
+        "FieldLabel": "Unterhaltung",
+        "Placeholder": "Mit wem möchtest du sprechen oder was möchtest du üben?",
+        "Cancel": "Abbrechen",
+        "Start": "Starten",
+        "Starting": "Wird gestartet…",
+        "PeopleLabel": "Bekannte Personen",
+        "TalkTo": "Mit {name} sprechen",
+        "DidYouMean": "Meintest du:",
+        "Failed": "Unterhaltung konnte nicht erstellt werden",
+        "StartAria": "Unterhaltung starten"
+      },
+      "Menu": {
+        "OverflowAria": "Unterhaltungsmenü",
+        "CloseAria": "Unterhaltungsmenü schließen",
+        "NewThread": "Neuer Thread",
+        "Details": "Unterhaltungsdetails",
+        "WordHover": "Wort-Hover",
+        "Settings": "Einstellungen",
+        "MemoryBrowser": "Speicher-Browser"
+      },
+      "Call": {
+        "StartAria": "Anruf starten"
+      },
+      "Details": {
+        "ThreadLabel": "Thread",
+        "UntitledThread": "Unbenannter Thread",
+        "ParticipantsLabel": "Teilnehmer",
+        "NameLabel": "Name",
+        "PersonaLabel": "Persona",
+        "Edit": "Bearbeiten",
+        "Save": "Speichern",
+        "Cancel": "Abbrechen",
+        "DeleteThread": "Thread löschen",
+        "DeleteThreadConfirm": "Thread löschen?",
+        "ConfirmDelete": "Löschen bestätigen"
       }
     },
     "ErrorModal": {
@@ -2403,7 +2449,8 @@
         "SRS": "SRS",
         "Statistics": "Statistiken",
         "VideoPlayer": "Videoplayer",
-        "BrowserExtension": "Browser-Erweiterung"
+        "BrowserExtension": "Browser-Erweiterung",
+        "EventAudit": "Ereignis-Journal"
       },
       "SearchPlaceholder": "Einstellungen durchsuchen...",
       "Behaviour": {

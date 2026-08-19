@@ -467,12 +467,12 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('uses a single chat shell with header overflow controls', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(container.querySelector('button[aria-label="Conversation menu"]')).not.toBeNull());
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
     expect(container.querySelector('[role="tab"]')).toBeNull();
-    (container.querySelector('button[aria-label="Conversation menu"]') as HTMLButtonElement).click();
-    expect(container.textContent).toContain('New thread');
-    expect(container.textContent).toContain('Conversation details');
-    expect(container.textContent).toContain('Word hover');
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.NewThread');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.Details');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.WordHover');
   });
 
   it('opens details from a media chip and initial stats context', async () => {
@@ -488,7 +488,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'New conversation')).toBe(true));
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
     expect(container.querySelector('.room-sidebar-new-conversation')).not.toBeNull();
   });
 
@@ -497,8 +497,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'New conversation')).toBe(true));
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'New conversation')!.click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
   });
 
@@ -519,16 +519,16 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
 
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'New conversation')).toBe(true));
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'New conversation')!.click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Empty.NewConversation')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Empty.NewConversation')!.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
   });
 
   it('mounts VoiceTab with autoStartCall from the call button', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(container.querySelector('button[aria-label="Start call"]')).not.toBeNull());
-    const callButton = container.querySelector('button[aria-label="Start call"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]')).not.toBeNull());
+    const callButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]') as HTMLButtonElement;
     await vi.waitFor(() => expect(callButton.disabled).toBe(false));
     callButton.click();
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-auto-start')).toBe('true'));

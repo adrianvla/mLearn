@@ -14,6 +14,10 @@ vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({ world: { createParticipant, createRoom, applyMembership, createThread } }),
 }));
 
+vi.mock('../../context', () => ({
+  useLocalization: () => ({ t: (key: string) => key, locale: () => 'en' }),
+}));
+
 vi.mock('../../components/common', () => ({
   ModalForm: (props: { children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
     <div><span>{props.title}</span>{props.children}{props.footer}</div>
@@ -63,13 +67,13 @@ describe('NewConversationModal', () => {
     container.remove();
   });
 
-  const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="Start conversation"]') as HTMLButtonElement;
+  const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"]') as HTMLButtonElement;
 
   it('creates a one-to-one room for a selected persistent participant without creating another participant', async () => {
     const onCreated = vi.fn();
     dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
 
-    (container.querySelector('button[aria-label="Talk to Rin"]') as HTMLButtonElement).click();
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.TalkTo"]') as HTMLButtonElement).click();
     startButton().click();
 
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-1', threadId: 'thread-1' }));
@@ -117,7 +121,7 @@ describe('NewConversationModal', () => {
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     startButton().click();
 
-    await vi.waitFor(() => expect(container.textContent).toContain('Did you mean:'));
+    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.DidYouMean'));
     const alexButtons = Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === 'Alex');
     alexButtons.at(-1)!.click();
     startButton().click();
@@ -131,7 +135,7 @@ describe('NewConversationModal', () => {
     createRoom.mockImplementation(() => new Promise((resolve) => { resolveRoom = resolve; }));
     dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={vi.fn()} />, container);
 
-    (container.querySelector('button[aria-label="Talk to Rin"]') as HTMLButtonElement).click();
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.TalkTo"]') as HTMLButtonElement).click();
     startButton().click();
 
     await vi.waitFor(() => expect(startButton().disabled).toBe(true));
@@ -148,7 +152,7 @@ describe('RoomSidebar', () => {
       <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewThread={vi.fn()} onNewConversation={onNewConversation} />
     ), container);
 
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'New conversation')!.click();
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();
     expect(onNewConversation).toHaveBeenCalledTimes(1);
     dispose();
     container.remove();

@@ -20,6 +20,10 @@ vi.mock('../../components/common', () => ({
 
 vi.mock('./MediaStatsTab', () => ({ MediaStatsTab: () => <div /> }));
 
+vi.mock('../../context', () => ({
+  useLocalization: () => ({ t: (key: string) => key, locale: () => 'en' }),
+}));
+
 import { ThreadInfoPanel } from './ThreadInfoPanel';
 
 const participant: Participant = {
@@ -59,21 +63,21 @@ describe('ThreadInfoPanel', () => {
   });
 
   it('renders active-room participants', () => {
-    expect(container.textContent).toContain('Participants');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Details.ParticipantsLabel');
     expect(container.textContent).toContain('Rin');
     expect(container.textContent).toContain('persistent');
     expect(container.textContent).toContain(participant.personaText);
   });
 
   it('saves edited participant fields', async () => {
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Edit')!.click();
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Details.Edit')!.click();
     const input = container.querySelector('input') as HTMLInputElement;
     const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
     input.value = 'Mina';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.value = 'A thoughtful conversation partner.';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Save')!.click();
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Details.Save')!.click();
 
     await vi.waitFor(() => expect(onUpdateParticipant).toHaveBeenCalledWith({
       ...participant,
@@ -83,9 +87,9 @@ describe('ThreadInfoPanel', () => {
   });
 
   it('confirms before deleting the thread', async () => {
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Delete thread')!.click();
-    expect(container.textContent).toContain('Delete thread?');
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Confirm delete')!.click();
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Details.DeleteThread')!.click();
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Details.DeleteThreadConfirm');
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Details.ConfirmDelete')!.click();
 
     await vi.waitFor(() => expect(onDeleteThread).toHaveBeenCalledTimes(1));
   });

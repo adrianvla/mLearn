@@ -426,7 +426,8 @@
       "Empty": {
         "Hint": "Pratiquez la langue cible avec le tuteur IA. Il corrigera vos erreurs, vous interrogera et vous aidera à progresser.",
         "StartConversation": "Laisser l'IA commencer",
-        "Title": "Démarrer une conversation"
+        "Title": "Démarrer une conversation",
+        "NewConversation": "Nouvelle conversation"
       },
       "ExperimentalBanner": "Fonctionnalité expérimentale — les réponses de l'IA peuvent contenir des erreurs. Vérifiez les points linguistiques importants.",
       "Disclaimer": "Ceci est une IA et peut faire des erreurs. Veuillez vérifier les réponses.",
@@ -697,6 +698,51 @@
         "FetchingChapters": "Récupération des résumés de chapitres...",
         "ExploringWiki": "Exploration du wiki pour le contexte narratif...",
         "ExploringWikiDetail": "Exploration du wiki : {detail}"
+      },
+      "Sidebar": {
+        "Title": "Conversations",
+        "NewConversation": "Nouvelle conversation",
+        "NewThread": "Nouveau fil",
+        "UntitledThread": "Fil sans titre"
+      },
+      "NewConversation": {
+        "Title": "Nouvelle conversation",
+        "Hint": "Choisissez quelqu'un que vous connaissez, ou décrivez avec qui vous voulez parler et ce que vous voulez pratiquer.",
+        "FieldLabel": "Conversation",
+        "Placeholder": "Avec qui voulez-vous parler, ou que voulez-vous pratiquer ?",
+        "Cancel": "Annuler",
+        "Start": "Démarrer",
+        "Starting": "Démarrage…",
+        "PeopleLabel": "Personnes que vous connaissez",
+        "TalkTo": "Parler à {name}",
+        "DidYouMean": "Vouliez-vous dire :",
+        "Failed": "Échec de la création de la conversation",
+        "StartAria": "Démarrer la conversation"
+      },
+      "Menu": {
+        "OverflowAria": "Menu de conversation",
+        "CloseAria": "Fermer le menu de conversation",
+        "NewThread": "Nouveau fil",
+        "Details": "Détails de la conversation",
+        "WordHover": "Survol des mots",
+        "Settings": "Paramètres",
+        "MemoryBrowser": "Navigateur de mémoire"
+      },
+      "Call": {
+        "StartAria": "Démarrer l'appel"
+      },
+      "Details": {
+        "ThreadLabel": "Fil",
+        "UntitledThread": "Fil sans titre",
+        "ParticipantsLabel": "Participants",
+        "NameLabel": "Nom",
+        "PersonaLabel": "Persona",
+        "Edit": "Modifier",
+        "Save": "Enregistrer",
+        "Cancel": "Annuler",
+        "DeleteThread": "Supprimer le fil",
+        "DeleteThreadConfirm": "Supprimer le fil ?",
+        "ConfirmDelete": "Confirmer la suppression"
       }
     },
     "ErrorModal": {
@@ -2403,7 +2449,8 @@
         "SRS": "SRS",
         "Statistics": "Statistiques",
         "VideoPlayer": "Lecteur vidéo",
-        "BrowserExtension": "Extension navigateur"
+        "BrowserExtension": "Extension navigateur",
+        "EventAudit": "Journal des événements"
       },
       "SearchPlaceholder": "Rechercher dans les paramètres...",
       "Behaviour": {

@@ -426,7 +426,8 @@
       "Empty": {
         "Hint": "AIチューターと対象言語で練習しましょう。間違いを修正し、クイズを出し、学習を支援します。",
         "StartConversation": "AIに始めてもらう",
-        "Title": "会話を始める"
+        "Title": "会話を始める",
+        "NewConversation": "新しい会話"
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
       "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
@@ -697,6 +698,51 @@
         "FetchingChapters": "チャプター要約を取得中...",
         "ExploringWiki": "Wikiからストーリー情報を探索中...",
         "ExploringWikiDetail": "Wiki探索中: {detail}"
+      },
+      "Sidebar": {
+        "Title": "会話",
+        "NewConversation": "新しい会話",
+        "NewThread": "新しいスレッド",
+        "UntitledThread": "無題のスレッド"
+      },
+      "NewConversation": {
+        "Title": "新しい会話",
+        "Hint": "知っている人を選ぶか、誰と話したいか・何を練習したいかを書いてください。",
+        "FieldLabel": "会話",
+        "Placeholder": "誰と話したいですか？何を練習したいですか？",
+        "Cancel": "キャンセル",
+        "Start": "開始",
+        "Starting": "開始中…",
+        "PeopleLabel": "知っている人",
+        "TalkTo": "{name}と話す",
+        "DidYouMean": "もしかして：",
+        "Failed": "会話を作成できませんでした",
+        "StartAria": "会話を開始"
+      },
+      "Menu": {
+        "OverflowAria": "会話メニュー",
+        "CloseAria": "会話メニューを閉じる",
+        "NewThread": "新しいスレッド",
+        "Details": "会話の詳細",
+        "WordHover": "単語ホバー",
+        "Settings": "設定",
+        "MemoryBrowser": "メモリブラウザ"
+      },
+      "Call": {
+        "StartAria": "通話を開始"
+      },
+      "Details": {
+        "ThreadLabel": "スレッド",
+        "UntitledThread": "無題のスレッド",
+        "ParticipantsLabel": "参加者",
+        "NameLabel": "名前",
+        "PersonaLabel": "ペルソナ",
+        "Edit": "編集",
+        "Save": "保存",
+        "Cancel": "キャンセル",
+        "DeleteThread": "スレッドを削除",
+        "DeleteThreadConfirm": "スレッドを削除しますか？",
+        "ConfirmDelete": "削除を確定"
       }
     },
     "ErrorModal": {
@@ -2403,7 +2449,8 @@
         "SRS": "SRS",
         "Statistics": "統計",
         "VideoPlayer": "動画プレーヤー",
-        "BrowserExtension": "ブラウザ拡張機能"
+        "BrowserExtension": "ブラウザ拡張機能",
+        "EventAudit": "イベントジャーナル"
       },
       "SearchPlaceholder": "設定を検索...",
       "Behaviour": {

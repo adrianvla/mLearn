@@ -1347,30 +1347,30 @@ export const ConversationContent: Component = () => {
           icon={<PhoneIcon />}
           disabled={rosterParticipants().length === 0}
           onClick={() => setVoiceOverlayRequested(true)}
-          aria-label="Start call"
+          aria-label={t('mlearn.ConversationAgent.Call.StartAria')}
         />
         <div class="ca-overflow-anchor">
           <IconBtn
             variant="ghost"
             onClick={() => setShowOverflowMenu((open) => !open)}
-            aria-label="Conversation menu"
+            aria-label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
           >…</IconBtn>
           <Show when={showOverflowMenu()}>
             <>
-            <button type="button" class="ca-popover-backdrop" aria-label="Close conversation menu" onClick={() => setShowOverflowMenu(false)} />
+            <button type="button" class="ca-popover-backdrop" aria-label={t('mlearn.ConversationAgent.Menu.CloseAria')} onClick={() => setShowOverflowMenu(false)} />
             <div class="ca-overflow-menu">
-              <button type="button" onClick={() => { void newThread(); setShowOverflowMenu(false); }}>New thread</button>
-              <button type="button" onClick={() => { setShowDetailsDrawer(true); setShowOverflowMenu(false); }}>Conversation details</button>
+              <button type="button" onClick={() => { void newThread(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.NewThread')}</button>
+              <button type="button" onClick={() => { setShowDetailsDrawer(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</button>
               <div class="ca-overflow-word-hover">
-                <span>Word hover</span>
+                <span>{t('mlearn.ConversationAgent.Menu.WordHover')}</span>
                 <div>
                   <For each={['hover', 'long-hover', 'key-hover'] as const}>
                     {(mode) => <button type="button" class={currentTriggerMode() === mode ? 'active' : ''} onClick={() => updateSettings({ readerWordHoverTrigger: mode })}>{mode}</button>}
                   </For>
                 </div>
               </div>
-              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>Settings</button>
-              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>Memory browser</button>
+              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</button>
+              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</button>
             </div>
             </>
           </Show>
@@ -1423,7 +1423,7 @@ export const ConversationContent: Component = () => {
                     title={t('mlearn.ConversationAgent.Empty.Title')}
                     description={t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={{
-                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : 'New conversation',
+                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : t('mlearn.ConversationAgent.Empty.NewConversation'),
                       onClick: hasActiveRoomSelection() ? handleStartConversation : () => setShowNewConversationModal(true),
                       variant: 'primary',
                     }}
