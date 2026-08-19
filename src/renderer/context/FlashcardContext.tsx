@@ -33,7 +33,7 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
-import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, prerequisitesOf, type AspectStatusResult } from '../utils/aspectKnowledge';
+import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, prerequisitesOf, type AspectStatusResult } from '../utils/aspectKnowledge';
 import { appendEvents } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
@@ -2738,7 +2738,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (status === 'learning') targetEase = settings.easeThresholdLearning + buffer;
     else if (status === 'known') targetEase = settings.easeThresholdKnown + buffer;
 
-    const previousMeaningStatus = getComprehensiveWordStatusSync(word, lang);
     const manualEvents: Record<string, KnowledgeEvent[]> = {};
     const easeToStatus = (ease: number): WordStatus =>
       ease >= passiveKnownEaseThreshold() ? 'known'
@@ -2774,11 +2773,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
           s.wordKnowledge[lk].timesHovered = 0;
         }
         const entry = s.wordKnowledge[lk];
-        applyMeaningCascade(entry, status, now, 'Manual', (st) => {
-          if (st === 'learning') return settings.easeThresholdLearning + buffer;
-          if (st === 'known') return settings.easeThresholdKnown + buffer;
-          return settings.easeThresholdUnknown + buffer;
-        }, previousMeaningStatus, getAvailableAspects(languageDataFor(lang) ?? undefined));
         if (scriptForm) {
           const recognize = entry.forms?.[scriptForm]?.recognize ?? {
             ease: entry.ease,
@@ -2853,7 +2847,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           ease: easeForStatus(status),
           source: aspectSourceToDisplay(source),
           now,
-        }, easeForStatus, getAvailableAspects(languageDataFor(lang) ?? undefined));
+        });
         entry.lastStatusChange = now;
         if (prior !== status) {
           aspectEvents[lk] = [{

@@ -1,6 +1,7 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../context';
 import { getAvailableAspects } from '../../../../shared/types';
+import { isReadingScriptText } from '../../../../shared/languageFeatures';
 import { KNOWLEDGE_ASPECT_LABEL_KEYS, type WordStatus } from '../../../../shared/constants';
 import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
@@ -55,7 +56,14 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
 
   // Interim applicability rule: orthogonal aspects with no record stay hidden
   // (rows and history tabs alike) until evidence exists.
-  const visibleAspects = createMemo(() => availableAspects().filter((aspect) => !aspectState(aspect).untracked));
+  // Interim applicability rule: aspects with no record stay hidden (rows and
+  // history tabs alike) until evidence exists. Additionally, a surface written
+  // entirely in the reading script supplies its own reading — a Reading row
+  // there would state the trivial, so it stays hidden even with a record.
+  const visibleAspects = createMemo(() => availableAspects().filter((aspect) => (
+    !aspectState(aspect).untracked
+    && !(aspect === 'reading' && isReadingScriptText(props.word, languageData()))
+  )));
 
   const writeAspect = (aspect: KnowledgeAspect, status: 'learning' | 'unknown') => {
     if (aspect === 'meaning') return;

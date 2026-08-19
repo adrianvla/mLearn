@@ -3,7 +3,6 @@ import { ASPECT_PREREQUISITES, KNOWLEDGE_ASPECTS } from '../../shared/constants'
 import type { ComprehensiveKnowledgeDeps } from './comprehensiveKnowledge';
 import {
   applyAspectWrite,
-  applyMeaningCascade,
   aspectSourceToDisplay,
   effectiveStatusFromStrength,
   getAspectStatusSync,
@@ -70,14 +69,16 @@ describe('getAspectStatusSync', () => {
     expect(getAspectStatusSync('猫', 'meaning', rated).inherited).toBe(false);
   });
 
-  it('reading falls back to resolved meaning with inherited semantics when absent', () => {
+  it('reading with no record is untracked even when meaning is known (文脈 rule)', () => {
     const lk = langKey('ja', hashWordSync('猫'));
     const deps = makeDeps({
       wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42 }) },
     });
     const result = getAspectStatusSync('猫', 'reading', deps);
-    expect(result.status).toBe('known');
-    expect(result.inherited).toBe(true);
+    // Knowing the lexeme's meaning never fabricates reading knowledge.
+    expect(result.status).toBe('unknown');
+    expect(result.inherited).toBe(false);
+    expect(result.untracked).toBe(true);
   });
 
   it('reads a persisted aspect record instead of falling back', () => {
@@ -112,11 +113,12 @@ describe('getAspectStatusSync', () => {
     expect(result.status).toBe('known');
   });
 
-  it('returns unknown inherited when nothing is known anywhere', () => {
+  it('returns unknown untracked when nothing is known anywhere', () => {
     const deps = makeDeps();
     const result = getAspectStatusSync('猫', 'prosody', deps);
     expect(result.status).toBe('unknown');
-    expect(result.inherited).toBe(true);
+    expect(result.inherited).toBe(false);
+    expect(result.untracked).toBe(true);
   });
 });
 
@@ -191,91 +193,29 @@ describe('applyAspectWrite', () => {
     entry.aspects = {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1, inherited: true },
     };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, ALL);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base });
     expect(entry.aspects.reading?.status).toBe('learning');
     expect(entry.aspects.reading?.inherited).toBeUndefined();
   });
 
-  it('down-squashes prosody when reading is downgraded', () => {
+  it('a downgrade never propagates: prosody survives a reading downgrade', () => {
     const entry = makeEntry();
     entry.aspects = {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, ALL);
-    expect(entry.aspects?.prosody?.status).toBe('learning');
-    expect(entry.aspects?.prosody?.ease).toBe(1.55);
-  });
-
-  it('does not squash prosody on a reading upgrade', () => {
-    const entry = makeEntry();
-    entry.aspects = {
-      reading: { status: 'learning', ease: 1.55, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
-      prosody: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
-    };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'known', ease: 1.8, ...base }, easeFor, ALL);
-    expect(entry.aspects.prosody?.status).toBe('unknown');
-  });
-
-  it('down-inits prosody when it has no record', () => {
-    const entry = makeEntry();
-    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, ALL);
-    expect(entry.aspects?.prosody?.status).toBe('learning');
-    expect(entry.aspects?.prosody?.inherited).toBe(true);
-  });
-
-  it('finer aspects rebuild independently after a squash', () => {
-    const entry = makeEntry();
-    entry.aspects = {
-      reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
-      prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
-    };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'unknown', ease: 1.3, ...base }, easeFor, ALL);
-    expect(entry.aspects.prosody?.status).toBe('unknown');
-    applyAspectWrite(entry, { aspect: 'prosody', status: 'known', ease: 1.9, ...base }, easeFor, ALL);
-    expect(entry.aspects.prosody?.status).toBe('known');
-    expect(entry.aspects.reading?.status).toBe('unknown');
-  });
-
-  it('cascades only to aspects the language makes available', () => {
-    // A language with reading but no prosody: no phantom prosody records.
-    const noProsody = ['meaning', 'reading'] as const;
-    const entry = makeEntry();
-    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base }, easeFor, noProsody);
-    expect(entry.aspects?.prosody).toBeUndefined();
-  });
-});
-
-describe('applyMeaningCascade', () => {
-  it('down-inits reading and prosody inherited from meaning', () => {
-    const entry = makeEntry();
-    applyMeaningCascade(entry, 'known', 100, 'Manual', easeFor, undefined, ALL);
-    expect(entry.aspects?.reading?.status).toBe('known');
-    expect(entry.aspects?.reading?.inherited).toBe(true);
-    expect(entry.aspects?.prosody?.status).toBe('known');
-    expect(entry.aspects?.prosody?.inherited).toBe(true);
-  });
-
-  it('squashes existing aspect records on a meaning downgrade', () => {
-    const entry = makeEntry();
-    entry.aspects = {
-      reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
-      prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
-    };
-    applyMeaningCascade(entry, 'learning', 100, 'Manual', easeFor, 'known', ALL);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base });
     expect(entry.aspects.reading?.status).toBe('learning');
-    expect(entry.aspects.prosody?.status).toBe('learning');
+    // Stored aspects are independent (graph = attribution-time evidence only).
+    expect(entry.aspects!.prosody?.status).toBe('known');
+    expect(entry.aspects!.prosody?.lastStatusChange).toBe(1);
   });
 
-  it('leaves existing aspect records untouched when meaning is not downgraded', () => {
+  it('no inherited seeding: absent finer records stay absent', () => {
     const entry = makeEntry();
-    entry.aspects = {
-      reading: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
-    };
-    applyMeaningCascade(entry, 'known', 100, 'Manual', easeFor, 'learning', ALL);
-    expect(entry.aspects.reading?.status).toBe('unknown');
-    expect(entry.aspects.prosody?.status).toBe('known');
-    expect(entry.aspects.prosody?.inherited).toBe(true);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'learning', ease: 1.55, ...base });
+    expect(entry.aspects!.reading?.status).toBe('learning');
+    expect(entry.aspects!.prosody).toBeUndefined();
   });
 });
 
@@ -300,19 +240,19 @@ describe('aspect dependency graph', () => {
     expect(prerequisitesOf('gender', WITH_GENDER)).toEqual([]);
   });
 
-  it('a meaning downgrade squashes the chain but never the orthogonal aspect', () => {
+  it('a meaning downgrade destroys no aspect evidence (independence)', () => {
     const entry = makeEntry();
     entry.aspects = {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       gender: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyMeaningCascade(entry, 'learning', 100, 'Manual', easeFor, 'known', WITH_GENDER);
-    expect(entry.aspects.reading?.status).toBe('learning');
-    expect(entry.aspects.prosody?.status).toBe('learning');
-    // Gender is not on meaning's dependency chain — no inference reaches it.
+    // The meaning cascade is removed: no write path downgrades other aspects.
+    // A meaning downgrade happens via the meaning ease write, which touches no
+    // aspect records — 端 read as はし survives forgetting what 端 means.
+    expect(entry.aspects.reading?.status).toBe('known');
+    expect(entry.aspects.prosody?.status).toBe('known');
     expect(entry.aspects.gender?.status).toBe('known');
-    expect(entry.aspects.gender?.lastStatusChange).toBe(1);
   });
 
   it('a reading downgrade does not squash the orthogonal aspect', () => {
@@ -320,7 +260,7 @@ describe('aspect dependency graph', () => {
     entry.aspects = {
       gender: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyAspectWrite(entry, { aspect: 'reading', status: 'unknown', ease: 1.3, source: 'Manual', now: 100 }, easeFor, WITH_GENDER);
+    applyAspectWrite(entry, { aspect: 'reading', status: 'unknown', ease: 1.3, source: 'Manual', now: 100 });
     expect(entry.aspects.gender?.status).toBe('known');
   });
 
@@ -334,9 +274,9 @@ describe('aspect dependency graph', () => {
     expect(gender.inherited).toBe(false);
     // No record and no chain: untracked, not a claimed-unknown.
     expect(gender.untracked).toBe(true);
-    // Chain aspects still inherit.
-    expect(getAspectStatusSync('猫', 'reading', deps).inherited).toBe(true);
-    expect(getAspectStatusSync('猫', 'reading', deps).untracked).toBeUndefined();
+    // Chain aspects no longer inherit either — untracked until evidence exists.
+    expect(getAspectStatusSync('猫', 'reading', deps).inherited).toBe(false);
+    expect(getAspectStatusSync('猫', 'reading', deps).untracked).toBe(true);
   });
 
   it('gender evidence never changes effective knowledge on any current surface', () => {
@@ -392,7 +332,7 @@ describe('Tier-1 scope semantics', () => {
     expect(sibling.untracked).toBe(true);
   });
 
-  it('a meaning downgrade squashes the chain but never pronunciation/orthography', () => {
+  it('a meaning downgrade destroys no aspect evidence (independence)', () => {
     const entry = makeEntry();
     entry.aspects = {
       reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
@@ -400,11 +340,11 @@ describe('Tier-1 scope semantics', () => {
       pronunciation: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
       orthography: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
     };
-    applyMeaningCascade(entry, 'learning', 100, 'Manual', easeFor, 'known', WITH_NEW);
-    expect(entry.aspects.reading?.status).toBe('learning');
-    expect(entry.aspects.prosody?.status).toBe('learning');
-    // Failing the meaning of an interaction leaves spoken-form and form-recognition
-    // claims untouched — they are not dependents of meaning.
+    // The meaning cascade is removed: no write path downgrades other aspects —
+    // the meaning ease write touches no aspect records, so 端 read as はし
+    // survives forgetting what 端 means.
+    expect(entry.aspects.reading?.status).toBe('known');
+    expect(entry.aspects.prosody?.status).toBe('known');
     expect(entry.aspects.pronunciation?.status).toBe('known');
     expect(entry.aspects.orthography?.status).toBe('known');
   });

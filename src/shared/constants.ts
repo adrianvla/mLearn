@@ -458,8 +458,11 @@ export const KNOWLEDGE_ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
 
 // Aspects whose evidence belongs to one exact written surface (stored on the
 // presented form's hash only — never fanned out across the word-form family,
-// the #230 rule's exception) and resolved on that hash only.
-export const SURFACE_SCOPED_ASPECTS: readonly KnowledgeAspect[] = ['orthography'];
+// the #230 rule's exception) and resolved on that hash only. Under Model B,
+// reading IS surface-scoped: it records whether THIS written form was mapped to
+// its pronunciation (流石 evidence says nothing about さすが, whose script
+// supplies its own reading). Prosody/gender/pronunciation stay lexeme-scoped.
+export const SURFACE_SCOPED_ASPECTS: readonly KnowledgeAspect[] = ['orthography', 'reading'];
 
 // Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {

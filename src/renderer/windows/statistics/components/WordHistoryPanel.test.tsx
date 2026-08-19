@@ -25,10 +25,11 @@ vi.mock('../../../context', () => ({
   }),
   useFlashcards: () => ({
     store: { wordKnowledge: h.wordKnowledge, flashcards: h.flashcards },
-    // Chain aspects inherit; orthogonal aspects without records read untracked (hidden tab).
+    // New contract: reading carries an explicit record (visible tab — the
+    // tab-switch test needs one); every other aspect is untracked (hidden tab).
     getAspectStatus: (_word: string, aspect: string) => (
-      aspect === 'reading' || aspect === 'prosody'
-        ? { status: 'learning', ease: 1.55, source: 'Manual', inherited: true }
+      aspect === 'reading'
+        ? { status: 'learning', ease: 1.55, source: 'Manual', inherited: false }
         : { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true }
     ),
   }),

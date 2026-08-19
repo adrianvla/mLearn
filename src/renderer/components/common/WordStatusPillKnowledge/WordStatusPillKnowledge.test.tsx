@@ -128,17 +128,16 @@ describe('WordStatusPillKnowledge', () => {
     currentLang = richLanguageData;
     wordKnowledge = {};
     getComprehensiveWordStatusWithSourceSyncMock.mockReturnValue(comprehensiveResult('known'));
-    // Faithful mini-mock of getAspectStatusSync for the single-form test world:
-    // record → its status; absent chain aspect → inherited meaning; absent
-    // orthogonal aspect (gender) → untracked.
+    // Faithful mini-mock of getAspectStatusSync: record → its status (legacy
+    // inherited flag preserved); absent record → untracked for EVERY aspect —
+    // meaning-known never fabricates finer-aspect knowledge.
     getAspectStatusMock.mockImplementation((_word: string, aspect: KnowledgeAspect) => {
-      const record = aspect === 'meaning' ? undefined : wordKnowledge[knowledgeKey('apple')]?.aspects?.[aspect];
-      if (record) return { status: record.status, ease: record.ease, source: record.source, inherited: record.inherited === true };
-      // Orthogonal aspects (gender/pronunciation/orthography): no record → untracked (hidden row).
-      if (aspect !== 'reading' && aspect !== 'prosody') {
-        return { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true };
+      if (aspect === 'meaning') {
+        return { status: comprehensiveResult('known').status, ease: 2.5, source: 'None', inherited: false };
       }
-      return { status: comprehensiveResult('known').status, ease: 2.5, source: 'None', inherited: true };
+      const record = wordKnowledge[knowledgeKey('apple')]?.aspects?.[aspect];
+      if (record) return { status: record.status, ease: record.ease, source: record.source, inherited: record.inherited === true };
+      return { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true };
     });
   });
 
@@ -146,12 +145,13 @@ describe('WordStatusPillKnowledge', () => {
     container.remove();
   });
 
-  it('renders an aspect line per available aspect of the language', () => {
+  it('renders meaning plus only evidenced aspect rows (untracked aspects hidden)', () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
     expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Meaning');
-    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Reading');
-    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Prosody');
+    // Reading/prosody have no records: untracked, hidden — no fabricated rows.
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Reading');
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Prosody');
 
     dispose();
   });
@@ -180,29 +180,23 @@ describe('WordStatusPillKnowledge', () => {
     dispose();
   });
 
-  it('shows the inherited marker only for aspects without an aspect record', () => {
+  it('shows no inherited marker for explicit records; untracked siblings are hidden', () => {
     seedEntry({ reading: aspectRecord('known') });
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
-    expect(container.textContent.match(/mlearn\.Knowledge\.AspectInherited/g)).toHaveLength(1);
+    expect(container.textContent).not.toContain('mlearn.Knowledge.AspectInherited');
+    // Prosody has no record: hidden, not inherited.
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Prosody');
 
     dispose();
   });
 
-  it('shows the inherited marker for aspects initialized with the inherited flag', () => {
+  it('shows the inherited marker only for legacy cascade-seeded records (inherited flag)', () => {
     seedEntry({ reading: aspectRecord('known', true) });
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
-    expect(container.textContent.match(/mlearn\.Knowledge\.AspectInherited/g)).toHaveLength(2);
-
-    dispose();
-  });
-
-  it('shows no inherited marker when every aspect has a record', () => {
-    seedEntry({ reading: aspectRecord('known'), prosody: aspectRecord('known') });
-    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
-
-    expect(container.textContent).not.toContain('mlearn.Knowledge.AspectInherited');
+    // The flag is a legacy marker from the removed cascade seed; it still displays.
+    expect(container.textContent.match(/mlearn\.Knowledge\.AspectInherited/g)).toHaveLength(1);
 
     dispose();
   });
@@ -210,12 +204,11 @@ describe('WordStatusPillKnowledge', () => {
   it('hides an orthogonal aspect without evidence entirely (interim applicability rule)', () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" language="ru2" />, container);
 
-    // No evidence and no chain to inherit from: hidden, not "Untracked" — a
-    // Russian verb must not display a meaningless Gender row.
+    // No evidence: hidden, not "Untracked" — a Russian verb must not display a
+    // meaningless Gender row. Reading is untracked here too (no inheritance).
     expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Gender');
     expect(container.textContent).not.toContain('mlearn.Knowledge.Untracked');
-    // Reading (chain aspect) still shows its inherited marker.
-    expect(container.textContent.match(/mlearn\.Knowledge\.AspectInherited/g)).toHaveLength(1);
+    expect(container.textContent).not.toContain('mlearn.Knowledge.AspectInherited');
 
     dispose();
   });
@@ -262,11 +255,11 @@ describe('WordStatusPillKnowledge', () => {
     dispose();
   });
 
-  it('feeds the history graph with the compact mode and available aspects', () => {
+  it('feeds the history graph the visible (evidenced) aspects only', () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
     expect(container.querySelector('[data-testid="mock-knowledge-history-graph"]')?.textContent).toBe(
-      'meaning,reading,prosody',
+      'meaning',
     );
 
     dispose();

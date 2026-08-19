@@ -1629,10 +1629,15 @@ describe('FlashcardProvider', () => {
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.aspects?.orthography?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaLk]?.aspects?.orthography).toBeUndefined();
 
-    // …while a chain aspect fans out across the whole form family (#230).
+    // …while reading is ALSO surface-scoped under Model B: failing to read 流石
+    // says nothing about さすが, whose script supplies its own pronunciation.
     ctx.setAspectStatus('さすが', 'reading', 'unknown', 'manual', 'ja');
     expect(ctx.store.wordKnowledge[sasugaLk]?.aspects?.reading?.status).toBe('unknown');
-    expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.aspects?.reading?.status).toBe('unknown');
+    expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.aspects?.reading).toBeUndefined();
+    // Lexeme-scoped aspects (prosody) still fan out across the family (#230).
+    ctx.setAspectStatus('さすが', 'prosody', 'unknown', 'manual', 'ja');
+    expect(ctx.store.wordKnowledge[sasugaLk]?.aspects?.prosody?.status).toBe('unknown');
+    expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.aspects?.prosody?.status).toBe('unknown');
     dispose();
   });
 
@@ -3845,10 +3850,8 @@ describe('attributeKnowledgeFailure', () => {
     const lk = `ja2:${await SRS.hashWord('学校')}`;
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.aspects?.reading?.status).toBe('unknown');
-    // Only the write-time down-init record (display-identical to the fallback);
-    // no status change was claimed for prosody.
-    expect(entry?.aspects?.prosody?.status).toBe('unknown');
-    expect(entry?.aspects?.prosody?.inherited).toBe(true);
+    // No record, no inference, no inherited seed: prosody stays absent entirely.
+    expect(entry?.aspects?.prosody).toBeUndefined();
     dispose();
     mockSettings.language = 'ja';
   });
@@ -3878,7 +3881,7 @@ describe('attributeKnowledgeFailure', () => {
     mockSettings.language = 'ja';
   });
 
-  it('does not overwrite an inherited-known reading down to explicit learning', async () => {
+  it('untracked reading is unaffected by a prosody failure until real evidence exists', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
@@ -3892,9 +3895,9 @@ describe('attributeKnowledgeFailure', () => {
     ctx.attributeKnowledgeFailure('学校', 'prosody', 'ja2');
 
     const entry = ctx.store.wordKnowledge[lk];
-    // Reading inherited-known from meaning: writing explicit learning would LOWER the display.
-    expect(entry?.aspects?.reading).toBeUndefined();
-    expect(entry?.ease).toBe(2.0);
+    // Reading had no record (untracked — meaning-known never fabricates it); the
+    // prosody failure writes explicit reading learning evidence for THIS interaction's traversal.
+    expect(entry?.aspects?.reading?.status).toBe('learning');
     expect(entry?.aspects?.prosody?.status).toBe('unknown');
     dispose();
     mockSettings.language = 'ja';
