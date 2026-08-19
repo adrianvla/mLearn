@@ -518,6 +518,27 @@ export const FlashcardProvider: ParentComponent = (props) => {
       meta.newCardsDate = today;
     }
 
+    // Migration: strip aspect records seeded by the removed meaning-cascade.
+    // inherited === true was written exclusively by that seeding path — a derived
+    // projection of the meaning status, never learner evidence. Deleted records
+    // resolve to untracked; explicit records and the event log are untouched.
+    const wordKnowledge: FlashcardStore['wordKnowledge'] = {};
+    for (const [lk, entry] of Object.entries(partial.wordKnowledge || {})) {
+      if (!entry?.aspects) {
+        wordKnowledge[lk] = entry;
+        continue;
+      }
+      const kept = Object.fromEntries(
+        Object.entries(entry.aspects).filter(([, record]) => record.inherited !== true),
+      );
+      if (Object.keys(kept).length === Object.keys(entry.aspects).length) {
+        wordKnowledge[lk] = entry;
+        continue;
+      }
+      const { aspects: _stripped, ...rest } = entry;
+      wordKnowledge[lk] = Object.keys(kept).length > 0 ? { ...rest, aspects: kept } : rest;
+    }
+
     return {
       flashcards,
       wordCandidates: partial.wordCandidates || {},
@@ -525,7 +546,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       wordStatsMap: partial.wordStatsMap || {},
       knownUntracked: partial.knownUntracked || {},
       ignoredWords: partial.ignoredWords || {},
-      wordKnowledge: partial.wordKnowledge || {},
+      wordKnowledge,
       grammarKnowledge: partial.grammarKnowledge || {},
       meta,
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},

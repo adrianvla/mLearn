@@ -1616,6 +1616,39 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('migration strips legacy inherited aspect records; explicit records survive', async () => {
+    const SRS = await import('../services/srsAlgorithm');
+    const mixedLk = `ja:${SRS.hashWordSync('猫')}`;
+    const seedOnlyLk = `ja:${SRS.hashWordSync('犬')}`;
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [mixedLk]: {
+          word: '猫', language: 'ja', ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0,
+          aspects: {
+            reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+            prosody: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1, inherited: true },
+          },
+        },
+        [seedOnlyLk]: {
+          word: '犬', language: 'ja', ease: 1.9, lastSeen: 1, timesSeen: 1, timesHovered: 0,
+          aspects: {
+            prosody: { status: 'learning', ease: 1.55, source: 'Manual', lastStatusChange: 1, updatedAt: 1, inherited: true },
+          },
+        },
+      },
+    }));
+
+    // Explicit evidence survives; the seeded projection is gone.
+    expect(ctx.store.wordKnowledge[mixedLk]?.aspects?.reading?.status).toBe('known');
+    expect(ctx.store.wordKnowledge[mixedLk]?.aspects?.prosody).toBeUndefined();
+    expect(ctx.store.wordKnowledge[mixedLk]?.ease).toBe(2.0);
+    // Seed-only entry keeps its word-level passive data; the empty aspects object is dropped.
+    expect(ctx.store.wordKnowledge[seedOnlyLk]?.aspects).toBeUndefined();
+    expect(ctx.store.wordKnowledge[seedOnlyLk]?.ease).toBe(1.9);
+    dispose();
+  });
+
   it('setAspectStatus keeps surface-scoped aspects on the presented hash only (#230 exception)', async () => {
     mockGetWordVariants.mockImplementation((word: string) => word === 'さすが' ? ['さすが', '流石'] : [word]);
     const { ctx, dispose } = await mountProvider();
