@@ -942,10 +942,7 @@
           "Label": "侧重点",
           "Meaning": "词义",
           "Reading": "读音",
-          "Prosody": "韵律",
-          "Gender": "性",
-          "Pronunciation": "发音",
-          "Orthography": "写法"
+          "Prosody": "韵律"
         },
         "Attribution": {
           "WrongReading": "读音错误",
@@ -1296,7 +1293,10 @@
       "Aspect": {
         "Meaning": "词义",
         "Reading": "读音",
-        "Prosody": "韵律"
+        "Prosody": "韵律",
+        "Gender": "性",
+        "Pronunciation": "发音",
+        "Orthography": "写法"
       },
       "AspectInherited": "(继承)",
       "Untracked": "未追踪",

@@ -942,10 +942,7 @@
           "Label": "Фокус",
           "Meaning": "Значение",
           "Reading": "Чтение",
-          "Prosody": "Просодия",
-          "Gender": "Род",
-          "Pronunciation": "Произношение",
-          "Orthography": "Письменная форма"
+          "Prosody": "Просодия"
         },
         "Attribution": {
           "WrongReading": "Неверное чтение",
@@ -1296,7 +1293,10 @@
       "Aspect": {
         "Meaning": "Значение",
         "Reading": "Чтение",
-        "Prosody": "Просодия"
+        "Prosody": "Просодия",
+        "Gender": "Род",
+        "Pronunciation": "Произношение",
+        "Orthography": "Письменная форма"
       },
       "AspectInherited": "(унаследовано)",
       "Untracked": "Не отслеживается",

@@ -942,10 +942,7 @@
           "Label": "フォーカス",
           "Meaning": "意味",
           "Reading": "読み",
-          "Prosody": "プロソディ",
-          "Gender": "性別",
-          "Pronunciation": "発音",
-          "Orthography": "表記"
+          "Prosody": "プロソディ"
         },
         "Attribution": {
           "WrongReading": "読みを間違えた",
@@ -1296,7 +1293,10 @@
       "Aspect": {
         "Meaning": "意味",
         "Reading": "読み",
-        "Prosody": "プロソディ"
+        "Prosody": "プロソディ",
+        "Gender": "性別",
+        "Pronunciation": "発音",
+        "Orthography": "表記"
       },
       "AspectInherited": "(継承)",
       "Untracked": "未追跡",

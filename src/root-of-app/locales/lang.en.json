@@ -942,10 +942,7 @@
           "Label": "Focus",
           "Meaning": "Meaning",
           "Reading": "Reading",
-          "Prosody": "Prosody",
-          "Gender": "Gender",
-          "Pronunciation": "Pronunciation",
-          "Orthography": "Written form"
+          "Prosody": "Prosody"
         },
         "Attribution": {
           "WrongReading": "Wrong reading",
@@ -1296,7 +1293,10 @@
       "Aspect": {
         "Meaning": "Meaning",
         "Reading": "Reading",
-        "Prosody": "Prosody"
+        "Prosody": "Prosody",
+        "Gender": "Gender",
+        "Pronunciation": "Pronunciation",
+        "Orthography": "Written form"
       },
       "AspectInherited": "(inherited)",
       "Untracked": "Untracked",

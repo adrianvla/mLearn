@@ -942,10 +942,7 @@
           "Label": "Fokus",
           "Meaning": "Bedeutung",
           "Reading": "Lesung",
-          "Prosody": "Prosodie",
-          "Gender": "Genus",
-          "Pronunciation": "Aussprache",
-          "Orthography": "Schriftform"
+          "Prosody": "Prosodie"
         },
         "Attribution": {
           "WrongReading": "Falsche Lesung",
@@ -1296,7 +1293,10 @@
       "Aspect": {
         "Meaning": "Bedeutung",
         "Reading": "Lesung",
-        "Prosody": "Prosodie"
+        "Prosody": "Prosodie",
+        "Gender": "Genus",
+        "Pronunciation": "Aussprache",
+        "Orthography": "Schriftform"
       },
       "AspectInherited": "(geerbt)",
       "Untracked": "Nicht verfolgt",
