@@ -36,6 +36,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { LLMStreamChunk } from '../../../shared/types';
@@ -188,11 +189,17 @@ vi.mock('../../hooks', () => ({
 // ============================================================================
 
 vi.mock('../../components/common', () => ({
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string }) => (
-    <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string; class?: string; 'aria-label'?: string; 'aria-disabled'?: boolean }) => (
+    <button type="button" class={props.class} aria-label={props['aria-label']} aria-disabled={props['aria-disabled']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
-  IconBtn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string }) => (
-    <button type="button" aria-label={props['aria-label']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Badge: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+  Popover: (props: { open: boolean | (() => boolean); children?: JSX.Element }) => (
+    <Show when={typeof props.open === 'function' ? props.open() : props.open}>
+      <div class="ca-overflow-menu">{props.children}</div>
+    </Show>
+  ),
+  IconBtn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; ref?: (el: HTMLButtonElement) => void }) => (
+    <button type="button" ref={props.ref} aria-label={props['aria-label']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   Modal: (props: { children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
     <div>{props.title}{props.children}{props.footer}</div>

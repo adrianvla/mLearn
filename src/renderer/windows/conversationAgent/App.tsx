@@ -33,6 +33,7 @@ import {
   Modal,
   EmptyState,
   ConnectionStatus,
+  Popover,
   Textarea,
   Tag,
   ChatIcon,
@@ -281,6 +282,7 @@ export const ConversationContent: Component = () => {
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
   const [showNewConversationModal, setShowNewConversationModal] = createSignal(false);
   const [showOverflowMenu, setShowOverflowMenu] = createSignal(false);
+  let overflowAnchorRef: HTMLButtonElement | undefined;
   const [showDetailsDrawer, setShowDetailsDrawer] = createSignal(false);
   const [voiceOverlayRequested, setVoiceOverlayRequested] = createSignal(false);
   let voiceScheduledNudgeId = 0;
@@ -1285,21 +1287,13 @@ export const ConversationContent: Component = () => {
           <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-secondary)' }}>
             {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: settings.agentSafetyChecker ? 'ON' : 'OFF' })}
             {' '}
-            <button
-              type="button"
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text-link)', 'text-decoration': 'underline', cursor: 'pointer' }}
-              onClick={() => getBridge().window.openWindow({ type: 'settings' })}
-            >
+            <Btn variant="ghost" class="ca-inline-link" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>
               [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
-            </button>
+            </Btn>
             {' '}
-            <button
-              type="button"
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text-link)', 'text-decoration': 'underline', cursor: 'pointer' }}
-              onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}
-            >
+            <Btn variant="ghost" class="ca-inline-link" onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}>
               [{t('mlearn.MemoryBrowser.OpenInAgent')}]
-            </button>
+            </Btn>
             <Show when={settings.agentSafetyChecker}>
               {' '}
               {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
@@ -1318,15 +1312,15 @@ export const ConversationContent: Component = () => {
           <span class="ca-header-title">{activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
           <Show when={activeThread()?.mediaRef} keyed>
             {(media) => (
-              <button type="button" class="ca-media-chip" onClick={() => setShowDetailsDrawer(true)}>
+              <Btn variant="ghost" class="ca-media-chip" onClick={() => setShowDetailsDrawer(true)}>
                 {media.mediaName}
-              </button>
+              </Btn>
             )}
           </Show>
         </div>
         <div class="ca-header-spacer" />
-        <button
-          type="button"
+        <Btn
+          variant="ghost"
           class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
           onClick={handleConnectionStatusClick}
           aria-disabled={!canOpenCloudSignIn()}
@@ -1341,7 +1335,7 @@ export const ConversationContent: Component = () => {
           <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
             <span class="ca-header-status">{server.statusMessage()}</span>
           </Show>
-        </button>
+        </Btn>
         <IconBtn
           variant="ghost"
           icon={<PhoneIcon />}
@@ -1351,29 +1345,31 @@ export const ConversationContent: Component = () => {
         />
         <div class="ca-overflow-anchor">
           <IconBtn
+            ref={(el: HTMLButtonElement) => { overflowAnchorRef = el; }}
             variant="ghost"
             onClick={() => setShowOverflowMenu((open) => !open)}
             aria-label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
           >…</IconBtn>
-          <Show when={showOverflowMenu()}>
-            <>
-            <button type="button" class="ca-popover-backdrop" aria-label={t('mlearn.ConversationAgent.Menu.CloseAria')} onClick={() => setShowOverflowMenu(false)} />
-            <div class="ca-overflow-menu">
-              <button type="button" onClick={() => { void newThread(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.NewThread')}</button>
-              <button type="button" onClick={() => { setShowDetailsDrawer(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</button>
-              <div class="ca-overflow-word-hover">
-                <span>{t('mlearn.ConversationAgent.Menu.WordHover')}</span>
-                <div>
-                  <For each={['hover', 'long-hover', 'key-hover'] as const}>
-                    {(mode) => <button type="button" class={currentTriggerMode() === mode ? 'active' : ''} onClick={() => updateSettings({ readerWordHoverTrigger: mode })}>{mode}</button>}
-                  </For>
-                </div>
+          <Popover
+            open={showOverflowMenu}
+            anchor={() => overflowAnchorRef}
+            onClose={() => setShowOverflowMenu(false)}
+            label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
+            class="ca-overflow-menu"
+          >
+            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { void newThread(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.NewThread')}</Btn>
+            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { setShowDetailsDrawer(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Btn>
+            <div class="ca-overflow-word-hover">
+              <span>{t('mlearn.ConversationAgent.Menu.WordHover')}</span>
+              <div>
+                <For each={['hover', 'long-hover', 'key-hover'] as const}>
+                  {(mode) => <Btn variant="ghost" class={currentTriggerMode() === mode ? 'active' : ''} onClick={() => updateSettings({ readerWordHoverTrigger: mode })}>{mode}</Btn>}
+                </For>
               </div>
-              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</button>
-              <button type="button" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</button>
             </div>
-            </>
-          </Show>
+            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Btn>
+            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Btn>
+          </Popover>
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import type { Room, Thread, WorldSnapshot } from '../../../shared/world';
+import { Badge, Btn } from '../../components/common';
 import { useLocalization } from '../../context';
 import './RoomSidebar.css';
 
@@ -23,20 +24,20 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
   return (
     <aside class="room-sidebar">
       <div class="room-sidebar-header"><h3 class="room-sidebar-title">{t('mlearn.ConversationAgent.Sidebar.Title')}</h3></div>
-      <button type="button" class="room-sidebar-new-conversation" onClick={() => props.onNewConversation()}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</button>
+      <Btn variant="primary" class="room-sidebar-new-conversation" onClick={() => props.onNewConversation()}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Btn>
       <div class="room-sidebar-rooms">
         <For each={props.world?.rooms ?? []}>
           {(room) => (
-            <button
-              type="button"
+            <Btn
+              variant="ghost"
               class={`room-sidebar-room ${room.id === props.roomId ? 'room-sidebar-room--active' : ''}`}
               onClick={() => props.onSelectRoom(room.id)}
             >
               <span>{room.title}</span>
               <Show when={(room.unreadCount ?? 0) > 0}>
-                <span class="room-sidebar-unread">{room.unreadCount}</span>
+                <Badge>{room.unreadCount}</Badge>
               </Show>
-            </button>
+            </Btn>
           )}
         </For>
       </div>
@@ -44,17 +45,17 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
         <div class="room-sidebar-threads">
           <div class="room-sidebar-thread-header">
             <span>{selectedRoom()!.title}</span>
-            <button type="button" onClick={props.onNewThread}>{t('mlearn.ConversationAgent.Sidebar.NewThread')}</button>
+            <Btn variant="ghost" size="sm" onClick={props.onNewThread}>{t('mlearn.ConversationAgent.Sidebar.NewThread')}</Btn>
           </div>
           <For each={threads()}>
             {(thread) => (
-              <button
-                type="button"
+              <Btn
+                variant="ghost"
                 class={`room-sidebar-thread ${thread.id === props.threadId ? 'room-sidebar-thread--active' : ''}`}
                 onClick={() => props.onSelectThread(thread.id)}
               >
                 {thread.title || t('mlearn.ConversationAgent.Sidebar.UntitledThread')}
-              </button>
+              </Btn>
             )}
           </For>
         </div>

@@ -129,25 +129,25 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
             <legend class="new-conversation-people-label">{t('mlearn.ConversationAgent.NewConversation.PeopleLabel')}</legend>
             <div class="new-conversation-people-list">
               <For each={persistentParticipants()}>
-                {(participant) => (
-                  <button
-                    type="button"
-                    class={`new-conversation-person ${selectedParticipant()?.id === participant.id ? 'new-conversation-person--selected' : ''}`}
-                    aria-label={t('mlearn.ConversationAgent.NewConversation.TalkTo', { name: participant.displayName })}
-                    aria-pressed={selectedParticipant()?.id === participant.id}
-                    onClick={() => selectParticipant(participant)}
-                    disabled={busy()}
-                  >
-                    <Show
-                      when={participant.profilePhoto}
-                      fallback={<span class="new-conversation-avatar">{participantInitial(participant)}</span>}
-                    >
-                      <img class="new-conversation-avatar" src={participant.profilePhoto} alt="" />
-                    </Show>
-                    <span>{participant.displayName}</span>
-                  </button>
-                )}
-              </For>
+                 {(participant) => (
+                   <Btn
+                     variant="ghost"
+                     class={`new-conversation-person ${selectedParticipant()?.id === participant.id ? 'new-conversation-person--selected' : ''}`}
+                     aria-label={t('mlearn.ConversationAgent.NewConversation.TalkTo', { name: participant.displayName })}
+                     aria-pressed={selectedParticipant()?.id === participant.id}
+                     onClick={() => selectParticipant(participant)}
+                     disabled={busy()}
+                   >
+                     <Show
+                       when={participant.profilePhoto}
+                       fallback={<span class="new-conversation-avatar">{participantInitial(participant)}</span>}
+                     >
+                       <img class="new-conversation-avatar" src={participant.profilePhoto} alt="" />
+                     </Show>
+                     <span>{participant.displayName}</span>
+                   </Btn>
+                 )}
+               </For>
             </div>
           </fieldset>
         </Show>
@@ -156,12 +156,12 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
             <span>{t('mlearn.ConversationAgent.NewConversation.DidYouMean')}</span>
             <div class="new-conversation-people-list">
               <For each={candidates()}>
-                {(participant) => (
-                  <button type="button" class="new-conversation-person" onClick={() => selectParticipant(participant)} disabled={busy()}>
-                    {participant.displayName}
-                  </button>
-                )}
-              </For>
+                 {(participant) => (
+                   <Btn variant="ghost" class="new-conversation-person" onClick={() => selectParticipant(participant)} disabled={busy()}>
+                     {participant.displayName}
+                   </Btn>
+                 )}
+               </For>
             </div>
           </div>
         </Show>

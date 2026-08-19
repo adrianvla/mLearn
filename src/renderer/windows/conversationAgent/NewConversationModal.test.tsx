@@ -26,9 +26,10 @@ vi.mock('../../components/common', () => ({
   Textarea: (props: { value?: string; onInput?: (event: InputEvent) => void; placeholder?: string; rows?: number }) => (
     <textarea value={props.value} placeholder={props.placeholder} rows={props.rows} onInput={(event) => props.onInput?.(event)} />
   ),
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string }) => (
-    <button type="button" aria-label={props['aria-label']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; class?: string; 'aria-pressed'?: boolean }) => (
+    <button type="button" aria-label={props['aria-label']} aria-pressed={props['aria-pressed']} class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
+  Badge: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   HintText: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
 }));
 
