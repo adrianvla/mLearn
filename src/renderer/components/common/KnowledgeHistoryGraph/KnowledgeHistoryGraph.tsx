@@ -1,6 +1,7 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import { useLocalization } from '../../../context';
 import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
+import { KNOWLEDGE_ASPECT_LABEL_KEYS } from '../../../../shared/constants';
 import type { HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
 import './KnowledgeHistoryGraph.css';
 
@@ -17,12 +18,7 @@ const BAND_STRIP_HEIGHT = 4;
 // Normalized-strength midpoint of the learning→known range: below = learning.
 const LEARNING_THRESHOLD_STRENGTH = 0.5;
 
-const ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
-  meaning: 'mlearn.Knowledge.Aspect.Meaning',
-  reading: 'mlearn.Knowledge.Aspect.Reading',
-  prosody: 'mlearn.Knowledge.Aspect.Prosody',
-  gender: 'mlearn.Knowledge.Aspect.Gender',
-};
+const ASPECT_LABEL_KEYS = KNOWLEDGE_ASPECT_LABEL_KEYS;
 
 export interface KnowledgeHistoryGraphProps {
   points: HistoryCurvePoint[];

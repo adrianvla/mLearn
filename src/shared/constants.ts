@@ -421,21 +421,45 @@ export const ANKI_EASE = {
 export const WORD_STATUS_VALUES = ['unknown', 'learning', 'known'] as const;
 export type WordStatus = typeof WORD_STATUS_VALUES[number];
 
-export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody', 'gender'] as const;
+export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody', 'gender', 'pronunciation', 'orthography'] as const;
 export type KnowledgeAspect = typeof KNOWLEDGE_ASPECTS[number];
 
 // Knowledge-aspect dependency graph: an aspect's prerequisites are the coarser
 // aspects a learner necessarily traverses first (meaning ← reading ← prosody).
 // Aspects outside each other's prerequisite closures are orthogonal — no
-// inference flows between them (gender is independent). Adding an aspect is one
-// entry here; language feature configs map INTO aspects and can never change
-// these relationships.
+// inference flows between them (gender, pronunciation). Scope notes:
+// - pronunciation is lexeme-scoped spoken-form knowledge (Model B): meaning-known
+//   implies nothing about having heard/produced the spoken form;
+// - orthography is surface-scoped written-form→lexeme recognition: cross-scope
+//   by design, deliberately WITHOUT a reading prerequisite (a form can be mapped
+//   to its lexeme without being pronounceable and vice versa).
+// Adding an aspect is one entry here; language feature configs map INTO aspects
+// and can never change these relationships.
 export const ASPECT_PREREQUISITES: Record<KnowledgeAspect, readonly KnowledgeAspect[]> = {
   meaning: [],
   reading: ['meaning'],
   prosody: ['reading'],
   gender: [],
+  pronunciation: [],
+  orthography: [],
 };
+
+// Locale keys for aspect display names — the single source for every surface
+// (pill rows, history tabs, attribution buttons/toasts). Record-typed so adding
+// an aspect forces its label here.
+export const KNOWLEDGE_ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
+  meaning: 'mlearn.Knowledge.Aspect.Meaning',
+  reading: 'mlearn.Knowledge.Aspect.Reading',
+  prosody: 'mlearn.Knowledge.Aspect.Prosody',
+  gender: 'mlearn.Knowledge.Aspect.Gender',
+  pronunciation: 'mlearn.Knowledge.Aspect.Pronunciation',
+  orthography: 'mlearn.Knowledge.Aspect.Orthography',
+};
+
+// Aspects whose evidence belongs to one exact written surface (stored on the
+// presented form's hash only — never fanned out across the word-form family,
+// the #230 rule's exception) and resolved on that hash only.
+export const SURFACE_SCOPED_ASPECTS: readonly KnowledgeAspect[] = ['orthography'];
 
 // Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {
@@ -463,18 +487,19 @@ export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None'
 
 // Surface-specific aspect weights for getEffectiveKnowledge (read-time only, never persisted).
 // 'other' is the identity profile: every surface not listed resolves exactly as before (meaning only).
-// Gender is weighted 0 in all current surfaces — no implemented context consumes it yet; a
-// productive-grammar context would weight it without touching this schema.
+// Gender/pronunciation/orthography are weighted 0 in all current surfaces — no implemented
+// context deliberately consumes them yet; a future context (productive grammar, listening,
+// form-recognition drill) would weight its aspects without touching this schema.
 export const KNOWLEDGE_SURFACES = ['video', 'reader', 'review', 'other'] as const;
 export type KnowledgeSurface = typeof KNOWLEDGE_SURFACES[number];
 
-export const SURFACE_WEIGHTS: Record<KnowledgeSurface, { meaning: number; reading: number; prosody: number; gender: number }> = {
-  video: { meaning: 0.5, reading: 0.35, prosody: 0.15, gender: 0 },
+export const SURFACE_WEIGHTS: Record<KnowledgeSurface, { meaning: number; reading: number; prosody: number; gender: number; pronunciation: number; orthography: number }> = {
+  video: { meaning: 0.5, reading: 0.35, prosody: 0.15, gender: 0, pronunciation: 0, orthography: 0 },
   // Prosody is irrelevant to text comprehension: meaning+reading known with prosody
   // unknown must resolve as known, not 0.95 → learning.
-  reader: { meaning: 0.85, reading: 0.15, prosody: 0, gender: 0 },
-  review: { meaning: 1, reading: 0, prosody: 0, gender: 0 },
-  other: { meaning: 1, reading: 0, prosody: 0, gender: 0 },
+  reader: { meaning: 0.85, reading: 0.15, prosody: 0, gender: 0, pronunciation: 0, orthography: 0 },
+  review: { meaning: 1, reading: 0, prosody: 0, gender: 0, pronunciation: 0, orthography: 0 },
+  other: { meaning: 1, reading: 0, prosody: 0, gender: 0, pronunciation: 0, orthography: 0 },
 };
 
 // Knowledge resolution modes

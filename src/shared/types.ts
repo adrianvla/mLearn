@@ -707,7 +707,7 @@ export const DEFAULT_SETTINGS: Settings = {
   passiveEaseEnabled: true,
   passiveHoverDelayMs: 300,
   passiveHoverFailCount: 1,
-  passiveHoverFailAction: 'decrease-ease',
+  passiveHoverFailAction: 'none',
   passiveHoverEaseDecrease: 0.05,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
@@ -1461,9 +1461,17 @@ export function getAvailableAspects(language?: LanguageData): KnowledgeAspect[] 
   const aspects: KnowledgeAspect[] = ['meaning'];
   // An accent feature declared as reading-critical participates in reading knowledge.
   const accentInReading = language?.prosody?.knowledgeAspect === 'reading';
-  if (language?.textProcessing?.readingAnnotation || accentInReading) aspects.push('reading');
+  const hasReadingAnnotation = !!language?.textProcessing?.readingAnnotation || accentInReading;
+  if (hasReadingAnnotation) aspects.push('reading');
   if (!accentInReading && language?.prosody?.type && language.prosody.type !== 'none') aspects.push('prosody');
   if (language?.gender) aspects.push('gender');
+  // Pronunciation (lexeme-scoped spoken form) exists where the language declares
+  // any surface↔pronunciation feature; orthography exists where written surfaces
+  // carry a non-trivial form→lexeme mapping (script-reading distinction).
+  if (hasReadingAnnotation || (!accentInReading && language?.prosody?.type && language.prosody.type !== 'none')) {
+    aspects.push('pronunciation');
+  }
+  if (language?.textProcessing?.readingAnnotation) aspects.push('orthography');
   return aspects;
 }
 

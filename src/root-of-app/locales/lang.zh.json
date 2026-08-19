@@ -897,11 +897,14 @@
           "Meaning": "词义",
           "Reading": "读音",
           "Prosody": "韵律",
-          "Gender": "性"
+          "Gender": "性",
+          "Pronunciation": "发音",
+          "Orthography": "写法"
         },
         "Attribution": {
           "WrongReading": "读音错误",
           "WrongProsody": "韵律错误",
+          "WrongOrthography": "没认出写法",
           "Marked": "已将{aspect}标记为未知"
         }
       },
@@ -1250,6 +1253,7 @@
         "Prosody": "韵律"
       },
       "AspectInherited": "(继承)",
+      "Untracked": "未追踪",
       "History": {
         "Empty": "暂无知识历史。",
         "Kind": {

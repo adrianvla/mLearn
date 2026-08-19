@@ -897,11 +897,14 @@
           "Meaning": "Meaning",
           "Reading": "Reading",
           "Prosody": "Prosody",
-          "Gender": "Gender"
+          "Gender": "Gender",
+          "Pronunciation": "Pronunciation",
+          "Orthography": "Written form"
         },
         "Attribution": {
           "WrongReading": "Wrong reading",
           "WrongProsody": "Wrong prosody",
+          "WrongOrthography": "Unrecognized form",
           "Marked": "Marked {aspect} as unknown"
         }
       },
@@ -1250,6 +1253,7 @@
         "Prosody": "Prosody"
       },
       "AspectInherited": "(inherited)",
+      "Untracked": "Untracked",
       "History": {
         "Empty": "No knowledge history yet.",
         "Kind": {

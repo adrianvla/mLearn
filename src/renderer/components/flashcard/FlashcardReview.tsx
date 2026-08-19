@@ -15,6 +15,8 @@ import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { getAvailableAspects } from '../../../shared/types';
+import { isReadingScriptText } from '../../../shared/languageFeatures';
+import { KNOWLEDGE_ASPECT_LABEL_KEYS } from '../../../shared/constants';
 import type { KnowledgeAspect } from '../../../shared/constants';
 import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
@@ -151,15 +153,20 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const attributionTargets = createMemo(() => {
     const card = currentCard();
-    if (!card) return { reading: false, prosody: false };
+    if (!card) return { reading: false, prosody: false, orthography: false };
     const supported = getAvailableAspects(languageDataForCard(card) ?? undefined);
+    // Same supplied-aspect rule as wordSync: a card front written entirely in the
+    // reading script supplies the reading (never testable there); form recognition
+    // is testable only where the front is not reading-transparent.
+    const surfaceSuppliesReading = isReadingScriptText(card.content.front, languageDataForCard(card));
     return {
-      reading: supported.includes('reading') && cardHasReadingData(card),
+      reading: supported.includes('reading') && cardHasReadingData(card) && !surfaceSuppliesReading,
       prosody: supported.includes('prosody') && cardHasProsodyData(card),
+      orthography: supported.includes('orthography') && !surfaceSuppliesReading,
     };
   });
 
-  const handleAttribution = (aspect: 'reading' | 'prosody') => {
+  const handleAttribution = (aspect: 'reading' | 'prosody' | 'orthography') => {
     const card = currentCard();
     if (!card) return;
     // Centralized hierarchical attribution: failed aspect → unknown, coarser
@@ -167,7 +174,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     attributeKnowledgeFailure(card.content.front, aspect, languageForCard(card));
     showToast({
       message: t('mlearn.Flashcards.Review.Attribution.Marked', {
-        aspect: t(aspect === 'reading' ? 'mlearn.Knowledge.Aspect.Reading' : 'mlearn.Knowledge.Aspect.Prosody'),
+        aspect: t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect]),
       }),
       variant: 'success',
     });
@@ -685,6 +692,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                     onClick={() => handleAttribution('prosody')}
                 >
                   {t('mlearn.Flashcards.Review.Attribution.WrongProsody')}
+                </Button>
+              </Show>
+              <Show when={attributionTargets().orthography}>
+                <Button
+                    buttonType="default"
+                    variant="ghost"
+                    size="sm"
+                    class="flashcard-attribution-btn"
+                    onClick={() => handleAttribution('orthography')}
+                >
+                  {t('mlearn.Flashcards.Review.Attribution.WrongOrthography')}
                 </Button>
               </Show>
             </div>

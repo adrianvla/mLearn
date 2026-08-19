@@ -32,6 +32,7 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Modes.Reading': return 'Reading';
     case 'mlearn.Flashcards.Review.Modes.Prosody': return 'Prosody';
     case 'mlearn.Flashcards.Review.Attribution.WrongReading': return 'Wrong reading';
+    case 'mlearn.Flashcards.Review.Attribution.WrongOrthography': return 'Unrecognized form';
     case 'mlearn.Flashcards.Review.Attribution.WrongProsody': return 'Wrong prosody';
     case 'mlearn.Flashcards.Review.Attribution.Marked': return `Marked ${String(params?.aspect ?? '')} as unknown`;
     case 'mlearn.Knowledge.Aspect.Reading': return 'Reading';
@@ -387,6 +388,44 @@ describe('FlashcardReview failure attribution', () => {
     clickShowAnswer(container);
 
     expect(attributionButton(container, 'Wrong reading')).not.toBeNull();
+    dispose();
+  });
+
+  it('a kana card front supplies the reading: no reading or orthography attribution offered', () => {
+    // Real isReadingScriptText needs a surface-reading lexeme config to classify
+    // pure-kana text as reading script.
+    const kanaJaLanguageData: LanguageData = {
+      ...jaLanguageData,
+      textProcessing: {
+        ...jaLanguageData.textProcessing,
+        lexemeNormalization: { type: 'surface-reading', surfaceScripts: ['Han'], readingScripts: ['Hira'] },
+      } as LanguageData['textProcessing'],
+    };
+    mockLangMap = { ja: kanaJaLanguageData, de: deLanguageData };
+    mockLanguageData = kanaJaLanguageData;
+    setMockCard(makeCard({ content: { type: 'word', front: 'もたれる', reading: 'もたれる', back: 'to lean' } }));
+
+    const dispose = render(() => <FlashcardReview />, container);
+
+    clickShowAnswer(container);
+
+    // Reading was supplied by the surface; form recognition is not independently
+    // learnable on a reading-transparent front — neither attribution is offered.
+    expect(attributionButton(container, 'Wrong reading')).toBeNull();
+    expect(attributionButton(container, 'Unrecognized form')).toBeNull();
+    dispose();
+  });
+
+  it('offers and records orthography attribution on a form-bearing front', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+
+    clickShowAnswer(container);
+
+    const button = attributionButton(container, 'Unrecognized form');
+    expect(button).not.toBeNull();
+    button?.click();
+
+    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('犬', 'orthography', 'ja');
     dispose();
   });
 

@@ -2,6 +2,7 @@ import {
   type KnowledgeAspect,
   ASPECT_PREREQUISITES,
   KNOWLEDGE_ASPECTS,
+  SURFACE_SCOPED_ASPECTS,
   type KnowledgeSource,
   type KnowledgeSurface,
   SURFACE_WEIGHTS,
@@ -26,6 +27,8 @@ export interface AspectStatusResult {
   ease: number;
   source: WordKnowledgeSource;
   inherited: boolean;
+  /** True only for orthogonal aspects with no record: no evidence AND no chain to inherit from. */
+  untracked?: boolean;
   lastStatusChange?: number;
 }
 
@@ -52,7 +55,12 @@ export function getAspectStatusSync(
   }
 
   let best: { result: AspectStatusResult; rank: number } | null = null;
-  const matches = buildFormMatches(word, deps);
+  // Surface-scoped aspects (orthography) resolve on the presented form's own
+  // hash only: recognizing 流石 says nothing about さすが and vice versa — the
+  // family unification below is exactly the lexical-scope sharing they must not get.
+  const matches: FormMatch[] = SURFACE_SCOPED_ASPECTS.includes(aspect)
+    ? [{ lk: deps.langKey(deps.language, deps.hashWordSync(word.trim())) }]
+    : buildFormMatches(word, deps);
   for (const match of matches) {
     const record = deps.wordKnowledge[match.lk]?.aspects?.[aspect];
     if (!record) continue;
@@ -83,7 +91,7 @@ export function getAspectStatusSync(
     };
   }
 
-  return { status: 'unknown', ease: 0, source: 'None', inherited: false };
+  return { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true };
 }
 
 interface FormMatch {

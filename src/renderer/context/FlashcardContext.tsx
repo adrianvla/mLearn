@@ -8,6 +8,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
 import { DEFAULT_SETTINGS, getAvailableAspects, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
+import { SURFACE_SCOPED_ASPECTS } from '../../shared/constants';
 import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -32,7 +33,7 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
-import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, prerequisitesOf } from '../utils/aspectKnowledge';
+import { applyMeaningCascade, applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, prerequisitesOf, type AspectStatusResult } from '../utils/aspectKnowledge';
 import { appendEvents } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
@@ -283,6 +284,7 @@ interface FlashcardContextValue {
   trackWordHovered: (word: string, reading?: string, language?: string) => void;
   cancelWordHover: (word: string, language?: string) => void;
   getWordKnowledge: (wordHash: string) => PassiveWordKnowledge | undefined;
+  getAspectStatus: (word: string, aspect: KnowledgeAspect, language?: string) => AspectStatusResult;
   isWordKnown: (wordHash: string) => boolean;
   isWordKnownByText: (word: string, language?: string) => boolean;
   isWordLearning: (wordHash: string) => boolean;
@@ -2386,10 +2388,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const k = s.wordKnowledge[lk];
       if (shouldCount) {
         k.timesSeen++;
+        // Ease bump rides the same throttle as timesSeen: without this, subtitle
+        // line flapping / window remounts farm ease unboundedly (the throttle
+        // gated only the counter). Logical media-position encounter identity is
+        // a Tier-2 concern; this closes the farm hole now.
+        k.ease = Math.min(5, k.ease + easeBump);
       }
       k.lastSeen = now;
-      // Ease bump for passive exposure (configurable per caller)
-      k.ease = Math.min(5, k.ease + easeBump);
       if (scriptForm) {
         const recognize = k.forms?.[scriptForm]?.recognize ?? {
           ease: SRS.MIN_EASE,
@@ -2399,7 +2404,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         };
         if (shouldCount) recognize.timesSeen++;
         recognize.lastSeen = now;
-        recognize.ease = Math.min(5, recognize.ease + easeBump);
+        if (shouldCount) recognize.ease = Math.min(5, recognize.ease + easeBump);
         k.forms = { ...k.forms, [scriptForm]: { ...k.forms?.[scriptForm], recognize } };
         k.ease = Math.max(k.ease, ...Object.values(k.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : []));
       }
@@ -2600,9 +2605,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return getComprehensiveWordStatus(word, comprehensiveDeps(word, language));
   };
 
-  const getComprehensiveWordStatusWithSourceSync = (word: string, language = settings.language) => {
+  const   getComprehensiveWordStatusWithSourceSync = (word: string, language = settings.language) => {
     return getComprehensiveWordStatusWithSource(word, comprehensiveDeps(word, language));
   };
+
+  /** Canonical per-aspect read (chain inheritance / orthogonal untracked semantics live in one place). */
+  const getAspectStatus = (word: string, aspect: KnowledgeAspect, language = settings.language): AspectStatusResult =>
+    getAspectStatusSync(word, aspect, comprehensiveDeps(word, language));
 
   const isWordKnownComprehensiveSync = (word: string, language = settings.language): boolean => (
     getComprehensiveWordStatusSync(word, language) === 'known'
@@ -2805,7 +2814,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
     language = settings.language,
   ) => {
     const lang = language;
-    const forms = getWordFormsForLanguage(word, lang);
+    // #230 all-form-hash write, with its one exception: surface-scoped aspects
+    // (orthography) belong to the exact written form presented — fanning
+    // orthography(殖える) out to 増える's hash would claim recognition of a
+    // form the learner never interacted with.
+    const forms = SURFACE_SCOPED_ASPECTS.includes(aspect)
+      ? [word]
+      : getWordFormsForLanguage(word, lang);
     const now = Date.now();
     const buffer = settings.manualStatusEaseBuffer;
     const easeForStatus = (st: WordStatus) => {
@@ -3789,6 +3804,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     trackWordHovered,
     cancelWordHover,
     getWordKnowledge,
+    getAspectStatus,
     isWordKnown,
     isWordKnownByText,
     isWordLearning,

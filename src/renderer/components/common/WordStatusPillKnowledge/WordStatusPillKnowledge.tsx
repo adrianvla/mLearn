@@ -1,22 +1,13 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../context';
 import { getAvailableAspects } from '../../../../shared/types';
-import type { WordStatus } from '../../../../shared/constants';
+import { KNOWLEDGE_ASPECT_LABEL_KEYS, type WordStatus } from '../../../../shared/constants';
 import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
-import { hashWordSync } from '../../../services/srsAlgorithm';
-import { getWordFormCandidates } from '../../../utils/wordForms';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import { KnowledgeHistoryGraph } from '../KnowledgeHistoryGraph';
 import './WordStatusPillKnowledge.css';
 
-const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
-
-const ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
-  meaning: 'mlearn.Knowledge.Aspect.Meaning',
-  reading: 'mlearn.Knowledge.Aspect.Reading',
-  prosody: 'mlearn.Knowledge.Aspect.Prosody',
-  gender: 'mlearn.Knowledge.Aspect.Gender',
-};
+const ASPECT_LABEL_KEYS = KNOWLEDGE_ASPECT_LABEL_KEYS;
 
 const STATUS_LABEL_KEYS: Record<WordStatus, string> = {
   unknown: 'mlearn.WordHover.Status.Unknown',
@@ -32,18 +23,15 @@ export interface WordStatusPillKnowledgeProps {
 interface AspectState {
   status: WordStatus;
   inherited: boolean;
+  untracked: boolean;
 }
 
 export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = (props) => {
-  const { setAspectStatus, getComprehensiveWordStatusWithSourceSync, getWordKnowledge } = useFlashcards();
+  const { setAspectStatus, getComprehensiveWordStatusWithSourceSync, getAspectStatus } = useFlashcards();
   const { settings } = useSettings();
   const {
     langData,
     currentLangData,
-    getCanonicalForm,
-    getWordVariants,
-    getCanonicalFormForLanguage,
-    getWordVariantsForLanguage,
   } = useLanguage();
   const { t } = useLocalization();
 
@@ -54,39 +42,20 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   ));
   const availableAspects = createMemo(() => getAvailableAspects(languageData()));
 
-  const forms = createMemo(() => (
-    isActiveLanguage()
-      ? getWordFormCandidates(props.word, getCanonicalForm, getWordVariants, { languageData: languageData() })
-      : getWordFormCandidates(
-        props.word,
-        (value) => getCanonicalFormForLanguage(effectiveLanguage(), value),
-        (value) => getWordVariantsForLanguage(effectiveLanguage(), value),
-        { languageData: languageData() },
-      )
-  ));
-
   const meaningResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, effectiveLanguage()));
 
-  // Reading/prosody read the aspect record across every surface-form hash
-  // (split-hash unification); with no record on any form they inherit the
-  // resolved meaning status. Mirrors getAspectStatusSync semantics via the
-  // context API (getWordFormsForLanguage is not exposed by the provider).
   const aspectState = (aspect: KnowledgeAspect): AspectState => {
     if (aspect === 'meaning') {
-      return { status: meaningResult().status, inherited: false };
+      return { status: meaningResult().status, inherited: false, untracked: false };
     }
-    let best: { status: WordStatus; inherited: boolean; rank: number } | null = null;
-    for (const form of forms()) {
-      const record = getWordKnowledge(`${effectiveLanguage()}:${hashWordSync(form)}`)?.aspects?.[aspect];
-      if (!record) continue;
-      const rank = STATUS_RANK[record.status];
-      if (best === null || rank > best.rank) {
-        best = { status: record.status, inherited: record.inherited === true, rank };
-      }
-    }
-    if (best !== null) return { status: best.status, inherited: best.inherited };
-    return { status: meaningResult().status, inherited: true };
+    // Canonical resolution (chain inheritance, orthogonal untracked) — never a local copy.
+    const resolved = getAspectStatus(props.word, aspect, effectiveLanguage());
+    return { status: resolved.status, inherited: resolved.inherited, untracked: resolved.untracked === true };
   };
+
+  // Interim applicability rule: orthogonal aspects with no record stay hidden
+  // (rows and history tabs alike) until evidence exists.
+  const visibleAspects = createMemo(() => availableAspects().filter((aspect) => !aspectState(aspect).untracked));
 
   const writeAspect = (aspect: KnowledgeAspect, status: 'learning' | 'unknown') => {
     if (aspect === 'meaning') return;
@@ -100,7 +69,7 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   return (
     <div class="word-status-knowledge">
       <ul class="word-status-knowledge__aspects">
-        <For each={availableAspects()}>
+        <For each={visibleAspects()}>
           {(aspect) => {
             const state = aspectState(aspect);
             return (
@@ -112,7 +81,7 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
                 <Show when={state.inherited}>
                   <span class="word-status-knowledge__aspect-inherited">{t('mlearn.Knowledge.AspectInherited')}</span>
                 </Show>
-                <Show when={aspect !== 'meaning'}>
+                <Show when={aspect !== 'meaning' && !state.untracked}>
                   <span class="word-status-knowledge__aspect-actions">
                     <Show when={state.status === 'known'}>
                       <button
@@ -143,7 +112,7 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
         points={graphData().points}
         bands={graphData().bands}
         aspect={graphAspect()}
-        availableAspects={availableAspects()}
+        availableAspects={visibleAspects()}
         onAspectChange={setGraphAspect}
         mode="compact"
         now={Date.now()}

@@ -23,7 +23,15 @@ vi.mock('../../../context', () => ({
   useLanguage: () => ({
     currentLangData: () => h.currentLang,
   }),
-  useFlashcards: () => ({ store: { wordKnowledge: h.wordKnowledge, flashcards: h.flashcards } }),
+  useFlashcards: () => ({
+    store: { wordKnowledge: h.wordKnowledge, flashcards: h.flashcards },
+    // Chain aspects inherit; orthogonal aspects without records read untracked (hidden tab).
+    getAspectStatus: (_word: string, aspect: string) => (
+      aspect === 'reading' || aspect === 'prosody'
+        ? { status: 'learning', ease: 1.55, source: 'Manual', inherited: true }
+        : { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true }
+    ),
+  }),
   useLocalization: () => ({ t: (key: string) => key }),
 }));
 

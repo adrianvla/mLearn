@@ -19,6 +19,14 @@ export interface KnowledgeEvent {
   timesSeenDelta?: number;
   /** Anki revlog entry id (review timestamp ms). Set only on imported anki reviews; the idempotency key for re-imports. */
   ankiReviewId?: number;
+  /**
+   * How the learner produced the outcome: 'recall' = direct lexical recall,
+   * 'inference' = composed from known parts (characters/compounds/morphology).
+   * Absent = unspecified. Provenance only — never a knowledge aspect; later
+   * analytics may derive inference accuracy from this without ever treating
+   * inferred success as prior memorized knowledge.
+   */
+  method?: 'recall' | 'inference';
 }
 
 /** Keys are `${language}:${hash}` values shared with wordKnowledge. */

@@ -89,7 +89,10 @@ describe('getComprehensiveWordStatusWithSource', () => {
     });
   });
 
-  it('keeps PassiveTracking source for entries whose ease grew without explicit rating', () => {
+  it('passive-only ease growth caps at learning with PassiveTracking source', () => {
+    // No lastStatusChange: pure exposure above the known threshold — familiarity
+    // alone must not establish Known (Q1b). The PassiveTracking source attribution
+    // stays honest either way.
     const deps = makeDeps({
       wordKnowledge: {
         'ru:hash:слово': { ease: 1.9, timesSeen: 50 } as PassiveWordKnowledge,
@@ -97,12 +100,21 @@ describe('getComprehensiveWordStatusWithSource', () => {
     });
 
     expect(getComprehensiveWordStatusWithSource('слово', deps)).toEqual({
-      status: 'known',
+      status: 'learning',
       source: 'PassiveTracking',
       timesSeen: 50,
       matchedWord: 'слово',
       ease: 1.9,
     });
+
+    // The same ease with an explicit rating marker reads as known under Manual.
+    const rated = makeDeps({
+      wordKnowledge: {
+        'ru:hash:слово': { ease: 1.9, timesSeen: 50, lastStatusChange: 123 } as PassiveWordKnowledge,
+      },
+    });
+    expect(getComprehensiveWordStatusWithSource('слово', rated).status).toBe('known');
+    expect(getComprehensiveWordStatusWithSource('слово', rated).source).toBe('Manual');
   });
 
   it('uses language-provided word forms for SRS card status', () => {

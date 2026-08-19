@@ -222,6 +222,11 @@ vi.mock('../../../shared/languageFeatures', () => ({
   getFrequencyLevelVisualRank: (level: number) => level,
   getLearningLanguageLevelForLanguage: () => null,
   sortFrequencyLevelsByDifficulty: (levels: number[]) => levels,
+  // Kanji/mixed surfaces by default (reading testable); the kana-gate test flips this.
+  // getDictionaryLookupCandidates feeds wordForms' reading-lookup branch (reached once
+  // the flip is on) — absent from the factory it throws and kills the pool build.
+  isReadingScriptText: vi.fn(() => false),
+  getDictionaryLookupCandidates: vi.fn(() => []),
 }));
 
 vi.mock('../../../shared/languageScriptProfile', () => ({
@@ -440,6 +445,50 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', expect.any(Number), 'あかい', 'ja');
     expect(mockAttributeKnowledgeFailure).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('a reading-script surface supplies the reading: Unknown rates meaning directly with no attribution row', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    // Pure reading-script surface (もたれる-style): the interaction supplies the
+    // segmental reading AND the written form carries no independent form→lexeme
+    // mapping — nothing is attributable, so key 1 must rate meaning directly.
+    const { isReadingScriptText } = await import('../../../shared/languageFeatures');
+    const mockIsReading = isReadingScriptText as unknown as ReturnType<typeof vi.fn>;
+    mockIsReading.mockImplementation(() => true);
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    // No attribution prompt: the meaning ease write fired, no aspect failure fabricated.
+    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', 1.3, 'あかい', 'ja');
+    expect(container.textContent).not.toContain('mlearn.WordSync.AttributionPrompt');
+    expect(mockAttributeKnowledgeFailure).not.toHaveBeenCalled();
+    mockIsReading.mockImplementation(() => false);
+    dispose();
+  });
+
+  it('a non-reading-transparent surface offers orthography attribution (key 4)', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    await Promise.resolve();
+    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('mlearn.WordSync.AttributionPrompt');
+    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Orthography');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4' }));
+    await Promise.resolve();
+    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('赤い', 'orthography', 'ja');
     dispose();
   });
 

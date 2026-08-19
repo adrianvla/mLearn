@@ -29,12 +29,11 @@ const STATUS_LABEL_KEYS: Record<WordStatus, string> = {
 const MAX_MATCHES = 20;
 
 export const WordHistoryPanel: Component = () => {
-  const { store } = useFlashcards();
+  const { store, getAspectStatus } = useFlashcards();
   const { settings } = useSettings();
   const { currentLangData } = useLanguage();
   const { t } = useLocalization();
 
-  const availableAspects = createMemo(() => getAvailableAspects(currentLangData() ?? undefined));
   const [aspect, setAspect] = createSignal<KnowledgeAspect>('meaning');
   const [query, setQuery] = createSignal('');
 
@@ -58,6 +57,16 @@ export const WordHistoryPanel: Component = () => {
   });
 
   const selectedWord = createMemo(() => query().trim());
+
+  // Language-level aspects, narrowed per selected word: orthogonal aspects with
+  // no record stay hidden (interim applicability rule) — no empty Pronunciation /
+  // Orthography tabs for words that never tested them.
+  const availableAspects = createMemo(() => {
+    const all = getAvailableAspects(currentLangData() ?? undefined);
+    const word = selectedWord().trim();
+    if (!word) return all;
+    return all.filter((aspect) => getAspectStatus(word, aspect, settings.language).untracked !== true);
+  });
   const history = useKnowledgeHistory(selectedWord, aspect);
   const events = createMemo(() => history.events() ?? []);
   const graphData = createMemo(() => history.replay());

@@ -897,11 +897,14 @@
           "Meaning": "Значение",
           "Reading": "Чтение",
           "Prosody": "Просодия",
-          "Gender": "Род"
+          "Gender": "Род",
+          "Pronunciation": "Произношение",
+          "Orthography": "Письменная форма"
         },
         "Attribution": {
           "WrongReading": "Неверное чтение",
           "WrongProsody": "Неверная просодия",
+          "WrongOrthography": "Не узнал написание",
           "Marked": "Отмечено: {aspect} — неизвестно"
         }
       },
@@ -1250,6 +1253,7 @@
         "Prosody": "Просодия"
       },
       "AspectInherited": "(унаследовано)",
+      "Untracked": "Не отслеживается",
       "History": {
         "Empty": "Истории знания пока нет.",
         "Kind": {

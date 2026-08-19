@@ -43,6 +43,9 @@ function makeEntry(overrides: Partial<PassiveWordKnowledge> = {}): PassiveWordKn
     timesSeen: 0,
     timesHovered: 0,
     word: 'word',
+    // Explicitly-rated by default: these suites test inheritance/weighting over
+    // resolved-known fixtures, not the passive-exposure cap (pinned separately).
+    lastStatusChange: 1,
     ...overrides,
   };
 }
@@ -51,14 +54,20 @@ const easeFor = (status: WordStatus) => (status === 'known' ? 1.8 : status === '
 const ALL = ['meaning', 'reading', 'prosody'] as const;
 
 describe('getAspectStatusSync', () => {
-  it('meaning delegates to comprehensive resolution (passive tracking known)', () => {
+  it('passive-only exposure caps at learning; explicit rating establishes known', () => {
     const lk = langKey('ja', hashWordSync('猫'));
-    const deps = makeDeps({
+    // No lastStatusChange: pure passive ease growth (42 displays above the known
+    // threshold) — display familiarity alone must not establish Known.
+    const passive = makeDeps({
+      wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42, lastStatusChange: undefined }) },
+    });
+    expect(getAspectStatusSync('猫', 'meaning', passive).status).toBe('learning');
+    // The same entry with an explicit rating marker reads as known.
+    const rated = makeDeps({
       wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42 }) },
     });
-    const result = getAspectStatusSync('猫', 'meaning', deps);
-    expect(result.status).toBe('known');
-    expect(result.inherited).toBe(false);
+    expect(getAspectStatusSync('猫', 'meaning', rated).status).toBe('known');
+    expect(getAspectStatusSync('猫', 'meaning', rated).inherited).toBe(false);
   });
 
   it('reading falls back to resolved meaning with inherited semantics when absent', () => {
@@ -323,8 +332,11 @@ describe('aspect dependency graph', () => {
     const gender = getAspectStatusSync('猫', 'gender', deps);
     expect(gender.status).toBe('unknown');
     expect(gender.inherited).toBe(false);
+    // No record and no chain: untracked, not a claimed-unknown.
+    expect(gender.untracked).toBe(true);
     // Chain aspects still inherit.
     expect(getAspectStatusSync('猫', 'reading', deps).inherited).toBe(true);
+    expect(getAspectStatusSync('猫', 'reading', deps).untracked).toBeUndefined();
   });
 
   it('gender evidence never changes effective knowledge on any current surface', () => {
@@ -341,6 +353,79 @@ describe('aspect dependency graph', () => {
     for (const surface of ['video', 'reader', 'review', 'other'] as const) {
       const baseline = getEffectiveKnowledge('猫', surface, known, WITH_GENDER);
       const failed = getEffectiveKnowledge('猫', surface, withGenderFailed, WITH_GENDER);
+      expect(failed.status).toBe(baseline.status);
+      expect(failed.strength).toBeCloseTo(baseline.strength, 10);
+    }
+  });
+});
+
+describe('Tier-1 scope semantics', () => {
+  const WITH_NEW = ['meaning', 'reading', 'prosody', 'gender', 'pronunciation', 'orthography'] as const;
+
+  it('pronunciation is orthogonal: no inheritance from known meaning', () => {
+    const lk = langKey('ja', hashWordSync('猫'));
+    const deps = makeDeps({ wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 5 }) } });
+    const pronunciation = getAspectStatusSync('猫', 'pronunciation', deps);
+    // Meaning-known says nothing about the spoken form: untracked, not unknown.
+    expect(pronunciation.status).toBe('unknown');
+    expect(pronunciation.untracked).toBe(true);
+    expect(pronunciation.inherited).toBe(false);
+  });
+
+  it('orthography resolves on the presented surface only, never the form family', () => {
+    const kanjiLk = langKey('ja', hashWordSync('流石'));
+    const kanaLk = langKey('ja', hashWordSync('さすが'));
+    // Orthography evidence exists on the kanji surface; the makeDeps family fn
+    // returns both forms so a family-scoped resolution WOULD see it.
+    const deps = makeDeps({
+      getWordForms: (w) => (w === '流石' || w === 'さすが' ? ['流石', 'さすが'] : [w]),
+      wordKnowledge: {
+        [kanjiLk]: {
+          ...makeEntry({ ease: 2.0, timesSeen: 5 }),
+          aspects: { orthography: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 } },
+        },
+      },
+    });
+    expect(getAspectStatusSync('流石', 'orthography', deps).status).toBe('known');
+    // The kana sibling surface has no orthography claim of its own.
+    const sibling = getAspectStatusSync('さすが', 'orthography', deps);
+    expect(sibling.untracked).toBe(true);
+  });
+
+  it('a meaning downgrade squashes the chain but never pronunciation/orthography', () => {
+    const entry = makeEntry();
+    entry.aspects = {
+      reading: { status: 'known', ease: 1.8, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+      prosody: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+      pronunciation: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+      orthography: { status: 'known', ease: 1.9, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+    };
+    applyMeaningCascade(entry, 'learning', 100, 'Manual', easeFor, 'known', WITH_NEW);
+    expect(entry.aspects.reading?.status).toBe('learning');
+    expect(entry.aspects.prosody?.status).toBe('learning');
+    // Failing the meaning of an interaction leaves spoken-form and form-recognition
+    // claims untouched — they are not dependents of meaning.
+    expect(entry.aspects.pronunciation?.status).toBe('known');
+    expect(entry.aspects.orthography?.status).toBe('known');
+  });
+
+  it('pronunciation and orthography evidence never change effective knowledge on current surfaces', () => {
+    const lk = langKey('ja', hashWordSync('猫'));
+    const known = makeDeps({ wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 5 }) } });
+    const withEvidence = makeDeps({
+      wordKnowledge: {
+        [lk]: {
+          ...makeEntry({ ease: 2.0, timesSeen: 5 }),
+          aspects: {
+            pronunciation: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+            orthography: { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 1, updatedAt: 1 },
+          },
+        },
+      },
+    });
+    for (const surface of ['video', 'reader', 'review', 'other'] as const) {
+      const baseline = getEffectiveKnowledge('猫', surface, known, WITH_NEW);
+      const failed = getEffectiveKnowledge('猫', surface, withEvidence, WITH_NEW);
       expect(failed.status).toBe(baseline.status);
       expect(failed.strength).toBeCloseTo(baseline.strength, 10);
     }

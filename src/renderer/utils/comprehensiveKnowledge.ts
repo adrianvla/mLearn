@@ -120,8 +120,11 @@ function getStatusFromSource(
           // doesn't misattribute the user's own action to passive tracking.
           const explicitlyRated = knowledge.lastStatusChange !== undefined || knowledge.wordSyncRatedAt !== undefined;
           const source = explicitlyRated ? 'manual' : src;
+          // Passive exposure caps at learning: pure display familiarity must not
+          // establish Known — "known" always requires an active claim (any
+          // explicit rating, SRS, Anki, or known-words list bank).
           if (knowledge.ease >= deps.knownEaseThreshold) {
-            return { source, status: 'known', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
+            return { source, status: explicitlyRated ? 'known' : 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
           }
           if (knowledge.ease >= deps.learningThreshold) {
             return { source, status: 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };

@@ -897,11 +897,14 @@
           "Meaning": "Sens",
           "Reading": "Lecture",
           "Prosody": "Prosodie",
-          "Gender": "Genre"
+          "Gender": "Genre",
+          "Pronunciation": "Prononciation",
+          "Orthography": "Forme écrite"
         },
         "Attribution": {
           "WrongReading": "Lecture incorrecte",
           "WrongProsody": "Prosodie incorrecte",
+          "WrongOrthography": "Forme non reconnue",
           "Marked": "{aspect} marqué comme inconnu"
         }
       },
@@ -1250,6 +1253,7 @@
         "Prosody": "Prosodie"
       },
       "AspectInherited": "(hérité)",
+      "Untracked": "Non suivi",
       "History": {
         "Empty": "Pas encore d'historique de connaissance.",
         "Kind": {

@@ -10,7 +10,7 @@ import { WordStatusPillKnowledge } from './WordStatusPillKnowledge';
 
 const setAspectStatusMock = vi.fn();
 const getComprehensiveWordStatusWithSourceSyncMock = vi.fn();
-const getWordKnowledgeMock = vi.fn();
+const getAspectStatusMock = vi.fn();
 
 let currentLang: LanguageData = { name: 'Japanese', settings: { fixed: {} } };
 let wordKnowledge: Record<string, PassiveWordKnowledge> = {};
@@ -25,6 +25,16 @@ const richLanguageData: LanguageData = {
   prosody: { type: 'japanese-pitch-accent' },
 };
 
+const genderLanguageData: LanguageData = {
+  name: 'Gender Language',
+  settings: { fixed: {} },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Latn'] },
+    readingAnnotation: { type: 'script-reading' },
+  },
+  gender: { attributeKey: 'gender' },
+};
+
 const plainLanguageData: LanguageData = {
   name: 'German',
   settings: { fixed: {} },
@@ -36,7 +46,7 @@ const plainLanguageData: LanguageData = {
 vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: { language: 'ja' } }),
   useLanguage: () => ({
-    langData: { ja: richLanguageData, de: plainLanguageData },
+    langData: { ja: richLanguageData, de: plainLanguageData, ru2: genderLanguageData },
     currentLangData: () => currentLang,
     getCanonicalForm: (word: string) => word,
     getWordVariants: () => [],
@@ -46,7 +56,7 @@ vi.mock('../../../context', () => ({
   useFlashcards: () => ({
     setAspectStatus: setAspectStatusMock,
     getComprehensiveWordStatusWithSourceSync: getComprehensiveWordStatusWithSourceSyncMock,
-    getWordKnowledge: getWordKnowledgeMock,
+    getAspectStatus: getAspectStatusMock,
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string>) => (
@@ -118,7 +128,18 @@ describe('WordStatusPillKnowledge', () => {
     currentLang = richLanguageData;
     wordKnowledge = {};
     getComprehensiveWordStatusWithSourceSyncMock.mockReturnValue(comprehensiveResult('known'));
-    getWordKnowledgeMock.mockImplementation((lk: string) => wordKnowledge[lk]);
+    // Faithful mini-mock of getAspectStatusSync for the single-form test world:
+    // record → its status; absent chain aspect → inherited meaning; absent
+    // orthogonal aspect (gender) → untracked.
+    getAspectStatusMock.mockImplementation((_word: string, aspect: KnowledgeAspect) => {
+      const record = aspect === 'meaning' ? undefined : wordKnowledge[knowledgeKey('apple')]?.aspects?.[aspect];
+      if (record) return { status: record.status, ease: record.ease, source: record.source, inherited: record.inherited === true };
+      // Orthogonal aspects (gender/pronunciation/orthography): no record → untracked (hidden row).
+      if (aspect !== 'reading' && aspect !== 'prosody') {
+        return { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true };
+      }
+      return { status: comprehensiveResult('known').status, ease: 2.5, source: 'None', inherited: true };
+    });
   });
 
   afterEach(() => {
@@ -182,6 +203,19 @@ describe('WordStatusPillKnowledge', () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
     expect(container.textContent).not.toContain('mlearn.Knowledge.AspectInherited');
+
+    dispose();
+  });
+
+  it('hides an orthogonal aspect without evidence entirely (interim applicability rule)', () => {
+    const dispose = render(() => <WordStatusPillKnowledge word="apple" language="ru2" />, container);
+
+    // No evidence and no chain to inherit from: hidden, not "Untracked" — a
+    // Russian verb must not display a meaningless Gender row.
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Gender');
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Untracked');
+    // Reading (chain aspect) still shows its inherited marker.
+    expect(container.textContent.match(/mlearn\.Knowledge\.AspectInherited/g)).toHaveLength(1);
 
     dispose();
   });

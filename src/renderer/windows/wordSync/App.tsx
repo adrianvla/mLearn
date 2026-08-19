@@ -28,7 +28,8 @@ import {
   type ValidationError,
 } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
-import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
+import { SRS_EASE, WORD_STATUS, KNOWLEDGE_ASPECT_LABEL_KEYS } from '../../../shared/constants';
+import type { KnowledgeAspect } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { ankiCacheVersion } from '../../services/ankiWordsCache';
@@ -54,6 +55,7 @@ import {
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getAvailableAspects, type PassiveWordKnowledge } from '../../../shared/types';
+import { isReadingScriptText } from '../../../shared/languageFeatures';
 import { showToast } from '../../components/common/Feedback/Toast';
 import './WordSync.css';
 
@@ -367,7 +369,7 @@ export const WordSyncContent: Component = () => {
     applyRating(rating, 'meaning');
   }
 
-  function applyRating(rating: Rating, aspect: 'meaning' | 'reading' | 'prosody') {
+  function applyRating(rating: Rating, aspect: 'meaning' | Exclude<KnowledgeAspect, 'meaning'>) {
     const w = currentWord();
     if (!w) return;
     setPendingAttribution(false);
@@ -400,7 +402,7 @@ export const WordSyncContent: Component = () => {
       attributeKnowledgeFailure(w.word, aspect, settings.language);
       showToast({
         message: t('mlearn.Flashcards.Review.Attribution.Marked', {
-          aspect: t(aspect === 'reading' ? 'mlearn.Knowledge.Aspect.Reading' : 'mlearn.Knowledge.Aspect.Prosody'),
+          aspect: t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect]),
         }),
         variant: 'success',
       });
@@ -504,6 +506,7 @@ export const WordSyncContent: Component = () => {
       else if (e.key === '1') applyRating('unknown', 'meaning');
       else if (e.key === '2' && attributionTargets().reading) applyRating('unknown', 'reading');
       else if (e.key === '3' && attributionTargets().prosody) applyRating('unknown', 'prosody');
+      else if (e.key === '4' && attributionTargets().orthography) applyRating('unknown', 'orthography');
       return;
     }
     if (e.key === '1') rate('unknown');
@@ -586,14 +589,23 @@ export const WordSyncContent: Component = () => {
   // Word Sync renders the word with the shared WordWithReading primitive and
   // its own decoration context — no flashcard-display components/classes.
   const attributionTargets = createMemo(() => {
-    if (!currentWord()) return { reading: false, prosody: false };
+    if (!currentWord()) return { reading: false, prosody: false, orthography: false };
+    const w = currentWord()!;
     const supported = getAvailableAspects(langCtx.currentLangData() ?? undefined);
+    // A surface written entirely in the reading script (e.g. もたれる) supplies the
+    // reading directly: the interaction did not test it, so it cannot have been
+    // failed. Conversely, form recognition is only testable where the surface is
+    // NOT reading-transparent (文脈 yes, さようなら no).
+    const surfaceSuppliesReading = isReadingScriptText(w.word, langCtx.currentLangData());
     return {
-      reading: supported.includes('reading') && !!displayedReading(),
+      reading: supported.includes('reading') && !!displayedReading() && !surfaceSuppliesReading,
       prosody: supported.includes('prosody') && !!currentWordProsody(),
+      orthography: supported.includes('orthography') && !surfaceSuppliesReading,
     };
   });
-  const hasAttributionTargets = () => attributionTargets().reading || attributionTargets().prosody;
+  const hasAttributionTargets = () => (
+    attributionTargets().reading || attributionTargets().prosody || attributionTargets().orthography
+  );
 
   const comprehensiveKnowledge = createMemo(() => {
     const w = currentWord();
@@ -805,6 +817,17 @@ export const WordSyncContent: Component = () => {
               >
                 <span class="word-sync-btn-key">3</span>
                 {t('mlearn.Knowledge.Aspect.Prosody')}
+              </Btn>
+            </Show>
+            <Show when={attributionTargets().orthography}>
+              <Btn
+                variant="secondary"
+                size="lg"
+                onClick={() => applyRating('unknown', 'orthography')}
+                class="word-sync-btn word-sync-btn--learning"
+              >
+                <span class="word-sync-btn-key">4</span>
+                {t('mlearn.Knowledge.Aspect.Orthography')}
               </Btn>
             </Show>
           </Show>

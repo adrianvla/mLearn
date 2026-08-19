@@ -897,11 +897,14 @@
           "Meaning": "意味",
           "Reading": "読み",
           "Prosody": "プロソディ",
-          "Gender": "性別"
+          "Gender": "性別",
+          "Pronunciation": "発音",
+          "Orthography": "表記"
         },
         "Attribution": {
           "WrongReading": "読みを間違えた",
           "WrongProsody": "プロソディを間違えた",
+          "WrongOrthography": "表記を認識できなかった",
           "Marked": "{aspect}を未知にしました"
         }
       },
@@ -1250,6 +1253,7 @@
         "Prosody": "プロソディ"
       },
       "AspectInherited": "(継承)",
+      "Untracked": "未追跡",
       "History": {
         "Empty": "知識の履歴はまだありません。",
         "Kind": {

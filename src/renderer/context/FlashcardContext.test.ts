@@ -1616,6 +1616,26 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('setAspectStatus keeps surface-scoped aspects on the presented hash only (#230 exception)', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => word === 'さすが' ? ['さすが', '流石'] : [word]);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const sasugaLk = `ja:${SRS.hashWordSync('さすが')}`;
+    const sasugaKanjiLk = `ja:${SRS.hashWordSync('流石')}`;
+
+    // Orthography evidence belongs to the exact written form presented…
+    ctx.setAspectStatus('流石', 'orthography', 'unknown', 'manual', 'ja');
+    expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.aspects?.orthography?.status).toBe('unknown');
+    expect(ctx.store.wordKnowledge[sasugaLk]?.aspects?.orthography).toBeUndefined();
+
+    // …while a chain aspect fans out across the whole form family (#230).
+    ctx.setAspectStatus('さすが', 'reading', 'unknown', 'manual', 'ja');
+    expect(ctx.store.wordKnowledge[sasugaLk]?.aspects?.reading?.status).toBe('unknown');
+    expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.aspects?.reading?.status).toBe('unknown');
+    dispose();
+  });
+
   it('setComprehensiveWordStatus writes the manual rating to every word-form hash so a sibling passive entry cannot shadow it', async () => {
     mockGetWordVariants.mockImplementation((word: string) => word === 'さすが' ? ['さすが', '流石'] : [word]);
     const { ctx, dispose } = await mountProvider();
@@ -1636,8 +1656,10 @@ describe('FlashcardProvider', () => {
       },
     }));
 
+    // Passive-only sibling ease (no explicit rating) caps at learning (Q1b) —
+    // still a non-unknown claim that would shadow a single-hash manual write.
     expect(ctx.getComprehensiveWordStatusWithSourceSync('さすが')).toMatchObject({
-      status: 'known',
+      status: 'learning',
       source: 'PassiveTracking',
       matchedWord: '流石',
     });
@@ -1674,6 +1696,7 @@ describe('FlashcardProvider', () => {
           lastSeen: 1,
           timesSeen: 1,
           timesHovered: 0,
+          lastStatusChange: 5,
         },
       },
     }));
@@ -2797,6 +2820,7 @@ describe('FlashcardProvider', () => {
           lastSeen: 1,
           timesSeen: 1,
           timesHovered: 0,
+          lastStatusChange: 5,
         },
       },
     }));
