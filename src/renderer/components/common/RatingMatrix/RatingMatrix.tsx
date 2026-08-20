@@ -10,7 +10,7 @@ import {
 } from '../../../../shared/constants';
 import { useLocalization } from '../../../context';
 import { Button } from '../Button/Button';
-import { Badge } from '../Label/Label';
+import { KeyboardShortcut } from '../Misc/KeyboardShortcut';
 import './RatingMatrix.css';
 
 export interface RateOptions {
@@ -144,14 +144,14 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     });
   });
 
-  const cellHint = (aspect: KnowledgeAspect, quality: AttemptQuality): string => {
+  const cellHint = (aspect: KnowledgeAspect, quality: AttemptQuality): string[] => {
     if (props.keyboardMode === 'mnemonic') {
       return pendingQuality() === quality
-        ? `${QUALITY_KEYS[quality]}+${ASPECT_MNEMONIC_KEYS[aspect].toUpperCase()}`
-        : QUALITY_KEYS[quality];
+        ? [QUALITY_KEYS[quality], ASPECT_MNEMONIC_KEYS[aspect].toUpperCase()]
+        : [QUALITY_KEYS[quality]];
     }
     const rowIndex = props.aspects.indexOf(aspect);
-    return SPATIAL_QUALITY_KEYS[quality][rowIndex]?.toUpperCase() ?? '·';
+    return [SPATIAL_QUALITY_KEYS[quality][rowIndex]?.toUpperCase() ?? '·'];
   };
 
   return (
@@ -184,9 +184,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                   disabled={!props.armed}
                   onClick={() => rate(aspect, quality, false, false)}
                 >
-                  <Badge>
-                    <kbd class="rating-matrix__key">{cellHint(aspect, quality)}</kbd>
-                  </Badge>
+                  <KeyboardShortcut keys={cellHint(aspect, quality)} class="rating-matrix__hint" />
                 </Button>
               )}
             </For>
@@ -202,11 +200,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
         onClick={() => props.onAllFluent()}
       >
         {t('mlearn.Rating.Matrix.AllFluent')}
-        <Badge>
-          <kbd class="rating-matrix__key rating-matrix__key--all">
-            {t('mlearn.Rating.Matrix.AllFluentKey')}
-          </kbd>
-        </Badge>
+        <KeyboardShortcut keys={[t('mlearn.Rating.Matrix.AllFluentKey')]} class="rating-matrix__hint" />
       </Button>
       <Show when={pendingQuality()}>
         <span class="rating-matrix__pending" role="status">

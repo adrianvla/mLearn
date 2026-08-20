@@ -1,18 +1,22 @@
 /**
  * Keyboard Shortcut Component
- * Displays a keyboard shortcut with its description
+ * The canonical key-hint renderer (single kbd per key, joined by separators).
+ * Keys-only usage renders a compact inline hint; `description` adds the row
+ * layout used by shortcut lists and the About tab.
  */
 
 import { Component, For, Show, JSX } from 'solid-js';
 import './KeyboardShortcut.css';
 
 export interface KeyboardShortcutProps {
-  /** Description of what the shortcut does */
-  description: string;
+  /** Description of what the shortcut does (omitted for compact key-only hints) */
+  description?: string;
   /** Array of keys that make up the shortcut */
   keys: string[];
   /** Separator between keys (default: +) */
   separator?: string;
+  /** Row layout: description left, keys right (list/About-tab style) */
+  row?: boolean;
   /** Additional CSS class */
   class?: string;
   /** Custom style */
@@ -21,11 +25,16 @@ export interface KeyboardShortcutProps {
 
 export const KeyboardShortcut: Component<KeyboardShortcutProps> = (props) => {
   const separator = () => props.separator ?? '+';
-  
+
   return (
-    <div class={`keyboard-shortcut ${props.class || ''}`} style={props.style}>
-      <span class="shortcut-description">{props.description}</span>
-      <div class="shortcut-keys">
+    <span
+      class={`keyboard-shortcut ${props.row ? 'keyboard-shortcut--row' : ''} ${props.class || ''}`}
+      style={props.style}
+    >
+      <Show when={props.description}>
+        <span class="shortcut-description">{props.description}</span>
+      </Show>
+      <span class="shortcut-keys">
         <For each={props.keys}>
           {(key, index) => (
             <>
@@ -36,8 +45,8 @@ export const KeyboardShortcut: Component<KeyboardShortcutProps> = (props) => {
             </>
           )}
         </For>
-      </div>
-    </div>
+      </span>
+    </span>
   );
 };
 
@@ -59,7 +68,7 @@ export const ShortcutsList: Component<ShortcutsListProps> = (props) => {
       <div class="shortcuts-items">
         <For each={props.shortcuts}>
           {(shortcut) => (
-            <KeyboardShortcut description={shortcut.description} keys={shortcut.keys} />
+            <KeyboardShortcut row description={shortcut.description} keys={shortcut.keys} />
           )}
         </For>
       </div>

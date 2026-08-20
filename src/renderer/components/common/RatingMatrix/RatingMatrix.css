@@ -50,10 +50,9 @@
   outline-offset: -2px;
 }
 
-.rating-matrix__key {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  letter-spacing: 0.02em;
+.rating-matrix .shortcut-key {
+  min-width: 1.2rem;
+  padding: 0 0.35rem;
 }
 
 .rating-matrix__all {
@@ -65,10 +64,4 @@
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   text-align: center;
-}
-.label-content:has(.rating-matrix__key){
-  display:inline-flex;
-}
-.label:has(.rating-matrix__key){
-  margin-left:var(--spacing-2);
 }
