@@ -9,6 +9,8 @@ import {
   type RatingKeyboardMode,
 } from '../../../../shared/constants';
 import { useLocalization } from '../../../context';
+import { Button } from '../Button/Button';
+import { Badge } from '../Label/Label';
 import './RatingMatrix.css';
 
 export interface RateOptions {
@@ -31,6 +33,14 @@ export interface RatingMatrixProps {
 const PENDING_TIMEOUT_MS = 1500;
 
 const QUALITY_KEYS: Record<AttemptQuality, string> = { missed: '1', struggled: '2', fluent: '3' };
+
+// Same variant mapping the SRS rating buttons used: missed=again (danger),
+// struggled=hard (warning), fluent=good (success); all-fluent=easy (primary).
+const QUALITY_VARIANTS: Record<AttemptQuality, 'danger' | 'warning' | 'success'> = {
+  missed: 'danger',
+  struggled: 'warning',
+  fluent: 'success',
+};
 
 /**
  * The universal attempt-rating input: aspect rows × performance columns.
@@ -165,34 +175,39 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
             <span class="rating-matrix__label">{t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect])}</span>
             <For each={ATTEMPT_QUALITIES}>
               {(quality) => (
-                <button
-                  type="button"
-                  class="rating-matrix__cell"
-                  classList={{
-                    [`rating-matrix__cell--${quality}`]: true,
-                    'rating-matrix__cell--pending-col': pendingQuality() === quality,
-                  }}
+                <Button
+                  buttonType="default"
+                  variant={QUALITY_VARIANTS[quality]}
+                  size="xs"
+                  class={`rating-matrix__cell rating-matrix__cell--${quality}`}
+                  classList={{ 'rating-matrix__cell--pending-col': pendingQuality() === quality }}
                   disabled={!props.armed}
                   onClick={() => rate(aspect, quality, false, false)}
                 >
-                  <span class="rating-matrix__key">{cellHint(aspect, quality)}</span>
-                </button>
+                  <Badge>
+                    <kbd class="rating-matrix__key">{cellHint(aspect, quality)}</kbd>
+                  </Badge>
+                </Button>
               )}
             </For>
           </div>
         )}
       </For>
-      <button
-        type="button"
+      <Button
+        buttonType="default"
+        variant="primary"
+        size="sm"
         class="rating-matrix__all"
         disabled={!props.armed}
         onClick={() => props.onAllFluent()}
       >
         {t('mlearn.Rating.Matrix.AllFluent')}
-        <span class="rating-matrix__key rating-matrix__key--all">
-          {t('mlearn.Rating.Matrix.AllFluentKey')}
-        </span>
-      </button>
+        <Badge>
+          <kbd class="rating-matrix__key rating-matrix__key--all">
+            {t('mlearn.Rating.Matrix.AllFluentKey')}
+          </kbd>
+        </Badge>
+      </Button>
       <Show when={pendingQuality()}>
         <span class="rating-matrix__pending" role="status">
           {t('mlearn.Rating.Matrix.PendingHint')}
