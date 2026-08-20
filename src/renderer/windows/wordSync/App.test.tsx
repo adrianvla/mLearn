@@ -457,6 +457,37 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
+  it('Cmd+Z still works when a rating-matrix cell holds focus', async () => {
+    // Two words: one click-rating must not finish the session — the matrix (and
+    // the clicked cell) have to stay mounted for the undo dispatch to bubble.
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Click-rate, then undo dispatched FROM the cell button (bubbles to the
+    // window handler) — the target being a button must not swallow the shortcut.
+    // Dispatching on the element itself (not window) is what makes this a real
+    // regression pin: happy-dom's .click() does not move focus, so activeElement
+    // would stay body and the old guard would never be exercised.
+    const cell = container.querySelector<HTMLButtonElement>('.rating-matrix__cell');
+    if (!cell) throw new Error('matrix cell missing');
+    cell.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    cell.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true, bubbles: true }));
+    await Promise.resolve();
+
+    expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
   it('a lone quality key arms a chord and writes nothing until the aspect letter', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { WordSyncContent } = await import('./App');

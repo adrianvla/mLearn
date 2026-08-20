@@ -477,9 +477,10 @@ export const WordSyncContent: Component = () => {
     if (isRatingKeyIgnored(e)) return true;
     const target = e.target;
     if (!(target instanceof HTMLElement)) return false;
-    // A focused rating button must not double-fire on Space (native activation
-    // + the window handler's translation toggle).
-    return target.matches('button');
+    // Only Space double-fires from a focused button (native activation); every
+    // other shortcut — undo, translation — must survive button focus, which the
+    // persistent rating-matrix cells hold after a click rating.
+    return e.key === ' ' && target.matches('button');
   }
 
   // ─── Keyboard shortcuts ─────────────────────────────
