@@ -289,8 +289,8 @@ describe('WelcomeFlashcardPreview', () => {
           loadingLabel="Loading"
           openLabel="Open"
           ratingButtons={[
-            { quality: 'again', label: 'Again', time: '<10m' },
-            { quality: 'good', label: 'Ok', time: '10m' },
+            { quality: 'missed', label: 'Missed' },
+            { quality: 'fluent', label: 'Fluent' },
           ]}
           onOpen={() => {}}
           onRate={onRate}
@@ -299,20 +299,19 @@ describe('WelcomeFlashcardPreview', () => {
       container,
     );
 
-    const again = container.querySelector('.wfv-flashcard-rating-again');
-    expect(again).toBeNull();
+    const missed = container.querySelector('.wfv-flashcard-rating-missed');
+    expect(missed).toBeNull();
 
     const stage = container.querySelector('button.wfv-flashcard-stage');
     stage?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    const againAfterFlip = container.querySelector('.wfv-flashcard-rating-again');
-    const goodAfterFlip = container.querySelector('.wfv-flashcard-rating-good');
-    expect(againAfterFlip?.textContent).toContain('Again');
-    expect(againAfterFlip?.textContent).toContain('<10m');
-    expect(goodAfterFlip).not.toBeNull();
+    const missedAfterFlip = container.querySelector('.wfv-flashcard-rating-missed');
+    const fluentAfterFlip = container.querySelector('.wfv-flashcard-rating-fluent');
+    expect(missedAfterFlip?.textContent).toContain('Missed');
+    expect(fluentAfterFlip).not.toBeNull();
 
-    againAfterFlip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onRate).toHaveBeenCalledWith('again');
+    missedAfterFlip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onRate).toHaveBeenCalledWith('missed');
 
     dispose();
   });
@@ -328,7 +327,7 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="None"
           loadingLabel="Loading"
           openLabel="Open"
-          ratingButtons={[{ quality: 'good', label: 'Ok', time: '10m' }]}
+          ratingButtons={[{ quality: 'fluent', label: 'Fluent' }]}
           onOpen={() => {}}
           onRate={() => {}}
         />

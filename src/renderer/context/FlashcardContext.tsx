@@ -7,8 +7,8 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, getAvailableAspects, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
-import { SURFACE_SCOPED_ASPECTS } from '../../shared/constants';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
+import { SURFACE_SCOPED_ASPECTS, type AttemptQuality } from '../../shared/constants';
 import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -33,7 +33,7 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
-import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, prerequisitesOf, type AspectStatusResult } from '../utils/aspectKnowledge';
+import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, type AspectStatusResult } from '../utils/aspectKnowledge';
 import { appendEvents } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
@@ -312,7 +312,12 @@ interface FlashcardContextValue {
   /** Write a reading/prosody aspect status with down-init/down-squash cascade across all surface-form hashes */
   setAspectStatus: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
   /** Failure attribution: failed aspect → unknown, coarser aspects get positive evidence (hierarchical). */
-  attributeKnowledgeFailure: (word: string, failedAspect: Exclude<KnowledgeAspect, 'meaning'>, language?: string) => void;
+  recordAttempt: (
+    word: string,
+    aspect: KnowledgeAspect,
+    quality: AttemptQuality,
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number },
+  ) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
   // Word sync seen tracking
@@ -2895,31 +2900,94 @@ export const FlashcardProvider: ParentComponent = (props) => {
    * Aspects finer than the failure get no inference. These are real interaction
    * observations — unlike inheritance fallback, they emit events.
    */
-  const attributeKnowledgeFailure = (
+  /**
+   * Canonical attempt-rating evidence interpreter (the universal Aspect ×
+   * Performance matrix backend). The learner reports attempt PERFORMANCE —
+   * missed/struggled/fluent — for one aspect; this method decides what
+   * knowledge evidence that report is, at the correct scope:
+   * - meaning: missed → unknown anchor (demotes); struggled → learning anchor
+   *   (MAY demote Known — a badly struggled known item must show regression);
+   *   fluent → raise-only known anchor;
+   * - finer aspect: missed → explicit unknown; struggled → explicit learning
+   *   (may demote a known record); fluent → known record unless already known
+   *   (never lowers evidence above the anchor).
+   * `demonstrated` is TASK-MEDIATED: the aspects this interaction's structure
+   * actually proves were traversed. Word-presentation tasks (wordSync, review)
+   * pass the prerequisite chain; a dedicated audio task would pass []. The
+   * engine never traverses the linguistic graph on its own — the graph
+   * describes linguistic relations, the task defines what this observation
+   * proves.
+   */
+  const recordAttempt = (
     word: string,
-    failedAspect: Exclude<KnowledgeAspect, 'meaning'>,
-    language = settings.language,
+    aspect: KnowledgeAspect,
+    quality: AttemptQuality,
+    options?: {
+      language?: string;
+      method?: 'recall' | 'inference';
+      /** Aspects this task structure demonstrates were traversed (default: none). */
+      demonstrated?: readonly KnowledgeAspect[];
+      latencyMs?: number;
+    },
   ) => {
-    const available = getAvailableAspects(languageDataFor(language) ?? undefined);
-    setAspectStatus(word, failedAspect, 'unknown', 'manual', language);
+    const language = options?.language ?? settings.language;
+    const demonstrated = options?.demonstrated ?? [];
+    const before = getComprehensiveWordStatusWithSourceSync(word, language);
 
-    // Aspect evidence first, judged against the PRE-anchor meaning state: the
-    // meaning anchor below raises meaning to learning, which reading would then
-    // inherit — and the explicit evidence write would be skipped as redundant.
-    // Positive evidence for the aspects the failure's prerequisite chain traversed
-    // (graph-derived: orthogonal aspects like gender can never appear here).
-    for (const aspect of prerequisitesOf(failedAspect, available)) {
-      if (aspect === 'meaning') continue;
-      const current = getAspectStatusSync(word, aspect, comprehensiveDeps(word, language));
-      if (current.status === 'unknown') {
-        setAspectStatus(word, aspect, 'learning', 'manual', language);
+    if (aspect === 'meaning') {
+      if (quality === 'missed') {
+        setWordKnowledgeEase(word, settings.easeThresholdUnknown, undefined, language);
+      } else if (quality === 'struggled') {
+        setWordKnowledgeEase(word, settings.easeThresholdLearning, undefined, language);
+      } else {
+        const current = before.ease ?? 0;
+        if (current < settings.easeThresholdKnown) {
+          setWordKnowledgeEase(word, settings.easeThresholdKnown, undefined, language);
+        }
+      }
+    } else {
+      if (quality === 'fluent') {
+        const current = getAspectStatusSync(word, aspect, comprehensiveDeps(word, language));
+        if (current.status !== 'known') {
+          setAspectStatus(word, aspect, 'known', 'manual', language);
+        }
+      } else {
+        setAspectStatus(word, aspect, quality === 'missed' ? 'unknown' : 'learning', 'manual', language);
+      }
+      // Prerequisite evidence is judged AFTER the rated aspect write (the rated
+      // aspect is never its own prerequisite) and independently of the meaning
+      // anchor below — stored aspects do not inherit, so ordering is free.
+      for (const pre of demonstrated) {
+        if (pre === 'meaning' || pre === aspect) continue;
+        const preStatus = getAspectStatusSync(word, pre, comprehensiveDeps(word, language));
+        if (preStatus.status === 'unknown') {
+          setAspectStatus(word, pre, 'learning', 'manual', language);
+        }
+      }
+      if (demonstrated.includes('meaning') && (before.ease ?? 0) < settings.easeThresholdLearning) {
+        setWordKnowledgeEase(word, settings.easeThresholdLearning, undefined, language);
       }
     }
 
-    const meaning = getComprehensiveWordStatusWithSourceSync(word, language);
-    if ((meaning.ease ?? 0) < settings.easeThresholdLearning) {
-      setWordKnowledgeEase(word, settings.easeThresholdLearning + settings.manualStatusEaseBuffer, undefined, language);
-    }
+    const after = getComprehensiveWordStatusWithSourceSync(word, language);
+    // One observation event per attempt — quality/method/latency provenance for
+    // future calibration. fromStatus/toStatus/easeAfter keep replay/analytics
+    // consistent with the underlying writers' transition events.
+    const storageWord = getPrimaryWordFormForLanguage(word, language);
+    appendEvents({
+      [langKey(language, SRS.hashWordSync(storageWord))]: [{
+        t: Date.now(),
+        kind: 'rating',
+        source: 'manual',
+        aspect,
+        quality,
+        ...(options?.method ? { method: options.method } : {}),
+        ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
+        fromStatus: before.status,
+        toStatus: after.status,
+        easeAfter: after.ease,
+      }],
+    }).catch((e) => log.warn('knowledge event append failed:', e));
   };
 
   const setWordBankStatus = async (
@@ -3834,7 +3902,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     restoreWordSyncRating,
     setComprehensiveWordStatus,
     setAspectStatus,
-    attributeKnowledgeFailure,
+    recordAttempt,
     setWordBankStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,

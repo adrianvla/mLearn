@@ -9,7 +9,7 @@ import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import type { LevelStats } from '../../../../utils/wordLevelStats';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
-import type { Rating } from '../../../../services/srsAlgorithm';
+import type { AttemptQuality } from '../../../../../shared/constants';
 import './WelcomeFeaturePreviews.css';
 
 export interface WelcomeMediaPreviewProps {
@@ -106,9 +106,8 @@ export const WelcomeReaderPreview: Component<WelcomeMediaPreviewProps> = (props)
 };
 
 export interface WelcomeFlashcardRating {
-  quality: Rating;
+  quality: AttemptQuality;
   label: string;
-  time: string;
 }
 
 export interface WelcomeFlashcardPreviewProps {
@@ -121,7 +120,7 @@ export interface WelcomeFlashcardPreviewProps {
   openLabel: string;
   ratingButtons: WelcomeFlashcardRating[];
   onOpen: () => void;
-  onRate: (quality: Rating) => void;
+  onRate: (quality: AttemptQuality) => void;
 }
 
 /** Compact reviewer: click flips the real due card, then rate it to advance; empty/loading keeps a deck shell. */
@@ -192,7 +191,6 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
                 onClick={() => props.onRate(btn.quality)}
               >
                 <span class="wfv-flashcard-rating-label">{btn.label}</span>
-                <span class="wfv-flashcard-rating-time">{btn.time}</span>
               </button>
             )}
           </For>

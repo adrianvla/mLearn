@@ -25,12 +25,15 @@ import {
   type FieldResolver,
   type FilterToken,
   type PaletteItem,
+  RatingMatrix,
+  type RateOptions,
   type ValidationError,
 } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
-import { SRS_EASE, WORD_STATUS, KNOWLEDGE_ASPECT_LABEL_KEYS } from '../../../shared/constants';
+import { SRS_EASE, WORD_STATUS, type AttemptQuality } from '../../../shared/constants';
 import type { KnowledgeAspect } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import { prerequisitesOf } from '../../utils/aspectKnowledge';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { ankiCacheVersion } from '../../services/ankiWordsCache';
 import { fetchTranslation } from '../../hooks/useTranslation';
@@ -55,11 +58,9 @@ import {
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getAvailableAspects, type PassiveWordKnowledge } from '../../../shared/types';
-import { isReadingScriptText } from '../../../shared/languageFeatures';
-import { showToast } from '../../components/common/Feedback/Toast';
+import { getTestedAspects } from '../../../shared/languageFeatures';
 import './WordSync.css';
 
-type Rating = 'unknown' | 'learning' | 'known';
 
 interface PoolEntry {
   word: string;
@@ -76,17 +77,11 @@ interface WordSyncUndoEntry {
   previousKnowledge: Record<string, PassiveWordKnowledge | undefined>;
   previousSeenAt: Record<string, number | undefined>;
   previousRatedCount: number;
-  previousLastRating: Rating | null;
+  previousLastRating: AttemptQuality | null;
   previousSamplingLevel: number;
   previousLevelCursors: Map<number, number>;
   previousShowTranslation: boolean;
 }
-
-const RATING_EASE: Record<Rating, number> = {
-  unknown: SRS_EASE.MIN,
-  learning: SRS_EASE.DEFAULT_LEARNING,
-  known: SRS_EASE.DEFAULT_KNOWN,
-};
 
 // Bounded undo history mirroring flashcard review (MAX_UNDO_STACK_SIZE there is also 50).
 const MAX_UNDO_STACK_SIZE = 50;
@@ -98,7 +93,6 @@ export const WordSyncContent: Component = () => {
   const {
     store,
     isLoading,
-    setWordKnowledgeEase,
     markWordSyncSeen,
     clearAllWordSyncSeen,
     restoreWordSyncRating,
@@ -106,14 +100,15 @@ export const WordSyncContent: Component = () => {
     getWordKnowledgeSnapshotForForms,
     getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
-    attributeKnowledgeFailure,
+    recordAttempt,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
   const [currentWord, setCurrentWord] = createSignal<PoolEntry | null>(null);
+  let wordShownAt = 0;
   const [samplingLevel, setSamplingLevel] = createSignal<number>(0);
   const [ratedCount, setRatedCount] = createSignal(0);
-  const [lastRating, setLastRating] = createSignal<Rating | null>(null);
+  const [lastRating, setLastRating] = createSignal<AttemptQuality | null>(null);
   const [finished, setFinished] = createSignal(false);
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
   const [filterPresetInitialized, setFilterPresetInitialized] = createSignal(false);
@@ -130,7 +125,6 @@ export const WordSyncContent: Component = () => {
 
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
   const [undoStack, setUndoStack] = createSignal<WordSyncUndoEntry[]>([]);
-  const [pendingAttribution, setPendingAttribution] = createSignal(false);
 
   // ─── Translation for current word ───────────────────
   const [translation] = createResource(
@@ -317,7 +311,6 @@ export const WordSyncContent: Component = () => {
   }
 
   function pickNext() {
-    setPendingAttribution(false);
     const levels = sortedLevels();
     if (levels.length === 0) { setFinished(true); return; }
 
@@ -333,7 +326,7 @@ export const WordSyncContent: Component = () => {
     for (let dist = 1; dist < levels.length; dist++) {
       const easierIdx = idx - dist;
       const harderIdx = idx + dist;
-      if (lastRating() === 'known') {
+      if (lastRating() === 'fluent') {
         if (harderIdx < levels.length) tryOrder.push(levels[harderIdx]);
         if (easierIdx >= 0) tryOrder.push(levels[easierIdx]);
       } else {
@@ -349,6 +342,7 @@ export const WordSyncContent: Component = () => {
       if (cursor < group.length) {
         levelCursors.set(tryLvl, cursor + 1);
         setSamplingLevel(tryLvl);
+        wordShownAt = Date.now();
         setCurrentWord(group[cursor]);
         return;
       }
@@ -358,21 +352,9 @@ export const WordSyncContent: Component = () => {
     setCurrentWord(null);
   }
 
-  function rate(rating: Rating) {
-    // Unknown gates on attribution when the word carries reading/prosody data:
-    // a narrow surface failure must not squash whole-word knowledge (mirrors
-    // FlashcardReview's attribution row, P3.2). Key 1 = meaning = word-level write.
-    if (rating === 'unknown' && hasAttributionTargets()) {
-      setPendingAttribution(true);
-      return;
-    }
-    applyRating(rating, 'meaning');
-  }
-
-  function applyRating(rating: Rating, aspect: 'meaning' | Exclude<KnowledgeAspect, 'meaning'>) {
+  function handleRate(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) {
     const w = currentWord();
     if (!w) return;
-    setPendingAttribution(false);
 
     const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
     setUndoStack((prev) => {
@@ -394,38 +376,55 @@ export const WordSyncContent: Component = () => {
       return next;
     });
 
-    if (aspect === 'meaning') {
-      setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
-    } else {
-      // Centralized hierarchical attribution: failed aspect → unknown, coarser
-      // aspects (meaning, and reading when prosody failed) get positive evidence.
-      attributeKnowledgeFailure(w.word, aspect, settings.language);
-      showToast({
-        message: t('mlearn.Flashcards.Review.Attribution.Marked', {
-          aspect: t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect]),
-        }),
-        variant: 'success',
-      });
-    }
+    // Word-presentation task: rating a finer aspect demonstrates its prerequisite
+    // chain was traversed (the written word had to be read to reach prosody). A
+    // dedicated audio task would pass [] instead — the task defines what the
+    // observation proves, never the engine.
+    recordAttempt(w.word, aspect, quality, {
+      language: settings.language,
+      method: opts?.method,
+      demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
+      latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
+    });
 
-    if (rating === 'unknown') {
+    if (quality === 'missed') {
       markWordSyncSeen(w.word, settings.language);
     }
 
     setSessionRatedSet((s) => { s.add(w.word); return s; });
 
     setRatedCount((c) => c + 1);
-    setLastRating(rating);
+    setLastRating(quality);
 
     const levels = sortedLevels();
     const idx = levels.indexOf(samplingLevel());
 
-    if (rating === 'known' && idx < levels.length - 1) {
+    if (quality === 'fluent' && idx < levels.length - 1) {
       setSamplingLevel(levels[idx + 1]);
-    } else if (rating === 'unknown' && idx > 0) {
+    } else if (quality === 'missed' && idx > 0) {
       setSamplingLevel(levels[idx - 1]);
     }
 
+    pickNext();
+  }
+
+  function handleAllFluent(opts?: RateOptions) {
+    const w = currentWord();
+    if (!w) return;
+    for (const aspect of testedAspects()) {
+      recordAttempt(w.word, aspect, 'fluent', {
+        language: settings.language,
+        method: opts?.method,
+        demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
+        latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
+      });
+    }
+    setSessionRatedSet((s) => { s.add(w.word); return s; });
+    setRatedCount((c) => c + 1);
+    setLastRating('fluent');
+    const levels = sortedLevels();
+    const idx = levels.indexOf(samplingLevel());
+    if (idx < levels.length - 1) setSamplingLevel(levels[idx + 1]);
     pickNext();
   }
 
@@ -493,25 +492,14 @@ export const WordSyncContent: Component = () => {
     }
 
     if (finished()) return;
-    if (e.key === ' ' || e.code === 'Space') {
+    // Rating keys (1/2/3, chords, Space/Enter) belong to the RatingMatrix.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 't' || e.key === 'T') {
       if (currentWord()) {
         e.preventDefault();
         setShowTranslation((v) => !v);
       }
-      return;
     }
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (pendingAttribution()) {
-      if (e.key === 'Escape') setPendingAttribution(false);
-      else if (e.key === '1') applyRating('unknown', 'meaning');
-      else if (e.key === '2' && attributionTargets().reading) applyRating('unknown', 'reading');
-      else if (e.key === '3' && attributionTargets().prosody) applyRating('unknown', 'prosody');
-      else if (e.key === '4' && attributionTargets().orthography) applyRating('unknown', 'orthography');
-      return;
-    }
-    if (e.key === '1') rate('unknown');
-    else if (e.key === '2') rate('learning');
-    else if (e.key === '3') rate('known');
   }
 
   // Guard: only pick the first word once, after language data has loaded.
@@ -588,24 +576,18 @@ export const WordSyncContent: Component = () => {
 
   // Word Sync renders the word with the shared WordWithReading primitive and
   // its own decoration context — no flashcard-display components/classes.
-  const attributionTargets = createMemo(() => {
-    if (!currentWord()) return { reading: false, prosody: false, orthography: false };
-    const w = currentWord()!;
-    const supported = getAvailableAspects(langCtx.currentLangData() ?? undefined);
-    // A surface written entirely in the reading script (e.g. もたれる) supplies the
-    // reading directly: the interaction did not test it, so it cannot have been
-    // failed. Conversely, form recognition is only testable where the surface is
-    // NOT reading-transparent (文脈 yes, さようなら no).
-    const surfaceSuppliesReading = isReadingScriptText(w.word, langCtx.currentLangData());
-    return {
-      reading: supported.includes('reading') && !!displayedReading() && !surfaceSuppliesReading,
-      prosody: supported.includes('prosody') && !!currentWordProsody(),
-      orthography: supported.includes('orthography') && !surfaceSuppliesReading,
-    };
+  // Matrix rows: aspects THIS interaction tests (supplied aspects excluded — the
+  // shared gate in languageFeatures owns the tested/supplied distinction).
+  const testedAspects = createMemo(() => {
+    const w = currentWord();
+    if (!w) return ['meaning'] as const;
+    return getTestedAspects({
+      languageData: langCtx.currentLangData(),
+      surface: w.word,
+      hasReadingData: !!displayedReading(),
+      hasProsodyData: !!currentWordProsody(),
+    });
   });
-  const hasAttributionTargets = () => (
-    attributionTargets().reading || attributionTargets().prosody || attributionTargets().orthography
-  );
 
   const comprehensiveKnowledge = createMemo(() => {
     const w = currentWord();
@@ -758,79 +740,13 @@ export const WordSyncContent: Component = () => {
         </Show>
 
         <div class="word-sync-actions">
-          <Show when={pendingAttribution()} fallback={<>
-            <Btn
-              variant="danger"
-              size="lg"
-              onClick={() => rate('unknown')}
-              class="word-sync-btn word-sync-btn--unknown"
-            >
-              <span class="word-sync-btn-key">1</span>
-              {t('mlearn.WordSync.Unknown')}
-            </Btn>
-            <Btn
-              variant="secondary"
-              size="lg"
-              onClick={() => rate('learning')}
-              class="word-sync-btn word-sync-btn--learning"
-            >
-              <span class="word-sync-btn-key">2</span>
-              {t('mlearn.WordSync.Learning')}
-            </Btn>
-            <Btn
-              variant="primary"
-              size="lg"
-              onClick={() => rate('known')}
-              class="word-sync-btn word-sync-btn--known"
-            >
-              <span class="word-sync-btn-key">3</span>
-              {t('mlearn.WordSync.Known')}
-            </Btn>
-          </>}>
-            <span class="word-sync-attribution-prompt">{t('mlearn.WordSync.AttributionPrompt')}</span>
-            <Btn
-              variant="danger"
-              size="lg"
-              onClick={() => applyRating('unknown', 'meaning')}
-              class="word-sync-btn word-sync-btn--unknown"
-            >
-              <span class="word-sync-btn-key">1</span>
-              {t('mlearn.Knowledge.Aspect.Meaning')}
-            </Btn>
-            <Show when={attributionTargets().reading}>
-              <Btn
-                variant="secondary"
-                size="lg"
-                onClick={() => applyRating('unknown', 'reading')}
-                class="word-sync-btn word-sync-btn--learning"
-              >
-                <span class="word-sync-btn-key">2</span>
-                {t('mlearn.Knowledge.Aspect.Reading')}
-              </Btn>
-            </Show>
-            <Show when={attributionTargets().prosody}>
-              <Btn
-                variant="secondary"
-                size="lg"
-                onClick={() => applyRating('unknown', 'prosody')}
-                class="word-sync-btn word-sync-btn--learning"
-              >
-                <span class="word-sync-btn-key">3</span>
-                {t('mlearn.Knowledge.Aspect.Prosody')}
-              </Btn>
-            </Show>
-            <Show when={attributionTargets().orthography}>
-              <Btn
-                variant="secondary"
-                size="lg"
-                onClick={() => applyRating('unknown', 'orthography')}
-                class="word-sync-btn word-sync-btn--learning"
-              >
-                <span class="word-sync-btn-key">4</span>
-                {t('mlearn.Knowledge.Aspect.Orthography')}
-              </Btn>
-            </Show>
-          </Show>
+          <RatingMatrix
+            aspects={testedAspects()}
+            keyboardMode={settings.ratingKeyboardMode}
+            armed={!!currentWord() && !finished()}
+            onRate={handleRate}
+            onAllFluent={handleAllFluent}
+          />
         </div>
 
 

@@ -1289,6 +1289,16 @@
         "NotAvailable": "利用できません"
       }
     },
+    "Rating": {
+      "Matrix": {
+        "Missed": "思い出せず",
+        "Struggled": "苦労した",
+        "Fluent": "スムーズ",
+        "AllFluent": "すべてスムーズ",
+        "AllFluentKey": "スペース",
+        "PendingHint": "品質（1〜3）→ 側面キー"
+      }
+    },
     "Knowledge": {
       "Aspect": {
         "Meaning": "意味",
@@ -2454,6 +2464,13 @@
       },
       "SearchPlaceholder": "設定を検索...",
       "Behaviour": {
+        "RatingKeyboardMode": {
+          "Label": "評価キーボードモード",
+          "Mnemonic": "ニーモニック（1+M）",
+          "Spatial": "空間マトリクス（1/Q/A/Z）",
+          "MnemonicHint": "品質キー1/2/3のあとにM/R/P/Oで側面を指定。",
+          "SpatialHint": "表示中の側面行に 1-2-3 / Q-W-E / A-S-D / Z-X-C の列を対応させます。"
+        },
         "FrequencyProvider": {
           "Label": "頻度リスト",
           "Description": "レベル、学習、Word Sync に使用する語彙頻度データを選択します。"

@@ -1,0 +1,96 @@
+.rating-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+.rating-matrix__head,
+.rating-matrix__row {
+  display: grid;
+  grid-template-columns: minmax(4.5em, 1fr) repeat(3, minmax(4em, 1fr));
+  gap: 4px;
+  align-items: stretch;
+}
+
+.rating-matrix__corner,
+.rating-matrix__col {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2px 0;
+}
+
+.rating-matrix__col--pending {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.rating-matrix__label {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding-right: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rating-matrix__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.rating-matrix__cell:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.rating-matrix__cell--pending-col {
+  border-color: var(--accent-color);
+  border-width: 2px;
+}
+
+.rating-matrix__cell--missed.rating-matrix__cell--pending-col,
+.rating-matrix__cell--struggled.rating-matrix__cell--pending-col,
+.rating-matrix__cell--fluent.rating-matrix__cell--pending-col {
+  background: var(--bg-tertiary));
+}
+
+.rating-matrix__key {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary));
+  letter-spacing: 0.02em;
+}
+
+.rating-matrix__all {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.rating-matrix__all:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.rating-matrix__pending {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary));
+  text-align: center;
+}

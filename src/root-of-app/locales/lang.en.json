@@ -1289,6 +1289,16 @@
         "NotAvailable": "not available"
       }
     },
+    "Rating": {
+      "Matrix": {
+        "Missed": "Missed",
+        "Struggled": "Struggled",
+        "Fluent": "Fluent",
+        "AllFluent": "All tested fluent",
+        "AllFluentKey": "Space",
+        "PendingHint": "Quality (1–3), then aspect key"
+      }
+    },
     "Knowledge": {
       "Aspect": {
         "Meaning": "Meaning",
@@ -1828,6 +1838,13 @@
         }
       },
       "Behaviour": {
+        "RatingKeyboardMode": {
+          "Label": "Rating keyboard mode",
+          "Mnemonic": "Mnemonic (1+M)",
+          "Spatial": "Spatial matrix (1/Q/A/Z)",
+          "MnemonicHint": "Quality key 1/2/3, then M/R/P/O for the aspect.",
+          "SpatialHint": "Columns 1-2-3 / Q-W-E / A-S-D / Z-X-C over the displayed aspect rows."
+        },
         "FrequencyProvider": {
           "Label": "Frequency List",
           "Description": "Choose which vocabulary frequency source is used for levels, study, and Word Sync."

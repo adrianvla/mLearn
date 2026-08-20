@@ -17,7 +17,7 @@ let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
 const mockAnswerCard = vi.fn(() => false);
 const mockSetAspectStatus = vi.fn();
-const mockAttributeKnowledgeFailure = vi.fn();
+const mockRecordAttempt = vi.fn();
 
 const flushEffects = () => new Promise<void>((resolve) => {
   const channel = new MessageChannel();
@@ -35,7 +35,13 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Attribution.WrongOrthography': return 'Unrecognized form';
     case 'mlearn.Flashcards.Review.Attribution.WrongProsody': return 'Wrong prosody';
     case 'mlearn.Flashcards.Review.Attribution.Marked': return `Marked ${String(params?.aspect ?? '')} as unknown`;
+    case 'mlearn.Knowledge.Aspect.Meaning': return 'Meaning';
     case 'mlearn.Knowledge.Aspect.Reading': return 'Reading';
+    case 'mlearn.Knowledge.Aspect.Orthography': return 'Written form';
+    case 'mlearn.Rating.Matrix.Missed': return 'Missed';
+    case 'mlearn.Rating.Matrix.Struggled': return 'Struggled';
+    case 'mlearn.Rating.Matrix.Fluent': return 'Fluent';
+    case 'mlearn.Rating.Matrix.AllFluent': return 'All tested fluent';
     case 'mlearn.Knowledge.Aspect.Prosody': return 'Prosody';
     case 'mlearn.Flashcards.Review.Again': return 'Again';
     case 'mlearn.Flashcards.Review.Hard': return 'Hard';
@@ -64,7 +70,7 @@ vi.mock('../../context', () => ({
     updateFlashcardContent: vi.fn(),
     updateFlashcard: vi.fn(),
     setAspectStatus: mockSetAspectStatus,
-    attributeKnowledgeFailure: mockAttributeKnowledgeFailure,
+    recordAttempt: mockRecordAttempt,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0, ease: 0 }),
     getWordKnowledge: () => ({}),
   }),
@@ -120,7 +126,10 @@ vi.mock('../common/Feedback/Toast', () => ({
   showToast: toastMocks.showToast,
 }));
 
-vi.mock('../common', () => {
+vi.mock('../common', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../common')>();
+  // Real RatingMatrix: rating tests exercise the actual input controller.
+  const RatingMatrix = actual.RatingMatrix;
   const Button = (props: {
     children?: JSX.Element;
     class?: string;
@@ -171,6 +180,7 @@ vi.mock('../common', () => {
     return el;
   };
   return {
+    RatingMatrix,
     Button,
     Panel,
     Badge,
@@ -245,10 +255,20 @@ function modeSelectOptions(container: HTMLDivElement): string[] {
     .filter((value): value is string => value !== null);
 }
 
-function attributionButton(container: HTMLDivElement, label: string): HTMLButtonElement | null {
-  const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('.flashcard-attribution-btn'));
-  return buttons.find((button) => button.textContent === label) ?? null;
+function matrixRow(container: HTMLDivElement, label: string): Element | null {
+  return Array.from(container.querySelectorAll('.rating-matrix__row'))
+    .find((row) => row.querySelector('.rating-matrix__label')?.textContent === label) ?? null;
 }
+
+function matrixCell(container: HTMLDivElement, label: string, quality: 0 | 1 | 2): HTMLButtonElement | null {
+  const row = matrixRow(container, label);
+  return (row?.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[quality]) ?? null;
+}
+
+const rate = (quality: '1' | '2' | '3', letter: string) => {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: quality }));
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: letter }));
+};
 
 function clickShowAnswer(container: HTMLDivElement): void {
   const button = container.querySelector<HTMLButtonElement>('.flashcard-show-answer-btn');
@@ -380,14 +400,15 @@ describe('FlashcardReview failure attribution', () => {
     container.remove();
   });
 
-  it('shows the wrong-reading button only after the answer is revealed', () => {
+  it('renders the rating matrix only after the answer is revealed', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
-    expect(attributionButton(container, 'Wrong reading')).toBeNull();
+    expect(container.querySelector('.rating-matrix')).toBeNull();
 
     clickShowAnswer(container);
 
-    expect(attributionButton(container, 'Wrong reading')).not.toBeNull();
+    expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    expect(matrixRow(container, 'Reading')).not.toBeNull();
     dispose();
   });
 
@@ -410,9 +431,10 @@ describe('FlashcardReview failure attribution', () => {
     clickShowAnswer(container);
 
     // Reading was supplied by the surface; form recognition is not independently
-    // learnable on a reading-transparent front — neither attribution is offered.
-    expect(attributionButton(container, 'Wrong reading')).toBeNull();
-    expect(attributionButton(container, 'Unrecognized form')).toBeNull();
+    // learnable on a reading-transparent front — neither row is offered.
+    expect(matrixRow(container, 'Reading')).toBeNull();
+    expect(matrixRow(container, 'Written form')).toBeNull();
+    expect(matrixRow(container, 'Meaning')).not.toBeNull();
     dispose();
   });
 
@@ -421,11 +443,11 @@ describe('FlashcardReview failure attribution', () => {
 
     clickShowAnswer(container);
 
-    const button = attributionButton(container, 'Unrecognized form');
-    expect(button).not.toBeNull();
-    button?.click();
+    expect(matrixRow(container, 'Written form')).not.toBeNull();
+    rate('1', 'o');
 
-    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('犬', 'orthography', 'ja');
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'orthography', 'missed', expect.objectContaining({ language: 'ja' }));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number));
     dispose();
   });
 
@@ -437,18 +459,18 @@ describe('FlashcardReview failure attribution', () => {
 
     clickShowAnswer(container);
 
-    expect(attributionButton(container, 'Wrong reading')).toBeNull();
+    expect(matrixRow(container, 'Reading')).toBeNull();
     dispose();
   });
 
-  it('hides the wrong-reading button when the card has no distinct reading', () => {
+  it('hides the reading row when the card has no distinct reading', () => {
     setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: '犬', back: 'dog' } }));
 
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
 
-    expect(attributionButton(container, 'Wrong reading')).toBeNull();
+    expect(matrixRow(container, 'Reading')).toBeNull();
     dispose();
   });
 
@@ -461,27 +483,25 @@ describe('FlashcardReview failure attribution', () => {
 
     clickShowAnswer(container);
 
-    expect(attributionButton(container, 'Wrong prosody')).not.toBeNull();
+    expect(matrixRow(container, 'Prosody')).not.toBeNull();
     dispose();
   });
 
-  it('calls setAspectStatus and shows a toast on wrong-reading', () => {
+  it('records a reading miss with prerequisite evidence and Again scheduling', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
-    const button = attributionButton(container, 'Wrong reading');
-    if (!button) throw new Error('Wrong reading button missing');
-    button.click();
+    rate('1', 'r');
 
-    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('犬', 'reading', 'ja');
-    expect(toastMocks.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'Marked Reading as unknown',
-      variant: 'success',
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'reading', 'missed', expect.objectContaining({
+      language: 'ja',
+      demonstrated: ['meaning'],
     }));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number));
     dispose();
   });
 
-  it('calls setAspectStatus and shows a toast on wrong-prosody', () => {
+  it('records a prosody miss with the chain demonstrated (click parity)', () => {
     setMockCard(makeCard({
       content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'tone', display: 'HL' } },
     }));
@@ -489,28 +509,66 @@ describe('FlashcardReview failure attribution', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
-    const button = attributionButton(container, 'Wrong prosody');
-    if (!button) throw new Error('Wrong prosody button missing');
-    button.click();
+    // Click the Prosody × Missed cell — same evidence as the 1+P chord.
+    const cell = matrixCell(container, 'Prosody', 0);
+    if (!cell) throw new Error('Prosody missed cell missing');
+    cell.click();
 
-    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('犬', 'prosody', 'ja');
-    expect(toastMocks.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'Marked Prosody as unknown',
-      variant: 'success',
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'prosody', 'missed', expect.objectContaining({
+      language: 'ja',
+      demonstrated: ['meaning', 'reading'],
     }));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number));
     dispose();
   });
 
-  it('keeps the existing rating flow unchanged', () => {
+  it('fluent meaning via chord: Good scheduling plus known-anchor evidence', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
-    const okButton = Array.from(container.querySelectorAll<HTMLButtonElement>('.flashcard-rating-btn'))
-      .find((button) => button.textContent?.includes('Ok'));
-    if (!okButton) throw new Error('Ok rating button missing');
-    okButton.click();
+    rate('3', 'm');
 
     expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number));
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'meaning', 'fluent', expect.objectContaining({ language: 'ja' }));
+    dispose();
+  });
+
+  it('Space rates all tested aspects fluent', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+
+    // Meaning + reading + written form are tested on the default ja card:
+    // every tested aspect receives fluent evidence, none fabricated beyond.
+    const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
+    expect(calls.length).toBe(3);
+    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number));
+    dispose();
+  });
+
+  it('Shift+Space adds Easy scheduling with identical fluent evidence', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', shiftKey: true }));
+
+    expect(mockAnswerCard).toHaveBeenCalledWith('easy', 'card-1', expect.any(Number));
+    const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
+    expect(calls.length).toBe(3);
+    dispose();
+  });
+
+  it('Alt marks the attempt as worked out (method=inference)', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', altKey: true }));
+
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'meaning', 'fluent', expect.objectContaining({
+      method: 'inference',
+    }));
     dispose();
   });
 });

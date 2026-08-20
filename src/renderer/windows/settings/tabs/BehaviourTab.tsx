@@ -9,6 +9,7 @@ import type { SortableListItem } from '../../../components/common';
 import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../../shared/languageFeatures';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, getPassiveHoverFailAction, getPassiveHoverFailCount } from '@shared/utils/passiveWordTracking';
+import type { RatingKeyboardMode } from '@shared/constants';
 import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
@@ -307,6 +308,20 @@ export const BehaviourTab: Component = () => {
               value={passiveHoverFailAction()}
               options={passiveHoverActionOptions()}
               onChange={(e) => updateSettings({ passiveHoverFailAction: e.currentTarget.value as typeof PASSIVE_HOVER_FAIL_ACTIONS[number] })}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.Behaviour.RatingKeyboardMode.Label')}
+            description={t(`mlearn.Settings.Behaviour.RatingKeyboardMode.${settings.ratingKeyboardMode === 'spatial' ? 'SpatialHint' : 'MnemonicHint'}`)}
+          >
+            <Select
+              value={settings.ratingKeyboardMode}
+              options={[
+                { value: 'mnemonic', label: t('mlearn.Settings.Behaviour.RatingKeyboardMode.Mnemonic') },
+                { value: 'spatial', label: t('mlearn.Settings.Behaviour.RatingKeyboardMode.Spatial') },
+              ]}
+              onChange={(e) => updateSettings({ ratingKeyboardMode: e.currentTarget.value as RatingKeyboardMode })}
             />
           </SettingRow>
 

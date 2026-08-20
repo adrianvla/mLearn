@@ -4,7 +4,7 @@
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
-import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeAspect, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction, WordKnowledgeSource, WordStatus } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeAspect, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
 
 export { KNOWLEDGE_ASPECTS } from './constants';
 export type { KnowledgeAspect } from './constants';
@@ -447,6 +447,9 @@ export interface Settings {
   /** Ease amount to subtract when the failed-word action is set to decrease ease */
   passiveHoverEaseDecrease: number;
 
+  /** Keyboard input mode for the attempt rating matrix: mnemonic chords (1+M) or spatial grid (1/Q/A/Z columns). */
+  ratingKeyboardMode: RatingKeyboardMode;
+
   // LLM provider settings
   /** LLM provider: built-in local model or Ollama */
   llmProvider: LLMProvider;
@@ -708,6 +711,7 @@ export const DEFAULT_SETTINGS: Settings = {
   passiveHoverDelayMs: 300,
   passiveHoverFailCount: 1,
   passiveHoverFailAction: 'none',
+  ratingKeyboardMode: 'mnemonic',
   passiveHoverEaseDecrease: 0.05,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',

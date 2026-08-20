@@ -13,8 +13,9 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn((): { status: string;
 const mockClearAllWordSyncSeen = vi.fn();
 const mockSetWordKnowledgeEase = vi.fn();
 const mockSetAspectStatus = vi.fn();
-const mockAttributeKnowledgeFailure = vi.fn();
+const mockRecordAttempt = vi.fn();
 const mockShowToast = vi.hoisted(() => vi.fn());
+const isReadingScriptTextFn = vi.hoisted(() => vi.fn((_surface?: unknown, _data?: unknown) => false));
 const mockMarkWordSyncSeen = vi.fn();
 const mockRestoreWordSyncRating = vi.fn();
 const mockFetchTranslation = vi.hoisted(() => vi.fn(async (): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
@@ -24,6 +25,7 @@ const mockWordSyncState = vi.hoisted(() => ({
     uiLanguage: 'en',
     dictionaryTargetLanguages: {} as Record<string, string>,
     use_anki: false,
+    ratingKeyboardMode: 'mnemonic' as const,
     wordSyncStaleLearningDays: 30,
   },
   wordFrequency: {
@@ -115,7 +117,7 @@ vi.mock('../../context', async () => {
     },
     setWordKnowledgeEase: mockSetWordKnowledgeEase,
     setAspectStatus: mockSetAspectStatus,
-    attributeKnowledgeFailure: mockAttributeKnowledgeFailure,
+    recordAttempt: mockRecordAttempt,
     markWordSyncSeen: mockMarkWordSyncSeen,
     clearAllWordSyncSeen: mockClearAllWordSyncSeen,
     restoreWordSyncRating: mockRestoreWordSyncRating,
@@ -139,7 +141,12 @@ vi.mock('../../context', async () => {
   };
 });
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/common')>();
+  return ({
+  // Real RatingMatrix: rating tests exercise the actual input controller.
+  RatingMatrix: actual.RatingMatrix,
+  RateOptions: undefined,
   Btn: (props: { children?: JSX.Element; onClick?: () => void; class?: string }) => (
     <button type="button" class={props.class} onClick={props.onClick}>{props.children}</button>
   ),
@@ -191,7 +198,8 @@ vi.mock('../../components/common', () => ({
   evaluateAst: () => true,
   parseTokens: () => null,
   validateTokens: () => ({ ok: true }),
-}));
+  });
+});
 
 vi.mock('../../components/language-specific', () => ({
   WordWithReading: (props: { word: string; reading?: string }) => <span>{props.reading ? `${props.word}:${props.reading}` : props.word}</span>,
@@ -215,19 +223,36 @@ vi.mock('../../services/ankiWordsCache', () => ({
   ankiCacheVersion: vi.fn(() => 0),
 }));
 
-vi.mock('../../../shared/languageFeatures', () => ({
-  extractStudyCharacters: () => [],
-  getCharacterStudyScripts: () => [],
-  getFrequencyLevelLabel: (level: number, names?: Record<string, string>) => names?.[String(level)] ?? String(level),
-  getFrequencyLevelVisualRank: (level: number) => level,
-  getLearningLanguageLevelForLanguage: () => null,
-  sortFrequencyLevelsByDifficulty: (levels: number[]) => levels,
-  // Kanji/mixed surfaces by default (reading testable); the kana-gate test flips this.
-  // getDictionaryLookupCandidates feeds wordForms' reading-lookup branch (reached once
-  // the flip is on) — absent from the factory it throws and kills the pool build.
-  isReadingScriptText: vi.fn(() => false),
-  getDictionaryLookupCandidates: vi.fn(() => []),
-}));
+vi.mock('../../../shared/languageFeatures', async () => {
+  // getAvailableAspects is pure and unmocked — safe to import inside the factory.
+  const { getAvailableAspects } = await import('../../../shared/types');
+  return {
+    extractStudyCharacters: () => [],
+    getCharacterStudyScripts: () => [],
+    getFrequencyLevelLabel: (level: number, names?: Record<string, string>) => names?.[String(level)] ?? String(level),
+    getFrequencyLevelVisualRank: (level: number) => level,
+    getLearningLanguageLevelForLanguage: () => null,
+    sortFrequencyLevelsByDifficulty: (levels: number[]) => levels,
+    // Kanji/mixed surfaces by default (reading testable); the kana-gate test flips this.
+    // getDictionaryLookupCandidates feeds wordForms' reading-lookup branch (reached once
+    // the flip is on) — absent from the factory it throws and kills the pool build.
+    isReadingScriptText: isReadingScriptTextFn,
+    getDictionaryLookupCandidates: vi.fn(() => []),
+    // Faithful mirror of the shared gate, wired to the MOCKED isReadingScriptText
+    // (the real module's internal binding would bypass this mock).
+    getTestedAspects: vi.fn(({ languageData, surface, hasReadingData, hasProsodyData }: {
+      languageData?: unknown; surface: string; hasReadingData: boolean; hasProsodyData: boolean;
+    }) => {
+      const available = getAvailableAspects(languageData as never);
+      const supplies = isReadingScriptTextFn(surface, languageData as never);
+      const aspects: string[] = ['meaning'];
+      if (available.includes('reading') && hasReadingData && !supplies) aspects.push('reading');
+      if (available.includes('prosody') && hasProsodyData) aspects.push('prosody');
+      if (available.includes('orthography') && !supplies) aspects.push('orthography');
+      return aspects;
+    }),
+  };
+});
 
 vi.mock('../../../shared/languageScriptProfile', () => ({
   hasLettersInAnyScript: () => false,
@@ -235,6 +260,12 @@ vi.mock('../../../shared/languageScriptProfile', () => ({
 
 describe('WordSyncContent', () => {
   let container: HTMLDivElement;
+
+  // Mnemonic chord: quality key then aspect letter (default keyboard mode).
+  const chord = (quality: '1' | '2' | '3', letter: string) => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: quality }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: letter }));
+  };
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -260,7 +291,7 @@ describe('WordSyncContent', () => {
     mockClearAllWordSyncSeen.mockClear();
     mockSetWordKnowledgeEase.mockClear();
     mockSetAspectStatus.mockClear();
-    mockAttributeKnowledgeFailure.mockClear();
+    mockRecordAttempt.mockClear();
     mockShowToast.mockClear();
     mockMarkWordSyncSeen.mockClear();
     mockRestoreWordSyncRating.mockClear();
@@ -293,18 +324,19 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     const initialCanonicalizations = mockWordSyncState.getCanonicalFormForLanguage.mock.calls.length;
-    const knownButton = container.querySelector<HTMLButtonElement>('.word-sync-btn--known');
-    expect(knownButton).not.toBeNull();
 
-    knownButton!.click();
+    // Meaning fluent via mnemonic chord — the pool must not rebuild.
+    chord('3', 'm');
     await Promise.resolve();
     await Promise.resolve();
 
+    // Pool order is shuffled — either word may surface first.
+    expect(mockRecordAttempt).toHaveBeenCalledWith(expect.any(String), 'meaning', 'fluent', expect.objectContaining({ language: 'ja' }));
     expect(mockWordSyncState.getCanonicalFormForLanguage.mock.calls.length).toBe(initialCanonicalizations);
     dispose();
   });
 
-  it('toggles the current word translation with Space', async () => {
+  it('toggles the current word translation with T (Space is All-fluent now)', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -314,12 +346,12 @@ describe('WordSyncContent', () => {
 
     expect(container.textContent).not.toContain('red');
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 't' }));
     await Promise.resolve();
 
     expect(container.textContent).toContain('red');
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 't' }));
     await Promise.resolve();
 
     expect(container.textContent).not.toContain('red');
@@ -349,7 +381,7 @@ describe('WordSyncContent', () => {
     expect(container.querySelector('.flashcard-word-title')).toBeNull();
 
     // Revealing the answer restores the full render.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 't' }));
     await Promise.resolve();
     await Promise.resolve();
 
@@ -375,9 +407,9 @@ describe('WordSyncContent', () => {
 
     // Rating stores the displayed (dictionary) reading so the word DB pairs it
     // with the same definition.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    chord('1', 'm');
     await Promise.resolve();
-    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', expect.any(Number), 'あか', 'ja');
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'missed', expect.objectContaining({ language: 'ja' }));
     dispose();
   });
 
@@ -406,7 +438,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(container.textContent).toContain('赤い:あかい');
-    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    chord('3', 'm');
     await Promise.resolve();
     await Promise.resolve();
 
@@ -425,7 +457,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('gates unknown on aspect attribution when the word has reading data', async () => {
+  it('a lone quality key arms a chord and writes nothing until the aspect letter', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { WordSyncContent } = await import('./App');
 
@@ -436,43 +468,42 @@ describe('WordSyncContent', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     await Promise.resolve();
 
-    // Nothing written yet: the user must say WHAT failed.
-    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('mlearn.WordSync.AttributionPrompt');
+    // Pending chord: nothing recorded, hint visible.
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('mlearn.Rating.Matrix.PendingHint');
 
-    // Key 1 again = meaning: the word-level ease write, exactly as before.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    // Meaning completion: the record fires with word-presentation demonstration.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
     await Promise.resolve();
-    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', expect.any(Number), 'あかい', 'ja');
-    expect(mockAttributeKnowledgeFailure).not.toHaveBeenCalled();
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'missed', expect.objectContaining({
+      language: 'ja',
+      demonstrated: [],
+    }));
     dispose();
   });
 
-  it('a reading-script surface supplies the reading: Unknown rates meaning directly with no attribution row', async () => {
+  it('a reading-script surface supplies the reading: only the Meaning row is offered', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     // Pure reading-script surface (もたれる-style): the interaction supplies the
-    // segmental reading AND the written form carries no independent form→lexeme
-    // mapping — nothing is attributable, so key 1 must rate meaning directly.
-    const { isReadingScriptText } = await import('../../../shared/languageFeatures');
-    const mockIsReading = isReadingScriptText as unknown as ReturnType<typeof vi.fn>;
-    mockIsReading.mockImplementation(() => true);
+    // segmental reading — the matrix must not offer a Reading row at all.
+    isReadingScriptTextFn.mockImplementation(() => true);
     const { WordSyncContent } = await import('./App');
 
     const dispose = render(() => <WordSyncContent />, container);
     await Promise.resolve();
     await Promise.resolve();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Meaning');
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Reading');
+    // Meaning missed on the kana surface: rated directly via chord.
+    chord('1', 'm');
     await Promise.resolve();
-    // No attribution prompt: the meaning ease write fired, no aspect failure fabricated.
-    expect(mockSetWordKnowledgeEase).toHaveBeenCalledWith('赤い', 1.3, 'あかい', 'ja');
-    expect(container.textContent).not.toContain('mlearn.WordSync.AttributionPrompt');
-    expect(mockAttributeKnowledgeFailure).not.toHaveBeenCalled();
-    mockIsReading.mockImplementation(() => false);
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'missed', expect.anything());
+    isReadingScriptTextFn.mockImplementation(() => false);
     dispose();
   });
 
-  it('a non-reading-transparent surface offers orthography attribution (key 4)', async () => {
+  it('a non-reading-transparent surface offers the Written-form row (1+O)', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { WordSyncContent } = await import('./App');
 
@@ -480,19 +511,19 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('mlearn.WordSync.AttributionPrompt');
     expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Orthography');
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4' }));
+    chord('1', 'o');
     await Promise.resolve();
-    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('赤い', 'orthography', 'ja');
+    // Orthography is surface-scoped; the wordSync task demonstrates the chain up
+    // to (but not including) orthography — orthography has no prerequisites.
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'orthography', 'missed', expect.objectContaining({
+      language: 'ja',
+    }));
     dispose();
   });
 
-  it('routes an aspect failure through the centralized hierarchical attribution', async () => {
+  it('routes a reading miss through recordAttempt with word-presentation demonstration', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { WordSyncContent } = await import('./App');
 
@@ -500,18 +531,16 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+    chord('1', 'r');
     await Promise.resolve();
 
-    // The evidence semantics (failed aspect unknown, coarser aspects positive)
-    // live in the context method — wordSync delegates and marks the encounter.
-    expect(mockAttributeKnowledgeFailure).toHaveBeenCalledWith('赤い', 'reading', 'ja');
-    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
-    // An aspect failure still counts as a sync encounter.
+    // Evidence semantics live in the context method — wordSync delegates and
+    // marks the encounter on a miss.
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'reading', 'missed', expect.objectContaining({
+      language: 'ja',
+      demonstrated: ['meaning'],
+    }));
     expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
-    expect(mockShowToast).toHaveBeenCalled();
     dispose();
   });
 
@@ -551,10 +580,10 @@ describe('WordSyncContent', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await Promise.resolve();
 
-    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
-    expect(mockAttributeKnowledgeFailure).not.toHaveBeenCalled();
-    expect(container.textContent).not.toContain('mlearn.WordSync.AttributionPrompt');
-    expect(container.textContent).toContain('mlearn.WordSync.Unknown');
+    // Chord cancelled: no record, no pending hint, word still presented.
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('mlearn.Rating.Matrix.PendingHint');
+    expect(container.textContent).toContain('赤い');
     dispose();
   });
 
@@ -580,11 +609,9 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    chord('1', 'r');
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
-    await Promise.resolve();
-    expect(mockAttributeKnowledgeFailure).toHaveBeenCalled();
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'reading', 'missed', expect.anything());
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await Promise.resolve();
@@ -628,9 +655,9 @@ describe('WordSyncContent', () => {
     const prevFirst = firstWord === '赤い' ? prevA : prevB;
     const prevSecond = secondWord === '赤い' ? prevA : prevB;
 
-    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    chord('3', 'm');
     await Promise.resolve();
-    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    chord('3', 'm');
     await Promise.resolve();
 
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
@@ -671,16 +698,16 @@ describe('WordSyncContent', () => {
 
     expect(container.textContent).toContain('赤い:あかい');
 
-    // Held-down key: OS auto-repeat keydowns must not rate again.
+    // Held-down key: OS auto-repeat keydowns must not arm or rate.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', repeat: true }));
     await Promise.resolve();
-    expect(mockSetWordKnowledgeEase).not.toHaveBeenCalled();
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
     expect(container.textContent).toContain('赤い:あかい');
 
-    // A fresh press rates exactly once.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    // A fresh chord rates exactly once.
+    chord('1', 'm');
     await Promise.resolve();
-    expect(mockSetWordKnowledgeEase).toHaveBeenCalledTimes(1);
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
     dispose();
@@ -737,7 +764,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     expect(mockCommonState.filterBuilderProps?.tokens).toEqual([]);
 
-    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    chord('3', 'm');
     await Promise.resolve();
     await Promise.resolve();
 
@@ -774,7 +801,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    chord('3', 'm');
     await Promise.resolve();
     await Promise.resolve();
 
@@ -799,7 +826,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    container.querySelector<HTMLButtonElement>('.word-sync-btn--known')?.click();
+    chord('3', 'm');
     await Promise.resolve();
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');

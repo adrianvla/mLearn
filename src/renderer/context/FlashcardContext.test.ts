@@ -3851,7 +3851,109 @@ describe('FlashcardProvider', () => {
   });
 });
 
-describe('attributeKnowledgeFailure', () => {
+describe('recordAttempt quality semantics', () => {
+  it('struggled meaning MAY demote known: learning-region target', async () => {
+    mockSettings.language = 'ja2';
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
+      },
+    }));
+
+    ctx.recordAttempt('学校', 'meaning', 'struggled', { language: 'ja2' });
+
+    // A badly struggled known item regresses: absolute learning-anchor write.
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(mockSettings.easeThresholdLearning, 5);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('fluent meaning is raise-only: never lowers an ease above the known anchor', async () => {
+    mockSettings.language = 'ja2';
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
+      },
+    }));
+
+    ctx.recordAttempt('学校', 'meaning', 'fluent', { language: 'ja2' });
+
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('fluent finer aspect writes known once; never lowers an existing known record', async () => {
+    mockSettings.language = 'ja2';
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.recordAttempt('学校', 'reading', 'fluent', { language: 'ja2' });
+    expect(ctx.store.wordKnowledge[lk]?.aspects?.reading?.status).toBe('known');
+
+    const withKnown = makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja2',
+          aspects: { reading: { status: 'known', ease: 2.2, source: 'Manual', lastStatusChange: 5, updatedAt: 5 } },
+        },
+      },
+    });
+    flashcardsCb(withKnown);
+    ctx.recordAttempt('学校', 'reading', 'fluent', { language: 'ja2' });
+    // Existing known evidence (ease above the anchor) is untouched.
+    expect(ctx.store.wordKnowledge[lk]?.aspects?.reading?.ease).toBe(2.2);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('struggled finer aspect is partial success: learning record, not unknown', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.recordAttempt('学校', 'prosody', 'struggled', { language: 'ja2', demonstrated: ['meaning', 'reading'] });
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    const entry = ctx.store.wordKnowledge[lk];
+    expect(entry?.aspects?.prosody?.status).toBe('learning');
+    // Prerequisite traversal still yields positive evidence.
+    expect(entry?.aspects?.reading?.status).toBe('learning');
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('emits one observation event with quality/method/latency provenance', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.recordAttempt('学校', 'meaning', 'fluent', { language: 'ja2', method: 'inference', latencyMs: 1234 });
+    await Promise.resolve();
+
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    const attemptEvents = mockAppendEvents.mock.calls
+      .flatMap(([byKey]) => Object.entries(byKey as Record<string, Array<Record<string, unknown>>>))
+      .filter(([key]) => key === lk)
+      .flatMap(([, events]) => events)
+      .filter((e) => e.kind === 'rating' && e.quality !== undefined);
+    expect(attemptEvents.length).toBe(1);
+    expect(attemptEvents[0]).toMatchObject({ aspect: 'meaning', quality: 'fluent', method: 'inference', latencyMs: 1234 });
+    dispose();
+    mockSettings.language = 'ja';
+  });
+});
+
+describe('recordAttempt missed (attribution semantics)', () => {
   it('failed prosody records negative prosody evidence and positive reading evidence', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
@@ -3859,7 +3961,7 @@ describe('attributeKnowledgeFailure', () => {
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
 
-    ctx.attributeKnowledgeFailure('学校', 'prosody', 'ja2');
+    ctx.recordAttempt('学校', 'prosody', 'missed', { language: 'ja2', demonstrated: ['meaning', 'reading'] });
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.aspects?.prosody?.status).toBe('unknown');
@@ -3877,7 +3979,7 @@ describe('attributeKnowledgeFailure', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.attributeKnowledgeFailure('学校', 'reading', 'ja2');
+    ctx.recordAttempt('学校', 'reading', 'missed', { language: 'ja2', demonstrated: ['meaning'] });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
@@ -3903,7 +4005,7 @@ describe('attributeKnowledgeFailure', () => {
       },
     }));
 
-    ctx.attributeKnowledgeFailure('学校', 'prosody', 'ja2');
+    ctx.recordAttempt('学校', 'prosody', 'missed', { language: 'ja2', demonstrated: ['meaning', 'reading'] });
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.aspects?.reading?.status).toBe('known');
@@ -3925,7 +4027,7 @@ describe('attributeKnowledgeFailure', () => {
       },
     }));
 
-    ctx.attributeKnowledgeFailure('学校', 'prosody', 'ja2');
+    ctx.recordAttempt('学校', 'prosody', 'missed', { language: 'ja2', demonstrated: ['meaning', 'reading'] });
 
     const entry = ctx.store.wordKnowledge[lk];
     // Reading had no record (untracked — meaning-known never fabricates it); the
@@ -3937,7 +4039,7 @@ describe('attributeKnowledgeFailure', () => {
   });
 });
 
-describe('attributeKnowledgeFailure with orthogonal aspects', () => {
+describe('recordAttempt missed with orthogonal aspects', () => {
   it('failed prosody leaves the orthogonal gender aspect untouched (no record, no inference)', async () => {
     mockSettings.language = 'ru2x';
     // ru2 + prosody: reuse ja-like chain plus gender by declaring prosody too.
@@ -3951,7 +4053,7 @@ describe('attributeKnowledgeFailure with orthogonal aspects', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.attributeKnowledgeFailure('школа', 'prosody', 'ru2x');
+    ctx.recordAttempt('школа', 'prosody', 'missed', { language: 'ru2x', demonstrated: ['meaning', 'reading'] });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ru2x:${await SRS.hashWord('школа')}`;
@@ -3970,7 +4072,7 @@ describe('attributeKnowledgeFailure with orthogonal aspects', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.attributeKnowledgeFailure('школа', 'gender', 'ru2');
+    ctx.recordAttempt('школа', 'gender', 'missed', { language: 'ru2', demonstrated: ['meaning'] });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ru2:${await SRS.hashWord('школа')}`;

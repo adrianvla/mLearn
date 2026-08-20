@@ -1289,6 +1289,16 @@
         "NotAvailable": "недоступно"
       }
     },
+    "Rating": {
+      "Matrix": {
+        "Missed": "Не вспомнил",
+        "Struggled": "С трудом",
+        "Fluent": "Легко",
+        "AllFluent": "Всё легко",
+        "AllFluentKey": "Пробел",
+        "PendingHint": "Оценка (1–3), затем клавиша аспекта"
+      }
+    },
     "Knowledge": {
       "Aspect": {
         "Meaning": "Значение",
@@ -2454,6 +2464,13 @@
       },
       "SearchPlaceholder": "Поиск настроек...",
       "Behaviour": {
+        "RatingKeyboardMode": {
+          "Label": "Режим клавиатуры для оценки",
+          "Mnemonic": "Мнемоника (1+M)",
+          "Spatial": "Пространственная матрица (1/Q/A/Z)",
+          "MnemonicHint": "Оценка 1/2/3, затем M/R/P/O для аспекта.",
+          "SpatialHint": "Столбцы 1-2-3 / Q-W-E / A-S-D / Z-X-C по отображаемым строкам аспектов."
+        },
         "FrequencyProvider": {
           "Label": "Частотный список",
           "Description": "Выберите источник частотности слов для уровней, обучения и Word Sync."

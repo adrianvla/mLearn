@@ -1289,6 +1289,16 @@
         "NotAvailable": "non disponible"
       }
     },
+    "Rating": {
+      "Matrix": {
+        "Missed": "Raté",
+        "Struggled": "Laborieux",
+        "Fluent": "Fluide",
+        "AllFluent": "Tout était fluide",
+        "AllFluentKey": "Espace",
+        "PendingHint": "Qualité (1–3), puis touche d’aspect"
+      }
+    },
     "Knowledge": {
       "Aspect": {
         "Meaning": "Sens",
@@ -2454,6 +2464,13 @@
       },
       "SearchPlaceholder": "Rechercher dans les paramètres...",
       "Behaviour": {
+        "RatingKeyboardMode": {
+          "Label": "Mode clavier d’évaluation",
+          "Mnemonic": "Mnémotechnique (1+M)",
+          "Spatial": "Matrice spatiale (1/Q/A/Z)",
+          "MnemonicHint": "Qualité 1/2/3, puis M/R/P/O pour l’aspect.",
+          "SpatialHint": "Colonnes 1-2-3 / Q-W-E / A-S-D / Z-X-C sur les lignes d’aspects affichées."
+        },
         "FrequencyProvider": {
           "Label": "Liste de fréquence",
           "Description": "Choisissez la source de fréquence utilisée pour les niveaux, l'étude et Word Sync."

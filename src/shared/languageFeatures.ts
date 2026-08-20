@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap } from './types';
+import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type KnowledgeAspect, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAspects } from './types';
 import { createProsodyRawPayloadForPosition } from './prosodyPayload';
 import { getReadingExtraCharacters, isTextOnlyInScripts, katakanaToHiragana } from './utils/textUtils';
 import { getResolvedScriptProfile, hasLettersInAnyScript, hasLettersInScript, scriptProfileUsesSegmentlessText, normalizeScriptCodes } from './languageScriptProfile';
@@ -762,6 +762,37 @@ export function isReadingScriptText(text: string, data?: LanguageData | null): b
   const normalization = getReadingLexemeNormalizationConfig(data);
   return normalization.readingScripts.length > 0
     && isTextOnlyInScripts(text, normalization.readingScripts, getReadingExtraCharacters(data));
+}
+
+// ─── Attempt-rating tested/supplied gating ───────────────────────────────────
+
+export interface TestedAspectsInput {
+  languageData?: LanguageData | null;
+  /** The exact written surface presented to the learner in this interaction. */
+  surface: string;
+  /** Dictionary reading data exists for this item. */
+  hasReadingData: boolean;
+  /** Prosody/accentuation data exists for this item. */
+  hasProsodyData: boolean;
+}
+
+/**
+ * Aspects THIS interaction actually tests — the single source for rating-matrix
+ * rows. tested != available: a surface written entirely in the reading script
+ * (もたれる) supplies the reading, so Reading is not a tested row (cannot fail
+ * what was supplied), while form recognition is only meaningful where the
+ * surface is not reading-transparent (文脈 yes, さようなら no). Meaning is
+ * always tested by a word-presentation task; gender/pronunciation have no
+ * testing interaction yet and are excluded until one exists.
+ */
+export function getTestedAspects(input: TestedAspectsInput): readonly KnowledgeAspect[] {
+  const available = getAvailableAspects(input.languageData ?? undefined);
+  const surfaceSuppliesReading = isReadingScriptText(input.surface, input.languageData);
+  const aspects: KnowledgeAspect[] = ['meaning'];
+  if (available.includes('reading') && input.hasReadingData && !surfaceSuppliesReading) aspects.push('reading');
+  if (available.includes('prosody') && input.hasProsodyData) aspects.push('prosody');
+  if (available.includes('orthography') && !surfaceSuppliesReading) aspects.push('orthography');
+  return aspects;
 }
 
 export function getReadingJoinSeparator(data?: LanguageData | null): string {

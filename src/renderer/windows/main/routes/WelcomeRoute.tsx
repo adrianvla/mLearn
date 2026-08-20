@@ -28,6 +28,7 @@ import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
+import { qualityToSrsRating, type AttemptQuality } from '../../../../shared/constants';
 import { buildAnkiStatusKeySets } from '../../../services/ankiWordsCache';
 import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
@@ -193,19 +194,19 @@ export const WelcomeRoute: Component = () => {
   const bookItem = () => recentItems().find((item) => item.type === 'book') ?? null;
 
   const currentCard = createMemo(() => flashcards.getCurrentCard());
-  const ratingButtons = createMemo(() => {
-    const dates = flashcards.getPreviewDueDates();
-    if (!dates) return [];
-    return [
-      { quality: 'again' as const, label: t('mlearn.Flashcards.Review.Again'), time: flashcards.dueDateToString(dates.again) },
-      { quality: 'hard' as const, label: t('mlearn.Flashcards.Review.Hard'), time: flashcards.dueDateToString(dates.hard) },
-      { quality: 'good' as const, label: t('mlearn.Flashcards.Review.Ok'), time: flashcards.dueDateToString(dates.good) },
-      { quality: 'easy' as const, label: t('mlearn.Flashcards.Review.Easy'), time: flashcards.dueDateToString(dates.easy) },
-    ];
-  });
-  const rateCard = (quality: 'again' | 'hard' | 'good' | 'easy') => {
+  // Meaning-row matrix semantics: the widget's card front supplies the reading
+  // (rendered beneath it), so only Meaning is tested here.
+  const ratingButtons = createMemo(() => [
+    { quality: 'missed' as const, label: t('mlearn.Rating.Matrix.Missed') },
+    { quality: 'struggled' as const, label: t('mlearn.Rating.Matrix.Struggled') },
+    { quality: 'fluent' as const, label: t('mlearn.Rating.Matrix.Fluent') },
+  ]);
+  const rateCard = (quality: AttemptQuality) => {
     const card = currentCard();
-    if (card) flashcards.answerCard(quality, card.id);
+    if (!card) return;
+    const language = card.language || settings.language;
+    flashcards.recordAttempt(card.content.front, 'meaning', quality, { language });
+    flashcards.answerCard(qualityToSrsRating(quality), card.id);
   };
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),

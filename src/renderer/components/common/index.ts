@@ -428,3 +428,10 @@ export {
   WordStatusPillKnowledge,
   type WordStatusPillKnowledgeProps,
 } from './WordStatusPillKnowledge';
+
+// RatingMatrix
+export {
+  RatingMatrix,
+  type RatingMatrixProps,
+  type RateOptions,
+} from './RatingMatrix';

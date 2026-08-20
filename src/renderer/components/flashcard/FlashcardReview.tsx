@@ -3,7 +3,7 @@
  * SRS review interface with Anki-like rating buttons
  */
 
-import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
+import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { FlashcardEditModal } from './FlashcardEditModal';
@@ -15,11 +15,11 @@ import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { getAvailableAspects } from '../../../shared/types';
-import { isReadingScriptText } from '../../../shared/languageFeatures';
-import { KNOWLEDGE_ASPECT_LABEL_KEYS } from '../../../shared/constants';
+import { getTestedAspects } from '../../../shared/languageFeatures';
+import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
+import { prerequisitesOf } from '../../utils/aspectKnowledge';
+import { RatingMatrix, type RateOptions } from '../common';
 import type { KnowledgeAspect } from '../../../shared/constants';
-import type { ButtonVariant } from '../common/Button/Button';
-import type { Rating } from '../../services/srsAlgorithm';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
@@ -44,18 +44,16 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     store,
     queueCounts,
     getCurrentCard,
-    getPreviewDueDates,
     answerCard,
     buryCard,
     removeFlashcard,
     undoLastAction,
     canUndo,
     refreshQueue,
-    dueDateToString,
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
     updateFlashcard,
-    attributeKnowledgeFailure,
+    recordAttempt,
   } = useFlashcards();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
@@ -151,37 +149,71 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }))
   ));
 
-  const attributionTargets = createMemo(() => {
+  // Matrix rows: aspects THIS card interaction tests (shared tested/supplied gate).
+  const testedAspects = createMemo(() => {
     const card = currentCard();
-    if (!card) return { reading: false, prosody: false, orthography: false };
-    const supported = getAvailableAspects(languageDataForCard(card) ?? undefined);
-    // Same supplied-aspect rule as wordSync: a card front written entirely in the
-    // reading script supplies the reading (never testable there); form recognition
-    // is testable only where the front is not reading-transparent.
-    const surfaceSuppliesReading = isReadingScriptText(card.content.front, languageDataForCard(card));
-    return {
-      reading: supported.includes('reading') && cardHasReadingData(card) && !surfaceSuppliesReading,
-      prosody: supported.includes('prosody') && cardHasProsodyData(card),
-      orthography: supported.includes('orthography') && !surfaceSuppliesReading,
-    };
+    if (!card) return ['meaning'] as const;
+    return getTestedAspects({
+      languageData: languageDataForCard(card),
+      surface: card.content.front,
+      hasReadingData: cardHasReadingData(card),
+      hasProsodyData: cardHasProsodyData(card),
+    });
   });
 
-  const handleAttribution = (aspect: 'reading' | 'prosody' | 'orthography') => {
+  // Word-presentation task: the card front had to be read to reach a finer
+  // aspect, so the prerequisite chain is demonstrated (task-mediated; an
+  // audio-only task would pass []).
+  const demonstratedFor = (aspect: KnowledgeAspect) => prerequisitesOf(
+    aspect, getAvailableAspects(languageDataForCard(currentCard()!) ?? undefined),
+  );
+
+  const handleRate = (aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => {
     const card = currentCard();
     if (!card) return;
-    // Centralized hierarchical attribution: failed aspect → unknown, coarser
-    // aspects get positive evidence. The card's SRS already recorded the overall failure.
-    attributeKnowledgeFailure(card.content.front, aspect, languageForCard(card));
-    showToast({
-      message: t('mlearn.Flashcards.Review.Attribution.Marked', {
-        aspect: t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect]),
-      }),
-      variant: 'success',
+    const elapsed = getElapsedTime();
+    cardShownAt = 0;
+
+    stopTts();
+    batch(() => {
+      setShowAnswer(false);
+      recordAttempt(card.content.front, aspect, quality, {
+        language: languageForCard(card),
+        method: opts?.method,
+        demonstrated: demonstratedFor(aspect),
+        latencyMs: elapsed,
+      });
+      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed);
+      if (completed) {
+        setCardsAnswered(prev => prev + 1);
+      }
     });
   };
 
-  // Preview due dates for buttons
-  const previewDates = createMemo(() => getPreviewDueDates());
+  const handleAllFluent = (opts?: RateOptions) => {
+    const card = currentCard();
+    if (!card) return;
+    const elapsed = getElapsedTime();
+    cardShownAt = 0;
+
+    stopTts();
+    batch(() => {
+      setShowAnswer(false);
+      // Evidence for every tested aspect only — supplied aspects get none.
+      for (const aspect of testedAspects()) {
+        recordAttempt(card.content.front, aspect, 'fluent', {
+          language: languageForCard(card),
+          method: opts?.method,
+          demonstrated: demonstratedFor(aspect),
+          latencyMs: elapsed,
+        });
+      }
+      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, elapsed);
+      if (completed) {
+        setCardsAnswered(prev => prev + 1);
+      }
+    });
+  };
 
   // Counts
   const counts = createMemo(() => queueCounts());
@@ -212,45 +244,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
       if (!currentCard()) return;
 
-      // Space to show answer, or rate Good if answer is shown
+      // Space/Enter reveal the answer; once shown, the RatingMatrix owns
+      // Space/Enter (all-fluent), 1/2/3 chords and the spatial keys. 'x' remove
+      // is disabled while the matrix is armed (x = spatial struggled column).
       if (e.key === ' ' || e.key === 'Enter') {
-        e.preventDefault();
         if (!showAnswer()) {
+          e.preventDefault();
           setShowAnswer(true);
-        } else {
-          handleRating('good');
         }
         return;
       }
 
-      // Rating keys (only when answer is shown)
-      if (showAnswer()) {
-        switch (e.key) {
-          case '1':
-            e.preventDefault();
-            handleRating('again');
-            break;
-          case '2':
-            e.preventDefault();
-            handleRating('hard');
-            break;
-          case '3':
-            e.preventDefault();
-            handleRating('good');
-            break;
-          case '4':
-            e.preventDefault();
-            handleRating('easy');
-            break;
-          case 'b':
-            e.preventDefault();
-            handleBury();
-            break;
-          case 'x':
-            e.preventDefault();
-            handleRemove();
-            break;
+      if (!showAnswer()) {
+        if (e.key === 'b') {
+          e.preventDefault();
+          handleBury();
+        } else if (e.key === 'x') {
+          e.preventDefault();
+          handleRemove();
         }
+      } else if (e.key === 'b') {
+        e.preventDefault();
+        handleBury();
       }
     };
 
@@ -296,23 +311,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       playTts(card.id, card.content.example!, languageForCard(card), 'example');
     }
   ));
-
-  const handleRating = (quality: Rating) => {
-    const card = currentCard();
-    if (!card) return;
-
-    const elapsed = getElapsedTime();
-    cardShownAt = 0;
-
-    stopTts();
-    batch(() => {
-      setShowAnswer(false);
-      const completed = answerCard(quality, card.id, elapsed);
-      if (completed) {
-        setCardsAnswered(prev => prev + 1);
-      }
-    });
-  };
 
   const handleUndo = () => {
     const actionType = undoLastAction();
@@ -410,42 +408,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   // Rating buttons config with time estimates
-  const ratingButtons = createMemo(() => {
-    const dates = previewDates();
-    if (!dates) return [];
-
-    return [
-      {
-        quality: 'again' as Rating,
-        label: t('mlearn.Flashcards.Review.Again'),
-        variant: 'danger' as ButtonVariant,
-        time: dueDateToString(dates.again),
-        key: '1'
-      },
-      {
-        quality: 'hard' as Rating,
-        label: t('mlearn.Flashcards.Review.Hard'),
-        variant: 'warning' as ButtonVariant,
-        time: dueDateToString(dates.hard),
-        key: '2'
-      },
-      {
-        quality: 'good' as Rating,
-        label: t('mlearn.Flashcards.Review.Ok'),
-        variant: 'success' as ButtonVariant,
-        time: dueDateToString(dates.good),
-        key: '3'
-      },
-      {
-        quality: 'easy' as Rating,
-        label: t('mlearn.Flashcards.Review.Easy'),
-        variant: 'primary' as ButtonVariant,
-        time: dueDateToString(dates.easy),
-        key: '4'
-      },
-    ];
-  });
-
+  
   // Get state label variant
   const getStateLabelVariant = (card: Flashcard) => {
     switch (card.state) {
@@ -658,53 +621,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           {/* Rating buttons */}
           <Show when={!isComplete() && currentCard() && showAnswer()}>
             <div class="flashcard-rating-buttons">
-              <For each={ratingButtons()}>
-                {(btn) => (
-                    <Button
-                        buttonType="default"
-                        variant={btn.variant}
-                        class="flashcard-rating-btn"
-                        onClick={() => handleRating(btn.quality)}
-                        title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
-                    >
-                      <span class="flashcard-rating-label">{btn.label}</span>
-                      <span class="flashcard-rating-time">{btn.time}</span>
-                    </Button>
-                )}
-              </For>
-              <Show when={attributionTargets().reading}>
-                <Button
-                    buttonType="default"
-                    variant="ghost"
-                    size="sm"
-                    class="flashcard-attribution-btn"
-                    onClick={() => handleAttribution('reading')}
-                >
-                  {t('mlearn.Flashcards.Review.Attribution.WrongReading')}
-                </Button>
-              </Show>
-              <Show when={attributionTargets().prosody}>
-                <Button
-                    buttonType="default"
-                    variant="ghost"
-                    size="sm"
-                    class="flashcard-attribution-btn"
-                    onClick={() => handleAttribution('prosody')}
-                >
-                  {t('mlearn.Flashcards.Review.Attribution.WrongProsody')}
-                </Button>
-              </Show>
-              <Show when={attributionTargets().orthography}>
-                <Button
-                    buttonType="default"
-                    variant="ghost"
-                    size="sm"
-                    class="flashcard-attribution-btn"
-                    onClick={() => handleAttribution('orthography')}
-                >
-                  {t('mlearn.Flashcards.Review.Attribution.WrongOrthography')}
-                </Button>
-              </Show>
+              <RatingMatrix
+                aspects={testedAspects()}
+                keyboardMode={settings.ratingKeyboardMode}
+                armed={!!currentCard() && !isComplete()}
+                onRate={handleRate}
+                onAllFluent={handleAllFluent}
+              />
             </div>
           </Show>
         </div>

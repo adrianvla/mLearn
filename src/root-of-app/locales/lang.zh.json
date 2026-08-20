@@ -1289,6 +1289,16 @@
         "NotAvailable": "不可用"
       }
     },
+    "Rating": {
+      "Matrix": {
+        "Missed": "没想起来",
+        "Struggled": "费劲",
+        "Fluent": "流利",
+        "AllFluent": "全部流利",
+        "AllFluentKey": "空格",
+        "PendingHint": "先按等级（1–3），再按方面键"
+      }
+    },
     "Knowledge": {
       "Aspect": {
         "Meaning": "词义",
@@ -1828,6 +1838,13 @@
         }
       },
       "Behaviour": {
+        "RatingKeyboardMode": {
+          "Label": "评分键盘模式",
+          "Mnemonic": "助记（1+M）",
+          "Spatial": "空间矩阵（1/Q/A/Z）",
+          "MnemonicHint": "先按等级键 1/2/3，再按 M/R/P/O 选择方面。",
+          "SpatialHint": "1-2-3 / Q-W-E / A-S-D / Z-X-C 列对应显示的方面行。"
+        },
         "FrequencyProvider": {
           "Label": "词频表",
           "Description": "选择用于等级、学习和 Word Sync 的词汇频率来源。"

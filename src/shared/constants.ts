@@ -456,6 +456,46 @@ export const KNOWLEDGE_ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
   orthography: 'mlearn.Knowledge.Aspect.Orthography',
 };
 
+// ─── Universal attempt rating (Aspect × Performance) ─────────────────────────
+// The learner reports PERFORMANCE in the current interaction; mLearn derives
+// Unknown/Learning/Known from accumulated evidence. The old Unknown/Learning/
+// Known buttons are projections, not inputs.
+export const ATTEMPT_QUALITIES = ['missed', 'struggled', 'fluent'] as const;
+export type AttemptQuality = typeof ATTEMPT_QUALITIES[number];
+
+// Keyboard input mode for the attempt matrix. Mnemonic is the default: chords
+// are self-documenting (1+M) for users who forget spatial mappings.
+export const RATING_KEYBOARD_MODES = ['mnemonic', 'spatial'] as const;
+export type RatingKeyboardMode = typeof RATING_KEYBOARD_MODES[number];
+
+// Mnemonic chord letters per aspect (quality number + letter, e.g. 1+M).
+// Record-typed so a new aspect must choose a letter here.
+export const ASPECT_MNEMONIC_KEYS: Record<KnowledgeAspect, string> = {
+  meaning: 'm',
+  reading: 'r',
+  prosody: 'p',
+  gender: 'g',
+  pronunciation: 'v',
+  orthography: 'o',
+};
+
+// Spatial matrix keyboard columns: quality → keys, row index = displayed row.
+// Keys mean "quality × current matrix row", never a permanent aspect binding.
+export const SPATIAL_QUALITY_KEYS: Record<AttemptQuality, readonly string[]> = {
+  missed: ['1', 'q', 'a', 'z'],
+  struggled: ['2', 'w', 's', 'x'],
+  fluent: ['3', 'e', 'd', 'c'],
+};
+
+// Central performance → SRS scheduling grade. Evidence-wise fluent+easy are
+// IDENTICAL; easy only adjusts scheduling. Consumed by SRS surfaces, never by
+// the knowledge-evidence path.
+export function qualityToSrsRating(quality: AttemptQuality, easy = false): 'again' | 'hard' | 'good' | 'easy' {
+  if (quality === 'missed') return 'again';
+  if (quality === 'struggled') return 'hard';
+  return easy ? 'easy' : 'good';
+}
+
 // Aspects whose evidence belongs to one exact written surface (stored on the
 // presented form's hash only — never fanned out across the word-form family,
 // the #230 rule's exception) and resolved on that hash only. Under Model B,
