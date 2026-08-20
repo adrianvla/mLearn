@@ -1295,6 +1295,7 @@
         "Struggled": "Struggled",
         "Fluent": "Fluent",
         "AllFluent": "All tested fluent",
+        "EverythingElseFluent": "Everything else fluent",
         "AllFluentKey": "Space",
         "PendingHint": "Quality (1–3), then aspect key"
       }

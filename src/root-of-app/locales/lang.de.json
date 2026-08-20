@@ -1295,6 +1295,7 @@
         "Struggled": "Mühsam",
         "Fluent": "Flüssig",
         "AllFluent": "Alles flüssig",
+        "EverythingElseFluent": "Alles andere flüssig",
         "AllFluentKey": "Leertaste",
         "PendingHint": "Note (1–3), dann Aspekt-Taste"
       }

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { RatingMatrix, type RateOptions } from './RatingMatrix';
 import type { AttemptQuality, KnowledgeAspect } from '../../../../shared/constants';
@@ -16,6 +17,7 @@ describe('RatingMatrix', () => {
   let dispose: (() => void) | null = null;
   const onRate = vi.fn();
   const onAllFluent = vi.fn();
+  const onProfileSubmit = vi.fn();
   const ASPECTS = ['meaning', 'reading', 'prosody', 'orthography'] as const;
 
   const key = (k: string, opts: KeyboardEventInit = {}) => {
@@ -32,6 +34,7 @@ describe('RatingMatrix', () => {
           armed
           onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
           onAllFluent={(opts?: RateOptions) => onAllFluent(opts)}
+          onProfileSubmit={(observations) => onProfileSubmit(observations)}
         />
       ),
       container,
@@ -156,6 +159,123 @@ describe('RatingMatrix', () => {
     const prosodyCells = rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell');
     prosodyCells[1].click();
     expect(onRate).toHaveBeenCalledWith('prosody', 'struggled', undefined);
+  });
+
+  // ── Profile mode (Word Sync calibration) ────────────────────────────────
+  const renderProfile = (keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic', aspects: readonly KnowledgeAspect[] = ASPECTS) => {
+    dispose?.();
+    dispose = render(
+      () => (
+        <RatingMatrix
+          aspects={aspects}
+          keyboardMode={keyboardMode}
+          mode="profile"
+          resetKey={resetKey()}
+          armed
+          onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
+          onProfileSubmit={(observations) => onProfileSubmit(observations)}
+        />
+      ),
+      container,
+    );
+  };
+  const [resetKey, setResetKey] = createSignal('word-1');
+
+  it('profile fast path: no drafts + Space submits all tested fluent, once', () => {
+    renderProfile();
+    expect(onRate).not.toHaveBeenCalled();
+    key(' ');
+    const obs = onProfileSubmit.mock.calls[0]?.[0];
+    expect(obs?.length).toBe(4);
+    expect(obs?.every((o: { quality: string }) => o.quality === 'fluent')).toBe(true);
+  });
+
+  it('profile two exceptions + Space: explicit rows keep quality, rest fluent', () => {
+    renderProfile();
+    key('1'); key('m');   // Meaning missed
+    key('2'); key('p');   // Prosody struggled
+    key(' ');
+    const obs = onProfileSubmit.mock.calls[0]?.[0];
+    const byAspect = Object.fromEntries((obs ?? []).map((o: { aspect: string }) => [o.aspect, o]));
+    expect(byAspect.meaning.quality).toBe('missed');
+    expect(byAspect.prosody.quality).toBe('struggled');
+    expect(byAspect.reading.quality).toBe('fluent');
+    expect(byAspect.orthography.quality).toBe('fluent');
+    // No evidence before submit, one submit only.
+    expect(onRate).not.toHaveBeenCalled();
+    expect(onProfileSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('profile replacement: re-selecting a row keeps only the last quality', () => {
+    renderProfile();
+    key('1'); key('m');
+    key('2'); key('m');
+    key(' ');
+    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
+    expect(byAspect.meaning.quality).toBe('struggled');
+  });
+
+  it('profile spatial: 1, S, Space drafts and submits without early advance', () => {
+    renderProfile('spatial');
+    key('1'); // Meaning missed (row 1)
+    key('s'); // Prosody struggled (row 3)
+    expect(onProfileSubmit).not.toHaveBeenCalled();
+    key(' ');
+    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
+    expect(byAspect.meaning.quality).toBe('missed');
+    expect(byAspect.prosody.quality).toBe('struggled');
+    expect(byAspect.reading.quality).toBe('fluent');
+  });
+
+  it('profile drafts reset on resetKey change (new word)', async () => {
+    renderProfile();
+    key('1'); key('m');
+    setResetKey('word-2');
+    await Promise.resolve();
+    // New word => fresh drafts: meaning must submit as the confirmed Fluent
+    // default, not the previous word's draft.
+    expect(resetKey()).toBe('word-2');
+    key(' ');
+    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
+    expect(byAspect.meaning.quality).toBe('fluent');
+  });
+
+  it('profile not-tested rows never receive observations', () => {
+    renderProfile('mnemonic', ['meaning', 'orthography']);
+    key(' ');
+    const obs = onProfileSubmit.mock.calls[0]?.[0] ?? [];
+    expect(obs.length).toBe(2);
+    expect(obs.map((o: { aspect: string }) => o.aspect)).toEqual(['meaning', 'orthography']);
+  });
+
+  it('profile Alt+draft carries per-row inference; submit modifier does not contaminate drafts', () => {
+    renderProfile();
+    key('1');
+    key('m', { altKey: true });
+    key(' ');           // plain submit
+    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
+    expect(byAspect.meaning.method).toBe('inference');
+    expect(byAspect.meaning.quality).toBe('missed');
+    expect(byAspect.reading.method).toBeUndefined();
+    expect(byAspect.reading.quality).toBe('fluent');
+  });
+
+  it('profile click parity: clicking cells matches chord drafts', () => {
+    renderProfile();
+    const rows = container.querySelectorAll('.rating-matrix__row');
+    (rows[0].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
+    (rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[1]).click();
+    key(' ');
+    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
+    expect(byAspect.meaning.quality).toBe('missed');
+    expect(byAspect.prosody.quality).toBe('struggled');
+  });
+
+  it('profile button copy switches to EverythingElseFluent once drafts exist', () => {
+    renderProfile();
+    expect(container.textContent).toContain('mlearn.Rating.Matrix.AllFluent');
+    key('1'); key('m');
+    expect(container.textContent).toContain('mlearn.Rating.Matrix.EverythingElseFluent');
   });
 
   it('disarmed matrix neither rates nor highlights', () => {

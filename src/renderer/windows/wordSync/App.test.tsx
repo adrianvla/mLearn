@@ -261,10 +261,12 @@ vi.mock('../../../shared/languageScriptProfile', () => ({
 describe('WordSyncContent', () => {
   let container: HTMLDivElement;
 
-  // Mnemonic chord: quality key then aspect letter (default keyboard mode).
+  // Mnemonic chord + submit: quality, aspect letter, then the profile submit
+  // boundary (wordSync runs the matrix in profile mode — drafts only, Space commits).
   const chord = (quality: '1' | '2' | '3', letter: string) => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: quality }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: letter }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
   };
 
   beforeEach(() => {
@@ -470,16 +472,15 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Click-rate, then undo dispatched FROM the cell button (bubbles to the
-    // window handler) — the target being a button must not swallow the shortcut.
-    // Dispatching on the element itself (not window) is what makes this a real
-    // regression pin: happy-dom's .click() does not move focus, so activeElement
-    // would stay body and the old guard would never be exercised.
+    // Click drafts (profile mode), Space submits, THEN undo dispatched FROM the
+    // cell button — the target being a button must not swallow the shortcut.
     const cell = container.querySelector<HTMLButtonElement>('.rating-matrix__cell');
     if (!cell) throw new Error('matrix cell missing');
     cell.click();
     await Promise.resolve();
+    cell.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
     await Promise.resolve();
+    expect(mockRecordAttempt).toHaveBeenCalled();
 
     cell.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true, bubbles: true }));
     await Promise.resolve();
@@ -503,12 +504,17 @@ describe('WordSyncContent', () => {
     expect(mockRecordAttempt).not.toHaveBeenCalled();
     expect(container.textContent).toContain('mlearn.Rating.Matrix.PendingHint');
 
-    // Meaning completion: the record fires with word-presentation demonstration.
+    // Meaning completion only DRAFTS — profile mode emits nothing until submit.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+    await Promise.resolve();
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('赤い');
+
+    // Space is the submit boundary: the record fires.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'missed', expect.objectContaining({
       language: 'ja',
-      demonstrated: [],
     }));
     dispose();
   });
@@ -565,12 +571,16 @@ describe('WordSyncContent', () => {
     chord('1', 'r');
     await Promise.resolve();
 
-    // Evidence semantics live in the context method — wordSync delegates and
-    // marks the encounter on a miss.
+    // Profile submit: reading missed (explicit), other tested aspects fluent
+    // (confirmed), one shared attemptId, encounter marked on the miss.
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'reading', 'missed', expect.objectContaining({
       language: 'ja',
-      demonstrated: ['meaning'],
     }));
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
+      language: 'ja',
+    }));
+    const attemptIds = new Set(mockRecordAttempt.mock.calls.map((call) => (call[3] as { attemptId?: number })?.attemptId));
+    expect(attemptIds.size).toBe(1);
     expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
     dispose();
   });

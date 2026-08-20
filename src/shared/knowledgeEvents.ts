@@ -4,6 +4,14 @@ export type { KnowledgeAspect };
 export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup';
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
+// One id per logical learner response (one physical rating / one profile
+// submit). All observation events sharing an attemptId belong to the same
+// attempt — unique ids count attempts, events count aspect observations.
+let attemptIdCounter = 0;
+export function nextAttemptId(): number {
+  return ++attemptIdCounter;
+}
+
 export interface KnowledgeEvent {
   t: number;
   kind: KnowledgeEventKind;
@@ -29,6 +37,8 @@ export interface KnowledgeEvent {
   method?: 'recall' | 'inference';
   /** Attempt performance grade from the universal rating matrix, when this event came from an attempt rating. */
   quality?: AttemptQuality;
+  /** Logical-attempt identity: all observation events of one physical response share this id. */
+  attemptId?: number;
   /** Response latency of the attempt (interaction start → rating), stored for calibration; never overrides the learner's report. */
   latencyMs?: number;
 }

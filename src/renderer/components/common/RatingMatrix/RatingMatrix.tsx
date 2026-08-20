@@ -1,4 +1,5 @@
-import { Component, For, Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { Component, For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { createStore } from 'solid-js/store';
 import {
   ATTEMPT_QUALITIES,
   ASPECT_MNEMONIC_KEYS,
@@ -19,15 +20,32 @@ export interface RateOptions {
   easy?: boolean;
 }
 
+export interface ProfileObservation {
+  aspect: KnowledgeAspect;
+  quality: AttemptQuality;
+  method?: 'recall' | 'inference';
+}
+
 export interface RatingMatrixProps {
   /** Aspects this interaction actually tests, in display order (matrix rows). */
   aspects: readonly KnowledgeAspect[];
   keyboardMode: RatingKeyboardMode;
   /** Matrix owns its rating keys only while armed (answer shown / word presented). */
   armed: boolean;
+  /**
+   * Commit policy. 'dominant' (review): a cell commits immediately and advances.
+   * 'profile' (Word Sync calibration): cells draft per-row selections; nothing
+   * is emitted until Space/Enter submits — explicit rows keep their quality,
+   * unselected TESTED rows submit as Fluent, not-tested rows get no observation.
+   */
+  mode?: 'dominant' | 'profile';
+  /** Drafts reset when this changes (profile mode; pass the current word). */
+  resetKey?: string | number;
   onRate: (aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => void;
-  /** Space/Enter: every tested aspect was Fluent. */
-  onAllFluent: (opts?: RateOptions) => void;
+  /** Dominant mode Space/Enter: every tested aspect was Fluent. */
+  onAllFluent?: (opts?: RateOptions) => void;
+  /** Profile mode Space/Enter: the resolved full profile (one logical attempt). */
+  onProfileSubmit?: (observations: readonly ProfileObservation[]) => void;
 }
 
 const PENDING_TIMEOUT_MS = 1500;
@@ -54,7 +72,12 @@ const QUALITY_VARIANTS: Record<AttemptQuality, 'danger' | 'warning' | 'success'>
 export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
   const { t } = useLocalization();
   const [pendingQuality, setPendingQuality] = createSignal<AttemptQuality | null>(null);
+  const [drafts, setDrafts] = createStore<Partial<Record<KnowledgeAspect, { quality: AttemptQuality; method?: 'recall' | 'inference' }>>>({});
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const isProfile = () => (props.mode ?? 'dominant') === 'profile';
+
+  createEffect(on(() => props.resetKey, () => { for (const key of Object.keys(drafts)) setDrafts(key as KnowledgeAspect, undefined); }, { defer: true }));
 
   const clearPending = () => {
     if (pendingTimer !== undefined) clearTimeout(pendingTimer);
@@ -64,10 +87,30 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   const rate = (aspect: KnowledgeAspect, quality: AttemptQuality, alt: boolean, shift: boolean) => {
     clearPending();
+    if (isProfile()) {
+      // Draft only: no evidence, no event, no advance until submit.
+      setDrafts(aspect, { quality, ...(alt ? { method: 'inference' as const } : {}) });
+      return;
+    }
     const opts: RateOptions = {};
     if (alt) opts.method = 'inference';
     if (quality === 'fluent' && shift) opts.easy = true;
     props.onRate(aspect, quality, Object.keys(opts).length > 0 ? opts : undefined);
+  };
+
+  // Submit boundary: explicit drafts keep their quality (and method); unselected
+  // TESTED rows are confirmed Fluent by the explicit Space/Enter action — never
+  // fabricated, and never applied to rows this interaction does not test.
+  const submitProfile = (alt: boolean) => {
+    const observations: ProfileObservation[] = props.aspects.map((aspect) => {
+      const draft = drafts[aspect];
+      if (draft) return { aspect, quality: draft.quality, ...(draft.method ? { method: draft.method } : {}) };
+      // Alt+Space marks the worked-out default only when nothing was drafted;
+      // explicit drafts are never contaminated by the submit modifier.
+      return { aspect, quality: 'fluent' as const, ...(alt ? { method: 'inference' as const } : {}) };
+    });
+    for (const key of Object.keys(drafts)) setDrafts(key as KnowledgeAspect, undefined);
+    props.onProfileSubmit?.(observations);
   };
 
   const mnemonicLetterToAspect = (letter: string): KnowledgeAspect | undefined =>
@@ -89,10 +132,14 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
+      if (isProfile()) {
+        submitProfile(e.altKey);
+        return;
+      }
       const opts: RateOptions = {};
       if (e.altKey) opts.method = 'inference';
       if (e.shiftKey) opts.easy = true;
-      props.onAllFluent(Object.keys(opts).length > 0 ? opts : undefined);
+      props.onAllFluent?.(Object.keys(opts).length > 0 ? opts : undefined);
       return;
     }
 
@@ -180,7 +227,10 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                   variant={QUALITY_VARIANTS[quality]}
                   size="xs"
                   class={`rating-matrix__cell rating-matrix__cell--${quality}`}
-                  classList={{ 'rating-matrix__cell--pending-col': pendingQuality() === quality }}
+                  classList={{
+                    'rating-matrix__cell--pending-col': pendingQuality() === quality,
+                    'rating-matrix__cell--selected': drafts[aspect]?.quality === quality,
+                  }}
                   disabled={!props.armed}
                   onClick={() => rate(aspect, quality, false, false)}
                 >
@@ -197,9 +247,11 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
         size="sm"
         class="rating-matrix__all"
         disabled={!props.armed}
-        onClick={() => props.onAllFluent()}
+        onClick={() => (isProfile() ? submitProfile(false) : props.onAllFluent?.())}
       >
-        {t('mlearn.Rating.Matrix.AllFluent')}
+        {t(isProfile() && Object.keys(drafts).length > 0
+          ? 'mlearn.Rating.Matrix.EverythingElseFluent'
+          : 'mlearn.Rating.Matrix.AllFluent')}
         <KeyboardShortcut keys={[t('mlearn.Rating.Matrix.AllFluentKey')]} class="rating-matrix__hint" />
       </Button>
       <Show when={pendingQuality()}>

@@ -26,6 +26,7 @@ import {
   type FilterToken,
   type PaletteItem,
   RatingMatrix,
+  type ProfileObservation,
   type RateOptions,
   type ValidationError,
 } from '../../components/common';
@@ -35,6 +36,7 @@ import type { KnowledgeAspect } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import { prerequisitesOf } from '../../utils/aspectKnowledge';
 import { hashWordSync } from '../../services/srsAlgorithm';
+import { nextAttemptId } from '../../../shared/knowledgeEvents';
 import { ankiCacheVersion } from '../../services/ankiWordsCache';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
@@ -408,23 +410,60 @@ export const WordSyncContent: Component = () => {
     pickNext();
   }
 
-  function handleAllFluent(opts?: RateOptions) {
+  // Profile-mode submit: ONE logical attempt (one attemptId, one undo entry,
+  // one advance) carrying N aspect observations. Every tested aspect has an
+  // explicit claim here, so no prerequisite demonstration is inferred.
+  function handleSubmitProfile(observations: readonly ProfileObservation[]) {
     const w = currentWord();
-    if (!w) return;
-    for (const aspect of testedAspects()) {
-      recordAttempt(w.word, aspect, 'fluent', {
+    if (!w || observations.length === 0) return;
+
+    const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
+    setUndoStack((prev) => {
+      const next = [
+        ...prev,
+        {
+          word: w,
+          language: settings.language,
+          previousKnowledge,
+          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
+          previousRatedCount: ratedCount(),
+          previousLastRating: lastRating(),
+          previousSamplingLevel: samplingLevel(),
+          previousLevelCursors: new Map(levelCursors),
+          previousShowTranslation: showTranslation(),
+        },
+      ];
+      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
+      return next;
+    });
+
+    const attemptId = nextAttemptId();
+    const latencyMs = wordShownAt ? Date.now() - wordShownAt : undefined;
+    let anyMissed = false;
+    for (const observation of observations) {
+      if (observation.quality === 'missed') anyMissed = true;
+      recordAttempt(w.word, observation.aspect, observation.quality, {
         language: settings.language,
-        method: opts?.method,
-        demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
-        latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
+        method: observation.method,
+        attemptId,
+        ...(latencyMs !== undefined ? { latencyMs } : {}),
       });
     }
+
+    if (anyMissed) markWordSyncSeen(w.word, settings.language);
+
     setSessionRatedSet((s) => { s.add(w.word); return s; });
     setRatedCount((c) => c + 1);
-    setLastRating('fluent');
+    setLastRating(anyMissed ? 'missed' : 'fluent');
+
     const levels = sortedLevels();
     const idx = levels.indexOf(samplingLevel());
-    if (idx < levels.length - 1) setSamplingLevel(levels[idx + 1]);
+    if (anyMissed) {
+      if (idx > 0) setSamplingLevel(levels[idx - 1]);
+    } else if (idx < levels.length - 1) {
+      setSamplingLevel(levels[idx + 1]);
+    }
+
     pickNext();
   }
 
@@ -744,9 +783,11 @@ export const WordSyncContent: Component = () => {
           <RatingMatrix
             aspects={testedAspects()}
             keyboardMode={settings.ratingKeyboardMode}
+            mode="profile"
+            resetKey={currentWord()?.word ?? ''}
             armed={!!currentWord() && !finished()}
             onRate={handleRate}
-            onAllFluent={handleAllFluent}
+            onProfileSubmit={handleSubmitProfile}
           />
         </div>
 

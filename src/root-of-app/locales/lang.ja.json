@@ -1295,6 +1295,7 @@
         "Struggled": "苦労した",
         "Fluent": "スムーズ",
         "AllFluent": "すべてスムーズ",
+        "EverythingElseFluent": "残りはすべてスムーズ",
         "AllFluentKey": "スペース",
         "PendingHint": "品質（1〜3）→ 側面キー"
       }

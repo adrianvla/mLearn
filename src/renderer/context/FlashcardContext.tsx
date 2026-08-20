@@ -37,6 +37,7 @@ import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, type Aspe
 import { appendEvents } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import { nextAttemptId } from '../../shared/knowledgeEvents';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
@@ -311,12 +312,16 @@ interface FlashcardContextValue {
   setComprehensiveWordStatus: (word: string, status: WordStatus, language?: string) => void;
   /** Write a reading/prosody aspect status with down-init/down-squash cascade across all surface-form hashes */
   setAspectStatus: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
-  /** Failure attribution: failed aspect → unknown, coarser aspects get positive evidence (hierarchical). */
+  /**
+   * Canonical attempt-rating evidence interpreter. `attemptId` groups the
+   * observation events of one logical learner response (profile submits pass a
+   * shared id; absent = standalone attempt).
+   */
   recordAttempt: (
     word: string,
     aspect: KnowledgeAspect,
     quality: AttemptQuality,
-    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number },
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number; attemptId?: number },
   ) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
@@ -2928,9 +2933,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
       /** Aspects this task structure demonstrates were traversed (default: none). */
       demonstrated?: readonly KnowledgeAspect[];
       latencyMs?: number;
+      /** Shared logical-attempt id for multi-observation submits (profile mode). Absent = new attempt. */
+      attemptId?: number;
     },
   ) => {
     const language = options?.language ?? settings.language;
+    const attemptId = options?.attemptId ?? nextAttemptId();
     const demonstrated = options?.demonstrated ?? [];
     const before = getComprehensiveWordStatusWithSourceSync(word, language);
 
@@ -2981,6 +2989,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         source: 'manual',
         aspect,
         quality,
+        attemptId,
         ...(options?.method ? { method: options.method } : {}),
         ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
         fromStatus: before.status,

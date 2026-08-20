@@ -1295,6 +1295,7 @@
         "Struggled": "Laborieux",
         "Fluent": "Fluide",
         "AllFluent": "Tout était fluide",
+        "EverythingElseFluent": "Le reste était fluide",
         "AllFluentKey": "Espace",
         "PendingHint": "Qualité (1–3), puis touche d’aspect"
       }

@@ -1295,6 +1295,7 @@
         "Struggled": "С трудом",
         "Fluent": "Легко",
         "AllFluent": "Всё легко",
+        "EverythingElseFluent": "Остальное легко",
         "AllFluentKey": "Пробел",
         "PendingHint": "Оценка (1–3), затем клавиша аспекта"
       }
