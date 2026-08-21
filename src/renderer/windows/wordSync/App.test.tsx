@@ -18,7 +18,7 @@ const mockShowToast = vi.hoisted(() => vi.fn());
 const isReadingScriptTextFn = vi.hoisted(() => vi.fn((_surface?: unknown, _data?: unknown) => false));
 const mockMarkWordSyncSeen = vi.fn();
 const mockRestoreWordSyncRating = vi.fn();
-const mockFetchTranslation = vi.hoisted(() => vi.fn(async (): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
+const mockFetchTranslation = vi.hoisted(() => vi.fn(async (_word?: string): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
 const mockWordSyncState = vi.hoisted(() => ({
   settings: {
     language: 'ja',
@@ -261,9 +261,11 @@ vi.mock('../../../shared/languageScriptProfile', () => ({
 describe('WordSyncContent', () => {
   let container: HTMLDivElement;
 
-  // Mnemonic chord + submit: quality, aspect letter, then the profile submit
-  // boundary (wordSync runs the matrix in profile mode — drafts only, Space commits).
+  // Mnemonic chord + submit: reveal, quality, aspect letter, then the profile
+  // submit boundary (wordSync runs the matrix in profile mode — drafts only,
+  // Space commits; the first Space reveals the answer, the second submits).
   const chord = (quality: '1' | '2' | '3', letter: string) => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: quality }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: letter }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
@@ -298,6 +300,7 @@ describe('WordSyncContent', () => {
     mockMarkWordSyncSeen.mockClear();
     mockRestoreWordSyncRating.mockClear();
     mockWordSyncState.currentLangData = null;
+    isReadingScriptTextFn.mockImplementation(() => false);
     mockFetchTranslation.mockReset();
     mockFetchTranslation.mockResolvedValue({ data: [] });
   });
@@ -338,7 +341,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('toggles the current word translation with T (Space is All-fluent now)', async () => {
+  it('reveals then toggles the current word translation with T', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -356,6 +359,263 @@ describe('WordSyncContent', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 't' }));
     await Promise.resolve();
 
+    expect(container.textContent).not.toContain('red');
+    dispose();
+  });
+
+  it('reveals the answer on the first Space and submits all-fluent on the second', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Prompt first: the answer stays hidden.
+    expect(container.textContent).not.toContain('red');
+
+    // First Space reveals the answer; nothing is rated yet.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('red');
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+
+    // Second Space submits the existing profile rating as fluent.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
+      language: 'ja',
+    }));
+    dispose();
+  });
+
+  it('pointer reveal via the translation control arms RatingMatrix and shows the translation', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Prompt first: translation hidden, nothing rated.
+    expect(container.textContent).not.toContain('red');
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+
+    // A pointer user clicks the visible translation/reveal control.
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    await Promise.resolve();
+
+    // Same revealed-and-ratable state as the first Space: translation shown,
+    // and the matrix is armed so a second Space submits.
+    expect(container.textContent).toContain('red');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
+      language: 'ja',
+    }));
+    dispose();
+  });
+
+  it('reveals on the first Enter and submits all-fluent on the second', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).not.toContain('red');
+
+    // First Enter reveals the answer.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('red');
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+
+    // Second Enter submits the existing profile rating as fluent.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await Promise.resolve();
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
+      language: 'ja',
+    }));
+    dispose();
+  });
+
+  it('hides a manually-toggled translation on the next word', async () => {
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['definition'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Manually toggle the translation on the first card (pointer reveal).
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    await Promise.resolve();
+    expect(container.textContent).toContain('definition');
+
+    // Submit all-fluent → the next word is presented with translation hidden,
+    // even though the prior card's translation was manually toggled.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(container.textContent).not.toContain('definition');
+    dispose();
+  });
+
+  it('hides a manually-toggled translation on restart', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Manually toggle the translation on, then reveal and submit → finished.
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    // Start over → the first word is presented with translation hidden.
+    container.querySelector<HTMLButtonElement>('.word-sync-recheck-btn')!.click();
+    await Promise.resolve();
+    container.querySelector<HTMLButtonElement>('.mock-confirm-dialog-confirm')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('赤い:あかい');
+    expect(container.textContent).not.toContain('red');
+    dispose();
+  });
+
+  it('hides a manually-toggled translation on undo', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Manually toggle the translation on, then reveal and submit → finished.
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    // Undo restores the word with the translation hidden.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('赤い:あかい');
+    expect(container.textContent).not.toContain('red');
+    dispose();
+  });
+
+  it('does not rate before the answer is revealed', async () => {
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Chord + submit before reveal: the first Space only reveals, nothing rates.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+
+    // Now the answer is revealed; the same chord drafts and Space submits.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'missed', expect.objectContaining({
+      language: 'ja',
+    }));
+    dispose();
+  });
+
+  it('resets the reveal state when a new word is selected', async () => {
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    mockFetchTranslation.mockImplementation(async (word?: string) => ({
+      data: [{ definitions: [word === '赤い' ? 'red' : 'blue'] }],
+    }));
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Reveal and submit the first word.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The next word is presented with its answer hidden — no leak from the
+    // previous card's reveal.
+    expect(container.textContent).not.toContain('blue');
+    expect(container.textContent).not.toContain('red');
+    dispose();
+  });
+
+  it('undo restores the previous word with the answer hidden again', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Reveal and submit all-fluent → finished.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    // Undo restores the word with the answer hidden (no translation leak).
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('赤い:あかい');
+    expect(container.textContent).not.toContain('red');
+    dispose();
+  });
+
+  it('starting over presents the first word with the answer hidden', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Reveal + submit → finished.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+
+    // Start over → the first word is presented with the answer hidden.
+    container.querySelector<HTMLButtonElement>('.word-sync-recheck-btn')!.click();
+    await Promise.resolve();
+    container.querySelector<HTMLButtonElement>('.mock-confirm-dialog-confirm')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain('赤い:あかい');
     expect(container.textContent).not.toContain('red');
     dispose();
   });
@@ -472,8 +732,11 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Click drafts (profile mode), Space submits, THEN undo dispatched FROM the
-    // cell button — the target being a button must not swallow the shortcut.
+    // Reveal the answer first (Space), then click drafts (profile mode), Space
+    // submits, THEN undo dispatched FROM the cell button — the target being a
+    // button must not swallow the shortcut.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
     const cell = container.querySelector<HTMLButtonElement>('.rating-matrix__cell');
     if (!cell) throw new Error('matrix cell missing');
     cell.click();
@@ -495,6 +758,10 @@ describe('WordSyncContent', () => {
 
     const dispose = render(() => <WordSyncContent />, container);
     await Promise.resolve();
+    await Promise.resolve();
+
+    // Reveal the answer before rating.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
@@ -614,6 +881,10 @@ describe('WordSyncContent', () => {
 
     const dispose = render(() => <WordSyncContent />, container);
     await Promise.resolve();
+    await Promise.resolve();
+
+    // Reveal first so the matrix is armed.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
@@ -857,6 +1128,50 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(mockCommonState.filterBuilderProps).not.toBeNull();
+    dispose();
+  });
+
+  it('a draft cannot carry through filter reselection of the same word', async () => {
+    // One eligible word: a filter reselection re-presents the SAME word, so the
+    // RatingMatrix resetKey must bump per presentation — otherwise the stale
+    // missed draft from before the filter change would submit after it.
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Reveal, then draft a non-fluent (missed) meaning — profile mode drafts only.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+    await Promise.resolve();
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+
+    // Filter reselection rebuilds the pool and re-presents the same word.
+    container.querySelector<HTMLButtonElement>('.word-sync-filter-toggle')!.click();
+    await Promise.resolve();
+    container.querySelector<HTMLButtonElement>('.mock-filter-clear')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(container.textContent).toContain('赤い:あかい');
+
+    // Reveal + submit: the stale missed draft must NOT carry through — the clean
+    // default fluent observation is emitted exactly once, and nothing missed.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await Promise.resolve();
+    const meaningFluentCalls = mockRecordAttempt.mock.calls.filter(
+      (c) => c[0] === '赤い' && c[1] === 'meaning' && c[2] === 'fluent',
+    );
+    expect(meaningFluentCalls).toHaveLength(1);
+    expect(mockRecordAttempt.mock.calls.some((c) => c[2] === 'missed')).toBe(false);
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
+      language: 'ja',
+    }));
     dispose();
   });
 

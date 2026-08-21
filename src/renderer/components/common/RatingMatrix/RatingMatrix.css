@@ -67,6 +67,13 @@
   min-height: 32px;
 }
 
+/* The all-fluent button's label and its Space keycap share the button's
+   content span (inline layout, no flex gap) — give the keycap deliberate
+   spacing instead of letting it sit glued to the label text. */
+.rating-matrix__all .rating-matrix__hint {
+  margin-left: var(--spacing-2);
+}
+
 .rating-matrix__pending {
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);

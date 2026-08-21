@@ -82,7 +82,6 @@ interface WordSyncUndoEntry {
   previousLastRating: AttemptQuality | null;
   previousSamplingLevel: number;
   previousLevelCursors: Map<number, number>;
-  previousShowTranslation: boolean;
 }
 
 // Bounded undo history mirroring flashcard review (MAX_UNDO_STACK_SIZE there is also 50).
@@ -107,6 +106,10 @@ export const WordSyncContent: Component = () => {
 
   // ─── State ───────────────────────────────────────────
   const [currentWord, setCurrentWord] = createSignal<PoolEntry | null>(null);
+  // Bumped on every word presentation (pickNext), not merely on word changes:
+  // a filter reselection can re-present the same word, and RatingMatrix must
+  // reset its profile drafts each presentation regardless.
+  const [presentationCount, setPresentationCount] = createSignal(0);
   let wordShownAt = 0;
   const [samplingLevel, setSamplingLevel] = createSignal<number>(0);
   const [ratedCount, setRatedCount] = createSignal(0);
@@ -115,7 +118,17 @@ export const WordSyncContent: Component = () => {
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
   const [filterPresetInitialized, setFilterPresetInitialized] = createSignal(false);
   const [showTranslation, setShowTranslation] = createSignal(false);
+  // Reveal-first gate (Anki-style): the prompt word is shown first; the first
+  // Space/Enter reveals the answer, the second submits the profile rating.
+  const [showAnswer, setShowAnswer] = createSignal(false);
   const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(false);
+  // Single reveal transition shared by keyboard (first Space/Enter) and pointer
+  // (the visible translation/reveal control): arms RatingMatrix and shows the
+  // translation together, so both input paths reach the same ratable state.
+  const reveal = () => {
+    setShowAnswer(true);
+    setShowTranslation(true);
+  };
   const [filterOpen, setFilterOpen] = createSignal(false);
   const [confirmRecheckOpen, setConfirmRecheckOpen] = createSignal(false);
   let filterTriggerRef: HTMLButtonElement | undefined;
@@ -314,7 +327,7 @@ export const WordSyncContent: Component = () => {
 
   function pickNext() {
     const levels = sortedLevels();
-    if (levels.length === 0) { setFinished(true); return; }
+    if (levels.length === 0) { setFinished(true); setShowAnswer(false); setShowTranslation(false); return; }
 
     let lvl = samplingLevel();
     if (!levels.includes(lvl)) lvl = levels[0];
@@ -345,6 +358,9 @@ export const WordSyncContent: Component = () => {
         levelCursors.set(tryLvl, cursor + 1);
         setSamplingLevel(tryLvl);
         wordShownAt = Date.now();
+        setShowAnswer(false);
+        setShowTranslation(false);
+        setPresentationCount((c) => c + 1);
         setCurrentWord(group[cursor]);
         return;
       }
@@ -352,6 +368,8 @@ export const WordSyncContent: Component = () => {
 
     setFinished(true);
     setCurrentWord(null);
+    setShowAnswer(false);
+    setShowTranslation(false);
   }
 
   function handleRate(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) {
@@ -371,7 +389,6 @@ export const WordSyncContent: Component = () => {
           previousLastRating: lastRating(),
           previousSamplingLevel: samplingLevel(),
           previousLevelCursors: new Map(levelCursors),
-          previousShowTranslation: showTranslation(),
         },
       ];
       if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
@@ -430,7 +447,6 @@ export const WordSyncContent: Component = () => {
           previousLastRating: lastRating(),
           previousSamplingLevel: samplingLevel(),
           previousLevelCursors: new Map(levelCursors),
-          previousShowTranslation: showTranslation(),
         },
       ];
       if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
@@ -475,6 +491,8 @@ export const WordSyncContent: Component = () => {
     setLastRating(null);
     setUndoStack([]);
     setSessionRatedSet(new Set<string>());
+    setShowAnswer(false);
+    setShowTranslation(false);
     levelCursors = new Map();
 
     const levels = sortedLevels();
@@ -507,7 +525,8 @@ export const WordSyncContent: Component = () => {
     setLastRating(undoEntry.previousLastRating);
     setSamplingLevel(undoEntry.previousSamplingLevel);
     levelCursors = new Map(undoEntry.previousLevelCursors);
-    setShowTranslation(undoEntry.previousShowTranslation);
+    setShowTranslation(false);
+    setShowAnswer(false);
     setFinished(false);
     setCurrentWord(undoEntry.word);
   }
@@ -532,12 +551,24 @@ export const WordSyncContent: Component = () => {
     }
 
     if (finished()) return;
-    // Rating keys (1/2/3, chords, Space/Enter) belong to the RatingMatrix.
+    // Rating keys (1/2/3, chords, Space/Enter) belong to the RatingMatrix once
+    // the answer is revealed; before that, Space/Enter reveal the answer. The
+    // reveal claims the keydown so the matrix (a later window listener) cannot
+    // submit on the same press.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (!showAnswer()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        reveal();
+      }
+      return;
+    }
     if (e.key === 't' || e.key === 'T') {
       if (currentWord()) {
         e.preventDefault();
-        setShowTranslation((v) => !v);
+        if (!showAnswer()) reveal();
+        else setShowTranslation((v) => !v);
       }
     }
   }
@@ -658,7 +689,7 @@ export const WordSyncContent: Component = () => {
 
   // "Additional information part of answer": when the answer is hidden, the
   // word itself renders as pure text — no prosody coloring, no reading.
-  const pureWordMode = createMemo(() => additionalInfoInAnswer() && !showTranslation());
+  const pureWordMode = createMemo(() => additionalInfoInAnswer() && !showAnswer());
 
   return (
     <div class="word-sync">
@@ -753,14 +784,20 @@ export const WordSyncContent: Component = () => {
                   <span>{w().word}</span>
                 </Show>
               </div>
-              <Show when={showTranslation() && translationText()}>
+              <Show when={showAnswer() && showTranslation() && translationText()}>
                 <div class="word-sync-translation">{translationText()}</div>
               </Show>
               <div class="word-sync-answer-options">
                 <Btn
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowTranslation((v) => !v)}
+                  onClick={() => {
+                    if (!showAnswer()) {
+                      reveal();
+                    } else {
+                      setShowTranslation((v) => !v);
+                    }
+                  }}
                   class="word-sync-translation-toggle"
                 >
                   {showTranslation()
@@ -784,8 +821,8 @@ export const WordSyncContent: Component = () => {
             aspects={testedAspects()}
             keyboardMode={settings.ratingKeyboardMode}
             mode="profile"
-            resetKey={currentWord()?.word ?? ''}
-            armed={!!currentWord() && !finished()}
+            resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
+            armed={showAnswer() && !!currentWord() && !finished()}
             onRate={handleRate}
             onProfileSubmit={handleSubmitProfile}
           />
