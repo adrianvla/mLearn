@@ -6,6 +6,7 @@ const log = getLogger('renderer.services.knowledgeRollup');
 
 interface RollupBucket {
   easeAfter: number;
+  toStatus?: KnowledgeEvent['toStatus'];
   timesSeenDelta: number;
 }
 
@@ -19,7 +20,12 @@ export function setKnowledgeRollupTodayFn(fn: () => string): void {
   todayFn = fn;
 }
 
-export function accumulateWordSeen(lk: string, easeAfter: number, timesSeenDelta: number): void {
+export function accumulateWordSeen(
+  lk: string,
+  easeAfter: number,
+  timesSeenDelta: number,
+  toStatus?: KnowledgeEvent['toStatus'],
+): void {
   const today = todayFn();
   if (currentDay !== today && buckets.size > 0) {
     // Day rolled with a pending bucket — flush before accepting new data.
@@ -28,6 +34,7 @@ export function accumulateWordSeen(lk: string, easeAfter: number, timesSeenDelta
   currentDay = today;
   const bucket = buckets.get(lk) ?? { easeAfter, timesSeenDelta: 0 };
   bucket.easeAfter = easeAfter;
+  if (toStatus !== undefined) bucket.toStatus = toStatus;
   bucket.timesSeenDelta += timesSeenDelta;
   buckets.set(lk, bucket);
 }
@@ -48,6 +55,7 @@ export async function flushKnowledgeRollup(): Promise<void> {
       source: 'passiveTracking',
       aspect: 'meaning',
       easeAfter: bucket.easeAfter,
+      toStatus: bucket.toStatus,
       timesSeenDelta: bucket.timesSeenDelta,
     }];
   }

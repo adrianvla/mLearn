@@ -45,6 +45,12 @@
         "required": true
       },
       {
+        "id": "linguistic-graph",
+        "path": "languages/de.graph.json",
+        "bundledPath": "languages/de.graph.json",
+        "required": false
+      },
+      {
         "id": "frequencywords-notice",
         "path": "licenses/frequencywords-README.md",
         "bundledPath": "licenses/frequencywords-README.md",

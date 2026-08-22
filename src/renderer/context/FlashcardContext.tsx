@@ -11,6 +11,7 @@ import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardCo
 import { type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedAspect } from '../../shared/graph/targets';
 import { applyGrammarEncounter, applyGrammarFailure, classifyGrammarStatus, initialGrammarEase } from '../../shared/utils/grammarPolicy';
+import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -36,7 +37,7 @@ import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
 import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, type AspectStatusResult } from '../utils/aspectKnowledge';
-import { appendEvents } from '../services/knowledgeEvents';
+import { appendEvents, getEventLogForLanguage } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { nextAttemptId, type AttemptId } from '../../shared/knowledgeEvents';
@@ -212,7 +213,7 @@ interface FlashcardContextValue {
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; knowledgeBefore?: Record<string, PassiveWordKnowledge | undefined> },
+    attempt?: { attemptId: AttemptId },
   ) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
@@ -311,12 +312,10 @@ interface FlashcardContextValue {
   getWordKnowledgeSnapshotForForms: (word: string, language?: string) => Record<string, PassiveWordKnowledge | undefined>;
   /** Snapshot wordSyncSeen timestamps across all surface-form hashes (undo support for multi-hash writes) */
   getWordSyncSeenSnapshotForForms: (word: string, language?: string) => Record<string, number | undefined>;
-  restoreWordSyncRating: (
-    word: string,
-    previousKnowledge: PassiveWordKnowledge | undefined | Record<string, PassiveWordKnowledge | undefined>,
-    previousSeenAt: Record<string, number | undefined>,
-    language?: string,
-  ) => void;
+  /** Policy-cooldown restore (wordSyncSeen only). */
+  restoreWordSyncRating: (previousSeenAt: Record<string, number | undefined>, language?: string) => void;
+  /** Projection refresh: rebuild wordKnowledge for a word's family keys from ACTIVE evidence. */
+  recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
   /** Directly set a word's comprehensive status by adjusting its passive ease and clearing conflicting banks */
   setComprehensiveWordStatus: (word: string, status: WordStatus, language?: string) => void;
   /** Write a reading/prosody aspect status with down-init/down-squash cascade across all surface-form hashes */
@@ -324,16 +323,15 @@ interface FlashcardContextValue {
   /**
    * Canonical attempt-rating evidence interpreter. `attemptId` groups the
    * observation events of one logical learner response (profile submits pass a
-   * shared id; absent = standalone attempt). Returns the attempt id plus a
-   * pre-write knowledge snapshot so callers can undo the attempt's state and
-   * retract its events.
+   * shared id; absent = standalone attempt). Undo retracts the attempt and the
+   * projection replay rebuilds state — no knowledge snapshots.
    */
   recordAttempt: (
     word: string,
     aspect: KnowledgeAspect,
     quality: AttemptQuality,
-    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number; attemptId?: AttemptId },
-  ) => { attemptId: AttemptId; knowledgeBefore: Record<string, PassiveWordKnowledge | undefined> };
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number; attemptId?: AttemptId; origin?: string },
+  ) => { attemptId: AttemptId };
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
@@ -1203,7 +1201,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; knowledgeBefore?: Record<string, PassiveWordKnowledge | undefined> },
+    attempt?: { attemptId: AttemptId },
   ): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return false;
@@ -1267,19 +1265,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
               }
             }
           }));
-          if (attempt?.knowledgeBefore) {
-            setStore(produce((s) => {
-              for (const [lk, prev] of Object.entries(attempt.knowledgeBefore ?? {})) {
-                if (prev) {
-                  s.wordKnowledge[lk] = { ...prev };
-                } else {
-                  delete s.wordKnowledge[lk];
-                }
-              }
-            }));
-          }
           if (attempt?.attemptId !== undefined) {
             appendRetractions(card.content.front, cardLang, [attempt.attemptId]);
+            // Epistemic state is evidence-derived: retractions + replay restore
+            // the projection. No knowledge snapshots.
+            void recomputeWordKnowledgeFromEvidence(cardLang, card.content.front);
           }
         },
       }];
@@ -1911,6 +1901,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return explicitlyRated && knowledge.ease >= passiveKnownEaseThreshold();
   };
 
+  /** Passive rows classify by the same anchors as the resolver; source stays passiveTracking so replay never marks lastStatusChange. */
+  const passiveEaseToStatus = (ease: number): WordStatus =>
+    ease >= passiveKnownEaseThreshold() ? 'known' : ease >= passiveLearningEaseThreshold() ? 'learning' : 'unknown';
+
   const shouldGarbageCollectSuggestion = (suggestion: SuggestedFlashcard): boolean => {
     if (getAnkiStatusForWord(suggestion.word, suggestion.language) === 'known') return true;
 
@@ -2491,7 +2485,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Notify media stats listeners so per-media tracking stays in sync
     const newEase = store.wordKnowledge[lk]?.ease ?? SRS.MIN_EASE;
     window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, language: lang, ease: newEase } }));
-    if (shouldCount) accumulateWordSeen(lk, newEase, 1);
+    if (shouldCount) accumulateWordSeen(lk, newEase, 1, passiveEaseToStatus(newEase));
   };
 
   // Track that a word was hovered (user doesn't know it)
@@ -2539,6 +2533,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
             }
             nextEase = k.ease;
             nextTimesHovered = hoveredCount;
+            // Hover-failure ease changes are evidence, not silent arithmetic:
+            // the projection replay derives timesHovered and ease from these rows.
+            if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings) && !wasManuallySetRecently) {
+                void appendEvents({
+                    [lk]: [{
+                        t: now,
+                        kind: 'status',
+                        source: 'passiveTracking',
+                        aspect: 'meaning',
+                        toStatus: passiveEaseToStatus(nextEase),
+                        easeAfter: nextEase,
+                    }],
+                }).catch((e) => log.warn('knowledge event append failed:', e));
+            }
 
             if (isFailed && shouldUpdateFlashcardOnPassiveFailure(settings) && !wasManuallySetRecently) {
                 const cardIds = s.wordToCardMap[lk];
@@ -2686,8 +2694,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return getComprehensiveWordStatus(word, comprehensiveDeps(word, language));
   };
 
-  const   getComprehensiveWordStatusWithSourceSync = (word: string, language = settings.language) => {
-    return getComprehensiveWordStatusWithSource(word, comprehensiveDeps(word, language));
+  const getComprehensiveWordStatusWithSourceSync = (word: string, language = settings.language) => {
+    const r = getComprehensiveWordStatusWithSource(word, comprehensiveDeps(word, language));
+    if ((import.meta as { env?: { VITEST?: boolean } }).env?.VITEST && word === '学校') {
+      console.log('PROBE4', language, Object.keys(store.wordKnowledge), JSON.stringify(r));
+    }
+    return r;
   };
 
   /**
@@ -2760,6 +2772,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Multi-hash rule (#230): the resolver reads every surface-form hash, so a
     // single-hash rating write is shadowed by sibling forms' stale entries.
     const forms = getWordFormsForLanguage(word, language);
+    if (word === '学校') {
+      console.log('FORMSPROBE', JSON.stringify({ forms, lang: language }));
+    }
     const lang = language;
     const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
     const now = Date.now();
@@ -2795,6 +2810,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
           s.wordKnowledge[lk].lastSeen = now;
           s.wordKnowledge[lk].lastStatusChange = now;
           s.wordKnowledge[lk].wordSyncRatedAt = now;
+        }
+        if (word === '学校') {
+          console.log('WROTEPROBE', JSON.stringify({ lk, eased, nowEase: s.wordKnowledge[lk].ease }));
         }
         const entry = s.wordKnowledge[lk];
         if (scriptForm) {
@@ -3011,12 +3029,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
       latencyMs?: number;
       /** Shared logical-attempt id for multi-observation submits (profile mode). Absent = new attempt. */
       attemptId?: AttemptId;
+      /** Presenting channel (e.g. 'word-sync') — replay derives policy markers from it. */
+      origin?: string;
     },
-  ): { attemptId: AttemptId; knowledgeBefore: Record<string, PassiveWordKnowledge | undefined> } => {
+  ): { attemptId: AttemptId } => {
     const language = options?.language ?? settings.language;
     const attemptId = options?.attemptId ?? nextAttemptId();
     const demonstrated = options?.demonstrated ?? [];
-    const knowledgeBefore = getWordKnowledgeSnapshotForForms(word, language);
     const before = getComprehensiveWordStatusWithSourceSync(word, language);
 
     if (aspect === 'meaning') {
@@ -3074,6 +3093,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       presentedSurface: word,
       ...(options?.method ? { method: options.method } : {}),
       ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
+      ...(options?.origin ? { origin: options.origin } : {}),
       fromStatus: before.status,
       toStatus: after.status,
       easeAfter: after.ease,
@@ -3081,7 +3101,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     appendEvents({
       [langKey(language, SRS.hashWordSync(storageWord))]: [observation],
     }).catch((e) => log.warn('knowledge event append failed:', e));
-    return { attemptId, knowledgeBefore };
+    return { attemptId };
   };
 
   const setWordBankStatus = async (
@@ -3218,34 +3238,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return snapshot;
   };
 
+  /** Policy-cooldown restore (wordSyncSeen). NOT epistemic: knowledge restores via retraction + projection replay. */
   const restoreWordSyncRating = (
-    word: string,
-    previousKnowledge: PassiveWordKnowledge | undefined | Record<string, PassiveWordKnowledge | undefined>,
     previousSeenAt: Record<string, number | undefined>,
-    language = settings.language,
+    _language = settings.language,
   ) => {
-    const storageWord = getPrimaryWordFormForLanguage(word, language);
-    const wordHash = SRS.hashWordSync(storageWord);
-    const lk = langKey(language, wordHash);
-
     setStore(produce((s) => {
-      const snapshot = previousKnowledge as Record<string, PassiveWordKnowledge | undefined> | undefined;
-      if (snapshot && !('ease' in snapshot)) {
-        for (const form of getWordFormsForLanguage(word, language)) {
-          const formLk = langKey(language, SRS.hashWordSync(form));
-          const prev = snapshot[formLk];
-          if (prev) {
-            s.wordKnowledge[formLk] = { ...prev };
-          } else {
-            delete s.wordKnowledge[formLk];
-          }
-        }
-      } else if (previousKnowledge) {
-        s.wordKnowledge[lk] = { ...(previousKnowledge as PassiveWordKnowledge) };
-      } else {
-        delete s.wordKnowledge[lk];
-      }
-
       for (const [seenLk, prev] of Object.entries(previousSeenAt)) {
         if (prev === undefined) {
           delete s.wordSyncSeen[seenLk];
@@ -3279,6 +3277,44 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }));
     }
     appendEvents(eventsByKey).catch((e) => log.warn('knowledge event retraction failed:', e));
+  };
+
+  /**
+   * Recompute the materialized wordKnowledge entries for a word's family keys
+   * from ACTIVE evidence (retractions applied). The evidence journal is the
+   * epistemic source of truth; this is the projection refresh, not a writer.
+   */
+  const recomputeWordKnowledgeFromEvidence = async (word: string, language?: string): Promise<void> => {
+    const lang = language ?? settings.language;
+    const lks = getWordFormsForLanguage(word, lang).map((form) => langKey(lang, SRS.hashWordSync(form)));
+    let eventLog: KnowledgeEventLog;
+    try {
+      eventLog = await getEventLogForLanguage(lang);
+    } catch (e) {
+      log.warn('projection recompute failed to load events:', e);
+      return;
+    }
+    setStore(produce((s) => {
+      for (const lk of lks) {
+        const projected = replayKeyProjection(eventLog[lk] ?? []);
+        if (!projected || !s.wordKnowledge[lk]) {
+          // No evidence → no entry; entry absent → stays unmaterialized.
+          if (!projected) delete s.wordKnowledge[lk];
+          continue;
+        }
+        s.wordKnowledge[lk] = {
+          ...s.wordKnowledge[lk],
+          ease: projected.ease,
+          lastStatusChange: projected.lastStatusChange,
+          wordSyncRatedAt: projected.wordSyncRatedAt,
+          timesSeen: projected.timesSeen,
+          timesHovered: projected.timesHovered,
+          firstSeen: projected.firstSeen,
+          lastSeen: projected.lastSeen,
+        };
+      }
+    }));
+    saveFlashcards();
   };
 
   // ========================
@@ -4041,6 +4077,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     getWordSyncSeenSnapshotForForms,
     restoreWordSyncRating,
     appendRetractions,
+    recomputeWordKnowledgeFromEvidence,
     setComprehensiveWordStatus,
     setAspectStatus,
     recordAttempt,

@@ -3,6 +3,7 @@ import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, Review
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
+import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 
 // ── IPC callback captures ────────────────────────────────────────────
 let flashcardsCb: (store: FlashcardStore) => void;
@@ -88,11 +89,24 @@ vi.mock('../../shared/backends', () => ({
 }));
 
 const mockAppendEvents = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+// Reconstructs the per-key log from everything the code appended this test —
+// lets projection-replay assertions run against exactly what was recorded.
+const mockGetEventLogForLanguage = vi.hoisted(() => vi.fn(async (language: string) => {
+  const log: Record<string, Array<Record<string, unknown>>> = {};
+  for (const [byKey] of mockAppendEvents.mock.calls) {
+    for (const [key, events] of Object.entries(byKey as Record<string, Array<Record<string, unknown>>>)) {
+      if (!key.startsWith(`${language}:`)) continue;
+      (log[key] ??= []).push(...events);
+    }
+  }
+  return log;
+}));
 const mockAccumulateWordSeen = vi.hoisted(() => vi.fn());
 const mockFlushKnowledgeRollup = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('../services/knowledgeEvents', () => ({
   appendEvents: mockAppendEvents,
+  getEventLogForLanguage: mockGetEventLogForLanguage,
 }));
 
 vi.mock('../services/knowledgeRollup', () => ({
@@ -344,6 +358,20 @@ type FlashcardCtx = {
 };
 
 // ── Mount helper ─────────────────────────────────────────────────────
+/**
+ * Direct store seeding: writes partial top-level keys onto the live reactive
+ * store. No bridge-callback timing involved.
+ */
+async function seedInto(ctx: FlashcardCtx, partial: Partial<FlashcardStore>): Promise<void> {
+  const { produce } = await import('solid-js/store');
+  for (const [key, value] of Object.entries(partial)) {
+    produce((s: FlashcardStore) => {
+      (s as unknown as Record<string, unknown>)[key] = value;
+    })(ctx.store);
+  }
+  await Promise.resolve();
+}
+
 async function mountProvider() {
   const { createRoot, createComponent } = await import('solid-js');
   const { FlashcardProvider, useFlashcards } = await import('./FlashcardContext');
@@ -2768,73 +2796,32 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('restoreWordSyncRating restores previous knowledge and seen state for an explicit language', async () => {
-    mockSettings.language = 'ja';
-    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
-      language === 'ar' && word === 'يكتب' ? 'كتب' : word
-    ));
+  it('restoreWordSyncRating restores only the policy seen map (knowledge is evidence-replay territory)', async () => {
+    mockSettings.language = 'ja2';
+    const lk = `ja2:${SRS.hashWordSync('学校')}`;
     const { ctx, dispose } = await mountProvider();
-    const SRS = await import('../services/srsAlgorithm');
-    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
-    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
-    const previousKnowledge = {
-      ease: 0.5,
-      lastSeen: 10,
-      timesSeen: 2,
-      timesHovered: 1,
-      word: 'كتب',
-      reading: 'yaktub',
-      language: 'ar',
-    };
     flashcardsCb(makeEmptyStore({
       wordKnowledge: {
-        [arKey]: {
-          ease: 4.5,
-          lastSeen: 100,
-          timesSeen: 10,
-          timesHovered: 0,
-          word: 'كتب',
-          language: 'ar',
-        },
+        [lk]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja2' },
       },
-      wordSyncSeen: {
-        [arKey]: 200,
-      },
+      wordSyncSeen: { [`${lk}:seen`]: 123 },
     }));
+    await Promise.resolve();
 
-    ctx.restoreWordSyncRating('يكتب', previousKnowledge, { [arKey]: 1234 }, 'ar');
-
-    expect(ctx.store.wordKnowledge[arKey]).toEqual(previousKnowledge);
-    expect(ctx.store.wordSyncSeen[arKey]).toBe(1234);
-    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
-    expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();
+    ctx.restoreWordSyncRating({ [`${lk}:seen`]: undefined }, 'ja2');
+    expect(ctx.store.wordSyncSeen[`${lk}:seen`]).toBeUndefined();
+    // Knowledge is NOT touched by the policy restore.
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.0);
     dispose();
+    mockSettings.language = 'ja';
   });
 
-  it('restoreWordSyncRating removes knowledge and seen state when the previous state was untracked', async () => {
+  it('restoreWordSyncRating re-adds a cleared cooldown timestamp on undo-of-clear', async () => {
     const { ctx, dispose } = await mountProvider();
-    const SRS = await import('../services/srsAlgorithm');
-    const jaKey = `ja:${SRS.hashWordSync('赤い')}`;
-    flashcardsCb(makeEmptyStore({
-      wordKnowledge: {
-        [jaKey]: {
-          ease: 4.5,
-          lastSeen: 100,
-          timesSeen: 10,
-          timesHovered: 0,
-          word: '赤い',
-          language: 'ja',
-        },
-      },
-      wordSyncSeen: {
-        [jaKey]: 200,
-      },
-    }));
+    const lk = `ja2:${SRS.hashWordSync('学校')}`;
 
-    ctx.restoreWordSyncRating('赤い', undefined, { [jaKey]: undefined }, 'ja');
-
-    expect(ctx.store.wordKnowledge[jaKey]).toBeUndefined();
-    expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();
+    ctx.restoreWordSyncRating({ [`${lk}:seen`]: 555 }, 'ja2');
+    expect(ctx.store.wordSyncSeen[`${lk}:seen`]).toBe(555);
     dispose();
   });
 
@@ -4088,6 +4075,7 @@ describe('recordAttempt missed with orthogonal aspects', () => {
   });
 });
 
+
 describe('attempt undo integrity (P0)', () => {
   it('undo restores knowledge state and retracts every event of the attempt', async () => {
     mockSettings.language = 'ja2';
@@ -4095,9 +4083,6 @@ describe('attempt undo integrity (P0)', () => {
     mockAppendEvents.mockClear();
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore({
-      wordKnowledge: {
-        [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
-      },
       flashcards: {
         'card-1': makeCard({
           id: 'card-1',
@@ -4111,16 +4096,28 @@ describe('attempt undo integrity (P0)', () => {
       wordToCardMap: { [lk]: ['card-1'] },
     }));
 
-    const { attemptId, knowledgeBefore } = ctx.recordAttempt('学校', 'meaning', 'struggled', { language: 'ja2' });
+    // Pre-attempt knowledge exists as EVIDENCE (explicit manual rating), not
+    // just as a snapshot — that is what projection replay can legitimately
+    // restore after undo.
+    const priorT = Date.now() - 1000;
+    await mockAppendEvents({
+      [lk]: [{ t: priorT, kind: 'rating', source: 'manual', aspect: 'meaning', quality: 'fluent', easeAfter: 2.5, toStatus: 'known' }],
+    });
+
+    const { attemptId } = ctx.recordAttempt('学校', 'meaning', 'struggled', { language: 'ja2' });
     expect(typeof attemptId).toBe('string');
-    expect(knowledgeBefore[lk]?.ease).toBe(2.5);
-    ctx.answerCard('hard', 'card-1', 1000, { attemptId, knowledgeBefore });
+    ctx.answerCard('hard', 'card-1', 1000, { attemptId });
     expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(mockSettings.easeThresholdLearning, 5);
 
+    // Undo appends the tombstone and lets the projection REPLAY rebuild state —
+    // no knowledge snapshots involved. Run the idempotent replay explicitly and
+    // assert convergence onto the prior evidence.
     ctx.undoLastAction();
-
-    // Knowledge state restored to the pre-attempt snapshot.
+    await ctx.recomputeWordKnowledgeFromEvidence('学校', 'ja2');
+    const replayed = replayKeyProjection((await mockGetEventLogForLanguage('ja2'))[lk] ?? []);
+    expect(replayed?.ease).toBe(2.5);
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+    expect(ctx.store.wordKnowledge[lk]?.lastStatusChange).toBe(priorT);
 
     const { stripRetractions } = await import('../../shared/knowledgeEvents');
     const appendedByKey: Record<string, Array<Record<string, unknown>>> = {};

@@ -66,6 +66,8 @@ export interface KnowledgeEvent {
   presentedSurface?: string;
   /** Tier-2 target pointer when the observation is about a typed graph entity (e.g. grammar patterns); absent = legacy word-hash addressing. */
   targetRef?: { kind: string; id: string };
+  /** Presenting surface/policy channel that produced the observation (e.g. 'word-sync'); replay maps this to policy markers like wordSyncRatedAt. */
+  origin?: string;
 }
 
 /** Keys are `${language}:${hash}` values shared with wordKnowledge. */

@@ -267,6 +267,7 @@
     "sourceVersions": {"openRussian": "50e210c4803237779cb562bc1abcea529066031c", "smartool": "c20223c008c278c9399d8442f52948fae9c82c1c", "sileroStress": "1.4", "spacyModel": "ru_core_news_sm-3.8.0"},
     "assets": [
       {"id": "frequency", "path": "languages/ru.freq.json", "bundledPath": "languages/ru.freq.json", "required": true},
+      {"id": "linguistic-graph", "path": "languages/ru.graph.json", "bundledPath": "languages/ru.graph.json", "required": false},
       {"id": "frequency-smartool", "path": "languages/ru.smartool.freq.json", "bundledPath": "languages/ru.smartool.freq.json", "required": true},
       {"id": "pronunciation", "path": "languages/ru.pronunciation.json.gz", "bundledPath": "languages/ru.pronunciation.json.gz", "required": true},
       {"id": "python-adapter", "path": "adapters/russian_adapter.py", "bundledPath": "adapters/russian_adapter.py", "required": true},

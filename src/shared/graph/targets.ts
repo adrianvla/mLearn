@@ -57,6 +57,18 @@ export function isSurfaceScopedAspect(aspect: KnowledgeAspect): boolean {
   return SURFACE_SCOPED_CAPABILITIES.includes(ASPECT_CAPABILITY[aspect]);
 }
 
+/**
+ * Firewall for identity edges: recognizing 食べた must never establish
+ * 食べる's surface-recognition or surface-reading. Identity relations may
+ * only unify LEXEME-level capabilities (sense recognition, gender); every
+ * surface-scoped capability stays bound to the exact presented surface.
+ * The projection layer MUST consult this before sharing any state across
+ * identityNeighbors().
+ */
+export function isIdentityShareableCapability(capability: CapabilityKind): boolean {
+  return !SURFACE_SCOPED_CAPABILITIES.includes(capability);
+}
+
 function dedupe(values: readonly CapabilityKind[]): CapabilityKind[] {
   return [...new Set(values)];
 }

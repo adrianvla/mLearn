@@ -205,8 +205,8 @@ export const WelcomeRoute: Component = () => {
     const card = currentCard();
     if (!card) return;
     const language = card.language || settings.language;
-    const { attemptId, knowledgeBefore } = flashcards.recordAttempt(card.content.front, 'meaning', quality, { language });
-    flashcards.answerCard(qualityToSrsRating(quality), card.id, undefined, { attemptId, knowledgeBefore });
+    const { attemptId } = flashcards.recordAttempt(card.content.front, 'meaning', quality, { language });
+    flashcards.answerCard(qualityToSrsRating(quality), card.id, undefined, { attemptId });
   };
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),

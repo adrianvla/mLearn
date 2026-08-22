@@ -59,7 +59,7 @@ import {
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
-import { getAvailableAspects, type PassiveWordKnowledge } from '../../../shared/types';
+import { getAvailableAspects } from '../../../shared/types';
 import { getTestedAspects } from '../../../shared/languageFeatures';
 import './WordSync.css';
 
@@ -76,7 +76,6 @@ interface PoolEntry {
 interface WordSyncUndoEntry {
   word: PoolEntry;
   language: string;
-  previousKnowledge: Record<string, PassiveWordKnowledge | undefined>;
   previousSeenAt: Record<string, number | undefined>;
   /** Attempt ids whose events must be retracted when this rating is undone. */
   attemptIds: AttemptId[];
@@ -100,8 +99,8 @@ export const WordSyncContent: Component = () => {
     clearAllWordSyncSeen,
     restoreWordSyncRating,
     appendRetractions,
+    recomputeWordKnowledgeFromEvidence,
     getWordKnowledge,
-    getWordKnowledgeSnapshotForForms,
     getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
     recordAttempt,
@@ -381,7 +380,6 @@ export const WordSyncContent: Component = () => {
     const w = currentWord();
     if (!w) return;
 
-    const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
 
     // Word-presentation task: rating a finer aspect demonstrates its prerequisite
     // chain was traversed (the written word had to be read to reach prosody). A
@@ -392,6 +390,7 @@ export const WordSyncContent: Component = () => {
       method: opts?.method,
       demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
       latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
+      origin: 'word-sync',
     });
 
     setUndoStack((prev) => {
@@ -400,7 +399,6 @@ export const WordSyncContent: Component = () => {
         {
           word: w,
           language: settings.language,
-          previousKnowledge,
           previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
           attemptIds: [attemptId],
           previousRatedCount: ratedCount(),
@@ -441,7 +439,6 @@ export const WordSyncContent: Component = () => {
     const w = currentWord();
     if (!w || observations.length === 0) return;
 
-    const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
 
     const attemptId = nextAttemptId();
     const latencyMs = wordShownAt ? Date.now() - wordShownAt : undefined;
@@ -452,6 +449,7 @@ export const WordSyncContent: Component = () => {
         language: settings.language,
         method: observation.method,
         attemptId,
+        origin: 'word-sync',
         ...(latencyMs !== undefined ? { latencyMs } : {}),
       });
     }
@@ -462,7 +460,6 @@ export const WordSyncContent: Component = () => {
         {
           word: w,
           language: settings.language,
-          previousKnowledge,
           previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
           attemptIds: [attemptId],
           previousRatedCount: ratedCount(),
@@ -519,13 +516,12 @@ export const WordSyncContent: Component = () => {
 
     setUndoStack((prev) => prev.slice(0, -1));
 
-    restoreWordSyncRating(
-      undoEntry.word.word,
-      undoEntry.previousKnowledge,
-      undoEntry.previousSeenAt,
-      undoEntry.language,
-    );
+    // Epistemic state = active evidence: retract, then let the projection
+    // replay rebuild wordKnowledge. Only the policy cooldown map (seen) uses
+    // a snapshot restore — it is not learner truth.
     appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds);
+    void recomputeWordKnowledgeFromEvidence(undoEntry.word.word, undoEntry.language);
+    restoreWordSyncRating(undoEntry.previousSeenAt, undoEntry.language);
     setSessionRatedSet((rated) => {
       const next = new Set(rated);
       next.delete(undoEntry.word.word);

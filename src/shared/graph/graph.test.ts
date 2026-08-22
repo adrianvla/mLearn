@@ -9,7 +9,7 @@ import {
   relationsOf,
   surfaceEntityId,
 } from './load';
-import { applicableCapabilities, learnableTargetsFor } from './targets';
+import { applicableCapabilities, isIdentityShareableCapability, learnableTargetsFor } from './targets';
 import type { GraphEntity, LinguisticGraphAsset } from './types';
 
 // Synthetic ja fixture encoding the brief's golden semantic cases. Surface
@@ -101,6 +101,24 @@ describe('linguistic graph golden semantics', () => {
     const ta = surfaceEntityId('ja', 't-1');
     const neighbors = identityNeighbors(graph, ta);
     expect(neighbors).toEqual([surfaceEntityId('ja', 't-0')]);
+  });
+
+  it('identity edges never fan surface-scoped capabilities across forms (firewall audit)', () => {
+    // Recognizing 食べた must never establish 食べる's SurfaceRecognition or
+    // SurfaceReading — identity unifies only lexeme-level capabilities.
+    // Prosody stays shareable by the Tier-1 product decision (pitch classes
+    // attach to the lexeme's pronunciation, not each spelling).
+    for (const capability of ['surface-recognition', 'surface-reading'] as const) {
+      expect(isIdentityShareableCapability(capability)).toBe(false);
+    }
+    for (const capability of ['sense-recognition', 'gender', 'character-reading', 'grammar-comprehension', 'prosodic-pattern'] as const) {
+      expect(isIdentityShareableCapability(capability)).toBe(true);
+    }
+    // And the fixture's identity pair keeps independent applicability.
+    const graph = load();
+    const taberu = graph.nodes.get(surfaceEntityId('ja', 't-0'))!;
+    const tabeta = graph.nodes.get(surfaceEntityId('ja', 't-1'))!;
+    expect(applicableCapabilities(graph, taberu)).toEqual(applicableCapabilities(graph, tabeta));
   });
 
   it('derives applicability from graph structure, not language names', () => {

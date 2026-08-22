@@ -13,12 +13,13 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn((): { status: string;
 const mockClearAllWordSyncSeen = vi.fn();
 const mockSetWordKnowledgeEase = vi.fn();
 const mockSetAspectStatus = vi.fn();
-const mockRecordAttempt = vi.fn((..._callArgs: unknown[]) => ({ attemptId: 'attempt-sync-1', knowledgeBefore: {} }));
+const mockRecordAttempt = vi.fn((..._callArgs: unknown[]) => ({ attemptId: 'attempt-sync-1' }));
 const mockShowToast = vi.hoisted(() => vi.fn());
 const isReadingScriptTextFn = vi.hoisted(() => vi.fn((_surface?: unknown, _data?: unknown) => false));
 const mockMarkWordSyncSeen = vi.fn();
 const mockRestoreWordSyncRating = vi.fn();
 const mockAppendRetractions = vi.fn();
+const mockRecomputeProjection = vi.fn(async () => {});
 const mockFetchTranslation = vi.hoisted(() => vi.fn(async (_word?: string): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
 const mockWordSyncState = vi.hoisted(() => ({
   settings: {
@@ -123,6 +124,7 @@ vi.mock('../../context', async () => {
     clearAllWordSyncSeen: mockClearAllWordSyncSeen,
     restoreWordSyncRating: mockRestoreWordSyncRating,
     appendRetractions: mockAppendRetractions,
+    recomputeWordKnowledgeFromEvidence: mockRecomputeProjection,
     getWordKnowledge: vi.fn(() => null),
     getWordKnowledgeSnapshotForForms: vi.fn((word: string, language?: string) => {
       const lang = language ?? 'ja';
@@ -712,8 +714,6 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(mockRestoreWordSyncRating).toHaveBeenCalledWith(
-      '赤い',
-      { [`ja:${hashWordSync('赤い')}`]: previousKnowledge },
       { [`ja:${hashWordSync('赤い')}`]: 1234 },
       'ja',
     );
@@ -931,8 +931,6 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(mockRestoreWordSyncRating).toHaveBeenCalledWith(
-      '赤い',
-      { [`ja:${hashWordSync('赤い')}`]: previousKnowledge },
       { [`ja:${hashWordSync('赤い')}`]: undefined },
       'ja',
     );
@@ -966,8 +964,6 @@ describe('WordSyncContent', () => {
     // Pool order within a level is shuffled, so detect which word came up first.
     const firstWord = container.textContent!.includes('赤い:あかい') ? '赤い' : '青い';
     const secondWord = firstWord === '赤い' ? '青い' : '赤い';
-    const prevFirst = firstWord === '赤い' ? prevA : prevB;
-    const prevSecond = secondWord === '赤い' ? prevA : prevB;
 
     chord('3', 'm');
     await Promise.resolve();
@@ -981,8 +977,6 @@ describe('WordSyncContent', () => {
 
     expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(1);
     expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(
-      secondWord,
-      { [`ja:${hashWordSync(secondWord)}`]: prevSecond },
       { [`ja:${hashWordSync(secondWord)}`]: undefined },
       'ja',
     );
@@ -993,8 +987,6 @@ describe('WordSyncContent', () => {
 
     expect(mockRestoreWordSyncRating).toHaveBeenCalledTimes(2);
     expect(mockRestoreWordSyncRating).toHaveBeenLastCalledWith(
-      firstWord,
-      { [`ja:${hashWordSync(firstWord)}`]: prevFirst },
       { [`ja:${hashWordSync(firstWord)}`]: undefined },
       'ja',
     );
