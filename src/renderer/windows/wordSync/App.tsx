@@ -61,6 +61,7 @@ import {
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getAvailableAspects } from '../../../shared/types';
 import { getTestedAspects } from '../../../shared/languageFeatures';
+import { calibrationPoolItem, selectNextEncounter } from '../../learning/engine';
 import './WordSync.css';
 
 
@@ -359,6 +360,18 @@ export const WordSyncContent: Component = () => {
       if (!group || group.length === 0) continue;
       const cursor = levelCursors.get(tryLvl) ?? 0;
       if (cursor < group.length) {
+        const decision = selectNextEncounter({
+          preset: 'CALIBRATION',
+          nowMs: Date.now(),
+          wordSyncPoolItems: group.slice(cursor).map((entry) => (
+            calibrationPoolItem(entry.storageKey, entry.word, settings.language, entry.weight)
+          )),
+        });
+        const selectedIndex = decision?.action === 'DEFER'
+          ? cursor
+          : group.findIndex((entry, index) => index >= cursor && entry.storageKey === decision?.candidate.key);
+        const nextIndex = selectedIndex >= cursor ? selectedIndex : cursor;
+        if (nextIndex !== cursor) [group[cursor], group[nextIndex]] = [group[nextIndex], group[cursor]];
         levelCursors.set(tryLvl, cursor + 1);
         setSamplingLevel(tryLvl);
         wordShownAt = Date.now();

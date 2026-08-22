@@ -41,6 +41,7 @@ import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 import { getLogger } from '../../../../shared/utils/logger';
 import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
+import { selectNextEncounter } from '../../../learning/engine';
 
 const log = getLogger("renderer.welcome");
 
@@ -193,7 +194,28 @@ export const WelcomeRoute: Component = () => {
   const videoItem = () => recentItems().find((item) => item.type === 'video') ?? null;
   const bookItem = () => recentItems().find((item) => item.type === 'book') ?? null;
 
-  const currentCard = createMemo(() => flashcards.getCurrentCard());
+  const currentCard = createMemo(() => {
+    const fallback = flashcards.getCurrentCard();
+    if (!fallback) return null;
+    const language = fallback.language || settings.language;
+    const decision = selectNextEncounter({
+      preset: 'RETENTION',
+      nowMs: Date.now(),
+      reviewQueueEntries: [{
+        id: fallback.id,
+        word: fallback.content.front,
+        language,
+        targets: [{ entityId: `${language}:surface:${fallback.content.front}`, capability: 'surface-recognition' }],
+        dueDate: fallback.dueDate,
+        interval: fallback.interval,
+        suspended: fallback.suspended,
+        buried: fallback.buried,
+      }],
+    });
+    return decision?.action === 'DEFER'
+      ? fallback
+      : flashcards.store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
+  });
   // Meaning-row matrix semantics: the widget's card front supplies the reading
   // (rendered beneath it), so only Meaning is tested here.
   const ratingButtons = createMemo(() => [

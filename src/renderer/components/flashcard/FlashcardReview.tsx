@@ -6,6 +6,7 @@
 import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
+import { selectNextEncounter } from '../../learning/engine';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
@@ -99,7 +100,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   // Current card
-  const currentCard = createMemo(() => getCurrentCard());
+  const currentCard = createMemo(() => {
+    const fallback = getCurrentCard();
+    if (!fallback) return null;
+    const language = languageForCard(fallback);
+    const decision = selectNextEncounter({
+      preset: 'RETENTION',
+      nowMs: Date.now(),
+      reviewQueueEntries: [{
+        id: fallback.id,
+        word: fallback.content.front,
+        language,
+        targets: [{ entityId: `${language}:surface:${fallback.content.front}`, capability: 'surface-recognition' }],
+        dueDate: fallback.dueDate,
+        interval: fallback.interval,
+        suspended: fallback.suspended,
+        buried: fallback.buried,
+      }],
+    });
+    return decision?.action === 'DEFER'
+      ? fallback
+      : store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
+  });
 
   const cardHasReadingData = (card: Flashcard): boolean => {
     const r = card.content.reading;
