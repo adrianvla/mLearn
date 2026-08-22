@@ -1325,7 +1325,8 @@
           "Srs": "SRS",
           "Anki": "Anki",
           "PassiveTracking": "被动追踪",
-          "Manual": "手动"
+          "Manual": "手动",
+          "Grammar": "语法"
         },
         "Table": {
           "Time": "时间",

@@ -19,7 +19,7 @@ import { useTokenizer, useTranslation, getCachedTranslation } from '../../hooks/
 import { useWatchTogether } from '../../hooks/useWatchTogether';
 import { cleanContextPhrase } from '../../utils/phraseExtraction';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
-import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
+import { toUniqueIdentifier } from '../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
 import { buildWordHoverFlashcardContent } from '../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../utils/bulkAddWords';
@@ -774,7 +774,10 @@ export const App: Component = () => {
         wordOf: (entry) => entry.word,
         trackedAnkiWordOf: getTrackedAnkiWord,
         formsOf: getWordForms,
-        statusOf: getWordStatus,
+        statusOf: (word: string) => {
+          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
+          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
+        },
         updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
         addFlashcard: addVideoWordFlashcard,
         onEntryError: (entry, err) => {

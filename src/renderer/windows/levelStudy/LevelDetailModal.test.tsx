@@ -14,7 +14,7 @@ const [flashcardsLoading, setFlashcardsLoading] = createSignal(false);
 const storeMock = {
   flashcards: {} as Record<string, unknown>,
   wordToCardMap: {} as Record<string, string[]>,
-  wordKnowledge: {} as Record<string, { ease: number }>,
+  wordKnowledge: {} as Record<string, { ease: number; lastStatusChange?: number }>,
   knownUntracked: {} as Record<string, boolean>,
   ignoredWords: {} as Record<string, unknown>,
   wordCandidates: {} as Record<string, unknown>,
@@ -254,8 +254,8 @@ describe('LevelDetailModal', () => {
     ), container);
     expect(container.textContent).toContain('بيت');
 
-    // The store lands with the word already known (ease 4 >= known threshold 3.5).
-    storeMock.wordKnowledge = { [`ar:${hashWordSync('بيت')}`]: { ease: 4 } };
+    // The store lands with the word explicitly rated known (ease 4 >= known threshold 3.5).
+    storeMock.wordKnowledge = { [`ar:${hashWordSync('بيت')}`]: { ease: 4, lastStatusChange: 1 } };
     setFlashcardsLoading(false);
     await Promise.resolve();
 

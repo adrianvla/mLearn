@@ -68,10 +68,6 @@ vi.mock('../../context', () => ({
   }),
 }));
 
-vi.mock('../../services/statsService', () => ({
-  loadWordsFromStorage: vi.fn(async () => undefined),
-}));
-
 vi.mock('../../hooks/useAnki', () => ({
   useAnki: () => ({
     checkConnection: vi.fn(async () => false),

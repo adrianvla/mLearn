@@ -13,7 +13,7 @@ import { Input, KnowledgeHistoryGraph, Panel } from '../../../components/common'
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import './WordHistoryPanel.css';
 
-const KIND_LABEL_KEYS: Record<KnowledgeEventKind, string> = {
+const KIND_LABEL_KEYS: Record<Exclude<KnowledgeEventKind, 'retraction'>, string> = {
   status: 'Status',
   review: 'Review',
   rating: 'Rating',
@@ -68,7 +68,10 @@ export const WordHistoryPanel: Component = () => {
     return all.filter((aspect) => getAspectStatus(word, aspect, settings.language).untracked !== true);
   });
   const history = useKnowledgeHistory(selectedWord, aspect);
-  const events = createMemo(() => history.events() ?? []);
+  // Retraction tombstones are undo bookkeeping, not history rows.
+  const events = createMemo(() => (history.events() ?? []).filter(
+    (event): event is KnowledgeEvent & { kind: Exclude<KnowledgeEventKind, 'retraction'> } => event.kind !== 'retraction',
+  ));
   const graphData = createMemo(() => history.replay());
 
   const sourceLabel = (event: KnowledgeEvent): string => (

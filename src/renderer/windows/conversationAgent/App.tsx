@@ -185,6 +185,7 @@ export const ConversationContent: Component = () => {
     getCanonicalForm,
     getWordVariants,
     getReadingVariants,
+    getGrammarPoint,
   } = useLanguage();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
@@ -419,8 +420,11 @@ export const ConversationContent: Component = () => {
     onVoiceMistake: (mistake: VoiceMistake) => {
       if (!isValidVoiceMistake(mistake)) return;
       setVoiceMistakes((prev) => [...prev, mistake]);
-      // Lower ease of the word in flashcard context
-      flashcardCtx.trackGrammarFailed(mistake.word);
+      // Grammar evidence requires a real pattern: the note_mistake tool has no
+      // pattern field, and tracking a bare word would pollute the grammar store.
+      if (mistake.type === 'grammar' && getGrammarPoint(mistake.word)) {
+        flashcardCtx.trackGrammarFailed(mistake.word);
+      }
     },
     onVoiceNudgeScheduled: scheduleVoiceNudge,
     onMemorySaved: (content: string) => {

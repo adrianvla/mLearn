@@ -13,10 +13,11 @@ import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
-import type { Flashcard, FlashcardContent } from '../../../shared/types';
+import type { Flashcard, FlashcardContent, PassiveWordKnowledge } from '../../../shared/types';
 import { getAvailableAspects } from '../../../shared/types';
 import { getTestedAspects } from '../../../shared/languageFeatures';
 import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
+import { nextAttemptId } from '../../../shared/knowledgeEvents';
 import { prerequisitesOf } from '../../utils/aspectKnowledge';
 import { RatingMatrix, type RateOptions } from '../common';
 import type { KnowledgeAspect } from '../../../shared/constants';
@@ -177,13 +178,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     stopTts();
     batch(() => {
       setShowAnswer(false);
-      recordAttempt(card.content.front, aspect, quality, {
+      const { attemptId, knowledgeBefore } = recordAttempt(card.content.front, aspect, quality, {
         language: languageForCard(card),
         method: opts?.method,
         demonstrated: demonstratedFor(aspect),
         latencyMs: elapsed,
       });
-      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed);
+      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed, { attemptId, knowledgeBefore });
       if (completed) {
         setCardsAnswered(prev => prev + 1);
       }
@@ -199,16 +200,21 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     stopTts();
     batch(() => {
       setShowAnswer(false);
-      // Evidence for every tested aspect only — supplied aspects get none.
+      // One physical submit (Space/Enter all-fluent) = ONE logical attempt:
+      // every tested aspect observation shares the same attemptId.
+      const attemptId = nextAttemptId();
+      let knowledgeBefore: Record<string, PassiveWordKnowledge | undefined> | undefined;
       for (const aspect of testedAspects()) {
-        recordAttempt(card.content.front, aspect, 'fluent', {
+        const recorded = recordAttempt(card.content.front, aspect, 'fluent', {
           language: languageForCard(card),
           method: opts?.method,
           demonstrated: demonstratedFor(aspect),
           latencyMs: elapsed,
+          attemptId,
         });
+        knowledgeBefore ??= recorded.knowledgeBefore;
       }
-      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, elapsed);
+      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, elapsed, { attemptId, knowledgeBefore });
       if (completed) {
         setCardsAnswered(prev => prev + 1);
       }

@@ -1325,7 +1325,8 @@
           "Srs": "SRS",
           "Anki": "Anki",
           "PassiveTracking": "Passive tracking",
-          "Manual": "Manual"
+          "Manual": "Manual",
+          "Grammar": "Grammar"
         },
         "Table": {
           "Time": "Time",

@@ -217,13 +217,9 @@ export function dueDateToString(dueDate: number, t?: (key: string, params?: Reco
 /**
  * Default metadata
  */
-export function getDefaultMeta(newDayHour: number = 4): FlashcardMeta {
-    const today = getTodayDateString(newDayHour);
+export function getDefaultMeta(_newDayHour: number = 4): FlashcardMeta {
     return {
         perLanguage: {},
-        newCardsToday: 0,
-        reviewsToday: 0,
-        newCardsDate: today,
         maxNewCardsPerDay: 20,
         maxNewCardsPerDayLearning: 20,
         maxReviewsPerDay: -1, // -1 = unlimited

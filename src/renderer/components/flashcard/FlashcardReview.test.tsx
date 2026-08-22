@@ -17,7 +17,8 @@ let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
 const mockAnswerCard = vi.fn(() => false);
 const mockSetAspectStatus = vi.fn();
-const mockRecordAttempt = vi.fn();
+const mockRecordAttempt = vi.fn((..._callArgs: unknown[]) => ({ attemptId: 'attempt-1', knowledgeBefore: {} }));
+const mockAppendRetractions = vi.fn();
 
 const flushEffects = () => new Promise<void>((resolve) => {
   const channel = new MessageChannel();
@@ -71,6 +72,7 @@ vi.mock('../../context', () => ({
     updateFlashcard: vi.fn(),
     setAspectStatus: mockSetAspectStatus,
     recordAttempt: mockRecordAttempt,
+    appendRetractions: mockAppendRetractions,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0, ease: 0 }),
     getWordKnowledge: () => ({}),
   }),
@@ -447,7 +449,7 @@ describe('FlashcardReview failure attribution', () => {
     rate('1', 'o');
 
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'orthography', 'missed', expect.objectContaining({ language: 'ja' }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), { attemptId: 'attempt-1', knowledgeBefore: {} });
     dispose();
   });
 
@@ -497,7 +499,7 @@ describe('FlashcardReview failure attribution', () => {
       language: 'ja',
       demonstrated: ['meaning'],
     }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), { attemptId: 'attempt-1', knowledgeBefore: {} });
     dispose();
   });
 
@@ -518,7 +520,7 @@ describe('FlashcardReview failure attribution', () => {
       language: 'ja',
       demonstrated: ['meaning', 'reading'],
     }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), { attemptId: 'attempt-1', knowledgeBefore: {} });
     dispose();
   });
 
@@ -528,7 +530,7 @@ describe('FlashcardReview failure attribution', () => {
     clickShowAnswer(container);
     rate('3', 'm');
 
-    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number));
+    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), { attemptId: 'attempt-1', knowledgeBefore: {} });
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'meaning', 'fluent', expect.objectContaining({ language: 'ja' }));
     dispose();
   });
@@ -543,7 +545,11 @@ describe('FlashcardReview failure attribution', () => {
     // every tested aspect receives fluent evidence, none fabricated beyond.
     const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
     expect(calls.length).toBe(3);
-    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number));
+    // One physical submit = one logical attempt: shared attemptId across all
+    // observations and the SRS review event.
+    const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
+    expect(attemptIds.size).toBe(1);
+    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), { attemptId: [...attemptIds][0], knowledgeBefore: {} });
     dispose();
   });
 
@@ -553,8 +559,10 @@ describe('FlashcardReview failure attribution', () => {
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', shiftKey: true }));
 
-    expect(mockAnswerCard).toHaveBeenCalledWith('easy', 'card-1', expect.any(Number));
     const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
+    const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
+    expect(attemptIds.size).toBe(1);
+    expect(mockAnswerCard).toHaveBeenCalledWith('easy', 'card-1', expect.any(Number), { attemptId: [...attemptIds][0], knowledgeBefore: {} });
     expect(calls.length).toBe(3);
     dispose();
   });

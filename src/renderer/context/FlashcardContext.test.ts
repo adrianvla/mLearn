@@ -823,9 +823,9 @@ describe('FlashcardProvider', () => {
     }));
     ctx.refreshQueue();
 
-    const before = ctx.store.meta.newCardsToday ?? 0;
+    const before = ctx.store.meta.perLanguage.ja?.newCardsToday ?? 0;
     ctx.answerCard('good');
-    expect(ctx.store.meta.newCardsToday).toBe(before + 1);
+    expect(ctx.store.meta.perLanguage.ja?.newCardsToday).toBe(before + 1);
     dispose();
   });
 
@@ -847,9 +847,9 @@ describe('FlashcardProvider', () => {
     }));
     ctx.refreshQueue();
 
-    const before = ctx.store.meta.reviewsToday ?? 0;
+    const before = ctx.store.meta.perLanguage.ja?.reviewsToday ?? 0;
     ctx.answerCard('good');
-    expect(ctx.store.meta.reviewsToday).toBe(before + 1);
+    expect(ctx.store.meta.perLanguage.ja?.reviewsToday).toBe(before + 1);
     dispose();
   });
 
@@ -4083,6 +4083,155 @@ describe('recordAttempt missed with orthogonal aspects', () => {
     expect(entry?.aspects?.prosody).toBeUndefined();
     // Meaning still anchors at learning — the word itself was known, only gender failed.
     expect(entry?.ease).toBeGreaterThanOrEqual(mockSettings.easeThresholdLearning);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+});
+
+describe('attempt undo integrity (P0)', () => {
+  it('undo restores knowledge state and retracts every event of the attempt', async () => {
+    mockSettings.language = 'ja2';
+    const lk = `ja2:${SRS.hashWordSync('学校')}`;
+    mockAppendEvents.mockClear();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
+      },
+      flashcards: {
+        'card-1': makeCard({
+          id: 'card-1',
+          language: 'ja2',
+          content: { type: 'word', front: '学校', back: 'school' },
+          state: 'review',
+          interval: 86400000,
+          dueDate: Date.now() - 1000,
+        }),
+      },
+      wordToCardMap: { [lk]: ['card-1'] },
+    }));
+
+    const { attemptId, knowledgeBefore } = ctx.recordAttempt('学校', 'meaning', 'struggled', { language: 'ja2' });
+    expect(typeof attemptId).toBe('string');
+    expect(knowledgeBefore[lk]?.ease).toBe(2.5);
+    ctx.answerCard('hard', 'card-1', 1000, { attemptId, knowledgeBefore });
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(mockSettings.easeThresholdLearning, 5);
+
+    ctx.undoLastAction();
+
+    // Knowledge state restored to the pre-attempt snapshot.
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+
+    const { stripRetractions } = await import('../../shared/knowledgeEvents');
+    const appendedByKey: Record<string, Array<Record<string, unknown>>> = {};
+    for (const [byKey] of mockAppendEvents.mock.calls) {
+      for (const [key, events] of Object.entries(byKey as Record<string, Array<Record<string, unknown>>>)) {
+        appendedByKey[key] = [...(appendedByKey[key] ?? []), ...events];
+      }
+    }
+    // The retracted attempt's events (observation + review) were appended…
+    const retractionCalls = Object.values(appendedByKey).flat().filter((e) => e.kind === 'retraction');
+    expect(new Set(retractionCalls.map((e) => e.retracts))).toEqual(new Set([attemptId]));
+    // …and after stripping retractions, zero net evidence from that attempt remains.
+    const survivingWithAttemptId = stripRetractions(
+      Object.values(appendedByKey).flat() as unknown as Parameters<typeof stripRetractions>[0],
+    ).filter((e) => e.attemptId === attemptId);
+    expect(survivingWithAttemptId).toHaveLength(0);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('all-fluent submits share one attempt id across aspects and the review event', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    const attemptId = (await import('../../shared/knowledgeEvents')).nextAttemptId();
+    const a = ctx.recordAttempt('学校', 'reading', 'fluent', { language: 'ja2', attemptId });
+    const b = ctx.recordAttempt('学校', 'prosody', 'fluent', { language: 'ja2', attemptId });
+    expect(a.attemptId).toBe(attemptId);
+    expect(b.attemptId).toBe(attemptId);
+
+    mockAppendEvents.mockClear();
+    dispose();
+    mockSettings.language = 'ja';
+  });
+});
+
+describe('recordAttempt logs no-transition submissions', () => {
+  it('fluent meaning on an already-known word logs one observation and writes nothing', async () => {
+    mockSettings.language = 'ja2';
+    const lk = `ja2:${SRS.hashWordSync('学校')}`;
+    mockAppendEvents.mockClear();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
+      },
+    }));
+
+    ctx.recordAttempt('学校', 'meaning', 'fluent', { language: 'ja2' });
+    await Promise.resolve();
+
+    const events = mockAppendEvents.mock.calls
+      .flatMap(([byKey]) => Object.entries(byKey as Record<string, Array<Record<string, unknown>>>))
+      .filter(([key]) => key === lk)
+      .flatMap(([, es]) => es);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'rating', aspect: 'meaning', quality: 'fluent', fromStatus: 'known', toStatus: 'known' });
+    // No state write: the raise-only rule left the known record untouched.
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('fluent finer aspect already known logs the observation without a status event', async () => {
+    mockSettings.language = 'ja2';
+    const lk = `ja2:${SRS.hashWordSync('学校')}`;
+    mockAppendEvents.mockClear();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja2',
+          aspects: { reading: { status: 'known', ease: 2.2, source: 'Manual', lastStatusChange: 5, updatedAt: 5 } },
+        },
+      },
+    }));
+
+    ctx.recordAttempt('学校', 'reading', 'fluent', { language: 'ja2' });
+    await Promise.resolve();
+
+    const events = mockAppendEvents.mock.calls
+      .flatMap(([byKey]) => Object.entries(byKey as Record<string, Array<Record<string, unknown>>>))
+      .filter(([key]) => key === lk)
+      .flatMap(([, es]) => es);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'rating', aspect: 'reading', quality: 'fluent' });
+    expect(ctx.store.wordKnowledge[lk]?.aspects?.reading?.ease).toBe(2.2);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('a submission blocked by the knownUntracked bank still logs its observation', async () => {
+    mockSettings.language = 'ja2';
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja2:${await SRS.hashWord('学校')}`;
+    mockAppendEvents.mockClear();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({ knownUntracked: { [lk]: true } }));
+
+    ctx.recordAttempt('学校', 'meaning', 'missed', { language: 'ja2' });
+    await Promise.resolve();
+
+    const events = mockAppendEvents.mock.calls
+      .flatMap(([byKey]) => Object.entries(byKey as Record<string, Array<Record<string, unknown>>>))
+      .filter(([key]) => key === lk)
+      .flatMap(([, es]) => es);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'rating', quality: 'missed' });
+    // Bank blocks the state write; the honest observation remains.
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
     dispose();
     mockSettings.language = 'ja';
   });

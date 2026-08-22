@@ -7,29 +7,30 @@ export interface AnkiWordStatusKeys {
 }
 
 /**
- * Builds a Set of language-prefixed word hashes that are considered "known"
- * based on all in-store knowledge sources. O(n) to build, O(1) to query.
+ * Builds a Set of language-prefixed word hashes that are evidence-backed known.
+ * O(n) to build, O(1) to query.
  *
  * Sources checked:
- * - knownUntracked (manually marked as known)
- * - ignoredWords (user explicitly ignored)
+ * - knownUntracked (explicit user claim)
  * - Flashcards in 'review' state (graduated via SRS)
- * - wordKnowledge with ease >= known_ease_threshold (passive tracking)
- * - anki bank keys, when supplied (the store itself has no anki knowledge)
+ * - wordKnowledge explicitly rated above the known threshold (the same
+ *   explicit-rating rule as the projection resolver — pure passive exposure
+ *   never reaches Known here either)
+ * - anki bank keys, when supplied
+ *
+ * ignoredWords deliberately NOT included: exclusion is teaching policy, not
+ * knowledge. Use store.ignoredWords keys directly where selection needs them.
  */
 export function buildKnownWordSet(
   flashcards: Record<string, Flashcard>,
   wordToCardMap: Record<string, string[]>,
   knownUntracked: Record<string, boolean>,
-  ignoredWords: Record<string, IgnoredWordEntry>,
+  _ignoredWords: Record<string, IgnoredWordEntry>,
   wordKnowledge: Record<string, PassiveWordKnowledge>,
   knownEaseThreshold: number,
   ankiKnownKeys?: ReadonlySet<string>,
 ): Set<string> {
   const known = new Set<string>(Object.keys(knownUntracked));
-  for (const key of Object.keys(ignoredWords)) {
-    known.add(key);
-  }
 
   for (const [lk, cardIds] of Object.entries(wordToCardMap)) {
     for (const id of cardIds) {
@@ -43,7 +44,8 @@ export function buildKnownWordSet(
 
   const threshold = knownEaseThreshold / 1000;
   for (const [lk, knowledge] of Object.entries(wordKnowledge)) {
-    if (knowledge.ease >= threshold) {
+    const explicitlyRated = knowledge.lastStatusChange !== undefined || knowledge.wordSyncRatedAt !== undefined;
+    if (explicitlyRated && knowledge.ease >= threshold) {
       known.add(lk);
     }
   }

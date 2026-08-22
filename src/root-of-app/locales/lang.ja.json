@@ -1325,7 +1325,8 @@
           "Srs": "SRS",
           "Anki": "Anki",
           "PassiveTracking": "パッシブトラッキング",
-          "Manual": "手動"
+          "Manual": "手動",
+          "Grammar": "文法"
         },
         "Table": {
           "Time": "時刻",

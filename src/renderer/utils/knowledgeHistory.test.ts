@@ -86,3 +86,16 @@ describe('replayKnowledgeHistory', () => {
     expect(relaxed.points[0].strength).toBe(1);
   });
 });
+
+describe('replayKnowledgeHistory retractions', () => {
+  it('excludes undone attempts and their tombstones from the curve', () => {
+    const events: KnowledgeEvent[] = [
+      { t: 100, kind: 'status', source: 'manual', aspect: 'meaning', toStatus: 'known' },
+      { t: 200, kind: 'rating', source: 'manual', aspect: 'meaning', attemptId: 'a1', quality: 'missed', toStatus: 'unknown', easeAfter: 1.3 },
+      { t: 300, kind: 'retraction', source: 'manual', aspect: 'meaning', retracts: 'a1' },
+    ];
+    const { points } = replayKnowledgeHistory(events, { now: NOW });
+    expect(points).toHaveLength(1);
+    expect(points[0].strength).toBe(1);
+  });
+});

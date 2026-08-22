@@ -138,3 +138,34 @@ describe('knowledge event storage', () => {
     expect(mod.getKnowledgeEvents(['ja:one'])['ja:one']).toHaveLength(2001);
   });
 });
+
+describe('knowledge event validation on reload', () => {
+  it('keeps retraction tombstones and every knowledge aspect through a reload', async () => {
+    const tombstone = event(now, { kind: 'retraction', source: 'manual', retracts: 'attempt-1' });
+    const genderEvent = event(now + 1, { kind: 'status', aspect: 'gender', toStatus: 'learning' });
+    const orthographyEvent = event(now + 2, { kind: 'rating', source: 'manual', aspect: 'orthography' });
+
+    await mod.appendKnowledgeEvents({ 'ru:one': [tombstone, genderEvent, orthographyEvent] });
+    await mod.saveKnowledgeEvents();
+    await mod.loadKnowledgeEvents(now);
+
+    const kept = mod.getKnowledgeEvents(['ru:one'])['ru:one'];
+    expect(kept).toContainEqual(tombstone);
+    expect(kept).toContainEqual(genderEvent);
+    expect(kept).toContainEqual(orthographyEvent);
+  });
+
+  it('drops malformed events on load (non-attempt-id attemptId)', async () => {
+    const file = path.join(tempDir.tmpDir, 'knowledge-events.json');
+    fs.writeFileSync(file, JSON.stringify({
+      'ja:x': [
+        event(now),
+        { t: now, kind: 'rating', source: 'manual', aspect: 'meaning', attemptId: { malformed: true } },
+      ],
+    }));
+
+    await mod.loadKnowledgeEvents(now);
+
+    expect(mod.getKnowledgeEvents(['ja:x'])['ja:x']).toEqual([event(now)]);
+  });
+});

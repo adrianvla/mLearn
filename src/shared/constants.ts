@@ -500,10 +500,6 @@ export function qualityToSrsRating(quality: AttemptQuality, easy = false): 'agai
 // presented form's hash only — never fanned out across the word-form family,
 // the #230 rule's exception) and resolved on that hash only. Under Model B,
 // reading IS surface-scoped: it records whether THIS written form was mapped to
-// its pronunciation (流石 evidence says nothing about さすが, whose script
-// supplies its own reading). Prosody/gender/pronunciation stay lexeme-scoped.
-export const SURFACE_SCOPED_ASPECTS: readonly KnowledgeAspect[] = ['orthography', 'reading'];
-
 // Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {
   UNKNOWN: 0,
@@ -523,27 +519,11 @@ export const KNOWLEDGE_SOURCE_DISPLAY_NAMES = {
   anki: 'Anki',
   passiveTracking: 'PassiveTracking',
   manual: 'Manual',
-} as const satisfies Record<KnowledgeSource | 'manual', string>;
+  grammar: 'Grammar',
+} as const satisfies Record<KnowledgeSource | 'manual' | 'grammar', string>;
 
 export type KnowledgeSourceDisplayName = typeof KNOWLEDGE_SOURCE_DISPLAY_NAMES[KnowledgeSource];
 export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None';
-
-// Surface-specific aspect weights for getEffectiveKnowledge (read-time only, never persisted).
-// 'other' is the identity profile: every surface not listed resolves exactly as before (meaning only).
-// Gender/pronunciation/orthography are weighted 0 in all current surfaces — no implemented
-// context deliberately consumes them yet; a future context (productive grammar, listening,
-// form-recognition drill) would weight its aspects without touching this schema.
-export const KNOWLEDGE_SURFACES = ['video', 'reader', 'review', 'other'] as const;
-export type KnowledgeSurface = typeof KNOWLEDGE_SURFACES[number];
-
-export const SURFACE_WEIGHTS: Record<KnowledgeSurface, { meaning: number; reading: number; prosody: number; gender: number; pronunciation: number; orthography: number }> = {
-  video: { meaning: 0.5, reading: 0.35, prosody: 0.15, gender: 0, pronunciation: 0, orthography: 0 },
-  // Prosody is irrelevant to text comprehension: meaning+reading known with prosody
-  // unknown must resolve as known, not 0.95 → learning.
-  reader: { meaning: 0.85, reading: 0.15, prosody: 0, gender: 0, pronunciation: 0, orthography: 0 },
-  review: { meaning: 1, reading: 0, prosody: 0, gender: 0, pronunciation: 0, orthography: 0 },
-  other: { meaning: 1, reading: 0, prosody: 0, gender: 0, pronunciation: 0, orthography: 0 },
-};
 
 // Knowledge resolution modes
 export const KNOWLEDGE_RESOLUTION_MODES = ['order', 'highest', 'lowest'] as const;

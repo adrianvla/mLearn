@@ -30,12 +30,12 @@ describe('buildKnownWordSet', () => {
     expect(set.has('ja:h1')).toBe(true);
   });
 
-  it('includes ignoredWords', () => {
+  it('excludes ignoredWords: exclusion is teaching policy, not knowledge', () => {
     const ignored: Record<string, IgnoredWordEntry> = {
       'ja:h2': { word: '猫', language: 'ja', ignoredAt: Date.now() },
     };
     const set = buildKnownWordSet({}, {}, {}, ignored, {}, 4000);
-    expect(set.has('ja:h2')).toBe(true);
+    expect(set.has('ja:h2')).toBe(false);
   });
 
   it('includes words with review-state flashcards', () => {
@@ -54,12 +54,14 @@ describe('buildKnownWordSet', () => {
     expect(set.has('ja:h4')).toBe(false);
   });
 
-  it('includes words with high passive knowledge ease', () => {
+  it('pure passive ease never reaches Known; explicit rating does (projection parity)', () => {
     const knowledge: Record<string, PassiveWordKnowledge> = {
       'ja:h5': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '犬', language: 'ja' },
+      'ja:h5b': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '猫', language: 'ja', lastStatusChange: Date.now() },
     };
     const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
-    expect(set.has('ja:h5')).toBe(true);
+    expect(set.has('ja:h5')).toBe(false);
+    expect(set.has('ja:h5b')).toBe(true);
   });
 
   it('excludes words with low passive knowledge ease', () => {
@@ -75,7 +77,7 @@ describe('buildKnownWordSet', () => {
       'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
     };
     const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h8': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '鳥', language: 'ja' },
+      'ja:h8': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '鳥', language: 'ja', lastStatusChange: Date.now() },
     };
     const set = buildKnownWordSet(
       cards,
@@ -122,14 +124,15 @@ describe('buildKnownWordSetFromStore', () => {
       wordStatsMap: {},
       wordCandidates: {},
       knownUntracked: { 'ja:h2': true },
-      ignoredWords: {},
+      ignoredWords: { 'ja:h10': { word: 'x', language: 'ja', ignoredAt: 1 } },
       wordKnowledge: {
-        'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '花', language: 'ja' },
+        'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '花', language: 'ja', lastStatusChange: Date.now() },
       },
       grammarKnowledge: {},
       suggestedFlashcards: {},
       wordSyncSeen: {},
       meta: {
+        perLanguage: {},
         newCardsToday: 0,
         reviewsToday: 0,
         newCardsDate: '',
@@ -152,6 +155,8 @@ describe('buildKnownWordSetFromStore', () => {
     expect(set.has('ja:h1')).toBe(true);
     expect(set.has('ja:h2')).toBe(true);
     expect(set.has('ja:h3')).toBe(true);
+    // Ignored words are policy exclusions, not knowledge.
+    expect(set.has('ja:h10')).toBe(false);
     expect(set.size).toBe(3);
   });
 });

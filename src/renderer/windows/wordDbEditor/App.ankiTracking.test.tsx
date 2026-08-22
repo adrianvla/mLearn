@@ -10,7 +10,6 @@ import { clearAnkiWordsCache } from '../../services/ankiWordsCache';
 
 const mockGetAnkiWordStatuses = vi.fn<() => Promise<AnkiWordStatusRecord[]>>(() => Promise.resolve([]));
 const mockGetCard = vi.fn(async () => ({ error: true, poor: false, cards: [] }));
-const mockLoadWordsFromStorage = vi.fn(async () => undefined);
 const mockShowToast = vi.fn();
 const mockSearchBarProps: { current?: { setFilterTokens?: (tokens: FilterToken[]) => void } } = {};
 const [mockUseAnkiEnabled, setMockUseAnkiEnabled] = createSignal(false);
@@ -92,10 +91,6 @@ vi.mock('../../context', async () => {
     }),
   };
 });
-
-vi.mock('../../services/statsService', () => ({
-  loadWordsFromStorage: mockLoadWordsFromStorage,
-}));
 
 vi.mock('../../hooks/useAnki', () => ({
   useAnki: () => ({
@@ -191,7 +186,6 @@ describe('WordDbEditorContent Anki tracking', () => {
     mockGetAnkiWordStatuses.mockResolvedValue([]);
     mockGetCard.mockReset();
     mockGetCard.mockResolvedValue({ error: true, poor: false, cards: [] });
-    mockLoadWordsFromStorage.mockClear();
     mockShowToast.mockClear();
     mockSearchBarProps.current = undefined;
     clearAnkiWordsCache();
@@ -210,7 +204,6 @@ describe('WordDbEditorContent Anki tracking', () => {
 
     expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
     expect(trackerCellTexts()['青い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
-    const storageCallsBeforeAnki = mockLoadWordsFromStorage.mock.calls.length;
 
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '赤い', queue: 2, type: 2 }]);
     setMockUseAnkiEnabled(true);
@@ -220,7 +213,6 @@ describe('WordDbEditorContent Anki tracking', () => {
     // Tracker cell reacts to the async Anki enablement without reloading words
     expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Anki');
     expect(trackerCellTexts()['青い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
-    expect(mockLoadWordsFromStorage.mock.calls.length).toBe(storageCallsBeforeAnki);
 
     // Status filter uses the live status chain and matches the same rows
     mockSearchBarProps.current?.setFilterTokens?.([

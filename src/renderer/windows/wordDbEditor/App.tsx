@@ -7,9 +7,6 @@
 import { Component, createSignal, For, Show, onMount, createEffect, createMemo, on, onCleanup } from 'solid-js';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
-import {
-  loadWordsFromStorage,
-} from '../../services/statsService';
 import type { WordStatus } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
@@ -136,14 +133,7 @@ export const WordDbEditorContent: Component = () => {
     window.addEventListener('focus', onWindowFocus);
     onCleanup(() => window.removeEventListener('focus', onWindowFocus));
 
-    try {
-      await loadWordsFromStorage(settings.language);
-      setIsInitialized(true);
-      log.info('Word DB Editor: Loaded words from storage');
-    } catch (e) {
-      log.error('Word DB Editor: Failed to load words:', e);
-      setIsInitialized(true);
-    }
+    setIsInitialized(true);
   });
 
   createEffect(() => {
@@ -238,9 +228,6 @@ export const WordDbEditorContent: Component = () => {
     setHasLoadedWords(true);
 
     try {
-      // Ensure storage is loaded first
-      await loadWordsFromStorage(settings.language);
-
       const wordEntries: WordEntry[] = [];
 
       // Get words from word frequency data (from langData)

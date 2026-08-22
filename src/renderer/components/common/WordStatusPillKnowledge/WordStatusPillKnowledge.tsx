@@ -23,7 +23,6 @@ export interface WordStatusPillKnowledgeProps {
 
 interface AspectState {
   status: WordStatus;
-  inherited: boolean;
   untracked: boolean;
 }
 
@@ -47,11 +46,11 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
 
   const aspectState = (aspect: KnowledgeAspect): AspectState => {
     if (aspect === 'meaning') {
-      return { status: meaningResult().status, inherited: false, untracked: false };
+      return { status: meaningResult().status, untracked: false };
     }
     // Canonical resolution (chain inheritance, orthogonal untracked) — never a local copy.
     const resolved = getAspectStatus(props.word, aspect, effectiveLanguage());
-    return { status: resolved.status, inherited: resolved.inherited, untracked: resolved.untracked === true };
+    return { status: resolved.status, untracked: resolved.untracked === true };
   };
 
   // Interim applicability rule: orthogonal aspects with no record stay hidden
@@ -86,9 +85,6 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
                 <span class={`word-status-knowledge__aspect-status word-status-knowledge__aspect-status--${state.status}`}>
                   {t(STATUS_LABEL_KEYS[state.status])}
                 </span>
-                <Show when={state.inherited}>
-                  <span class="word-status-knowledge__aspect-inherited">{t('mlearn.Knowledge.AspectInherited')}</span>
-                </Show>
                 <Show when={aspect !== 'meaning' && !state.untracked}>
                   <span class="word-status-knowledge__aspect-actions">
                     <Show when={state.status === 'known'}>

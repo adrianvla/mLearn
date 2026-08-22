@@ -1819,12 +1819,6 @@ export interface FlashcardMeta {
   reviewIntervalModifier: number;
   /** Maximum interval in days */
   maxInterval: number;
-  /** @deprecated Use perLanguage[lang].newCardsToday instead */
-  newCardsToday?: number;
-  /** @deprecated Use perLanguage[lang].reviewsToday instead */
-  reviewsToday?: number;
-  /** @deprecated Use perLanguage[lang].newCardsDate instead */
-  newCardsDate?: string;
 }
 
 /**
@@ -1996,7 +1990,6 @@ export interface AspectKnowledge {
   source: WordKnowledgeSource;
   lastStatusChange: number;
   updatedAt: number;
-  inherited?: true;
 }
 
 /** Ignored word entry tracked per language for browse/unignore workflows */

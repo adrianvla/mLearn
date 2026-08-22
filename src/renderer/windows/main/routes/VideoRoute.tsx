@@ -29,7 +29,6 @@ import { bulkAddWords } from '../../../utils/bulkAddWords';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { tokensToColoredHtml, parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
-import { getWordStatus } from '../../../services/statsService';
 import { toUniqueIdentifier } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -693,7 +692,10 @@ export const VideoRoute: Component = () => {
         wordOf: (entry) => entry.word,
         trackedAnkiWordOf: getTrackedAnkiWord,
         formsOf: getWordForms,
-        statusOf: getWordStatus,
+        statusOf: (word: string) => {
+          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
+          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
+        },
         updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
         addFlashcard: addVideoWordFlashcard,
         onEntryError: (entry, err) => {

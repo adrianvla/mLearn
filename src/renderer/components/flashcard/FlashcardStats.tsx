@@ -259,6 +259,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   } = useFlashcards();
   const { settings } = useSettings();
   const { t } = useLocalization();
+  const todayMeta = createMemo(() => store.meta.perLanguage?.[settings.language]);
 
   // Canvas refs
   let stateChartRef: HTMLCanvasElement | undefined;
@@ -654,11 +655,11 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       <Card title={t('mlearn.Flashcards.Statistics.TodayProgress')} titleTag="h2" class="flashcard-stats-today">
         <BreakdownRow
           label={t('mlearn.Flashcards.Statistics.NewCardsStudied')}
-          value={`${store.meta.newCardsToday} / ${store.meta.maxNewCardsPerDayLearning === -1 ? '∞' : store.meta.maxNewCardsPerDayLearning}`}
+          value={`${todayMeta()?.newCardsToday ?? 0} / ${store.meta.maxNewCardsPerDayLearning === -1 ? '∞' : store.meta.maxNewCardsPerDayLearning}`}
         />
         <BreakdownRow
           label={t('mlearn.Flashcards.Statistics.ReviewsCompleted')}
-          value={`${store.meta.reviewsToday} / ${store.meta.maxReviewsPerDay === -1 ? '∞' : store.meta.maxReviewsPerDay}`}
+          value={`${todayMeta()?.reviewsToday ?? 0} / ${store.meta.maxReviewsPerDay === -1 ? '∞' : store.meta.maxReviewsPerDay}`}
         />
       </Card>
 

@@ -41,7 +41,6 @@ import {
   getTokenJoinSeparator,
   resolveLanguageContentFontOption,
 } from '../../../../shared/languageFeatures';
-import { getWordStatus } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../../utils/bulkAddWords';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
@@ -1449,7 +1448,10 @@ export const ReaderRoute: Component = () => {
         wordOf: (entry) => entry.word,
         trackedAnkiWordOf: getTrackedAnkiWord,
         formsOf: getWordForms,
-        statusOf: getWordStatus,
+        statusOf: (word: string) => {
+          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
+          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
+        },
         updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
         addFlashcard: addReaderWordFlashcard,
         skip: (entry) =>

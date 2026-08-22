@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { KNOWLEDGE_ASPECT_LABEL_KEYS, SURFACE_WEIGHTS, type KnowledgeAspect } from '../src/shared/constants';
+import { KNOWLEDGE_ASPECT_LABEL_KEYS, KNOWLEDGE_ASPECTS } from '../src/shared/constants';
 
 const LOCALES = ['en', 'ja', 'ru', 'zh', 'de', 'fr'] as const;
 
@@ -36,14 +36,8 @@ describe('locale key paths for knowledge constants', () => {
     }
   });
 
-  it('every aspect weighted above zero in any surface has a label key', () => {
-    const weighted = new Set<KnowledgeAspect>();
-    for (const profile of Object.values(SURFACE_WEIGHTS)) {
-      for (const [aspect, weight] of Object.entries(profile)) {
-        if (weight > 0) weighted.add(aspect as KnowledgeAspect);
-      }
-    }
-    for (const aspect of weighted) {
+  it('every knowledge aspect has a label key', () => {
+    for (const aspect of KNOWLEDGE_ASPECTS) {
       expect(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect], `${aspect} lacks a locale label key`).toBeDefined();
     }
   });

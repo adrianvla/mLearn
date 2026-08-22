@@ -80,6 +80,7 @@ export function shouldKeepSuggestion(
   comprehensiveStatus?: ComprehensiveWordStatus,
   languageData?: LanguageData | null,
   wordFormOptions: SuggestedFlashcardWordFormOptions = {},
+  excludedWordSet?: ReadonlySet<string>,
 ): boolean {
   const autoSuggest = settings.autoSuggestFlashcards ?? DEFAULT_SETTINGS.autoSuggestFlashcards;
   if (!autoSuggest) return false;
@@ -120,7 +121,9 @@ export function shouldKeepSuggestion(
   for (const candidate of getDictionaryCandidateWords(input.word, dictionaryOptions)) {
     const wordHash = hashWordSync(candidate);
     const lk = `${input.language}:${wordHash}`;
+    // Exclusion is teaching policy ("never select/teach"), independent of knowledge status.
     if (knownWordSet.has(lk)) return false;
+    if (excludedWordSet?.has(lk)) return false;
   }
   if (comprehensiveStatus === 'known') return false;
 

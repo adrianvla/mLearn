@@ -36,7 +36,7 @@ import type { KnowledgeAspect } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import { prerequisitesOf } from '../../utils/aspectKnowledge';
 import { hashWordSync } from '../../services/srsAlgorithm';
-import { nextAttemptId } from '../../../shared/knowledgeEvents';
+import { nextAttemptId, type AttemptId } from '../../../shared/knowledgeEvents';
 import { ankiCacheVersion } from '../../services/ankiWordsCache';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
@@ -78,6 +78,8 @@ interface WordSyncUndoEntry {
   language: string;
   previousKnowledge: Record<string, PassiveWordKnowledge | undefined>;
   previousSeenAt: Record<string, number | undefined>;
+  /** Attempt ids whose events must be retracted when this rating is undone. */
+  attemptIds: AttemptId[];
   previousRatedCount: number;
   previousLastRating: AttemptQuality | null;
   previousSamplingLevel: number;
@@ -97,6 +99,7 @@ export const WordSyncContent: Component = () => {
     markWordSyncSeen,
     clearAllWordSyncSeen,
     restoreWordSyncRating,
+    appendRetractions,
     getWordKnowledge,
     getWordKnowledgeSnapshotForForms,
     getWordSyncSeenSnapshotForForms,
@@ -260,7 +263,9 @@ export const WordSyncContent: Component = () => {
         // editor/pill): a local cascade here froze the bank list once already — the
         // anki bank was missing and known-via-anki words kept entering the rotation.
         const resolved = getComprehensiveWordStatusWithSourceSync(word, lang);
-        if (resolved.status === 'known') continue;
+        // Excluded words are teaching-policy removals, not knowledge — either way they
+        // never enter the calibration pool.
+        if (resolved.status === 'known' || resolved.excluded) continue;
         const record = {
           status: resolved.status === 'learning'
             ? String(WORD_STATUS.LEARNING)
@@ -377,6 +382,18 @@ export const WordSyncContent: Component = () => {
     if (!w) return;
 
     const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
+
+    // Word-presentation task: rating a finer aspect demonstrates its prerequisite
+    // chain was traversed (the written word had to be read to reach prosody). A
+    // dedicated audio task would pass [] instead — the task defines what the
+    // observation proves, never the engine.
+    const { attemptId } = recordAttempt(w.word, aspect, quality, {
+      language: settings.language,
+      method: opts?.method,
+      demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
+      latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
+    });
+
     setUndoStack((prev) => {
       const next = [
         ...prev,
@@ -385,6 +402,7 @@ export const WordSyncContent: Component = () => {
           language: settings.language,
           previousKnowledge,
           previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
+          attemptIds: [attemptId],
           previousRatedCount: ratedCount(),
           previousLastRating: lastRating(),
           previousSamplingLevel: samplingLevel(),
@@ -393,17 +411,6 @@ export const WordSyncContent: Component = () => {
       ];
       if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
       return next;
-    });
-
-    // Word-presentation task: rating a finer aspect demonstrates its prerequisite
-    // chain was traversed (the written word had to be read to reach prosody). A
-    // dedicated audio task would pass [] instead — the task defines what the
-    // observation proves, never the engine.
-    recordAttempt(w.word, aspect, quality, {
-      language: settings.language,
-      method: opts?.method,
-      demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
-      latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
     });
 
     if (quality === 'missed') {
@@ -435,23 +442,6 @@ export const WordSyncContent: Component = () => {
     if (!w || observations.length === 0) return;
 
     const previousKnowledge = getWordKnowledgeSnapshotForForms(w.word, settings.language);
-    setUndoStack((prev) => {
-      const next = [
-        ...prev,
-        {
-          word: w,
-          language: settings.language,
-          previousKnowledge,
-          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
-          previousRatedCount: ratedCount(),
-          previousLastRating: lastRating(),
-          previousSamplingLevel: samplingLevel(),
-          previousLevelCursors: new Map(levelCursors),
-        },
-      ];
-      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-      return next;
-    });
 
     const attemptId = nextAttemptId();
     const latencyMs = wordShownAt ? Date.now() - wordShownAt : undefined;
@@ -465,6 +455,25 @@ export const WordSyncContent: Component = () => {
         ...(latencyMs !== undefined ? { latencyMs } : {}),
       });
     }
+
+    setUndoStack((prev) => {
+      const next = [
+        ...prev,
+        {
+          word: w,
+          language: settings.language,
+          previousKnowledge,
+          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
+          attemptIds: [attemptId],
+          previousRatedCount: ratedCount(),
+          previousLastRating: lastRating(),
+          previousSamplingLevel: samplingLevel(),
+          previousLevelCursors: new Map(levelCursors),
+        },
+      ];
+      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
+      return next;
+    });
 
     if (anyMissed) markWordSyncSeen(w.word, settings.language);
 
@@ -516,6 +525,7 @@ export const WordSyncContent: Component = () => {
       undoEntry.previousSeenAt,
       undoEntry.language,
     );
+    appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds);
     setSessionRatedSet((rated) => {
       const next = new Set(rated);
       next.delete(undoEntry.word.word);

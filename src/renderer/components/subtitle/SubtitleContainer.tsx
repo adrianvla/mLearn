@@ -247,7 +247,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       // Non-translatable tokens (particles, punctuation) don't affect known status
       if (!isTokenTranslatable(t)) return true;
       const word = getTokenLookupWord(t, tokenizerCapabilities());
-      return flashcardCtx.isWordKnownComprehensiveSync(word, settings.language);
+      return flashcardCtx.isWordSettledSync(word, settings.language);
     });
   });
 
@@ -340,10 +340,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
       if (!displayWord) continue;
 
-      // Skip known words unless liveTranslatorIncludeKnown is enabled
+      // Skip settled words (known or explicitly excluded) unless liveTranslatorIncludeKnown is enabled
       if (!settings.liveTranslatorIncludeKnown) {
-        const isKnown = flashcardCtx.isWordKnownComprehensiveSync(lookupWord, settings.language);
-        if (isKnown) continue;
+        if (flashcardCtx.isWordSettledSync(lookupWord, settings.language)) continue;
       }
 
       // Deduplicate within this subtitle to avoid double-translating the same word

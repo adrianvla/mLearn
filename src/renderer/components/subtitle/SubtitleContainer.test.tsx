@@ -28,6 +28,7 @@ const mockSettings: Record<string, unknown> = {
 let mockLanguageData: LanguageData | null = null;
 const mockGetCanonicalForm = vi.fn((word: string) => word);
 const mockIsWordKnownComprehensiveSync = vi.fn((_word: string, language?: string) => language === 'ar');
+const mockIsWordSettledSync = vi.fn((word: string, language?: string) => mockIsWordKnownComprehensiveSync(word, language));
 const mockTrackWordSeen = vi.fn();
 const mockCancelWordHover = vi.fn();
 const mockTranslateWord = vi.fn().mockResolvedValue({
@@ -50,6 +51,7 @@ vi.mock('../../context', () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     isWordKnownByText: () => false,
     isWordKnownComprehensiveSync: mockIsWordKnownComprehensiveSync,
+    isWordSettledSync: (word: string, language?: string) => mockIsWordSettledSync(word, language),
     getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => ({
       status: mockIsWordKnownComprehensiveSync(word, language) ? 'known' : 'unknown',
       source: 'None',

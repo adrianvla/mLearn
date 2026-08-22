@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
-import { IPC_CHANNELS } from '../../shared/constants';
+import { IPC_CHANNELS, KNOWLEDGE_ASPECTS, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
@@ -37,14 +37,32 @@ function isoWeekKey(timestamp: number): string {
   return `${date.getUTCFullYear()}-${week}`;
 }
 
+const VALID_KINDS = new Set(['status', 'review', 'rating', 'rollup', 'retraction']);
+const VALID_ASPECTS = new Set<string>([...KNOWLEDGE_ASPECTS, 'grammar']);
+const VALID_SOURCES = new Set([...KNOWLEDGE_SOURCES, 'manual', 'grammar']);
+
+function isAttemptId(value: unknown): boolean {
+  return typeof value === 'string' || typeof value === 'number';
+}
+
 function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const event = value as Partial<KnowledgeEvent>;
-  return typeof event.t === 'number'
-    && Number.isFinite(event.t)
-    && (event.kind === 'status' || event.kind === 'review' || event.kind === 'rating' || event.kind === 'rollup')
-    && typeof event.source === 'string'
-    && (event.aspect === 'meaning' || event.aspect === 'reading' || event.aspect === 'prosody');
+  if (typeof event.t !== 'number' || !Number.isFinite(event.t)) return false;
+  if (!VALID_KINDS.has(event.kind as string)) return false;
+  if (!VALID_SOURCES.has(event.source as string)) return false;
+  // gender/pronunciation/orthography joined the aspect union after this
+  // validator was written; rejecting them here silently dropped their evidence
+  // from disk on every reload.
+  if (!VALID_ASPECTS.has(event.aspect as string)) return false;
+  if (event.kind === 'retraction') return isAttemptId(event.retracts);
+  if (event.attemptId !== undefined && !isAttemptId(event.attemptId)) return false;
+  if (event.presentedSurface !== undefined && typeof event.presentedSurface !== 'string') return false;
+  if (event.targetRef !== undefined) {
+    if (!event.targetRef || typeof event.targetRef !== 'object' || Array.isArray(event.targetRef)) return false;
+    if (typeof event.targetRef.kind !== 'string' || typeof event.targetRef.id !== 'string') return false;
+  }
+  return true;
 }
 
 function normalizeLog(value: unknown): KnowledgeEventLog {

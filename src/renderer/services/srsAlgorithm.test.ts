@@ -60,9 +60,6 @@ function createTestCard(overrides: Partial<Flashcard> = {}, language?: string): 
 
 function createTestMeta(overrides: Partial<FlashcardMeta> = {}): FlashcardMeta {
     return {
-        newCardsToday: 0,
-        reviewsToday: 0,
-        newCardsDate: '2025-01-15',
         maxNewCardsPerDay: 20,
         maxNewCardsPerDayLearning: 20,
         maxReviewsPerDay: -1,
@@ -196,12 +193,6 @@ describe('isToday', () => {
         expect(isToday(ts, 4)).toBe(false);
     });
 
-    it('defaults newDayHour to 4', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T12:00:00'));
-        const ts = new Date('2025-06-15T10:00:00').getTime();
-        expect(isToday(ts)).toBe(true);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -481,8 +472,6 @@ describe('getDefaultMeta', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T12:00:00'));
         const meta = getDefaultMeta(4);
-        expect(meta.newCardsToday).toBe(0);
-        expect(meta.reviewsToday).toBe(0);
         expect(meta.maxNewCardsPerDay).toBe(20);
         expect(meta.maxNewCardsPerDayLearning).toBe(20);
         expect(meta.maxReviewsPerDay).toBe(-1);
@@ -493,13 +482,6 @@ describe('getDefaultMeta', () => {
         expect(meta.newIntervalModifier).toBe(100);
         expect(meta.reviewIntervalModifier).toBe(100);
         expect(meta.maxInterval).toBe(36500);
-    });
-
-    it('sets newCardsDate to today string respecting newDayHour', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T12:00:00'));
-        const meta = getDefaultMeta(4);
-        expect(meta.newCardsDate).toBe('2025-06-15');
     });
 
     it('defaults newDayHour to 4', () => {

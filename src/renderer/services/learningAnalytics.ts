@@ -1,4 +1,5 @@
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { stripRetractedLog } from '../../shared/knowledgeEvents';
 import { ANKI_EASE } from '../../shared/constants';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
 
@@ -32,9 +33,11 @@ export function unifyEventLogByWord(
   log: KnowledgeEventLog,
   familyKeysFor: (key: string) => readonly string[] | undefined,
 ): Map<string, KnowledgeEvent[]> {
-  const logKeys = new Set(Object.keys(log));
+  // Undone attempts must not feed cohort metrics.
+  const effectiveLog = stripRetractedLog(log);
+  const logKeys = new Set(Object.keys(effectiveLog));
   const groups = new Map<string, KnowledgeEvent[]>();
-  for (const [key, events] of Object.entries(log)) {
+  for (const [key, events] of Object.entries(effectiveLog)) {
     const family = familyKeysFor(key)?.filter((familyKey) => logKeys.has(familyKey));
     const group = family && family.length > 0 ? [...family].sort()[0] : key;
     const existing = groups.get(group);

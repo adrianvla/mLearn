@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Flashcard, IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
 import type { ComprehensiveKnowledgeDeps } from './comprehensiveKnowledge';
-import { getComprehensiveWordStatusWithSource } from './comprehensiveKnowledge';
+import { getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from './comprehensiveKnowledge';
 
 function makeDeps(overrides: Partial<ComprehensiveKnowledgeDeps> = {}): ComprehensiveKnowledgeDeps {
   return {
@@ -141,12 +141,13 @@ describe('getComprehensiveWordStatusWithSource', () => {
       },
     });
 
+    // Exclusion is teaching policy, not knowledge: honest unknown + excluded flag.
     expect(getComprehensiveWordStatusWithSource('おしいれ', deps)).toEqual({
-      status: 'known',
+      status: 'unknown',
       source: 'IgnoredWords',
       timesSeen: 0,
       matchedWord: '押し入れ',
-      ease: 1.8,
+      excluded: true,
     });
   });
 
@@ -166,5 +167,65 @@ describe('getComprehensiveWordStatusWithSource', () => {
       matchedWord: '連続',
       ease: 1.8,
     });
+  });
+});
+
+describe('exclusion vs knowledge (Tier-2 semantics)', () => {
+  it('ignored words resolve honestly: unknown status + excluded flag, never known', () => {
+    const deps = makeDeps({
+      ignoredWords: { 'ru:hash:слово': {} as IgnoredWordEntry },
+    });
+
+    expect(getComprehensiveWordStatusWithSource('слово', deps)).toEqual({
+      status: 'unknown',
+      source: 'IgnoredWords',
+      timesSeen: 0,
+      matchedWord: 'слово',
+      excluded: true,
+    });
+  });
+
+  it('evidence outranks exclusion under highest resolution', () => {
+    const card = { id: 'c1', state: 'review', ease: 2.5 } as unknown as Flashcard;
+    const deps = makeDeps({
+      ignoredWords: { 'ru:hash:слово': {} as IgnoredWordEntry },
+      getCardByWordSync: (word) => (word === 'слово' ? card : null),
+    });
+
+    const resolved = getComprehensiveWordStatusWithSource('слово', deps);
+    expect(resolved.status).toBe('known');
+    expect(resolved.source).toBe('Srs');
+    expect(resolved.excluded).toBeUndefined();
+  });
+
+  it('explicit user claims (knownUntracked) stay a distinct evidence-backed source', () => {
+    const deps = makeDeps({
+      knownUntracked: { 'ru:hash:слово': true },
+      ignoredWords: {},
+    });
+
+    expect(getComprehensiveWordStatusWithSource('слово', deps)).toMatchObject({
+      status: 'known',
+      source: 'KnownWordsList',
+    });
+  });
+});
+
+describe('toSelectionBlockingStatus', () => {
+  it('blocks suggestions on passive familiarity at/above the known band without claiming knowledge', () => {
+    const resolved = getComprehensiveWordStatusWithSource('слово', makeDeps({
+      wordKnowledge: { 'ru:hash:слово': { ease: 2.0, timesSeen: 50 } as PassiveWordKnowledge },
+    }));
+    expect(resolved.status).toBe('learning');
+    expect(toSelectionBlockingStatus(resolved, 1.8)).toBe('known');
+  });
+
+  it('leaves genuine statuses untouched', () => {
+    const deps = makeDeps();
+    expect(toSelectionBlockingStatus(getComprehensiveWordStatusWithSource('x', deps), 1.8)).toBe('unknown');
+    const learning = getComprehensiveWordStatusWithSource('слово', makeDeps({
+      wordKnowledge: { 'ru:hash:слово': { ease: 1.6, timesSeen: 3 } as PassiveWordKnowledge },
+    }));
+    expect(toSelectionBlockingStatus(learning, 1.8)).toBe('learning');
   });
 });

@@ -59,9 +59,6 @@ function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
     grammarKnowledge: {},
     meta: {
       perLanguage: {},
-      newCardsToday: 0,
-      reviewsToday: 0,
-      newCardsDate: '2024-01-01',
       maxNewCardsPerDay: 20,
       maxNewCardsPerDayLearning: -1,
       maxReviewsPerDay: -1,
@@ -193,7 +190,7 @@ describe('computeWordLevelStats', () => {
   it('counts known words from wordKnowledge ease', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('en', 'hello')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: 'hello' },
+        [lk('en', 'hello')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, word: 'hello' },
       },
     });
     const freq = makeFreq();
@@ -209,7 +206,7 @@ describe('computeWordLevelStats', () => {
   it('matches canonicalized frequency words to stored knowledge keys', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('ja', '会う')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '会う', language: 'ja' },
+        [lk('ja', '会う')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, word: '会う', language: 'ja' },
       },
     });
     const freq: WordFrequencyMap = {
@@ -280,7 +277,7 @@ describe('computeWordLevelStats', () => {
   it('counts outside levels for tracked words not in frequency list', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('en', 'untracked')]: { ease: 3.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: 'untracked' },
+        [lk('en', 'untracked')]: { ease: 3.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, word: 'untracked' },
       },
     });
     const freq = makeFreq();
@@ -763,7 +760,7 @@ describe('computeBeyondExamLevelStats', () => {
   it('resolves beyond-exam word status from the store', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('ja', '赤い')]: { ease: 4, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '赤い', language: 'ja' },
+        [lk('ja', '赤い')]: { ease: 4, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '赤い', language: 'ja', lastStatusChange: 1 },
       },
     });
 

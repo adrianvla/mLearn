@@ -16,10 +16,6 @@ vi.mock('@renderer/context/migrationSignals', () => ({
   consumePendingFlashcardMigration: () => null,
   setMigrationListenerReady: vi.fn(),
 }));
-vi.mock('@renderer/services/statsService', () => ({
-  getLocalStorageMigrationInfo: () => ({ occurred: false, migratedWordCount: 0 }),
-  resetLocalStorageMigrationInfo: vi.fn(),
-}));
 vi.mock('@renderer/services/zhVariantCleanup', () => ({ runZhVariantCleanup: mocks.runZhVariantCleanup }));
 vi.mock('@renderer/components/common/Feedback/Toast', () => ({ showToast: vi.fn() }));
 

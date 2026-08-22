@@ -84,13 +84,12 @@ vi.mock('../../../hooks/useKnowledgeHistory', () => ({
 
 const knowledgeKey = (word: string, language = 'ja'): string => `${language}:${hashWordSync(word)}`;
 
-const aspectRecord = (status: WordStatus, inherited?: true): AspectKnowledge => ({
+const aspectRecord = (status: WordStatus): AspectKnowledge => ({
   status,
   ease: status === 'known' ? 1.8 : status === 'learning' ? 1.55 : 1.3,
   source: 'Manual',
   lastStatusChange: 1,
   updatedAt: 1,
-  ...(inherited === true ? { inherited: true } : {}),
 });
 
 const seedEntry = (aspects: Partial<Record<Exclude<KnowledgeAspect, 'meaning'>, AspectKnowledge>>): void => {
@@ -133,11 +132,11 @@ describe('WordStatusPillKnowledge', () => {
     // meaning-known never fabricates finer-aspect knowledge.
     getAspectStatusMock.mockImplementation((_word: string, aspect: KnowledgeAspect) => {
       if (aspect === 'meaning') {
-        return { status: comprehensiveResult('known').status, ease: 2.5, source: 'None', inherited: false };
+        return { status: comprehensiveResult('known').status, ease: 2.5, source: 'None' };
       }
       const record = wordKnowledge[knowledgeKey('apple')]?.aspects?.[aspect];
-      if (record) return { status: record.status, ease: record.ease, source: record.source, inherited: record.inherited === true };
-      return { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true };
+      if (record) return { status: record.status, ease: record.ease, source: record.source };
+      return { status: 'unknown', ease: 0, source: 'None', untracked: true };
     });
   });
 
@@ -187,16 +186,6 @@ describe('WordStatusPillKnowledge', () => {
     expect(container.textContent).not.toContain('mlearn.Knowledge.AspectInherited');
     // Prosody has no record: hidden, not inherited.
     expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Prosody');
-
-    dispose();
-  });
-
-  it('shows the inherited marker only for legacy cascade-seeded records (inherited flag)', () => {
-    seedEntry({ reading: aspectRecord('known', true) });
-    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
-
-    // The flag is a legacy marker from the removed cascade seed; it still displays.
-    expect(container.textContent.match(/mlearn\.Knowledge\.AspectInherited/g)).toHaveLength(1);
 
     dispose();
   });

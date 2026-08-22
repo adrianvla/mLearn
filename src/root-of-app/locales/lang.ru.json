@@ -1325,7 +1325,8 @@
           "Srs": "SRS",
           "Anki": "Anki",
           "PassiveTracking": "Пассивное отслеживание",
-          "Manual": "Вручную"
+          "Manual": "Вручную",
+          "Grammar": "Грамматика"
         },
         "Table": {
           "Time": "Время",

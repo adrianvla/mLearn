@@ -8,7 +8,9 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
-import { SURFACE_SCOPED_ASPECTS, type AttemptQuality } from '../../shared/constants';
+import { type AttemptQuality } from '../../shared/constants';
+import { isSurfaceScopedAspect } from '../../shared/graph/targets';
+import { applyGrammarEncounter, applyGrammarFailure, classifyGrammarStatus, initialGrammarEase } from '../../shared/utils/grammarPolicy';
 import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -32,12 +34,12 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
-import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
+import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
 import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, type AspectStatusResult } from '../utils/aspectKnowledge';
 import { appendEvents } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
-import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
-import { nextAttemptId } from '../../shared/knowledgeEvents';
+import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { nextAttemptId, type AttemptId } from '../../shared/knowledgeEvents';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
@@ -206,7 +208,12 @@ interface FlashcardContextValue {
   buryCard: (id: string) => void;
 
   // Review operations
-  answerCard: (rating: SRS.Rating, cardId?: string, timeSpentMs?: number) => boolean;
+  answerCard: (
+    rating: SRS.Rating,
+    cardId?: string,
+    timeSpentMs?: number,
+    attempt?: { attemptId: AttemptId; knowledgeBefore?: Record<string, PassiveWordKnowledge | undefined> },
+  ) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
 
@@ -296,6 +303,8 @@ interface FlashcardContextValue {
   getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => import('../../renderer/utils/comprehensiveKnowledge').ComprehensiveWordStatusResult;
   /** Shorthand: is word known by any knowledge bank? */
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
+  /** Selection predicate: evidence-backed known OR explicit exclusion (never claims knowledge). */
+  isWordSettledSync: (word: string, language?: string) => boolean;
   trackWordStatusChange: (word: string, language?: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
   /** Snapshot wordKnowledge entries across all surface-form hashes (undo support for multi-hash writes) */
@@ -315,14 +324,18 @@ interface FlashcardContextValue {
   /**
    * Canonical attempt-rating evidence interpreter. `attemptId` groups the
    * observation events of one logical learner response (profile submits pass a
-   * shared id; absent = standalone attempt).
+   * shared id; absent = standalone attempt). Returns the attempt id plus a
+   * pre-write knowledge snapshot so callers can undo the attempt's state and
+   * retract its events.
    */
   recordAttempt: (
     word: string,
     aspect: KnowledgeAspect,
     quality: AttemptQuality,
-    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number; attemptId?: number },
-  ) => void;
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number; attemptId?: AttemptId },
+  ) => { attemptId: AttemptId; knowledgeBefore: Record<string, PassiveWordKnowledge | undefined> };
+  /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
+  appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
   // Word sync seen tracking
@@ -490,7 +503,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
 
     let flashcards = partial.flashcards || {};
-    const lastDate = partial.meta?.newCardsDate;
+    // Legacy stores carried the day marker at the top level; perLanguage is canonical now.
+    const lastDate = (partial.meta as { newCardsDate?: string } | undefined)?.newCardsDate;
     if (lastDate && lastDate !== today) {
       flashcards = SRS.unburyCards(flashcards);
     }
@@ -519,13 +533,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
         };
       }
 
-      meta.newCardsToday = meta.perLanguage[lang].newCardsToday;
-      meta.reviewsToday = meta.perLanguage[lang].reviewsToday;
-      meta.newCardsDate = meta.perLanguage[lang].newCardsDate;
-    } else {
-      meta.newCardsToday = 0;
-      meta.reviewsToday = 0;
-      meta.newCardsDate = today;
     }
 
     // Migration: strip aspect records seeded by the removed meaning-cascade.
@@ -539,7 +546,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
         continue;
       }
       const kept = Object.fromEntries(
-        Object.entries(entry.aspects).filter(([, record]) => record.inherited !== true),
+        // Legacy persisted records may still carry the removed cascade-seed flag.
+        Object.entries(entry.aspects).filter(([, record]) => (record as { inherited?: unknown }).inherited !== true),
       );
       if (Object.keys(kept).length === Object.keys(entry.aspects).length) {
         wordKnowledge[lk] = entry;
@@ -1189,7 +1197,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Answer current card
   // cardId should always be passed from the UI to avoid a second getNextCard() call
   // (which uses Math.random() and may return a different card than the one displayed).
-  const answerCard = (rating: SRS.Rating, cardId?: string, timeSpentMs?: number): boolean => {
+  // `attempt` ties the review event to the logical attempt and lets undo restore
+  // the knowledge recordAttempt wrote plus retract the attempt's events.
+  const answerCard = (
+    rating: SRS.Rating,
+    cardId?: string,
+    timeSpentMs?: number,
+    attempt?: { attemptId: AttemptId; knowledgeBefore?: Record<string, PassiveWordKnowledge | undefined> },
+  ): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return false;
 
@@ -1205,10 +1220,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
         source: 'srs',
         aspect: 'meaning',
         rating,
+        presentedSurface: card.content.front,
         easeBefore: card.ease,
         easeAfter: updated.ease,
         intervalBefore: card.interval,
         intervalAfter: updated.interval,
+        ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
       }],
     }).catch((e) => log.warn('knowledge event append failed:', e));
 
@@ -1223,7 +1240,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     const remainsQueued = newQueue.newQueue.includes(card.id) || newQueue.scheduledQueue.includes(card.id);
 
-    // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone)
+    // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone).
+    // When an attempt id is supplied, undo also restores the knowledge recordAttempt
+    // wrote and appends retraction tombstones so replay/analytics drop the attempt.
     const cardSnapshot: Flashcard = { ...card, content: { ...card.content } };
     const metaSnapshot = { ...store.meta };
     const undoToday = SRS.getTodayDateString(newDayHour());
@@ -1248,6 +1267,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
               }
             }
           }));
+          if (attempt?.knowledgeBefore) {
+            setStore(produce((s) => {
+              for (const [lk, prev] of Object.entries(attempt.knowledgeBefore ?? {})) {
+                if (prev) {
+                  s.wordKnowledge[lk] = { ...prev };
+                } else {
+                  delete s.wordKnowledge[lk];
+                }
+              }
+            }));
+          }
+          if (attempt?.attemptId !== undefined) {
+            appendRetractions(card.content.front, cardLang, [attempt.attemptId]);
+          }
         },
       }];
       if (newStack.length > MAX_UNDO_STACK_SIZE) newStack.shift();
@@ -1267,9 +1300,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
         plm.reviewsToday++;
       }
       s.meta.perLanguage[lang] = plm;
-      s.meta.newCardsToday = plm.newCardsToday;
-      s.meta.reviewsToday = plm.reviewsToday;
-      s.meta.newCardsDate = plm.newCardsDate;
 
       // Update daily stats
       if (!s.dailyStats[today]) {
@@ -1446,6 +1476,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       ).known
       : undefined,
   ));
+  /** Teaching-policy exclusions (ignoredWords): never select/teach/test these. */
+  const excludedWordKeys = createMemo(() => new Set(Object.keys(store.ignoredWords)));
   const getPrimaryWordFormForLanguage = (word: string, language = settings.language): string => (
     getWordFormsForLanguage(word, language)[0] ?? word
   );
@@ -1633,7 +1665,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const now = Date.now();
     const unpopulatedCard = findUnpopulatedFlashcardForWord(word, lang);
 
-    const comprehensiveStatus = getComprehensiveWordStatusSync(word, lang);
+    const comprehensiveStatus = toSelectionBlockingStatus(
+      getComprehensiveWordStatusWithSourceSync(word, lang),
+      passiveKnownEaseThreshold(),
+    );
     const suggestionLanguageData = languageDataFor(lang);
     const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? getDictionaryTargetLanguageForSettings(settings, lang);
     const keepSuggestion = shouldKeepSuggestion(
@@ -1648,6 +1683,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         dictionaryTargetLanguage,
         languageData: suggestionLanguageData,
       },
+      excludedWordKeys(),
     );
     if (!keepSuggestion && !unpopulatedCard) return;
 
@@ -1735,7 +1771,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
       .filter((s) => {
         if (s.language !== lang) return false;
         const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(s.word, lang) !== null;
-        const comprehensiveStatus = getComprehensiveWordStatusSync(s.word, lang);
+        const comprehensiveStatus = toSelectionBlockingStatus(
+          getComprehensiveWordStatusWithSourceSync(s.word, lang),
+          passiveKnownEaseThreshold(),
+        );
         const level = getSuggestedFlashcardLevel(s);
         const suggestionLanguageData = languageDataFor(lang);
         const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
@@ -1751,6 +1790,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             dictionaryTargetLanguage,
             languageData: suggestionLanguageData,
           },
+          excludedWordKeys(),
         );
         return keep || hasUnpopulatedCard;
       })
@@ -1938,13 +1978,17 @@ export const FlashcardProvider: ParentComponent = (props) => {
           settings,
           known,
           userLevel,
-          getComprehensiveWordStatusSync(suggestion.word, lang),
+          toSelectionBlockingStatus(
+            getComprehensiveWordStatusWithSourceSync(suggestion.word, lang),
+            passiveKnownEaseThreshold(),
+          ),
           suggestionLanguageData,
           {
             getWordForms: (word) => getWordFormsForLanguage(word, lang),
             dictionaryTargetLanguage,
             languageData: suggestionLanguageData,
           },
+          excludedWordKeys(),
         );
       })
       .map((suggestion) => suggestion.id);
@@ -2233,7 +2277,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
         // through to the existing-card check below.
         if (
           options?.preserveExistingStatus &&
-          getComprehensiveWordStatusSync(canonical, lang) !== 'unknown'
+          (() => {
+            const resolved = getComprehensiveWordStatusWithSourceSync(canonical, lang);
+            return resolved.status !== 'unknown' || resolved.excluded === true;
+          })()
         ) {
           skipped++;
           continue;
@@ -2628,7 +2675,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     learningThreshold: passiveLearningEaseThreshold(),
     getCardByWordSync: (value: string) => getCardByWordForLanguageSync(value, language),
     ankiStatus: getAnkiStatusForWord(word, language),
-    sourceOrder: settings.knowledgeSourceOrder,
+    // Legacy persisted settings may still carry 'manual' (v2.0 name for passiveTracking).
+    sourceOrder: settings.knowledgeSourceOrder.map(
+      (src) => (src === ('manual' as KnowledgeSource) ? 'passiveTracking' : src) as KnowledgeSource,
+    ),
     resolutionMode: settings.knowledgeResolutionMode,
   });
 
@@ -2638,6 +2688,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const   getComprehensiveWordStatusWithSourceSync = (word: string, language = settings.language) => {
     return getComprehensiveWordStatusWithSource(word, comprehensiveDeps(word, language));
+  };
+
+  /**
+   * Selection/display predicate: has the learner settled this word (evidence-backed
+   * known OR explicit teaching exclusion)? Used where ignored words must not create
+   * unknown-word noise — it never claims knowledge, only absence of noise.
+   */
+  const isWordSettledSync = (word: string, language = settings.language): boolean => {
+    const resolved = getComprehensiveWordStatusWithSourceSync(word, language);
+    return resolved.status === 'known' || resolved.excluded === true;
   };
 
   /** Canonical per-aspect read (chain inheritance / orthogonal untracked semantics live in one place). */
@@ -2685,8 +2745,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
   /**
    * Directly set the ease factor for a word in wordKnowledge.
    * Used by the "Sync with me" word assessment window to record user ratings.
+   * `opts.emitTransitionEvents: false` (attempt flow) suppresses the per-form
+   * transition events — recordAttempt then writes ONE attributed observation
+   * per changed key instead of an unattributed transition + observation pair.
+   * Returns the form keys whose status changed.
    */
-  const setWordKnowledgeEase = (word: string, ease: number, reading?: string, language = settings.language) => {
+  const setWordKnowledgeEase = (
+    word: string,
+    ease: number,
+    reading?: string,
+    language = settings.language,
+    opts?: { emitTransitionEvents?: boolean; attemptId?: AttemptId },
+  ): string[] => {
     // Multi-hash rule (#230): the resolver reads every surface-form hash, so a
     // single-hash rating write is shadowed by sibling forms' stale entries.
     const forms = getWordFormsForLanguage(word, language);
@@ -2695,6 +2765,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const now = Date.now();
     const eased = ease + settings.manualStatusEaseBuffer;
     const ratingEvents: Record<string, KnowledgeEvent[]> = {};
+    const changedKeys: string[] = [];
     const easeToStatus = (e: number): WordStatus =>
       e >= passiveKnownEaseThreshold() ? 'known'
         : e >= passiveLearningEaseThreshold() ? 'learning' : 'unknown';
@@ -2741,17 +2812,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
         const toStatus = easeToStatus(eased);
         if (fromStatus !== toStatus) {
+          changedKeys.push(lk);
           ratingEvents[lk] = [{
             t: now, kind: 'rating', source: 'manual', aspect: 'meaning',
             fromStatus, toStatus, easeBefore, easeAfter: eased,
+            ...(opts?.attemptId !== undefined ? { attemptId: opts.attemptId } : {}),
           }];
         }
       }
     }));
     saveFlashcards();
-    if (Object.keys(ratingEvents).length > 0) {
+    if (opts?.emitTransitionEvents !== false && Object.keys(ratingEvents).length > 0) {
       appendEvents(ratingEvents).catch((e) => log.warn('knowledge event append failed:', e));
     }
+    return changedKeys;
   };
 
   const setComprehensiveWordStatus = (word: string, status: WordStatus, language = settings.language) => {
@@ -2837,13 +2911,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
     status: WordStatus,
     source: KnowledgeSource | 'manual',
     language = settings.language,
+    attemptId?: AttemptId,
   ) => {
     const lang = language;
     // #230 all-form-hash write, with its one exception: surface-scoped aspects
     // (orthography) belong to the exact written form presented — fanning
     // orthography(殖える) out to 増える's hash would claim recognition of a
     // form the learner never interacted with.
-    const forms = SURFACE_SCOPED_ASPECTS.includes(aspect)
+    const forms = isSurfaceScopedAspect(aspect)
       ? [word]
       : getWordFormsForLanguage(word, lang);
     const now = Date.now();
@@ -2884,6 +2959,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           aspectEvents[lk] = [{
             t: now, kind: 'status', source, aspect,
             fromStatus: prior, toStatus: status, easeAfter: easeForStatus(status),
+            ...(attemptId !== undefined ? { attemptId } : {}),
           }];
         }
       }
@@ -2934,33 +3010,37 @@ export const FlashcardProvider: ParentComponent = (props) => {
       demonstrated?: readonly KnowledgeAspect[];
       latencyMs?: number;
       /** Shared logical-attempt id for multi-observation submits (profile mode). Absent = new attempt. */
-      attemptId?: number;
+      attemptId?: AttemptId;
     },
-  ) => {
+  ): { attemptId: AttemptId; knowledgeBefore: Record<string, PassiveWordKnowledge | undefined> } => {
     const language = options?.language ?? settings.language;
     const attemptId = options?.attemptId ?? nextAttemptId();
     const demonstrated = options?.demonstrated ?? [];
+    const knowledgeBefore = getWordKnowledgeSnapshotForForms(word, language);
     const before = getComprehensiveWordStatusWithSourceSync(word, language);
 
     if (aspect === 'meaning') {
+      let targetEase: number | null;
       if (quality === 'missed') {
-        setWordKnowledgeEase(word, settings.easeThresholdUnknown, undefined, language);
+        targetEase = settings.easeThresholdUnknown;
       } else if (quality === 'struggled') {
-        setWordKnowledgeEase(word, settings.easeThresholdLearning, undefined, language);
+        targetEase = settings.easeThresholdLearning;
+      } else if ((before.ease ?? 0) < settings.easeThresholdKnown) {
+        targetEase = settings.easeThresholdKnown;
       } else {
-        const current = before.ease ?? 0;
-        if (current < settings.easeThresholdKnown) {
-          setWordKnowledgeEase(word, settings.easeThresholdKnown, undefined, language);
-        }
+        targetEase = null;
+      }
+      if (targetEase !== null) {
+        setWordKnowledgeEase(word, targetEase, undefined, language, { emitTransitionEvents: false });
       }
     } else {
       if (quality === 'fluent') {
         const current = getAspectStatusSync(word, aspect, comprehensiveDeps(word, language));
         if (current.status !== 'known') {
-          setAspectStatus(word, aspect, 'known', 'manual', language);
+          setAspectStatus(word, aspect, 'known', 'manual', language, attemptId);
         }
       } else {
-        setAspectStatus(word, aspect, quality === 'missed' ? 'unknown' : 'learning', 'manual', language);
+        setAspectStatus(word, aspect, quality === 'missed' ? 'unknown' : 'learning', 'manual', language, attemptId);
       }
       // Prerequisite evidence is judged AFTER the rated aspect write (the rated
       // aspect is never its own prerequisite) and independently of the meaning
@@ -2969,7 +3049,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         if (pre === 'meaning' || pre === aspect) continue;
         const preStatus = getAspectStatusSync(word, pre, comprehensiveDeps(word, language));
         if (preStatus.status === 'unknown') {
-          setAspectStatus(word, pre, 'learning', 'manual', language);
+          setAspectStatus(word, pre, 'learning', 'manual', language, attemptId);
         }
       }
       if (demonstrated.includes('meaning') && (before.ease ?? 0) < settings.easeThresholdLearning) {
@@ -2982,21 +3062,26 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // future calibration. fromStatus/toStatus/easeAfter keep replay/analytics
     // consistent with the underlying writers' transition events.
     const storageWord = getPrimaryWordFormForLanguage(word, language);
+    const observation: KnowledgeEvent = {
+      t: Date.now(),
+      kind: 'rating',
+      source: 'manual',
+      aspect,
+      quality,
+      attemptId,
+      // Exact presented surface — survives even when storage keys resolve to a
+      // different primary family form. Never fan observations out from this.
+      presentedSurface: word,
+      ...(options?.method ? { method: options.method } : {}),
+      ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
+      fromStatus: before.status,
+      toStatus: after.status,
+      easeAfter: after.ease,
+    };
     appendEvents({
-      [langKey(language, SRS.hashWordSync(storageWord))]: [{
-        t: Date.now(),
-        kind: 'rating',
-        source: 'manual',
-        aspect,
-        quality,
-        attemptId,
-        ...(options?.method ? { method: options.method } : {}),
-        ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
-        fromStatus: before.status,
-        toStatus: after.status,
-        easeAfter: after.ease,
-      }],
+      [langKey(language, SRS.hashWordSync(storageWord))]: [observation],
     }).catch((e) => log.warn('knowledge event append failed:', e));
+    return { attemptId, knowledgeBefore };
   };
 
   const setWordBankStatus = async (
@@ -3179,9 +3264,55 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  /**
+   * Undo bookkeeping: append a retraction tombstone for each attemptId to every
+   * form-family key of the word. Projections drop retracted events via
+   * stripRetractions; the raw log stays append-only.
+   */
+  const appendRetractions = (word: string, language: string, attemptIds: readonly AttemptId[]) => {
+    if (attemptIds.length === 0) return;
+    const now = Date.now();
+    const eventsByKey: KnowledgeEventLog = {};
+    for (const form of getWordFormsForLanguage(word, language)) {
+      eventsByKey[langKey(language, SRS.hashWordSync(form))] = attemptIds.map((retracts) => ({
+        t: now, kind: 'retraction', source: 'manual', aspect: 'meaning', retracts,
+      }));
+    }
+    appendEvents(eventsByKey).catch((e) => log.warn('knowledge event retraction failed:', e));
+  };
+
   // ========================
   // Grammar Knowledge
   // ========================
+
+  // Grammar observations go through the same evidence journal as words: every
+  // encounter/failure appends an event (targetRef kind 'grammar-pattern') and
+  // the materialized entry is classified by the shared grammar policy — no
+  // separate epistemic engine.
+  const appendGrammarEvent = (
+    pattern: string,
+    lang: string,
+    now: number,
+    easeAfter: number,
+    failed: boolean,
+    timesSeenDelta = 0,
+  ) => {
+    const thresholds = { learning: passiveLearningEaseThreshold(), known: passiveKnownEaseThreshold() };
+    const toStatus = classifyGrammarStatus(easeAfter, thresholds);
+    appendEvents({
+      [langKey(lang, pattern)]: [{
+        t: now,
+        kind: 'status',
+        source: 'grammar',
+        aspect: 'grammar',
+        toStatus,
+        easeAfter,
+        ...(timesSeenDelta ? { timesSeenDelta } : {}),
+        targetRef: { kind: 'grammar-pattern', id: pattern },
+      }],
+    }).catch((e) => log.warn('knowledge event append failed:', e));
+    void failed;
+  };
 
   // Track that a grammar pattern was passively encountered
   const trackGrammarEncountered = (pattern: string, level = 0, language = settings.language) => {
@@ -3192,7 +3323,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (!s.grammarKnowledge[lk]) {
         s.grammarKnowledge[lk] = {
           pattern,
-          ease: SRS.MIN_EASE,
+          ease: initialGrammarEase(),
           timesEncountered: 0,
           timesFailed: 0,
           lastSeen: now,
@@ -3203,9 +3334,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const g = s.grammarKnowledge[lk];
       g.timesEncountered++;
       g.lastSeen = now;
-      // Slight ease bump for passive encounter
-      g.ease = Math.min(5, g.ease + 0.01);
+      g.ease = applyGrammarEncounter(g.ease);
+      appendGrammarEvent(pattern, lang, now, g.ease, false, 1);
     }));
+    saveFlashcards();
   };
 
   // Track that user struggled with a grammar pattern
@@ -3217,7 +3349,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (!s.grammarKnowledge[lk]) {
         s.grammarKnowledge[lk] = {
           pattern,
-          ease: SRS.MIN_EASE,
+          ease: initialGrammarEase(),
           timesEncountered: 0,
           timesFailed: 0,
           lastSeen: now,
@@ -3228,8 +3360,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const g = s.grammarKnowledge[lk];
       g.timesFailed++;
       g.lastSeen = now;
-      // Larger ease decrease for failed grammar
-      g.ease = Math.max(0, g.ease - 0.15);
+      g.ease = applyGrammarFailure(g.ease);
+      appendGrammarEvent(pattern, lang, now, g.ease, true);
     }));
     saveFlashcards();
   };
@@ -3614,8 +3746,6 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
         s.meta.perLanguage[lang].reviewsToday = 0;
         s.meta.perLanguage[lang].newCardsDate = today;
       }
-      s.meta.newCardsToday = 0;
-      s.meta.newCardsDate = today;
     }));
 
     // Auto-create flashcards from word candidates if enabled
@@ -3904,11 +4034,13 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     getComprehensiveWordStatusSync,
     getComprehensiveWordStatusWithSourceSync,
     isWordKnownComprehensiveSync,
+    isWordSettledSync,
     trackWordStatusChange,
     setWordKnowledgeEase,
     getWordKnowledgeSnapshotForForms,
     getWordSyncSeenSnapshotForForms,
     restoreWordSyncRating,
+    appendRetractions,
     setComprehensiveWordStatus,
     setAspectStatus,
     recordAttempt,

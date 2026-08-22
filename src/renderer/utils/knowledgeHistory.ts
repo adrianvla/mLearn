@@ -1,11 +1,12 @@
-import { ANKI_EASE, type KnowledgeSource } from '../../shared/constants';
-import type { KnowledgeEvent, KnowledgeEventKind } from '../../shared/knowledgeEvents';
+import { ANKI_EASE } from '../../shared/constants';
+import type { EvidenceSource, KnowledgeEvent, KnowledgeEventKind } from '../../shared/knowledgeEvents';
+import { stripRetractions } from '../../shared/knowledgeEvents';
 import { normalizedStrength, statusToStrength } from '../../shared/utils/knowledgeStrength';
 
 export interface HistoryCurvePoint {
   t: number;
   strength: number;
-  source: KnowledgeSource | 'manual';
+  source: EvidenceSource;
   kind: KnowledgeEventKind;
   event: KnowledgeEvent;
 }
@@ -13,7 +14,7 @@ export interface HistoryCurvePoint {
 export interface SourceReignBand {
   from: number;
   to: number;
-  source: KnowledgeSource | 'manual';
+  source: EvidenceSource;
 }
 
 export interface ReplayedHistory {
@@ -49,7 +50,8 @@ export function replayKnowledgeHistory(events: readonly KnowledgeEvent[], opts: 
   const known = opts.knownThreshold ?? ANKI_EASE.DEFAULT_KNOWN;
   const min = opts.minEase ?? ANKI_EASE.MIN;
 
-  const sorted = [...events].sort((a, b) => a.t - b.t);
+  // Undone attempts (retraction tombstones) must not shape the curve.
+  const sorted = stripRetractions(events).sort((a, b) => a.t - b.t);
   const points: HistoryCurvePoint[] = [];
   for (const event of sorted) {
     const point: HistoryCurvePoint = {

@@ -13,11 +13,12 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn((): { status: string;
 const mockClearAllWordSyncSeen = vi.fn();
 const mockSetWordKnowledgeEase = vi.fn();
 const mockSetAspectStatus = vi.fn();
-const mockRecordAttempt = vi.fn();
+const mockRecordAttempt = vi.fn((..._callArgs: unknown[]) => ({ attemptId: 'attempt-sync-1', knowledgeBefore: {} }));
 const mockShowToast = vi.hoisted(() => vi.fn());
 const isReadingScriptTextFn = vi.hoisted(() => vi.fn((_surface?: unknown, _data?: unknown) => false));
 const mockMarkWordSyncSeen = vi.fn();
 const mockRestoreWordSyncRating = vi.fn();
+const mockAppendRetractions = vi.fn();
 const mockFetchTranslation = vi.hoisted(() => vi.fn(async (_word?: string): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
 const mockWordSyncState = vi.hoisted(() => ({
   settings: {
@@ -121,6 +122,7 @@ vi.mock('../../context', async () => {
     markWordSyncSeen: mockMarkWordSyncSeen,
     clearAllWordSyncSeen: mockClearAllWordSyncSeen,
     restoreWordSyncRating: mockRestoreWordSyncRating,
+    appendRetractions: mockAppendRetractions,
     getWordKnowledge: vi.fn(() => null),
     getWordKnowledgeSnapshotForForms: vi.fn((word: string, language?: string) => {
       const lang = language ?? 'ja';
@@ -846,7 +848,7 @@ describe('WordSyncContent', () => {
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
       language: 'ja',
     }));
-    const attemptIds = new Set(mockRecordAttempt.mock.calls.map((call) => (call[3] as { attemptId?: number })?.attemptId));
+    const attemptIds = new Set(mockRecordAttempt.mock.calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
     expect(attemptIds.size).toBe(1);
     expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
     dispose();

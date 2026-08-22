@@ -28,6 +28,12 @@ export interface ComprehensiveWordStatusResult {
   timesSeen: number;
   matchedWord?: string;
   ease?: number;
+  /**
+   * Teaching-policy exclusion (user said "do not select/teach/test this").
+   * Exclusion is NOT knowledge: status stays honest ('unknown') and selection
+   * surfaces must check this flag instead of treating the word as known.
+   */
+  excluded?: boolean;
 }
 
 interface SourceResult {
@@ -36,6 +42,7 @@ interface SourceResult {
   timesSeen: number;
   matchedWord?: string;
   ease?: number;
+  excluded?: boolean;
 }
 
 interface WordFormMatch {
@@ -81,7 +88,9 @@ function getStatusFromSource(
     case 'ignoredWords': {
       for (const match of matches) {
         if (deps.ignoredWords[match.lk]) {
-          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word, ease: deps.knownEaseThreshold };
+          // Ignored means "do not select/teach/test", never "known": status
+          // stays honest and selection consumers gate on `excluded`.
+          return { source: src, status: 'unknown', excluded: true, timesSeen: 0, matchedWord: match.word };
         }
       }
       return null;
@@ -152,6 +161,7 @@ function resolveSources(
     timesSeen: result.timesSeen,
     matchedWord: result.matchedWord,
     ...(result.ease === undefined ? {} : { ease: result.ease }),
+    ...(result.excluded === undefined ? {} : { excluded: result.excluded }),
   });  switch (resolutionMode) {
     case 'order': {
       const winner = available[0];
@@ -183,10 +193,7 @@ export function getComprehensiveWordStatusWithSource(
   const available: SourceResult[] = [];
 
   for (const src of deps.sourceOrder) {
-    // DEPRECATED (v2.0 migration): 'manual' was the old name for passiveTracking.
-    // Remove this mapping after all active users have migrated (safe to remove ~2026-12).
-    const mappedSrc = (src as string) === 'manual' ? 'passiveTracking' : src;
-    const result = getStatusFromSource(mappedSrc as KnowledgeSource, matches, deps);
+    const result = getStatusFromSource(src, matches, deps);
     if (result !== null) {
       available.push(result);
     }
@@ -203,6 +210,26 @@ export function getComprehensiveWordStatus(
   deps: ComprehensiveKnowledgeDeps
 ): WordStatus {
   return getComprehensiveWordStatusWithSource(word, deps).status;
+}
+
+/**
+ * Selection-policy view of a resolved status for "should we suggest/capture
+ * this?" decisions. Passive familiarity at/above the known band blocks new
+ * suggestions even though the projection honestly caps it at learning —
+ * this is a blocking view for candidate selection, never a knowledge claim.
+ */
+export function toSelectionBlockingStatus(
+  resolved: ComprehensiveWordStatusResult,
+  knownEaseThreshold: number,
+): WordStatus {
+  if (
+    resolved.status === 'learning'
+    && resolved.source === 'PassiveTracking'
+    && (resolved.ease ?? 0) >= knownEaseThreshold
+  ) {
+    return 'known';
+  }
+  return resolved.status;
 }
 
 /**

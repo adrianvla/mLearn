@@ -392,9 +392,6 @@ function buildMockFlashcardStore(language: string): FlashcardStore {
       perLanguage: {
         [language]: { newCardsToday: 3, reviewsToday: 12, newCardsDate: today },
       },
-      newCardsToday: 3,
-      reviewsToday: 12,
-      newCardsDate: today,
       maxNewCardsPerDay: 20,
       maxNewCardsPerDayLearning: 20,
       maxReviewsPerDay: -1,
