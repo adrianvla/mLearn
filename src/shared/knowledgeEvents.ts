@@ -1,4 +1,5 @@
 import type { AttemptQuality, KnowledgeAspect, KnowledgeSource, WordStatus } from './constants';
+import type { CapabilityKind } from './graph/types';
 
 export type { KnowledgeAspect };
 export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup' | 'retraction';
@@ -38,8 +39,12 @@ export interface KnowledgeEvent {
   easeAfter?: number;
   intervalBefore?: number;
   intervalAfter?: number;
+  /** SRS template identity; makes scheduler replay unambiguous for cards sharing a target word. */
+  schedulerCardId?: string;
   rating?: Rating;
   timesSeenDelta?: number;
+  /** Grammar-only learner difficulty count for the materialized recognition view. */
+  grammarFailedDelta?: number;
   /** Anki revlog entry id (review timestamp ms). Set only on imported anki reviews; the idempotency key for re-imports. */
   ankiReviewId?: number;
   /**
@@ -65,7 +70,7 @@ export interface KnowledgeEvent {
   /** The exact surface the learner was shown, independent of the storage key's primary form. Presentation provenance — never fan out observations from it. */
   presentedSurface?: string;
   /** Tier-2 target pointer when the observation is about a typed graph entity (e.g. grammar patterns); absent = legacy word-hash addressing. */
-  targetRef?: { kind: string; id: string };
+  targetRef?: { kind: string; id: string; capability?: CapabilityKind };
   /** Presenting surface/policy channel that produced the observation (e.g. 'word-sync'); replay maps this to policy markers like wordSyncRatedAt. */
   origin?: string;
 }

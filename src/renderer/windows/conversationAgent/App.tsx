@@ -314,12 +314,17 @@ export const ConversationContent: Component = () => {
   const youLabel = () => t('mlearn.Room.You') || 'You';
   // Learner state as one implicit projection: media-scoped failures + level +
   // (compat) legacy tutor selections, until the tutorConfig merge lands fully.
+  // Words are evidence-backed (user failed-marks + explicit selections).
+  // Grammar mixes explicit selections with legacy ease-heuristic media stats,
+  // so its basis stays 'prediction' until grammar targets/projection land.
   const learnerProjection = (): LearnerProjection => {
     const media = mediaContext();
     const tutor = tutorSelections();
     const level = Number(settings.learningLanguageLevels?.[settings.language] ?? 0);
     return {
       language: promptLangName(),
+      wordsBasis: 'evidence',
+      grammarBasis: 'prediction',
       failedWords: [
         ...(media?.failedWords ?? []).sort((a, b) => a.ease - b.ease).slice(0, 15).map((w) => w.word),
         ...(tutor?.selectedWords ?? []).map((w) => w.word),

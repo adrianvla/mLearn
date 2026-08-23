@@ -375,6 +375,7 @@ def _write_database(
             for orth in elem.findall("./tei:form/tei:orth", NS)
         ])
         entry_pos = _normalize(elem.findtext("./tei:gramGrp/tei:pos", default="", namespaces=NS))
+        entry_gender = _normalize(elem.findtext("./tei:gramGrp/tei:gen", default="", namespaces=NS)).lower()[:1]
         parsed_senses: list[ParsedSense] = []
         for sense in elem.findall("./tei:sense", NS):
             parsed_senses.extend(_parse_senses(sense, entry_pos, config.translation_language))
@@ -393,6 +394,8 @@ def _write_database(
                         "pos": part_of_speech,
                         "notes": notes,
                     }
+                    if config.language == "de" and entry_gender in {"m", "f", "n"}:
+                        payload["gender"] = entry_gender
                     batch.append((
                         headword,
                         headword.casefold(),

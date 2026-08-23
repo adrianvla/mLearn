@@ -237,6 +237,13 @@ describe('context compiler', () => {
     expect(ctx.persona.facets).toEqual({ warmth: 7, style: 'gentle' });
   });
 
+  it('preserves epistemic provenance basis fields on learnerProjection', () => {
+    const a = participant({ id: 'A' });
+    const ctx = compileContext({ participant: a, participants: [a], seaEvents: [], learnerProjection: { failedWords: ['x'], grammarPoints: ['y'], wordsBasis: 'evidence', grammarBasis: 'prediction' } });
+    expect(ctx.learnerProjection?.wordsBasis).toBe('evidence');
+    expect(ctx.learnerProjection?.grammarBasis).toBe('prediction');
+  });
+
   it('passes learnerProjection through', () => {
     const a = participant({ id: 'A' });
     const proj = { language: 'ja', failedWords: ['行く'], levelEstimate: 'A2' };

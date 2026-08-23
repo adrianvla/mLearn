@@ -17,7 +17,9 @@ interface MediaSelectorProps {
   onSelectionChange: (selected: TutorMediaSelection[]) => void;
 }
 
-const getFailedGrammarThreshold = (settings: { easeThresholdKnown: number }) => settings.easeThresholdKnown;
+  // Legacy ease-band heuristic — predicted unfamiliarity, not direct evidence.
+  // Rewires to grammar-target projection reads when the grammar substrate lands.
+  const getFailedGrammarThreshold = (settings: { easeThresholdKnown: number }) => settings.easeThresholdKnown;
 
 export const MediaSelector: Component<MediaSelectorProps> = (props) => {
   const { t } = useLocalization();

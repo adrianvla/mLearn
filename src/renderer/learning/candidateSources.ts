@@ -9,6 +9,8 @@ export interface FlashcardLike {
   targets: LearnableTarget[];
   dueDate: number;
   interval: number;
+  /** Derived retention pressure when the scheduler has already replayed evidence. */
+  pressure?: number;
   suspended?: boolean;
   buried?: boolean;
 }
@@ -45,7 +47,7 @@ export function retentionDueCandidates(cards: readonly FlashcardLike[], nowMs: n
       targets: card.targets,
       origin: 'retention',
       scores: {
-        'retention-need': clamp((nowMs - card.dueDate) / Math.max(1, card.interval)),
+        'retention-need': card.pressure ?? clamp((nowMs - card.dueDate) / Math.max(1, card.interval)),
       },
     }));
 }

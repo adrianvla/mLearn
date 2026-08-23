@@ -2481,6 +2481,33 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('migrates legacy grammar ease into recognition-only evidence', async () => {
+    const { ctx, dispose } = await mountProvider();
+    mockAppendEvents.mockClear();
+    flashcardsCb(makeEmptyStore({
+      grammarKnowledge: {
+        'ja:ている': {
+          pattern: 'ている', ease: 2.8, timesEncountered: 6, timesFailed: 2,
+          lastSeen: 100, level: 5, language: 'ja',
+        },
+      },
+    }));
+
+    await vi.waitFor(() => expect(mockAppendEvents).toHaveBeenCalledTimes(1));
+    const [[events]] = mockAppendEvents.mock.calls;
+    const migrated = Object.values(events as Record<string, Array<Record<string, unknown>>>)[0][0];
+    expect(migrated).toMatchObject({
+      source: 'grammar',
+      origin: 'grammar-legacy-migration',
+      targetRef: { kind: 'grammar-pattern', capability: 'grammar-recognition' },
+      easeAfter: 2.8,
+      timesSeenDelta: 6,
+      grammarFailedDelta: 2,
+    });
+    expect(ctx.getGrammarKnowledge('ている')).toMatchObject({ ease: 2.8, timesEncountered: 6, timesFailed: 2 });
+    dispose();
+  });
+
   // ─── Priority 2: Word appearance tracking ─────────────────────────
   it('trackWordAppearance tracks word candidates', async () => {
     const { ctx, dispose } = await mountProvider();

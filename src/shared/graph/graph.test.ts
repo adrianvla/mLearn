@@ -28,6 +28,22 @@ const JA: LinguisticGraphAsset = {
     { id: surfaceEntityId('ja', 'h-1'), kind: 'surface', label: '箸' },
     { id: surfaceEntityId('ja', 'h-2'), kind: 'surface', label: '端' },
     { id: 'ja:pron:hashi', kind: 'pronunciation' },
+    {
+      id: grammarEntityId('ja', 'ている'),
+      kind: 'grammar-pattern',
+      label: 'ている',
+      grammar: {
+        meaning: 'ongoing action / state',
+        level: 5,
+        recognitionRules: [{ type: 'text', text: 'ている' }, { type: 'text', text: 'でいる' }],
+      },
+    },
+    {
+      id: grammarEntityId('ja', 'てある'),
+      kind: 'grammar-pattern',
+      label: 'てある',
+      grammar: { meaning: 'resulting state', level: 4 },
+    },
     // 増える / 殖える — one dictionary entry, two surfaces, support-only relation.
     { id: 'ja:entry:fueru', kind: 'dictionary-entry' },
     { id: surfaceEntityId('ja', 'f-0'), kind: 'surface', label: '増える' },
@@ -65,6 +81,7 @@ const JA: LinguisticGraphAsset = {
     { from: surfaceEntityId('ja', 'b-0'), to: 'ja:pron:buntai', type: 'has-pronunciation' },
     { from: 'ja:char:文', to: surfaceEntityId('ja', 'b-0'), type: 'component-of' },
     { from: 'ja:char:体', to: surfaceEntityId('ja', 'b-0'), type: 'component-of' },
+    { from: grammarEntityId('ja', 'ている'), to: grammarEntityId('ja', 'てある'), type: 'contrasts-with' },
   ],
 };
 
@@ -129,8 +146,10 @@ describe('linguistic graph golden semantics', () => {
     const wen = graph.nodes.get('ja:char:文')!;
     // No has-reading edges in this fixture → no CharacterReading capability yet.
     expect(applicableCapabilities(graph, wen)).toEqual([]);
-    const grammar = graph.nodes.get(grammarEntityId('ja', 'ている')) ?? null;
-    expect(grammar).toBeNull(); // absent from fixture → no fabricated targets
+    const grammar = graph.nodes.get(grammarEntityId('ja', 'ている'))!;
+    expect(applicableCapabilities(graph, grammar)).toEqual([
+      'grammar-recognition', 'grammar-comprehension', 'grammar-formation', 'grammar-production',
+    ]);
   });
 
   it('emits sense targets only through real has-sense structure', () => {
@@ -139,6 +158,17 @@ describe('linguistic graph golden semantics', () => {
     const senseTargets = targets.filter((target) => target.capability === 'sense-recognition');
     // Exactly the one real sense node; no surface fabricates its own sense target.
     expect(senseTargets).toEqual([{ entityId: 'ja:sense:fueru-1', capability: 'sense-recognition' }]);
+  });
+
+  it('keeps construction identity stable while recognition-rule variants share one target', () => {
+    const graph = load();
+    const construction = graph.nodes.get(grammarEntityId('ja', '  ている  '))!;
+    expect(construction.id).toBe(grammarEntityId('ja', 'ている'));
+    expect(construction.grammar?.recognitionRules).toHaveLength(2);
+    expect(relationsOf(graph, construction.id, { category: 'support' }).map((relation) => relation.type)).toContain('contrasts-with');
+    expect(learnableTargetsFor(graph, [construction]).filter((target) => target.capability === 'grammar-recognition')).toEqual([
+      { entityId: construction.id, capability: 'grammar-recognition' },
+    ]);
   });
 
   it('excludes specialized domains from ordinary candidate sets by default', () => {

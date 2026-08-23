@@ -1628,6 +1628,19 @@ export interface TranslationResponse {
  */
 export type FlashcardState = 'new' | 'learning' | 'review' | 'relearning';
 
+/** Rebuildable retention output. Evidence + authored template remain authoritative. */
+export interface RetentionScheduleCache {
+  state: FlashcardState;
+  ease: number;
+  interval: number;
+  dueAt: number;
+  reviews: number;
+  lapses: number;
+  learningStep: number;
+  lastReviewed: number;
+  provenance: 'derived-scheduler-cache' | 'migrated-scheduler-cache';
+}
+
 /**
  * Content for any type of flashcard (words, sentences, images, etc.)
  * The 'type' field determines what fields are relevant
@@ -1724,6 +1737,8 @@ export interface Flashcard {
   buried?: boolean;
   /** Language this card belongs to (e.g. 'ja', 'de') — set at creation */
   language?: string;
+  /** Rebuildable scheduler output. Legacy scheduling fields above mirror this cache for sync/export compatibility. */
+  retentionCache?: RetentionScheduleCache;
 }
 
 /**

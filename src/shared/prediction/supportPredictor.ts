@@ -1,4 +1,5 @@
 import { identityNeighbors, relationsOf, type LingualGraph } from '../graph/load';
+import { createGermanCompoundLexicon, decomposeGermanCompound, type GermanCompoundPart } from '../graph/morphology/deCompounds';
 import { isIdentityShareableCapability } from '../graph/targets';
 import type { CapabilityKind, LearnableTarget } from '../graph/types';
 import type { ReplayProjection } from '../utils/projectionReplay';
@@ -18,6 +19,8 @@ export interface PredictionInput {
   direct: ReplayProjection | null;
   target: LearnableTarget;
   classify(ease: number): 'known' | 'learning' | 'unknown';
+  /** Read-only productive German compound support for an unseen target. */
+  compound?: { surface: string; isKnownPart(lemma: string): boolean };
 }
 
 export interface Prediction {
@@ -35,7 +38,7 @@ const SUPPORT_WEIGHTS: Partial<Record<CapabilityKind, { transparency: number; pr
 
 export function predictTargetAccessibility(input: PredictionInput): Prediction {
   const { graph, direct, target } = input;
-  if (!graph || !graph.nodes.has(target.entityId)) {
+  if (!graph || (!graph.nodes.has(target.entityId) && !input.compound)) {
     return { pSuccess: 0, uncertainty: 1, supportPath: [], kind: 'prediction' };
   }
 
@@ -74,9 +77,33 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
     }
   }
 
+  const compound = input.compound && decomposeGermanCompound(input.compound.surface, germanLexicon(graph));
+  if (compound?.source === 'generated') {
+    const parts = leafLemmas(compound.parts);
+    const knownParts = parts.filter(input.compound!.isKnownPart);
+    const credit = compound.confidence * knownParts.length / Math.max(1, parts.length);
+    if (credit > 0) {
+      supportTotal += credit;
+      knownNeighbors += credit;
+      for (const lemma of knownParts) supportPath.push({ from: lemma, to: target.entityId, via: 'generated-compound' });
+    }
+  }
+
   const base = direct ? input.classify(direct.ease) === 'learning' ? 0.35 : 0.1 : 0.05;
   const pSuccess = Math.min(0.85, base + knownNeighbors / Math.max(1, supportTotal) * 0.5);
   const uncertainty = Math.max(0.15, 1 - supportTotal);
 
   return { pSuccess, uncertainty, supportPath, kind: 'prediction' };
+}
+
+function germanLexicon(graph: LingualGraph) {
+  return createGermanCompoundLexicon([...graph.nodes.values()]
+    .filter((node) => node.kind === 'surface' && node.id.startsWith('de:') && node.label)
+    .flatMap((node) => relationsOf(graph, node.id, { direction: 'out' })
+      .filter((relation) => relation.type === 'realizes')
+      .map((relation) => ({ lemma: node.label!, entryId: relation.to }))));
+}
+
+function leafLemmas(parts: readonly GermanCompoundPart[]): string[] {
+  return parts.flatMap((part) => part.parts ? leafLemmas(part.parts) : [part.lemma]);
 }

@@ -22,7 +22,7 @@ export const COMPACT_RELATION_TYPES = [
 
 const COMPACT_DOMAINS = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
 const KIND_IDS = new Map(COMPACT_ENTITY_KINDS.map((kind, id) => [kind, id]));
-const TYPE_IDS = new Map(COMPACT_RELATION_TYPES.map((type, id) => [type, id]));
+const TYPE_IDS = new Map<GraphRelationType, number>(COMPACT_RELATION_TYPES.map((type, id) => [type, id]));
 const DOMAIN_IDS = new Map(COMPACT_DOMAINS.map((domain, id) => [domain, id]));
 const TYPE_CATEGORIES = COMPACT_RELATION_TYPES.map((type) => RELATION_CATEGORY[type]);
 
@@ -47,7 +47,7 @@ export interface CompactAssetJSON {
     provenanceStringIds?: number[];
   };
   meta: {
-    /** Parallel pairs: string-table hash id → dense local entity id. */
+    /** Legacy compatibility fields; current encoders leave them empty to avoid duplicating surface hashes. */
     surfaceHashStringIds: number[];
     surfaceLocalIds: number[];
   };
@@ -114,7 +114,6 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
   const labelStringIds: number[] = [];
   const surfaceHashStringIds: number[] = [];
   const surfaceLocalIds: number[] = [];
-  const surfacePrefix = `${asset.language}:surface:`;
 
   for (const entity of asset.entities) {
     if (entityIds.has(entity.id)) throw new GraphLoadError(`Duplicate entity id: ${entity.id}`);
@@ -125,14 +124,9 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     const kindId = KIND_IDS.get(entity.kind);
     const domainId = DOMAIN_IDS.get(entity.domain);
     if (kindId === undefined || domainId === undefined) throw new GraphLoadError(`Unsupported compact entity: ${entity.id}`);
-    const dense = entityIds.get(entity.id)!;
     kindIds.push(kindId);
     domainIds.push(domainId);
     labelStringIds.push(entity.label === undefined ? -1 : stringId(entity.label));
-    if (entity.id.startsWith(surfacePrefix)) {
-      surfaceHashStringIds.push(stringId(entity.id.slice(surfacePrefix.length)));
-      surfaceLocalIds.push(dense);
-    }
   }
 
   const adjacency = Array.from({ length: kindIds.length }, () => [] as Array<{ target: number; type: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number }>);
@@ -212,7 +206,8 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
   const relationPredictability = compact.relations.predictability === undefined ? undefined : Float32Array.from(compact.relations.predictability);
   const relationProvenanceStringIds = compact.relations.provenanceStringIds === undefined ? undefined : Int32Array.from(compact.relations.provenanceStringIds);
   const persistentOf = stringTable.slice(0, entityKindIds.length);
-  const denseOf = new Map(persistentOf.map((id, dense) => [id, dense]));
+  const denseOf = new Map<string, number>();
+  for (let dense = 0; dense < persistentOf.length; dense += 1) denseOf.set(persistentOf[dense], dense);
   if (denseOf.size !== persistentOf.length) throw new GraphLoadError('Duplicate compact entity id');
   const surfaceHashToLocalId = new Map<number, number>();
   for (let i = 0; i < compact.meta.surfaceHashStringIds.length; i += 1) {

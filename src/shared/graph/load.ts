@@ -32,7 +32,7 @@ export function surfaceEntityId(language: string, surfaceHash: string): string {
 }
 
 export function grammarEntityId(language: string, pattern: string): string {
-  return `${language}:grammar:${pattern}`;
+  return `${language}:grammar:${pattern.normalize('NFC').trim().replace(/\s+/g, ' ')}`;
 }
 
 export function loadLinguisticGraph(asset: LinguisticGraphAsset): LingualGraph {

@@ -39,12 +39,36 @@ describe('prediction firewall', () => {
 
   it('imports nothing from evidence-writer modules (structural firewall)', () => {
     const dir = join(__dirname);
-    for (const file of readdirSync(dir)) {
-      if (!file.endsWith('.ts') || file.includes('.test.')) continue;
-      const src = readFileSync(join(dir, file), 'utf8');
+    const sources = [
+      ...readdirSync(dir).filter((file) => file.endsWith('.ts') && !file.includes('.test.')).map((file) => [file, join(dir, file)] as const),
+      ['deCompounds.ts', join(dir, '../graph/morphology/deCompounds.ts')] as const,
+    ];
+    for (const [file, path] of sources) {
+      const src = readFileSync(path, 'utf8');
       expect(src.includes('renderer/context/FlashcardContext'), `${file} imports context`).toBe(false);
       expect(src.includes("from '../../renderer/"), `${file} imports renderer`).toBe(false);
       expect(/appendEvents|setWordKnowledgeEase|recordAttempt/.test(src.replace(/\/\/[^\n]*/g, '')), `${file} references writers`).toBe(false);
     }
+  });
+
+  it('uses generated compounds only as read-only support for unseen targets', () => {
+    const deGraph = loadLinguisticGraph({
+      ...fixture,
+      language: 'de',
+      entities: ['Papa', 'Hand', 'Schuh'].flatMap((label) => [
+        { id: `de:surface:${label}`, kind: 'surface' as const, label },
+        { id: `de:entry:${label}`, kind: 'dictionary-entry' as const },
+      ]),
+      relations: ['Papa', 'Hand', 'Schuh'].map((label) => ({ from: `de:surface:${label}`, to: `de:entry:${label}`, type: 'realizes' as const })),
+    });
+    const prediction = predictTargetAccessibility({
+      graph: deGraph, direct: null,
+      target: { entityId: 'de:surface:unseen-papashandschuhe', capability: 'sense-recognition' },
+      classify: () => 'unknown',
+      compound: { surface: 'Papashandschuhe', isKnownPart: (lemma) => lemma === 'Papa' || lemma === 'Hand' || lemma === 'Schuh' },
+    });
+    expect(prediction.pSuccess).toBeGreaterThan(0.05);
+    expect(prediction.supportPath).toHaveLength(3);
+    expect(prediction.kind).toBe('prediction');
   });
 });

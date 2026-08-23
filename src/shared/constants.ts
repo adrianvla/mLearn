@@ -520,7 +520,8 @@ export const KNOWLEDGE_SOURCE_DISPLAY_NAMES = {
   passiveTracking: 'PassiveTracking',
   manual: 'Manual',
   grammar: 'Grammar',
-} as const satisfies Record<KnowledgeSource | 'manual' | 'grammar', string>;
+  migration: 'Migration',
+} as const satisfies Record<KnowledgeSource | 'manual' | 'grammar' | 'migration', string>;
 
 export type KnowledgeSourceDisplayName = typeof KNOWLEDGE_SOURCE_DISPLAY_NAMES[KnowledgeSource];
 export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None';

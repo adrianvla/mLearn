@@ -13,7 +13,9 @@ const LANGUAGES = ['ja', 'ru'];
 const LOOKUPS = 200_000;
 const ADJ_SCANS = 50_000;
 const COMPACT = process.argv.includes('--compact');
+const JSON_OUTPUT = process.argv.includes('--json');
 const COMPACT_CHILD_PATH = process.argv.find((arg) => arg.startsWith('--compact-child='))?.slice('--compact-child='.length);
+const OLD_CHILD_PATH = process.argv.find((arg) => arg.startsWith('--old-child='))?.slice('--old-child='.length);
 
 const RELATION_CATEGORY = {
   'inflection-of': 'identity', 'lemma-of': 'identity', realizes: 'property', 'has-sense': 'property',
@@ -75,16 +77,11 @@ function encodeCompact(asset) {
   const labelStringIds = [];
   const surfaceHashStringIds = [];
   const surfaceLocalIds = [];
-  const prefix = `${asset.language}:surface:`;
   for (const entity of asset.entities) {
     const dense = entityIds.get(entity.id);
     kindIds.push(KIND_IDS.get(entity.kind));
     domainIds.push(DOMAIN_IDS.get(entity.domain));
     labelStringIds.push(entity.label === undefined ? -1 : stringId(entity.label));
-    if (entity.id.startsWith(prefix)) {
-      surfaceHashStringIds.push(stringId(entity.id.slice(prefix.length)));
-      surfaceLocalIds.push(dense);
-    }
   }
   const adjacency = Array.from({ length: kindIds.length }, () => []);
   for (const relation of asset.relations) {
@@ -147,7 +144,8 @@ function decodeCompact(compact) {
   const predictability = compact.relations.predictability === undefined ? undefined : Float32Array.from(compact.relations.predictability);
   const provenanceStringIds = compact.relations.provenanceStringIds === undefined ? undefined : Int32Array.from(compact.relations.provenanceStringIds);
   const persistentOf = stringTable.slice(0, kindIds.length);
-  const denseOf = new Map(persistentOf.map((id, dense) => [id, dense]));
+  const denseOf = new Map();
+  for (let dense = 0; dense < persistentOf.length; dense += 1) denseOf.set(persistentOf[dense], dense);
   return {
     stringTable, kindIds, domainIds, labelStringIds, offsets, targets, typeIds, confidence, transparency, predictability, provenanceStringIds, persistentOf,
     has: (id) => denseOf.has(id),
@@ -163,83 +161,155 @@ function decodeCompact(compact) {
   };
 }
 
-function percentile(sorted, p) {
-  return sorted[Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)];
-}
-
 function measuredLookups(nodeIds, lookup) {
   const sampleIds = Array.from({ length: LOOKUPS }, () => nodeIds[Math.floor(Math.random() * nodeIds.length)]);
-  const times = [];
+  const start = performance.now();
   for (const id of sampleIds) {
-    const t = performance.now();
     lookup(id);
-    times.push((performance.now() - t) * 1000);
   }
-  times.sort((a, b) => a - b);
-  return { lookupP50: percentile(times, 50).toFixed(3), lookupP99: percentile(times, 99).toFixed(3) };
+  return Math.round((LOOKUPS * 1000) / (performance.now() - start));
+}
+
+function memory() {
+  const usage = process.memoryUsage();
+  return Object.fromEntries(Object.entries(usage).map(([name, bytes]) => [name, +(bytes / 1024 / 1024).toFixed(1)]));
+}
+
+function maxRss(...snapshots) {
+  return Math.max(...snapshots.map((snapshot) => snapshot.rss));
+}
+
+function benchmarkGraph(graph, lookup) {
+  const lookupOps = measuredLookups(graph.persistentOf, lookup);
+  const sample = Array.from({ length: ADJ_SCANS }, () => graph.persistentOf[Math.floor(Math.random() * graph.persistentOf.length)]);
+  const start = performance.now();
+  let adjHits = 0;
+  for (const id of sample) adjHits += graph.neighborsByCategory ? graph.neighborsByCategory(id, 'identity').length : relationsOf(graph, id).length;
+  return { lookupOps, adjacencyMs: +(performance.now() - start).toFixed(1), adjHits };
+}
+
+function typedArrayBytes(graph) {
+  return Object.fromEntries(Object.entries(graph).filter(([, value]) => ArrayBuffer.isView(value)).map(([name, value]) => [name, value.byteLength]));
+}
+
+function compactBreakdown(graph) {
+  let stringUtf8Bytes = 0;
+  let stringUtf16Bytes = 0;
+  for (const value of graph.stringTable) {
+    stringUtf8Bytes += Buffer.byteLength(value);
+    stringUtf16Bytes += value.length * 2;
+  }
+  const arrays = typedArrayBytes(graph);
+  return {
+    stringCount: graph.stringTable.length,
+    stringUtf8Bytes,
+    stringUtf16Bytes,
+    persistentIdCount: graph.persistentOf.length,
+    denseMapEntries: graph.persistentOf.length,
+    typedArrayBytes: arrays,
+    totalTypedArrayBytes: Object.values(arrays).reduce((sum, bytes) => sum + bytes, 0),
+  };
+}
+
+function benchOldChild(path) {
+  global.gc?.();
+  const baseline = memory();
+  let raw = readFileSync(path, 'utf8');
+  const t0 = performance.now();
+  const asset = JSON.parse(raw);
+  const parseMs = (performance.now() - t0).toFixed(1);
+  const parsed = memory();
+  raw = null;
+  global.gc?.();
+  const parsedGc = memory();
+  const t1 = performance.now();
+  const graph = loadLinguisticGraph(asset);
+  const indexMs = (performance.now() - t1).toFixed(1);
+  const decoded = memory();
+  global.gc?.();
+  const steady = memory();
+  return {
+    parseMs, indexMs, baseline, parsed, parsedGc, decoded, steady,
+    peakRssMB: maxRss(baseline, parsed, parsedGc, decoded, steady),
+    steadyRssMB: steady.rss,
+    ...benchmarkGraph(graph, (id) => graph.nodes.get(id)),
+  };
+}
+
+function benchCompactChild(path) {
+  global.gc?.();
+  const baseline = memory();
+  let encoded = readFileSync(path, 'utf8');
+  const t0 = performance.now();
+  let compact = JSON.parse(encoded);
+  const decodeMs = (performance.now() - t0).toFixed(1);
+  const parsed = memory();
+  encoded = null;
+  global.gc?.();
+  const parsedGc = memory();
+  const t1 = performance.now();
+  const graph = decodeCompact(compact);
+  const indexMs = (performance.now() - t1).toFixed(1);
+  const decoded = memory();
+  const breakdown = compactBreakdown(graph);
+  compact = null;
+  global.gc?.();
+  const steady = memory();
+  return {
+    decodeMs, indexMs, baseline, parsed, parsedGc, decoded, steady, breakdown,
+    peakRssMB: maxRss(baseline, parsed, parsedGc, decoded, steady),
+    steadyRssMB: steady.rss,
+    ...benchmarkGraph(graph, (id) => graph.has(id)),
+  };
+}
+
+if (COMPACT_CHILD_PATH) {
+  process.stdout.write(JSON.stringify(benchCompactChild(COMPACT_CHILD_PATH)));
+  process.exit(0);
+}
+if (OLD_CHILD_PATH) {
+  process.stdout.write(JSON.stringify(benchOldChild(OLD_CHILD_PATH)));
+  process.exit(0);
+}
+
+function runChild(argument) {
+  const child = spawnSync(process.execPath, [...process.execArgv, process.argv[1], argument], { encoding: 'utf8' });
+  if (child.status !== 0) throw new Error(child.stderr || `graph child exited ${child.status}`);
+  return JSON.parse(child.stdout);
 }
 
 function benchLang(lang) {
   const path = `${GRAPH_DIR}/${lang}.graph.json`;
-  const fileMB = (statSync(path).size / 1024 / 1024).toFixed(1);
-  const rssBefore = process.memoryUsage().rss;
-  const raw = readFileSync(path, 'utf8');
-  const t0 = performance.now();
-  const asset = JSON.parse(raw);
-  const parseMs = (performance.now() - t0).toFixed(1);
-  const t1 = performance.now();
-  const graph = loadLinguisticGraph(asset);
-  const indexMs = (performance.now() - t1).toFixed(1);
-  const lookup = measuredLookups(graph.persistentOf, (id) => graph.nodes.get(id));
-  const sample = Array.from({ length: ADJ_SCANS }, () => graph.persistentOf[Math.floor(Math.random() * graph.persistentOf.length)]);
-  const t2 = performance.now();
-  let adjHits = 0;
-  for (const id of sample) adjHits += relationsOf(graph, id).length;
-  return { lang, fileMB, parseMs, indexMs, rssDeltaMB: ((process.memoryUsage().rss - rssBefore) / 1024 / 1024).toFixed(1), nodeCount: asset.entities.length, relationCount: asset.relations.length, ...lookup, adjacencyMs: (performance.now() - t2).toFixed(1), adjHits };
+  const asset = JSON.parse(readFileSync(path, 'utf8'));
+  return {
+    lang,
+    artifactMB: +(statSync(path).size / 1024 / 1024).toFixed(1),
+    gzipMB: +(gzipSync(readFileSync(path)).byteLength / 1024 / 1024).toFixed(1),
+    nodeCount: asset.entities.length,
+    relationCount: asset.relations.length,
+    ...runChild(`--old-child=${path}`),
+  };
 }
 
 function benchCompactLang(lang) {
   const path = `${GRAPH_DIR}/${lang}.graph.json`;
   const asset = JSON.parse(readFileSync(path, 'utf8'));
   const encoded = JSON.stringify(encodeCompact(asset));
-  const encodedMB = (Buffer.byteLength(encoded) / 1024 / 1024).toFixed(1);
-  const gzipMB = (gzipSync(encoded).byteLength / 1024 / 1024).toFixed(1);
-  const nodeCount = asset.entities.length;
-  const relationCount = asset.relations.length;
   const directory = mkdtempSync(join(tmpdir(), 'mlearn-compact-'));
   const compactPath = join(directory, `${lang}.compact.json`);
   writeFileSync(compactPath, encoded);
-  const child = spawnSync(process.execPath, [...process.execArgv, process.argv[1], `--compact-child=${compactPath}`], { encoding: 'utf8' });
-  rmSync(directory, { recursive: true, force: true });
-  if (child.status !== 0) throw new Error(child.stderr || `compact child exited ${child.status}`);
-  return { lang, encodedMB, gzipMB, nodeCount, relationCount, ...JSON.parse(child.stdout) };
-}
-
-function benchCompactChild(path) {
-  global.gc?.();
-  const rssBefore = process.memoryUsage().rss;
-  let encoded = readFileSync(path, 'utf8');
-  const t0 = performance.now();
-  let compact = JSON.parse(encoded);
-  const decodeMs = (performance.now() - t0).toFixed(1);
-  encoded = null;
-  global.gc?.();
-  const t1 = performance.now();
-  const graph = decodeCompact(compact);
-  const indexMs = (performance.now() - t1).toFixed(1);
-  compact = null;
-  global.gc?.();
-  const lookup = measuredLookups(graph.persistentOf, (id) => graph.has(id));
-  const sample = Array.from({ length: ADJ_SCANS }, () => graph.persistentOf[Math.floor(Math.random() * graph.persistentOf.length)]);
-  const t2 = performance.now();
-  let adjHits = 0;
-  for (const id of sample) adjHits += graph.neighborsByCategory(id, 'identity').length;
-  return { decodeMs, indexMs, steadyRssDeltaMB: ((process.memoryUsage().rss - rssBefore) / 1024 / 1024).toFixed(1), ...lookup, adjacencyMs: (performance.now() - t2).toFixed(1), adjHits };
-}
-
-if (COMPACT_CHILD_PATH) {
-  process.stdout.write(JSON.stringify(benchCompactChild(COMPACT_CHILD_PATH)));
-  process.exit(0);
+  try {
+    return {
+      lang,
+      artifactMB: +(Buffer.byteLength(encoded) / 1024 / 1024).toFixed(1),
+      gzipMB: +(gzipSync(encoded).byteLength / 1024 / 1024).toFixed(1),
+      nodeCount: asset.entities.length,
+      relationCount: asset.relations.length,
+      ...runChild(`--compact-child=${compactPath}`),
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 const results = [];
@@ -248,12 +318,13 @@ for (const lang of LANGUAGES) {
   results.push(COMPACT ? benchCompactLang(lang) : benchLang(lang));
 }
 const header = COMPACT
-  ? 'lang | encodedMB | gzipMB | decodeMs | indexMs | steadyRssDeltaMB | entities | relations | lookupP50µs | lookupP99µs | adjScansMs'
-  : 'lang | fileMB | parseMs | indexMs | rssDeltaMB | entities | relations | lookupP50µs | lookupP99µs | adjScansMs';
+  ? 'lang | artifactMB | gzipMB | decodeMs | indexMs | peakRssMB | steadyRssMB | entities | relations | lookupOps/s | adjScansMs'
+  : 'lang | artifactMB | gzipMB | parseMs | indexMs | peakRssMB | steadyRssMB | entities | relations | lookupOps/s | adjScansMs';
 const output = [header, '-'.repeat(header.length), ...results.map((r) => COMPACT
-  ? `${r.lang} | ${r.encodedMB} | ${r.gzipMB} | ${r.decodeMs} | ${r.indexMs} | ${r.steadyRssDeltaMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupP50} | ${r.lookupP99} | ${r.adjacencyMs}`
-  : `${r.lang} | ${r.fileMB} | ${r.parseMs} | ${r.indexMs} | ${r.rssDeltaMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupP50} | ${r.lookupP99} | ${r.adjacencyMs}`)].join('\n');
+  ? `${r.lang} | ${r.artifactMB} | ${r.gzipMB} | ${r.decodeMs} | ${r.indexMs} | ${r.peakRssMB} | ${r.steadyRssMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupOps} | ${r.adjacencyMs}`
+  : `${r.lang} | ${r.artifactMB} | ${r.gzipMB} | ${r.parseMs} | ${r.indexMs} | ${r.peakRssMB} | ${r.steadyRssMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupOps} | ${r.adjacencyMs}`)].join('\n');
 console.log(`\n${COMPACT ? 'COMPACT\n' : ''}${output}`);
+if (JSON_OUTPUT) console.log(JSON.stringify(results, null, 2));
 const resultPath = 'scripts/bench-graph.results.txt';
 const baseline = COMPACT ? readFileSync(resultPath, 'utf8').split('\n\nCOMPACT\n')[0].trimEnd() : '';
 writeFileSync(resultPath, COMPACT ? `${baseline}\n\nCOMPACT\n${output}\n` : `${output}\n`, 'utf8');

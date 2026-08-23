@@ -10,6 +10,7 @@ import { createStore, reconcile, produce } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
 import { type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedAspect } from '../../shared/graph/targets';
+import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
 import { applyGrammarEncounter, applyGrammarFailure, classifyGrammarStatus, initialGrammarEase } from '../../shared/utils/grammarPolicy';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
@@ -445,6 +446,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const handleFlashcardsLoaded = (loaded: FlashcardStore) => {
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
     setStore(reconcile(checked));
+    void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
     refreshQueue();
     setIsLoading(false);
   };
@@ -482,6 +484,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             const parsed = JSON.parse(stored);
             const checked = ensureStoreFields(parsed);
             setStore(reconcile(checked));
+            void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
             refreshQueue();
           } catch (e) {
             log.error('Failed to parse flashcards from KV store:', e);
@@ -501,6 +504,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
 
     let flashcards = partial.flashcards || {};
+    flashcards = Object.fromEntries(Object.entries(flashcards).map(([id, card]) => [id, {
+      ...card,
+      retentionCache: card.retentionCache ?? {
+        state: card.state,
+        ease: card.ease,
+        interval: card.interval,
+        dueAt: card.dueDate,
+        reviews: card.reviews,
+        lapses: card.lapses,
+        learningStep: card.learningStep,
+        lastReviewed: card.lastReviewed,
+        provenance: 'migrated-scheduler-cache' as const,
+      },
+    }]));
     // Legacy stores carried the day marker at the top level; perLanguage is canonical now.
     const lastDate = (partial.meta as { newCardsDate?: string } | undefined)?.newCardsDate;
     if (lastDate && lastDate !== today) {
@@ -571,6 +588,59 @@ export const FlashcardProvider: ParentComponent = (props) => {
       version: CURRENT_VERSION,
     };
   }
+
+  /** Imports legacy counters once as recognition-only, provenance-marked evidence. */
+  const migrateLegacyGrammarKnowledge = async (entries: Record<string, GrammarKnowledgeEntry>): Promise<void> => {
+    const grouped = new Map<string, GrammarKnowledgeEntry[]>();
+    for (const entry of Object.values(entries)) {
+      const language = entry.language ?? settings.language;
+      const group = grouped.get(language) ?? [];
+      group.push(entry);
+      grouped.set(language, group);
+    }
+    for (const [language, group] of grouped) {
+      try {
+        const eventLog = await getEventLogForLanguage(language);
+        const additions: KnowledgeEventLog = {};
+        for (const entry of group) {
+          const key = grammarEvidenceKey(language, entry.pattern, 'grammar-recognition');
+          if (eventLog[key]?.length) continue;
+          additions[key] = [{
+            ...grammarRecognitionEvidence(language, entry.pattern, { t: entry.lastSeen, kind: 'rollup' }),
+            origin: 'grammar-legacy-migration',
+            easeAfter: entry.ease,
+            timesSeenDelta: entry.timesEncountered,
+            grammarFailedDelta: entry.timesFailed,
+          }];
+        }
+        if (Object.keys(additions).length > 0) await appendEvents(additions);
+        setStore(produce((state) => {
+          for (const entry of group) {
+            const projection = replayGrammarRecognition([
+              ...(eventLog[grammarEvidenceKey(language, entry.pattern, 'grammar-recognition')] ?? []),
+              ...(additions[grammarEvidenceKey(language, entry.pattern, 'grammar-recognition')] ?? []),
+            ]);
+            if (!projection) continue;
+            const entryKey = state.grammarKnowledge[langKey(language, entry.pattern)]
+              ? langKey(language, entry.pattern)
+              : Object.entries(state.grammarKnowledge).find(([, value]) =>
+                value.pattern === entry.pattern && (value.language ?? language) === language,
+              )?.[0];
+            if (!entryKey) continue;
+            const current = state.grammarKnowledge[entryKey];
+            if (!current) continue;
+            current.ease = projection.ease;
+            current.timesEncountered = projection.timesEncountered;
+            current.timesFailed = projection.timesFailed;
+            current.lastSeen = projection.lastSeen;
+          }
+        }));
+        saveFlashcards();
+      } catch (error) {
+        log.warn('grammar evidence migration failed:', error);
+      }
+    }
+  };
 
   // Save flashcards (debounced to avoid lag during rapid review)
   const saveFlashcards = () => {
@@ -1223,6 +1293,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         easeAfter: updated.ease,
         intervalBefore: card.interval,
         intervalAfter: updated.interval,
+        schedulerCardId: card.id,
         ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
       }],
     }).catch((e) => log.warn('knowledge event append failed:', e));
@@ -3321,10 +3392,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Grammar Knowledge
   // ========================
 
-  // Grammar observations go through the same evidence journal as words: every
-  // encounter/failure appends an event (targetRef kind 'grammar-pattern') and
-  // the materialized entry is classified by the shared grammar policy — no
-  // separate epistemic engine.
+  // Grammar counters are the recognition-target read model. Every update is
+  // capability-scoped journal evidence; formation and production remain empty
+  // until a task actually measures them.
   const appendGrammarEvent = (
     pattern: string,
     lang: string,
@@ -3336,18 +3406,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const thresholds = { learning: passiveLearningEaseThreshold(), known: passiveKnownEaseThreshold() };
     const toStatus = classifyGrammarStatus(easeAfter, thresholds);
     appendEvents({
-      [langKey(lang, pattern)]: [{
+      [grammarEvidenceKey(lang, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(lang, pattern, {
         t: now,
         kind: 'status',
-        source: 'grammar',
-        aspect: 'grammar',
         toStatus,
         easeAfter,
         ...(timesSeenDelta ? { timesSeenDelta } : {}),
-        targetRef: { kind: 'grammar-pattern', id: pattern },
-      }],
+        ...(failed ? { grammarFailedDelta: 1 } : {}),
+      })],
     }).catch((e) => log.warn('knowledge event append failed:', e));
-    void failed;
   };
 
   // Track that a grammar pattern was passively encountered

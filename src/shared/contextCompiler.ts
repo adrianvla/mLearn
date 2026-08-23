@@ -32,6 +32,14 @@ export interface LearnerProjection {
   failedWords?: string[];
   grammarPoints?: string[];
   levelEstimate?: string;
+  /**
+   * Epistemic provenance of each list. 'evidence' = direct user marks/claims
+   * (failed markers, explicit tutor selections). 'prediction' = inferred
+   * accessibility from heuristics (legacy ease bands, word-derived character
+   * familiarity). Prediction must never be presented as measured failure.
+   */
+  wordsBasis?: 'evidence' | 'prediction';
+  grammarBasis?: 'evidence' | 'prediction';
 }
 
 /** One participant's redacted view of the world, ready for prompt assembly. */

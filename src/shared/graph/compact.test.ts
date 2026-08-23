@@ -22,7 +22,7 @@ const asset: LinguisticGraphAsset = {
 };
 
 describe('CompactLingualGraph', () => {
-  it('round-trips kinds, CSR adjacency, ids, and surface hash lookups', () => {
+  it('round-trips kinds, CSR adjacency, and ids without duplicating surface hashes', () => {
     const plain = loadLinguisticGraph(asset);
     const compact = decodeCompact(encodeCompact(asset));
     for (const entity of asset.entities) {
@@ -36,7 +36,7 @@ describe('CompactLingualGraph', () => {
     expect(compact.neighborsByCategory(h0, 'identity')).toEqual(identityNeighbors(plain, h0));
     expect(compact.neighborsByCategory(h1, 'identity')).toEqual(identityNeighbors(plain, h1));
     expect(compact.neighborsByCategory(h0, 'property')).toEqual(['ja:entry:hashi', 'ja:pron:hashi']);
-    expect(compact.surfaceHashToLocalId.get(compact.stringTable.indexOf('h-0'))).toBe(plain.denseOf.get(h0));
+    expect(compact.surfaceHashToLocalId).toEqual(new Map());
   });
 
   it('rejects an ambiguous schema version', () => {

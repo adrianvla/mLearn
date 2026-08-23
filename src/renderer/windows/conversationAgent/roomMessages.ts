@@ -100,10 +100,14 @@ export function renderCompiledContext(
     if (lp.language) parts.push(`Language: ${lp.language}`);
     if (lp.levelEstimate) parts.push(`Level estimate: ${lp.levelEstimate}`);
     if (lp.failedWords && lp.failedWords.length > 0) {
-      parts.push(`Failed words: ${lp.failedWords.join(', ')}`);
+      parts.push(lp.wordsBasis === 'prediction'
+        ? `Likely unfamiliar words (predicted): ${lp.failedWords.join(', ')}`
+        : `Words the learner marked as difficult: ${lp.failedWords.join(', ')}`);
     }
     if (lp.grammarPoints && lp.grammarPoints.length > 0) {
-      parts.push(`Grammar points: ${lp.grammarPoints.join(', ')}`);
+      parts.push(lp.grammarBasis === 'prediction'
+        ? `Grammar points likely unfamiliar (predicted, not measured): ${lp.grammarPoints.join(', ')}`
+        : `Grammar points selected for practice: ${lp.grammarPoints.join(', ')}`);
     }
     if (parts.length > 0) sections.push(`## Learner\n${parts.join('\n')}`);
   }

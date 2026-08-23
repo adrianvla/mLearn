@@ -29,7 +29,9 @@ export function applicableCapabilities(graph: LingualGraph, entity: GraphEntity)
     case 'character':
       return relationTypes.has('has-reading') ? ['character-reading'] : [];
     case 'grammar-pattern':
-      return ['grammar-comprehension'];
+      return entity.grammar
+        ? ['grammar-recognition', 'grammar-comprehension', 'grammar-formation', 'grammar-production']
+        : [];
     case 'dictionary-entry':
     case 'morpheme':
     case 'pronunciation':

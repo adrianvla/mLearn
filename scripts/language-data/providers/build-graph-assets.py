@@ -6,14 +6,17 @@ import csv
 import hashlib
 import json
 import os
+import sqlite3
 import ssl
 import tarfile
 import tempfile
 import unicodedata
 import urllib.request
 import xml.etree.ElementTree as ET
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(os.environ.get("MLEARN_ROOT_OF_APP", Path(__file__).resolve().parents[1] / "source" / "root-of-app"))
@@ -24,6 +27,8 @@ SOURCE_FILES = ("words.csv", "forms.csv")
 LEGACY_SOURCE_FILES = {"nouns": 10, "verbs": 6, "adjectives": 4, "others": 4}
 FREEDICT_INDEX_URL = "https://freedict.org/freedict-database.json"
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
+ENTITY_KINDS = {"dictionary-entry", "lexeme", "surface", "sense", "pronunciation", "character", "morpheme", "grammar-pattern"}
+RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related"}
 
 
 def log(message: str) -> None:
@@ -67,18 +72,22 @@ class Graph:
     def __init__(self, language: str, source_versions: dict[str, str]) -> None:
         self.language = language
         self.source_versions = source_versions
-        self.entities: dict[str, dict[str, str]] = {}
+        self.entities: dict[str, dict[str, object]] = {}
         self.relations: dict[tuple[str, str, str, str], dict[str, str]] = {}
 
-    def entity(self, entity_id: str, kind: str, label: str = "") -> str:
+    def entity(self, entity_id: str, kind: str, label: str = "", grammar: dict[str, object] | None = None) -> str:
+        assert kind in ENTITY_KINDS
         if entity_id not in self.entities:
-            entity = {"id": entity_id, "kind": kind}
+            entity: dict[str, object] = {"id": entity_id, "kind": kind}
             if label:
                 entity["label"] = label
+            if grammar:
+                entity["grammar"] = grammar
             self.entities[entity_id] = entity
         return entity_id
 
     def relation(self, source: str, target: str, relation_type: str, provenance: str) -> None:
+        assert relation_type in RELATION_TYPES
         self.relations.setdefault((source, target, relation_type, provenance), {
             "from": source, "to": target, "type": relation_type, "provenance": provenance,
         })
@@ -117,8 +126,32 @@ def text_content(value: object) -> list[str]:
     return []
 
 
+def grammar_entity_id(language: str, pattern: str) -> str:
+    return f"{language}:grammar:{normalized(pattern)}"
+
+
+def add_grammar_from_metadata(graph: Graph) -> None:
+    path = ROOT / "languages" / f"{graph.language}.json"
+    if not path.exists():
+        return
+    for point in json.loads(path.read_text(encoding="utf-8")).get("grammar", []):
+        pattern = normalized(point.get("pattern"))
+        meaning = normalized(point.get("meaning"))
+        level = point.get("level")
+        if not pattern or not meaning or not isinstance(level, int):
+            continue
+        construction: dict[str, object] = {"meaning": meaning, "level": level}
+        match = point.get("match")
+        if isinstance(match, dict):
+            construction["recognitionRules"] = [match]
+        elif isinstance(match, list):
+            construction["recognitionRules"] = match
+        graph.entity(grammar_entity_id(graph.language, pattern), "grammar-pattern", pattern, construction)
+
+
 def build_ja() -> tuple[int, int, int]:
     graph = Graph("ja", {"dictionary": "jitendex-2024.10.07.0", "pitchAccent": "pitch1"})
+    add_grammar_from_metadata(graph)
     pitch_by_term_reading: dict[tuple[str, str], set[str]] = {}
     for path in sorted(JITENDEX_DIR.glob("term_meta_bank_*.json")):
         for term, kind, payload, *_ in json.loads(path.read_text(encoding="utf-8")):
@@ -184,6 +217,7 @@ def build_ru_from_legacy(graph: Graph, temp_dir: Path) -> None:
 
 def build_ru() -> tuple[int, int, int]:
     graph = Graph("ru", {"provider": f"openrussian-{OPENRUSSIAN_COMMIT}"})
+    add_grammar_from_metadata(graph)
     with tempfile.TemporaryDirectory(prefix="mlearn-openrussian-") as temp_name:
         temp_dir = Path(temp_name)
         try:
@@ -214,6 +248,7 @@ def build_de() -> tuple[int, int, int] | None:
         release = sorted(releases, key=lambda item: str(item.get("date", "")))[-1]
         version = str(release.get("software-version") or release.get("version") or release.get("date"))
         graph = Graph("de", {"provider": f"freedict-deu-eng-{version}"})
+        add_grammar_from_metadata(graph)
         with tempfile.TemporaryDirectory(prefix="mlearn-freedict-") as temp_name:
             temp_dir = Path(temp_name)
             archive = temp_dir / "deu-eng.tar.xz"
@@ -248,11 +283,106 @@ def build_de() -> tuple[int, int, int] | None:
         return None
 
 
+def dictionary_version(language: str) -> str:
+    metadata_path = ROOT / "dictionaries" / language / "en" / "metadata.json"
+    if not metadata_path.exists():
+        return "local-dictionary"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    return str(metadata.get("version") or "local-dictionary")
+
+
+def dictionary_rows(language: str):
+    path = ROOT / "dictionaries" / language / "en" / "dictionary.db"
+    with sqlite3.connect(path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(entries)")}
+        fields = [field for field in ("headword", "reading", "pos", "data") if field in columns]
+        for row in connection.execute(f"SELECT {','.join(fields)} FROM entries"):
+            record = dict(zip(fields, row))
+            payload = json.loads(zlib.decompress(record.pop("data")).decode("utf-8"))
+            yield record, payload
+
+
+def dictionary_entry_id(language: str, payload: dict[str, Any]) -> str:
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return f"{language}:entry:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
+
+
+def build_zh() -> tuple[int, int, int]:
+    graph = Graph("zh", {"dictionary": dictionary_version("zh-Hans")})
+    for _, payload in dictionary_rows("zh-Hans"):
+        simplified = normalized(payload.get("simplified"))
+        traditional = normalized(payload.get("traditional"))
+        if not simplified:
+            continue
+        entry = graph.entity(dictionary_entry_id("zh", payload), "dictionary-entry", simplified)
+        simplified_surface = graph.entity(surface_id("zh", simplified), "surface", simplified)
+        graph.relation(simplified_surface, entry, "realizes", "cc-cedict")
+        if traditional:
+            traditional_surface = graph.entity(surface_id("zh", traditional), "surface", traditional)
+            graph.relation(traditional_surface, entry, "realizes", "cc-cedict")
+            if traditional != simplified:
+                graph.relation(traditional_surface, simplified_surface, "orthographic-variant-of", "cc-cedict")
+        pinyin = normalized(payload.get("pinyin", {}).get("value") if isinstance(payload.get("pinyin"), dict) else "")
+        if pinyin:
+            pronunciation = graph.entity(f"zh:pron:{hashlib.sha256(pinyin.encode('utf-8')).hexdigest()}", "pronunciation", pinyin)
+            graph.relation(simplified_surface, pronunciation, "has-pronunciation", "cc-cedict")
+            if traditional and traditional != simplified:
+                graph.relation(surface_id("zh", traditional), pronunciation, "has-pronunciation", "cc-cedict")
+        for index, gloss in enumerate(payload.get("definitions", [])[:3], start=1):
+            gloss = normalized(gloss)
+            if gloss:
+                sense = graph.entity(f"{entry}:sense:{index}", "sense", gloss)
+                graph.relation(entry, sense, "has-sense", "cc-cedict")
+    return graph.write()
+
+
+def build_es() -> tuple[int, int, int]:
+    graph = Graph("es", {"dictionary": dictionary_version("es")})
+    for record, payload in dictionary_rows("es"):
+        headword = normalized(record.get("headword"))
+        if not headword:
+            continue
+        entry = graph.entity(dictionary_entry_id("es", {"headword": headword, "pos": record.get("pos"), "data": payload}), "dictionary-entry", headword)
+        surface = graph.entity(surface_id("es", headword), "surface", headword)
+        graph.relation(surface, entry, "realizes", "freedict")
+        for index, gloss in enumerate(payload.get("glosses", [])[:3], start=1):
+            gloss = normalized(gloss)
+            if gloss:
+                sense = graph.entity(f"{entry}:sense:{index}", "sense", gloss)
+                graph.relation(entry, sense, "has-sense", "freedict")
+    return graph.write()
+
+
+def build_cu() -> tuple[int, int, int]:
+    graph = Graph("cu", {"dictionary": dictionary_version("cu")})
+    for record, payload in dictionary_rows("cu"):
+        headword = normalized(record.get("headword"))
+        lemma = normalized(payload.get("lemma"))
+        if not headword or not lemma:
+            continue
+        entry = graph.entity(dictionary_entry_id("cu", payload), "dictionary-entry", lemma)
+        lemma_surface = graph.entity(surface_id("cu", lemma), "surface", lemma)
+        form_surface = graph.entity(surface_id("cu", headword), "surface", headword)
+        graph.relation(lemma_surface, entry, "realizes", "kaikki-wiktionary")
+        if headword != lemma:
+            graph.relation(form_surface, lemma_surface, "inflection-of", "kaikki-wiktionary")
+        reading = normalized(payload.get("reading"))
+        if reading:
+            pronunciation = graph.entity(f"cu:pron:{hashlib.sha256(reading.encode('utf-8')).hexdigest()}", "pronunciation", reading)
+            graph.relation(form_surface, pronunciation, "has-pronunciation", "kaikki-wiktionary")
+        for index, gloss in enumerate(payload.get("definitions", [])[:3], start=1):
+            gloss = normalized(gloss)
+            if gloss:
+                sense = graph.entity(f"{entry}:sense:{index}", "sense", gloss)
+                graph.relation(entry, sense, "has-sense", "kaikki-wiktionary")
+    return graph.write()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--languages", nargs="+", choices=("ja", "ru", "de"), default=("ja", "ru", "de"))
+    parser.add_argument("--languages", nargs="+", choices=("ja", "ru", "de", "zh", "es", "cu"), default=("ja", "ru", "de", "zh", "es", "cu"))
     args = parser.parse_args()
-    builders = {"ja": build_ja, "ru": build_ru, "de": build_de}
+    builders = {"ja": build_ja, "ru": build_ru, "de": build_de, "zh": build_zh, "es": build_es, "cu": build_cu}
     for language in args.languages:
         builders[language]()
 

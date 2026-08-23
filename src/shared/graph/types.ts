@@ -1,4 +1,5 @@
 import type { KnowledgeAspect } from '../constants';
+import type { GrammarMatchConfig } from '../types';
 
 /**
  * Tier-2 linguistic graph: the canonical representation of a language's
@@ -34,6 +35,12 @@ export interface GraphEntity {
   kind: GraphEntityKind;
   domain?: GraphDomain;
   label?: string;
+  /** Existing language-package grammar metadata, present only on grammar patterns. */
+  grammar?: {
+    meaning: string;
+    level: number;
+    recognitionRules?: GrammarMatchConfig[];
+  };
 }
 
 /**
@@ -61,7 +68,8 @@ export type GraphRelationType =
   | 'component-of'
   | 'derived-from'
   | 'semantically-related'
-  | 'morphologically-related';
+  | 'morphologically-related'
+  | 'contrasts-with';
 
 export const RELATION_CATEGORY: Record<GraphRelationType, RelationCategory> = {
   'inflection-of': 'identity',
@@ -79,6 +87,7 @@ export const RELATION_CATEGORY: Record<GraphRelationType, RelationCategory> = {
   'derived-from': 'support',
   'semantically-related': 'support',
   'morphologically-related': 'support',
+  'contrasts-with': 'support',
 };
 
 export interface GraphRelation {
@@ -120,7 +129,10 @@ export type CapabilityKind =
   | 'prosodic-pattern'
   | 'gender'
   | 'character-reading'
-  | 'grammar-comprehension';
+  | 'grammar-recognition'
+  | 'grammar-comprehension'
+  | 'grammar-formation'
+  | 'grammar-production';
 
 export interface LearnableTarget {
   entityId: string;
