@@ -22,9 +22,15 @@ import type { LanguageCharacterStudyConfig } from '../../../shared/types';
 
 const log = getLogger("renderer.characterGrid.app");
 
+// Tier-2 semantics: these categories are PREDICTED familiarity derived from
+// words containing the character (SUPPORT-style aggregation). They are not
+// evidence-backed CharacterRecognition/CharacterReading state — direct
+// character targets remain unmeasured until real character encounters exist.
+type PredictedFamiliarity = 'familiar' | 'emerging' | 'unmeasured';
+
 interface StudyCharacterData {
   character: string;
-  category: 'known' | 'learning' | 'unknown';
+  category: PredictedFamiliarity;
   score: number;
   knownCount: number;
   learnCount: number;
@@ -81,9 +87,9 @@ export const CharacterGridContent: Component = () => {
   // Calculate stats
   const stats = createMemo(() => {
     const data = characterData();
-    const known = data.filter(item => item.category === 'known').length;
-    const learning = data.filter(item => item.category === 'learning').length;
-    const unknown = data.filter(item => item.category === 'unknown').length;
+    const known = data.filter(item => item.category === 'familiar').length;
+    const learning = data.filter(item => item.category === 'emerging').length;
+    const unknown = data.filter(item => item.category === 'unmeasured').length;
     const total = data.length;
     return { known, learning, unknown, total };
   });
@@ -156,7 +162,7 @@ export const CharacterGridContent: Component = () => {
           if (!characterMap.has(character)) {
             characterMap.set(character, {
               character,
-              category: 'unknown',
+              category: 'unmeasured',
               score: 0,
               knownCount: 0,
               learnCount: 0,
@@ -213,7 +219,7 @@ export const CharacterGridContent: Component = () => {
             if (!characterMap.has(character)) {
               characterMap.set(character, {
                 character,
-                category: 'unknown',
+                category: 'unmeasured',
                 score: 0,
                 knownCount: 0,
                 learnCount: 0,
@@ -236,17 +242,17 @@ export const CharacterGridContent: Component = () => {
       
       for (const item of characterMap.values()) {
         if (item.knownCount > 0) {
-          item.category = 'known';
+          item.category = 'familiar';
           maxKnown = Math.max(maxKnown, item.score);
         } else if (item.score > 0) {
-          item.category = 'learning';
+          item.category = 'emerging';
           maxLearn = Math.max(maxLearn, item.score);
         }
       }
 
       // Sort by category and score
       const sorted = Array.from(characterMap.values()).sort((a, b) => {
-        const order = { known: 0, learning: 1, unknown: 2 };
+        const order = { familiar: 0, emerging: 1, unmeasured: 2 };
         if (order[a.category] !== order[b.category]) {
           return order[a.category] - order[b.category];
         }
@@ -266,18 +272,18 @@ export const CharacterGridContent: Component = () => {
   const colorMaxes = createMemo(() => {
     const data = characterData();
     return {
-      maxKnown: Math.max(1, ...data.filter(entry => entry.category === 'known').map(entry => entry.score)),
-      maxLearn: Math.max(0.5, ...data.filter(entry => entry.category === 'learning').map(entry => entry.score)),
+      maxKnown: Math.max(1, ...data.filter(entry => entry.category === 'familiar').map(entry => entry.score)),
+      maxLearn: Math.max(0.5, ...data.filter(entry => entry.category === 'emerging').map(entry => entry.score)),
     };
   });
 
   const getColorForCharacter = (item: StudyCharacterData): string => {
     const { maxKnown, maxLearn } = colorMaxes();
 
-    if (item.category === 'known') {
+    if (item.category === 'familiar') {
       const t = maxKnown > 1 ? (item.score - 1) / (maxKnown - 1) : 0;
       return `color-mix(in srgb, var(--color-success-lighter) ${t * 100}%, var(--color-success))`;
-    } else if (item.category === 'learning') {
+    } else if (item.category === 'emerging') {
       const t = maxLearn > 0.5 ? (item.score - 0.5) / (maxLearn - 0.5) : 0;
       return `color-mix(in srgb, var(--color-warning) ${t * 100}%, var(--pos-auxiliary))`;
     }
@@ -320,7 +326,7 @@ export const CharacterGridContent: Component = () => {
             <For each={characterData()}>
               {(item) => (
                 <div
-                  class={`cg-cell ${isCharacterDimmed(item) ? 'dimmed' : ''} ${item.category !== 'unknown' ? 'cg-cell-colored' : 'cg-cell-unknown'}`}
+                  class={`cg-cell ${isCharacterDimmed(item) ? 'dimmed' : ''} ${item.category !== 'unmeasured' ? 'cg-cell-colored' : 'cg-cell-unknown'}`}
                   style={{ background: getColorForCharacter(item) }}
                   tabindex={0}
                   aria-label={item.character}
@@ -419,8 +425,8 @@ export const CharacterGridContent: Component = () => {
             <span class="tooltip-meta">
               {(() => {
                 const category = hoveredCharacter()!.category;
-                if (category === 'known') return t('mlearn.CharacterGrid.Tooltip.KnownCount');
-                if (category === 'learning') return t('mlearn.CharacterGrid.Tooltip.LearningCount');
+                if (category === 'familiar') return t('mlearn.CharacterGrid.Tooltip.KnownCount');
+                if (category === 'emerging') return t('mlearn.CharacterGrid.Tooltip.LearningCount');
                 return t('mlearn.CharacterGrid.Tooltip.UnknownCount');
               })()}
               ({t('mlearn.CharacterGrid.Tooltip.Score')} {Math.round(hoveredCharacter()!.score * 10) / 10},
