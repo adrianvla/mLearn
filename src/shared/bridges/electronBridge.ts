@@ -13,6 +13,7 @@ import type {
   FlashcardBridge,
   PluginBridge,
   LocalizationBridge,
+  GraphBridge,
   FileBridge,
   WindowBridge,
   ServerBridge,
@@ -105,6 +106,13 @@ const localizationBridge: LocalizationBridge = {
   installLanguage: (url) => getIPC().installLanguage(url),
   onLanguageInstalled: (cb) => getIPC().onLanguageInstalled(cb),
   onLanguageInstallError: (cb) => getIPC().onLanguageInstallError(cb),
+};
+
+const graphBridge: GraphBridge = {
+  getGraphMeta: (language) => getIPC().getGraphMeta(language),
+  lookupGraphWord: (language, input) => getIPC().lookupGraphWord(language, input),
+  getGraphRelated: (language, entityId, relationTypes) => getIPC().getGraphRelated(language, entityId, relationTypes),
+  getGraphTargetsForSurfaces: (language, inputs) => getIPC().getGraphTargetsForSurfaces(language, inputs),
 };
 
 const fileBridge: FileBridge = {
@@ -399,6 +407,7 @@ export function createElectronBridge(): PlatformBridge {
     flashcards: flashcardBridge,
     plugins: pluginBridge,
     localization: localizationBridge,
+    graph: graphBridge,
     files: fileBridge,
     window: windowBridge,
     server: serverBridge,

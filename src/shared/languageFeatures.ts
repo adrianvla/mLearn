@@ -699,14 +699,16 @@ function grammarTokenMatches(token: Token, matcher: GrammarTokenMatcher, data?: 
     || matcher.regex !== undefined;
 }
 
-function grammarTokenSequenceMatches(tokens: readonly Token[], match: GrammarMatchConfig, data?: LanguageData | null): boolean {
+/** Returns every full token-sequence match. Consumers can retain the span as ephemeral UI evidence. */
+export function grammarTokenSequenceMatchStarts(tokens: readonly Token[], match: GrammarMatchConfig, data?: LanguageData | null): number[] {
   const matchers = match.tokens ?? [];
-  if (matchers.length === 0 || tokens.length < matchers.length) return false;
+  if (matchers.length === 0 || tokens.length < matchers.length) return [];
   const capabilities = getTokenizerCapabilities(data);
   if (!matchers.every((matcher) => grammarMatcherCanUseTokenizerField(matcher, capabilities))) {
-    return false;
+    return [];
   }
 
+  const starts: number[] = [];
   for (let start = 0; start <= tokens.length - matchers.length; start += 1) {
     let matched = true;
     for (let offset = 0; offset < matchers.length; offset += 1) {
@@ -715,10 +717,10 @@ function grammarTokenSequenceMatches(tokens: readonly Token[], match: GrammarMat
         break;
       }
     }
-    if (matched) return true;
+    if (matched) starts.push(start);
   }
 
-  return false;
+  return starts;
 }
 
 function grammarTextMatches(fullText: string, point: GrammarPoint, match?: GrammarMatchConfig): boolean {
@@ -740,7 +742,7 @@ export function grammarPointMatchesTokens(
 
   return matches.some((match) => {
     if ((match.type ?? 'text') === 'token-sequence') {
-      return grammarTokenSequenceMatches(tokens, match, data);
+      return grammarTokenSequenceMatchStarts(tokens, match, data).length > 0;
     }
     return grammarTextMatches(fullText, point, match);
   });

@@ -17,7 +17,37 @@ vi.mock('./knowledgeEvents', () => ({
   getEventLogForLanguage: mocks.getEventLogForLanguage,
 }));
 
-import { importAnkiReviewHistory } from './ankiReviewImport';
+import { importAnkiReviewHistory, mapAnkiGrammarReviews } from './ankiReviewImport';
+import type { AnkiCardInfo } from '../hooks/useAnki';
+
+const grammarCard: AnkiCardInfo = {
+  cardId: 1, type: 2, queue: 2, due: 1, factor: 2500, interval: 1, note: 1,
+  fields: { Front: { value: 'known pattern', order: 0 }, Back: { value: 'explanation', order: 1 } },
+};
+const grammarReview: AnkiReviewEntry = { id: 123, cid: 1, usn: 0, ease: 3, ivl: 1, lastIvl: 1, factor: 2500, time: 1, type: 1 };
+
+describe('mapAnkiGrammarReviews', () => {
+  it('maps known card text to recognition only and is idempotent per review and target', () => {
+    const result = mapAnkiGrammarReviews({
+      language: 'example', grammar: [{ pattern: 'known pattern', meaning: 'x', level: 1 }], card: grammarCard,
+      reviews: [grammarReview], existingReviewIdsByTarget: new Map(),
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].event.targetRef).toMatchObject({ capability: 'grammar-recognition' });
+    expect(result[0].event.source).toBe('anki');
+    expect(mapAnkiGrammarReviews({
+      language: 'example', grammar: [{ pattern: 'known pattern', meaning: 'x', level: 1 }], card: grammarCard,
+      reviews: [grammarReview], existingReviewIdsByTarget: new Map([[result[0].key, new Set([grammarReview.id])]]),
+    })).toEqual([]);
+  });
+
+  it('does not fabricate evidence for unmapped cards', () => {
+    expect(mapAnkiGrammarReviews({
+      language: 'example', grammar: [{ pattern: 'missing', meaning: 'x', level: 1 }], card: grammarCard,
+      reviews: [grammarReview], existingReviewIdsByTarget: new Map(),
+    })).toEqual([]);
+  });
+});
 
 function review(overrides: Partial<AnkiReviewEntry>): AnkiReviewEntry {
   return {

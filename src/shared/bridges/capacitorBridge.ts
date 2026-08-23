@@ -12,6 +12,7 @@ import type {
   FlashcardBridge,
   PluginBridge,
   LocalizationBridge,
+  GraphBridge,
   FileBridge,
   WindowBridge,
   ServerBridge,
@@ -1912,6 +1913,21 @@ const worldBridge: WorldBridge = {
   },
 };
 
+const graphBridge: GraphBridge = {
+  async getGraphMeta() {
+    return { entityCount: 0, relationCount: 0, ready: false, status: 'unavailable' };
+  },
+  async lookupGraphWord() {
+    return null;
+  },
+  async getGraphRelated() {
+    return [];
+  },
+  async getGraphTargetsForSurfaces(_language, inputs) {
+    return inputs.map((input) => ({ input, lookup: null }));
+  },
+};
+
 // ============================================================================
 // Factory
 // ============================================================================
@@ -1922,6 +1938,7 @@ export function createCapacitorBridge(): PlatformBridge {
     flashcards: flashcardBridge,
     plugins: pluginBridge,
     localization: localizationBridge,
+    graph: graphBridge,
     files: fileBridge,
     window: windowBridge,
     server: serverBridge,

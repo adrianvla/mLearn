@@ -9,6 +9,8 @@ import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
 import type { KnowledgeEventLog } from './knowledgeEvents';
 import type { JournalEvent, JournalEventDraft } from './world';
+import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from './graph/ipc';
+import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
   // Settings
@@ -80,6 +82,12 @@ export interface MLearnIPC {
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
+
+  // Linguistic Graph
+  getGraphMeta: (language: string) => Promise<GraphMeta>;
+  lookupGraphWord: (language: string, input: GraphLookupInput) => Promise<GraphWordLookup | null>;
+  getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
+  getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
   
   // Localization
   getLocalization: () => void;

@@ -4,6 +4,7 @@ import { isWordInLanguageScript } from '../../shared/utils/textUtils';
 import { hashWordSync } from '../services/srsAlgorithm';
 import { getCachedTranslation, warmTranslationCache } from '../hooks/useTranslation';
 import { hasDefinition } from './translationCacheParsers';
+import { selectEncounterBatch } from '../learning/engine';
 
 export interface SuggestedFlashcardFilterSettings {
   autoSuggestFlashcards: boolean;
@@ -182,17 +183,20 @@ export async function filterSuggestedWords(
     await warmDictionaryStatus(allowedWords, language, wordFormOptions);
   }
 
-  return new Set(
-    allowedWords.filter((word) =>
-      shouldKeepSuggestion(
-        { word, language },
-        settings,
-        new Set<string>(),
-        null,
-        null,
-        languageData,
-        wordFormOptions,
-      ),
+  const eligible = allowedWords.filter((word) =>
+    shouldKeepSuggestion(
+      { word, language },
+      settings,
+      new Set<string>(),
+      null,
+      null,
+      languageData,
+      wordFormOptions,
     ),
   );
+  return new Set(selectEncounterBatch({
+    preset: 'MEDIA',
+    nowMs: 0,
+    mediaItems: eligible.map((word) => ({ key: `${language}:${word}`, word, language })),
+  }).map((decision) => decision.candidate.word!));
 }

@@ -31,7 +31,7 @@ export const SRSTab: Component = () => {
   const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { store, updateMeta, resetSRS, nukeAllFlashcards } = useFlashcards();
-  const { getLanguageFeatures } = useLanguage();
+  const { getLanguageFeatures, currentLangData } = useLanguage();
   const anki = useAnki();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
 
@@ -58,6 +58,8 @@ export const SRSTab: Component = () => {
     try {
       const result = await importAnkiReviewHistory(settings.language, {
         fetchReviews: (ids: number[]) => anki.getReviewsOfCards(ids),
+        fetchCards: (ids: number[]) => anki.getCardsInfo(ids),
+        grammar: currentLangData()?.grammar,
       });
       showToast({
         message: t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Success', {

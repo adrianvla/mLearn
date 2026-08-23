@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   calibrationUnmeasuredCandidates,
+  curriculumCandidates,
+  mediaOpportunityCandidates,
   probeCandidates,
   retentionDueCandidates,
+  suggestedLearningCandidates,
   weakTargetCandidates,
 } from './candidateSources';
 import type { LearnableTarget } from '../../shared/graph/types';
@@ -92,5 +95,27 @@ describe('probeCandidates', () => {
       scores: { 'information-gain': 1, uncertainty: 0.8 },
       meta: { pSuccess: 0.5 },
     });
+  });
+});
+
+describe('curriculum, media, and suggested sources', () => {
+  it('preserves source ordering and maps each learnable word to a policy candidate', () => {
+    const items = [
+      { key: 'first', word: 'hallo', language: 'de' },
+      { key: 'second', word: 'morgen', language: 'de' },
+    ];
+
+    for (const candidates of [
+      curriculumCandidates(items),
+      mediaOpportunityCandidates(items),
+      suggestedLearningCandidates(items),
+    ]) {
+      expect(candidates.map((candidate) => candidate.key)).toEqual(['first', 'second']);
+      expect(candidates.every((candidate) => candidate.targets[0]?.capability === 'surface-recognition')).toBe(true);
+    }
+
+    expect(curriculumCandidates(items)[0].origin).toBe('curriculum');
+    expect(mediaOpportunityCandidates(items)[0].origin).toBe('media');
+    expect(suggestedLearningCandidates(items)[0].origin).toBe('curriculum');
   });
 });

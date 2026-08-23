@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRESETS, calibrationPoolItem, selectNextEncounter } from './engine';
+import { PRESETS, calibrationPoolItem, selectEncounterBatch, selectNextEncounter } from './engine';
 
 const target = { entityId: 'de:surface:hallo', capability: 'surface-recognition' as const };
 
@@ -35,5 +35,17 @@ describe('selectNextEncounter', () => {
 
     expect(decision?.action).toBe('DEFER');
     expect(decision?.action === 'DEFER' ? decision.candidate.key : fallback.id).toBe(fallback.id);
+  });
+
+  it('preserves Level Study, media, and suggested source order through policy selection', () => {
+    const expected = ['first', 'second'];
+    const common = [
+      { key: 'first', word: 'hallo', language: 'de' },
+      { key: 'second', word: 'morgen', language: 'de' },
+    ];
+
+    expect(selectEncounterBatch({ preset: 'CURRICULUM', nowMs: 0, levelStudyItems: common }).map((decision) => decision.candidate.key)).toEqual(expected);
+    expect(selectEncounterBatch({ preset: 'MEDIA', nowMs: 0, mediaItems: common }).map((decision) => decision.candidate.key)).toEqual(expected);
+    expect(selectEncounterBatch({ preset: 'SUGGESTED', nowMs: 0, suggestedItems: common }).map((decision) => decision.candidate.key)).toEqual(expected);
   });
 });

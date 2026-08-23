@@ -23,6 +23,7 @@ import { MigrationHandler } from '../components/migration/MigrationHandler';
 import { setBuiltinModelReady } from './llmModelSignals';
 import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
+import { GraphProvider } from './GraphContext';
 import { isElectron } from '../../shared/platform';
 import { getBridge } from '../../shared/bridges';
 import { installRendererLogSink } from '../utils/installLogSink';
@@ -369,6 +370,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
         <ServerStatusObserver />
         <ResponsiveProvider>
           <SettingsProvider>
+            <GraphProvider>
             <ActivityRuntimeBridge />
             <WindowLoadingScreen transparent={props.transparent} />
             <GlobalEulaModal />
@@ -404,6 +406,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
               </MigrationHandler>
             </LanguageProviderBridge>
             </LowPowerGateProvider>
+            </GraphProvider>
           </SettingsProvider>
         </ResponsiveProvider>
       </LocalizationProvider>

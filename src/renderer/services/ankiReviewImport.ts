@@ -2,8 +2,11 @@ import { getBackend } from '../../shared/backends';
 import { getLogger } from '../../shared/utils/logger';
 import type { KnowledgeEvent, KnowledgeEventLog, Rating } from '../../shared/knowledgeEvents';
 import type { AnkiReviewEntry } from '../hooks/useAnki';
+import type { AnkiCardInfo } from '../hooks/useAnki';
 import { appendEvents, getEventLogForLanguage } from './knowledgeEvents';
 import { hashWordSync } from './srsAlgorithm';
+import { grammarEvidenceKey, grammarTarget } from '../../shared/grammar/evidence';
+import type { GrammarPoint } from '../../shared/types';
 
 const log = getLogger('renderer.services.ankiReviewImport');
 
@@ -24,6 +27,9 @@ export interface AnkiReviewImportResult {
 
 export interface AnkiReviewImportDeps {
   fetchReviews: (cardIds: number[]) => Promise<Record<string, AnkiReviewEntry[]>>;
+  /** Optional card metadata enables conservative grammar imports from explicit card text. */
+  fetchCards?: (cardIds: number[]) => Promise<AnkiCardInfo[]>;
+  grammar?: readonly GrammarPoint[];
 }
 
 function toReviewEvent(entry: AnkiReviewEntry, easeBefore: number | undefined): KnowledgeEvent | null {
@@ -43,6 +49,55 @@ function toReviewEvent(entry: AnkiReviewEntry, easeBefore: number | undefined): 
     easeBefore,
     ankiReviewId: entry.id,
   };
+}
+
+function ankiQuality(ease: number): KnowledgeEvent['quality'] {
+  return ease === 1 ? 'missed' : ease === 2 ? 'struggled' : 'fluent';
+}
+
+function cardContainsPattern(card: AnkiCardInfo, pattern: string): boolean {
+  const fields = Object.values(card.fields).map((field) => field.value).join('\n');
+  return fields.includes(pattern);
+}
+
+/**
+ * An Anki prompt containing a known pattern is recognition evidence only. This
+ * deliberately never infers formation or production from a review button.
+ */
+export function mapAnkiGrammarReviews(params: {
+  language: string;
+  grammar: readonly GrammarPoint[];
+  card: AnkiCardInfo;
+  reviews: readonly AnkiReviewEntry[];
+  existingReviewIdsByTarget: ReadonlyMap<string, ReadonlySet<number>>;
+}): Array<{ key: string; event: KnowledgeEvent }> {
+  const mapped: Array<{ key: string; event: KnowledgeEvent }> = [];
+  for (const point of params.grammar) {
+    if (!point.pattern || !cardContainsPattern(params.card, point.pattern)) continue;
+    const key = grammarEvidenceKey(params.language, point.pattern, 'grammar-recognition');
+    const existing = params.existingReviewIdsByTarget.get(key) ?? new Set<number>();
+    for (const review of params.reviews) {
+      if (review.type > 2 || existing.has(review.id)) continue;
+      mapped.push({
+        key,
+        event: {
+          t: review.id,
+          kind: 'review',
+          source: 'anki',
+          aspect: 'grammar',
+          targetRef: { kind: 'grammar-pattern', id: grammarTarget(params.language, point.pattern, 'grammar-recognition').entityId, capability: 'grammar-recognition' },
+          ankiReviewId: review.id,
+          schedulerCardId: String(params.card.cardId),
+          rating: RATING_BY_BUTTON[review.ease],
+          quality: ankiQuality(review.ease),
+          timesSeenDelta: 1,
+          presentedSurface: Object.values(params.card.fields).map((field) => field.value).join('\n'),
+          origin: 'anki-review',
+        },
+      });
+    }
+  }
+  return mapped;
 }
 
 /**
@@ -80,6 +135,16 @@ export async function importAnkiReviewHistory(
   let imported = 0;
   let skipped = 0;
 
+  const cardsById = new Map<number, AnkiCardInfo>();
+  if (deps.fetchCards && deps.grammar?.length) {
+    for (const card of await deps.fetchCards(allCardIds)) cardsById.set(card.cardId, card);
+  }
+  const existingGrammarIds = new Map<string, Set<number>>();
+  for (const [key, events] of Object.entries(existing)) {
+    if (!key.startsWith(`${language}:grammar:`)) continue;
+    existingGrammarIds.set(key, new Set(events.map((event) => event.ankiReviewId).filter((id): id is number => id != null)));
+  }
+
   for (const [word, cardIds] of byWord) {
     const key = `${language}:${hashWordSync(word)}`;
     const existingIds = new Set(
@@ -100,6 +165,18 @@ export async function importAnkiReviewHistory(
           continue;
         }
         wordEvents.push(event);
+      }
+      const card = cardsById.get(cardId);
+      if (card && deps.grammar) {
+        for (const mapped of mapAnkiGrammarReviews({ language, grammar: deps.grammar, card, reviews: entries, existingReviewIdsByTarget: existingGrammarIds })) {
+          const events = newEventsByKey[mapped.key] ?? [];
+          events.push(mapped.event);
+          newEventsByKey[mapped.key] = events;
+          const importedIds = existingGrammarIds.get(mapped.key) ?? new Set<number>();
+          importedIds.add(mapped.event.ankiReviewId!);
+          existingGrammarIds.set(mapped.key, importedIds);
+          imported++;
+        }
       }
     }
     if (wordEvents.length === 0) continue;

@@ -43,6 +43,7 @@ import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } f
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { nextAttemptId, type AttemptId } from '../../shared/knowledgeEvents';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
+import { selectEncounterBatch } from '../learning/engine';
 import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
@@ -3881,7 +3882,15 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
             if (byCount !== 0) return byCount;
             return a.createdAt - b.createdAt;
           });
-          const pickIds = sorted.slice(0, remaining).map((s) => s.id);
+          const pickIds = selectEncounterBatch({
+            preset: 'SUGGESTED',
+            nowMs: 0,
+            suggestedItems: sorted.map((suggestion) => ({
+              key: suggestion.id,
+              word: suggestion.word,
+              language: suggestion.language,
+            })),
+          }).slice(0, remaining).map((decision) => decision.candidate.key);
           try {
             createdTotal += await promoteSuggestedFlashcards(pickIds, { useLLM });
           } catch (e) {

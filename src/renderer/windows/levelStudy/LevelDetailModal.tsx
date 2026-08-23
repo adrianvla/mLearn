@@ -16,6 +16,7 @@ import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
 import { getReadingAnnotationScripts, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import { selectEncounterBatch } from '../../learning/engine';
 import type { WordProsodyOverlayData } from '../../utils/wordRenderText';
 import type { LanguageData } from '../../../shared/types';
 
@@ -135,7 +136,15 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
   });
 
   const handleAddFlashcards = async () => {
-    const words = selectedWords().map((w) => w.word);
+    const words = selectEncounterBatch({
+      preset: 'CURRICULUM',
+      nowMs: 0,
+      levelStudyItems: selectedWords().map((item) => ({
+        key: `${activeLanguage()}:${item.word}`,
+        word: item.word,
+        language: activeLanguage(),
+      })),
+    }).map((decision) => decision.candidate.word!);
     if (words.length === 0) return;
     const targetStatus = SLIDER_TARGET_STATUS[sliderIndex()];
     setIsAdding(true);

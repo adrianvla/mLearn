@@ -17,6 +17,12 @@ export interface FlashcardLike {
 
 export type CalibrationPoolItem = Omit<Candidate, 'origin'>;
 
+export interface LearnableWordSourceItem {
+  key: string;
+  word: string;
+  language: string;
+}
+
 export interface WeakTargetEntry {
   word: string;
   language: string;
@@ -54,6 +60,18 @@ export function retentionDueCandidates(cards: readonly FlashcardLike[], nowMs: n
 
 export function calibrationUnmeasuredCandidates(poolItems: readonly CalibrationPoolItem[]): Candidate[] {
   return poolItems.map((item) => ({ ...item, origin: 'calibration' }));
+}
+
+export function curriculumCandidates(items: readonly LearnableWordSourceItem[]): Candidate[] {
+  return wordCandidates(items, 'curriculum', 'curriculum-relevance');
+}
+
+export function mediaOpportunityCandidates(items: readonly LearnableWordSourceItem[]): Candidate[] {
+  return wordCandidates(items, 'media', 'novelty');
+}
+
+export function suggestedLearningCandidates(items: readonly LearnableWordSourceItem[]): Candidate[] {
+  return wordCandidates(items, 'curriculum', 'curriculum-relevance');
 }
 
 export function weakTargetCandidates(entries: readonly WeakTargetEntry[]): Candidate[] {
@@ -102,6 +120,19 @@ export function probeCandidates(
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function wordCandidates(
+  items: readonly LearnableWordSourceItem[],
+  origin: Candidate['origin'],
+  score: 'curriculum-relevance' | 'novelty',
+): Candidate[] {
+  return items.map((item) => ({
+    ...item,
+    targets: [{ entityId: `${item.language}:surface:${item.word}`, capability: 'surface-recognition' }],
+    origin,
+    scores: { [score]: 1 },
+  }));
 }
 
 function binaryEntropy(probability: number): number {

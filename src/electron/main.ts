@@ -30,6 +30,7 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
+import { setupLinguisticGraphIPC } from './services/linguisticGraph';
 import { setupJournalIPC } from './services/journalService';
 import { startScheduler, stopScheduler } from './services/schedulerRuntime';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
@@ -340,6 +341,7 @@ function setupAllIPC(): void {
   setupVoiceIPC();
   setupDataExportImportIPC();
   setupKVStoreIPC();
+  setupLinguisticGraphIPC();
   setupJournalIPC();
   setupWorldIPC();
   setupBrowserDetectionIPC();

@@ -10,6 +10,8 @@ import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOption
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEventLog } from '../shared/knowledgeEvents';
+import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../shared/graph/ipc';
+import type { GraphRelationType } from '../shared/graph/types';
 import { getLogger } from '../shared/utils/logger';
 
 const log = getLogger('electron.preload');
@@ -51,6 +53,16 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.LANG_INSTALLED, () => callback()),
   onLanguageInstallError: (callback: (error: string) => void) =>
     ipcOn(IPC_CHANNELS.LANG_INSTALL_ERROR, (_event, error) => callback(error)),
+
+  // ========== Linguistic Graph ==========
+  getGraphMeta: (language: string): Promise<GraphMeta> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_META, language),
+  lookupGraphWord: (language: string, input: GraphLookupInput): Promise<GraphWordLookup | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_LOOKUP_WORD, language, input),
+  getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]): Promise<GraphRelatedNode[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_RELATED, language, entityId, relationTypes),
+  getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]): Promise<GraphSurfaceTargets[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, language, inputs),
 
   // ========== Localization ==========
   getLocalization: () => ipcRenderer.send(IPC_CHANNELS.GET_LOCALIZATION),

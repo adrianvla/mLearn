@@ -78,6 +78,12 @@ export const IPC_CHANNELS = {
   INSTALL_LANG: 'install-lang',
   LANG_INSTALLED: 'lang-installed',
   LANG_INSTALL_ERROR: 'lang-install-error',
+
+  // Linguistic graph
+  GRAPH_GET_META: 'graph-get-meta',
+  GRAPH_LOOKUP_WORD: 'graph-lookup-word',
+  GRAPH_GET_RELATED: 'graph-get-related',
+  GRAPH_GET_TARGETS_FOR_SURFACES: 'graph-get-targets-for-surfaces',
   
   // Localization
   GET_LOCALIZATION: 'get-localization',

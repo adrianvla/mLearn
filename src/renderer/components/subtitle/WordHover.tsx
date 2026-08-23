@@ -4,9 +4,10 @@
  * Matches legacy .subtitle_hover structure exactly from the old app
  */
 
-import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
+import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
+import { useOptionalGraph } from '../../context/GraphContext';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
@@ -29,6 +30,7 @@ import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTa
 import { extractReadingValue } from '../../utils/translationCacheParsers';
 import { getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -79,10 +81,12 @@ export interface WordHoverProps {
   /** Video source URL (for video clip flashcards) */
   videoSrc?: string;
   lastScreenshot?: string;
+  grammarOccurrences?: readonly GrammarOccurrence[];
 }
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
+  const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
   const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
@@ -95,6 +99,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [, setPositionLocked] = createSignal(false);
   // Track if we have a cached explanation (for pill indicator)
   const [hasCachedExplanation, setHasCachedExplanation] = createSignal(false);
+  const [graphLookup, setGraphLookup] = createSignal<import('../../../shared/graph/ipc').GraphWordLookup | null>(null);
   let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
@@ -108,6 +113,19 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   }, tokenizerCapabilities()) || displayWord());
 
   const isShown = createMemo(() => props.visible !== false);
+
+  createEffect(() => {
+    const word = actualWord();
+    if (!word || !graphMeta().ready) {
+      setGraphLookup(null);
+      return;
+    }
+    let disposed = false;
+    void getTargetsForSurfaces([{ surface: word }]).then(([result]) => {
+      if (!disposed) setGraphLookup(result?.lookup ?? null);
+    });
+    onCleanup(() => { disposed = true; });
+  });
   
   // REACTIVE: Check if word is in SRS using synchronous method
   // This properly integrates with SolidJS's reactive system
@@ -546,6 +564,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   // Flashcard pill - computed values for reactivity
   const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
+  const grammarOccurrences = createMemo(() => props.grammarOccurrences ?? []);
 
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = createSignal(false);
@@ -609,12 +628,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     >
       <div
         class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? 'dark' : ''}`}
+        role="presentation"
         ref={(el) => { subtitleHoverRef = el; }}
         onMouseEnter={() => props.onMouseEnter?.()}
         onMouseLeave={() => { if (!isInternalModalOpen() && !isAddingFlashcard()) props.onMouseLeave?.(); }}
       >
         <div class="subtitle_hover_relative">
-          <div class="subtitle_hover_content" onClick={(e) => {
+          <div class="subtitle_hover_content" role="button" tabIndex={0} onClick={(e) => {
             const anchor = (e.target as HTMLElement).closest('a');
             if (!anchor) return;
             e.preventDefault();
@@ -666,6 +686,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <Show when={translationEntries().length === 0 && (!props.dictionaryEntries || props.dictionaryEntries.length === 0)}>
                 <div class="hover_translation">{t('mlearn.WordHover.NoTranslation')}</div>
               </Show>
+              <Show when={graphMeta().status === 'ready' && graphLookup()}>
+                <Show when={graphLookup()!.senses.length > 0 || graphLookup()!.pronunciations.length > 0}>
+                  <hr />
+                  <For each={graphLookup()!.senses.slice(0, 3)}>
+                    {(sense) => <div class="hover_translation">{sense.label}</div>}
+                  </For>
+                  <For each={graphLookup()!.pronunciations.slice(0, 2)}>
+                    {(pronunciation) => <div class="hover_reading">{pronunciation.label}</div>}
+                  </For>
+                </Show>
+              </Show>
             </Show>
           </div>
 
@@ -702,6 +733,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 )}
               </Show>
               <POSPill />
+              <For each={grammarOccurrences()}>
+                {(occurrence) => <PillLabel variant="blue">{occurrence.realizedForm}</PillLabel>}
+              </For>
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}

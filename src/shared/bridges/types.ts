@@ -46,6 +46,8 @@ import type {
   PluginWindowPayload,
 } from '../plugins/types';
 import type { KnowledgeEventLog } from '../knowledgeEvents';
+import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../graph/ipc';
+import type { GraphRelationType } from '../graph/types';
 import type { IntegrateThreadInput, IntegrateThreadResult, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, RememberThisInput, Room, Thread, WorldSnapshot } from '../world';
 
 // ============================================================================
@@ -114,6 +116,13 @@ export interface LocalizationBridge {
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
+}
+
+export interface GraphBridge {
+  getGraphMeta: (language: string) => Promise<GraphMeta>;
+  lookupGraphWord: (language: string, input: GraphLookupInput) => Promise<GraphWordLookup | null>;
+  getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
+  getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
 }
 
 export interface FileBridge {
@@ -431,6 +440,7 @@ export interface PlatformBridge {
   flashcards: FlashcardBridge;
   plugins: PluginBridge;
   localization: LocalizationBridge;
+  graph: GraphBridge;
   files: FileBridge;
   window: WindowBridge;
   server: ServerBridge;

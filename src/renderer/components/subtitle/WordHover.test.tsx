@@ -70,6 +70,10 @@ vi.mock('../../context', () => ({
   useLocalization: () => ({
     t: (key: string) => key,
   }),
+  useGraph: () => ({
+    meta: () => ({ ready: false, status: 'idle' }),
+    getTargetsForSurfaces: vi.fn(),
+  }),
 }));
 
 vi.mock('../../hooks/useTranslation', () => ({
