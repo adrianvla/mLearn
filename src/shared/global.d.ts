@@ -9,7 +9,7 @@ import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
 import type { KnowledgeEventLog } from './knowledgeEvents';
 import type { JournalEvent, JournalEventDraft } from './world';
-import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from './graph/ipc';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from './graph/ipc';
 import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
@@ -88,6 +88,7 @@ export interface MLearnIPC {
   lookupGraphWord: (language: string, input: GraphLookupInput) => Promise<GraphWordLookup | null>;
   getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
+  getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery) => Promise<GraphNeighborhood | null>;
   
   // Localization
   getLocalization: () => void;

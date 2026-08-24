@@ -10,7 +10,7 @@ import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOption
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEventLog } from '../shared/knowledgeEvents';
-import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../shared/graph/ipc';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../shared/graph/ipc';
 import type { GraphRelationType } from '../shared/graph/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -63,6 +63,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_RELATED, language, entityId, relationTypes),
   getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]): Promise<GraphSurfaceTargets[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, language, inputs),
+  getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery): Promise<GraphNeighborhood | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, language, query),
 
   // ========== Localization ==========
   getLocalization: () => ipcRenderer.send(IPC_CHANNELS.GET_LOCALIZATION),

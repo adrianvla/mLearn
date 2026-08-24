@@ -89,10 +89,8 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData,
     prosodyPosition: coloredProsodyPosition,
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => flashcards.getAspectStatus(word(), 'prosody', lookupLanguage()),
     partOfSpeechColor: getWordColor,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
   };

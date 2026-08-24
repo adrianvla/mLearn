@@ -1,5 +1,6 @@
 import type { JSX } from 'solid-js';
 import type { WordStatus } from '../../shared/constants';
+import { normalizedStrength } from '../../shared/utils/knowledgeStrength';
 import {
   DEFAULT_SETTINGS,
   type LanguageColoredProsodyConfig,
@@ -19,6 +20,17 @@ export interface ColoredProsodyRenderInput {
   reading: string;
   slot: 'word' | 'reading';
   prosodyPosition?: number | null;
+}
+
+/** Evidence for the prosodic-pattern target, never the word's combined status. */
+export interface ColoredProsodyKnowledge {
+  status: WordStatus;
+  ease: number;
+  untracked?: boolean;
+  /** A read-only accessibility estimate when this target has no direct evidence. */
+  predictedAccessibility?: number;
+  /** Exclusions settle word selection; they are not prosody knowledge. */
+  excluded?: boolean;
 }
 
 type ColoredProsodyRenderer = (input: ColoredProsodyRenderInput) => ColoredProsodySegment[] | null;
@@ -106,6 +118,23 @@ export function coloredProsodyAllowsStatus(status: WordStatus, limit: Settings['
   return ranks[status] <= ranks[limit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit];
 }
 
+/**
+ * Fade only from evidence about the prosodic-pattern target. An unmeasured or
+ * excluded target remains fully visible; prediction is used only when supplied.
+ */
+export function getColoredProsodyFadeStrength(
+  knowledge: ColoredProsodyKnowledge,
+  settings: Pick<Settings, 'easeThresholdLearning' | 'easeThresholdKnown'>,
+): number {
+  if (knowledge.excluded) return 0;
+  if (knowledge.untracked) return Math.max(0, Math.min(1, knowledge.predictedAccessibility ?? 0));
+  return normalizedStrength(
+    knowledge.ease * 1000,
+    (settings.easeThresholdLearning ?? DEFAULT_SETTINGS.easeThresholdLearning) * 1000,
+    (settings.easeThresholdKnown ?? DEFAULT_SETTINGS.easeThresholdKnown) * 1000,
+  );
+}
+
 interface RgbColor {
   red: number;
   green: number;
@@ -152,7 +181,7 @@ function mixColors(source: RgbColor, target: RgbColor, amount: number): RgbColor
 export function resolveColoredProsodyStyle(
   color: string,
   settings: Settings,
-  ease: number | undefined,
+  fadeStrength: number,
   partOfSpeechColor: string | undefined,
 ): JSX.CSSProperties {
   const parsed = parseHexColor(color);
@@ -162,15 +191,12 @@ export function resolveColoredProsodyStyle(
     parsed,
     settings.coloredProsodySaturation ?? DEFAULT_SETTINGS.coloredProsodySaturation,
   );
-  if (!(settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled) || ease === undefined) {
+  if (!(settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled)) {
     return { color: toHexColor(saturated) };
   }
 
-  const start = settings.easeThresholdLearning ?? DEFAULT_SETTINGS.easeThresholdLearning;
-  const end = settings.easeThresholdMastered ?? DEFAULT_SETTINGS.easeThresholdMastered;
-  const progress = end <= start ? 0 : Math.max(0, Math.min(1, (ease - start) / (end - start)));
   const targetSetting = settings.coloredProsodyEaseMixTarget ?? DEFAULT_SETTINGS.coloredProsodyEaseMixTarget;
   const targetColor = targetSetting === 'part-of-speech' ? partOfSpeechColor : '#ffffff';
   const target = parseHexColor(targetColor ?? '#ffffff') ?? parseHexColor('#ffffff')!;
-  return { color: toHexColor(mixColors(saturated, target, progress * 0.82)) };
+  return { color: toHexColor(mixColors(saturated, target, Math.max(0, Math.min(1, fadeStrength)) * 0.82)) };
 }

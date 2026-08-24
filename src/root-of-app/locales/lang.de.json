@@ -1,5 +1,9 @@
 {
   "mlearn": {
+    "GraphInspector": {
+      "Title": "Graphinspektor", "Unavailable": "Der Sprachgraph ist nicht installiert.", "SelectEntity": "Wählen Sie eine Graphentität.", "Capabilities": "Fähigkeiten", "identity": "Identität", "property": "Eigenschaften", "support": "Verwandte Unterstützung", "SupportCaption": "Verwandt — kein Wissen. Unterstützungslinks übertragen kein Wissen.", "Details": "Entwicklerdetails", "Target": "Ziel", "Projection": "Projektion", "Retention": "Behalten", "Evidence": "Evidenz", "NoDirectEvidence": "Noch keine direkte Evidenz.", "PredictionFirewall": "Vorhersage ist von direkter Evidenz getrennt.",
+      "State": { "Known": "Evidenzbasiert bekannt", "Learning": "Lernen", "Predicted": "Vorhergesagt", "Unmeasured": "Ungemessen", "Excluded": "Ausgeschlossen" }
+    },
     "Management": {
       "ChooseGroup": "Klasse oder Gruppe auswählen",
       "ChooseGroupDescription": "Wähle aus, wo deine Aktivität und die Schulrichtlinien gelten.",
@@ -1293,10 +1297,11 @@
       "Matrix": {
         "Missed": "Verfehlt",
         "Struggled": "Mühsam",
-        "Fluent": "Flüssig",
+  "Fluent": "Flüssig",
+  "Easy": "Leicht",
         "AllFluent": "Alles flüssig",
         "EverythingElseFluent": "Alles andere flüssig",
-        "AllFluentKey": "Leertaste",
+  "AllFluentKey": "F",
         "PendingHint": "Note (1–3), dann Aspekt-Taste"
       }
     },
@@ -1734,12 +1739,12 @@
           "Description": "Färbt Aussprachemerkmale anhand des aktiven Sprachpakets und überschreibt bei vorhandenen Prosodiedaten die Wortartfarben.",
           "Label": "Farbige Prosodie"
         },
-        "EaseMix": {
-          "Description": "Lässt Prosodiefarben mit steigender kombinierter Leichtigkeit verblassen.",
-          "Label": "Farben nach Leichtigkeit verblassen"
+        "EvidenceFade": {
+          "Description": "Lässt Prosodiefarben verblassen, wenn direkte Prosodie-Evidenz stärker wird. Ungemessene Muster bleiben voll gefärbt.",
+          "Label": "Farben nach Prosodie-Evidenz verblassen"
         },
         "MixTarget": {
-          "Description": "Wähle die Farbe, zu der Prosodiefarben bei hoher Leichtigkeit übergehen.",
+          "Description": "Wähle die Farbe, zu der Prosodiefarben bei starker Prosodie-Evidenz übergehen.",
           "Label": "Überblenden zu",
           "PartOfSpeech": "Wortartfarbe",
           "White": "Weiß"
@@ -1758,7 +1763,7 @@
           "Label": "Farbsättigung"
         },
         "StatusLimit": {
-          "Description": "Färbt Wörter bis zu diesem kombinierten Lernstatus. Höhere Status verwenden die normale Wortartfarbe.",
+          "Description": "Färbt Prosodiemuster bis zu diesem Prosodie-Lernstatus. Höhere Prosodie-Status verwenden die normale Wortartfarbe.",
           "Known": "Bekannt",
           "Label": "Färben bis Status",
           "Learning": "In Bearbeitung"

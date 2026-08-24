@@ -18,7 +18,7 @@ function compact(language: string, surface: string, sense = 'meaning') {
     sourceVersions: {},
     stringTable: [...ids, surface, sense, 'reading'],
     entities: { kindIds: [2, 0, 3, 4], domainIds: [0, 0, 0, 0], labelStringIds: [4, -1, 5, 6] },
-    relations: { offsets: [0, 2, 3, 3, 3], targets: [1, 3, 2], typeIds: [2, 4, 3] },
+    relations: { offsets: [0, 2, 3, 3, 3], targets: [1, 3, 2], typeIds: [2, 4, 3], confidence: [0.9, 0.8, 0.7], provenanceStringIds: [6, 6, 6] },
     meta: { surfaceHashStringIds: [], surfaceLocalIds: [] },
   };
 }
@@ -60,12 +60,24 @@ describe('LinguisticGraphService', () => {
     await expect(service.lookupWord('ja', { surface: '猫' })).resolves.toMatchObject({ senses: [{ label: 'new' }] });
   });
 
+  it('returns a bounded, relation-class-filtered neighborhood with compact metadata', async () => {
+    fs.writeFileSync(path.join(directory, 'languages', 'ja.graph.json'), JSON.stringify(compact('ja', '猫')));
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory);
+    const id = `ja:surface:${crypto.createHash('sha256').update('猫').digest('hex')}`;
+
+    const result = await service.getNeighborhood('ja', { entityId: id, relationClasses: ['property'], limit: 1 });
+    expect(result).toMatchObject({ centerDenseId: 0, relationCount: 1, relations: [{ relationType: 'realizes', provenance: 'reading' }] });
+    expect(result?.relations[0]?.confidence).toBeCloseTo(0.9);
+    await expect(service.getNeighborhood('ja', { entityId: id, depth: 2 })).resolves.toBeNull();
+  });
+
   it('reports a missing graph explicitly and registers only bulk-safe graph IPC handlers', async () => {
     const { LinguisticGraphService, setupLinguisticGraphIPC } = await import('./linguisticGraph');
     await expect(new LinguisticGraphService(directory).getMeta('ja')).resolves.toEqual({ entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' });
     setupLinguisticGraphIPC();
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
-      'graph-get-meta', 'graph-lookup-word', 'graph-get-related', 'graph-get-targets-for-surfaces',
+      'graph-get-meta', 'graph-lookup-word', 'graph-get-related', 'graph-get-targets-for-surfaces', 'graph-get-neighborhood',
     ]));
   });
 });

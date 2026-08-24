@@ -73,6 +73,7 @@ vi.mock('../../context', () => ({
   useFlashcards: () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
+    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
   }),
 }));
 

@@ -3,7 +3,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
-import type { WordStatus } from '../../shared/constants';
 import {
   DEFAULT_SETTINGS,
   type LanguageColoredProsodyConfig,
@@ -83,10 +82,8 @@ function makeCtx(overrides: Partial<WordRenderTextContext> = {}): WordRenderText
   return {
     languageData: () => toneLanguage,
     prosodyPosition: () => null,
-    ease: () => undefined,
+    prosodyKnowledge: () => ({ status: 'unknown', ease: 0, untracked: true }),
     partOfSpeechColor: () => undefined,
-    status: () => 'unknown' as WordStatus,
-    isKnown: () => false,
     surface: 'subtitle',
     settings: () => makeSettings(),
     ...overrides,
@@ -148,28 +145,18 @@ describe('createWordRenderText', () => {
     dispose();
   });
 
-  it('returns the plain span when the combined status exceeds the status limit', () => {
+  it('returns the plain span when the prosody status exceeds the status limit', () => {
     const { container, dispose } = renderTextResult(makeCtx({
-      status: () => 'known',
+      prosodyKnowledge: () => ({ status: 'known', ease: 2.5 }),
       settings: () => makeSettings({ coloredProsodyStatusLimit: 'learning' }),
     }));
     expect(container.querySelector('.colored-prosody__segment')).toBeNull();
     dispose();
   });
 
-  it('skips known words when colorKnownWords is off', () => {
+  it('does not let word-known hide unmeasured prosody colors', () => {
     const { container, dispose } = renderTextResult(makeCtx({
-      isKnown: () => true,
       settings: () => makeSettings({ colorKnownWords: false }),
-    }));
-    expect(container.querySelector('.colored-prosody__segment')).toBeNull();
-    dispose();
-  });
-
-  it('still colors known words when colorKnownWords is on', () => {
-    const { container, dispose } = renderTextResult(makeCtx({
-      isKnown: () => true,
-      settings: () => makeSettings({ colorKnownWords: true }),
     }));
     expect(container.querySelectorAll('.colored-prosody__segment')).toHaveLength(5);
     dispose();
@@ -184,6 +171,20 @@ describe('createWordRenderText', () => {
     expect(segments).toHaveLength(1);
     expect(segments[0].dataset.prosodyValue).toBe('atamadaka');
     expect(segments[0].style.color).toBe('#ffa500');
+    dispose();
+  });
+
+  it('fades the pitch overlay from prosody-target evidence', () => {
+    const { container, dispose } = renderTextResult(makeCtx({
+      languageData: () => pitchLanguage,
+      prosodyPosition: () => 1,
+      prosodyKnowledge: () => ({ status: 'known', ease: DEFAULT_SETTINGS.easeThresholdKnown }),
+      settings: () => makeSettings({
+        coloredProsodyEaseMixEnabled: true,
+        coloredProsodyEaseMixTarget: 'white',
+      }),
+    }));
+    expect(container.querySelector<HTMLElement>('.colored-prosody__segment')?.style.color).not.toBe('#ffa500');
     dispose();
   });
 

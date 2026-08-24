@@ -131,16 +131,24 @@ describe('RatingMatrix', () => {
     expect(onRate).toHaveBeenCalledWith('gender', 'struggled', undefined);
   });
 
-  it('Space/Enter = all tested fluent; Shift adds easy; Alt adds inference', () => {
+  it('F is the explicit all-tested fluent quick action; Shift adds easy; Alt adds inference', () => {
     renderMatrix('mnemonic');
-    key(' ');
+    key('f');
     expect(onAllFluent).toHaveBeenCalledWith(undefined);
     onAllFluent.mockClear();
-    key('Enter', { shiftKey: true });
+    key('f', { shiftKey: true });
     expect(onAllFluent).toHaveBeenCalledWith({ easy: true });
     onAllFluent.mockClear();
-    key(' ', { altKey: true });
+    key('f', { altKey: true });
     expect(onAllFluent).toHaveBeenCalledWith({ method: 'inference' });
+  });
+
+  it('Space and Enter never submit a rating', () => {
+    renderMatrix('mnemonic');
+    key(' ');
+    key('Enter');
+    expect(onRate).not.toHaveBeenCalled();
+    expect(onAllFluent).not.toHaveBeenCalled();
   });
 
   it('auto-repeat and typing-in-field keydowns are ignored', () => {
@@ -181,20 +189,20 @@ describe('RatingMatrix', () => {
   };
   const [resetKey, setResetKey] = createSignal('word-1');
 
-  it('profile fast path: no drafts + Space submits all tested fluent, once', () => {
+  it('profile fast path: no drafts + F submits all tested fluent, once', () => {
     renderProfile();
     expect(onRate).not.toHaveBeenCalled();
-    key(' ');
+    key('f');
     const obs = onProfileSubmit.mock.calls[0]?.[0];
     expect(obs?.length).toBe(4);
     expect(obs?.every((o: { quality: string }) => o.quality === 'fluent')).toBe(true);
   });
 
-  it('profile two exceptions + Space: explicit rows keep quality, rest fluent', () => {
+  it('profile two exceptions + F: explicit rows keep quality, rest fluent', () => {
     renderProfile();
     key('1'); key('m');   // Meaning missed
     key('2'); key('p');   // Prosody struggled
-    key(' ');
+    key('f');
     const obs = onProfileSubmit.mock.calls[0]?.[0];
     const byAspect = Object.fromEntries((obs ?? []).map((o: { aspect: string }) => [o.aspect, o]));
     expect(byAspect.meaning.quality).toBe('missed');
@@ -210,17 +218,17 @@ describe('RatingMatrix', () => {
     renderProfile();
     key('1'); key('m');
     key('2'); key('m');
-    key(' ');
+    key('f');
     const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
     expect(byAspect.meaning.quality).toBe('struggled');
   });
 
-  it('profile spatial: 1, S, Space drafts and submits without early advance', () => {
+  it('profile spatial: 1, S, F drafts and submits without early advance', () => {
     renderProfile('spatial');
     key('1'); // Meaning missed (row 1)
     key('s'); // Prosody struggled (row 3)
     expect(onProfileSubmit).not.toHaveBeenCalled();
-    key(' ');
+    key('f');
     const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
     expect(byAspect.meaning.quality).toBe('missed');
     expect(byAspect.prosody.quality).toBe('struggled');
@@ -235,14 +243,14 @@ describe('RatingMatrix', () => {
     // New word => fresh drafts: meaning must submit as the confirmed Fluent
     // default, not the previous word's draft.
     expect(resetKey()).toBe('word-2');
-    key(' ');
+    key('f');
     const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
     expect(byAspect.meaning.quality).toBe('fluent');
   });
 
   it('profile not-tested rows never receive observations', () => {
     renderProfile('mnemonic', ['meaning', 'orthography']);
-    key(' ');
+    key('f');
     const obs = onProfileSubmit.mock.calls[0]?.[0] ?? [];
     expect(obs.length).toBe(2);
     expect(obs.map((o: { aspect: string }) => o.aspect)).toEqual(['meaning', 'orthography']);
@@ -252,7 +260,7 @@ describe('RatingMatrix', () => {
     renderProfile();
     key('1');
     key('m', { altKey: true });
-    key(' ');           // plain submit
+    key('f');           // plain submit
     const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
     expect(byAspect.meaning.method).toBe('inference');
     expect(byAspect.meaning.quality).toBe('missed');
@@ -265,10 +273,33 @@ describe('RatingMatrix', () => {
     const rows = container.querySelectorAll('.rating-matrix__row');
     (rows[0].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
     (rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[1]).click();
-    key(' ');
+    key('f');
     const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
     expect(byAspect.meaning.quality).toBe('missed');
     expect(byAspect.prosody.quality).toBe('struggled');
+  });
+
+  it('quick all-fluent produces the same profile as manually marking every row fluent', () => {
+    renderProfile();
+    for (const row of Array.from(container.querySelectorAll('.rating-matrix__row'))) {
+      row.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[2].click();
+    }
+    key('f');
+    const manual = onProfileSubmit.mock.calls[0]?.[0];
+
+    onProfileSubmit.mockClear();
+    renderProfile();
+    key('f');
+
+    expect(onProfileSubmit.mock.calls[0]?.[0]).toEqual(manual);
+  });
+
+  it('a dominant task emits only its intended capability', () => {
+    renderMatrix('mnemonic', ['reading']);
+    key('1');
+    key('r');
+    expect(onRate).toHaveBeenCalledTimes(1);
+    expect(onRate).toHaveBeenCalledWith('reading', 'missed', undefined);
   });
 
   it('profile button copy switches to EverythingElseFluent once drafts exist', () => {

@@ -7,6 +7,8 @@ export interface EncounterTask {
   supplied: string[];
   requested: string[];
   fluencyRequired: boolean;
+  /** Profile tasks submit all assessable capabilities as one attempt; dominant tasks assess one target. */
+  ratingMode: 'profile' | 'dominant';
 }
 
 export interface ScaffoldRef {

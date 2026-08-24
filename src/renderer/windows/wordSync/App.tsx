@@ -104,6 +104,7 @@ export const WordSyncContent: Component = () => {
     getWordKnowledge,
     getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
+    getAspectStatus,
     recordAttempt,
   } = useFlashcards();
 
@@ -550,39 +551,27 @@ export const WordSyncContent: Component = () => {
     setCurrentWord(undoEntry.word);
   }
 
-  function shouldIgnoreWordSyncShortcut(e: KeyboardEvent): boolean {
-    if (isRatingKeyIgnored(e)) return true;
-    const target = e.target;
-    if (!(target instanceof HTMLElement)) return false;
-    // Only Space double-fires from a focused button (native activation); every
-    // other shortcut — undo, translation — must survive button focus, which the
-    // persistent rating-matrix cells hold after a click rating.
-    return e.key === ' ' && target.matches('button');
-  }
-
   // ─── Keyboard shortcuts ─────────────────────────────
   function handleKeyDown(e: KeyboardEvent) {
-    if (shouldIgnoreWordSyncShortcut(e)) return;
+    const target = e.target;
+    const buttonTarget = target instanceof HTMLElement && target.matches('button, [role="button"]');
     if (isUndoShortcut(e)) {
       e.preventDefault();
       undoLastWordSyncRating();
       return;
     }
-
-    if (finished()) return;
-    // Rating keys (1/2/3, chords, Space/Enter) belong to the RatingMatrix once
-    // the answer is revealed; before that, Space/Enter reveal the answer. The
-    // reveal claims the keydown so the matrix (a later window listener) cannot
-    // submit on the same press.
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === ' ' || e.key === 'Enter') {
-      if (!showAnswer()) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        reveal();
-      }
+      if (isRatingKeyIgnored(e) && !buttonTarget) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (!finished() && currentWord() && !showAnswer()) reveal();
       return;
     }
+    if (isRatingKeyIgnored(e)) return;
+
+    if (finished()) return;
+    // Rating keys (1/2/3 and chords) belong to the RatingMatrix only after reveal.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 't' || e.key === 'T') {
       if (currentWord()) {
         e.preventDefault();
@@ -679,19 +668,11 @@ export const WordSyncContent: Component = () => {
     });
   });
 
-  const comprehensiveKnowledge = createMemo(() => {
-    const w = currentWord();
-    if (!w) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0, ease: undefined };
-    return getComprehensiveWordStatusWithSourceSync(w.word, settings.language);
-  });
-  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
   const wordColoredProsodyCtx: WordRenderTextContext = {
     languageData: langCtx.currentLangData,
     prosodyPosition: () => currentWordProsody()?.position ?? null,
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => getAspectStatus(currentWord()?.word ?? '', 'prosody', settings.language),
     partOfSpeechColor: () => undefined,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
   };

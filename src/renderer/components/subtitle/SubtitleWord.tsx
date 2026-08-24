@@ -346,10 +346,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition,
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => flashcardCtx.getAspectStatus(actualWord(), 'prosody', settings.language),
     partOfSpeechColor: getWordColor,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'subtitle',
     settings: () => settings,
   };

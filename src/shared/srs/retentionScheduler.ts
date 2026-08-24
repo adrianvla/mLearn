@@ -21,7 +21,7 @@ export interface RetentionSchedule extends RetentionScheduleCache {
   pressure: number;
 }
 
-type RetentionPolicy = Pick<FlashcardMeta,
+export type RetentionPolicy = Pick<FlashcardMeta,
   'learningSteps' | 'relearnSteps' | 'graduatingInterval' | 'easyInterval' | 'reviewIntervalModifier' | 'maxInterval'
 >;
 

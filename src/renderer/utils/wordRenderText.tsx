@@ -1,5 +1,4 @@
 import type { JSX } from 'solid-js';
-import type { WordStatus } from '../../shared/constants';
 import { DEFAULT_SETTINGS, type FlashcardProsody, type LanguageData, type Settings } from '../../shared/types';
 import { coloredProsodyAllowedOnSurface } from '../../shared/prosodySettings';
 import { ProsodyOverlay } from '../components/language-specific/ProsodyOverlay';
@@ -8,18 +7,18 @@ import { getProsodyOverlayTextTarget } from './prosodyOverlayTarget';
 import {
   buildColoredProsodySegments,
   coloredProsodyAllowsStatus,
+  getColoredProsodyFadeStrength,
   getColoredProsodyConfig,
   getColoredProsodyPalette,
   resolveColoredProsodyStyle,
 } from './coloredProsody';
+import type { ColoredProsodyKnowledge } from './coloredProsody';
 
 export interface WordRenderTextContext {
   languageData: () => LanguageData | null | undefined;
   prosodyPosition: () => number | null | undefined;
-  ease: () => number | undefined;
+  prosodyKnowledge: () => ColoredProsodyKnowledge;
   partOfSpeechColor: () => string | undefined;
-  status: () => WordStatus;
-  isKnown: () => boolean;
   surface: 'subtitle' | 'other';
   settings: () => Settings;
 }
@@ -39,10 +38,8 @@ export function createWordRenderText(
     if (!config || !enabled || !coloringEnabled) {
       return <span class={options.class} style={options.style}>{text}</span>;
     }
-    if (!(settings.colorKnownWords ?? DEFAULT_SETTINGS.colorKnownWords) && ctx.isKnown()) {
-      return <span class={options.class} style={options.style}>{text}</span>;
-    }
-    if (!coloredProsodyAllowsStatus(ctx.status(), statusLimit)) {
+    const prosodyKnowledge = ctx.prosodyKnowledge();
+    if (!coloredProsodyAllowsStatus(prosodyKnowledge.status, statusLimit)) {
       return <span class={options.class} style={options.style}>{text}</span>;
     }
 
@@ -74,7 +71,7 @@ export function createWordRenderText(
               style={resolveColoredProsodyStyle(
                 color,
                 settings,
-                ctx.ease(),
+                getColoredProsodyFadeStrength(prosodyKnowledge, settings),
                 ctx.partOfSpeechColor(),
               )}
             >

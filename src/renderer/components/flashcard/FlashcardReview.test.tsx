@@ -441,7 +441,7 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('offers and records orthography attribution on a form-bearing front', () => {
+  it('does not record an attempt until a profile is explicitly submitted', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
@@ -449,8 +449,12 @@ describe('FlashcardReview failure attribution', () => {
     expect(matrixRow(container, 'Written form')).not.toBeNull();
     rate('1', 'o');
 
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+    expect(mockAnswerCard).not.toHaveBeenCalled();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'orthography', 'missed', expect.objectContaining({ language: 'ja' }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), { attemptId: 'attempt-1' });
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
     dispose();
   });
 
@@ -495,12 +499,13 @@ describe('FlashcardReview failure attribution', () => {
 
     clickShowAnswer(container);
     rate('1', 'r');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'reading', 'missed', expect.objectContaining({
       language: 'ja',
       demonstrated: ['meaning'],
     }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), { attemptId: 'attempt-1' });
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
     dispose();
   });
 
@@ -516,12 +521,13 @@ describe('FlashcardReview failure attribution', () => {
     const cell = matrixCell(container, 'Prosody', 0);
     if (!cell) throw new Error('Prosody missed cell missing');
     cell.click();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'prosody', 'missed', expect.objectContaining({
       language: 'ja',
       demonstrated: ['meaning', 'reading'],
     }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), { attemptId: 'attempt-1' });
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
     dispose();
   });
 
@@ -530,17 +536,30 @@ describe('FlashcardReview failure attribution', () => {
 
     clickShowAnswer(container);
     rate('3', 'm');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
-    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), { attemptId: 'attempt-1' });
+    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'meaning', 'fluent', expect.objectContaining({ language: 'ja' }));
     dispose();
   });
 
-  it('Space rates all tested aspects fluent', () => {
+  it('Space reveals only and never records evidence or mutates the scheduler', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+
+    expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+    expect(mockAnswerCard).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('F submits one profile attempt with every assessable aspect', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
     // Meaning + reading + written form are tested on the default ja card:
     // every tested aspect receives fluent evidence, none fabricated beyond.
@@ -554,11 +573,11 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('Shift+Space adds Easy scheduling with identical fluent evidence', () => {
+  it('Shift+F adds Easy scheduling with identical fluent evidence', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', shiftKey: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', shiftKey: true }));
 
     const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
     const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
@@ -574,6 +593,7 @@ describe('FlashcardReview failure attribution', () => {
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', altKey: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'meaning', 'fluent', expect.objectContaining({
       method: 'inference',

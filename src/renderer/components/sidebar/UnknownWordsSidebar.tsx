@@ -77,7 +77,7 @@ const UnknownWordRow: Component<{
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
-  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
+  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync, getAspectStatus } = useFlashcards();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word, settings.language));
@@ -99,10 +99,8 @@ const UnknownWordRow: Component<{
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => rowProsody()?.position ?? null,
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => getAspectStatus(props.entry.word, 'prosody', settings.language),
     partOfSpeechColor: getWordColor,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
   };

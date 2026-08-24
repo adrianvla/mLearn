@@ -142,7 +142,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const { getWordTrackingSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
+  const { getWordTrackingSync, getAspectStatus } = useFlashcards();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -156,19 +156,11 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   ));
   let rowRef: HTMLDivElement | undefined;
 
-  const comprehensiveKnowledge = createMemo(() => {
-    const word = props.entry.word;
-    if (!word) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
-    return getComprehensiveWordStatusWithSourceSync(word, settings.language);
-  });
-  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => prosodyPositionForDisplayedReading(effectiveReading()),
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => getAspectStatus(props.entry.word, 'prosody', settings.language),
     partOfSpeechColor: () => undefined,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
   };

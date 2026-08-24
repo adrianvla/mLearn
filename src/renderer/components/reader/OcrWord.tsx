@@ -114,10 +114,8 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition,
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => flashcardCtx.getAspectStatus(lookupWord(), 'prosody', settings.language),
     partOfSpeechColor: getWordColor,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
   };

@@ -1,6 +1,6 @@
 import { createContext, createEffect, createSignal, onCleanup, useContext, type ParentComponent } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
-import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../../shared/graph/ipc';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../../shared/graph/ipc';
 import type { GraphRelationType } from '../../shared/graph/types';
 import { useSettings } from './SettingsContext';
 
@@ -9,6 +9,7 @@ interface GraphContextValue {
   lookupWord: (input: GraphLookupInput) => Promise<GraphWordLookup | null>;
   getRelated: (entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getTargetsForSurfaces: (inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
+  getNeighborhood: (query: GraphNeighborhoodQuery) => Promise<GraphNeighborhood | null>;
 }
 
 const unavailableMeta: GraphMeta = { entityCount: 0, relationCount: 0, ready: false, status: 'unavailable' };
@@ -18,6 +19,7 @@ const unavailableGraph: GraphContextValue = {
   lookupWord: async () => null,
   getRelated: async () => [],
   getTargetsForSurfaces: async () => [],
+  getNeighborhood: async () => null,
 };
 
 export const GraphProvider: ParentComponent = (props) => {
@@ -50,6 +52,9 @@ export const GraphProvider: ParentComponent = (props) => {
       ),
       getTargetsForSurfaces: (inputs) => active(
         (language) => getBridge().graph.getGraphTargetsForSurfaces(language, inputs), [],
+      ),
+      getNeighborhood: (query) => active(
+        (language) => getBridge().graph.getGraphNeighborhood(language, query), null,
       ),
     }}>
       {props.children}

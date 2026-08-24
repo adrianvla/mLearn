@@ -126,6 +126,7 @@ vi.mock('../../context', async () => {
     appendRetractions: mockAppendRetractions,
     recomputeWordKnowledgeFromEvidence: mockRecomputeProjection,
     getWordKnowledge: vi.fn(() => null),
+    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
     getWordKnowledgeSnapshotForForms: vi.fn((word: string, language?: string) => {
       const lang = language ?? 'ja';
       const snapshot: Record<string, typeof mockWordSyncState.wordKnowledge[string] | undefined> = {};
@@ -267,12 +268,12 @@ describe('WordSyncContent', () => {
 
   // Mnemonic chord + submit: reveal, quality, aspect letter, then the profile
   // submit boundary (wordSync runs the matrix in profile mode — drafts only,
-  // Space commits; the first Space reveals the answer, the second submits).
+  // Space reveals; F commits the drafted profile.
   const chord = (quality: '1' | '2' | '3', letter: string) => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: quality }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: letter }));
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
   };
 
   beforeEach(() => {
@@ -367,7 +368,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('reveals the answer on the first Space and submits all-fluent on the second', async () => {
+  it('Space reveals and F explicitly submits all-fluent', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -384,8 +385,8 @@ describe('WordSyncContent', () => {
     expect(container.textContent).toContain('red');
     expect(mockRecordAttempt).not.toHaveBeenCalled();
 
-    // Second Space submits the existing profile rating as fluent.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    // F explicitly submits the existing profile rating as fluent.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
       language: 'ja',
@@ -410,9 +411,9 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     // Same revealed-and-ratable state as the first Space: translation shown,
-    // and the matrix is armed so a second Space submits.
+    // and the matrix is armed so F submits.
     expect(container.textContent).toContain('red');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
       language: 'ja',
@@ -420,7 +421,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('reveals on the first Enter and submits all-fluent on the second', async () => {
+  it('Enter reveals and F explicitly submits all-fluent', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -436,8 +437,8 @@ describe('WordSyncContent', () => {
     expect(container.textContent).toContain('red');
     expect(mockRecordAttempt).not.toHaveBeenCalled();
 
-    // Second Enter submits the existing profile rating as fluent.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    // F submits the existing profile rating as fluent.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'fluent', expect.objectContaining({
       language: 'ja',
@@ -464,7 +465,7 @@ describe('WordSyncContent', () => {
 
     // Submit all-fluent → the next word is presented with translation hidden,
     // even though the prior card's translation was manually toggled.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     await Promise.resolve();
     expect(container.textContent).not.toContain('definition');
@@ -482,7 +483,7 @@ describe('WordSyncContent', () => {
     // Manually toggle the translation on, then reveal and submit → finished.
     container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
@@ -509,7 +510,7 @@ describe('WordSyncContent', () => {
     // Manually toggle the translation on, then reveal and submit → finished.
     container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
@@ -535,10 +536,10 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     expect(mockRecordAttempt).not.toHaveBeenCalled();
 
-    // Now the answer is revealed; the same chord drafts and Space submits.
+    // Now the answer is revealed; the same chord drafts and F submits.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'missed', expect.objectContaining({
       language: 'ja',
@@ -563,7 +564,7 @@ describe('WordSyncContent', () => {
     // Reveal and submit the first word.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     await Promise.resolve();
 
@@ -585,7 +586,7 @@ describe('WordSyncContent', () => {
     // Reveal and submit all-fluent → finished.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
@@ -608,7 +609,7 @@ describe('WordSyncContent', () => {
     // Reveal + submit → finished.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
@@ -734,7 +735,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Reveal the answer first (Space), then click drafts (profile mode), Space
+    // Reveal the answer first (Space), then click drafts (profile mode), F
     // submits, THEN undo dispatched FROM the cell button — the target being a
     // button must not swallow the shortcut.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
@@ -743,7 +744,7 @@ describe('WordSyncContent', () => {
     if (!cell) throw new Error('matrix cell missing');
     cell.click();
     await Promise.resolve();
-    cell.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalled();
 
@@ -779,8 +780,8 @@ describe('WordSyncContent', () => {
     expect(mockRecordAttempt).not.toHaveBeenCalled();
     expect(container.textContent).toContain('赤い');
 
-    // Space is the submit boundary: the record fires.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    // F is the submit boundary: the record fires.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'meaning', 'missed', expect.objectContaining({
       language: 'ja',
@@ -1156,7 +1157,7 @@ describe('WordSyncContent', () => {
     // default fluent observation is emitted exactly once, and nothing missed.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
     await Promise.resolve();
     const meaningFluentCalls = mockRecordAttempt.mock.calls.filter(
       (c) => c[0] === '赤い' && c[1] === 'meaning' && c[2] === 'fluent',

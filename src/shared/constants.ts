@@ -84,6 +84,7 @@ export const IPC_CHANNELS = {
   GRAPH_LOOKUP_WORD: 'graph-lookup-word',
   GRAPH_GET_RELATED: 'graph-get-related',
   GRAPH_GET_TARGETS_FOR_SURFACES: 'graph-get-targets-for-surfaces',
+  GRAPH_GET_NEIGHBORHOOD: 'graph-get-neighborhood',
   
   // Localization
   GET_LOCALIZATION: 'get-localization',
@@ -399,6 +400,7 @@ export const WINDOW_TYPES = {
   LEVEL_STUDY: 'level-study',
   OVERLAY: 'overlay',
   DIAGNOSTICS: 'diagnostics',
+  GRAPH_INSPECTOR: 'graph-inspector',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

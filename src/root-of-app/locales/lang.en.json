@@ -1,5 +1,9 @@
 {
   "mlearn": {
+    "GraphInspector": {
+      "Title": "Graph inspector", "Unavailable": "The active language graph is not installed.", "SelectEntity": "Select a graph entity to inspect.", "Capabilities": "Capabilities", "identity": "Identity", "property": "Properties", "support": "Related support", "SupportCaption": "Related — not knowledge. Support links never inherit knowledge.", "Details": "Developer details", "Target": "Target", "Projection": "Projection", "Retention": "Retention", "Evidence": "Evidence", "NoDirectEvidence": "No direct evidence yet.", "PredictionFirewall": "Prediction is separate from direct evidence.",
+      "State": { "Known": "Evidence-backed known", "Learning": "Learning", "Predicted": "Predicted", "Unmeasured": "Unmeasured", "Excluded": "Excluded" }
+    },
     "Management": {
       "ChooseGroup": "Choose a class or group",
       "ChooseGroupDescription": "Choose where your activity and school policies apply.",
@@ -1293,10 +1297,11 @@
       "Matrix": {
         "Missed": "Missed",
         "Struggled": "Struggled",
-        "Fluent": "Fluent",
+  "Fluent": "Fluent",
+  "Easy": "Easy",
         "AllFluent": "All tested fluent",
         "EverythingElseFluent": "Everything else fluent",
-        "AllFluentKey": "Space",
+  "AllFluentKey": "F",
         "PendingHint": "Quality (1–3), then aspect key"
       }
     },
@@ -1734,12 +1739,12 @@
           "Description": "Color pronunciation features using the active language package. This overrides part-of-speech colors when prosody data is available.",
           "Label": "Colored prosody"
         },
-        "EaseMix": {
-          "Description": "Make prosody colors fainter as the word's combined ease approaches mastered.",
-          "Label": "Fade colors by ease"
+        "EvidenceFade": {
+          "Description": "Make prosody colors fainter as direct prosody evidence becomes stronger. Unmeasured patterns remain fully colored.",
+          "Label": "Fade colors by prosody evidence"
         },
         "MixTarget": {
-          "Description": "Choose the color that high-ease prosody colors fade toward.",
+          "Description": "Choose the color that prosody colors fade toward when prosody evidence is strong.",
           "Label": "Fade toward",
           "PartOfSpeech": "Part-of-speech color",
           "White": "White"
@@ -1758,7 +1763,7 @@
           "Label": "Color saturation"
         },
         "StatusLimit": {
-          "Description": "Color words through this combined learning status. Words above it use their normal part-of-speech color.",
+          "Description": "Color prosodic patterns through this prosody learning status. Higher prosody statuses use the normal part-of-speech color.",
           "Known": "Known",
           "Label": "Color through status",
           "Learning": "Learning"

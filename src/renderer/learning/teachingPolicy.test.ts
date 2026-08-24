@@ -9,6 +9,7 @@ const task: EncounterTask = {
   supplied: ['surface'],
   requested: ['meaning'],
   fluencyRequired: false,
+  ratingMode: 'dominant',
 };
 
 function candidate(key: string, score: number, origin: Candidate['origin'] = 'curriculum'): Candidate {

@@ -11,7 +11,7 @@ export function isRatingKeyIgnored(e: KeyboardEvent): boolean {
   const target = e.target;
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
-  return target.matches('input, textarea, select, [role="textbox"]');
+  return target.matches('input, textarea, select, button, [role="textbox"], [role="button"]');
 }
 
 export function isUndoShortcut(e: KeyboardEvent): boolean {

@@ -42,11 +42,12 @@ let mockSettings: Record<string, unknown> = {
 
 vi.mock('../common', () => ({
   Btn: (props: { label?: string; onClick?: () => void; disabled?: boolean }) => (
-    <button disabled={props.disabled} onClick={props.onClick}>{props.label}</button>
+    <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.label}</button>
   ),
   CollapsibleStickyHeader: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
   PillBtn: (props: { label?: string; children?: JSX.Element; onClick?: () => void; disabled?: boolean; ['aria-pressed']?: boolean }) => (
     <button
+      type="button"
       aria-pressed={props['aria-pressed']}
       disabled={props.disabled}
       onClick={props.onClick}
@@ -147,6 +148,7 @@ vi.mock('../../context', () => ({
     getCardByWordSync: mockGetCardByWordSync,
     getComprehensiveWordStatusSync: mockGetComprehensiveWordStatusSync,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
+    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
     isWordIgnoredSync: mockIsWordIgnoredSync,
   }),
   useLanguage: () => ({

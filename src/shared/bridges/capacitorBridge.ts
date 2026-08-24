@@ -1926,6 +1926,9 @@ const graphBridge: GraphBridge = {
   async getGraphTargetsForSurfaces(_language, inputs) {
     return inputs.map((input) => ({ input, lookup: null }));
   },
+  async getGraphNeighborhood() {
+    return null;
+  },
 };
 
 // ============================================================================

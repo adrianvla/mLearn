@@ -113,6 +113,7 @@ const graphBridge: GraphBridge = {
   lookupGraphWord: (language, input) => getIPC().lookupGraphWord(language, input),
   getGraphRelated: (language, entityId, relationTypes) => getIPC().getGraphRelated(language, entityId, relationTypes),
   getGraphTargetsForSurfaces: (language, inputs) => getIPC().getGraphTargetsForSurfaces(language, inputs),
+  getGraphNeighborhood: (language, query) => getIPC().getGraphNeighborhood(language, query),
 };
 
 const fileBridge: FileBridge = {

@@ -4,8 +4,8 @@ import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { COMPACT_RELATION_TYPES, decodeCompact, type CompactAssetJSON, type RuntimeCompactGraph } from '../../shared/graph/compact';
-import type { GraphLookupInput, GraphMeta, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../../shared/graph/ipc';
-import type { GraphRelationType } from '../../shared/graph/types';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../../shared/graph/ipc';
+import { RELATION_CATEGORY, type GraphRelationType } from '../../shared/graph/types';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -77,7 +77,9 @@ export class LinguisticGraphService {
     const kind = graph.nodeKind(id);
     if (dense === undefined || !kind) return undefined;
     const labelId = graph.entityLabelStringIds[dense];
-    return { id, kind, ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}) };
+    const domainId = graph.entityDomainIds[dense];
+    const domains = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
+    return { id, kind, ...(domains[domainId] ? { domain: domains[domainId] } : {}), ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}) };
   }
 
   private related(graph: RuntimeCompactGraph, id: string, relationTypes: readonly GraphRelationType[]): GraphRelatedNode[] {
@@ -89,7 +91,14 @@ export class LinguisticGraphService {
       const relationType = COMPACT_RELATION_TYPES[graph.relationTypeIds[edge]];
       if (!allowed.has(relationType)) continue;
       const node = this.node(graph, graph.persistentOf[graph.relationTargets[edge]]);
-      if (node) related.push({ ...node, relationType });
+      if (node) related.push({
+        ...node,
+        relationType,
+        ...(graph.relationConfidence && graph.relationConfidence[edge] >= 0 ? { confidence: graph.relationConfidence[edge] } : {}),
+        ...(graph.relationTransparency && graph.relationTransparency[edge] >= 0 ? { transparency: graph.relationTransparency[edge] } : {}),
+        ...(graph.relationPredictability && graph.relationPredictability[edge] >= 0 ? { predictability: graph.relationPredictability[edge] } : {}),
+        ...(graph.relationProvenanceStringIds && graph.relationProvenanceStringIds[edge] >= 0 ? { provenance: graph.stringTable[graph.relationProvenanceStringIds[edge]] } : {}),
+      });
     }
     return related;
   }
@@ -115,6 +124,19 @@ export class LinguisticGraphService {
     return loaded ? this.related(loaded.graph, entityId, relationTypes) : [];
   }
 
+  async getNeighborhood(language: string, query: GraphNeighborhoodQuery): Promise<GraphNeighborhood | null> {
+    const loaded = await this.ensure(language);
+    if (!loaded || query.depth === 2) return null;
+    const center = this.node(loaded.graph, query.entityId);
+    const dense = loaded.graph.denseOf.get(query.entityId);
+    if (!center || dense === undefined) return null;
+    const classes = query.relationClasses ? new Set(query.relationClasses) : undefined;
+    const limit = Math.min(Math.max(query.limit ?? 80, 1), 200);
+    const relationTypes = COMPACT_RELATION_TYPES.filter((type) => !classes || classes.has(RELATION_CATEGORY[type]));
+    const relations = this.related(loaded.graph, query.entityId, relationTypes).slice(0, limit);
+    return { center, centerDenseId: dense, relationCount: relations.length, relations };
+  }
+
   async getTargetsForSurfaces(language: string, inputs: GraphLookupInput[]): Promise<GraphSurfaceTargets[]> {
     return Promise.all(inputs.slice(0, 100).map(async (input) => ({ input, lookup: await this.lookupWord(language, input) })));
   }
@@ -126,4 +148,5 @@ export function setupLinguisticGraphIPC(): void {
   ipcMain.handle(IPC_CHANNELS.GRAPH_LOOKUP_WORD, (_event, language: string, input: GraphLookupInput) => service.lookupWord(language, input));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_RELATED, (_event, language: string, entityId: string, relationTypes: GraphRelationType[]) => service.getRelated(language, entityId, relationTypes));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, (_event, language: string, inputs: GraphLookupInput[]) => service.getTargetsForSurfaces(language, inputs));
+  ipcMain.handle(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, (_event, language: string, query: GraphNeighborhoodQuery) => service.getNeighborhood(language, query));
 }

@@ -12,6 +12,7 @@ import {
 import { useLocalization } from '../../../context';
 import { Button } from '../Button/Button';
 import { KeyboardShortcut } from '../Misc/KeyboardShortcut';
+import { isRatingKeyIgnored } from '../../../utils/ratingShortcuts';
 import './RatingMatrix.css';
 
 export interface RateOptions {
@@ -24,6 +25,8 @@ export interface ProfileObservation {
   aspect: KnowledgeAspect;
   quality: AttemptQuality;
   method?: 'recall' | 'inference';
+  /** Fluent-only scheduler preference; evidence remains fluent. */
+  easy?: boolean;
 }
 
 export interface RatingMatrixProps {
@@ -33,19 +36,18 @@ export interface RatingMatrixProps {
   /** Matrix owns its rating keys only while armed (answer shown / word presented). */
   armed: boolean;
   /**
-   * Commit policy. 'dominant' (review): a cell commits immediately and advances.
-   * 'profile' (Word Sync calibration): cells draft per-row selections; nothing
-   * is emitted until Space/Enter submits — explicit rows keep their quality,
+   * Commit policy. 'dominant': a cell commits immediately and advances.
+   * 'profile': cells draft per-row selections; nothing is emitted until F submits — explicit rows keep their quality,
    * unselected TESTED rows submit as Fluent, not-tested rows get no observation.
    */
   mode?: 'dominant' | 'profile';
   /** Drafts reset when this changes (profile mode; pass the current word). */
   resetKey?: string | number;
   onRate: (aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => void;
-  /** Dominant mode Space/Enter: every tested aspect was Fluent. */
+  /** Dominant mode F: every tested aspect was Fluent. */
   onAllFluent?: (opts?: RateOptions) => void;
-  /** Profile mode Space/Enter: the resolved full profile (one logical attempt). */
-  onProfileSubmit?: (observations: readonly ProfileObservation[]) => void;
+  /** Profile mode F: the resolved full profile (one logical attempt). */
+  onProfileSubmit?: (observations: readonly ProfileObservation[], opts?: RateOptions) => void;
 }
 
 const PENDING_TIMEOUT_MS = 1500;
@@ -54,10 +56,13 @@ const QUALITY_KEYS: Record<AttemptQuality, string> = { missed: '1', struggled: '
 
 // Same variant mapping the SRS rating buttons used: missed=again (danger),
 // struggled=hard (warning), fluent=good (success); all-fluent=easy (primary).
-const QUALITY_VARIANTS: Record<AttemptQuality, 'danger' | 'warning' | 'success'> = {
+const RATING_ACTIONS = [...ATTEMPT_QUALITIES, 'easy'] as const;
+
+const QUALITY_VARIANTS: Record<typeof RATING_ACTIONS[number], 'danger' | 'warning' | 'success' | 'primary'> = {
   missed: 'danger',
   struggled: 'warning',
   fluent: 'success',
+  easy: 'primary',
 };
 
 /**
@@ -72,7 +77,7 @@ const QUALITY_VARIANTS: Record<AttemptQuality, 'danger' | 'warning' | 'success'>
 export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
   const { t } = useLocalization();
   const [pendingQuality, setPendingQuality] = createSignal<AttemptQuality | null>(null);
-  const [drafts, setDrafts] = createStore<Partial<Record<KnowledgeAspect, { quality: AttemptQuality; method?: 'recall' | 'inference' }>>>({});
+  const [drafts, setDrafts] = createStore<Partial<Record<KnowledgeAspect, { quality: AttemptQuality; method?: 'recall' | 'inference'; easy?: boolean }>>>({});
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
   const isProfile = () => (props.mode ?? 'dominant') === 'profile';
@@ -89,7 +94,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     clearPending();
     if (isProfile()) {
       // Draft only: no evidence, no event, no advance until submit.
-      setDrafts(aspect, { quality, ...(alt ? { method: 'inference' as const } : {}) });
+      setDrafts(aspect, { quality, ...(alt ? { method: 'inference' as const } : {}), ...(quality === 'fluent' && shift ? { easy: true } : {}) });
       return;
     }
     const opts: RateOptions = {};
@@ -99,18 +104,18 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
   };
 
   // Submit boundary: explicit drafts keep their quality (and method); unselected
-  // TESTED rows are confirmed Fluent by the explicit Space/Enter action — never
+  // TESTED rows are confirmed Fluent by the explicit F action — never
   // fabricated, and never applied to rows this interaction does not test.
-  const submitProfile = (alt: boolean) => {
+  const submitProfile = (alt: boolean, easy: boolean) => {
     const observations: ProfileObservation[] = props.aspects.map((aspect) => {
       const draft = drafts[aspect];
-      if (draft) return { aspect, quality: draft.quality, ...(draft.method ? { method: draft.method } : {}) };
+      if (draft) return { aspect, quality: draft.quality, ...(draft.method ? { method: draft.method } : {}), ...(draft.easy ? { easy: true } : {}) };
       // Alt+Space marks the worked-out default only when nothing was drafted;
       // explicit drafts are never contaminated by the submit modifier.
       return { aspect, quality: 'fluent' as const, ...(alt ? { method: 'inference' as const } : {}) };
     });
     for (const key of Object.keys(drafts)) setDrafts(key as KnowledgeAspect, undefined);
-    props.onProfileSubmit?.(observations);
+    props.onProfileSubmit?.(observations, { ...(alt ? { method: 'inference' as const } : {}), ...(easy ? { easy: true } : {}) });
   };
 
   const mnemonicLetterToAspect = (letter: string): KnowledgeAspect | undefined =>
@@ -118,11 +123,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!props.armed) return;
-    if (e.repeat) return;
+    if (isRatingKeyIgnored(e)) return;
     if (e.metaKey || e.ctrlKey) return;
-    // Never swallow keys while the user is typing in a field.
-    const target = e.target as HTMLElement | null;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
     const key = e.key.toLowerCase();
 
     if (e.key === 'Escape') {
@@ -130,10 +132,10 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
       return;
     }
 
-    if (e.key === ' ' || e.key === 'Enter') {
+    if (key === 'f') {
       e.preventDefault();
       if (isProfile()) {
-        submitProfile(e.altKey);
+        submitProfile(e.altKey, e.shiftKey);
         return;
       }
       const opts: RateOptions = {};
@@ -205,13 +207,13 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     <div class="rating-matrix" classList={{ 'rating-matrix--armed': props.armed }}>
       <div class="rating-matrix__head" role="presentation">
         <span class="rating-matrix__corner" />
-        <For each={ATTEMPT_QUALITIES}>
+        <For each={RATING_ACTIONS}>
           {(quality) => (
             <span
               class="rating-matrix__col"
               classList={{ 'rating-matrix__col--pending': pendingQuality() === quality }}
             >
-              {t(`mlearn.Rating.Matrix.${quality === 'missed' ? 'Missed' : quality === 'struggled' ? 'Struggled' : 'Fluent'}`)}
+              {t(`mlearn.Rating.Matrix.${quality === 'missed' ? 'Missed' : quality === 'struggled' ? 'Struggled' : quality === 'fluent' ? 'Fluent' : 'Easy'}`)}
             </span>
           )}
         </For>
@@ -220,7 +222,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
         {(aspect) => (
           <div class="rating-matrix__row" role="presentation">
             <span class="rating-matrix__label">{t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect])}</span>
-            <For each={ATTEMPT_QUALITIES}>
+            <For each={RATING_ACTIONS}>
               {(quality) => (
                 <Button
                   buttonType="default"
@@ -229,12 +231,12 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                   class={`rating-matrix__cell rating-matrix__cell--${quality}`}
                   classList={{
                     'rating-matrix__cell--pending-col': pendingQuality() === quality,
-                    'rating-matrix__cell--selected': drafts[aspect]?.quality === quality,
+                    'rating-matrix__cell--selected': drafts[aspect]?.quality === (quality === 'easy' ? 'fluent' : quality) && (!!drafts[aspect]?.easy === (quality === 'easy')),
                   }}
                   disabled={!props.armed}
-                  onClick={() => rate(aspect, quality, false, false)}
+                  onClick={() => rate(aspect, quality === 'easy' ? 'fluent' : quality, false, quality === 'easy')}
                 >
-                  <KeyboardShortcut keys={cellHint(aspect, quality)} class="rating-matrix__hint" />
+                  <KeyboardShortcut keys={quality === 'easy' ? ['·'] : cellHint(aspect, quality)} class="rating-matrix__hint" />
                 </Button>
               )}
             </For>
@@ -247,7 +249,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
         size="sm"
         class="rating-matrix__all"
         disabled={!props.armed}
-        onClick={() => (isProfile() ? submitProfile(false) : props.onAllFluent?.())}
+        onClick={() => (isProfile() ? submitProfile(false, false) : props.onAllFluent?.())}
       >
         {t(isProfile() && Object.keys(drafts).length > 0
           ? 'mlearn.Rating.Matrix.EverythingElseFluent'

@@ -1,5 +1,9 @@
 {
   "mlearn": {
+    "GraphInspector": {
+      "Title": "グラフインスペクター", "Unavailable": "使用中の言語グラフはインストールされていません。", "SelectEntity": "グラフエンティティを選択してください。", "Capabilities": "能力", "identity": "同一性", "property": "属性", "support": "関連サポート", "SupportCaption": "関連 — 知識ではありません。サポートリンクは知識を継承しません。", "Details": "開発者詳細", "Target": "対象", "Projection": "投影", "Retention": "保持", "Evidence": "根拠", "NoDirectEvidence": "直接の根拠はまだありません。", "PredictionFirewall": "予測は直接の根拠とは分離されています。",
+      "State": { "Known": "根拠に基づく既知", "Learning": "学習中", "Predicted": "予測", "Unmeasured": "未測定", "Excluded": "除外" }
+    },
     "Management": {
       "ChooseGroup": "クラスまたはグループを選択",
       "ChooseGroupDescription": "学習活動と学校ポリシーを適用する場所を選択してください。",
@@ -1293,10 +1297,11 @@
       "Matrix": {
         "Missed": "思い出せず",
         "Struggled": "苦労した",
-        "Fluent": "スムーズ",
+  "Fluent": "スムーズ",
+  "Easy": "簡単",
         "AllFluent": "すべてスムーズ",
         "EverythingElseFluent": "残りはすべてスムーズ",
-        "AllFluentKey": "スペース",
+  "AllFluentKey": "F",
         "PendingHint": "品質（1〜3）→ 側面キー"
       }
     },
@@ -1734,12 +1739,12 @@
           "Description": "有効な言語パッケージの設定に従って発音特徴を色分けします。韻律データがある場合は品詞カラーより優先されます。",
           "Label": "韻律の色分け"
         },
-        "EaseMix": {
-          "Description": "単語の総合習熟度が上がるほど韻律カラーを薄くします。",
-          "Label": "習熟度に応じて薄くする"
+        "EvidenceFade": {
+          "Description": "直接の韻律エビデンスが強くなるほど韻律カラーを薄くします。未測定のパターンは完全な色のままです。",
+          "Label": "韻律エビデンスに応じて薄くする"
         },
         "MixTarget": {
-          "Description": "習熟度が高いときに韻律カラーを近づける色を選びます。",
+          "Description": "韻律エビデンスが強いときに韻律カラーを近づける色を選びます。",
           "Label": "混合先",
           "PartOfSpeech": "品詞カラー",
           "White": "白"
@@ -1758,7 +1763,7 @@
           "Label": "彩度"
         },
         "StatusLimit": {
-          "Description": "選択した総合学習状態まで色分けします。それより上の状態では通常の品詞カラーを使います。",
+          "Description": "選択した韻律学習状態まで韻律パターンを色分けします。それより上の韻律状態では通常の品詞カラーを使います。",
           "Known": "既知",
           "Label": "色分けする上限",
           "Learning": "学習中"

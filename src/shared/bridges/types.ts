@@ -123,6 +123,7 @@ export interface GraphBridge {
   lookupGraphWord: (language: string, input: GraphLookupInput) => Promise<GraphWordLookup | null>;
   getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
+  getGraphNeighborhood: (language: string, query: import('../graph/ipc').GraphNeighborhoodQuery) => Promise<import('../graph/ipc').GraphNeighborhood | null>;
 }
 
 export interface FileBridge {

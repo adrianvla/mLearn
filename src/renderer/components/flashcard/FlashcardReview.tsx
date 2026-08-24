@@ -20,7 +20,7 @@ import { getTestedAspects } from '../../../shared/languageFeatures';
 import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
 import { nextAttemptId } from '../../../shared/knowledgeEvents';
 import { prerequisitesOf } from '../../utils/aspectKnowledge';
-import { RatingMatrix, type RateOptions } from '../common';
+import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
 import type { KnowledgeAspect } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
@@ -100,11 +100,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   // Current card
-  const currentCard = createMemo(() => {
+  const currentDecision = createMemo(() => {
     const fallback = getCurrentCard();
     if (!fallback) return null;
     const language = languageForCard(fallback);
-    const decision = selectNextEncounter({
+    return selectNextEncounter({
       preset: 'RETENTION',
       nowMs: Date.now(),
       reviewQueueEntries: [{
@@ -118,6 +118,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         buried: fallback.buried,
       }],
     });
+  });
+
+  const currentCard = createMemo(() => {
+    const fallback = getCurrentCard();
+    if (!fallback) return null;
+    const decision = currentDecision();
     return decision?.action === 'DEFER'
       ? fallback
       : store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
@@ -184,6 +190,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     });
   });
 
+  const ratingMode = createMemo(() => currentDecision()?.encounter.task.ratingMode ?? 'profile');
+
   // Word-presentation task: the card front had to be read to reach a finer
   // aspect, so the prerequisite chain is demonstrated (task-mediated; an
   // audio-only task would pass []).
@@ -193,7 +201,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handleRate = (aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => {
     const card = currentCard();
-    if (!card) return;
+    if (!card || !showAnswer()) return;
     const elapsed = getElapsedTime();
     cardShownAt = 0;
 
@@ -215,7 +223,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handleAllFluent = (opts?: RateOptions) => {
     const card = currentCard();
-    if (!card) return;
+    if (!card || !showAnswer()) return;
     const elapsed = getElapsedTime();
     cardShownAt = 0;
 
@@ -241,6 +249,38 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     });
   };
 
+  const handleProfileSubmit = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
+    const card = currentCard();
+    if (!card || !showAnswer() || observations.length === 0) return;
+    const elapsed = getElapsedTime();
+    cardShownAt = 0;
+    const qualityRank: Record<AttemptQuality, number> = { missed: 0, struggled: 1, fluent: 2 };
+    const schedulerQuality = observations.reduce<AttemptQuality>(
+      (worst, observation) => qualityRank[observation.quality] < qualityRank[worst] ? observation.quality : worst,
+      'fluent',
+    );
+
+    stopTts();
+    batch(() => {
+      setShowAnswer(false);
+      const attemptId = nextAttemptId();
+      for (const observation of observations) {
+        recordAttempt(card.content.front, observation.aspect, observation.quality, {
+          language: languageForCard(card),
+          method: observation.method ?? opts?.method,
+          demonstrated: demonstratedFor(observation.aspect),
+          latencyMs: elapsed,
+          attemptId,
+        });
+      }
+      const completed = answerCard(qualityToSrsRating(
+        schedulerQuality,
+        schedulerQuality === 'fluent' && (opts?.easy ?? observations.every((observation) => observation.easy)),
+      ), card.id, elapsed, { attemptId });
+      if (completed) setCardsAnswered(prev => prev + 1);
+    });
+  };
+
   // Counts
   const counts = createMemo(() => queueCounts());
 
@@ -253,6 +293,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Keyboard shortcuts
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target;
+      const buttonTarget = target instanceof HTMLElement && target.matches('button, [role="button"]');
+
+      // Space/Enter reveal only. Prevent native button activation first, so a
+      // focused rating cell cannot turn Space into a concealed rating action.
+      if (e.key === ' ' || e.key === 'Enter') {
+        if (isRatingKeyIgnored(e) && !buttonTarget) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isComplete() && currentCard() && !showAnswer()) setShowAnswer(true);
+        return;
+      }
+
       // Shared press semantics: ignore held-down key repeats and typing in
       // editable/control elements (single source of truth with Word Sync).
       if (isRatingKeyIgnored(e)) return;
@@ -269,17 +322,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (isComplete()) return;
 
       if (!currentCard()) return;
-
-      // Space/Enter reveal the answer; once shown, the RatingMatrix owns
-      // Space/Enter (all-fluent), 1/2/3 chords and the spatial keys. 'x' remove
-      // is disabled while the matrix is armed (x = spatial struggled column).
-      if (e.key === ' ' || e.key === 'Enter') {
-        if (!showAnswer()) {
-          e.preventDefault();
-          setShowAnswer(true);
-        }
-        return;
-      }
 
       if (!showAnswer()) {
         if (e.key === 'b') {
@@ -650,9 +692,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               <RatingMatrix
                 aspects={testedAspects()}
                 keyboardMode={settings.ratingKeyboardMode}
-                armed={!!currentCard() && !isComplete()}
+                armed={showAnswer() && !!currentCard() && !isComplete()}
+                mode={ratingMode()}
+                resetKey={currentCard()?.id}
                 onRate={handleRate}
                 onAllFluent={handleAllFluent}
+                onProfileSubmit={handleProfileSubmit}
               />
             </div>
           </Show>

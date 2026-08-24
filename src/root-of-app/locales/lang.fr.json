@@ -1,5 +1,9 @@
 {
   "mlearn": {
+    "GraphInspector": {
+      "Title": "Inspecteur de graphe", "Unavailable": "Le graphe de langue actif n’est pas installé.", "SelectEntity": "Sélectionnez une entité du graphe.", "Capabilities": "Capacités", "identity": "Identité", "property": "Propriétés", "support": "Aide associée", "SupportCaption": "Associé — pas une connaissance. Les liens d’aide ne transmettent jamais la connaissance.", "Details": "Détails développeur", "Target": "Cible", "Projection": "Projection", "Retention": "Rétention", "Evidence": "Preuve", "NoDirectEvidence": "Pas encore de preuve directe.", "PredictionFirewall": "La prédiction est séparée de la preuve directe.",
+      "State": { "Known": "Connu avec preuve", "Learning": "Apprentissage", "Predicted": "Prédit", "Unmeasured": "Non mesuré", "Excluded": "Exclu" }
+    },
     "Management": {
       "ChooseGroup": "Choisir une classe ou un groupe",
       "ChooseGroupDescription": "Choisissez où votre activité et les règles de l’école s’appliquent.",
@@ -1293,10 +1297,11 @@
       "Matrix": {
         "Missed": "Raté",
         "Struggled": "Laborieux",
-        "Fluent": "Fluide",
+  "Fluent": "Fluide",
+  "Easy": "Facile",
         "AllFluent": "Tout était fluide",
         "EverythingElseFluent": "Le reste était fluide",
-        "AllFluentKey": "Espace",
+  "AllFluentKey": "F",
         "PendingHint": "Qualité (1–3), puis touche d’aspect"
       }
     },
@@ -1734,12 +1739,12 @@
           "Description": "Colore les traits de prononciation selon le pack de langue actif et remplace les couleurs grammaticales lorsque la prosodie est disponible.",
           "Label": "Prosodie colorée"
         },
-        "EaseMix": {
-          "Description": "Atténue les couleurs prosodiques à mesure que l'aisance combinée du mot augmente.",
-          "Label": "Atténuer selon l'aisance"
+        "EvidenceFade": {
+          "Description": "Atténue les couleurs prosodiques à mesure que les preuves directes de prosodie se renforcent. Les motifs non mesurés restent entièrement colorés.",
+          "Label": "Atténuer selon les preuves de prosodie"
         },
         "MixTarget": {
-          "Description": "Choisissez la couleur vers laquelle les couleurs prosodiques s'atténuent.",
+          "Description": "Choisissez la couleur vers laquelle les couleurs prosodiques s'atténuent lorsque les preuves de prosodie sont fortes.",
           "Label": "Atténuer vers",
           "PartOfSpeech": "Couleur grammaticale",
           "White": "Blanc"
@@ -1758,7 +1763,7 @@
           "Label": "Saturation des couleurs"
         },
         "StatusLimit": {
-          "Description": "Colore les mots jusqu'à ce statut combiné. Les statuts supérieurs utilisent la couleur grammaticale normale.",
+          "Description": "Colore les motifs prosodiques jusqu'à ce statut d'apprentissage de prosodie. Les statuts prosodiques supérieurs utilisent la couleur grammaticale normale.",
           "Known": "Connu",
           "Label": "Colorer jusqu'au statut",
           "Learning": "En apprentissage"

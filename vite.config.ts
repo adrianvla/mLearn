@@ -82,6 +82,7 @@ export default defineConfig(({ mode }) => {
         'level-study': resolve(__dirname, 'src/html/level-study.html'),
         overlay: resolve(__dirname, 'src/html/overlay.html'),
         diagnostics: resolve(__dirname, 'src/html/diagnostics.html'),
+        'graph-inspector': resolve(__dirname, 'src/html/graph-inspector.html'),
       };
 
   return {

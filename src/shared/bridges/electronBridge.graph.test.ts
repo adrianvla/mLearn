@@ -8,6 +8,7 @@ describe('electron graph bridge', () => {
       lookupGraphWord: vi.fn().mockResolvedValue(null),
       getGraphRelated: vi.fn().mockResolvedValue([]),
       getGraphTargetsForSurfaces: vi.fn().mockResolvedValue([]),
+      getGraphNeighborhood: vi.fn().mockResolvedValue(null),
     };
     window.mLearnIPC = ipc as unknown as typeof window.mLearnIPC;
     const graph = createElectronBridge().graph;
@@ -16,10 +17,12 @@ describe('electron graph bridge', () => {
     await graph.lookupGraphWord('ja', { surface: '猫' });
     await graph.getGraphRelated('ja', 'ja:surface:x', ['realizes']);
     await graph.getGraphTargetsForSurfaces('ja', [{ surface: '猫' }]);
+    await graph.getGraphNeighborhood('ja', { entityId: 'ja:surface:x' });
 
     expect(ipc.getGraphMeta).toHaveBeenCalledWith('ja');
     expect(ipc.lookupGraphWord).toHaveBeenCalledWith('ja', { surface: '猫' });
     expect(ipc.getGraphRelated).toHaveBeenCalledWith('ja', 'ja:surface:x', ['realizes']);
     expect(ipc.getGraphTargetsForSurfaces).toHaveBeenCalledWith('ja', [{ surface: '猫' }]);
+    expect(ipc.getGraphNeighborhood).toHaveBeenCalledWith('ja', { entityId: 'ja:surface:x' });
   });
 });

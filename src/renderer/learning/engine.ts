@@ -20,6 +20,7 @@ const RETENTION_TASK: EncounterTask = {
   supplied: ['surface'],
   requested: ['meaning'],
   fluencyRequired: true,
+  ratingMode: 'profile',
 };
 
 const CALIBRATION_TASK: EncounterTask = {
@@ -29,6 +30,7 @@ const CALIBRATION_TASK: EncounterTask = {
   supplied: ['surface'],
   requested: ['meaning'],
   fluencyRequired: false,
+  ratingMode: 'profile',
 };
 
 export const PRESETS: Record<'RETENTION' | 'CALIBRATION' | 'CURRICULUM' | 'MEDIA' | 'SUGGESTED', Preset> = {

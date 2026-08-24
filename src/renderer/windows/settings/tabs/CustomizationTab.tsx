@@ -552,8 +552,8 @@ export const CustomizationTab: Component = () => {
               </SettingRow>
 
               <SettingRow
-                label={t('mlearn.Settings.ColoredProsody.EaseMix.Label')}
-                description={t('mlearn.Settings.ColoredProsody.EaseMix.Description')}
+                label={t('mlearn.Settings.ColoredProsody.EvidenceFade.Label')}
+                description={t('mlearn.Settings.ColoredProsody.EvidenceFade.Description')}
               >
                 <ToggleSwitch
                   checked={settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled}
