@@ -91,7 +91,15 @@ vi.mock('../../../components/common', () => ({
       </span>
     </span>
   ),
+  KnowledgeCapabilityChips: () => <span data-testid="knowledge-chips" />,
+  KnowledgeProjectionDrawer: () => null,
 }));
+
+vi.mock('../../../../shared/bridges', () => ({
+  getBridge: () => ({ graph: { getKnowledgeProjection: () => Promise.resolve({ status: 'unavailable', targets: [] }) } }),
+}));
+
+vi.mock('../../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));
 
 vi.mock('../../../components/language-specific', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../components/language-specific')>();

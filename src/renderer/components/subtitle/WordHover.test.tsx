@@ -110,6 +110,8 @@ vi.mock('../common', () => ({
     el.innerHTML = props.html ?? '';
     return el;
   },
+  KnowledgeCapabilityChips: () => null,
+  KnowledgeProjectionDrawer: () => null,
 }));
 
 vi.mock('../language-specific', () => ({
@@ -141,6 +143,9 @@ vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({
     flashcards: {
       saveFlashcardImage: vi.fn(async () => ''),
+    },
+    graph: {
+      getKnowledgeProjection: vi.fn(async () => ({ status: 'unavailable', targets: [] })),
     },
   }),
 }));

@@ -1306,6 +1306,10 @@
       }
     },
     "Knowledge": {
+      "Capability": { "surface-recognition": "Распознавание", "surface-reading": "Чтение", "pronunciation-production": "Произношение" },
+      "LegacySource": { "Prefix": "Источник доказательств: ", "None": "Нет" },
+      "OverrideWarning": { "Confirm": "Всё равно изменить", "DontRemind": "Больше не напоминать", "Message": "Для этого статуса уже есть доказательства. Изменение добавляет ручное утверждение, но не удаляет доказательства.", "Title": "Переопределение знаний" },
+      "Projection": { "Capabilities": "Возможности знаний", "Details": "Подробности", "Graph": "Граф", "Unavailable": "Сведения о знаниях недоступны.", "Evidence": { "Known": "Известно по доказательствам", "Learning": "Изучается по доказательствам", "Title": "Активные доказательства", "None": "Нет активных доказательств." }, "Predicted": "Прогноз", "Unmeasured": "Не измерено", "Excluded": "Исключено", "Because": "Потому что:", "Strength": "Ease {ease} · видено {seen} · наведено {hovered}", "Retention": "Давление {pressure} · срок {due}" },
       "Aspect": {
         "Meaning": "Значение",
         "Reading": "Чтение",
@@ -2855,7 +2859,7 @@
       },
       "Columns": {
         "Level": "Уровень",
-        "Status": "Состояние",
+        "Status": "Состояние", "Knowledge": "Знания",
         "TrackedBy": "Источник",
         "Translation": "Перевод",
         "Word": "Слово"
@@ -2886,7 +2890,7 @@
         "Anki": "Anki",
         "Flashcards": "Карточки",
         "Ignored": "Игнорируется",
-        "Nothing": "Не отслеживается"
+        "Nothing": "Нет трекера"
       },
       "Title": "База слов",
       "AdvancedFilters": "Advanced Filters"
@@ -2915,17 +2919,8 @@
         "Learning": "Изучаемое",
         "Unknown": "Неизвестное"
       },
-      "StatusSource": {
-        "Prefix": "Источник: ",
-        "None": "Нет"
-      },
       "TimesSeen": "Увидено {count} раз",
-      "StatusSourceWarning": {
-        "Confirm": "Всё равно изменить",
-        "DontRemind": "Больше не напоминать",
-        "Message": "Статус этого слова определяется наивысшим источником знания. Ручное изменение может не иметь эффекта, если Anki или карточки уже отслеживают это слово на более высоком уровне.",
-        "Title": "Переопределение статуса"
-      },
+      "Knowledge": { "Details": "Подробности", "Graph": "Граф" },
       "AnkiModifyWarning": {
         "Title": "Изменить карточки Anki",
         "Message": "Это изменит лёгкость и позицию ваших карточек Anki для этого слова. Новые карточки будут перемещены в начало очереди.",

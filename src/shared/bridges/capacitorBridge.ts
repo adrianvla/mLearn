@@ -1929,6 +1929,9 @@ const graphBridge: GraphBridge = {
   async getGraphNeighborhood() {
     return null;
   },
+  async getKnowledgeProjection() {
+    return { status: 'unavailable', targets: [] };
+  },
 };
 
 // ============================================================================

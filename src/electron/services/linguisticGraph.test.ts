@@ -75,9 +75,10 @@ describe('LinguisticGraphService', () => {
   it('reports a missing graph explicitly and registers only bulk-safe graph IPC handlers', async () => {
     const { LinguisticGraphService, setupLinguisticGraphIPC } = await import('./linguisticGraph');
     await expect(new LinguisticGraphService(directory).getMeta('ja')).resolves.toEqual({ entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' });
+    await expect(new LinguisticGraphService(directory).getKnowledgeProjection('ja', '猫')).resolves.toEqual({ status: 'not-installed', targets: [] });
     setupLinguisticGraphIPC();
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
-      'graph-get-meta', 'graph-lookup-word', 'graph-get-related', 'graph-get-targets-for-surfaces', 'graph-get-neighborhood',
+      'graph-get-meta', 'graph-lookup-word', 'graph-get-related', 'graph-get-targets-for-surfaces', 'graph-get-neighborhood', 'knowledge-get-projection',
     ]));
   });
 });

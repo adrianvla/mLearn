@@ -1,4 +1,4 @@
-import type { GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
+import type { CapabilityKind, GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
 
 export type GraphAvailability = 'ready' | 'not-installed' | 'unavailable' | 'error';
 
@@ -56,4 +56,39 @@ export interface GraphLookupInput {
 export interface GraphSurfaceTargets {
   input: GraphLookupInput;
   lookup: GraphWordLookup | null;
+}
+
+export type KnowledgeProjectionBasis = 'evidence' | 'prediction' | 'unmeasured' | 'excluded';
+export type KnowledgeProjectionClassification = 'known' | 'learning' | 'predicted' | 'unmeasured' | 'excluded';
+
+export interface KnowledgeProjectionEvidence {
+  timestamp: number;
+  source: string;
+  quality?: string;
+  latencyMs?: number;
+}
+
+export interface KnowledgeProjectionState {
+  capability: CapabilityKind;
+  classification: KnowledgeProjectionClassification;
+  basis: KnowledgeProjectionBasis;
+  strength?: { ease: number; timesSeen: number; timesHovered: number };
+  lastDirectSuccess?: number;
+  evidence: KnowledgeProjectionEvidence[];
+  evidenceSourceCounts: Record<string, number>;
+  retention?: { pressure: number; dueAt: number };
+  prediction?: { value: number; reasons: string[] };
+}
+
+export interface KnowledgeProjectionTarget {
+  targetRef: { kind: GraphEntityKind; id: string };
+  applicableCapabilities: CapabilityKind[];
+  states: KnowledgeProjectionState[];
+}
+
+/** Single-surface on-demand inspector payload; intentionally not batched for v1. */
+export interface KnowledgeProjection {
+  status: GraphAvailability;
+  surfaceId?: string;
+  targets: KnowledgeProjectionTarget[];
 }

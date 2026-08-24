@@ -1306,6 +1306,10 @@
       }
     },
     "Knowledge": {
+      "Capability": { "surface-recognition": "识别", "surface-reading": "读音", "pronunciation-production": "发音" },
+      "LegacySource": { "Prefix": "证据来源：", "None": "无" },
+      "OverrideWarning": { "Confirm": "仍要更改", "DontRemind": "不再提醒", "Message": "此状态已有证据。更改会添加手动声明，但不会清除该证据。", "Title": "知识覆盖" },
+      "Projection": { "Capabilities": "知识能力", "Details": "详情", "Graph": "图谱", "Unavailable": "知识详情不可用。", "Evidence": { "Known": "有证据支持的已掌握", "Learning": "有证据支持的学习中", "Title": "有效证据", "None": "没有有效证据。" }, "Predicted": "预测", "Unmeasured": "未测量", "Excluded": "已排除", "Because": "因为：", "Strength": "难度 {ease} · 已见 {seen} · 已悬停 {hovered}", "Retention": "压力 {pressure} · 到期 {due}" },
       "Aspect": {
         "Meaning": "词义",
         "Reading": "读音",
@@ -2855,7 +2859,7 @@
       },
       "Columns": {
         "Level": "等级",
-        "Status": "状态",
+        "Status": "状态", "Knowledge": "知识",
         "TrackedBy": "追踪来源",
         "Translation": "翻译",
         "Word": "单词"
@@ -2886,7 +2890,7 @@
         "Anki": "Anki",
         "Flashcards": "闪卡",
         "Ignored": "已忽略",
-        "Nothing": "未追踪"
+        "Nothing": "无跟踪器"
       },
       "Title": "单词数据库",
       "AdvancedFilters": "Advanced Filters"
@@ -2915,17 +2919,8 @@
         "Learning": "学习中",
         "Unknown": "未知"
       },
-      "StatusSource": {
-        "Prefix": "来源：",
-        "None": "无"
-      },
       "TimesSeen": "已见{count}次",
-      "StatusSourceWarning": {
-        "Confirm": "仍要更改",
-        "DontRemind": "不再提醒",
-        "Message": "此单词的状态由其最高知识来源决定。如果 Anki 或闪卡已以更高等级追踪此单词，手动更改可能无效。",
-        "Title": "状态覆盖"
-      },
+      "Knowledge": { "Details": "详情", "Graph": "图谱" },
       "AnkiModifyWarning": {
         "Title": "修改 Anki 卡片",
         "Message": "这将修改此单词的 Anki 卡片的难度系数和位置。新卡片将移到复习队列的前面。",

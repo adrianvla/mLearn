@@ -114,6 +114,7 @@ const graphBridge: GraphBridge = {
   getGraphRelated: (language, entityId, relationTypes) => getIPC().getGraphRelated(language, entityId, relationTypes),
   getGraphTargetsForSurfaces: (language, inputs) => getIPC().getGraphTargetsForSurfaces(language, inputs),
   getGraphNeighborhood: (language, query) => getIPC().getGraphNeighborhood(language, query),
+  getKnowledgeProjection: (language, surface) => getIPC().getKnowledgeProjection(language, surface),
 };
 
 const fileBridge: FileBridge = {

@@ -48,6 +48,7 @@ export {
 } from './EulaModal/EulaModal';
 
 export { LanguageVariantGate } from './LanguageVariantGate/LanguageVariantGate';
+export { KnowledgeCapabilityChips, KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone } from './KnowledgeProjection';
 
 // ModalForm Components
 export {

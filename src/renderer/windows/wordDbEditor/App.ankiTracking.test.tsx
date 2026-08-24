@@ -100,6 +100,12 @@ vi.mock('../../hooks/useAnki', () => ({
   }),
 }));
 
+vi.mock('../../../shared/bridges', () => ({
+  getBridge: () => ({ graph: { getKnowledgeProjection: () => Promise.resolve({ status: 'unavailable', targets: [] }) } }),
+}));
+
+vi.mock('../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));
+
 vi.mock('../../components/common', async () => {
   const presets = await import('../../components/common/FilterBuilder/presets');
   const expr = await import('../../components/common/FilterBuilder/filterExpr');
@@ -118,6 +124,8 @@ vi.mock('../../components/common', async () => {
       <span class={props.class}>{props.children}</span>
     ),
     AnkiHoverPreview: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+    KnowledgeCapabilityChips: () => null,
+    KnowledgeProjectionDrawer: () => null,
     buildEmptyPreset: presets.buildEmptyPreset,
     buildWordDbEditorFields: presets.buildWordDbEditorFields,
     validateTokens: expr.validateTokens,

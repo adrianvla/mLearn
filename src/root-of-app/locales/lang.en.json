@@ -1306,6 +1306,10 @@
       }
     },
     "Knowledge": {
+      "Capability": { "surface-recognition": "Recognition", "surface-reading": "Reading", "pronunciation-production": "Pronunciation" },
+      "LegacySource": { "Prefix": "Evidence source: ", "None": "None" },
+      "OverrideWarning": { "Confirm": "Change anyway", "DontRemind": "Don't remind me again", "Message": "This status has existing evidence. Changing it adds a manual claim but does not erase that evidence.", "Title": "Knowledge override" },
+      "Projection": { "Capabilities": "Knowledge capabilities", "Details": "Details", "Graph": "Graph", "Unavailable": "Knowledge details are unavailable.", "Evidence": { "Known": "Evidence-backed Known", "Learning": "Evidence-backed Learning", "Title": "Active evidence", "None": "No active evidence." }, "Predicted": "Predicted", "Unmeasured": "Unmeasured", "Excluded": "Excluded", "Because": "Because:", "Strength": "Ease {ease} · seen {seen} · hovered {hovered}", "Retention": "Pressure {pressure} · due {due}" },
       "Aspect": {
         "Meaning": "Meaning",
         "Reading": "Reading",
@@ -2856,6 +2860,7 @@
       "Columns": {
         "Level": "Level",
         "Status": "Status",
+        "Knowledge": "Knowledge",
         "TrackedBy": "Tracked By",
         "Translation": "Translation",
         "Word": "Word"
@@ -2886,7 +2891,7 @@
         "Anki": "Anki",
         "Flashcards": "Flashcards",
         "Ignored": "Ignored",
-        "Nothing": "Untracked"
+        "Nothing": "No tracker"
       },
       "Title": "Word Database",
       "AdvancedFilters": "Advanced Filters"
@@ -2915,17 +2920,8 @@
         "Learning": "Learning",
         "Unknown": "Unknown"
       },
-      "StatusSource": {
-        "Prefix": "Source: ",
-        "None": "None"
-      },
       "TimesSeen": "Seen {count} times",
-      "StatusSourceWarning": {
-        "Confirm": "Change anyway",
-        "DontRemind": "Don't remind me again",
-        "Message": "This word's status is determined by its highest knowledge source. Manually changing it may have no effect if Anki or Flashcards already track this word at a higher level.",
-        "Title": "Status Override"
-      },
+      "Knowledge": { "Details": "Details", "Graph": "Graph" },
       "AnkiModifyWarning": {
         "Title": "Modify Anki Cards",
         "Message": "This will modify the ease and position of your Anki cards for this word. New cards will be moved to the front of your review queue.",

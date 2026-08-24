@@ -51,15 +51,18 @@
 
 .col.tracker {
   flex: 1.5;
-  min-width: 400px;
+  min-width: 260px;
   display: flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.col.status {
+.col.knowledge {
   flex: 2;
-  min-width: 200px;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 /* Entries list container */
@@ -80,15 +83,6 @@
 }
 
 /* Status pills in word DB */
-.word-db-editor .status-pill-group {
-  display: flex;
-  gap: 6px;
-}
-
-.word-db-editor .status-pill {
-  padding: 3px 8px;
-  font-size: 0.7em;
-}
 
 /* Initialize loading state */
 .init-loading {

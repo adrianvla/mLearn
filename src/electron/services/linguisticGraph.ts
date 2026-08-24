@@ -4,8 +4,10 @@ import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { COMPACT_RELATION_TYPES, decodeCompact, type CompactAssetJSON, type RuntimeCompactGraph } from '../../shared/graph/compact';
-import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../../shared/graph/ipc';
-import { RELATION_CATEGORY, type GraphRelationType } from '../../shared/graph/types';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../../shared/graph/ipc';
+import { RELATION_CATEGORY, type GraphRelation, type GraphRelationType, type LinguisticGraphAsset } from '../../shared/graph/types';
+import { loadLinguisticGraph } from '../../shared/graph/load';
+import { buildKnowledgeProjection } from './knowledgeProjection';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -140,6 +142,62 @@ export class LinguisticGraphService {
   async getTargetsForSurfaces(language: string, inputs: GraphLookupInput[]): Promise<GraphSurfaceTargets[]> {
     return Promise.all(inputs.slice(0, 100).map(async (input) => ({ input, lookup: await this.lookupWord(language, input) })));
   }
+
+  async getKnowledgeProjection(language: string, surface: string): Promise<KnowledgeProjection> {
+    try {
+      const loaded = await this.ensure(language);
+      if (!loaded) return { status: 'not-installed', targets: [] };
+      const hash = crypto.createHash('sha256').update(surface).digest('hex');
+      const surfaceId = `${language}:surface:${hash}`;
+      if (!loaded.graph.has(surfaceId)) return { status: 'ready', surfaceId, targets: [] };
+      const [{ loadFlashcards }, { getKnowledgeEvents }] = await Promise.all([
+        import('./flashcardStorage'),
+        import('./knowledgeEvents'),
+      ]);
+      const [store, events] = await Promise.all([
+        loadFlashcards(),
+        Promise.resolve(getKnowledgeEvents([`${language}:${hash}`])),
+      ]);
+      return buildKnowledgeProjection(this.toLingualGraph(loaded), surfaceId, events[`${language}:${hash}`] ?? [], store.meta);
+    } catch {
+      return { status: 'error', targets: [] };
+    }
+  }
+
+  private toLingualGraph(loaded: LoadedGraph) {
+    const { graph } = loaded;
+    const domains = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
+    const entities = graph.persistentOf.map((id, dense) => {
+      const labelId = graph.entityLabelStringIds[dense];
+      const domain = domains[graph.entityDomainIds[dense]];
+      return {
+        id,
+        kind: graph.nodeKind(id)!,
+        ...(domain ? { domain } : {}),
+        ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}),
+      };
+    });
+    const relations: GraphRelation[] = [];
+    for (let dense = 0; dense < graph.persistentOf.length; dense += 1) {
+      for (let edge = graph.relationOffsets[dense]; edge < graph.relationOffsets[dense + 1]; edge += 1) {
+        const confidence = graph.relationConfidence?.[edge];
+        const transparency = graph.relationTransparency?.[edge];
+        const predictability = graph.relationPredictability?.[edge];
+        const provenance = graph.relationProvenanceStringIds?.[edge];
+        relations.push({
+          from: graph.persistentOf[dense],
+          to: graph.persistentOf[graph.relationTargets[edge]],
+          type: COMPACT_RELATION_TYPES[graph.relationTypeIds[edge]],
+          ...(confidence !== undefined && confidence >= 0 ? { confidence } : {}),
+          ...(transparency !== undefined && transparency >= 0 ? { transparency } : {}),
+          ...(predictability !== undefined && predictability >= 0 ? { predictability } : {}),
+          ...(provenance !== undefined && provenance >= 0 ? { provenance: graph.stringTable[provenance] } : {}),
+        });
+      }
+    }
+    const asset: LinguisticGraphAsset = { schemaVersion: 1, language: loaded.language, generatedAt: '', sourceVersions: {}, entities, relations };
+    return loadLinguisticGraph(asset);
+  }
 }
 
 export function setupLinguisticGraphIPC(): void {
@@ -149,4 +207,5 @@ export function setupLinguisticGraphIPC(): void {
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_RELATED, (_event, language: string, entityId: string, relationTypes: GraphRelationType[]) => service.getRelated(language, entityId, relationTypes));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, (_event, language: string, inputs: GraphLookupInput[]) => service.getTargetsForSurfaces(language, inputs));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, (_event, language: string, query: GraphNeighborhoodQuery) => service.getNeighborhood(language, query));
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, (_event, language: string, surface: string) => service.getKnowledgeProjection(language, surface));
 }

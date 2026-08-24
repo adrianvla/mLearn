@@ -1306,6 +1306,10 @@
       }
     },
     "Knowledge": {
+      "Capability": { "surface-recognition": "認識", "surface-reading": "読み", "pronunciation-production": "発音" },
+      "LegacySource": { "Prefix": "証拠のソース: ", "None": "なし" },
+      "OverrideWarning": { "Confirm": "変更する", "DontRemind": "今後表示しない", "Message": "この状態には既存の証拠があります。変更は手動の主張を追加しますが、証拠は消去しません。", "Title": "知識の上書き" },
+      "Projection": { "Capabilities": "知識の能力", "Details": "詳細", "Graph": "グラフ", "Unavailable": "知識の詳細は利用できません。", "Evidence": { "Known": "証拠に基づく既知", "Learning": "証拠に基づく学習中", "Title": "有効な証拠", "None": "有効な証拠はありません。" }, "Predicted": "予測", "Unmeasured": "未測定", "Excluded": "除外", "Because": "理由:", "Strength": "Ease {ease} · 表示 {seen} · ホバー {hovered}", "Retention": "負荷 {pressure} · 期限 {due}" },
       "Aspect": {
         "Meaning": "意味",
         "Reading": "読み",
@@ -2855,7 +2859,7 @@
       },
       "Columns": {
         "Level": "レベル",
-        "Status": "状態",
+        "Status": "状態", "Knowledge": "知識",
         "TrackedBy": "追跡元",
         "Translation": "翻訳",
         "Word": "単語"
@@ -2886,7 +2890,7 @@
         "Anki": "Anki",
         "Flashcards": "フラッシュカード",
         "Ignored": "無視済み",
-        "Nothing": "未追跡"
+        "Nothing": "トラッカーなし"
       },
       "Title": "単語データベース",
       "AdvancedFilters": "Advanced Filters"
@@ -2915,17 +2919,8 @@
         "Learning": "学習中",
         "Unknown": "未知"
       },
-      "StatusSource": {
-        "Prefix": "ソース: ",
-        "None": "なし"
-      },
       "TimesSeen": "{count}回見た",
-      "StatusSourceWarning": {
-        "Confirm": "変更する",
-        "DontRemind": "今後表示しない",
-        "Message": "この単語のステータスは最も高い知識ソースによって決定されます。Ankiやフラッシュカードがすでにより高いレベルで追跡している場合、手動での変更は効果がない場合があります。",
-        "Title": "ステータスの上書き"
-      },
+      "Knowledge": { "Details": "詳細", "Graph": "グラフ" },
       "AnkiModifyWarning": {
         "Title": "Ankiカードの変更",
         "Message": "この単語のAnkiカードのEaseと位置を変更します。新しいカードはレビューキューの先頭に移動されます。",

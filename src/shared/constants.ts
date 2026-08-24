@@ -85,6 +85,7 @@ export const IPC_CHANNELS = {
   GRAPH_GET_RELATED: 'graph-get-related',
   GRAPH_GET_TARGETS_FOR_SURFACES: 'graph-get-targets-for-surfaces',
   GRAPH_GET_NEIGHBORHOOD: 'graph-get-neighborhood',
+  KNOWLEDGE_GET_PROJECTION: 'knowledge-get-projection',
   
   // Localization
   GET_LOCALIZATION: 'get-localization',

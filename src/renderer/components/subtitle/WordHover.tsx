@@ -4,7 +4,7 @@
  * Matches legacy .subtitle_hover structure exactly from the old app
  */
 
-import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup } from 'solid-js';
+import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup, onMount } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { useOptionalGraph } from '../../context/GraphContext';
@@ -12,9 +12,9 @@ import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml } from '../common';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, KnowledgeCapabilityChips, KnowledgeProjectionDrawer } from '../common';
 import { ProsodyOverlay } from '../language-specific';
-import { ResourcePill, WordStatusPill } from '../common/Smart';
+import { ResourcePill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
@@ -33,6 +33,8 @@ import { prosodyVisible } from '../../../shared/prosodySettings';
 import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
+import type { KnowledgeProjection } from '../../../shared/graph/ipc';
+import { openGraphInspector } from '../../services/openGraphInspector';
 
 const log = getLogger("renderer.components.wordHover");
 
@@ -100,7 +102,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   // Track if we have a cached explanation (for pill indicator)
   const [hasCachedExplanation, setHasCachedExplanation] = createSignal(false);
   const [graphLookup, setGraphLookup] = createSignal<import('../../../shared/graph/ipc').GraphWordLookup | null>(null);
+  const [projection, setProjection] = createSignal<KnowledgeProjection>();
+  const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
   let hoverRef: HTMLDivElement | undefined;
+  let contentRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
   const displayWord = createMemo(() => props.word || props.token.surface || props.token.word);
@@ -123,6 +128,18 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     let disposed = false;
     void getTargetsForSurfaces([{ surface: word }]).then(([result]) => {
       if (!disposed) setGraphLookup(result?.lookup ?? null);
+    });
+    onCleanup(() => { disposed = true; });
+  });
+
+  createEffect(() => {
+    const word = actualWord();
+    if (!word) return;
+    let disposed = false;
+    void getBridge().graph.getKnowledgeProjection(settings.language, word).then((next) => {
+      if (!disposed) setProjection(next);
+    }).catch(() => {
+      if (!disposed) setProjection({ status: 'error', targets: [] });
     });
     onCleanup(() => { disposed = true; });
   });
@@ -567,11 +584,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const grammarOccurrences = createMemo(() => props.grammarOccurrences ?? []);
 
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
-  const [isStatusModalOpen, setIsStatusModalOpen] = createSignal(false);
 
   // Track whether any internal modal is open (prevents hide during modal interaction)
   const isInternalModalOpen = createMemo(() =>
-    showDuplicateWarning() || isStatusModalOpen()
+    showDuplicateWarning()
   );
 
   // When an internal modal opens, cancel any pending hide from the parent
@@ -620,6 +636,24 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     );
   };
 
+  const handleContentClick = (e: MouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a');
+    if (!anchor) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const clone = anchor.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('rt, rp').forEach((el) => { el.remove(); });
+    const text = clone.textContent?.trim();
+    if (text) openWordLookup(text);
+  };
+
+  onMount(() => {
+    const element = contentRef;
+    if (!element) return;
+    element.addEventListener('click', handleContentClick);
+    onCleanup(() => element.removeEventListener('click', handleContentClick));
+  });
+
   return (
     <div
       class="word-hover-container"
@@ -628,22 +662,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     >
       <div
         class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? 'dark' : ''}`}
-        role="presentation"
+        role="dialog"
+        aria-label={actualWord()}
         ref={(el) => { subtitleHoverRef = el; }}
         onMouseEnter={() => props.onMouseEnter?.()}
         onMouseLeave={() => { if (!isInternalModalOpen() && !isAddingFlashcard()) props.onMouseLeave?.(); }}
       >
         <div class="subtitle_hover_relative">
-          <div class="subtitle_hover_content" role="button" tabIndex={0} onClick={(e) => {
-            const anchor = (e.target as HTMLElement).closest('a');
-            if (!anchor) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const clone = anchor.cloneNode(true) as HTMLElement;
-            clone.querySelectorAll('rt, rp').forEach((el) => { el.remove(); });
-            const text = clone.textContent?.trim();
-            if (text) openWordLookup(text);
-          }}>
+           <div class="subtitle_hover_content" ref={contentRef}>
             {/* Loading state */}
             <Show when={props.isLoading}>
               <div class="hover_loading">{t('mlearn.WordHover.Loading')}</div>
@@ -736,13 +762,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <For each={grammarOccurrences()}>
                 {(occurrence) => <PillLabel variant="blue">{occurrence.realizedForm}</PillLabel>}
               </For>
-              <WordStatusPill
-                word={actualWord()}
-                language={settings.language}
-                onStatusChange={props.onStatusChange}
-                onModalOpenChange={setIsStatusModalOpen}
-              />
-              <ResourcePill
+               <ResourcePill
                 word={actualWord()}
                 language={settings.language}
                 isTracked={isTracked()}
@@ -754,10 +774,23 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 onAdd={handleAddToSRS}
               />
               <LLMPill />
-            </div>
-          </div>
+             </div>
+             <Show when={projection()?.status === 'ready' && projection()!.targets.length > 0}>
+               <div class="word-hover-knowledge">
+                 <KnowledgeCapabilityChips projection={projection()} />
+                 <button type="button" onClick={() => setShowKnowledgeDetails(true)}>{t('mlearn.WordHover.Knowledge.Details')}</button>
+                 <button type="button" onClick={() => openGraphInspector({ entityId: projection()!.targets[0].targetRef.id })}>{t('mlearn.WordHover.Knowledge.Graph')}</button>
+               </div>
+             </Show>
+           </div>
         </div>
       </div>
+      <KnowledgeProjectionDrawer
+        projection={projection()}
+        open={showKnowledgeDetails()}
+        onClose={() => setShowKnowledgeDetails(false)}
+        onGraph={(entityId) => openGraphInspector({ entityId })}
+      />
       {/* Anki duplicate warning modal */}
       <Show when={showDuplicateWarning()}>
         <AnkiDuplicateWarningModal

@@ -1306,6 +1306,10 @@
       }
     },
     "Knowledge": {
+      "Capability": { "surface-recognition": "Reconnaissance", "surface-reading": "Lecture", "pronunciation-production": "Prononciation" },
+      "LegacySource": { "Prefix": "Source de preuve : ", "None": "Aucune" },
+      "OverrideWarning": { "Confirm": "Modifier quand même", "DontRemind": "Ne plus me rappeler", "Message": "Ce statut possède déjà des preuves. La modification ajoute une déclaration manuelle sans effacer ces preuves.", "Title": "Remplacement de connaissance" },
+      "Projection": { "Capabilities": "Capacités de connaissance", "Details": "Détails", "Graph": "Graphe", "Unavailable": "Les détails de connaissance ne sont pas disponibles.", "Evidence": { "Known": "Connu étayé", "Learning": "En apprentissage étayé", "Title": "Preuves actives", "None": "Aucune preuve active." }, "Predicted": "Prédit", "Unmeasured": "Non mesuré", "Excluded": "Exclu", "Because": "Parce que :", "Strength": "Aisance {ease} · vu {seen} · survolé {hovered}", "Retention": "Pression {pressure} · échéance {due}" },
       "Aspect": {
         "Meaning": "Sens",
         "Reading": "Lecture",
@@ -2855,7 +2859,7 @@
       },
       "Columns": {
         "Level": "Niveau",
-        "Status": "Statut",
+        "Status": "Statut", "Knowledge": "Connaissance",
         "TrackedBy": "Suivi par",
         "Translation": "Traduction",
         "Word": "Mot"
@@ -2886,7 +2890,7 @@
         "Anki": "Anki",
         "Flashcards": "Cartes mémoire",
         "Ignored": "Ignoré",
-        "Nothing": "Non suivi"
+        "Nothing": "Aucun tracker"
       },
       "Title": "Base de mots",
       "AdvancedFilters": "Advanced Filters"
@@ -2915,17 +2919,8 @@
         "Learning": "En apprentissage",
         "Unknown": "Inconnu"
       },
-      "StatusSource": {
-        "Prefix": "Source : ",
-        "None": "Aucune"
-      },
       "TimesSeen": "Vu {count} fois",
-      "StatusSourceWarning": {
-        "Confirm": "Modifier quand même",
-        "DontRemind": "Ne plus me rappeler",
-        "Message": "Le statut de ce mot est déterminé par la source de connaissance la plus élevée. Le modifier manuellement peut n'avoir aucun effet si Anki ou les Flashcards suivent déjà ce mot à un niveau supérieur.",
-        "Title": "Remplacement du statut"
-      },
+      "Knowledge": { "Details": "Détails", "Graph": "Graphe" },
       "AnkiModifyWarning": {
         "Title": "Modifier les cartes Anki",
         "Message": "Cela modifiera l'aisance et la position de vos cartes Anki pour ce mot. Les nouvelles cartes seront déplacées en tête de la file de révision.",

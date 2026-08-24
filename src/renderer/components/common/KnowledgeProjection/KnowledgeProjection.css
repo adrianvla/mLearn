@@ -1,0 +1,21 @@
+.knowledge-capability-chips { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+.knowledge-chip { display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.1rem 0.35rem; font-size: var(--font-size-xs); white-space: nowrap; }
+.knowledge-chip small { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.knowledge-chip--evidence { color: var(--color-success); }
+.knowledge-chip--predicted { color: var(--color-warning); border-style: dashed; }
+.knowledge-chip--unmeasured { color: var(--text-secondary); border-style: dashed; }
+.knowledge-chip--excluded { color: var(--text-secondary); text-decoration: line-through; }
+.knowledge-drawer { position: fixed; inset: 0 0 0 auto; z-index: var(--z-modal); width: min(28rem, 94vw); overflow: auto; padding: var(--spacing-4); background: var(--bg-primary); border-left: 1px solid var(--border-color); box-shadow: var(--shadow-lg); color: var(--text-primary); }
+.knowledge-drawer__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-3); }
+.knowledge-drawer__close, .knowledge-drawer__tabs button, .knowledge-drawer__graph { border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; }
+.knowledge-drawer__close { font-size: 1.25rem; line-height: 1; }
+.knowledge-drawer__tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: var(--spacing-3); }
+.knowledge-drawer__tabs button.is-active { border-color: var(--color-primary); color: var(--color-primary); }
+.knowledge-drawer__state { border-top: 1px solid var(--border-color); padding-top: var(--spacing-3); font-size: var(--font-size-sm); }
+.knowledge-drawer__label { font-weight: var(--font-weight-semibold); }
+.knowledge-state--evidence .knowledge-drawer__label { color: var(--color-success); }
+.knowledge-state--predicted .knowledge-drawer__label { color: var(--color-warning); }
+.knowledge-drawer__evidence { margin: var(--spacing-2) 0; padding-left: 1rem; }
+.knowledge-drawer__evidence li { margin-bottom: 0.25rem; font-variant-numeric: tabular-nums; }
+.knowledge-drawer__provenance { color: var(--text-secondary); }
+.knowledge-drawer__graph { padding: 0.35rem 0.6rem; }

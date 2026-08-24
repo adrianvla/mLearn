@@ -1306,6 +1306,10 @@
       }
     },
     "Knowledge": {
+      "Capability": { "surface-recognition": "Erkennung", "surface-reading": "Lesen", "pronunciation-production": "Aussprache" },
+      "LegacySource": { "Prefix": "Evidenzquelle: ", "None": "Keine" },
+      "OverrideWarning": { "Confirm": "Trotzdem ändern", "DontRemind": "Nicht mehr erinnern", "Message": "Dieser Status hat bestehende Evidenz. Die Änderung fügt eine manuelle Angabe hinzu, löscht die Evidenz aber nicht.", "Title": "Wissensüberschreibung" },
+      "Projection": { "Capabilities": "Wissensfähigkeiten", "Details": "Details", "Graph": "Graph", "Unavailable": "Wissensdetails sind nicht verfügbar.", "Evidence": { "Known": "Evidenzbasiert bekannt", "Learning": "Evidenzbasiert lernend", "Title": "Aktive Evidenz", "None": "Keine aktive Evidenz." }, "Predicted": "Vorhergesagt", "Unmeasured": "Nicht gemessen", "Excluded": "Ausgeschlossen", "Because": "Weil:", "Strength": "Ease {ease} · gesehen {seen} · gehovert {hovered}", "Retention": "Druck {pressure} · fällig {due}" },
       "Aspect": {
         "Meaning": "Bedeutung",
         "Reading": "Lesung",
@@ -2855,7 +2859,7 @@
       },
       "Columns": {
         "Level": "Stufe",
-        "Status": "Status",
+        "Status": "Status", "Knowledge": "Wissen",
         "TrackedBy": "Verfolgt durch",
         "Translation": "Übersetzung",
         "Word": "Wort"
@@ -2886,7 +2890,7 @@
         "Anki": "Anki",
         "Flashcards": "Lernkarten",
         "Ignored": "Ignoriert",
-        "Nothing": "Unverfolgt"
+        "Nothing": "Kein Tracker"
       },
       "Title": "Wortdatenbank",
       "AdvancedFilters": "Advanced Filters"
@@ -2915,17 +2919,8 @@
         "Learning": "Lernend",
         "Unknown": "Unbekannt"
       },
-      "StatusSource": {
-        "Prefix": "Quelle: ",
-        "None": "Keine"
-      },
       "TimesSeen": "{count} Mal gesehen",
-      "StatusSourceWarning": {
-        "Confirm": "Trotzdem ändern",
-        "DontRemind": "Nicht mehr erinnern",
-        "Message": "Der Status dieses Wortes wird durch die höchste Wissensquelle bestimmt. Eine manuelle Änderung hat möglicherweise keine Auswirkung, wenn Anki oder Lernkarten dieses Wort bereits auf einem höheren Niveau verfolgen.",
-        "Title": "Status-Überschreibung"
-      },
+      "Knowledge": { "Details": "Details", "Graph": "Graph" },
       "AnkiModifyWarning": {
         "Title": "Anki-Karten ändern",
         "Message": "Dies ändert den Ease-Faktor und die Position Ihrer Anki-Karten für dieses Wort. Neue Karten werden an den Anfang der Warteschlange verschoben.",

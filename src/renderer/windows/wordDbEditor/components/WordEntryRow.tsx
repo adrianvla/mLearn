@@ -5,9 +5,8 @@
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, AnkiHoverPreview } from '../../../components/common';
+import { Btn, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer } from '../../../components/common';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
-import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
 import { cacheVersion, getCachedTranslation, getCachedReading, fetchTranslation, type WordLookupCandidateOptions } from '../../../hooks/useTranslation';
@@ -34,6 +33,9 @@ import { prosodyVisible } from '../../../../shared/prosodySettings';
 import './WordEntryRow.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
+import { getBridge } from '../../../../shared/bridges';
+import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
+import { openGraphInspector } from '../../../services/openGraphInspector';
 
 const log = getLogger("renderer.wordDbEditor.wordEntryRow");
 
@@ -143,6 +145,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   const { getWordTrackingSync, getAspectStatus } = useFlashcards();
+  const [projection, setProjection] = createSignal<KnowledgeProjection>();
+  const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -155,6 +159,18 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     && prosodyVisible(settings)
   ));
   let rowRef: HTMLDivElement | undefined;
+
+  createEffect(() => {
+    const word = props.entry.word;
+    const language = settings.language;
+    let disposed = false;
+    void getBridge().graph.getKnowledgeProjection(language, word).then((next) => {
+      if (!disposed) setProjection(next);
+    }).catch(() => {
+      if (!disposed) setProjection({ status: 'error', targets: [] });
+    });
+    onCleanup(() => { disposed = true; });
+  });
 
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
@@ -525,10 +541,16 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           </Btn>
         </Show>
       </div>
-      <div class="col status">
-        <WordStatusPill
-          word={props.entry.word}
-          onStatusChange={(status) => props.onStatusChange(props.entry, status)}
+      <div class="col knowledge">
+        <KnowledgeCapabilityChips projection={projection()} />
+        <Show when={projection()?.status === 'ready' && projection()!.targets.length > 0}>
+          <Btn variant="ghost" size="sm" onClick={() => setShowKnowledgeDetails(true)}>{t('mlearn.Knowledge.Projection.Details')}</Btn>
+        </Show>
+        <KnowledgeProjectionDrawer
+          projection={projection()}
+          open={showKnowledgeDetails()}
+          onClose={() => setShowKnowledgeDetails(false)}
+          onGraph={(entityId) => openGraphInspector({ entityId })}
         />
       </div>
     </div>

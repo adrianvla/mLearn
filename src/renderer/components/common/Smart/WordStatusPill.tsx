@@ -96,8 +96,8 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     }
 
     return buildWordStatusSourceLabel({
-      prefix: t('mlearn.WordHover.StatusSource.Prefix'),
-      noneLabel: t('mlearn.WordHover.StatusSource.None'),
+      prefix: t('mlearn.Knowledge.LegacySource.Prefix'),
+      noneLabel: t('mlearn.Knowledge.LegacySource.None'),
       sourceLabels,
       displayedWord: props.word,
       canonicalWord: comprehensiveResult().matchedWord ?? primaryWord(),
@@ -280,10 +280,10 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       </Tooltip>
       <AnkiModifyWarningModal
         isOpen={showStatusSourceWarning()}
-        title={t('mlearn.WordHover.StatusSourceWarning.Title')}
-        message={t('mlearn.WordHover.StatusSourceWarning.Message')}
-        confirmText={t('mlearn.WordHover.StatusSourceWarning.Confirm')}
-        dontRemindLabel={t('mlearn.WordHover.StatusSourceWarning.DontRemind')}
+        title={t('mlearn.Knowledge.OverrideWarning.Title')}
+        message={t('mlearn.Knowledge.OverrideWarning.Message')}
+        confirmText={t('mlearn.Knowledge.OverrideWarning.Confirm')}
+        dontRemindLabel={t('mlearn.Knowledge.OverrideWarning.DontRemind')}
         onConfirm={confirmStatusSourceChange}
         onCancel={() => {
           setShowStatusSourceWarning(false);
