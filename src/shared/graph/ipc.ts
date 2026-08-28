@@ -58,7 +58,7 @@ export interface GraphSurfaceTargets {
   lookup: GraphWordLookup | null;
 }
 
-export type KnowledgeProjectionBasis = 'evidence' | 'prediction' | 'unmeasured' | 'excluded';
+export type KnowledgeProjectionBasis = 'evidence' | 'claim' | 'prediction' | 'unmeasured' | 'excluded';
 export type KnowledgeProjectionClassification = 'known' | 'learning' | 'predicted' | 'unmeasured' | 'excluded';
 
 export interface KnowledgeProjectionEvidence {

@@ -24,6 +24,11 @@ vi.mock('../../../shared/backends', () => ({
     getCard: mockGetCard,
   }),
 }));
+vi.mock('../../services/dictionaryUniverse', () => ({
+  loadDictionaryUniverse: vi.fn(async () => []),
+  clearDictionaryUniverseCache: vi.fn(),
+}));
+
 
 vi.mock('../../components/common/Feedback/Toast', () => ({
   showToast: (...args: unknown[]) => mockShowToast(...args),
@@ -101,7 +106,13 @@ vi.mock('../../hooks/useAnki', () => ({
 }));
 
 vi.mock('../../../shared/bridges', () => ({
-  getBridge: () => ({ graph: { getKnowledgeProjection: () => Promise.resolve({ status: 'unavailable', targets: [] }) } }),
+  getBridge: () => ({
+    graph: { getKnowledgeProjection: () => Promise.resolve({ status: 'unavailable', targets: [] }) },
+    window: {
+      onWindowContext: () => undefined,
+      getWindowContext: () => undefined,
+    },
+  }),
 }));
 
 vi.mock('../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));

@@ -507,6 +507,8 @@ export const WelcomeRoute: Component = () => {
               active={levelChips().active}
               chips={levelChips().chips}
               titleLabel={t('mlearn.LevelStudy.Coverage.Title')}
+              assessedLabel={t('mlearn.LevelStudy.Coverage.Assessed')}
+              knownLabel={t('mlearn.LevelStudy.LevelCard.Known')}
               emptyLabel={t('mlearn.Home.Cards.LevelStudy.Description')}
               onOpen={openLevelStudy}
             />

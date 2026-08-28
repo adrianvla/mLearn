@@ -64,6 +64,15 @@ describe('Tooltip', () => {
     dispose();
   });
 
+  it('keeps a pinned tooltip open after pointer leaves', async () => {
+    const { dispose } = await renderTooltip({ pinned: true });
+    const trigger = container.querySelector('.tooltip-trigger')!;
+    trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    trigger.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
+    dispose();
+  });
+
   it('applies position class top by default', async () => {
     const { dispose } = await renderTooltip();
     const trigger = container.querySelector('.tooltip-trigger')!;

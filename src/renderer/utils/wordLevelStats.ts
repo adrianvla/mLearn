@@ -84,7 +84,10 @@ function wordKey(language: string, word: string, canonicalizeWord?: Canonicalize
  *
  * A word is learning if:
  * - It has flashcards in 'learning' or 'relearning' state
- * - OR its passive knowledge ease >= learning threshold but < known threshold
+ * - OR its resolved effective state is 'learning' (mirrors
+ *   effectiveKnowledge.effectiveStateFromEntry: an explicit claim decides the
+ *   classification — only a 'learning' claim admits the word; without a claim,
+ *   evidence ease classifies, with passive-only exposure capped at Learning)
  * - OR it exists as a word candidate (auto-tracked for potential flashcards)
  */
 export function buildLearningWordSet(
@@ -108,9 +111,14 @@ export function buildLearningWordSet(
     }
   }
 
-  // Passive knowledge ease in learning range
+  // Passive knowledge — the canonical effective-state rule (no raw ease band
+  // inference): a claim decides ('learning' admits the word; 'known'/'unknown'
+  // claims keep it out), otherwise evidence ease classifies with the known band
+  // gated on hasActiveEvidence — passive-only high ease caps at Learning.
   for (const [lk, knowledge] of Object.entries(store.wordKnowledge)) {
-    if (knowledge.ease >= learningEase && knowledge.ease < knownEase) {
+    if (knowledge.claim !== undefined) {
+      if (knowledge.claim === 'learning') learning.add(lk);
+    } else if (knowledge.ease >= learningEase && (knowledge.ease < knownEase || knowledge.hasActiveEvidence !== true)) {
       learning.add(lk);
     }
   }

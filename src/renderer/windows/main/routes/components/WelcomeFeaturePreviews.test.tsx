@@ -791,6 +791,36 @@ describe('WelcomeLevelPreview', () => {
 
     dispose();
   });
+
+  it('marks the dial percentage as assessed coverage and labels chip tooltips as Known', () => {
+    const dispose = render(
+      () => (
+        <WelcomeLevelPreview
+          coverage={{ total: 100, tracked: 60, pct: 60 }}
+          active={makeLevel(3, 60)}
+          chips={[makeLevel(3, 60), makeLevel(4, 40)]}
+          titleLabel="Coverage"
+          assessedLabel="assessed"
+          knownLabel="Known"
+          emptyLabel="No data"
+          onOpen={() => {}}
+        />
+      ),
+      container,
+    );
+
+    expect(container.querySelector('.wfv-level-status')?.textContent).toBe('60 / 100 assessed');
+
+    const dial = container.querySelector<HTMLButtonElement>('button.wfv-level-dial-wrap');
+    expect(dial?.getAttribute('aria-label')).toBe('Coverage: 60% (assessed)');
+
+    const chips = container.querySelectorAll('.wfv-level-chip');
+    expect(chips).toHaveLength(2);
+    expect(chips[0]?.getAttribute('title')).toBe('Known: 60%');
+    expect(chips[1]?.getAttribute('title')).toBe('Known: 40%');
+
+    dispose();
+  });
 });
 
 describe('WelcomeTutorPreview', () => {

@@ -9,6 +9,10 @@ import { createVirtualizer } from '../../hooks/useVirtualizer';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import type { WordStatus } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
+import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
+import { getBridge } from '../../../shared/bridges';
+import { WINDOW_TYPES } from '../../../shared/constants';
+import './WordDbEditorLayout.css';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
 import {
   ModalLoadingOverlay,
@@ -34,7 +38,7 @@ const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
   const { getWordFrequency, currentLangData, getFreqLevelNames } = useLanguage();
-  const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, getWordTrackingSync } = useFlashcards();
+  const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, getWordTrackingSync, store: flashcardStore } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const anki = useAnki();
@@ -125,6 +129,14 @@ export const WordDbEditorContent: Component = () => {
 
   // Load words from storage on mount
   onMount(async () => {
+    // Focus query: knowledge popups open this window with { query: word }.
+    const bridge = getBridge();
+    const cleanupContext = bridge.window.onWindowContext((context) => {
+      if (typeof context?.query === 'string' && context.query.trim()) setSearchQuery(context.query);
+    });
+    bridge.window.getWindowContext(WINDOW_TYPES.WORD_DB_EDITOR);
+    if (cleanupContext) onCleanup(cleanupContext);
+
     const onWindowFocus = () => {
       if (ankiEnabled() && !isAnkiCacheFetched(ankiCacheOptions())) {
         void refreshAnkiWordsCache(ankiCacheOptions());
@@ -221,7 +233,9 @@ export const WordDbEditorContent: Component = () => {
     setFilteredEntries(buildFilteredEntries(sourceEntries));
   }, { defer: true }));
 
-  // Load all words from word frequency data
+  // Load all words: the FULL vocabulary universe — frequency list ∪ dictionary
+  // headwords ∪ store-tracked words. Never frequency alone: a tracked word
+  // outside the frequency file (or the dictionary) must still be browsable.
   const loadAllWords = async () => {
     setIsLoading(true);
     setLoadProgress(0);
@@ -229,8 +243,7 @@ export const WordDbEditorContent: Component = () => {
 
     try {
       const wordEntries: WordEntry[] = [];
-
-      // Get words from word frequency data (from langData)
+      const seen = new Set<string>();
       const wordFrequency = getWordFrequency();
       const freqWords = Object.entries(wordFrequency);
       const totalWords = freqWords.length;
@@ -244,6 +257,7 @@ export const WordDbEditorContent: Component = () => {
 
       for (let i = 0; i < totalWords; i++) {
         const [word, freqEntry] = freqWords[i];
+        seen.add(word);
         const uuid = word; // Use word as UUID for consistency
         const trackedCard = getCardByWordSync(word, settings.language);
         const primaryReading = trackedCard?.content?.reading || freqEntry.reading || '';
@@ -263,8 +277,62 @@ export const WordDbEditorContent: Component = () => {
 
         // Update progress every 100 words
         if (i % 100 === 0) {
-          setLoadProgress(Math.floor((i / totalWords) * 100));
+          setLoadProgress(Math.floor((i / totalWords) * 90));
         }
+      }
+
+      // Dictionary universe: every headword the dictionary serves, beyond the
+      // frequency file. Translations lazy-load when rows scroll into view.
+      try {
+        const dictionaryPairs = await loadDictionaryUniverse(settings.language);
+        const CHUNK = 5000;
+        for (let i = 0; i < dictionaryPairs.length; i += 1) {
+          const [word, reading] = dictionaryPairs[i];
+          if (seen.has(word)) continue;
+          seen.add(word);
+          wordEntries.push({
+            uuid: word,
+            word,
+            translation: '',
+            reading,
+            level: null,
+            fullTranslation: '',
+            prosodyPosition: null,
+            alternateReadings: [],
+          });
+          if (i % CHUNK === 0) {
+            setLoadProgress(90 + Math.floor((i / dictionaryPairs.length) * 8));
+            // Yield so the loader keeps painting over the ~300k-entry merge.
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
+      } catch (e) {
+        log.warn('Dictionary universe unavailable; browsing frequency + tracked words only:', e);
+      }
+      // Store-tracked words: tracked knowledge entries and card fronts that
+      // exist in neither the frequency list nor the dictionary (custom words,
+      // names) still get rows — their knowledge state is inspectable.
+      const trackedWords = new Set<string>();
+      for (const entry of Object.values(flashcardStore?.wordKnowledge ?? {})) {
+        if (entry?.word) trackedWords.add(entry.word);
+      }
+      for (const card of Object.values(flashcardStore?.flashcards ?? {})) {
+        if (card?.content?.front) trackedWords.add(card.content.front);
+      }
+      for (const word of trackedWords) {
+        if (seen.has(word)) continue;
+        seen.add(word);
+        const trackedCard = getCardByWordSync(word, settings.language);
+        wordEntries.push({
+          uuid: word,
+          word,
+          translation: trackedCard?.content.back ?? '',
+          reading: trackedCard?.content.reading ?? '',
+          level: null,
+          fullTranslation: trackedCard?.content.back,
+          prosodyPosition: null,
+          alternateReadings: [],
+        });
       }
 
       setEntries(wordEntries);

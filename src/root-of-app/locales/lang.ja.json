@@ -524,20 +524,20 @@
         "AssessedLevel": "評価レベル",
         "ByOccurrence": "出現順",
         "Current": "現在",
-        "Failed": "失敗",
-        "FailedGrammarCount": "失敗した文法",
-        "FailedWords": "失敗した単語",
+        "Struggled": "苦手",
+        "StruggledGrammarCount": "苦手な文法",
+        "HoveredWords": "ホバーした単語",
         "Filter": {
           "All": "すべて",
-          "FailedOnly": "失敗のみ",
+          "HoveredOnly": "ホバーのみ",
           "Unknown": "レベルなし"
         },
         "Grammar": "文法",
         "GrammarLevels": "文法レベル",
         "Hovered": "ホバー回数",
         "Levels": "レベル",
-        "NoFailedGrammar": "失敗した文法ポイントはまだありません。",
-        "NoFailedWords": "失敗した単語はまだありません — 没入を続けましょう！",
+        "NoStruggledGrammar": "苦手な文法はまだありません。",
+        "NoHoveredWords": "ホバーした単語はまだありません — 没入を続けましょう！",
         "NoGrammarMatching": "条件に一致する文法がありません。",
         "NoLevelData": "レベル分布を計算するのに十分なデータがありません。",
         "NoMedia": "メディア統計はまだ保存されていません",
@@ -1186,7 +1186,7 @@
           "LookupHint": "Enterキーで「{query}」を調べる"
         },
         "CharacterGrid": {
-          "Description": "文字の習得状況を視覚的に確認",
+          "Description": "文字の習得度（予測）の視覚的概要",
           "Title": "文字グリッド"
         },
         "WordSync": {
@@ -1294,6 +1294,7 @@
       }
     },
     "Rating": {
+      "Compact": { "AllFluent": "すべてスムーズ", "AllEasy": "すべて簡単", "Adjust": "調整" },
       "Matrix": {
         "Missed": "思い出せず",
         "Struggled": "苦労した",
@@ -1308,9 +1309,11 @@
     "Knowledge": {
       "Capability": { "surface-recognition": "認識", "surface-reading": "読み", "pronunciation-production": "発音" },
       "LegacySource": { "Prefix": "証拠のソース: ", "None": "なし" },
+      "Basis": {"Claim": "明示的な申告", "Evidence": "根拠", "Unmeasured": "未測定", "Prediction": "予測", "Excluded": "除外"},
       "OverrideWarning": { "Confirm": "変更する", "DontRemind": "今後表示しない", "Message": "この状態には既存の証拠があります。変更は手動の主張を追加しますが、証拠は消去しません。", "Title": "知識の上書き" },
-      "Projection": { "Capabilities": "知識の能力", "Details": "詳細", "Graph": "グラフ", "Unavailable": "知識の詳細は利用できません。", "Evidence": { "Known": "証拠に基づく既知", "Learning": "証拠に基づく学習中", "Title": "有効な証拠", "None": "有効な証拠はありません。" }, "Predicted": "予測", "Unmeasured": "未測定", "Excluded": "除外", "Because": "理由:", "Strength": "Ease {ease} · 表示 {seen} · ホバー {hovered}", "Retention": "負荷 {pressure} · 期限 {due}" },
-      "Aspect": {
+      "Popup": { "Overall": "全体", "Basis": "根拠", "Rate": "評価", "Inspect": "詳細" },
+      "Projection": {"Capabilities": "知識の能力", "AspectClaims": "側面", "Details": "詳細", "Graph": "グラフ", "Unavailable": "知識の詳細は利用できません。", "Evidence": {"Known": "証拠に基づく既知", "Learning": "証拠に基づく学習中", "Title": "有効な証拠", "None": "有効な証拠はありません。", "Claim": "申告: {status}", "ClaimCleared": "申告を解除"}, "Predicted": "予測", "Unmeasured": "未測定", "Excluded": "除外", "Because": "理由:", "Strength": "Ease {ease} · 表示 {seen} · ホバー {hovered}", "Retention": "負荷 {pressure} · 期限 {due}", "Tabs": {"Identity": "同一性と関係", "Targets": "ターゲット", "EvidenceHistory": "証拠と履歴", "Prediction": "予測"}, "Claim": {"Known": "明示的な申告: 既知", "Learning": "明示的な申告: 学習中", "Unmeasured": "明示的な申告: 未測定"}, "ClaimOverride": "明示的な申告 — 証拠を上書き", "Identity": {"Surface": "表記", "Canonical": "基本形", "Reading": "読み", "Senses": "語義", "NotInstalled": "言語グラフがインストールされていません。", "Install": "言語データをインストール", "NoGraph": "この項目のグラフデータはありません。", "None": "なし"}, "Provenance": "出典", "FullGraph": "完全なグラフを開く", "Prediction": {"None": "予測はありません。"}},
+      "Aspect": { "Grammar": "文法",
         "Meaning": "意味",
         "Reading": "読み",
         "Prosody": "プロソディ",
@@ -1321,7 +1324,7 @@
       "AspectInherited": "(継承)",
       "Untracked": "未追跡",
       "History": {
-        "Empty": "知識の履歴はまだありません。",
+        "Empty": "知識の履歴はまだありません。", "Today": "今日", "Yesterday": "昨日",
         "Kind": {
           "Status": "ステータス変更",
           "Review": "復習",
@@ -1336,18 +1339,9 @@
           "PassiveTracking": "パッシブトラッキング",
           "Manual": "手動",
           "Grammar": "文法"
-        },
-        "Table": {
-          "Time": "時刻",
-          "Event": "イベント",
-          "Source": "ソース",
-          "Details": "詳細"
         }
       },
-      "Actions": {
-        "DowngradeToLearning": "学習中に戻す",
-        "MarkUnknown": "未知にする"
-      }
+      "Actions": { "ClearOverride": "上書きを解除" }
     },
     "LevelStudy": {
       "Title": "レベル学習",
@@ -1361,7 +1355,7 @@
         "Description": "レベル別に整理された単語を学習します。進捗を追跡し、単語をフラッシュカードに追加できます。"
       },
       "Coverage": {
-        "Title": "レベル単語カバレッジ",
+        "Title": "レベル単語カバレッジ", "Assessed": "評価済み",
         "UpTo": "学習レベルまでの単語",
         "AllLevels": "全レベルの単語",
         "SetLevelHint": "設定で学習レベルを設定",
@@ -1433,7 +1427,7 @@
     "MediaStats": {
       "AllWordsKnown": "すべての単語は既知です！",
       "Difficulty": "難易度",
-      "Failed": "{count}回失敗",
+      "Struggled": "苦手 {count}回",
       "GrammarPoints": "文法項目",
       "Hovered": "{count}回ホバー",
       "NoGrammarYet": "文法項目はまだ検出されていません。",
@@ -1790,7 +1784,6 @@
         "ThemePreview": "テーマプレビュー",
         "VideoPlayerBehaviour": "動画プレーヤーの動作",
         "WordStatus": "単語の状態",
-        "KnowledgePriority": "知識の優先度",
         "LiveTranslator": "ライブ単語翻訳",
         "Behaviour": "動作設定",
         "WordKnowledge": "単語の知識",
@@ -1911,31 +1904,6 @@
         },
         "Submit": "送信",
         "LanguageWarning": "このプラグインは日本語が選択されている時のみ利用できます。設定で日本語に切り替えてください。"
-      },
-      "KnowledgePriority": {
-        "Description": "複数のソースからの単語知識の決定方法を設定",
-        "ResolutionMode": {
-          "Label": "解決モード",
-          "Description": "複数のソースにデータがある場合の単語ステータスの決定方法"
-        },
-        "SourceOrder": {
-          "Label": "ソースの優先度",
-          "Description": "ソースを並べ替えます。順序ベースモードでは、最初にデータのあるソースが単語ステータスを決定します"
-        },
-        "Mode": {
-          "Order": "順序ベース",
-          "Highest": "最高ステータス",
-          "Lowest": "最低ステータス"
-        },
-        "Source": {
-          "Srs": "内蔵SRS",
-          "Anki": "Anki",
-          "Manual": "手動",
-          "KnownWordsList": "既知の単語リスト",
-          "IgnoredWords": "無視した単語",
-          "PassiveTracking": "パッシブトラッキング",
-          "None": "なし"
-        }
       },
       "Reader": {
         "Description": "OCRとリーダーの設定",
@@ -2920,7 +2888,7 @@
         "Unknown": "未知"
       },
       "TimesSeen": "{count}回見た",
-      "Knowledge": { "Details": "詳細", "Graph": "グラフ" },
+      "Knowledge": { },
       "AnkiModifyWarning": {
         "Title": "Ankiカードの変更",
         "Message": "この単語のAnkiカードのEaseと位置を変更します。新しいカードはレビューキューの先頭に移動されます。",
@@ -3234,7 +3202,7 @@
         "Title": "文字レベルは推定表示です",
         "Description": "ここで表示している文字は、各レベルに属する単語から抽出して推定したものです。つまり厳密な文字一覧ではなく、レベルによっては単語に含まれていても、その文字自体の習得が必須ではない場合があります。"
       },
-      "Description": "色の意味: 学習中（オレンジ→黄色）、既知（緑→薄緑）、未知（グレー）。ホバーで詳細表示。",
+      "Description": "既知・学習中の単語から予測した馴染み度: 馴染みあり（緑）、習得しつつある（オレンジ）、未測定（グレー）。濃色 = 読みの直接証拠、青 = 自分で宣言。ホバーで詳細。",
       "EmptyState": {
         "Description": "動画やテキストで文字に出会うと、ここに表示されます。",
         "Hint": "コンテンツの視聴や読書を始めると追跡が開始されます！",
@@ -3245,26 +3213,47 @@
         "Title": "この言語では文字学習を利用できません"
       },
       "Legend": {
-        "Known": "既知:",
-        "Learning": "学習中:",
-        "Unknown": "未知:"
+        "Claimed": "宣言済み:",
+        "EvidencedKnown": "読み: 確認済み",
+        "EvidencedLearning": "読み: 進行中",
+        "EvidencedUnknown": "読み: 未定着",
+        "Familiar": "馴染みあり（予測）:",
+        "Emerging": "習得しつつある（予測）:",
+        "Unmeasured": "未測定:"
       },
       "LevelFallback": "レベル {level}",
       "Loading": "文字データを読み込み中...",
       "Stats": {
-        "Known": "既知:",
-        "Learning": "学習中:",
+        "Evidenced": "直接確認済み:",
+        "Claimed": "宣言済み:",
+        "Familiar": "馴染みあり:",
+        "Emerging": "習得中:",
         "TotalFound": "合計:",
-        "Unknown": "未知:"
+        "Unmeasured": "未測定:"
       },
-      "Title": "文字の習得状況",
+      "Title": "文字の習得予測",
       "Tooltip": {
-        "KnownCount": "既知",
-        "LearningCount": "学習中",
+        "Claim": {
+          "known": "この文字を読めると自分で宣言しました。",
+          "learning": "この文字を学習中と自分で宣言しました。",
+          "unknown": "この文字を知らないと自分で宣言しました。"
+        },
+        "Reading": {
+          "known": "読みの試行で、この文字を読めることが確認されています。",
+          "learning": "読みの試行で、この文字を学習中であることが示されています。",
+          "unknown": "読みの試行で、この文字をまだ読めないことが示されています。"
+        },
+        "Claimed": "宣言済み",
+        "Evidenced": "直接確認済み",
+        "Familiar": "馴染みあり（予測）",
+        "Emerging": "習得しつつある（予測）",
+        "Unmeasured": "未測定",
+        "KnownWords": "既知語",
+        "LearningWords": "学習中の単語",
         "MoreWords": "+{count}語",
         "Score": "スコア",
-        "UnknownCount": "未知",
-        "WordsContaining": "{char}を含む単語"
+        "WordsContaining": "{char}を含む単語",
+        "PredictionNote": "馴染み度は、この文字を含む既知・学習中の単語（下に表示）から予測したものです。文字自体の直接的な知識ではありません。"
       }
     }
   }

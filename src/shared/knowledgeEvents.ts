@@ -1,8 +1,8 @@
 import type { AttemptQuality, KnowledgeAspect, KnowledgeSource, WordStatus } from './constants';
 import type { CapabilityKind } from './graph/types';
 
-export type { KnowledgeAspect };
-export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup' | 'retraction';
+export type { KnowledgeAspect, WordStatus };
+export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup' | 'claim' | 'retraction';
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
 /**
@@ -10,7 +10,7 @@ export type Rating = 'again' | 'hard' | 'good' | 'easy';
  * KnowledgeSource/KnowledgeAspect unions; the event journal additionally
  * carries grammar-pattern observations (targetRef kind 'grammar-pattern').
  */
-export type EvidenceSource = KnowledgeSource | 'manual' | 'grammar';
+export type EvidenceSource = KnowledgeSource | 'manual' | 'grammar' | 'migration';
 export type EvidenceAspect = KnowledgeAspect | 'grammar';
 
 /**
@@ -74,6 +74,19 @@ export interface KnowledgeEvent {
   /** Presenting surface/policy channel that produced the observation (e.g. 'word-sync'); replay maps this to policy markers like wordSyncRatedAt. */
   origin?: string;
 }
+/**
+ * Explicit epistemic claim (kind: 'claim') — the user's own statement about a
+ * target: "I know this" / "I am learning this" / "I do not know this", or the
+ * withdrawal of that statement. A claim is NOT evidence: it never changes the
+ * evidence-derived ease, it overrides the *classification* of the effective
+ * state until cleared. Semantics:
+ * - `toStatus` present  → claim that status (latest active claim wins)
+ * - `toStatus` absent   → clear any previous claim (effective state returns to
+ *   the evidence projection; historical evidence remains intact)
+ * `aspect` scopes the claim (meaning = whole-word identity; other aspects =
+ * aspect-scoped claim). Cleared the same way as attempt events: append a
+ * retraction or a clearing claim — the journal is append-only.
+ */
 
 /** Keys are `${language}:${hash}` values shared with wordKnowledge. */
 export type KnowledgeEventLog = Record<string, KnowledgeEvent[]>;

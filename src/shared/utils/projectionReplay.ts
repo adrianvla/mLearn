@@ -1,4 +1,4 @@
-import type { KnowledgeEvent } from '../knowledgeEvents';
+import type { KnowledgeEvent, WordStatus } from '../knowledgeEvents';
 import { stripRetractions } from '../knowledgeEvents';
 
 /**
@@ -24,6 +24,16 @@ export interface ReplayProjection {
   timesHovered: number;
   firstSeen: number;
   lastSeen: number;
+  /** Source of the most recent evidence event (attribution only). */
+  evidenceSource?: string;
+  /** Active explicit claim; undefined = none. */
+  claim?: WordStatus;
+  /** Timestamp of the active claim. */
+  claimAt?: number;
+  /** True when any evidence event (not a claim) contributed state. */
+  hasEvidence: boolean;
+  /** True when any non-passive evidence (SRS/Anki/attempt/migration) exists. */
+  hasActiveEvidence: boolean;
 }
 
 /** Sources whose explicit outcome marks an intentional status change (the passive-cap marker). */
@@ -38,27 +48,43 @@ export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayPr
   let lastStatusChange: number | undefined;
   let wordSyncRatedAt: number | undefined;
   let timesSeen = 0;
-  let timesHovered = 0;
+  let claim: WordStatus | undefined;
+  let claimAt: number | undefined;
+  let evidenceSource: string | undefined;
+  let hasEvidence = false;
+  let hasActiveEvidence = false;
 
   for (const event of sorted) {
     switch (event.kind) {
+      case 'claim': {
+        // Latest active claim wins; a claim without toStatus clears it.
+        claim = event.toStatus;
+        claimAt = event.t;
+        break;
+      }
       case 'rating':
       case 'status':
       case 'review': {
         if (event.easeAfter !== undefined) ease = event.easeAfter;
+        evidenceSource = event.source;
+        hasEvidence = true;
+        if (event.source !== 'passiveTracking') hasActiveEvidence = true;
         if (
           event.toStatus !== undefined
           && EXPLICIT_STATUS_SOURCES.has(event.source)
         ) {
           lastStatusChange = event.t;
         }
-        if ((event as { origin?: string }).origin === 'word-sync') {
+        if (event.origin === 'word-sync') {
           wordSyncRatedAt = event.t;
         }
         break;
       }
       case 'rollup': {
         if (event.easeAfter !== undefined) ease = event.easeAfter;
+        evidenceSource = event.source;
+        hasEvidence = true;
+        if (event.source !== 'passiveTracking') hasActiveEvidence = true;
         break;
       }
       case 'retraction':
@@ -68,19 +94,24 @@ export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayPr
   }
 
   // Hover observations are recorded as passiveTracking status rows.
-  timesHovered = sorted.filter(
+  const timesHovered = sorted.filter(
     (event) => event.kind === 'status' && event.source === 'passiveTracking' && event.aspect === 'meaning',
   ).length;
 
-  if (ease === undefined) return null;
+  if (ease === undefined && claim === undefined) return null;
 
   return {
-    ease,
+    ease: ease ?? 0,
     ...(lastStatusChange !== undefined ? { lastStatusChange } : {}),
     ...(wordSyncRatedAt !== undefined ? { wordSyncRatedAt } : {}),
+    ...(claim !== undefined ? { claim } : {}),
+    ...(claimAt !== undefined ? { claimAt } : {}),
+    ...(evidenceSource !== undefined ? { evidenceSource } : {}),
     timesSeen,
     timesHovered,
     firstSeen: sorted[0].t,
     lastSeen: sorted[sorted.length - 1].t,
+    hasEvidence,
+    hasActiveEvidence,
   };
 }

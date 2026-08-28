@@ -447,4 +447,12 @@ export interface AnkiCardInfo {
   interval: number;
   note: number;
   fields: Record<string, { value: string; order: number }>;
+  /** AnkiConnect rendered question (prompt) side HTML, when cardsInfo returns it. */
+  question?: string;
+  /** AnkiConnect rendered answer (reveal) side HTML, when cardsInfo returns it. */
+  answer?: string;
+  /** Deck this card belongs to, when cardsInfo returns it. */
+  deckName?: string;
+  /** Template ordinal within the note type (0-based), when cardsInfo returns it. */
+  ord?: number;
 }

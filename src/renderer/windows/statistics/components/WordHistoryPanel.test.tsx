@@ -144,7 +144,7 @@ describe('WordHistoryPanel', () => {
     dispose();
   });
 
-  it('renders one row per event with status transition and source labels', () => {
+  it('renders one timeline event row per journal event with transition and source labels', () => {
     h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
     h.events = [
       { t: 1000, kind: 'status', source: 'srs', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' },
@@ -154,15 +154,15 @@ describe('WordHistoryPanel', () => {
 
     typeQuery(container, 'apple');
 
-    const rows = Array.from(container.querySelectorAll('.word-history-table tbody tr'));
+    const rows = Array.from(container.querySelectorAll('.knowledge-timeline__event'));
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.textContent).toContain('mlearn.Knowledge.History.Kind.Status');
-    expect(rows[0]!.textContent).toContain('mlearn.WordHover.Status.Unknown');
-    expect(rows[0]!.textContent).toContain('→');
-    expect(rows[0]!.textContent).toContain('mlearn.WordHover.Status.Known');
-    expect(rows[0]!.textContent).toContain('mlearn.Knowledge.History.Source.Srs');
-    expect(rows[1]!.textContent).toContain('mlearn.Knowledge.History.Kind.Review');
-    expect(rows[1]!.textContent).toContain('mlearn.Knowledge.History.Source.PassiveTracking');
+    expect(rows[0]!.textContent).toContain('mlearn.Knowledge.History.Kind.Review');
+    expect(rows[0]!.textContent).toContain('mlearn.Knowledge.History.Source.PassiveTracking');
+    expect(rows[1]!.textContent).toContain('mlearn.Knowledge.History.Kind.Status');
+    expect(rows[1]!.textContent).toContain('mlearn.WordHover.Status.Unknown');
+    expect(rows[1]!.textContent).toContain('→');
+    expect(rows[1]!.textContent).toContain('mlearn.WordHover.Status.Known');
+    expect(rows[1]!.textContent).toContain('mlearn.Knowledge.History.Source.Srs');
 
     dispose();
   });
@@ -173,7 +173,37 @@ describe('WordHistoryPanel', () => {
 
     typeQuery(container, 'apple');
 
-    expect(container.querySelector('.word-history-table')).toBeNull();
+    expect(container.querySelector('.knowledge-timeline')).toBeNull();
+    expect(container.textContent).toContain('mlearn.Statistics.WordHistory.Empty');
+
+    dispose();
+  });
+
+  it('hides the strength curve when the history is too thin to chart', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    h.events = [
+      { t: 1000, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' },
+    ];
+    h.points = [{ t: 1000, strength: 0.9, source: 'manual', kind: 'claim', event: h.events[0] }];
+    h.bands = [{ from: 1000, to: 2000, source: 'manual' }];
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+
+    expect(container.querySelector('.knowledge-timeline__event')).not.toBeNull();
+    expect(container.querySelector('.khistory-svg')).toBeNull();
+    expect(container.querySelector('.khistory-tabs')).not.toBeNull();
+
+    dispose();
+  });
+
+  it('shows the empty state when the selected word has no events', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+
+    expect(container.querySelector('.knowledge-timeline')).toBeNull();
     expect(container.textContent).toContain('mlearn.Statistics.WordHistory.Empty');
 
     dispose();

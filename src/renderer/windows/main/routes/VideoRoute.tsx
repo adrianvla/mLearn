@@ -22,7 +22,7 @@ import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, getRecentProgressPercent, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { captureVideoFrameForFlashcard } from '../../../services/flashcardImageCapture';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../../utils/bulkAddWords';
@@ -1307,28 +1307,26 @@ export const VideoRoute: Component = () => {
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
     const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
-    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
+    const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
+    const level = difficulty.lexical;
     const levelNames = langCtx.getFreqLevelNames();
 
-    // Collect failed words: merge per-media stats with global wordKnowledge
-    // wordsEncountered has per-media seen/hovered counts; wordKnowledge has global ease
-    const wordKnowledge = flashcardCtx.store.wordKnowledge;
+    // Collect failed words: merge per-media stats with the canonical resolver
+    // (effective claim ?? evidence projection). wordsEncountered has per-media
+    // seen/hovered counts; the resolver refines ease with global knowledge.
+    // Per-media hover counts stay local (the weak-signal observation for this
+    // media; the resolver exposes no global hover channel).
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     // Only include words encountered in this specific media
-    // Refine ease with global wordKnowledge but never add words from other media
     for (const entry of Object.values(s.wordsEncountered)) {
-      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
-      if (globalEntry) {
-        mediaWords.set(entry.word, {
-          word: entry.word,
-          ease: Math.min(entry.ease, globalEntry.ease),
-          timesSeen: Math.max(entry.timesSeen, globalEntry.timesSeen),
-          timesHovered: Math.max(entry.timesHovered, globalEntry.timesHovered),
-        });
-      } else {
-        mediaWords.set(entry.word, { ...entry });
-      }
+      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language);
+      mediaWords.set(entry.word, {
+        word: entry.word,
+        ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
+        timesSeen: Math.max(entry.timesSeen, resolved.timesSeen),
+        timesHovered: entry.timesHovered,
+      });
     }
 
     const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));

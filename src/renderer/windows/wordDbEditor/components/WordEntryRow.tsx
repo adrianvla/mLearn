@@ -5,7 +5,8 @@
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer } from '../../../components/common';
+import { Btn, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer, type InspectorTab } from '../../../components/common';
+import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
@@ -34,8 +35,12 @@ import './WordEntryRow.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
 import { getBridge } from '../../../../shared/bridges';
+import { getAvailableAspects } from '../../../../shared/types';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 import { openGraphInspector } from '../../../services/openGraphInspector';
+import { getEvents, eventsVersion } from '../../../services/knowledgeEvents';
+import { hashWordSync } from '../../../services/srsAlgorithm';
+import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 
 const log = getLogger("renderer.wordDbEditor.wordEntryRow");
 
@@ -144,12 +149,23 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const { getWordTrackingSync, getAspectStatus } = useFlashcards();
+  const { getWordTrackingSync, getAspectStatus, getComprehensiveWordStatusWithSourceSync, setWordClaim, setAspectStatus, clearAspectClaim } = useFlashcards();
   const [projection, setProjection] = createSignal<KnowledgeProjection>();
   const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
+  const [drawerTab, setDrawerTab] = createSignal<InspectorTab>('targets');
+  const [events, setEvents] = createSignal<KnowledgeEvent[]>();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  // Inspector claim editing: the word-level claim from the canonical resolver
+  // plus one row per language-applicable non-meaning aspect.
+  const meaningStatus = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language));
+  const aspectStates = createMemo(() => getAvailableAspects(currentLangData() ?? undefined)
+    .filter((aspect): aspect is Exclude<typeof aspect, 'meaning'> => aspect !== 'meaning')
+    .map((aspect) => {
+      const state = getAspectStatus(props.entry.word, aspect, settings.language);
+      return { aspect, status: state.status, claim: state.claim };
+    }));
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const prosodyOverlayRenderer = createMemo(() => (
     getProsodyOverlayRenderer(currentLangData(), props.entry.prosody?.type)
@@ -169,6 +185,23 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     }).catch(() => {
       if (!disposed) setProjection({ status: 'error', targets: [] });
     });
+    onCleanup(() => { disposed = true; });
+  });
+  // Full journal (incl. claim events) for the Evidence & History inspector tab.
+  createEffect(() => {
+    const word = props.entry.word;
+    const language = settings.language;
+    eventsVersion();
+    let disposed = false;
+    try {
+      void getEvents([`${language}:${hashWordSync(word)}`]).then((log) => {
+        if (!disposed) setEvents(log);
+      }).catch(() => {
+        if (!disposed) setEvents([]);
+      });
+    } catch {
+      if (!disposed) setEvents([]);
+    }
     onCleanup(() => { disposed = true; });
   });
 
@@ -461,6 +494,30 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         </Show>
         <Show when={renderedLevel() === null}>-</Show>
       </div>
+      <div class="col knowledge">
+        <WordStatusPill
+          word={props.entry.word}
+          onStatusChange={(status) => props.onStatusChange(props.entry, status)}
+        />
+        <KnowledgeCapabilityChips projection={projection()} />
+        <Btn variant="ghost" size="sm" onClick={() => { setDrawerTab('targets'); setShowKnowledgeDetails(true); }}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
+        <KnowledgeProjectionDrawer
+          projection={projection()}
+          open={showKnowledgeDetails()}
+          onClose={() => setShowKnowledgeDetails(false)}
+          onGraph={(entityId) => openGraphInspector({ entityId })}
+          surface={props.entry.word}
+          events={events()}
+          initialTab={drawerTab()}
+          onWordClaim={(claim) => setWordClaim(props.entry.word, claim, settings.language)}
+          wordClaim={meaningStatus().basis === 'claim' ? meaningStatus().status : null}
+          onAspectClaim={(aspect, claim) => {
+            if (claim === null) clearAspectClaim(props.entry.word, aspect, settings.language);
+            else setAspectStatus(props.entry.word, aspect, claim, 'manual', settings.language);
+          }}
+          aspectStates={aspectStates()}
+        />
+      </div>
       <div class="col tracker">
         <Show when={tracking().tracker === 'anki'} fallback={
           <span class="tracker-label">{trackerLabel()}</span>
@@ -540,18 +597,6 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
                   : t('mlearn.WordDbEditor.Anki.ExportToAnki')}
           </Btn>
         </Show>
-      </div>
-      <div class="col knowledge">
-        <KnowledgeCapabilityChips projection={projection()} />
-        <Show when={projection()?.status === 'ready' && projection()!.targets.length > 0}>
-          <Btn variant="ghost" size="sm" onClick={() => setShowKnowledgeDetails(true)}>{t('mlearn.Knowledge.Projection.Details')}</Btn>
-        </Show>
-        <KnowledgeProjectionDrawer
-          projection={projection()}
-          open={showKnowledgeDetails()}
-          onClose={() => setShowKnowledgeDetails(false)}
-          onGraph={(entityId) => openGraphInspector({ entityId })}
-        />
       </div>
     </div>
   );

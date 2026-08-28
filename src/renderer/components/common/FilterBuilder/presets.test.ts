@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { WORD_STATUS } from '@shared/constants';
 import type { LanguageData } from '@shared/types';
-import { makeToken } from './fieldConfig';
+import { makeOperandToken, makeToken } from './fieldConfig';
 import type { FilterToken } from './filterExpr';
-import { validateTokens } from './filterExpr';
-import { buildEmptyPreset, buildFlashcardBrowseFields, buildWordDbEditorFields, buildWordSyncFields, buildWordSyncPreset, LEVEL_VALUE_BEYOND_EXAM, LEVEL_VALUE_NO_LEVEL } from './presets';
+import { evaluateAst, parseTokens, validateTokens } from './filterExpr';
+import { buildEmptyPreset, buildFlashcardBrowseFields, buildWordDbEditorFields, buildWordSyncFields, buildWordSyncPreset, LEVEL_VALUE_BEYOND_EXAM, LEVEL_VALUE_NO_LEVEL, WORD_SYNC_STATUS_UNTRACKED } from './presets';
 
 type TokenShape =
   | { kind: 'operand'; field: string; op: string; value: string }
@@ -332,5 +333,41 @@ describe('makeToken', () => {
     expect(makeToken({ kind: 'not', label: 'NOT' }).kind).toBe('not');
     expect(makeToken({ kind: 'paren', dir: 'open', label: '(' }).kind).toBe('paren');
     expect(makeToken({ kind: 'paren', dir: 'close', label: ')' }).kind).toBe('paren');
+  });
+});
+
+describe('word sync pool status semantics', () => {
+  const t = (key: string) => key;
+
+  const { fields } = buildWordSyncFields(allLevelNames, t);
+  const resolvers = Object.fromEntries(fields.map((field) => [field.field, field.resolver]));
+
+  // Full default pool preset: (Untracked OR Unknown) AND (N5..N2) AND Not recently rated.
+  const presetAst = parseTokens(buildWordSyncPreset(allLevelNames, 2));
+  const learningRecord = { status: String(WORD_STATUS.LEARNING), level: 3, seenRecently: false };
+  const untrackedRecord = { status: WORD_SYNC_STATUS_UNTRACKED, level: 3, seenRecently: false };
+
+  it('default preset does not match a Learning pool record', () => {
+    expect(evaluateAst(presetAst, learningRecord, resolvers)).toBe(false);
+  });
+
+  it('default preset matches an Untracked pool record', () => {
+    expect(evaluateAst(presetAst, untrackedRecord, resolvers)).toBe(true);
+  });
+
+  it('standalone Unknown operand matches neither Learning nor Untracked records', () => {
+    const unknownAst = parseTokens([makeOperandToken({
+      field: 'status',
+      op: 'eq',
+      value: String(WORD_STATUS.UNKNOWN),
+      label: 'Unknown',
+    })]);
+
+    expect(evaluateAst(unknownAst, learningRecord, resolvers)).toBe(false);
+    expect(evaluateAst(unknownAst, untrackedRecord, resolvers)).toBe(false);
+  });
+
+  it('Learning and Unknown status strings stay distinct', () => {
+    expect(String(WORD_STATUS.LEARNING)).not.toBe(String(WORD_STATUS.UNKNOWN));
   });
 });

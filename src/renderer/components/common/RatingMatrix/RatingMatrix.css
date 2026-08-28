@@ -5,10 +5,34 @@
   gap: var(--spacing-2);
 }
 
+.rating-matrix--collapsed {
+  display: none;
+}
+
+.rating-matrix__compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.rating-matrix__compact-action,
+.rating-matrix__compact-adjust {
+  min-height: 32px;
+}
+
+.rating-matrix__compact .rating-matrix__hint {
+  margin-left: var(--spacing-2);
+}
+
 .rating-matrix__head,
 .rating-matrix__row {
   display: grid;
-  grid-template-columns: minmax(4.5em, 1fr) repeat(3, minmax(4em, 1fr));
+
+  /* Label + quality columns (Missed | Struggled | Fluent) + the Easy
+     scheduling-modifier column attached to Fluent with a divider. */
+  grid-template-columns: minmax(4.5em, 1fr) repeat(3, minmax(4em, 1fr)) minmax(4em, 1fr);
   gap: var(--spacing-2);
   align-items: stretch;
 }
@@ -19,6 +43,27 @@
   color: var(--text-secondary);
   text-align: center;
   padding: 2px 0;
+}
+
+/* Easy sits beside Fluent as a clearly-separated scheduling modifier: the
+   divider is the boundary between the quality group and the modifier. */
+.rating-matrix__fluent-adjust {
+  display: flex;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.rating-matrix__divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: var(--border-color);
+  margin: 2px 0;
+}
+
+.rating-matrix__fluent-adjust .rating-matrix__cell,
+.rating-matrix__fluent-adjust .rating-matrix__col {
+  flex: 1 1 0;
 }
 
 .rating-matrix__col--pending {

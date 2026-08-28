@@ -24,7 +24,11 @@ describe('RatingMatrix', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: k, ...opts }));
   };
 
-  const renderMatrix = (keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic', aspects: readonly KnowledgeAspect[] = ASPECTS) => {
+  const renderMatrix = (
+    keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic',
+    aspects: readonly KnowledgeAspect[] = ASPECTS,
+    compact = false,
+  ) => {
     dispose?.();
     dispose = render(
       () => (
@@ -32,6 +36,7 @@ describe('RatingMatrix', () => {
           aspects={aspects}
           keyboardMode={keyboardMode}
           armed
+          compact={compact}
           onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
           onAllFluent={(opts?: RateOptions) => onAllFluent(opts)}
           onProfileSubmit={(observations) => onProfileSubmit(observations)}
@@ -161,12 +166,31 @@ describe('RatingMatrix', () => {
     expect(onRate).not.toHaveBeenCalled();
   });
 
-  it('clicking a cell emits the same action as its chord', () => {
+
+  it('places Easy as a divider-separated scheduling modifier beside Fluent', () => {
     renderMatrix('mnemonic');
-    const rows = container.querySelectorAll('.rating-matrix__row');
-    const prosodyCells = rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell');
-    prosodyCells[1].click();
-    expect(onRate).toHaveBeenCalledWith('prosody', 'struggled', undefined);
+    const head = container.querySelector('.rating-matrix__head')!;
+    expect(head.querySelector('.rating-matrix__col--easy')?.textContent).toBe('mlearn.Rating.Matrix.Easy');
+
+    const children = Array.from(container.querySelectorAll('.rating-matrix__row')[0].children);
+    // quality group is three buttons; the fourth slot is the fluent-adjust
+    // group holding a divider and the Easy modifier button.
+    const adjust = children[4] as HTMLElement;
+    expect(adjust.className).toContain('rating-matrix__fluent-adjust');
+    expect(adjust.querySelector('.rating-matrix__divider')).not.toBeNull();
+    expect(adjust.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0].className).toContain('rating-matrix__cell--easy');
+
+    adjust.querySelector<HTMLButtonElement>('.rating-matrix__cell--easy')!.click();
+    expect(onRate).toHaveBeenCalledWith('meaning', 'fluent', { easy: true });
+  });
+
+  it('keeps rating chords armed while the compact matrix is collapsed', () => {
+    renderMatrix('mnemonic', ASPECTS, true);
+    expect(container.querySelector('.rating-matrix')?.hasAttribute('hidden')).toBe(true);
+    key('1');
+    key('m');
+    expect(onRate).toHaveBeenCalledWith('meaning', 'missed', undefined);
+    expect(container.querySelector('.rating-matrix')?.hasAttribute('hidden')).toBe(true);
   });
 
   // ── Profile mode (Word Sync calibration) ────────────────────────────────
@@ -196,6 +220,46 @@ describe('RatingMatrix', () => {
     const obs = onProfileSubmit.mock.calls[0]?.[0];
     expect(obs?.length).toBe(4);
     expect(obs?.every((o: { quality: string }) => o.quality === 'fluent')).toBe(true);
+  });
+
+  it('compact Adjust preselects Fluent, preserves exceptions, and Escape collapses after clearing a pending chord', () => {
+    dispose?.();
+    dispose = render(
+      () => (
+        <RatingMatrix
+          aspects={ASPECTS}
+          keyboardMode="mnemonic"
+          mode="profile"
+          resetKey={resetKey()}
+          armed
+          compact
+          initialDraftsFluent
+          onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
+          onProfileSubmit={(observations, opts) => onProfileSubmit(observations, opts)}
+        />
+      ),
+      container,
+    );
+
+    const adjust = container.querySelector<HTMLButtonElement>('.rating-matrix__compact-adjust')!;
+    expect(adjust.getAttribute('aria-expanded')).toBe('false');
+    adjust.click();
+    expect(adjust.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelectorAll('.rating-matrix__cell--selected').length).toBe(4);
+
+    const readingCells = container.querySelectorAll('.rating-matrix__row')[1].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell');
+    readingCells[0].click();
+    key('1');
+    key('Escape');
+    expect(adjust.getAttribute('aria-expanded')).toBe('true');
+    key('Escape');
+    expect(adjust.getAttribute('aria-expanded')).toBe('false');
+
+    key('f', { shiftKey: true });
+    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
+    expect(byAspect.reading.quality).toBe('missed');
+    expect(byAspect.meaning.quality).toBe('fluent');
+    expect(onProfileSubmit).toHaveBeenCalledWith(expect.any(Array), { easy: true });
   });
 
   it('profile two exceptions + F: explicit rows keep quality, rest fluent', () => {

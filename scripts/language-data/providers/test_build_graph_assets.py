@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import hashlib
 import os
 import sqlite3
 import sys
@@ -52,7 +53,7 @@ class BuildGraphAssetsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "root-of-app"
             _write_dictionary(root, "zh-Hans", "headword TEXT, reading TEXT, data BLOB", [
-                ("simplified", "pin-yin", _payload({"word": "simplified", "simplified": "simplified", "traditional": "traditional", "pinyin": {"value": "pin-yin", "numeric": "pin1-yin1"}, "definitions": ["meaning"]})),
+                ("simplified", "pin-yin", _payload({"word": "simplified", "simplified": "simplified", "traditional": "traditional", "pinyin": {"value": "pīnyīn", "numeric": "pin1-yin1"}, "definitions": ["meaning"]})),
                 ("traditional", "pin-yin", _payload({"word": "simplified", "simplified": "simplified", "traditional": "traditional", "pinyin": {"value": "pin-yin", "numeric": "pin1-yin1"}, "definitions": ["meaning"]})),
             ])
             _write_dictionary(root, "es", "id INTEGER, headword TEXT, headword_lower TEXT, pos TEXT, data BLOB", [
@@ -67,8 +68,119 @@ class BuildGraphAssetsTest(unittest.TestCase):
                 graph = json.loads((root / "languages" / f"{language}.graph.json").read_text(encoding="utf-8"))
                 ids = {entity["id"] for entity in graph["entities"]}
                 self.assertEqual(graph["schemaVersion"], 1)
-                self.assertTrue(all(entity["kind"] in ENTITY_KINDS for entity in graph["entities"]))
-                self.assertTrue(all(relation["type"] in RELATION_TYPES and relation["from"] in ids and relation["to"] in ids for relation in graph["relations"]))
+    def test_zh_graph_retains_pinyin_reading_and_tone_prosody(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "root-of-app"
+            _write_dictionary(root, "zh-Hans", "headword TEXT, reading TEXT, data BLOB", [
+                ("simplified", "pin-yin", _payload({"word": "simplified", "simplified": "simplified", "traditional": "traditional", "pinyin": {"value": "pīnyīn", "numeric": "pin1-yin1"}, "definitions": ["meaning"]})),
+                ("traditional", "pin-yin", _payload({"word": "simplified", "simplified": "simplified", "traditional": "traditional", "pinyin": {"value": "pīnyīn", "numeric": "pin1-yin1"}, "definitions": ["meaning"]})),
+            ])
+            builder = _load_builder(root)
+            builder.build_zh()
+            graph = json.loads((root / "languages" / "zh.graph.json").read_text(encoding="utf-8"))
+            entities = {entity["id"]: entity for entity in graph["entities"]}
+            relations = graph["relations"]
+
+            pronunciations = [entity for entity in entities.values() if entity["kind"] == "pronunciation"]
+            self.assertEqual(len(pronunciations), 1)
+            self.assertEqual(pronunciations[0]["label"], "pīnyīn")
+
+            reading_relations = [relation for relation in relations if relation["type"] == "has-reading"]
+            self.assertEqual(len(reading_relations), 2)
+            self.assertTrue(all(relation["to"] == pronunciations[0]["id"] and relation["provenance"] == "cc-cedict" for relation in reading_relations))
+
+            prosody = [entity for entity in entities.values() if entity["kind"] == "grammar-pattern"]
+            self.assertEqual([(entity["id"], entity["label"]) for entity in prosody], [("zh:prosody:11", "1-1")])
+            prosody_relations = [relation for relation in relations if relation["type"] == "has-prosodic-pattern"]
+            self.assertEqual(len(prosody_relations), 2)
+            self.assertTrue(all(relation["to"] == "zh:prosody:11" for relation in prosody_relations))
+
+    def test_ja_graph_retains_ent_seq_readings_and_pitch(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "root-of-app"
+            jitendex = root / "dictionaries" / "jitendex-yomitan"
+            jitendex.mkdir(parents=True)
+            (jitendex / "term_meta_bank_1.json").write_text(json.dumps([
+                ["赤い", "pitch", {"reading": "あかい", "pitches": [{"position": 1}, {"position": 2}]}],
+            ]), encoding="utf-8")
+            (jitendex / "term_bank_1.json").write_text(json.dumps([
+                ["赤い", "あかい", "", "", 0, [{"type": "structured-content", "content": [{"data": {"content": "glossary"}, "content": [{"tag": "li", "content": "red"}]}]}], 1001],
+            ]), encoding="utf-8")
+            builder = _load_builder(root)
+            builder.build_ja()
+            graph = json.loads((root / "languages" / "ja.graph.json").read_text(encoding="utf-8"))
+            entities = {entity["id"]: entity for entity in graph["entities"]}
+            relations = graph["relations"]
+
+            entry = entities["ja:entry:1001"]
+            self.assertEqual(entry["kind"], "dictionary-entry")
+            self.assertEqual(entry["label"], "赤い")
+
+            reading_relations = [relation for relation in relations if relation["type"] == "has-reading"]
+            self.assertEqual([(relation["from"], relation["to"], relation["provenance"]) for relation in reading_relations],
+                             [("ja:entry:1001", "ja:pron:あかい", "jitendex")])
+
+            prosody_relations = [relation for relation in relations if relation["type"] == "has-prosodic-pattern"]
+            self.assertEqual(sorted((relation["to"], relation["provenance"]) for relation in prosody_relations),
+                             [("ja:prosody:p1", "kanjium-pitch"), ("ja:prosody:p2", "kanjium-pitch")])
+
+            senses = [relation for relation in relations if relation["type"] == "has-sense"]
+            self.assertEqual([relation["to"] for relation in senses], ["ja:sense:1001:1"])
+
+    def test_ru_graph_retains_gender_stressed_reading_and_inflected_forms(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir) / "root-of-app")
+            graph = builder.Graph("ru", {"provider": "test"})
+            builder.add_russian_record(graph, "t:0", "молоко", "молоко́", "n", ["молока", "молоком", "молоко"])
+
+            entities = graph.entities
+            self.assertEqual(entities["ru:entry:t:0"]["label"], "молоко")
+            self.assertEqual(entities["ru:gender:n"]["kind"], "grammar-pattern")
+            pronunciation = entities["ru:pron:молоко́"]
+            self.assertEqual(pronunciation["kind"], "pronunciation")
+            self.assertIn("\u0301", pronunciation["label"])
+            self.assertEqual(pronunciation["label"], "молоко́")
+
+            relations = graph.relations
+            self.assertIn(("ru:entry:t:0", "ru:gender:n", "has-gender", "openrussian"), relations)
+            self.assertIn(("ru:entry:t:0", "ru:pron:молоко́", "has-reading", "openrussian"), relations)
+            self.assertIn(("ru:surface:" + hashlib.sha256("молока".encode("utf-8")).hexdigest(),
+                           "ru:surface:" + hashlib.sha256("молоко".encode("utf-8")).hexdigest(),
+                           "inflection-of", "openrussian-forms"), relations)
+            self.assertNotIn(("ru:entry:t:0", hashlib.sha256("молоко".encode("utf-8")).hexdigest(), "inflection-of", "openrussian-forms"), relations)
+
+    def test_entry_sibling_surfaces_carry_support_not_identity(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir) / "root-of-app")
+            graph = builder.Graph("ja", {"dictionary": "test"})
+            entry = graph.entity("ja:entry:1381600", "dictionary-entry", "増える")
+            fueru = graph.entity(builder.surface_id("ja", "増える"), "surface", "増える")
+            ueru = graph.entity(builder.surface_id("ja", "殖える"), "surface", "殖える")
+            graph.relation(fueru, entry, "realizes", "jitendex")
+            graph.relation(ueru, entry, "realizes", "jitendex")
+
+            added = graph.add_entry_sibling_support()
+
+            self.assertEqual(added, 2)
+            relations = {(relation["from"], relation["to"], relation["type"], relation["provenance"])
+                         for relation in graph.relations.values()}
+            self.assertIn((fueru, ueru, "semantically-related", "jitendex"), relations)
+            self.assertIn((ueru, fueru, "semantically-related", "jitendex"), relations)
+            self.assertNotIn((ueru, fueru, "inflection-of", "jitendex"), relations)
+            self.assertNotIn((ueru, fueru, "lemma-of", "jitendex"), relations)
+
+    def test_single_surface_entries_get_no_sibling_support(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir) / "root-of-app")
+            graph = builder.Graph("ja", {"dictionary": "test"})
+            entry = graph.entity("ja:entry:1", "dictionary-entry", "川")
+            surface = graph.entity(builder.surface_id("ja", "川"), "surface", "川")
+            graph.relation(surface, entry, "realizes", "jitendex")
+
+            added = graph.add_entry_sibling_support()
+
+            self.assertEqual(added, 0)
+            self.assertEqual(len(graph.relations), 1)
 
 
 if __name__ == "__main__":

@@ -695,6 +695,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 armed={showAnswer() && !!currentCard() && !isComplete()}
                 mode={ratingMode()}
                 resetKey={currentCard()?.id}
+                compact
+                initialDraftsFluent={ratingMode() === 'profile'}
                 onRate={handleRate}
                 onAllFluent={handleAllFluent}
                 onProfileSubmit={handleProfileSubmit}

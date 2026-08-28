@@ -7,6 +7,8 @@ import type { WordEntry } from './WordEntryRow';
 import type { LanguageData } from '../../../../shared/types';
 
 const mockGetCard = vi.fn();
+const mockGetKnowledgeProjection = vi.fn();
+let lastDrawerProps: { open?: boolean; initialTab?: string; surface?: string } | null = null;
 const getWordTrackingSyncMock = vi.fn((_word: string): { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string } => ({ tracker: 'anki' }));
 const findAnkiWordMatchMock = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
 const extractProsodyDataMock = vi.fn();
@@ -92,11 +94,23 @@ vi.mock('../../../components/common', () => ({
     </span>
   ),
   KnowledgeCapabilityChips: () => <span data-testid="knowledge-chips" />,
-  KnowledgeProjectionDrawer: () => null,
+  KnowledgeProjectionDrawer: (props: { open?: boolean; initialTab?: string; surface?: string }) => {
+    lastDrawerProps = props;
+    return null;
+  },
 }));
 
 vi.mock('../../../../shared/bridges', () => ({
-  getBridge: () => ({ graph: { getKnowledgeProjection: () => Promise.resolve({ status: 'unavailable', targets: [] }) } }),
+  getBridge: () => ({ graph: { getKnowledgeProjection: mockGetKnowledgeProjection } }),
+}));
+
+vi.mock('../../../services/knowledgeEvents', () => ({
+  getEvents: async () => [],
+  eventsVersion: () => 0,
+}));
+
+vi.mock('../../../services/srsAlgorithm', () => ({
+  hashWordSync: (word: string) => `hash:${word.length}`,
 }));
 
 vi.mock('../../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));
@@ -120,7 +134,16 @@ vi.mock('../../../components/language-specific/ProsodyOverlay', () => ({
 }));
 
 vi.mock('../../../components/common/Smart', () => ({
-  WordStatusPill: () => <span data-testid="word-status-pill" />,
+  WordStatusPill: (props: { word: string; onStatusChange?: (status: 'unknown' | 'learning' | 'known') => void }) => (
+    <button
+      type="button"
+      data-testid="word-status-pill"
+      data-word={props.word}
+      onClick={() => props.onStatusChange?.('known')}
+    >
+      pill
+    </button>
+  ),
 }));
 
 function makeEntry(word: string, overrides: Partial<WordEntry> = {}): WordEntry {
@@ -151,6 +174,9 @@ describe('WordEntryRow', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     mockGetCard.mockReset();
+    mockGetKnowledgeProjection.mockReset();
+    mockGetKnowledgeProjection.mockResolvedValue({ status: 'unavailable', targets: [] });
+    lastDrawerProps = null;
     getWordTrackingSyncMock.mockReset();
     getWordTrackingSyncMock.mockImplementation(() => ({ tracker: 'anki' }));
     findAnkiWordMatchMock.mockReset();
@@ -1336,6 +1362,68 @@ describe('WordEntryRow', () => {
     expect(container.querySelector('.colored-prosody__segment')).toBeNull();
     expect(container.textContent).toContain('妈麻马骂吗');
 
+    dispose();
+  });
+
+  it('renders the Knowledge pill as the primary knowledge control before tracker, forwarding status changes', async () => {
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const onStatusChange = vi.fn();
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('赤い')}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={onStatusChange}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    const knowledgeCol = container.querySelector('.col.knowledge');
+    const trackerCol = container.querySelector('.col.tracker');
+    expect(knowledgeCol).not.toBeNull();
+    expect(trackerCol).not.toBeNull();
+    expect(knowledgeCol!.compareDocumentPosition(trackerCol!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const pill = container.querySelector<HTMLButtonElement>('[data-testid="word-status-pill"]');
+    expect(pill).not.toBeNull();
+    expect(pill!.dataset.word).toBe('赤い');
+    expect(knowledgeCol!.querySelector('[data-testid="knowledge-chips"]')).not.toBeNull();
+
+    pill!.click();
+    expect(onStatusChange).toHaveBeenCalledWith(makeEntry('赤い'), 'known');
+
+    dispose();
+  });
+  it('opens the inspector drawer via the row Inspect affordance on the Targets tab', async () => {
+    mockGetKnowledgeProjection.mockResolvedValue({
+      status: 'ready',
+      surfaceId: 'ja:surface:x',
+      targets: [{
+        targetRef: { kind: 'surface', id: 'ja:surface:x' },
+        applicableCapabilities: ['surface-recognition'],
+        states: [{ capability: 'surface-recognition', classification: 'unmeasured', basis: 'unmeasured', evidence: [], evidenceSourceCounts: {} }],
+      }],
+    });
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const onStatusChange = vi.fn();
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('猫')}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={onStatusChange}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    await flushAsync();
+    await flushAsync();
+    const inspectBtn = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
+    expect(inspectBtn).not.toBeUndefined();
+    inspectBtn!.click();
+    expect(lastDrawerProps).toMatchObject({ open: true, initialTab: 'targets', surface: '猫' });
     dispose();
   });
 });

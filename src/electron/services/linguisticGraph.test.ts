@@ -17,7 +17,7 @@ function compact(language: string, surface: string, sense = 'meaning') {
     generatedAt: '2026-01-01T00:00:00.000Z',
     sourceVersions: {},
     stringTable: [...ids, surface, sense, 'reading'],
-    entities: { kindIds: [2, 0, 3, 4], domainIds: [0, 0, 0, 0], labelStringIds: [4, -1, 5, 6] },
+    entities: { kindIds: [2, 0, 3, 4], domainIds: [0, 1, 0, 0], labelStringIds: [4, -1, 5, 6] },
     relations: { offsets: [0, 2, 3, 3, 3], targets: [1, 3, 2], typeIds: [2, 4, 3], confidence: [0.9, 0.8, 0.7], provenanceStringIds: [6, 6, 6] },
     meta: { surfaceHashStringIds: [], surfaceLocalIds: [] },
   };
@@ -67,7 +67,7 @@ describe('LinguisticGraphService', () => {
     const id = `ja:surface:${crypto.createHash('sha256').update('猫').digest('hex')}`;
 
     const result = await service.getNeighborhood('ja', { entityId: id, relationClasses: ['property'], limit: 1 });
-    expect(result).toMatchObject({ centerDenseId: 0, relationCount: 1, relations: [{ relationType: 'realizes', provenance: 'reading' }] });
+    expect(result).toMatchObject({ centerDenseId: 0, relationCount: 1, relations: [{ relationType: 'realizes', provenance: 'reading', domain: 'common' }] });
     expect(result?.relations[0]?.confidence).toBeCloseTo(0.9);
     await expect(service.getNeighborhood('ja', { entityId: id, depth: 2 })).resolves.toBeNull();
   });

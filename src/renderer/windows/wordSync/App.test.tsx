@@ -766,6 +766,7 @@ describe('WordSyncContent', () => {
     // Reveal the answer before rating.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
+    expect(container.querySelector('.rating-matrix')?.hasAttribute('hidden')).toBe(true);
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     await Promise.resolve();

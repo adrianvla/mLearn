@@ -324,6 +324,34 @@ describe('mergeFlashcards', () => {
     expect(merged.knownUntracked['hash-b']).toBe(true);
   });
 
+  it('ingests legacy remote knownUntracked with recoverable word text as known claims', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    remote.knownUntracked['ja:h1'] = true;
+    remote.ignoredWords['ja:h1'] = { word: '学校', language: 'ja', ignoredAt: 1 };
+
+    const merged = await mergeFlashcards(local, remote);
+
+    expect(merged.knownUntracked['ja:h1']).toBeUndefined();
+    expect(merged.wordKnowledge['ja:h1']).toMatchObject({ word: '学校', claim: 'known' });
+  });
+
+  it('merges wordKnowledge per-entry LWW with claim timestamps winning', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    local.wordKnowledge['ja:h1'] = { word: '学校', language: 'ja', ease: 2.5, lastSeen: 10, timesSeen: 5, timesHovered: 0, claim: 'known', claimAt: 100 };
+    remote.wordKnowledge['ja:h1'] = { word: '学校', language: 'ja', ease: 1.0, lastSeen: 99, timesSeen: 5, timesHovered: 0, lastStatusChange: 99 };
+    local.wordKnowledge['ja:h2'] = { word: '町', language: 'ja', ease: 1.0, lastSeen: 5, timesSeen: 1, timesHovered: 0 };
+    remote.wordKnowledge['ja:h2'] = { word: '町', language: 'ja', ease: 2.6, lastSeen: 50, timesSeen: 9, timesHovered: 0, lastStatusChange: 50 };
+
+    const merged = await mergeFlashcards(local, remote);
+
+    // Local claim (100) outranks the remote status change (99).
+    expect(merged.wordKnowledge['ja:h1']?.ease).toBe(2.5);
+    // Remote evidence (50) outranks the stale local entry (5).
+    expect(merged.wordKnowledge['ja:h2']?.ease).toBe(2.6);
+  });
+
   it('does not add knownUntracked entries with falsy value', async () => {
     const local = makeEmptyStore();
     const remote = makeEmptyStore();

@@ -2,9 +2,9 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
-import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeAspect, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeAspect, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
 
 export { KNOWLEDGE_ASPECTS } from './constants';
 export type { KnowledgeAspect } from './constants';
@@ -204,10 +204,6 @@ export interface Settings {
   /** Ease threshold above which a word is considered mastered (float, 0.0–5.0 scale) */
   easeThresholdMastered: number;
   manualStatusEaseBuffer: number;
-  /** Order of knowledge sources for word status resolution */
-  knowledgeSourceOrder: KnowledgeSource[];
-  /** How to resolve word status from multiple knowledge sources */
-  knowledgeResolutionMode: KnowledgeResolutionMode;
   anki_field_expression: string;
   anki_field_reading: string;
   anki_field_meaning: string;
@@ -592,8 +588,6 @@ export const DEFAULT_SETTINGS: Settings = {
   easeThresholdKnown: SRS_EASE.DEFAULT_KNOWN,
   easeThresholdMastered: SRS_EASE.DEFAULT_KNOWN + 0.5,
   manualStatusEaseBuffer: 0,
-  knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
-  knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
   showReadingAnnotations: true,
   readingAnnotationMoreContrast: false,
   readingAnnotationSizePercent: 100,
@@ -806,6 +800,24 @@ export interface GrammarPoint {
   level: number;
   /** Optional metadata-driven matcher for non-substring grammars. */
   match?: GrammarMatchConfig | GrammarMatchConfig[];
+  /** Semantic family, e.g. "conditional", "aspect". Optional package metadata for constructions. */
+  category?: string;
+  /** Pragmatic function or use when richer than meaning. Optional package metadata. */
+  function?: string;
+  /** How the construction is formed (morphology, word order, particles). Optional package metadata. */
+  formation?: string;
+  /** Elements the construction attaches to or combines with. Optional package metadata. */
+  attachments?: string[];
+  /** Usage constraints. Optional package metadata. */
+  constraints?: string[];
+  /** Recognized surface variants. Optional package metadata. */
+  variants?: string[];
+  /** Social/functional register, e.g. "plain", "polite". Optional package metadata. */
+  register?: string;
+  /** Constructions this one is commonly confused with. Optional package metadata. */
+  contrasts?: string[];
+  /** Related constructions. Optional package metadata. */
+  related?: string[];
 }
 
 export interface LanguageDataAsset {
@@ -1993,6 +2005,19 @@ export interface PassiveWordKnowledge {
   lastStatusChange?: number;
   /** Timestamp when this word was explicitly rated in the Word Sync window (undefined = never) */
   wordSyncRatedAt?: number;
+  /**
+   * Active explicit user claim ("I know/learn/don't know this") — overrides the
+   * evidence-derived classification of the effective state until cleared.
+   * Undefined = no active claim; the entry's ease is then the whole truth.
+   * Materialized from kind:'claim' journal events by projection replay.
+   */
+  claim?: WordStatus;
+  /** Timestamp of the active claim (used for cross-window LWW merges). */
+  claimAt?: number;
+  /** Source of the most recent evidence event (attribution for the sync resolver). */
+  lastEvidenceSource?: string;
+  /** True when any non-passive evidence (SRS/Anki/attempt/migration) exists — honest-Known gate. */
+  hasActiveEvidence?: boolean;
   /** Per-script-form skill tracking under one word identity. Keyed by variantId. */
   forms?: Partial<Record<string, FormKnowledge>>;
   /** Reading and prosody knowledge; meaning remains derived through bank resolution. */
@@ -2005,6 +2030,9 @@ export interface AspectKnowledge {
   source: WordKnowledgeSource;
   lastStatusChange: number;
   updatedAt: number;
+  /** Active explicit claim on this aspect; overrides evidence classification until cleared. */
+  claim?: WordStatus;
+  claimAt?: number;
 }
 
 /** Ignored word entry tracked per language for browse/unignore workflows */

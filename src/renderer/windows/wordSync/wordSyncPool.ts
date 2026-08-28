@@ -1,4 +1,5 @@
-import { SRS_EASE } from '../../../shared/constants';
+import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
+import { WORD_SYNC_STATUS_UNTRACKED } from '../../components/common/FilterBuilder/presets';
 import { extractUniqueStudyCharacters, isFrequencyLevelAtOrEasierThanTarget } from '../../../shared/languageFeatures';
 import type { LanguageData } from '../../../shared/types';
 
@@ -20,6 +21,18 @@ export function wasExplicitlySyncRated(knowledge: { wordSyncRatedAt?: number; la
 /** Include entries at or easier than the selected learner level. */
 export function shouldIncludeForLevel(rawLevel: number, target: number, languageData?: LanguageData | null): boolean {
   return isFrequencyLevelAtOrEasierThanTarget(rawLevel, target, languageData);
+}
+
+/**
+ * Status string for a word-sync pool record. The comprehensive resolver
+ * flattens resolver-unknown and never-encountered into one status; the
+ * knowledge-record presence distinguishes them (tracked unknown vs
+ * untracked). Learning is its own bucket, so an Unknown filter operand
+ * never matches a Learning word.
+ */
+export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning', hasKnowledgeRecord: boolean): string {
+  if (resolvedStatus === 'learning') return String(WORD_STATUS.LEARNING);
+  return hasKnowledgeRecord ? String(WORD_STATUS.UNKNOWN) : WORD_SYNC_STATUS_UNTRACKED;
 }
 
 /**

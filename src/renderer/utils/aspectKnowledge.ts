@@ -24,6 +24,9 @@ export interface AspectStatusResult {
   /** True only for orthogonal aspects with no record: no evidence AND no chain to inherit from. */
   untracked?: boolean;
   lastStatusChange?: number;
+  /** Where the status comes from: an explicit user claim overrides evidence. */
+  basis?: 'claim' | 'evidence';
+  claim?: WordStatus;
 }
 
 /**
@@ -60,10 +63,13 @@ export function getAspectStatusSync(
     const record = deps.wordKnowledge[match.lk]?.aspects?.[aspect];
     if (!record) continue;
     const result: AspectStatusResult = {
-      status: record.status,
+      status: record.claim ?? record.status,
       ease: record.ease,
-      source: record.source,
+      source: record.claim !== undefined ? 'Manual' : record.source,
       lastStatusChange: record.lastStatusChange,
+      ...(record.claim !== undefined
+        ? { basis: 'claim' as const, claim: record.claim }
+        : { basis: 'evidence' as const }),
     };
     const rank = STATUS_RANK[record.status];
     if (!best || rank > best.rank) {

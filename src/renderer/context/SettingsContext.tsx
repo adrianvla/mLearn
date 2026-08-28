@@ -13,7 +13,7 @@ import type {
   PolicySettingKey,
 } from '../../shared/managementPolicy';
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
-import { APP_THEMES, KNOWLEDGE_SOURCES } from '../../shared/constants';
+import { APP_THEMES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend, configureBackend } from '../../shared/backends';
 import { isCapacitor, initPlatformBodyClass } from '../../shared/platform';
@@ -298,18 +298,15 @@ export const SettingsProvider: ParentComponent = (props) => {
         migratedSettings = true;
       }
 
-      if (mergedSettings.knowledgeSourceOrder) {
-        const validSources = new Set(KNOWLEDGE_SOURCES);
-        const currentSources = new Set(mergedSettings.knowledgeSourceOrder as string[]);
-        const hasInvalid = (mergedSettings.knowledgeSourceOrder as string[]).some((src) => !validSources.has(src as typeof KNOWLEDGE_SOURCES[number]));
-        const hasMissing = KNOWLEDGE_SOURCES.some((src) => !currentSources.has(src));
-        // DEPRECATED (v2.0 migration): reset legacy/incomplete source orders to the new default.
-        // Remove after all active users have migrated (safe to remove ~2026-12).
-        if (hasInvalid || hasMissing) {
-          mergedSettings.knowledgeSourceOrder = [...KNOWLEDGE_SOURCES];
-          log.info('[SettingsContext] Migrated knowledgeSourceOrder to new default');
-          migratedSettings = true;
-        }
+      // Legacy knowledge-source resolution settings are obsolete — word status is
+      // resolved as claim ?? evidence with no source voting. Prune stale keys from
+      // persisted settings so they are dropped on the next save instead of re-saved.
+      if ('knowledgeSourceOrder' in mergedSettings || 'knowledgeResolutionMode' in mergedSettings) {
+        const staleKeys = mergedSettings as Partial<Settings> & Record<string, unknown>;
+        delete staleKeys.knowledgeSourceOrder;
+        delete staleKeys.knowledgeResolutionMode;
+        log.info('[SettingsContext] Pruned obsolete knowledge-source resolution settings');
+        migratedSettings = true;
       }
 
       // DEPRECATED (v2.4 migration): move the old voice endpointing default to the faster default.

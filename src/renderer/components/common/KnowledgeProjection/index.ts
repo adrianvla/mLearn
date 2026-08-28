@@ -1,1 +1,1 @@
-export { KnowledgeCapabilityChips, KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone } from './KnowledgeProjection';
+export { KnowledgeCapabilityChips, KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone, type InspectorTab } from './KnowledgeProjection';

@@ -1,70 +1,30 @@
 .word-status-knowledge {
-  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  width: 300px;
-  padding: var(--spacing-1) 0;
+  width: min(300px, calc(100vw - var(--spacing-4)));
+  min-width: 220px;
 }
 
-.word-status-knowledge__aspects {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.word-status-knowledge__aspect {
+.word-status-knowledge__summary {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  gap: var(--spacing-1);
 }
 
-.word-status-knowledge__aspect-label {
-  min-width: 64px;
-  color: var(--text-primary);
-  font-weight: 600;
-}
+.word-status-knowledge__summary strong { color: var(--text-primary); }
+.word-status-knowledge__close { margin-left: auto; padding: 0 var(--spacing-1); }
+.word-status-knowledge__source { color: var(--text-secondary); font-size: var(--font-size-2xs); }
 
-.word-status-knowledge__aspect-status--unknown {
-  color: var(--color-danger);
-}
+.word-status-knowledge__status { font-size: var(--font-size-2xs); font-weight: 600; }
+.word-status-knowledge__status--unknown { color: var(--color-danger); }
+.word-status-knowledge__status--learning { color: var(--color-warning); }
+.word-status-knowledge__status--known { color: var(--color-success); }
+.word-status-knowledge__status--untracked { color: var(--text-tertiary); }
 
-.word-status-knowledge__aspect-status--learning {
-  color: var(--color-warning);
-}
-
-.word-status-knowledge__aspect-status--known {
-  color: var(--color-success);
-}
-
-.word-status-knowledge__aspect-inherited {
-  color: var(--text-tertiary);
-  font-style: italic;
-}
-
-.word-status-knowledge__aspect-actions {
+.word-status-knowledge__actions {
   display: flex;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.word-status-knowledge__action {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  cursor: pointer;
-}
-
-.word-status-knowledge__action:hover {
-  color: var(--text-primary);
-  background: var(--bg-primary-tint);
-  border-color: var(--color-primary);
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-1);
 }

@@ -48,7 +48,7 @@ export {
 } from './EulaModal/EulaModal';
 
 export { LanguageVariantGate } from './LanguageVariantGate/LanguageVariantGate';
-export { KnowledgeCapabilityChips, KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone } from './KnowledgeProjection';
+export { KnowledgeCapabilityChips, KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone, type InspectorTab } from './KnowledgeProjection';
 
 // ModalForm Components
 export {
@@ -423,6 +423,7 @@ export {
   KnowledgeHistoryGraph,
   type KnowledgeHistoryGraphProps,
 } from './KnowledgeHistoryGraph';
+export { KnowledgeHistoryTimeline, type HistoryEvent } from './KnowledgeHistoryTimeline';
 
 // WordStatusPillKnowledge
 export {

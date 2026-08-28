@@ -71,7 +71,7 @@ export function createWordRenderText(
               style={resolveColoredProsodyStyle(
                 color,
                 settings,
-                getColoredProsodyFadeStrength(prosodyKnowledge, settings),
+                getColoredProsodyFadeStrength(prosodyKnowledge),
                 ctx.partOfSpeechColor(),
               )}
             >

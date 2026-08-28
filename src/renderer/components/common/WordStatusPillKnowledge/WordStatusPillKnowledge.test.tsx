@@ -8,9 +8,14 @@ import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import { WordStatusPillKnowledge } from './WordStatusPillKnowledge';
 
-const setAspectStatusMock = vi.fn();
 const getComprehensiveWordStatusWithSourceSyncMock = vi.fn();
 const getAspectStatusMock = vi.fn();
+const recordAttemptMock = vi.fn();
+const onPinMock = vi.fn();
+const onCloseMock = vi.fn();
+const openWordDbEditorMock = vi.fn();
+
+let projectionMock: unknown;
 
 let currentLang: LanguageData = { name: 'Japanese', settings: { fixed: {} } };
 let wordKnowledge: Record<string, PassiveWordKnowledge> = {};
@@ -25,16 +30,6 @@ const richLanguageData: LanguageData = {
   prosody: { type: 'japanese-pitch-accent' },
 };
 
-const genderLanguageData: LanguageData = {
-  name: 'Gender Language',
-  settings: { fixed: {} },
-  textProcessing: {
-    scriptProfile: { acceptedScripts: ['Latn'] },
-    readingAnnotation: { type: 'script-reading' },
-  },
-  gender: { attributeKey: 'gender' },
-};
-
 const plainLanguageData: LanguageData = {
   name: 'German',
   settings: { fixed: {} },
@@ -44,9 +39,9 @@ const plainLanguageData: LanguageData = {
 };
 
 vi.mock('../../../context', () => ({
-  useSettings: () => ({ settings: { language: 'ja' } }),
+  useSettings: () => ({ settings: { language: 'ja', ratingKeyboardMode: 'mnemonic' } }),
   useLanguage: () => ({
-    langData: { ja: richLanguageData, de: plainLanguageData, ru2: genderLanguageData },
+    langData: { ja: richLanguageData, de: plainLanguageData },
     currentLangData: () => currentLang,
     getCanonicalForm: (word: string) => word,
     getWordVariants: () => [],
@@ -54,9 +49,9 @@ vi.mock('../../../context', () => ({
     getWordVariantsForLanguage: () => [],
   }),
   useFlashcards: () => ({
-    setAspectStatus: setAspectStatusMock,
     getComprehensiveWordStatusWithSourceSync: getComprehensiveWordStatusWithSourceSyncMock,
     getAspectStatus: getAspectStatusMock,
+    recordAttempt: recordAttemptMock,
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string>) => (
@@ -65,20 +60,41 @@ vi.mock('../../../context', () => ({
   }),
 }));
 
-vi.mock('../KnowledgeHistoryGraph', () => ({
-  KnowledgeHistoryGraph: (props: {
-    aspect: string;
-    availableAspects: readonly string[];
-    onAspectChange: (aspect: string) => void;
+/** Flush the microtask queue + timers so createEffect promise callbacks settle. */
+const flush = (): Promise<void> => {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, 0);
+  return promise;
+};
+
+// The matrix contract under test: applicable rows in, one profile submission out.
+vi.mock('../RatingMatrix', () => ({
+  RatingMatrix: (props: {
+    aspects: readonly string[];
+    onProfileSubmit?: (observations: readonly { aspect: string; quality: string }[]) => void;
   }) => (
-    <div data-testid="mock-knowledge-history-graph">{props.availableAspects.join(',')}</div>
+    <div data-testid="mock-rating-matrix">
+      {props.aspects.join(',')}
+      <button
+        type="button"
+        onClick={() => props.onProfileSubmit?.([{ aspect: props.aspects[0], quality: 'fluent' }])}
+      >
+        mock-matrix-submit
+      </button>
+    </div>
   ),
 }));
 
-vi.mock('../../../hooks/useKnowledgeHistory', () => ({
-  useKnowledgeHistory: () => ({
-    events: () => [],
-    replay: () => ({ points: [], bands: [] }),
+vi.mock('../../../services/openWordDbEditor', () => ({
+  openWordDbEditor: (...args: unknown[]) => openWordDbEditorMock(...(args as [string])),
+}));
+
+const getKnowledgeProjectionSpy = vi.fn(async (_language: string, _word: string) => projectionMock);
+vi.mock('../../../../shared/bridges', () => ({
+  getBridge: () => ({
+    graph: {
+      getKnowledgeProjection: (...args: unknown[]) => getKnowledgeProjectionSpy(...(args as [string, string])),
+    },
   }),
 }));
 
@@ -104,9 +120,11 @@ const seedEntry = (aspects: Partial<Record<Exclude<KnowledgeAspect, 'meaning'>, 
   };
 };
 
-const comprehensiveResult = (status: WordStatus) => ({
+const comprehensiveResult = (status: WordStatus, basis: 'claim' | 'evidence' | 'unmeasured' = status === 'unknown' ? 'unmeasured' : 'claim') => ({
   status,
-  source: 'None',
+  basis,
+  evidenceStatus: status,
+  source: basis === 'claim' ? 'Manual' : basis === 'unmeasured' ? 'None' : 'PassiveTracking',
   timesSeen: 0,
   matchedWord: undefined,
 });
@@ -124,12 +142,13 @@ describe('WordStatusPillKnowledge', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     vi.clearAllMocks();
+    projectionMock = undefined;
     currentLang = richLanguageData;
     wordKnowledge = {};
     getComprehensiveWordStatusWithSourceSyncMock.mockReturnValue(comprehensiveResult('known'));
-    // Faithful mini-mock of getAspectStatusSync: record → its status (legacy
-    // inherited flag preserved); absent record → untracked for EVERY aspect —
-    // meaning-known never fabricates finer-aspect knowledge.
+    // Faithful mini-mock of getAspectStatusSync: record → its status; absent
+    // record → untracked for EVERY aspect — meaning-known never fabricates
+    // finer-aspect knowledge.
     getAspectStatusMock.mockImplementation((_word: string, aspect: KnowledgeAspect) => {
       if (aspect === 'meaning') {
         return { status: comprehensiveResult('known').status, ease: 2.5, source: 'None' };
@@ -144,13 +163,13 @@ describe('WordStatusPillKnowledge', () => {
     container.remove();
   });
 
-  it('renders meaning plus only evidenced aspect rows (untracked aspects hidden)', () => {
+  it('renders every applicable aspect with Untracked shown for unmeasured ones', () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
     expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Meaning');
-    // Reading/prosody have no records: untracked, hidden — no fabricated rows.
-    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Reading');
-    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Prosody');
+    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Reading');
+    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Prosody');
+    expect(container.textContent).toContain('mlearn.Knowledge.Untracked');
 
     dispose();
   });
@@ -179,77 +198,101 @@ describe('WordStatusPillKnowledge', () => {
     dispose();
   });
 
-  it('shows no inherited marker for explicit records; untracked siblings are hidden', () => {
-    seedEntry({ reading: aspectRecord('known') });
+  it('header shows Untracked — never Unknown — for a word without claim or evidence', () => {
+    getComprehensiveWordStatusWithSourceSyncMock.mockReturnValue(comprehensiveResult('unknown'));
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
-    expect(container.textContent).not.toContain('mlearn.Knowledge.AspectInherited');
-    // Prosody has no record: hidden, not inherited.
-    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Prosody');
+    const header = container.querySelector('.word-status-knowledge__status');
+    expect(header?.textContent).toContain('mlearn.Knowledge.Untracked');
+    expect(header?.textContent).not.toContain('mlearn.WordHover.Status.Unknown');
 
     dispose();
   });
 
-  it('hides an orthogonal aspect without evidence entirely (interim applicability rule)', () => {
-    const dispose = render(() => <WordStatusPillKnowledge word="apple" language="ru2" />, container);
+  it('header shows Unknown only for an explicit negative claim', () => {
+    getComprehensiveWordStatusWithSourceSyncMock.mockReturnValue(comprehensiveResult('unknown', 'claim'));
+    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
-    // No evidence: hidden, not "Untracked" — a Russian verb must not display a
-    // meaningless Gender row. Reading is untracked here too (no inheritance).
-    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Gender');
-    expect(container.textContent).not.toContain('mlearn.Knowledge.Untracked');
-    expect(container.textContent).not.toContain('mlearn.Knowledge.AspectInherited');
+    const header = container.querySelector('.word-status-knowledge__status');
+    expect(header?.textContent).toContain('mlearn.WordHover.Status.Unknown');
+    expect(header?.textContent).not.toContain('mlearn.Knowledge.Untracked');
 
     dispose();
   });
 
-  it('calls setAspectStatus with learning when Downgrade is clicked', () => {
-    seedEntry({ reading: aspectRecord('known'), prosody: aspectRecord('known') });
+  it('keeps the basis in the row tooltip, not as visible debug text', () => {
+    seedEntry({ reading: aspectRecord('learning') });
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
-    buttons(container, 'mlearn.Knowledge.Actions.DowngradeToLearning')[0]?.click();
-
-    expect(setAspectStatusMock).toHaveBeenCalledWith('apple', 'reading', 'learning', 'manual', 'ja');
+    const titles = Array.from(container.querySelectorAll('[title]')).map((el) => el.getAttribute('title') ?? '');
+    expect(titles.some((title) => title.includes('mlearn.Knowledge.Aspect.Reading') && title.includes('mlearn.Knowledge.Basis.Evidence'))).toBe(true);
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Basis.Evidence');
 
     dispose();
   });
 
-  it('calls setAspectStatus with unknown when Mark Unknown is clicked', () => {
-    seedEntry({ reading: aspectRecord('known'), prosody: aspectRecord('known') });
+  it('fetches the knowledge projection for the surface once', async () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
+    await flush();
 
-    buttons(container, 'mlearn.Knowledge.Actions.MarkUnknown')[0]?.click();
-
-    expect(setAspectStatusMock).toHaveBeenCalledWith('apple', 'reading', 'unknown', 'manual', 'ja');
+    expect(getKnowledgeProjectionSpy).toHaveBeenCalledWith('ja', 'apple');
 
     dispose();
   });
 
-  it('hides Downgrade when the aspect is learning or unknown', () => {
-    seedEntry({ reading: aspectRecord('learning'), prosody: aspectRecord('learning') });
-    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
-
-    expect(buttons(container, 'mlearn.Knowledge.Actions.DowngradeToLearning')).toHaveLength(0);
-    expect(buttons(container, 'mlearn.Knowledge.Actions.MarkUnknown')).toHaveLength(2);
-
-    dispose();
-  });
-
-  it('hides Mark Unknown when the aspect is already unknown', () => {
-    seedEntry({ reading: aspectRecord('unknown'), prosody: aspectRecord('unknown') });
-    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
-
-    expect(buttons(container, 'mlearn.Knowledge.Actions.DowngradeToLearning')).toHaveLength(0);
-    expect(buttons(container, 'mlearn.Knowledge.Actions.MarkUnknown')).toHaveLength(0);
-
-    dispose();
-  });
-
-  it('feeds the history graph the visible (evidenced) aspects only', () => {
-    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
-
-    expect(container.querySelector('[data-testid="mock-knowledge-history-graph"]')?.textContent).toBe(
-      'meaning',
+  it('pins the popup and reveals the matrix only through Rate…, submitting one profile attempt', async () => {
+    seedEntry({ reading: aspectRecord('learning') });
+    const dispose = render(
+      () => <WordStatusPillKnowledge word="apple" onPin={onPinMock} onClose={onCloseMock} />,
+      container,
     );
+
+    expect(container.querySelector('[data-testid="mock-rating-matrix"]')).toBeNull();
+
+    buttons(container, 'mlearn.Knowledge.Popup.Rate')[0]?.click();
+    expect(onPinMock).toHaveBeenCalled();
+
+    const matrix = container.querySelector('[data-testid="mock-rating-matrix"]');
+    expect(matrix?.textContent).toContain('meaning');
+    expect(matrix?.textContent).toContain('reading');
+    expect(matrix?.textContent).toContain('prosody');
+
+    buttons(container, 'mock-matrix-submit')[0]?.click();
+    await flush();
+
+    expect(recordAttemptMock).toHaveBeenCalledTimes(1);
+    const submission = recordAttemptMock.mock.calls[0] as unknown[] | undefined; // our own mock input, shape fixed above
+    const [word, aspect, quality, opts] = submission ?? [];
+    expect(word).toBe('apple');
+    expect(aspect).toBe('meaning');
+    expect(quality).toBe('fluent');
+    const attemptOpts = opts && typeof opts === 'object' && 'attemptId' in opts ? opts : undefined;
+    expect(attemptOpts && typeof attemptOpts.attemptId === 'string' && attemptOpts.attemptId.length > 0).toBe(true);
+    expect(container.querySelector('[data-testid="mock-rating-matrix"]')).toBeNull();
+    expect(onCloseMock).toHaveBeenCalled();
+
+    dispose();
+  });
+
+  it('opens the Word DB inspector through Inspect… and writes nothing', () => {
+    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
+
+    buttons(container, 'mlearn.Knowledge.Popup.Inspect')[0]?.click();
+
+    expect(openWordDbEditorMock).toHaveBeenCalledWith('apple');
+    expect(recordAttemptMock).not.toHaveBeenCalled();
+
+    dispose();
+  });
+
+  it('shows the matrix even when targets are untracked — a rating is what measures them', () => {
+    const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
+
+    buttons(container, 'mlearn.Knowledge.Popup.Rate')[0]?.click();
+
+    const matrix = container.querySelector('[data-testid="mock-rating-matrix"]');
+    expect(matrix?.textContent).toContain('reading');
+    expect(matrix?.textContent).toContain('prosody');
 
     dispose();
   });

@@ -190,7 +190,7 @@ describe('computeWordLevelStats', () => {
   it('counts known words from wordKnowledge ease', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('en', 'hello')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, word: 'hello' },
+        [lk('en', 'hello')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, hasActiveEvidence: true, word: 'hello' },
       },
     });
     const freq = makeFreq();
@@ -202,11 +202,29 @@ describe('computeWordLevelStats', () => {
     expect(beginner?.known).toBe(1);
     expect(beginner?.unknown).toBe(1);
   });
+  it('passive-only high ease caps at learning, never counts as known', () => {
+    const store = makeStore({
+      wordKnowledge: {
+        [lk('en', 'hello')]: { ease: 2.0, lastSeen: 1, timesSeen: 50, timesHovered: 0, word: 'hello' },
+      },
+    });
+    const freq = makeFreq();
+    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+      5: 'Beginner',
+    });
+
+    const beginner = result.byLevel.find((l) => l.level === 5);
+    expect(beginner?.known).toBe(0);
+    // Passive-only exposure at/above the known band resolves to Learning
+    // (effectiveKnowledge honesty cap), so 'hello' is no longer 'unknown'.
+    expect(beginner?.learning).toBe(1);
+    expect(beginner?.unknown).toBe(1);
+  });
 
   it('matches canonicalized frequency words to stored knowledge keys', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('ja', '会う')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, word: '会う', language: 'ja' },
+        [lk('ja', '会う')]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, hasActiveEvidence: true, word: '会う', language: 'ja' },
       },
     });
     const freq: WordFrequencyMap = {
@@ -227,9 +245,11 @@ describe('computeWordLevelStats', () => {
     expect(result.outsideLevels.total).toBe(0);
   });
 
-  it('counts known words from knownUntracked', () => {
+  it('counts known words from explicit claims', () => {
     const store = makeStore({
-      knownUntracked: { [lk('en', 'world')]: true },
+      wordKnowledge: {
+        [lk('en', 'world')]: { ease: 1.0, lastSeen: 1, timesSeen: 2, timesHovered: 0, word: 'world', claim: 'known', claimAt: 1 },
+      },
     });
     const freq = makeFreq();
     const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
@@ -239,6 +259,23 @@ describe('computeWordLevelStats', () => {
     const beginner = result.byLevel.find((l) => l.level === 5);
     expect(beginner?.known).toBe(1);
     expect(result.outsideLevels.known).toBe(0);
+  });
+
+  it('an explicit unknown claim overrides high passive ease (no learning misclassification)', () => {
+    const store = makeStore({
+      wordKnowledge: {
+        [lk('en', 'difficult')]: { ease: 1.9, lastSeen: 1, timesSeen: 40, timesHovered: 0, word: 'difficult', claim: 'unknown', claimAt: 5 },
+      },
+    });
+    const freq = makeFreq();
+    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+      1: 'Advanced',
+    });
+
+    const advanced = result.byLevel.find((l) => l.level === 1);
+    expect(advanced?.learning).toBe(0);
+    expect(advanced?.unknown).toBe(1);
+    expect(advanced?.known).toBe(0);
   });
 
   it('counts learning words from flashcard state', () => {
@@ -277,7 +314,7 @@ describe('computeWordLevelStats', () => {
   it('counts outside levels for tracked words not in frequency list', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('en', 'untracked')]: { ease: 3.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, word: 'untracked' },
+        [lk('en', 'untracked')]: { ease: 3.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1, hasActiveEvidence: true, word: 'untracked' },
       },
     });
     const freq = makeFreq();
@@ -381,7 +418,7 @@ describe('computeLevelStats', () => {
     ]);
   });
 
-  it('counts known from review-state flashcards', () => {
+  it('counts known from review-state flashcards with co-located active evidence', () => {
     const store = makeStore({
       flashcards: {
         card1: {
@@ -404,6 +441,9 @@ describe('computeLevelStats', () => {
         },
       },
       wordToCardMap: { [lk('ja', '猫')]: ['card1'] },
+      wordKnowledge: {
+        [lk('ja', '猫')]: { ease: 2.5, lastSeen: 1, timesSeen: 10, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
+      },
     });
 
     const [level] = computeLevelStats(
@@ -416,6 +456,45 @@ describe('computeLevelStats', () => {
     );
 
     expect(level.known).toBe(1);
+    expect(level.untracked).toBe(0);
+  });
+  it('review-state flashcards alone are no longer known without active evidence', () => {
+    const store = makeStore({
+      flashcards: {
+        cardSolo: {
+          id: 'cardSolo',
+          content: { type: 'word', front: '犬', back: 'dog' },
+          state: 'review',
+          ease: 2.5,
+          interval: 1,
+          dueDate: 1,
+          reviews: 1,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 1,
+          lastUpdated: 1,
+          tags: [],
+          suspended: false,
+          buried: false,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk('ja', '犬')]: ['cardSolo'] },
+    });
+
+    const [level] = computeLevelStats(
+      store,
+      { 犬: { reading: 'いぬ', level: 'N5', raw_level: 5 } },
+      'ja',
+      1800,
+      1550,
+      levelNames,
+    );
+
+    expect(level.known).toBe(0);
+    // The card still makes the word tracked — it just is no longer known.
+    expect(level.unknown).toBe(1);
     expect(level.untracked).toBe(0);
   });
 
@@ -552,6 +631,7 @@ describe('computeLevelStats', () => {
       },
       wordToCardMap: { [lk('ja', '猫')]: ['knownCard'] },
       wordKnowledge: {
+        [lk('ja', '猫')]: { ease: 2.5, lastSeen: 1, timesSeen: 5, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
         [lk('ja', '犬')]: { ease: 1.6, lastSeen: 1, timesSeen: 2, timesHovered: 1, word: '犬', language: 'ja' },
         [lk('ja', '鳥')]: { ease: 1.0, lastSeen: 1, timesSeen: 1, timesHovered: 2, word: '鳥', language: 'ja' },
       },
@@ -760,7 +840,7 @@ describe('computeBeyondExamLevelStats', () => {
   it('resolves beyond-exam word status from the store', () => {
     const store = makeStore({
       wordKnowledge: {
-        [lk('ja', '赤い')]: { ease: 4, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '赤い', language: 'ja', lastStatusChange: 1 },
+        [lk('ja', '赤い')]: { ease: 4, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '赤い', language: 'ja', lastStatusChange: 1, hasActiveEvidence: true },
       },
     });
 

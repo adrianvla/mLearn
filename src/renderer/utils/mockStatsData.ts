@@ -215,6 +215,7 @@ function generateDailyStats(
 function generateWordKnowledge(
   words: string[],
   language: string,
+  cardByWord?: Map<string, Flashcard>,
 ): Record<string, PassiveWordKnowledge> {
   const result: Record<string, PassiveWordKnowledge> = {};
   const now = Date.now();
@@ -238,6 +239,19 @@ function generateWordKnowledge(
     if (Math.random() < 0.3) {
       entry.statusChangedAtSeen = Math.floor(Math.random() * timesSeen) + 1;
       entry.lastStatusChange = now - Math.floor(Math.random() * 14 * DAY);
+    }
+
+    // Tier-2 shape: any SRS card that has been reviewed is active evidence
+    // (the honest-Known gate); a share of graduated words carry an explicit
+    // 'known' claim so the dashboard shows claim-based Knowns too.
+    const card = cardByWord?.get(word);
+    if (card && card.state !== 'new') {
+      entry.hasActiveEvidence = true;
+      entry.lastEvidenceSource = 'srs';
+    }
+    if (card?.state === 'review' && Math.random() < 0.25) {
+      entry.claim = 'known';
+      entry.claimAt = now - Math.floor(Math.random() * 20 * DAY);
     }
 
     result[key] = entry;
@@ -345,6 +359,9 @@ function buildMockFlashcardStore(language: string): FlashcardStore {
     if (!wordToCardMap[key]) wordToCardMap[key] = [];
     wordToCardMap[key].push(card.id);
   }
+  const cardByWord = new Map<string, Flashcard>();
+  for (const card of Object.values(allCards)) cardByWord.set(card.content.front, card);
+
 
   for (const [key, cardIds] of Object.entries(wordToCardMap)) {
     const cards = cardIds.map(id => allCards[id]).filter(Boolean);
@@ -386,7 +403,7 @@ function buildMockFlashcardStore(language: string): FlashcardStore {
     wordStatsMap,
     knownUntracked: {},
     ignoredWords: {},
-    wordKnowledge: generateWordKnowledge(SAMPLE_WORDS, language),
+    wordKnowledge: generateWordKnowledge(SAMPLE_WORDS, language, cardByWord),
     grammarKnowledge: generateGrammarKnowledge(language),
     meta: {
       perLanguage: {

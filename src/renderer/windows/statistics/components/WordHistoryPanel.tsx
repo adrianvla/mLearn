@@ -7,24 +7,11 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../context';
 import { getAvailableAspects } from '../../../../shared/types';
-import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type WordStatus } from '../../../../shared/constants';
-import type { KnowledgeAspect, KnowledgeEvent, KnowledgeEventKind } from '../../../../shared/knowledgeEvents';
-import { Input, KnowledgeHistoryGraph, Panel } from '../../../components/common';
+import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
+import { Input, KnowledgeHistoryGraph, KnowledgeHistoryTimeline, Panel, type HistoryEvent } from '../../../components/common';
+import { isChartableHistory } from '../../../utils/knowledgeHistory';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import './WordHistoryPanel.css';
-
-const KIND_LABEL_KEYS: Record<Exclude<KnowledgeEventKind, 'retraction'>, string> = {
-  status: 'Status',
-  review: 'Review',
-  rating: 'Rating',
-  rollup: 'Rollup',
-};
-
-const STATUS_LABEL_KEYS: Record<WordStatus, string> = {
-  unknown: 'Unknown',
-  learning: 'Learning',
-  known: 'Known',
-};
 
 const MAX_MATCHES = 20;
 
@@ -69,23 +56,11 @@ export const WordHistoryPanel: Component = () => {
   });
   const history = useKnowledgeHistory(selectedWord, aspect);
   // Retraction tombstones are undo bookkeeping, not history rows.
-  const events = createMemo(() => (history.events() ?? []).filter(
-    (event): event is KnowledgeEvent & { kind: Exclude<KnowledgeEventKind, 'retraction'> } => event.kind !== 'retraction',
+  const events = createMemo((): HistoryEvent[] => (history.events() ?? []).filter(
+    (event): event is HistoryEvent => event.kind !== 'retraction',
   ));
   const graphData = createMemo(() => history.replay());
 
-  const sourceLabel = (event: KnowledgeEvent): string => (
-    t(`mlearn.Knowledge.History.Source.${KNOWLEDGE_SOURCE_DISPLAY_NAMES[event.source]}`)
-  );
-
-  const eventDetail = (event: KnowledgeEvent): string => {
-    if (event.fromStatus && event.toStatus) {
-      return `${t(`mlearn.WordHover.Status.${STATUS_LABEL_KEYS[event.fromStatus]}`)} → ${t(`mlearn.WordHover.Status.${STATUS_LABEL_KEYS[event.toStatus]}`)}`;
-    }
-    if (event.toStatus) return t(`mlearn.WordHover.Status.${STATUS_LABEL_KEYS[event.toStatus]}`);
-    if (event.rating) return event.rating;
-    return '';
-  };
 
   return (
     <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel word-history-panel">
@@ -126,42 +101,14 @@ export const WordHistoryPanel: Component = () => {
           onAspectChange={setAspect}
           mode="full"
           now={Date.now()}
+          showChart={isChartableHistory(graphData().points)}
         />
 
         <Show
           when={events().length > 0}
           fallback={<p class="word-history-empty">{t('mlearn.Statistics.WordHistory.Empty')}</p>}
         >
-          <table class="word-history-table">
-            <thead>
-              <tr>
-                <th class="word-history-time-column">{t('mlearn.Knowledge.History.Table.Time')}</th>
-                <th>{t('mlearn.Knowledge.History.Table.Event')}</th>
-                <th>{t('mlearn.Knowledge.History.Table.Source')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={events()}>
-                {(event) => {
-                  const detail = eventDetail(event);
-                  return (
-                    <tr>
-                      <td class="word-history-time-column">{new Date(event.t).toLocaleDateString()}</td>
-                      <td>
-                        <span class="word-history-kind">
-                          {t(`mlearn.Knowledge.History.Kind.${KIND_LABEL_KEYS[event.kind]}`)}
-                        </span>
-                        <Show when={detail}>
-                          <span class="word-history-transition">{detail}</span>
-                        </Show>
-                      </td>
-                      <td class="word-history-source-column">{sourceLabel(event)}</td>
-                    </tr>
-                  );
-                }}
-              </For>
-            </tbody>
-          </table>
+          <KnowledgeHistoryTimeline events={events()} />
         </Show>
       </Show>
     </Panel>

@@ -59,8 +59,9 @@
 
 .col.knowledge {
   flex: 2;
-  min-width: 240px;
+  min-width: 230px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
 }

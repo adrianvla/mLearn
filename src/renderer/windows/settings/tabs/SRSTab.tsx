@@ -31,6 +31,8 @@ export const SRSTab: Component = () => {
   const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { store, updateMeta, resetSRS, nukeAllFlashcards } = useFlashcards();
+  const { recomputeWordKnowledgeFromEvidence } = useFlashcards();
+
   const { getLanguageFeatures, currentLangData } = useLanguage();
   const anki = useAnki();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
@@ -61,6 +63,11 @@ export const SRSTab: Component = () => {
         fetchCards: (ids: number[]) => anki.getCardsInfo(ids),
         grammar: currentLangData()?.grammar,
       });
+      // Anki evidence is no longer a knowledge source — refresh materialized
+      // wordKnowledge projections from the freshly appended event journal.
+      for (const word of result.importedWords) {
+        void recomputeWordKnowledgeFromEvidence(word, settings.language);
+      }
       showToast({
         message: t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Success', {
           imported: result.imported,

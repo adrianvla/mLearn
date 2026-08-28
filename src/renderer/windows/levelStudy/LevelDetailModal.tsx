@@ -35,8 +35,11 @@ interface WordListItem {
 }
 
 const SLIDER_LABELS = ['Unknown', 'Learning', 'Known'] as const;
+// The slider is a SELECTION filter only (words up to a status threshold).
+// Curriculum adds never write learner-knowledge claims: cards are scheduler
+// seeds ('new'), knowledge accrues from reviews/attempts/claims. Bulk status
+// stamping lives in BulkAddModal's explicit target-status dropdown.
 const SLIDER_FILTER_VALUES = ['unknown', 'learning', 'known'] as const;
-const SLIDER_TARGET_STATUS: Array<'new' | 'learning' | 'known'> = ['new', 'learning', 'known'];
 const SLIDER_PILL_VARIANTS = ['red', 'orange', 'green'] as const;
 const ROW_HEIGHT = 40;
 
@@ -146,7 +149,9 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
       })),
     }).map((decision) => decision.candidate.word!);
     if (words.length === 0) return;
-    const targetStatus = SLIDER_TARGET_STATUS[sliderIndex()];
+    // Curriculum only — scheduler seeds; explicit knowledge marking is not
+    // offered here (BulkAddModal's status dropdown or the pill does that).
+    const targetStatus = 'new' as const;
     setIsAdding(true);
     try {
       const result = await flashcards.addLevelStudyFlashcards(words, targetStatus, activeLanguage());

@@ -9,8 +9,11 @@ import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 
 const GRAPH_DIR = 'scripts/language-data/source/root-of-app/languages';
-const LANGUAGES = ['ja', 'ru'];
+const LANGUAGES = ['ja', 'de', 'ru', 'zh'];
 const LOOKUPS = 200_000;
+// Per-lookup latency sample for p50/p99 (individual timings; kept separate
+// from the throughput loop so timer overhead does not pollute it).
+const LATENCY_SAMPLE = 20_000;
 const ADJ_SCANS = 50_000;
 const COMPACT = process.argv.includes('--compact');
 const JSON_OUTPUT = process.argv.includes('--json');
@@ -167,7 +170,18 @@ function measuredLookups(nodeIds, lookup) {
   for (const id of sampleIds) {
     lookup(id);
   }
-  return Math.round((LOOKUPS * 1000) / (performance.now() - start));
+  const ops = Math.round((LOOKUPS * 1000) / (performance.now() - start));
+  // Individual-timing sample → p50/p99 in microseconds.
+  const latencies = new Array(LATENCY_SAMPLE);
+  for (let i = 0; i < LATENCY_SAMPLE; i += 1) {
+    const id = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+    const t0 = performance.now();
+    lookup(id);
+    latencies[i] = performance.now() - t0;
+  }
+  latencies.sort((a, b) => a - b);
+  const pct = (p) => +(latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))] * 1000).toFixed(2);
+  return { ops, p50us: pct(0.5), p99us: pct(0.99) };
 }
 
 function memory() {
@@ -180,12 +194,12 @@ function maxRss(...snapshots) {
 }
 
 function benchmarkGraph(graph, lookup) {
-  const lookupOps = measuredLookups(graph.persistentOf, lookup);
+  const { ops: lookupOps, p50us, p99us } = measuredLookups(graph.persistentOf, lookup);
   const sample = Array.from({ length: ADJ_SCANS }, () => graph.persistentOf[Math.floor(Math.random() * graph.persistentOf.length)]);
   const start = performance.now();
   let adjHits = 0;
   for (const id of sample) adjHits += graph.neighborsByCategory ? graph.neighborsByCategory(id, 'identity').length : relationsOf(graph, id).length;
-  return { lookupOps, adjacencyMs: +(performance.now() - start).toFixed(1), adjHits };
+  return { lookupOps, p50us, p99us, adjacencyMs: +(performance.now() - start).toFixed(1), adjHits };
 }
 
 function typedArrayBytes(graph) {
@@ -318,11 +332,11 @@ for (const lang of LANGUAGES) {
   results.push(COMPACT ? benchCompactLang(lang) : benchLang(lang));
 }
 const header = COMPACT
-  ? 'lang | artifactMB | gzipMB | decodeMs | indexMs | peakRssMB | steadyRssMB | entities | relations | lookupOps/s | adjScansMs'
-  : 'lang | artifactMB | gzipMB | parseMs | indexMs | peakRssMB | steadyRssMB | entities | relations | lookupOps/s | adjScansMs';
+  ? 'lang | artifactMB | gzipMB | decodeMs | indexMs | peakRssMB | steadyRssMB | entities | relations | lookupOps/s | p50us | p99us | adjScansMs'
+  : 'lang | artifactMB | gzipMB | parseMs | indexMs | peakRssMB | steadyRssMB | entities | relations | lookupOps/s | p50us | p99us | adjScansMs';
 const output = [header, '-'.repeat(header.length), ...results.map((r) => COMPACT
-  ? `${r.lang} | ${r.artifactMB} | ${r.gzipMB} | ${r.decodeMs} | ${r.indexMs} | ${r.peakRssMB} | ${r.steadyRssMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupOps} | ${r.adjacencyMs}`
-  : `${r.lang} | ${r.artifactMB} | ${r.gzipMB} | ${r.parseMs} | ${r.indexMs} | ${r.peakRssMB} | ${r.steadyRssMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupOps} | ${r.adjacencyMs}`)].join('\n');
+  ? `${r.lang} | ${r.artifactMB} | ${r.gzipMB} | ${r.decodeMs} | ${r.indexMs} | ${r.peakRssMB} | ${r.steadyRssMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupOps} | ${r.p50us} | ${r.p99us} | ${r.adjacencyMs}`
+  : `${r.lang} | ${r.artifactMB} | ${r.gzipMB} | ${r.parseMs} | ${r.indexMs} | ${r.peakRssMB} | ${r.steadyRssMB} | ${r.nodeCount} | ${r.relationCount} | ${r.lookupOps} | ${r.p50us} | ${r.p99us} | ${r.adjacencyMs}`)].join('\n');
 console.log(`\n${COMPACT ? 'COMPACT\n' : ''}${output}`);
 if (JSON_OUTPUT) console.log(JSON.stringify(results, null, 2));
 const resultPath = 'scripts/bench-graph.results.txt';

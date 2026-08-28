@@ -13,6 +13,7 @@ const PAD_LEFT = 6;
 const MARKER_RADIUS = 2.5;
 const ROLLUP_RADIUS = 1.5;
 const STATUS_TRIANGLE_RADIUS = 4;
+const CLAIM_DIAMOND_SIZE = 6;
 const RATING_SQUARE_SIZE = 5;
 const BAND_STRIP_HEIGHT = 4;
 // Normalized-strength midpoint of the learning→known range: below = learning.
@@ -29,6 +30,12 @@ export interface KnowledgeHistoryGraphProps {
   mode: 'compact' | 'full';
   now: number;
   firstSeen?: number;
+  /**
+   * Render the strength curve at all. Aspect tabs always render; the curve is
+   * gated by the caller via isChartableHistory() — with thin data the event
+   * timeline communicates more than a two-pixel line ever could.
+   */
+  showChart?: boolean;
 }
 
 export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (props) => {
@@ -101,6 +108,19 @@ export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (pro
         </path>
       );
     }
+    if (point.kind === 'claim') {
+      // Claims are the user's statement, not evidence: a diamond offset from
+      // the evidence curve so the two never read as the same thing.
+      const s = CLAIM_DIAMOND_SIZE / 2;
+      return (
+        <path
+          class={classes}
+          d={`M ${cx} ${cy - s} L ${cx + s} ${cy} L ${cx} ${cy + s} L ${cx - s} ${cy} Z`}
+        >
+          <title>{label}</title>
+        </path>
+      );
+    }
     if (point.kind === 'rating') {
       const half = RATING_SQUARE_SIZE / 2;
       return (
@@ -134,8 +154,8 @@ export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (pro
         </For>
       </div>
       <Show
-        when={props.points.length > 0}
-        fallback={<div class="khistory-empty">{t('mlearn.Knowledge.History.Empty')}</div>}
+        when={props.showChart !== false && props.points.length > 0}
+        fallback={<Show when={props.showChart !== false}><div class="khistory-empty">{t('mlearn.Knowledge.History.Empty')}</div></Show>}
       >
         <svg
           class="khistory-svg"

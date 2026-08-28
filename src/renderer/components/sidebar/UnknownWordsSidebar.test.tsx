@@ -14,6 +14,7 @@ const wordStatusPillProps: Array<{ word: string; language?: string }> = [];
 const mockHasWordSync = vi.fn((word: string) => trackedWords.has(word));
 const mockGetCardByWordSync = vi.fn((word: string) => flashcardsByWord.get(word) ?? null);
 const mockGetComprehensiveWordStatusSync = vi.fn(() => 'unknown');
+const mockGetComprehensiveWordStatusWithSourceSync = vi.fn<(word: string) => { status: string; source: string; timesSeen: number; excluded?: boolean }>((_word: string) => ({ status: 'unknown', source: 'None', timesSeen: 0 }));
 const mockIsWordIgnoredSync = vi.fn(() => false);
 const mockResolveProsodyForHover = vi.fn(() => null as {
   renderer: 'inline-overlay' | 'label';
@@ -36,8 +37,6 @@ let mockSettings: Record<string, unknown> = {
   ankiKnownThreshold: 1800,
   ankiLearningEase: 1500,
   ankiKnownEase: 1800,
-  knowledgeSourceOrder: ['srs', 'anki', 'manual'],
-  knowledgeResolutionMode: 'highest',
 };
 
 vi.mock('../common', () => ({
@@ -116,10 +115,10 @@ vi.mock('../../context', () => ({
       switch (key) {
         case 'mlearn.AITutorSetup.AllLevels':
           return 'All';
-        case 'mlearn.ConversationAgent.Stats.FailedWords':
-          return 'Failed Words';
-        case 'mlearn.ConversationAgent.Stats.NoFailedWords':
-          return 'No failed words yet';
+        case 'mlearn.ConversationAgent.Stats.HoveredWords':
+          return 'Hovered Words';
+        case 'mlearn.ConversationAgent.Stats.NoHoveredWords':
+          return 'No hovered words yet';
         case 'mlearn.Sidebar.AddAll':
           return 'Add All';
         case 'mlearn.Sidebar.AddingAll':
@@ -147,7 +146,7 @@ vi.mock('../../context', () => ({
     hasWordSync: mockHasWordSync,
     getCardByWordSync: mockGetCardByWordSync,
     getComprehensiveWordStatusSync: mockGetComprehensiveWordStatusSync,
-    getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
+    getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
     getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
     isWordIgnoredSync: mockIsWordIgnoredSync,
   }),
@@ -219,6 +218,8 @@ describe('UnknownWordsSidebar', () => {
     mockHasWordSync.mockClear();
     mockGetCardByWordSync.mockClear();
     mockGetComprehensiveWordStatusSync.mockClear();
+    mockGetComprehensiveWordStatusWithSourceSync.mockClear();
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({ status: 'unknown', source: 'None', timesSeen: 0 });
     mockIsWordIgnoredSync.mockClear();
     mockResolveProsodyForHover.mockReset();
     mockResolveProsodyForHover.mockReturnValue(null);
@@ -234,8 +235,6 @@ describe('UnknownWordsSidebar', () => {
       ankiKnownThreshold: 1800,
       ankiLearningEase: 1500,
       ankiKnownEase: 1800,
-      knowledgeSourceOrder: ['srs', 'anki', 'manual'],
-      knowledgeResolutionMode: 'highest',
     };
 
     container = document.createElement('div');
@@ -291,7 +290,7 @@ describe('UnknownWordsSidebar', () => {
     expect(container.textContent).toContain('apple');
     expect(container.textContent).toContain('banana');
 
-    const failedButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Failed Words');
+    const failedButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Hovered Words');
     failedButton?.click();
 
     expect(container.textContent).not.toContain('apple context');
@@ -479,6 +478,67 @@ describe('UnknownWordsSidebar', () => {
     expect(segments.length).toBe(5);
     expect(segments[0].dataset.prosodyValue).toBe('tone-1');
     expect(segments[0].style.color).toBe('#ff00ff');
+
+    dispose();
+  });
+
+  it('hides excluded (ignored) words from the list and never offers them as addable', async () => {
+    translationByWord.set('猫', { data: [{ definitions: ['cat'], reading: 'ねこ' }] } as TranslationResponse);
+    translationByWord.set('犬', { data: [{ definitions: ['dog'], reading: 'いぬ' }] } as TranslationResponse);
+
+    const words = [
+      {
+        key: 'word-1',
+        word: '猫',
+        token: { word: '猫', actual_word: '猫', partOfSpeech: 'noun', type: 'word' },
+        contextPhrase: '猫 context',
+      },
+      {
+        key: 'word-2',
+        word: '犬',
+        token: { word: '犬', actual_word: '犬', partOfSpeech: 'noun', type: 'word' },
+        contextPhrase: '犬 context',
+      },
+    ];
+
+    // 犬 is teaching-excluded: the resolver reports status honestly ('unknown')
+    // with the orthogonal excluded flag set.
+    mockGetComprehensiveWordStatusWithSourceSync.mockImplementation((word: string) => ({
+      status: 'unknown',
+      source: 'None',
+      timesSeen: 0,
+      ...(word === '犬' ? { excluded: true } : {}),
+    }));
+
+    const onAddAllClick = vi.fn();
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+
+    const dispose = render(() => (
+      <UnknownWordsSidebar
+        words={() => words}
+        addingWordKeys={() => new Set<string>()}
+        isAddingAll={() => false}
+        onAddWord={() => undefined}
+        onIgnoreWord={() => undefined}
+        sortOptions={() => [{ value: 'word', label: 'Word' }]}
+        defaultSort="word"
+        emptyMessage="No unknown words"
+        onAddAllClick={onAddAllClick}
+      />
+    ), container);
+
+    await Promise.resolve();
+
+    // The excluded word never surfaces as unknown-word noise.
+    expect(container.textContent).toContain('猫');
+    expect(container.textContent).not.toContain('犬');
+
+    const addAllButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Add All');
+    addAllButton?.click();
+    expect(onAddAllClick).toHaveBeenCalledTimes(1);
+    expect(onAddAllClick.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ word: '猫' }),
+    ]);
 
     dispose();
   });

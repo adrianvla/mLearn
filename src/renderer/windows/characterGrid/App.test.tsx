@@ -9,7 +9,11 @@ const localizationMock = vi.fn((key: string, _params?: Record<string, number | s
 const getComprehensiveWordStatusSyncMock = vi.fn((_word: string) => 'unknown');
 let currentLangDataMock: Record<string, unknown> = {};
 let flashcardStoreMock: {
-  wordKnowledge: Record<string, { word: string; language: string }>;
+  wordKnowledge: Record<string, {
+    word: string;
+    language: string;
+    aspects?: { reading?: { status: string; ease?: number; claim?: string } };
+  }>;
   flashcards: Record<string, { language: string; content: { front?: string; word?: string } }>;
   ignoredWords: Record<string, { word: string; language: string }>;
 };
@@ -116,18 +120,48 @@ describe('CharacterGridContent', () => {
           return 'Character study is not available';
         case 'mlearn.CharacterGrid.Unsupported.Description':
           return 'This language package does not define character-study scripts.';
-        case 'mlearn.CharacterGrid.Legend.Learning':
-          return 'Learning';
-        case 'mlearn.CharacterGrid.Legend.Known':
-          return 'Known';
-        case 'mlearn.CharacterGrid.Legend.Unknown':
-          return 'Unknown';
-        case 'mlearn.CharacterGrid.Tooltip.KnownCount':
-          return 'KnownCategory';
-        case 'mlearn.CharacterGrid.Tooltip.LearningCount':
-          return 'LearningCategory';
-        case 'mlearn.CharacterGrid.Tooltip.UnknownCount':
-          return 'UnknownCategory';
+        case 'mlearn.CharacterGrid.Legend.Claimed':
+          return 'Claimed';
+        case 'mlearn.CharacterGrid.Legend.EvidencedKnown':
+          return 'EvidencedKnown';
+        case 'mlearn.CharacterGrid.Legend.EvidencedLearning':
+          return 'EvidencedLearning';
+        case 'mlearn.CharacterGrid.Legend.EvidencedUnknown':
+          return 'EvidencedUnknown';
+        case 'mlearn.CharacterGrid.Legend.Familiar':
+          return 'Familiar';
+        case 'mlearn.CharacterGrid.Legend.Emerging':
+          return 'Emerging';
+        case 'mlearn.CharacterGrid.Legend.Unmeasured':
+          return 'Unmeasured';
+        case 'mlearn.CharacterGrid.Tooltip.Claimed':
+          return 'ClaimedState';
+        case 'mlearn.CharacterGrid.Tooltip.Evidenced':
+          return 'EvidencedState';
+        case 'mlearn.CharacterGrid.Tooltip.Familiar':
+          return 'FamiliarState';
+        case 'mlearn.CharacterGrid.Tooltip.Emerging':
+          return 'EmergingState';
+        case 'mlearn.CharacterGrid.Tooltip.Unmeasured':
+          return 'UnmeasuredState';
+        case 'mlearn.CharacterGrid.Tooltip.KnownWords':
+          return 'KnownWords';
+        case 'mlearn.CharacterGrid.Tooltip.LearningWords':
+          return 'LearningWords';
+        case 'mlearn.CharacterGrid.Tooltip.PredictionNote':
+          return 'PredictionNote';
+        case 'mlearn.CharacterGrid.Tooltip.Reading.known':
+          return 'ReadingKnownNote';
+        case 'mlearn.CharacterGrid.Tooltip.Reading.learning':
+          return 'ReadingLearningNote';
+        case 'mlearn.CharacterGrid.Tooltip.Reading.unknown':
+          return 'ReadingUnknownNote';
+        case 'mlearn.CharacterGrid.Tooltip.Claim.known':
+          return 'ClaimKnownNote';
+        case 'mlearn.CharacterGrid.Tooltip.Claim.learning':
+          return 'ClaimLearningNote';
+        case 'mlearn.CharacterGrid.Tooltip.Claim.unknown':
+          return 'ClaimUnknownNote';
         case 'mlearn.CharacterGrid.Tooltip.MoreWords':
           return `+${params?.count ?? 0} more`;
         default:
@@ -503,13 +537,13 @@ describe('CharacterGridContent', () => {
 
     cellFor('س').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     await vi.waitFor(() => {
-      expect(container.querySelector('.cg-tooltip .tooltip-meta')?.textContent).toContain('KnownCategory');
+      expect(container.querySelector('.cg-tooltip .tooltip-meta')?.textContent).toContain('FamiliarState');
     });
     cellFor('س').dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
 
     cellFor('ب').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     await vi.waitFor(() => {
-      expect(container.querySelector('.cg-tooltip .tooltip-meta')?.textContent).toContain('UnknownCategory');
+      expect(container.querySelector('.cg-tooltip .tooltip-meta')?.textContent).toContain('UnmeasuredState');
     });
 
     dispose();
@@ -542,6 +576,156 @@ describe('CharacterGridContent', () => {
     await vi.waitFor(() => {
       expect(container.querySelector('.cg-empty-state h2')?.textContent).toBe('Character study is not available');
     });
+
+    dispose();
+  });
+
+  it('does not fabricate character evidence from reading records on multi-character words', async () => {
+    languageMock = 'ar';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      characterStudy: { scripts: ['Arab'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {};
+    getFreqLevelNamesMock.mockReturnValue({});
+    getComprehensiveWordStatusSyncMock.mockReturnValue('known');
+    flashcardStoreMock = {
+      wordKnowledge: {
+        // Multi-character word reading knowledge is word-level — it must NOT
+        // lift the characters it contains to "evidenced".
+        w: { word: 'سلام', language: 'ar', aspects: { reading: { status: 'known', ease: 2 } } },
+      },
+      flashcards: {},
+      ignoredWords: {},
+    };
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll('.study-character').length).toBeGreaterThan(0);
+    });
+
+    expect(container.querySelector('.cg-cell-evidenced, .cg-cell-evidenced-unknown, .cg-cell-claimed')).toBeNull();
+    const cellFor = (char: string) => Array.from(container.querySelectorAll<HTMLElement>('.cg-cell'))
+      .find((c) => c.querySelector('.study-character')?.textContent === char)!;
+    expect(cellFor('س').dataset.state).toBe('familiar');
+
+    dispose();
+  });
+
+  it('shows a distinct directly-evidenced state that outranks word prediction', async () => {
+    languageMock = 'ar';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      characterStudy: { scripts: ['Arab'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {};
+    getFreqLevelNamesMock.mockReturnValue({});
+    getComprehensiveWordStatusSyncMock.mockReturnValue('known');
+    flashcardStoreMock = {
+      wordKnowledge: {
+        known: { word: 'سلام', language: 'ar' },
+        // A single-character word with reading-attempt evidence is the
+        // character's own capability.
+        one: { word: 'س', language: 'ar', aspects: { reading: { status: 'known', ease: 2 } } },
+      },
+      flashcards: {},
+      ignoredWords: {},
+    };
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('.cg-cell-evidenced')).not.toBeNull();
+    });
+
+    const cellFor = (char: string) => Array.from(container.querySelectorAll<HTMLElement>('.cg-cell'))
+      .find((c) => c.querySelector('.study-character')?.textContent === char)!;
+    expect(cellFor('س').classList.contains('cg-cell-evidenced')).toBe(true);
+    expect(cellFor('س').dataset.state).toBe('evidenced');
+    // Characters only seen inside multi-character words stay predicted.
+    expect(cellFor('ل').dataset.state).toBe('familiar');
+    expect(cellFor('ا').dataset.state).toBe('familiar');
+
+    cellFor('س').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(container.querySelector('.tooltip-direct--evidence')?.textContent).toContain('ReadingKnownNote');
+      expect(container.querySelector('.tooltip-note')?.textContent).toContain('PredictionNote');
+    });
+
+    dispose();
+  });
+
+  it('labels an explicit per-character claim as claimed, outranking prediction', async () => {
+    languageMock = 'ar';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      characterStudy: { scripts: ['Arab'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {};
+    getFreqLevelNamesMock.mockReturnValue({});
+    getComprehensiveWordStatusSyncMock.mockReturnValue('known');
+    flashcardStoreMock = {
+      wordKnowledge: {
+        known: { word: 'سلام', language: 'ar' },
+        // Manual claim record (source 'Manual', claim set) — user statement.
+        one: { word: 'س', language: 'ar', aspects: { reading: { status: 'learning', ease: 1.55, claim: 'learning' } } },
+      },
+      flashcards: {},
+      ignoredWords: {},
+    };
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('.cg-cell-claimed')).not.toBeNull();
+    });
+
+    const cellFor = (char: string) => Array.from(container.querySelectorAll<HTMLElement>('.cg-cell'))
+      .find((c) => c.querySelector('.study-character')?.textContent === char)!;
+    expect(cellFor('س').dataset.state).toBe('claimed');
+
+    cellFor('س').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(container.querySelector('.tooltip-direct--claim')?.textContent).toContain('ClaimLearningNote');
+    });
+
+    dispose();
+  });
+
+  it('failed reading attempts are direct evidence, not predicted familiarity', async () => {
+    languageMock = 'ar';
+    currentLangDataMock = {
+      textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
+      characterStudy: { scripts: ['Arab'], levelOrder: 'ascending' },
+    };
+    wordFrequencyMock = {};
+    getFreqLevelNamesMock.mockReturnValue({});
+    getComprehensiveWordStatusSyncMock.mockReturnValue('known');
+    flashcardStoreMock = {
+      wordKnowledge: {
+        known: { word: 'سلام', language: 'ar' },
+        one: { word: 'س', language: 'ar', aspects: { reading: { status: 'unknown', ease: 1.3 } } },
+      },
+      flashcards: {},
+      ignoredWords: {},
+    };
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('.cg-cell-evidenced-unknown')).not.toBeNull();
+    });
+
+    const cellFor = (char: string) => Array.from(container.querySelectorAll<HTMLElement>('.cg-cell'))
+      .find((c) => c.querySelector('.study-character')?.textContent === char)!;
+    //  س appears in a known word (predicted familiar) but failed reading
+    // attempts are evidence — evidence outranks prediction.
+    expect(cellFor('س').dataset.state).toBe('evidenced');
 
     dispose();
   });

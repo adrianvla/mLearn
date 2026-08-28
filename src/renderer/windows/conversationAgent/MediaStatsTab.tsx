@@ -25,7 +25,7 @@ import {
   BarChartIcon,
 } from '../../components/common';
 import type { TabItem } from '../../components/common';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../utils/levelPercentages';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../utils/levelPercentages';
 import {
   formatFrequencyLevelLabel,
   formatGrammarLevelLabel,
@@ -141,28 +141,25 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
     const wordLevels = computeWordLevelPercentages(stats, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(stats, grammarLookup, langCtx.currentLangData());
-    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
+    const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
+    const level = difficulty.lexical;
     const levelNames = langCtx.getFreqLevelNames();
 
-    // Use per-media wordsEncountered only; refine ease with global wordKnowledge
-    // but do NOT add words from other media that were never encountered here
-    const wordKnowledge = flashcardCtx.store.wordKnowledge;
+    // Use per-media wordsEncountered only; refine ease with the canonical
+    // resolver (effective claim ?? evidence projection) but do NOT add words
+    // from other media that were never encountered here. Per-media hover
+    // counts stay local (weak-signal observation for this media).
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     for (const entry of Object.values(stats.wordsEncountered)) {
-      const lang = settings.language;
-      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
-      if (globalEntry) {
-        // Use the lower ease (harder) between per-media and global knowledge
-        mediaWords.set(entry.word, {
-          word: entry.word,
-          ease: Math.min(entry.ease, globalEntry.ease),
-          timesSeen: Math.max(entry.timesSeen, globalEntry.timesSeen),
-          timesHovered: Math.max(entry.timesHovered, globalEntry.timesHovered),
-        });
-      } else {
-        mediaWords.set(entry.word, { ...entry });
-      }
+      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language);
+      // Use the lower ease (harder) between per-media and canonical global knowledge
+      mediaWords.set(entry.word, {
+        word: entry.word,
+        ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
+        timesSeen: Math.max(entry.timesSeen, resolved.timesSeen),
+        timesHovered: entry.timesHovered,
+      });
     }
 
     const allWords = Array.from(mediaWords.values()).map((w) => {
@@ -281,7 +278,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   ) => {
     const options = [
       { value: 'all', label: t('mlearn.ConversationAgent.Stats.Filter.All') },
-      { value: 'failed-only', label: t('mlearn.ConversationAgent.Stats.Filter.FailedOnly') },
+      { value: 'failed-only', label: t('mlearn.ConversationAgent.Stats.Filter.HoveredOnly') },
     ];
     const levels = order === 'frequency'
       ? getFrequencyFilterLevels(names, entries, langCtx.currentLangData())
@@ -388,7 +385,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                       size="sm"
                     />
                     <StatCard
-                      label={t('mlearn.ConversationAgent.Stats.FailedGrammarCount')}
+                      label={t('mlearn.ConversationAgent.Stats.StruggledGrammarCount')}
                       value={v().failedGrammar.length}
                       size="sm"
                     />
@@ -517,7 +514,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                                   </PillLabel>
                                 </Show>
                                 <Show when={entry.timesFailed > 0}>
-                                  <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Failed')} {entry.timesFailed}x</span>
+                                  <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Struggled')} {entry.timesFailed}x</span>
                                 </Show>
                                 <span class="ca-stats-ease" style={{ color: getEaseColor(entry.ease) }}>
                                   {entry.ease.toFixed(2)}

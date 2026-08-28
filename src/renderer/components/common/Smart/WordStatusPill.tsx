@@ -1,12 +1,12 @@
 import { Component, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
 import { ankiCacheVersion, findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
-import { ANKI_EASE, type WordKnowledgeSource } from '../../../../shared/constants';
+import { ANKI_EASE } from '../../../../shared/constants';
+import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
 import { useAnki } from '../../../hooks/useAnki';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
   getAnkiEaseForStatus,
-  WORD_STATUS_VALUES,
   type WordStatus,
 } from '../../subtitle/wordHoverHelpers';
 import { PillBtn } from '../Button';
@@ -14,17 +14,17 @@ import { Tooltip } from '../Tooltip';
 import { AnkiModifyWarningModal } from '../../flashcard/AnkiModifyWarningModal';
 import { showToast } from '../Feedback/Toast';
 import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordStatusPillLogic';
+import { isUntrackedKnowledge, knowledgeStatusLabelKey } from '../WordStatusPillKnowledge/knowledgeSummary';
 import { WordStatusPillKnowledge } from '../WordStatusPillKnowledge';
 
 const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
-
-const getNextStatus = (status: WordStatus): WordStatus => {
-  const index = WORD_STATUS_VALUES.indexOf(status);
-  return WORD_STATUS_VALUES[(index + 1) % WORD_STATUS_VALUES.length];
-};
-
-const PASSIVE_SOURCES: ReadonlySet<WordKnowledgeSource> = new Set(['PassiveTracking', 'Manual', 'None']);
+// An "intentional" current state — worth a confirm dialog before the user
+// overrides it — is an explicit claim or non-passive evidence (SRS, Anki,
+// migration import). Pure passive exposure and unmeasured need no warning.
+const hasIntentionalBasis = (result: ComprehensiveWordStatusResult): boolean => (
+  result.basis === 'claim' || (result.basis === 'evidence' && result.source !== 'PassiveTracking')
+);
 
 export interface WordStatusPillProps {
   word: string;
@@ -44,7 +44,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     getWordVariantsForLanguage,
     currentLangData,
   } = useLanguage();
-  const { trackWordStatusChange, getComprehensiveWordStatusWithSourceSync, setComprehensiveWordStatus } = useFlashcards();
+  const { trackWordStatusChange, getComprehensiveWordStatusWithSourceSync, setWordClaim } = useFlashcards();
   const { t } = useLocalization();
   const anki = useAnki();
 
@@ -55,6 +55,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   // The knowledge tooltip is interactive (Portal-mounted) — while open it counts
   // as an internal modal so hover-popover parents don't close mid-interaction.
   const [knowledgeTooltipOpen, setKnowledgeTooltipOpen] = createSignal(false);
+  const [knowledgePinned, setKnowledgePinned] = createSignal(false);
 
   const targetLanguage = createMemo(() => props.language ?? settings.language);
   const isActiveLanguage = createMemo(() => targetLanguage() === settings.language);
@@ -85,14 +86,18 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const effectiveStatus = createMemo(() => comprehensiveResult().status);
 
   const statusSourceLabel = createMemo(() => {
-    const source = comprehensiveResult().source;
-    const sourceLabels = source === 'None'
+    const result = comprehensiveResult();
+    const basisLabels: Record<typeof result.basis, string> = {
+      claim: t('mlearn.Knowledge.Basis.Claim'),
+      evidence: t('mlearn.Knowledge.Basis.Evidence'),
+      unmeasured: t('mlearn.Knowledge.Basis.Unmeasured'),
+    };
+    const sourceLabels = result.basis === 'unmeasured'
       ? []
-      : [t(`mlearn.Settings.KnowledgePriority.Source.${source}`)];
+      : [basisLabels[result.basis]];
 
-    const timesSeen = comprehensiveResult().timesSeen;
-    if ((source === 'PassiveTracking' || source === 'Manual') && timesSeen > 0) {
-      sourceLabels.push(t('mlearn.WordHover.TimesSeen', { count: String(timesSeen) }));
+    if (result.timesSeen > 0) {
+      sourceLabels.push(t('mlearn.WordHover.TimesSeen', { count: String(result.timesSeen) }));
     }
 
     return buildWordStatusSourceLabel({
@@ -100,7 +105,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       noneLabel: t('mlearn.Knowledge.LegacySource.None'),
       sourceLabels,
       displayedWord: props.word,
-      canonicalWord: comprehensiveResult().matchedWord ?? primaryWord(),
+      canonicalWord: result.matchedWord ?? primaryWord(),
     });
   });
 
@@ -110,6 +115,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     setShowAnkiModifyWarning(false);
     setPendingStatus(null);
     setPendingSkipAnki(false);
+    setKnowledgePinned(false);
   });
 
   createEffect(() => {
@@ -120,7 +126,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     const word = primaryWord();
     if (!word) return;
 
-    setComprehensiveWordStatus(word, nextStatus, targetLanguage());
+    setWordClaim(word, nextStatus, targetLanguage());
     trackWordStatusChange(word, targetLanguage());
 
     const ankiWord = matchedAnkiWord();
@@ -145,8 +151,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const openStatusChangeFlow = (nextStatus: WordStatus) => {
     setPendingStatus(nextStatus);
 
-    const source = comprehensiveResult().source;
-    const hasIntentionalSource = !PASSIVE_SOURCES.has(source);
+    const hasIntentionalSource = hasIntentionalBasis(comprehensiveResult());
 
     const action = getWordStatusChangeAction({
       isInAnki: !!matchedAnkiWord() && settings.use_anki,
@@ -169,10 +174,16 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     setPendingStatus(null);
   };
 
+  // The compact pill is one deliberate gesture: "I know this." Untracked words
+  // are claimed Known immediately; an existing contradictory intentional state
+  // (claim / active evidence) still gets the override warning. Unknown and
+  // Learning stay deliberate edits — they live in the inspector, never on the
+  // fast path (Learning and Unknown carry real epistemic weight in Tier 2).
   const handleStatusChange = (event?: MouseEvent) => {
     event?.preventDefault();
     event?.stopPropagation();
-    openStatusChangeFlow(getNextStatus(effectiveStatus()));
+    if (effectiveStatus() === 'known') return;
+    openStatusChangeFlow('known');
   };
 
   const confirmStatusSourceChange = (dontRemind: boolean) => {
@@ -201,8 +212,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       updateSettings({ skipAnkiModifyWarning: true });
     }
 
-    const source = comprehensiveResult().source;
-    const hasIntentionalSource = !PASSIVE_SOURCES.has(source);
+    const hasIntentionalSource = hasIntentionalBasis(comprehensiveResult());
 
     if (hasIntentionalSource && !settings.skipStatusSourceWarning) {
       setShowStatusSourceWarning(true);
@@ -224,8 +234,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       updateSettings({ skipAnkiModifyWarning: true });
     }
 
-    const source = comprehensiveResult().source;
-    const hasIntentionalSource = !PASSIVE_SOURCES.has(source);
+    const hasIntentionalSource = hasIntentionalBasis(comprehensiveResult());
 
     if (hasIntentionalSource && !settings.skipStatusSourceWarning) {
       setPendingSkipAnki(true);
@@ -240,35 +249,39 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   };
 
   const statusVariant = createMemo(() => {
+    // Untracked is the honest "no claim, no evidence" state — muted, never
+    // danger red; red is reserved for an actual negative epistemic state.
+    if (isUntrackedKnowledge(effectiveStatus(), comprehensiveResult().basis)) return 'gray';
     const status = effectiveStatus();
     return status === 'unknown' ? 'red' : status === 'learning' ? 'orange' : 'green';
   });
 
   const statusIcon = createMemo(() => {
-    const status = effectiveStatus();
-    return status === 'unknown' ? ICON_CROSS2 : ICON_CHECK;
+    if (isUntrackedKnowledge(effectiveStatus(), comprehensiveResult().basis)) return undefined;
+    return effectiveStatus() === 'unknown' ? ICON_CROSS2 : ICON_CHECK;
   });
 
-  const statusLabel = createMemo(() => {
-    const status = effectiveStatus();
-    return status === 'unknown'
-      ? t('mlearn.WordHover.Status.Unknown')
-      : status === 'learning'
-        ? t('mlearn.WordHover.Status.Learning')
-        : t('mlearn.WordHover.Status.Known');
-  });
+  const statusLabel = createMemo(() => (
+    knowledgeStatusLabelKey(effectiveStatus(), comprehensiveResult().basis)
+  ));
 
   return (
     <>
       <Tooltip
         interactive
+        pinned={knowledgePinned()}
+        onRequestClose={() => setKnowledgePinned(false)}
         onShow={() => setKnowledgeTooltipOpen(true)}
         onHide={() => setKnowledgeTooltipOpen(false)}
         content={
-          <>
-            <WordStatusPillKnowledge word={props.word} language={targetLanguage()} />
-            <span>{statusSourceLabel()}</span>
-          </>
+          <WordStatusPillKnowledge
+            word={props.word}
+            language={targetLanguage()}
+            pinned={knowledgePinned()}
+            onClose={() => setKnowledgePinned(false)}
+            onPin={() => setKnowledgePinned(true)}
+            statusSourceLabel={statusSourceLabel()}
+          />
         }
       >
         <PillBtn

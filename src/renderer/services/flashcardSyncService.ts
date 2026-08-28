@@ -1,4 +1,4 @@
-import type { FlashcardStore, Flashcard, LanguageDataMap, WordCandidate, WordStats } from '../../shared/types';
+import type { FlashcardStore, Flashcard, LanguageDataMap, PassiveWordKnowledge, WordCandidate, WordStats } from '../../shared/types';
 import { canonicalLanguage } from '../../shared/languageVariants';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { calculateWordStats } from '../../shared/utils/wordStats';
@@ -81,10 +81,41 @@ export async function mergeFlashcards(
     options: MergeFlashcardsOptions = {},
 ): Promise<FlashcardStore> {
   const merged: FlashcardStore = JSON.parse(JSON.stringify(localStore));
+  const entryRecency = (entry: PassiveWordKnowledge): number => entry.claimAt ?? entry.lastStatusChange ?? entry.lastSeen;
 
+  // Epistemic entries merge per-entry LWW (claim timestamp wins): a stale
+  // device snapshot can no longer revert a newer claim/evidence write.
+  if (remoteStore.wordKnowledge) {
+    for (const [lk, remoteEntry] of Object.entries(remoteStore.wordKnowledge)) {
+      const localEntry = merged.wordKnowledge[lk];
+      if (!localEntry || entryRecency(remoteEntry) > entryRecency(localEntry)) {
+        merged.wordKnowledge[lk] = remoteEntry;
+      }
+    }
+  }
+
+  // Legacy remote clients still send knownUntracked (pre-claims protocol).
+  // Ingest recoverable entries as explicit known claims; orphan hashes stay
+  // in the residue map until their word text can be recovered.
   if (remoteStore.knownUntracked) {
     for (const [wordHash, value] of Object.entries(remoteStore.knownUntracked)) {
-      if (value) {
+      if (!value) continue;
+      const word = remoteStore.ignoredWords?.[wordHash]?.word
+        ?? remoteStore.wordKnowledge?.[wordHash]?.word
+        ?? merged.wordKnowledge[wordHash]?.word;
+      if (word) {
+        const existing = merged.wordKnowledge[wordHash];
+        merged.wordKnowledge[wordHash] = {
+          ease: existing?.ease ?? 0,
+          lastSeen: existing?.lastSeen ?? Date.now(),
+          timesSeen: existing?.timesSeen ?? 0,
+          timesHovered: existing?.timesHovered ?? 0,
+          word,
+          language: existing?.language,
+          claim: 'known',
+          claimAt: Math.max(existing?.claimAt ?? 0, Date.now()),
+        };
+      } else {
         merged.knownUntracked[wordHash] = true;
       }
     }

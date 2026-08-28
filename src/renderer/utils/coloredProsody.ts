@@ -1,6 +1,6 @@
 import type { JSX } from 'solid-js';
 import type { WordStatus } from '../../shared/constants';
-import { normalizedStrength } from '../../shared/utils/knowledgeStrength';
+import { statusToStrength } from '../../shared/utils/knowledgeStrength';
 import {
   DEFAULT_SETTINGS,
   type LanguageColoredProsodyConfig,
@@ -22,13 +22,13 @@ export interface ColoredProsodyRenderInput {
   prosodyPosition?: number | null;
 }
 
-/** Evidence for the prosodic-pattern target, never the word's combined status. */
+/** Effective state of the prosodic-pattern target — claim-overrides-evidence as
+ *  resolved by getAspectStatus(word, 'prosody'). Never the word's combined status. */
 export interface ColoredProsodyKnowledge {
   status: WordStatus;
+  /** Aspect-record ease (mirrors the aspect read); the fade keys off status classification, never ease. */
   ease: number;
   untracked?: boolean;
-  /** A read-only accessibility estimate when this target has no direct evidence. */
-  predictedAccessibility?: number;
   /** Exclusions settle word selection; they are not prosody knowledge. */
   excluded?: boolean;
 }
@@ -119,20 +119,19 @@ export function coloredProsodyAllowsStatus(status: WordStatus, limit: Settings['
 }
 
 /**
- * Fade only from evidence about the prosodic-pattern target. An unmeasured or
- * excluded target remains fully visible; prediction is used only when supplied.
+ * Fade only from demonstrated mastery of the prosodic-pattern target. The
+ * decision keys off the aspect-specific effective status classification
+ * (claim or evidence) — never the stored ease, which for claim records is
+ * seeded from the word entry and would leak word-level knowledge into the
+ * scaffold. Unmeasured targets (no record) and predicted estimates are not
+ * demonstrated mastery: they keep the full scaffold (no fade).
  */
 export function getColoredProsodyFadeStrength(
   knowledge: ColoredProsodyKnowledge,
-  settings: Pick<Settings, 'easeThresholdLearning' | 'easeThresholdKnown'>,
 ): number {
   if (knowledge.excluded) return 0;
-  if (knowledge.untracked) return Math.max(0, Math.min(1, knowledge.predictedAccessibility ?? 0));
-  return normalizedStrength(
-    knowledge.ease * 1000,
-    (settings.easeThresholdLearning ?? DEFAULT_SETTINGS.easeThresholdLearning) * 1000,
-    (settings.easeThresholdKnown ?? DEFAULT_SETTINGS.easeThresholdKnown) * 1000,
-  );
+  if (knowledge.untracked) return 0;
+  return statusToStrength(knowledge.status);
 }
 
 interface RgbColor {

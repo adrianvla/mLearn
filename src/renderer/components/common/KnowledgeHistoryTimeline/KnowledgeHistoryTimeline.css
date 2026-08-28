@@ -1,0 +1,44 @@
+.knowledge-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.knowledge-timeline__day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.knowledge-timeline__day-label {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.knowledge-timeline__event {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  padding-left: var(--spacing-2);
+  border-left: 2px solid var(--border-color);
+}
+
+.knowledge-timeline__mark {
+  flex: 0 0 auto;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  align-self: center;
+}
+
+/* Claims are the user's own statements — visually distinct from evidence. */
+.knowledge-timeline__event--claim { border-left-color: var(--color-primary); }
+.knowledge-timeline__event--claim .knowledge-timeline__mark { background: var(--color-primary); }
+
+.knowledge-timeline__kind { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+.knowledge-timeline__detail { color: var(--text-secondary); }
+.knowledge-timeline__source { margin-left: auto; color: var(--text-tertiary); font-size: var(--font-size-2xs); }

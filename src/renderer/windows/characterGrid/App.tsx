@@ -1,11 +1,12 @@
 /**
  * Character Grid Window
- * Displays a visual grid of language-defined study characters with learning status colors.
+ * Displays a visual grid of language-defined study characters with
+ * prediction/evidence-aware status colors.
  */
 
 import { Component, createSignal, For, Show, onMount, createMemo, createEffect } from 'solid-js';
 import { WindowWrapper, useLanguage, useLocalization, useSettings, useFlashcards } from '../../context';
-import { WORD_STATUS } from '../../../shared/constants';
+import { WORD_STATUS, type WordStatus } from '../../../shared/constants';
 import {
   extractUniqueStudyCharacters,
   getCharacterStudyLevelOrder,
@@ -22,15 +23,31 @@ import type { LanguageCharacterStudyConfig } from '../../../shared/types';
 
 const log = getLogger("renderer.characterGrid.app");
 
-// Tier-2 semantics: these categories are PREDICTED familiarity derived from
-// words containing the character (SUPPORT-style aggregation). They are not
-// evidence-backed CharacterRecognition/CharacterReading state — direct
-// character targets remain unmeasured until real character encounters exist.
+// Tier-2 semantics: three per-character signal sources, resolved in strict
+// priority — claim outranks evidence, evidence outranks prediction:
+//   1. claim     — the user's own explicit statement about this character
+//                  (setAspectStatus('reading', …, 'manual') claim record).
+//   2. evidence  — character-reading attempt records on SINGLE-character word
+//                  entries (aspect 'reading'). Reading attempts on
+//                  multi-character words are word-level, not per-character
+//                  capability, and never count here.
+//   3. predicted — familiarity derived from the words containing the character
+//                  (SUPPORT-style aggregation). Prediction is NEVER presented
+//                  as character knowledge.
 type PredictedFamiliarity = 'familiar' | 'emerging' | 'unmeasured';
+
+type CharacterDisplayState = 'claimed' | 'evidenced' | 'familiar' | 'emerging' | 'unmeasured';
+
+interface DirectCharacterKnowledge {
+  kind: 'claim' | 'evidence';
+  status: WordStatus;
+}
 
 interface StudyCharacterData {
   character: string;
   category: PredictedFamiliarity;
+  /** Direct reading knowledge about this character (claim or attempt evidence), when it exists. */
+  direct?: DirectCharacterKnowledge;
   score: number;
   knownCount: number;
   learnCount: number;
@@ -39,6 +56,14 @@ interface StudyCharacterData {
   wordsUnknown: string[];
   level?: number;
 }
+
+// Resolve the displayed state: claim outranks evidence, evidence outranks the
+// word-derived prediction.
+const displayStateOf = (item: StudyCharacterData): CharacterDisplayState => {
+  if (item.direct?.kind === 'claim') return 'claimed';
+  if (item.direct?.kind === 'evidence') return 'evidenced';
+  return item.category;
+};
 
 export const CharacterGridContent: Component = () => {
   const { getWordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
@@ -84,15 +109,21 @@ export const CharacterGridContent: Component = () => {
     return configured || t(fallbackKey);
   };
 
-  // Calculate stats
+  // Calculate stats over the resolved display states (claims and direct
+  // evidence outrank word-derived prediction).
   const stats = createMemo(() => {
     const data = characterData();
-    const known = data.filter(item => item.category === 'familiar').length;
-    const learning = data.filter(item => item.category === 'emerging').length;
-    const unknown = data.filter(item => item.category === 'unmeasured').length;
+    const count = (state: CharacterDisplayState) => data.filter(item => displayStateOf(item) === state).length;
+    const evidenced = count('evidenced');
+    const claimed = count('claimed');
+    const familiar = count('familiar');
+    const emerging = count('emerging');
+    const unmeasured = count('unmeasured');
     const total = data.length;
-    return { known, learning, unknown, total };
+    return { evidenced, claimed, familiar, emerging, unmeasured, total };
   });
+
+  const pct = (n: number) => stats().total ? Math.round(n / stats().total * 1000) / 10 : 0;
 
   const buildCharacterStats = async () => {
     setIsLoading(true);
@@ -236,10 +267,10 @@ export const CharacterGridContent: Component = () => {
         }
       }
 
-      // Classify characters.
+      // Classify characters by word-derived prediction.
       let maxKnown = 1;
       let maxLearn = 0.5;
-      
+
       for (const item of characterMap.values()) {
         if (item.knownCount > 0) {
           item.category = 'familiar';
@@ -250,12 +281,38 @@ export const CharacterGridContent: Component = () => {
         }
       }
 
-      // Sort by category and score
-      const sorted = Array.from(characterMap.values()).sort((a, b) => {
-        const order = { familiar: 0, emerging: 1, unmeasured: 2 };
-        if (order[a.category] !== order[b.category]) {
-          return order[a.category] - order[b.category];
+      // Direct character-reading signal: reading aspect records on word entries
+      // that ARE a single study character describe the character itself — word
+      // aggregation above is prediction only. A claim record (source 'Manual',
+      // claim set) is the user's explicit statement; any other record is
+      // character-reading attempt evidence. Both outrank prediction below.
+      const directByCharacter = new Map<string, NonNullable<StudyCharacterData['direct']>>();
+      for (const entry of Object.values(flashcardCtx.store.wordKnowledge)) {
+        if (!entry || entry.language !== lang) continue;
+        const chars = extractUniqueStudyCharacters(entry.word.trim(), studyScripts());
+        if (chars.length !== 1) continue;
+        const record = entry.aspects?.reading;
+        if (!record) continue;
+        const kind: DirectCharacterKnowledge['kind'] = record.claim !== undefined ? 'claim' : 'evidence';
+        const existing = directByCharacter.get(chars[0]);
+        if (!existing || (kind === 'claim' && existing.kind !== 'claim')) {
+          directByCharacter.set(chars[0], { kind, status: record.status });
         }
+      }
+      for (const item of characterMap.values()) {
+        const direct = directByCharacter.get(item.character);
+        if (direct) item.direct = direct;
+      }
+
+      // Sort by resolved state rank and score
+      const sorted = Array.from(characterMap.values()).sort((a, b) => {
+        const rank = (item: StudyCharacterData) => {
+          if (item.direct?.kind === 'claim') return 0;
+          if (item.direct?.kind === 'evidence') return 1;
+          return item.category === 'familiar' ? 2 : item.category === 'emerging' ? 3 : 4;
+        };
+        const order = rank(a) - rank(b);
+        if (order !== 0) return order;
         return b.score - a.score;
       });
 
@@ -278,6 +335,15 @@ export const CharacterGridContent: Component = () => {
   });
 
   const getColorForCharacter = (item: StudyCharacterData): string => {
+    // Direct states use solid, distinct fills — they outrank word-derived
+    // prediction, which keeps the light gradient scale.
+    if (item.direct?.kind === 'claim') return 'var(--color-primary)';
+    if (item.direct?.kind === 'evidence') {
+      if (item.direct.status === 'known') return 'var(--color-success)';
+      if (item.direct.status === 'learning') return 'var(--color-warning)';
+      return 'var(--character-grid-unknown-bg)';
+    }
+
     const { maxKnown, maxLearn } = colorMaxes();
 
     if (item.category === 'familiar') {
@@ -288,6 +354,31 @@ export const CharacterGridContent: Component = () => {
       return `color-mix(in srgb, var(--color-warning) ${t * 100}%, var(--pos-auxiliary))`;
     }
     return 'var(--character-grid-unknown-bg)';
+  };
+
+  // Cell classes carry the resolved display state so text color and the
+  // evidenced-but-failing ring follow the state, not the gradient guess.
+  const cellClassFor = (item: StudyCharacterData): string => {
+    if (item.direct?.kind === 'claim') return 'cg-cell-claimed';
+    if (item.direct?.kind === 'evidence') {
+      return item.direct.status === 'unknown' ? 'cg-cell-evidenced-unknown' : 'cg-cell-evidenced';
+    }
+    return item.category !== 'unmeasured' ? 'cg-cell-colored' : 'cg-cell-unknown';
+  };
+
+  // Localized display-state label shared by the tooltip meta and cell aria-label.
+  const stateLabel = (item: StudyCharacterData): string => {
+    if (item.direct?.kind === 'claim') return t('mlearn.CharacterGrid.Tooltip.Claimed');
+    if (item.direct?.kind === 'evidence') return t('mlearn.CharacterGrid.Tooltip.Evidenced');
+    if (item.category === 'familiar') return t('mlearn.CharacterGrid.Tooltip.Familiar');
+    if (item.category === 'emerging') return t('mlearn.CharacterGrid.Tooltip.Emerging');
+    return t('mlearn.CharacterGrid.Tooltip.Unmeasured');
+  };
+
+  // Tooltip line explaining what a direct state actually is; null = prediction-only.
+  const directNoteKey = (item: StudyCharacterData): string | null => {
+    if (!item.direct) return null;
+    return `mlearn.CharacterGrid.Tooltip.${item.direct.kind === 'claim' ? 'Claim' : 'Reading'}.${item.direct.status}`;
   };
 
   const isCharacterDimmed = (item: StudyCharacterData) => {
@@ -326,10 +417,11 @@ export const CharacterGridContent: Component = () => {
             <For each={characterData()}>
               {(item) => (
                 <div
-                  class={`cg-cell ${isCharacterDimmed(item) ? 'dimmed' : ''} ${item.category !== 'unmeasured' ? 'cg-cell-colored' : 'cg-cell-unknown'}`}
+                  class={`cg-cell ${isCharacterDimmed(item) ? 'dimmed' : ''} ${cellClassFor(item)}`}
                   style={{ background: getColorForCharacter(item) }}
                   tabindex={0}
-                  aria-label={item.character}
+                  aria-label={`${item.character} — ${stateLabel(item)}`}
+                  data-state={displayStateOf(item)}
                   onMouseEnter={() => setHoveredCharacter(item)}
                   onMouseLeave={() => setHoveredCharacter(null)}
                   onFocus={() => setHoveredCharacter(item)}
@@ -364,18 +456,24 @@ export const CharacterGridContent: Component = () => {
         </div>
 
         <div class="cg-sidebar">
-          {/* Legend */}
+          {/* Legend — direct states first (they outrank prediction), then prediction */}
           <div class="cg-legend">
-            <LegendItem label={t('mlearn.CharacterGrid.Legend.Learning')} color="var(--pos-auxiliary)" secondaryColor="var(--color-warning)" showArrow />
-            <LegendItem label={t('mlearn.CharacterGrid.Legend.Known')} color="var(--color-success)" secondaryColor="var(--color-success-lighter)" showArrow />
-            <LegendItem label={t('mlearn.CharacterGrid.Legend.Unknown')} color="var(--character-grid-unknown-bg)" />
+            <LegendItem label={t('mlearn.CharacterGrid.Legend.Claimed')} color="var(--color-primary)" />
+            <LegendItem label={t('mlearn.CharacterGrid.Legend.EvidencedKnown')} color="var(--color-success)" />
+            <LegendItem label={t('mlearn.CharacterGrid.Legend.EvidencedLearning')} color="var(--color-warning)" />
+            <LegendItem label={t('mlearn.CharacterGrid.Legend.EvidencedUnknown')} color="var(--character-grid-unknown-bg)" />
+            <LegendItem label={t('mlearn.CharacterGrid.Legend.Familiar')} color="var(--color-success)" secondaryColor="var(--color-success-lighter)" showArrow />
+            <LegendItem label={t('mlearn.CharacterGrid.Legend.Emerging')} color="var(--pos-auxiliary)" secondaryColor="var(--color-warning)" showArrow />
+            <LegendItem label={t('mlearn.CharacterGrid.Legend.Unmeasured')} color="var(--character-grid-unknown-bg)" />
           </div>
 
           {/* Stats */}
           <div class="cg-stats">
-            <div>· {t('mlearn.CharacterGrid.Stats.Known')} <b>{stats().known}</b> <span class="cg-stats-pct">({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· {t('mlearn.CharacterGrid.Stats.Learning')} <b>{stats().learning}</b> <span class="cg-stats-pct">({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· {t('mlearn.CharacterGrid.Stats.Unknown')} <b>{stats().unknown}</b> <span class="cg-stats-pct">({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.CharacterGrid.Stats.Evidenced')} <b>{stats().evidenced}</b> <span class="cg-stats-pct">({pct(stats().evidenced)}%)</span></div>
+            <div>· {t('mlearn.CharacterGrid.Stats.Claimed')} <b>{stats().claimed}</b> <span class="cg-stats-pct">({pct(stats().claimed)}%)</span></div>
+            <div>· {t('mlearn.CharacterGrid.Stats.Familiar')} <b>{stats().familiar}</b> <span class="cg-stats-pct">({pct(stats().familiar)}%)</span></div>
+            <div>· {t('mlearn.CharacterGrid.Stats.Emerging')} <b>{stats().emerging}</b> <span class="cg-stats-pct">({pct(stats().emerging)}%)</span></div>
+            <div>· {t('mlearn.CharacterGrid.Stats.Unmeasured')} <b>{stats().unmeasured}</b> <span class="cg-stats-pct">({pct(stats().unmeasured)}%)</span></div>
             <div>· {t('mlearn.CharacterGrid.Stats.TotalFound')} <b>{stats().total}</b></div>
           </div>
 
@@ -423,15 +521,20 @@ export const CharacterGridContent: Component = () => {
           <div class="tooltip-title">
             {t('mlearn.CharacterGrid.Tooltip.WordsContaining', { char: hoveredCharacter()!.character })}
             <span class="tooltip-meta">
-              {(() => {
-                const category = hoveredCharacter()!.category;
-                if (category === 'familiar') return t('mlearn.CharacterGrid.Tooltip.KnownCount');
-                if (category === 'emerging') return t('mlearn.CharacterGrid.Tooltip.LearningCount');
-                return t('mlearn.CharacterGrid.Tooltip.UnknownCount');
-              })()}
+              {stateLabel(hoveredCharacter()!)}
               ({t('mlearn.CharacterGrid.Tooltip.Score')} {Math.round(hoveredCharacter()!.score * 10) / 10},
-              {t('mlearn.CharacterGrid.Tooltip.KnownCount')}: {hoveredCharacter()!.knownCount}, {t('mlearn.CharacterGrid.Tooltip.LearningCount')}: {hoveredCharacter()!.learnCount})
+              {t('mlearn.CharacterGrid.Tooltip.KnownWords')}: {hoveredCharacter()!.knownCount}, {t('mlearn.CharacterGrid.Tooltip.LearningWords')}: {hoveredCharacter()!.learnCount})
             </span>
+          </div>
+          <Show when={directNoteKey(hoveredCharacter()!)}>
+            {(noteKey) => (
+              <div class={`tooltip-direct tooltip-direct--${hoveredCharacter()!.direct!.kind}`}>
+                {t(noteKey())}
+              </div>
+            )}
+          </Show>
+          <div class="tooltip-note">
+            {t('mlearn.CharacterGrid.Tooltip.PredictionNote')}
           </div>
           <div class="tooltip-words">
             <For each={hoveredCharacter()!.wordsKnown.slice(0, 10)}>

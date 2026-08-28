@@ -43,6 +43,10 @@ export interface RatingMatrixProps {
   mode?: 'dominant' | 'profile';
   /** Drafts reset when this changes (profile mode; pass the current word). */
   resetKey?: string | number;
+  /** Start every profile row as Fluent after each reset; edits replace these drafts. */
+  initialDraftsFluent?: boolean;
+  /** Keep the full matrix available as an exception editor behind a compact bar. */
+  compact?: boolean;
   onRate: (aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => void;
   /** Dominant mode F: every tested aspect was Fluent. */
   onAllFluent?: (opts?: RateOptions) => void;
@@ -53,6 +57,12 @@ export interface RatingMatrixProps {
 const PENDING_TIMEOUT_MS = 1500;
 
 const QUALITY_KEYS: Record<AttemptQuality, string> = { missed: '1', struggled: '2', fluent: '3' };
+
+const QUALITY_LABEL_KEYS: Record<AttemptQuality, string> = {
+  missed: 'mlearn.Rating.Matrix.Missed',
+  struggled: 'mlearn.Rating.Matrix.Struggled',
+  fluent: 'mlearn.Rating.Matrix.Fluent',
+};
 
 // Same variant mapping the SRS rating buttons used: missed=again (danger),
 // struggled=hard (warning), fluent=good (success); all-fluent=easy (primary).
@@ -78,11 +88,22 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
   const { t } = useLocalization();
   const [pendingQuality, setPendingQuality] = createSignal<AttemptQuality | null>(null);
   const [drafts, setDrafts] = createStore<Partial<Record<KnowledgeAspect, { quality: AttemptQuality; method?: 'recall' | 'inference'; easy?: boolean }>>>({});
+  const [expanded, setExpanded] = createSignal(false);
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
   const isProfile = () => (props.mode ?? 'dominant') === 'profile';
 
-  createEffect(on(() => props.resetKey, () => { for (const key of Object.keys(drafts)) setDrafts(key as KnowledgeAspect, undefined); }, { defer: true }));
+  const resetDrafts = () => {
+    for (const key of Object.keys(drafts)) setDrafts(key as KnowledgeAspect, undefined);
+    if (isProfile() && props.initialDraftsFluent) {
+      for (const aspect of props.aspects) setDrafts(aspect, { quality: 'fluent' });
+    }
+  };
+
+  createEffect(on(() => props.resetKey, () => {
+    resetDrafts();
+    setExpanded(false);
+  }));
 
   const clearPending = () => {
     if (pendingTimer !== undefined) clearTimeout(pendingTimer);
@@ -123,12 +144,17 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!props.armed) return;
-    if (isRatingKeyIgnored(e)) return;
+    const buttonTarget = e.target instanceof HTMLElement && e.target.matches('button, [role="button"]');
+    if (isRatingKeyIgnored(e) && !buttonTarget) return;
     if (e.metaKey || e.ctrlKey) return;
     const key = e.key.toLowerCase();
 
     if (e.key === 'Escape') {
-      if (pendingQuality()) clearPending();
+      if (pendingQuality()) {
+        clearPending();
+      } else if (props.compact && expanded()) {
+        setExpanded(false);
+      }
       return;
     }
 
@@ -203,64 +229,139 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     return [SPATIAL_QUALITY_KEYS[quality][rowIndex]?.toUpperCase() ?? '·'];
   };
 
+  const submitAllFluent = (easy = false) => {
+    if (isProfile()) {
+      submitProfile(false, easy);
+      return;
+    }
+    props.onAllFluent?.(easy ? { easy: true } : undefined);
+  };
+
   return (
-    <div class="rating-matrix" classList={{ 'rating-matrix--armed': props.armed }}>
-      <div class="rating-matrix__head" role="presentation">
-        <span class="rating-matrix__corner" />
-        <For each={RATING_ACTIONS}>
-          {(quality) => (
-            <span
-              class="rating-matrix__col"
-              classList={{ 'rating-matrix__col--pending': pendingQuality() === quality }}
-            >
-              {t(`mlearn.Rating.Matrix.${quality === 'missed' ? 'Missed' : quality === 'struggled' ? 'Struggled' : quality === 'fluent' ? 'Fluent' : 'Easy'}`)}
-            </span>
-          )}
-        </For>
-      </div>
-      <For each={props.aspects}>
-        {(aspect) => (
-          <div class="rating-matrix__row" role="presentation">
-            <span class="rating-matrix__label">{t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect])}</span>
-            <For each={RATING_ACTIONS}>
-              {(quality) => (
+    <>
+      <Show when={props.compact}>
+        <div class="rating-matrix__compact">
+          <Button
+            buttonType="default"
+            variant="success"
+            size="sm"
+            class="rating-matrix__compact-action"
+            disabled={!props.armed}
+            onClick={() => submitAllFluent()}
+          >
+            {t('mlearn.Rating.Compact.AllFluent')}
+            <KeyboardShortcut keys={['F']} class="rating-matrix__hint" />
+          </Button>
+          <Button
+            buttonType="default"
+            variant="primary"
+            size="sm"
+            class="rating-matrix__compact-action"
+            disabled={!props.armed}
+            onClick={() => submitAllFluent(true)}
+          >
+            {t('mlearn.Rating.Compact.AllEasy')}
+            <KeyboardShortcut keys={['⇧', 'F']} class="rating-matrix__hint" />
+          </Button>
+          <Button
+            buttonType="default"
+            variant="ghost"
+            size="sm"
+            class="rating-matrix__compact-adjust"
+            disabled={!props.armed}
+            aria-expanded={expanded()}
+            onClick={() => setExpanded((shown) => !shown)}
+          >
+            {t('mlearn.Rating.Compact.Adjust')}
+          </Button>
+        </div>
+      </Show>
+      <div
+        class="rating-matrix"
+        classList={{
+          'rating-matrix--armed': props.armed,
+          'rating-matrix--collapsed': !!props.compact && !expanded(),
+        }}
+        aria-hidden={!!props.compact && !expanded()}
+        hidden={!!props.compact && !expanded()}
+      >
+        <div class="rating-matrix__head" role="presentation">
+          <span class="rating-matrix__corner" />
+          <For each={ATTEMPT_QUALITIES}>
+            {(quality) => (
+              <span
+                class="rating-matrix__col"
+                classList={{ 'rating-matrix__col--pending': pendingQuality() === quality }}
+              >
+                {t(QUALITY_LABEL_KEYS[quality])}
+              </span>
+            )}
+          </For>
+          <span class="rating-matrix__fluent-adjust" role="presentation">
+            <span class="rating-matrix__divider" aria-hidden="true" />
+            <span class="rating-matrix__col rating-matrix__col--easy">{t('mlearn.Rating.Matrix.Easy')}</span>
+          </span>
+        </div>
+        <For each={props.aspects}>
+          {(aspect) => (
+            <div class="rating-matrix__row" role="presentation">
+              <span class="rating-matrix__label">{t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect])}</span>
+              <For each={ATTEMPT_QUALITIES}>
+                {(quality) => (
+                  <Button
+                    buttonType="default"
+                    variant={QUALITY_VARIANTS[quality]}
+                    size="xs"
+                    class={`rating-matrix__cell rating-matrix__cell--${quality}`}
+                    classList={{
+                      'rating-matrix__cell--pending-col': pendingQuality() === quality,
+                      'rating-matrix__cell--selected': drafts[aspect]?.quality === quality,
+                    }}
+                    disabled={!props.armed}
+                    onClick={() => rate(aspect, quality, false, false)}
+                  >
+                    <KeyboardShortcut keys={cellHint(aspect, quality)} class="rating-matrix__hint" />
+                  </Button>
+                )}
+              </For>
+              <span class="rating-matrix__fluent-adjust" role="presentation">
+                <span class="rating-matrix__divider" aria-hidden="true" />
                 <Button
                   buttonType="default"
-                  variant={QUALITY_VARIANTS[quality]}
+                  variant={QUALITY_VARIANTS.easy}
                   size="xs"
-                  class={`rating-matrix__cell rating-matrix__cell--${quality}`}
+                  class="rating-matrix__cell rating-matrix__cell--easy"
                   classList={{
-                    'rating-matrix__cell--pending-col': pendingQuality() === quality,
-                    'rating-matrix__cell--selected': drafts[aspect]?.quality === (quality === 'easy' ? 'fluent' : quality) && (!!drafts[aspect]?.easy === (quality === 'easy')),
+                    'rating-matrix__cell--selected': drafts[aspect]?.quality === 'fluent' && !!drafts[aspect]?.easy,
                   }}
                   disabled={!props.armed}
-                  onClick={() => rate(aspect, quality === 'easy' ? 'fluent' : quality, false, quality === 'easy')}
+                  onClick={() => rate(aspect, 'fluent', false, true)}
                 >
-                  <KeyboardShortcut keys={quality === 'easy' ? ['·'] : cellHint(aspect, quality)} class="rating-matrix__hint" />
+                  <KeyboardShortcut keys={['·']} class="rating-matrix__hint" />
                 </Button>
-              )}
-            </For>
-          </div>
-        )}
-      </For>
-      <Button
-        buttonType="default"
-        variant="primary"
-        size="sm"
-        class="rating-matrix__all"
-        disabled={!props.armed}
-        onClick={() => (isProfile() ? submitProfile(false, false) : props.onAllFluent?.())}
-      >
-        {t(isProfile() && Object.keys(drafts).length > 0
-          ? 'mlearn.Rating.Matrix.EverythingElseFluent'
-          : 'mlearn.Rating.Matrix.AllFluent')}
-        <KeyboardShortcut keys={[t('mlearn.Rating.Matrix.AllFluentKey')]} class="rating-matrix__hint" />
-      </Button>
-      <Show when={pendingQuality()}>
-        <span class="rating-matrix__pending" role="status">
-          {t('mlearn.Rating.Matrix.PendingHint')}
-        </span>
-      </Show>
-    </div>
+              </span>
+            </div>
+          )}
+        </For>
+        <Button
+          buttonType="default"
+          variant="primary"
+          size="sm"
+          class="rating-matrix__all"
+          disabled={!props.armed}
+          onClick={() => (isProfile() ? submitProfile(false, false) : props.onAllFluent?.())}
+        >
+          {t(isProfile() && Object.keys(drafts).length > 0
+            ? 'mlearn.Rating.Matrix.EverythingElseFluent'
+            : 'mlearn.Rating.Matrix.AllFluent')}
+          <KeyboardShortcut keys={[t('mlearn.Rating.Matrix.AllFluentKey')]} class="rating-matrix__hint" />
+        </Button>
+        <Show when={pendingQuality()}>
+          <span class="rating-matrix__pending" role="status">
+            {t('mlearn.Rating.Matrix.PendingHint')}
+          </span>
+        </Show>
+      </div>
+    </>
   );
 };

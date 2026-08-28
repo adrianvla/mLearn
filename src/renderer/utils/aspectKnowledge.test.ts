@@ -51,17 +51,17 @@ const easeFor = (status: WordStatus) => (status === 'known' ? 1.8 : status === '
 const ALL = ['meaning', 'reading', 'prosody'] as const;
 
 describe('getAspectStatusSync', () => {
-  it('passive-only exposure caps at learning; explicit rating establishes known', () => {
+  it('passive-only exposure caps at learning; active evidence establishes known', () => {
     const lk = langKey('ja', hashWordSync('猫'));
-    // No lastStatusChange: pure passive ease growth (42 displays above the known
-    // threshold) — display familiarity alone must not establish Known.
+    // Pure passive ease growth (42 displays above the known threshold) —
+    // display familiarity alone must not establish Known.
     const passive = makeDeps({
       wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42, lastStatusChange: undefined }) },
     });
     expect(getAspectStatusSync('猫', 'meaning', passive).status).toBe('learning');
-    // The same entry with an explicit rating marker reads as known.
+    // The same entry with active evidence (SRS/attempt rating) reads as known.
     const rated = makeDeps({
-      wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42 }) },
+      wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42, hasActiveEvidence: true }) },
     });
     expect(getAspectStatusSync('猫', 'meaning', rated).status).toBe('known');
   });

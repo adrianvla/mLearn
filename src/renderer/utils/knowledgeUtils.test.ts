@@ -23,7 +23,7 @@ function makeCard(overrides?: Partial<Flashcard>): Flashcard {
 }
 
 describe('buildKnownWordSet', () => {
-  it('includes knownUntracked words', () => {
+  it('includes knownUntracked words as legacy residue', () => {
     const set = buildKnownWordSet(
       {}, {}, { 'ja:h1': true }, {}, {}, 4000
     );
@@ -38,12 +38,34 @@ describe('buildKnownWordSet', () => {
     expect(set.has('ja:h2')).toBe(false);
   });
 
-  it('includes words with review-state flashcards', () => {
+  it('review-state flashcards alone are NOT knowledge: the co-located wordKnowledge projection decides', () => {
     const cards: Record<string, Flashcard> = {
       'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
     };
     const set = buildKnownWordSet(cards, { 'ja:h3': ['fc-1'] }, {}, {}, {}, 4000);
+    expect(set.has('ja:h3')).toBe(false);
+  });
+
+  it('counts review-state words when the co-located entry has active evidence at/above threshold', () => {
+    const cards: Record<string, Flashcard> = {
+      'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
+    };
+    const knowledge: Record<string, PassiveWordKnowledge> = {
+      'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
+    };
+    const set = buildKnownWordSet(cards, { 'ja:h3': ['fc-1'] }, {}, {}, knowledge, 4000);
     expect(set.has('ja:h3')).toBe(true);
+  });
+
+  it('excludes review-state words whose ease is below threshold even with active evidence', () => {
+    const cards: Record<string, Flashcard> = {
+      'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
+    };
+    const knowledge: Record<string, PassiveWordKnowledge> = {
+      'ja:h3': { ease: 3.0, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
+    };
+    const set = buildKnownWordSet(cards, { 'ja:h3': ['fc-1'] }, {}, {}, knowledge, 4000);
+    expect(set.has('ja:h3')).toBe(false);
   });
 
   it('excludes words with non-review flashcards', () => {
@@ -54,19 +76,35 @@ describe('buildKnownWordSet', () => {
     expect(set.has('ja:h4')).toBe(false);
   });
 
-  it('pure passive ease never reaches Known; explicit rating does (projection parity)', () => {
+  it('passive-only ease never reaches Known; active evidence at/above threshold does (projection parity)', () => {
     const knowledge: Record<string, PassiveWordKnowledge> = {
       'ja:h5': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '犬', language: 'ja' },
-      'ja:h5b': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '猫', language: 'ja', lastStatusChange: Date.now() },
+      'ja:h5b': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
     };
     const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
     expect(set.has('ja:h5')).toBe(false);
     expect(set.has('ja:h5b')).toBe(true);
   });
 
-  it('excludes words with low passive knowledge ease', () => {
+  it('accepts an explicit claim === known regardless of ease', () => {
     const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h6': { ease: 2.0, lastSeen: Date.now(), timesSeen: 5, timesHovered: 10, word: '難', language: 'ja' },
+      'ja:h7': { ease: 1.2, lastSeen: Date.now(), timesSeen: 3, timesHovered: 0, word: '空', language: 'ja', claim: 'known', claimAt: Date.now() },
+    };
+    const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
+    expect(set.has('ja:h7')).toBe(true);
+  });
+
+  it('an active claim of learning/unknown keeps the word out even with high ease', () => {
+    const knowledge: Record<string, PassiveWordKnowledge> = {
+      'ja:h7': { ease: 4.5, lastSeen: Date.now(), timesSeen: 3, timesHovered: 0, word: '空', language: 'ja', claim: 'learning', claimAt: Date.now(), hasActiveEvidence: true },
+    };
+    const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
+    expect(set.has('ja:h7')).toBe(false);
+  });
+
+  it('excludes words with low passive knowledge ease even with active evidence', () => {
+    const knowledge: Record<string, PassiveWordKnowledge> = {
+      'ja:h6': { ease: 2.0, lastSeen: Date.now(), timesSeen: 5, timesHovered: 10, word: '難', language: 'ja', hasActiveEvidence: true },
     };
     const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
     expect(set.has('ja:h6')).toBe(false);
@@ -77,7 +115,8 @@ describe('buildKnownWordSet', () => {
       'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
     };
     const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h8': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '鳥', language: 'ja', lastStatusChange: Date.now() },
+      'ja:h7': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '鳥', language: 'ja', hasActiveEvidence: true },
+      'ja:h8': { ease: 1.5, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '山', language: 'ja', claim: 'known', claimAt: Date.now() },
     };
     const set = buildKnownWordSet(
       cards,
@@ -105,10 +144,26 @@ describe('isWordKnown', () => {
     expect(isWordKnown('ja:h2', set, {}, 4000)).toBe(false);
   });
 
-  it('falls back to wordKnowledge when not in Set', () => {
+  it('falls back to wordKnowledge when not in Set: active evidence at/above threshold', () => {
+    const set = new Set<string>();
+    const knowledge: Record<string, PassiveWordKnowledge> = {
+      'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '魚', language: 'ja', hasActiveEvidence: true },
+    };
+    expect(isWordKnown('ja:h3', set, knowledge, 4000)).toBe(true);
+  });
+
+  it('fallback rejects passive-only high ease', () => {
     const set = new Set<string>();
     const knowledge: Record<string, PassiveWordKnowledge> = {
       'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '魚', language: 'ja' },
+    };
+    expect(isWordKnown('ja:h3', set, knowledge, 4000)).toBe(false);
+  });
+
+  it('fallback accepts an explicit known claim at any ease', () => {
+    const set = new Set<string>();
+    const knowledge: Record<string, PassiveWordKnowledge> = {
+      'ja:h3': { ease: 1.0, lastSeen: Date.now(), timesSeen: 2, timesHovered: 0, word: '魚', language: 'ja', claim: 'known', claimAt: Date.now() },
     };
     expect(isWordKnown('ja:h3', set, knowledge, 4000)).toBe(true);
   });
@@ -126,7 +181,8 @@ describe('buildKnownWordSetFromStore', () => {
       knownUntracked: { 'ja:h2': true },
       ignoredWords: { 'ja:h10': { word: 'x', language: 'ja', ignoredAt: 1 } },
       wordKnowledge: {
-        'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '花', language: 'ja', lastStatusChange: Date.now() },
+        'ja:h1': { ease: 4.5, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '花', language: 'ja', hasActiveEvidence: true },
+        'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '花', language: 'ja', hasActiveEvidence: true },
       },
       grammarKnowledge: {},
       suggestedFlashcards: {},

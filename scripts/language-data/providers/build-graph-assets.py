@@ -92,7 +92,34 @@ class Graph:
             "from": source, "to": target, "type": relation_type, "provenance": provenance,
         })
 
+    def add_entry_sibling_support(self) -> int:
+        """Sibling surfaces realizing one dictionary entry share source grouping,
+        never learner identity (Tier-2 invariant: dictionary-entry grouping is
+        provenance, at most a support relation between siblings). Emits explicit
+        `semantically-related` edges in both directions so inspection and
+        prediction see related-but-independent kin instead of an implicit
+        property hop."""
+        entry_siblings: dict[str, tuple[str, set[str]]] = {}
+        for source, target, relation_type, provenance in self.relations:
+            if relation_type != "realizes":
+                continue
+            entry = target if self.entities.get(target, {}).get("kind") == "dictionary-entry" else source
+            sibling = source if entry == target else target
+            entry_siblings.setdefault(entry, (provenance, set()))[1].add(sibling)
+        added = 0
+        for _entry, (provenance, siblings) in sorted(entry_siblings.items()):
+            if len(siblings) < 2:
+                continue
+            ordered = sorted(siblings)
+            for index, first in enumerate(ordered):
+                for second in ordered[index + 1:]:
+                    self.relation(first, second, "semantically-related", provenance)
+                    self.relation(second, first, "semantically-related", provenance)
+                    added += 2
+        return added
+
     def write(self) -> tuple[int, int, int]:
+        sibling_edges = self.add_entry_sibling_support()
         asset = {
             "schemaVersion": 1,
             "language": self.language,
@@ -110,7 +137,7 @@ class Graph:
         ids = {entity["id"] for entity in loaded["entities"]}
         assert all(relation["from"] in ids and relation["to"] in ids for relation in loaded["relations"])
         size = destination.stat().st_size
-        log(f"{self.language}: {len(ids)} entities, {len(loaded['relations'])} relations, {size} bytes")
+        log(f"{self.language}: {len(ids)} entities, {len(loaded['relations'])} relations ({sibling_edges} entry-sibling support), {size} bytes")
         return len(ids), len(loaded["relations"]), size
 
 
@@ -146,6 +173,16 @@ def add_grammar_from_metadata(graph: Graph) -> None:
             construction["recognitionRules"] = [match]
         elif isinstance(match, list):
             construction["recognitionRules"] = match
+        # Optional construction metadata: forward only what the package declares;
+        # the TS GrammarConstruction schema treats absent fields as unknown.
+        for field in ("category", "function", "formation", "register"):
+            value = point.get(field)
+            if isinstance(value, str) and value.strip():
+                construction[field] = normalized(value)
+        for field in ("attachments", "constraints", "variants", "contrasts", "related"):
+            value = point.get(field)
+            if isinstance(value, list) and all(isinstance(item, str) for item in value):
+                construction[field] = [normalized(item) for item in value]
         graph.entity(grammar_entity_id(graph.language, pattern), "grammar-pattern", pattern, construction)
 
 
@@ -171,6 +208,7 @@ def build_ja() -> tuple[int, int, int]:
             pronunciation = graph.entity(f"ja:pron:{reading}", "pronunciation", reading)
             graph.relation(surface, entry, "realizes", "jitendex")
             graph.relation(surface, pronunciation, "has-pronunciation", "jitendex")
+            graph.relation(entry, pronunciation, "has-reading", "jitendex")
             for pattern in pitch_by_term_reading.get((term, reading), set()):
                 prosody = graph.entity(f"ja:prosody:{pattern}", "grammar-pattern", pattern)
                 graph.relation(surface, prosody, "has-prosodic-pattern", "kanjium-pitch")
@@ -196,6 +234,7 @@ def add_russian_record(graph: Graph, local_id: str, bare: str, reading: str, gen
     if reading:
         pronunciation = graph.entity(f"ru:pron:{reading}", "pronunciation", reading)
         graph.relation(lemma_surface, pronunciation, "has-pronunciation", "openrussian")
+        graph.relation(entry, pronunciation, "has-reading", "openrussian")
     for form in forms[:12]:
         form = unstressed(form)
         if form and form != lemma:
@@ -261,12 +300,15 @@ def build_de() -> tuple[int, int, int] | None:
                 if entry.tag != f"{{{TEI_NS['tei']}}}entry":
                     continue
                 entry_index += 1
-                entry_id = graph.entity(f"de:entry:{entry_index}", "dictionary-entry")
+                entry_words = []
                 for orth in entry.findall("./tei:form/tei:orth", TEI_NS):
                     word = normalized("".join(orth.itertext()))
                     if word:
-                        surface = graph.entity(surface_id("de", word), "surface", word)
-                        graph.relation(surface, entry_id, "realizes", "freedict")
+                        entry_words.append(word)
+                entry_id = graph.entity(f"de:entry:{entry_index}", "dictionary-entry", entry_words[0] if entry_words else "")
+                for word in entry_words:
+                    surface = graph.entity(surface_id("de", word), "surface", word)
+                    graph.relation(surface, entry_id, "realizes", "freedict")
                 gender = normalized(entry.findtext("./tei:gramGrp/tei:gen", default="", namespaces=TEI_NS)).lower()[:1]
                 if gender in {"m", "f", "n"}:
                     gender_id = graph.entity(f"de:gender:{gender}", "grammar-pattern", gender)
@@ -322,12 +364,22 @@ def build_zh() -> tuple[int, int, int]:
             graph.relation(traditional_surface, entry, "realizes", "cc-cedict")
             if traditional != simplified:
                 graph.relation(traditional_surface, simplified_surface, "orthographic-variant-of", "cc-cedict")
-        pinyin = normalized(payload.get("pinyin", {}).get("value") if isinstance(payload.get("pinyin"), dict) else "")
+        pinyin_data = payload.get("pinyin")
+        pinyin = normalized(pinyin_data.get("value") if isinstance(pinyin_data, dict) else "")
         if pinyin:
             pronunciation = graph.entity(f"zh:pron:{hashlib.sha256(pinyin.encode('utf-8')).hexdigest()}", "pronunciation", pinyin)
             graph.relation(simplified_surface, pronunciation, "has-pronunciation", "cc-cedict")
+            graph.relation(simplified_surface, pronunciation, "has-reading", "cc-cedict")
             if traditional and traditional != simplified:
                 graph.relation(surface_id("zh", traditional), pronunciation, "has-pronunciation", "cc-cedict")
+                graph.relation(surface_id("zh", traditional), pronunciation, "has-reading", "cc-cedict")
+        numeric = normalized(pinyin_data.get("numeric") if isinstance(pinyin_data, dict) else "")
+        tone_sequence = "".join(char for char in numeric if char.isdigit())
+        if tone_sequence:
+            prosody = graph.entity(f"zh:prosody:{tone_sequence}", "grammar-pattern", "-".join(tone_sequence))
+            graph.relation(simplified_surface, prosody, "has-prosodic-pattern", "cc-cedict")
+            if traditional and traditional != simplified:
+                graph.relation(surface_id("zh", traditional), prosody, "has-prosodic-pattern", "cc-cedict")
         for index, gloss in enumerate(payload.get("definitions", [])[:3], start=1):
             gloss = normalized(gloss)
             if gloss:

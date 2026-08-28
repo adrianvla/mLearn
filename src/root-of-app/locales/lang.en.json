@@ -524,20 +524,20 @@
         "AssessedLevel": "Assessed Level",
         "ByOccurrence": "By occurrence",
         "Current": "current",
-        "Failed": "failed",
-        "FailedGrammarCount": "Failed Grammar",
-        "FailedWords": "Failed Words",
+        "Struggled": "struggled",
+        "StruggledGrammarCount": "Struggled Grammar",
+        "HoveredWords": "Hovered words",
         "Filter": {
           "All": "All",
-          "FailedOnly": "Failed only",
+          "HoveredOnly": "Hovered only",
           "Unknown": "No level"
         },
         "Grammar": "Grammar",
         "GrammarLevels": "Grammar Levels",
         "Hovered": "hovered",
         "Levels": "Levels",
-        "NoFailedGrammar": "No failed grammar points yet.",
-        "NoFailedWords": "No failed words yet — keep immersing!",
+        "NoStruggledGrammar": "No struggled grammar points yet.",
+        "NoHoveredWords": "No hovered words yet — keep immersing!",
         "NoGrammarMatching": "No grammar points match the current filter.",
         "NoLevelData": "Not enough data to compute level distribution.",
         "NoMedia": "No media stats saved yet",
@@ -1186,7 +1186,7 @@
           "LookupHint": "Press Enter to look up “{query}”"
         },
         "CharacterGrid": {
-          "Description": "Visual overview of your character knowledge",
+          "Description": "Visual overview of character familiarity",
           "Title": "Character Grid"
         },
         "WordSync": {
@@ -1294,6 +1294,7 @@
       }
     },
     "Rating": {
+      "Compact": { "AllFluent": "All fluent", "AllEasy": "All easy", "Adjust": "Adjust" },
       "Matrix": {
         "Missed": "Missed",
         "Struggled": "Struggled",
@@ -1308,9 +1309,11 @@
     "Knowledge": {
       "Capability": { "surface-recognition": "Recognition", "surface-reading": "Reading", "pronunciation-production": "Pronunciation" },
       "LegacySource": { "Prefix": "Evidence source: ", "None": "None" },
+      "Basis": {"Claim": "Explicit claim", "Evidence": "Evidence", "Unmeasured": "Unmeasured", "Prediction": "Predicted", "Excluded": "Excluded"},
       "OverrideWarning": { "Confirm": "Change anyway", "DontRemind": "Don't remind me again", "Message": "This status has existing evidence. Changing it adds a manual claim but does not erase that evidence.", "Title": "Knowledge override" },
-      "Projection": { "Capabilities": "Knowledge capabilities", "Details": "Details", "Graph": "Graph", "Unavailable": "Knowledge details are unavailable.", "Evidence": { "Known": "Evidence-backed Known", "Learning": "Evidence-backed Learning", "Title": "Active evidence", "None": "No active evidence." }, "Predicted": "Predicted", "Unmeasured": "Unmeasured", "Excluded": "Excluded", "Because": "Because:", "Strength": "Ease {ease} · seen {seen} · hovered {hovered}", "Retention": "Pressure {pressure} · due {due}" },
-      "Aspect": {
+      "Popup": { "Overall": "Overall", "Basis": "Basis", "Rate": "Rate", "Inspect": "Inspect" },
+      "Projection": {"Capabilities": "Knowledge capabilities", "AspectClaims": "Aspects", "Details": "Details", "Graph": "Graph", "Unavailable": "Knowledge details are unavailable.", "Evidence": {"Known": "Evidence-backed Known", "Learning": "Evidence-backed Learning", "Title": "Active evidence", "None": "No active evidence.", "Claim": "Claim: {status}", "ClaimCleared": "Claim cleared"}, "Predicted": "Predicted", "Unmeasured": "Unmeasured", "Excluded": "Excluded", "Because": "Because:", "Strength": "Ease {ease} · seen {seen} · hovered {hovered}", "Retention": "Pressure {pressure} · due {due}", "Tabs": {"Identity": "Identity & Relations", "Targets": "Targets", "EvidenceHistory": "Evidence & History", "Prediction": "Prediction"}, "Claim": {"Known": "Explicit claim: known", "Learning": "Explicit claim: learning", "Unmeasured": "Explicit claim: unmeasured"}, "ClaimOverride": "Explicit claim — overrides evidence", "Identity": {"Surface": "Surface", "Canonical": "Canonical form", "Reading": "Reading", "Senses": "Senses", "NotInstalled": "The linguistic graph is not installed.", "Install": "Install language data", "NoGraph": "No graph data for this item.", "None": "None"}, "Provenance": "Provenance", "FullGraph": "Open full graph", "Prediction": {"None": "No prediction."}},
+      "Aspect": { "Grammar": "Grammar",
         "Meaning": "Meaning",
         "Reading": "Reading",
         "Prosody": "Prosody",
@@ -1321,7 +1324,7 @@
       "AspectInherited": "(inherited)",
       "Untracked": "Untracked",
       "History": {
-        "Empty": "No knowledge history yet.",
+        "Empty": "No knowledge history yet.", "Today": "Today", "Yesterday": "Yesterday",
         "Kind": {
           "Status": "Status change",
           "Review": "Review",
@@ -1336,18 +1339,9 @@
           "PassiveTracking": "Passive tracking",
           "Manual": "Manual",
           "Grammar": "Grammar"
-        },
-        "Table": {
-          "Time": "Time",
-          "Event": "Event",
-          "Source": "Source",
-          "Details": "Details"
         }
       },
-      "Actions": {
-        "DowngradeToLearning": "Downgrade to Learning",
-        "MarkUnknown": "Mark Unknown"
-      }
+      "Actions": { "ClearOverride": "Clear override" }
     },
     "LevelStudy": {
       "Title": "Level Study",
@@ -1361,7 +1355,7 @@
         "Description": "Study words organized by level. Track your progress and add words to flashcards."
       },
       "Coverage": {
-        "Title": "Level Word Coverage",
+        "Title": "Level Word Coverage", "Assessed": "assessed",
         "UpTo": "Words up to",
         "AllLevels": "Words across all levels",
         "SetLevelHint": "Set your learning level in Settings",
@@ -1433,7 +1427,7 @@
     "MediaStats": {
       "AllWordsKnown": "All words are known!",
       "Difficulty": "Difficulty",
-      "Failed": "failed {count}x",
+      "Struggled": "struggled {count}x",
       "GrammarPoints": "Grammar Points",
       "Hovered": "hovered {count}x",
       "NoGrammarYet": "No grammar points detected yet.",
@@ -1791,7 +1785,6 @@
         "ThemePreview": "Theme Preview",
         "VideoPlayerBehaviour": "Video Player Behaviour",
         "WordStatus": "Word Status",
-        "KnowledgePriority": "Knowledge Priority",
         "Behaviour": "Behaviour",
         "WordKnowledge": "Word Knowledge",
         "LanguageProficiency": "Language Proficiency",
@@ -1941,31 +1934,6 @@
         },
         "Submit": "Submit",
         "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
-      },
-      "KnowledgePriority": {
-        "Description": "Configure how word knowledge is determined from multiple sources",
-        "ResolutionMode": {
-          "Label": "Resolution Mode",
-          "Description": "How to determine word status when multiple sources have data"
-        },
-        "SourceOrder": {
-          "Label": "Source Priority",
-          "Description": "Reorder the sources. In order-based mode, the first source with data determines the word status"
-        },
-        "Mode": {
-          "Order": "Order-based",
-          "Highest": "Highest status",
-          "Lowest": "Lowest status"
-        },
-        "Source": {
-          "Srs": "Built-In SRS",
-          "Anki": "Anki",
-          "Manual": "Manual",
-          "KnownWordsList": "Known Words List",
-          "IgnoredWords": "Ignored Words",
-          "PassiveTracking": "Passive Tracking",
-          "None": "None"
-        }
       },
       "Reader": {
         "Description": "Configure OCR and manga reader settings",
@@ -2921,7 +2889,7 @@
         "Unknown": "Unknown"
       },
       "TimesSeen": "Seen {count} times",
-      "Knowledge": { "Details": "Details", "Graph": "Graph" },
+      "Knowledge": { },
       "AnkiModifyWarning": {
         "Title": "Modify Anki Cards",
         "Message": "This will modify the ease and position of your Anki cards for this word. New cards will be moved to the front of your review queue.",
@@ -3235,7 +3203,7 @@
         "Title": "Character levels are estimated",
         "Description": "Characters here are inferred from the words assigned to each level, then extracted from those words. That makes this grid approximate: some levels include words whose characters are not themselves required."
       },
-      "Description": "Colors: learning (orange→yellow), known (green→light-green); unknown (gray). Hover for details.",
+      "Description": "Familiarity predicted from known/learning words: familiar (green), emerging (orange), unmeasured (gray). Solid colors = direct reading evidence; blue = your explicit claim. Hover for details.",
       "EmptyState": {
         "Description": "Characters will appear here as you encounter them in videos and texts.",
         "Hint": "Start watching or reading content to begin tracking!",
@@ -3246,26 +3214,47 @@
         "Title": "Character study is not available for this language"
       },
       "Legend": {
-        "Known": "Known:",
-        "Learning": "Learning:",
-        "Unknown": "Unknown:"
+        "Claimed": "Claimed:",
+        "EvidencedKnown": "Reading: confirmed",
+        "EvidencedLearning": "Reading: in progress",
+        "EvidencedUnknown": "Reading: has gaps",
+        "Familiar": "Familiar (predicted):",
+        "Emerging": "Emerging (predicted):",
+        "Unmeasured": "Unmeasured:"
       },
       "LevelFallback": "Level {level}",
       "Loading": "Loading character data...",
       "Stats": {
-        "Known": "Known:",
-        "Learning": "Learning:",
+        "Evidenced": "Directly evidenced:",
+        "Claimed": "Claimed:",
+        "Familiar": "Familiar:",
+        "Emerging": "Emerging:",
         "TotalFound": "Total Found:",
-        "Unknown": "Unknown:"
+        "Unmeasured": "Unmeasured:"
       },
-      "Title": "Character Knowledge Overview",
+      "Title": "Character Familiarity Overview",
       "Tooltip": {
-        "KnownCount": "known",
-        "LearningCount": "learning",
+        "Claim": {
+          "known": "You marked this character: you can read it.",
+          "learning": "You marked this character: you are learning it.",
+          "unknown": "You marked this character: you don't know it."
+        },
+        "Reading": {
+          "known": "Reading attempts confirm you can read this character.",
+          "learning": "Reading attempts show you are learning this character.",
+          "unknown": "Reading attempts show you cannot yet read this character."
+        },
+        "Claimed": "claimed",
+        "Evidenced": "directly evidenced",
+        "Familiar": "familiar (predicted)",
+        "Emerging": "emerging (predicted)",
+        "Unmeasured": "unmeasured",
+        "KnownWords": "known words",
+        "LearningWords": "learning words",
         "MoreWords": "+{count} more",
         "Score": "score",
-        "UnknownCount": "unknown",
-        "WordsContaining": "Words containing {char}"
+        "WordsContaining": "Words containing {char}",
+        "PredictionNote": "Familiarity is predicted from the known/learning words below that contain this character — it is not direct character knowledge."
       }
     }
   }

@@ -16,7 +16,6 @@ import {
   ToggleSwitch,
   buildWordSyncFields,
   buildWordSyncPreset,
-  WORD_SYNC_STATUS_UNTRACKED,
   evaluateAst,
   parseTokens,
   validateTokens,
@@ -31,7 +30,7 @@ import {
   type ValidationError,
 } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
-import { SRS_EASE, WORD_STATUS, type AttemptQuality } from '../../../shared/constants';
+import { SRS_EASE, type AttemptQuality } from '../../../shared/constants';
 import type { KnowledgeAspect } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import { prerequisitesOf } from '../../utils/aspectKnowledge';
@@ -56,6 +55,7 @@ import {
   calculateCharacterStudyBoost,
   calculateWordWeight,
   isWordEligible,
+  wordSyncPoolStatus,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
@@ -268,11 +268,7 @@ export const WordSyncContent: Component = () => {
         // never enter the calibration pool.
         if (resolved.status === 'known' || resolved.excluded) continue;
         const record = {
-          status: resolved.status === 'learning'
-            ? String(WORD_STATUS.LEARNING)
-            // The resolver flattens unknown and never-encountered; the pool's untracked
-            // bucket distinguishes them by this form's passive entry.
-            : knowledge ? String(WORD_STATUS.UNKNOWN) : WORD_SYNC_STATUS_UNTRACKED,
+          status: wordSyncPoolStatus(resolved.status, Boolean(knowledge)),
           level: entry.raw_level,
           seenRecently,
         };
@@ -823,6 +819,8 @@ export const WordSyncContent: Component = () => {
             mode="profile"
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
             armed={showAnswer() && !!currentWord() && !finished()}
+            compact
+            initialDraftsFluent
             onRate={handleRate}
             onProfileSubmit={handleSubmitProfile}
           />

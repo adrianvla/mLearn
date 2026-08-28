@@ -524,20 +524,20 @@
         "AssessedLevel": "评估等级",
         "ByOccurrence": "按出现次数",
         "Current": "当前",
-        "Failed": "失败",
-        "FailedGrammarCount": "失败的语法",
-        "FailedWords": "失败的单词",
+        "Struggled": "困难",
+        "StruggledGrammarCount": "困难的语法",
+        "HoveredWords": "悬停过的单词",
         "Filter": {
           "All": "全部",
-          "FailedOnly": "仅失败",
+          "HoveredOnly": "仅悬停过",
           "Unknown": "无等级"
         },
         "Grammar": "语法",
         "GrammarLevels": "语法等级",
         "Hovered": "已悬停",
         "Levels": "等级",
-        "NoFailedGrammar": "还没有失败的语法点。",
-        "NoFailedWords": "还没有失败的单词 — 继续沉浸式学习！",
+        "NoStruggledGrammar": "还没有困难的语法点。",
+        "NoHoveredWords": "还没有悬停过的单词 — 继续沉浸式学习！",
         "NoGrammarMatching": "没有语法点匹配当前筛选条件。",
         "NoLevelData": "数据不足以计算等级分布。",
         "NoMedia": "尚未保存媒体统计",
@@ -1186,7 +1186,7 @@
           "LookupHint": "按 Enter 键查找「{query}」"
         },
         "CharacterGrid": {
-          "Description": "字符掌握情况的视觉概览",
+          "Description": "字符熟悉度的视觉概览",
           "Title": "字符网格"
         },
         "WordSync": {
@@ -1294,6 +1294,7 @@
       }
     },
     "Rating": {
+      "Compact": { "AllFluent": "全部流利", "AllEasy": "全部简单", "Adjust": "调整" },
       "Matrix": {
         "Missed": "没想起来",
         "Struggled": "费劲",
@@ -1308,9 +1309,11 @@
     "Knowledge": {
       "Capability": { "surface-recognition": "识别", "surface-reading": "读音", "pronunciation-production": "发音" },
       "LegacySource": { "Prefix": "证据来源：", "None": "无" },
+      "Basis": {"Claim": "明确申告", "Evidence": "有依据", "Unmeasured": "未测量", "Prediction": "预测", "Excluded": "已排除"},
       "OverrideWarning": { "Confirm": "仍要更改", "DontRemind": "不再提醒", "Message": "此状态已有证据。更改会添加手动声明，但不会清除该证据。", "Title": "知识覆盖" },
-      "Projection": { "Capabilities": "知识能力", "Details": "详情", "Graph": "图谱", "Unavailable": "知识详情不可用。", "Evidence": { "Known": "有证据支持的已掌握", "Learning": "有证据支持的学习中", "Title": "有效证据", "None": "没有有效证据。" }, "Predicted": "预测", "Unmeasured": "未测量", "Excluded": "已排除", "Because": "因为：", "Strength": "难度 {ease} · 已见 {seen} · 已悬停 {hovered}", "Retention": "压力 {pressure} · 到期 {due}" },
-      "Aspect": {
+      "Popup": { "Overall": "总体", "Basis": "依据", "Rate": "评价", "Inspect": "检查" },
+      "Projection": {"Capabilities": "知识能力", "AspectClaims": "侧面", "Details": "详情", "Graph": "图谱", "Unavailable": "知识详情不可用。", "Evidence": {"Known": "有证据支持的已掌握", "Learning": "有证据支持的学习中", "Title": "有效证据", "None": "没有有效证据。", "Claim": "申告：{status}", "ClaimCleared": "申告已清除"}, "Predicted": "预测", "Unmeasured": "未测量", "Excluded": "已排除", "Because": "因为：", "Strength": "难度 {ease} · 已见 {seen} · 已悬停 {hovered}", "Retention": "压力 {pressure} · 到期 {due}", "Tabs": {"Identity": "身份与关系", "Targets": "目标", "EvidenceHistory": "证据与历史", "Prediction": "预测"}, "Claim": {"Known": "明确申告：已掌握", "Learning": "明确申告：学习中", "Unmeasured": "明确申告：未测量"}, "ClaimOverride": "明确申告 — 覆盖证据", "Identity": {"Surface": "表层形式", "Canonical": "规范形式", "Reading": "读音", "Senses": "词义", "NotInstalled": "语言图谱未安装。", "Install": "安装语言数据", "NoGraph": "此词条没有图谱数据。", "None": "无"}, "Provenance": "来源", "FullGraph": "打开完整图谱", "Prediction": {"None": "无预测。"}},
+      "Aspect": { "Grammar": "语法",
         "Meaning": "词义",
         "Reading": "读音",
         "Prosody": "韵律",
@@ -1321,7 +1324,7 @@
       "AspectInherited": "(继承)",
       "Untracked": "未追踪",
       "History": {
-        "Empty": "暂无知识历史。",
+        "Empty": "暂无知识历史。", "Today": "今天", "Yesterday": "昨天",
         "Kind": {
           "Status": "状态变更",
           "Review": "复习",
@@ -1336,18 +1339,9 @@
           "PassiveTracking": "被动追踪",
           "Manual": "手动",
           "Grammar": "语法"
-        },
-        "Table": {
-          "Time": "时间",
-          "Event": "事件",
-          "Source": "来源",
-          "Details": "详情"
         }
       },
-      "Actions": {
-        "DowngradeToLearning": "降级为学习中",
-        "MarkUnknown": "标记为未知"
-      }
+      "Actions": { "ClearOverride": "清除覆盖" }
     },
     "LevelStudy": {
       "Title": "等级学习",
@@ -1361,7 +1355,7 @@
         "Description": "按等级学习单词。跟踪进度并添加到闪卡。"
       },
       "Coverage": {
-        "Title": "等级单词覆盖率",
+        "Title": "等级单词覆盖率", "Assessed": "已评估",
         "UpTo": "学习级别以内的单词",
         "AllLevels": "所有级别的单词",
         "SetLevelHint": "在设置中设定学习级别",
@@ -1433,7 +1427,7 @@
     "MediaStats": {
       "AllWordsKnown": "所有单词已掌握！",
       "Difficulty": "难度",
-      "Failed": "失败 {count} 次",
+      "Struggled": "困难 {count} 次",
       "GrammarPoints": "语法点",
       "Hovered": "已悬停 {count} 次",
       "NoGrammarYet": "尚未检测到语法点。",
@@ -1791,7 +1785,6 @@
         "ThemePreview": "主题预览",
         "VideoPlayerBehaviour": "视频播放器行为",
         "WordStatus": "单词状态",
-        "KnowledgePriority": "知识优先级",
         "Behaviour": "行为",
         "WordKnowledge": "单词知识",
         "LanguageProficiency": "语言水平",
@@ -1941,31 +1934,6 @@
         },
         "Submit": "提交",
         "LanguageWarning": "此插件仅在日语为活动语言时可用。请在设置中切换到日语。"
-      },
-      "KnowledgePriority": {
-        "Description": "配置如何从多个来源确定单词掌握状态",
-        "ResolutionMode": {
-          "Label": "解析模式",
-          "Description": "当多个来源有数据时如何确定单词状态"
-        },
-        "SourceOrder": {
-          "Label": "来源优先级",
-          "Description": "重新排序来源。在基于顺序的模式下，第一个有数据的来源决定单词状态"
-        },
-        "Mode": {
-          "Order": "基于顺序",
-          "Highest": "最高状态",
-          "Lowest": "最低状态"
-        },
-        "Source": {
-          "Srs": "内置 SRS",
-          "Anki": "Anki",
-          "Manual": "手动",
-          "KnownWordsList": "已知单词列表",
-          "IgnoredWords": "已忽略的单词",
-          "PassiveTracking": "被动追踪",
-          "None": "无"
-        }
       },
       "Reader": {
         "Description": "配置 OCR 和漫画阅读器设置",
@@ -2920,7 +2888,7 @@
         "Unknown": "未知"
       },
       "TimesSeen": "已见{count}次",
-      "Knowledge": { "Details": "详情", "Graph": "图谱" },
+      "Knowledge": { },
       "AnkiModifyWarning": {
         "Title": "修改 Anki 卡片",
         "Message": "这将修改此单词的 Anki 卡片的难度系数和位置。新卡片将移到复习队列的前面。",
@@ -3234,7 +3202,7 @@
         "Title": "字符等级为估算值",
         "Description": "此处字符是根据分配给每个等级的单词推断出来的，然后从这些单词中提取。这意味着此网格是近似值：某些等级包含的单词中的字符本身并不需要在该等级掌握。"
       },
-      "Description": "颜色：学习中（橙色→黄色），已掌握（绿色→浅绿色）；未知（灰色）。悬停查看详情。",
+      "Description": "由已知/学习中的单词推测的熟悉度：熟悉（绿色）、初步掌握（橙色）；未测量（灰色）。纯色 = 直接阅读证据；蓝色 = 您的声明。悬停查看详情。",
       "EmptyState": {
         "Description": "当您在视频和文本中遇到字符时，它们将出现在这里。",
         "Hint": "开始观看或阅读内容以开始追踪！",
@@ -3245,26 +3213,47 @@
         "Title": "此语言不支持字符学习"
       },
       "Legend": {
-        "Known": "已掌握：",
-        "Learning": "学习中：",
-        "Unknown": "未知："
+        "Claimed": "已声明：",
+        "EvidencedKnown": "阅读：已确认",
+        "EvidencedLearning": "阅读：进行中",
+        "EvidencedUnknown": "阅读：有缺口",
+        "Familiar": "熟悉（推测）：",
+        "Emerging": "初步掌握（推测）：",
+        "Unmeasured": "未测量："
       },
       "LevelFallback": "等级 {level}",
       "Loading": "正在加载字符数据…",
       "Stats": {
-        "Known": "已掌握：",
-        "Learning": "学习中：",
+        "Evidenced": "直接证实：",
+        "Claimed": "已声明：",
+        "Familiar": "熟悉：",
+        "Emerging": "初步掌握：",
         "TotalFound": "已找到总数：",
-        "Unknown": "未知："
+        "Unmeasured": "未测量："
       },
-      "Title": "字符掌握概览",
+      "Title": "字符熟悉度概览",
       "Tooltip": {
-        "KnownCount": "已掌握",
-        "LearningCount": "学习中",
+        "Claim": {
+          "known": "您已声明可以读出此字符。",
+          "learning": "您已声明正在学习此字符。",
+          "unknown": "您已声明不认识此字符。"
+        },
+        "Reading": {
+          "known": "阅读尝试确认您可以读出此字符。",
+          "learning": "阅读尝试表明您正在学习此字符。",
+          "unknown": "阅读尝试表明您尚不能读出此字符。"
+        },
+        "Claimed": "已声明",
+        "Evidenced": "直接证实",
+        "Familiar": "熟悉（推测）",
+        "Emerging": "初步掌握（推测）",
+        "Unmeasured": "未测量",
+        "KnownWords": "已知单词",
+        "LearningWords": "学习中的单词",
         "MoreWords": "还有{count}个",
         "Score": "分数",
-        "UnknownCount": "未知",
-        "WordsContaining": "包含{char}的单词"
+        "WordsContaining": "包含{char}的单词",
+        "PredictionNote": "熟悉度是根据下方包含此字符的已知/学习中的单词推测的，并非对字符本身的直接掌握。"
       }
     }
   }

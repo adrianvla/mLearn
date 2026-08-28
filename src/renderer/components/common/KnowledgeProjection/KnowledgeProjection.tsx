@@ -1,12 +1,24 @@
-import { Component, For, Show, createMemo, createSignal } from 'solid-js';
-import type { KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
-import { useLocalization } from '../../../context';
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
+import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
+import { RELATION_CATEGORY, type RelationCategory } from '../../../../shared/graph/types';
+import type { GraphNeighborhood, GraphRelatedNode, GraphWordLookup, KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
+import type { WordStatus } from '../../../../shared/constants';
+import { KNOWLEDGE_ASPECT_LABEL_KEYS as ASPECT_LABEL_KEYS } from '../../../../shared/constants';
+import type { ReadableAspect } from '../../../utils/aspectKnowledge';
+import { useLanguage, useLocalization, useSettings } from '../../../context';
+import { useOptionalGraph } from '../../../context/GraphContext';
+import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistoryTimeline';
+import { PillBtn } from '../Button';
 import './KnowledgeProjection.css';
 
-type Tone = 'evidence' | 'predicted' | 'unmeasured' | 'excluded';
+type Tone = 'evidence' | 'claim' | 'predicted' | 'unmeasured' | 'excluded';
+/** Four-tab per-word inspector; the capability-tab view remains for callers without a surface. */
+export type InspectorTab = 'identity' | 'targets' | 'evidence' | 'prediction';
 
 export const knowledgeTone = (state: Pick<KnowledgeProjectionState, 'basis' | 'classification'>): Tone => {
   if (state.classification === 'excluded' || state.basis === 'excluded') return 'excluded';
+  if (state.basis === 'claim') return 'claim';
   if (state.basis === 'evidence') return 'evidence';
   if (state.basis === 'prediction') return 'predicted';
   return 'unmeasured';
@@ -14,6 +26,10 @@ export const knowledgeTone = (state: Pick<KnowledgeProjectionState, 'basis' | 'c
 
 export const knowledgeStateLabelKey = (state: Pick<KnowledgeProjectionState, 'basis' | 'classification'>): string => {
   const tone = knowledgeTone(state);
+  if (tone === 'claim') {
+    const label = state.classification === 'known' ? 'Known' : state.classification === 'learning' ? 'Learning' : 'Unmeasured';
+    return `mlearn.Knowledge.Projection.Claim.${label}`;
+  }
   if (tone === 'evidence') return `mlearn.Knowledge.Projection.Evidence.${state.classification === 'known' ? 'Known' : 'Learning'}`;
   return `mlearn.Knowledge.Projection.${tone[0].toUpperCase()}${tone.slice(1)}`;
 };
@@ -41,11 +57,193 @@ export const KnowledgeCapabilityChips: Component<ProjectionProps> = (props) => {
   </Show>;
 };
 
-export const KnowledgeProjectionDrawer: Component<ProjectionProps & { open: boolean; onClose: () => void; onGraph?: (entityId: string) => void }> = (props) => {
+interface KnowledgeProjectionDrawerProps extends ProjectionProps {
+  open: boolean;
+  onClose: () => void;
+  onGraph?: (entityId: string) => void;
+  /** Surface text; when present the drawer becomes the four-tab per-word inspector. */
+  surface?: string;
+  /** Full knowledge journal for the surface (including claim events). */
+  events?: KnowledgeEvent[];
+  /** Tab to show when the drawer opens. */
+  initialTab?: InspectorTab;
+  /** Deliberate word-level claim editing (inspector only). Absent = read-only. */
+  onWordClaim?: (claim: WordStatus | null) => void;
+  /** The active word-level claim, when the comprehensive resolver reports one. */
+  wordClaim?: WordStatus | null;
+  /** Deliberate aspect claim editing (inspector only). Absent = read-only. */
+  onAspectClaim?: (aspect: ReadableAspect, claim: WordStatus | null) => void;
+  /** Applicable non-meaning aspects with their effective state, for claim rows. */
+  aspectStates?: readonly { aspect: ReadableAspect; status: WordStatus; claim?: WordStatus }[];
+}
+const CATEGORIES: RelationCategory[] = ['identity', 'property', 'support'];
+const INSPECTOR_TABS: { key: InspectorTab; label: string }[] = [
+  { key: 'identity', label: 'mlearn.Knowledge.Projection.Tabs.Identity' },
+  { key: 'targets', label: 'mlearn.Knowledge.Projection.Tabs.Targets' },
+  { key: 'evidence', label: 'mlearn.Knowledge.Projection.Tabs.EvidenceHistory' },
+  { key: 'prediction', label: 'mlearn.Knowledge.Projection.Tabs.Prediction' },
+];
+
+const CLAIM_STATUSES: readonly WordStatus[] = ['known', 'learning', 'unknown'];
+
+const statusLabelKey = (status: WordStatus): string => (
+  `mlearn.WordHover.Status.${status[0].toUpperCase()}${status.slice(1)}`
+);
+
+/**
+ * Deliberate claim editing (Unknown / Learning / Known / Clear override) for
+ * one target — the word or a single aspect. Compact pill row; the active claim
+ * is highlighted and Clear renders only while an override exists.
+ */
+const KnowledgeClaimControls: Component<{
+  claim?: WordStatus | null;
+  onClaim: (claim: WordStatus | null) => void;
+}> = (props) => {
   const { t } = useLocalization();
+  return (
+    <span class="knowledge-claim-controls" role="group">
+      <For each={CLAIM_STATUSES}>{(status) => (
+        <PillBtn
+          size="sm"
+          variant={props.claim === status ? 'blue' : 'gray'}
+          label={t(statusLabelKey(status))}
+          aria-pressed={props.claim === status}
+          onClick={() => props.onClaim(status)}
+        />
+      )}</For>
+      <Show when={props.claim}>
+        <PillBtn
+          size="sm"
+          variant="gray"
+          label={t('mlearn.Knowledge.Actions.ClearOverride')}
+          onClick={() => props.onClaim(null)}
+        />
+      </Show>
+    </span>
+  );
+};
+
+interface TimelineRow {
+  t: number;
+  kind: KnowledgeEvent['kind'] | 'evidence';
+  source: string;
+  detail?: string;
+  claimStatus?: string;
+}
+
+export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps> = (props) => {
+  const { t } = useLocalization();
+  const { settings } = useSettings();
+  const { installLanguageData } = useLanguage();
+  const graph = useOptionalGraph();
   const [selected, setSelected] = createSignal(0);
+  const [tab, setTab] = createSignal<InspectorTab>('identity');
+  const [lookup, setLookup] = createSignal<GraphWordLookup | null>(null);
+  const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>(null);
+  const [lookupState, setLookupState] = createSignal<'idle' | 'loading' | 'ready' | 'missing'>('idle');
+
+  const inspector = createMemo(() => props.surface !== undefined && props.surface.trim().length > 0);
   const states = createMemo(() => props.projection?.targets.flatMap((target) => target.states.map((state) => ({ state, entityId: target.targetRef.id }))) ?? []);
   const active = createMemo(() => states()[Math.min(selected(), Math.max(states().length - 1, 0))]);
+
+  createEffect(() => {
+    if (props.open && inspector()) setTab(props.initialTab ?? 'identity');
+  });
+
+  createEffect(() => {
+    const surface = props.surface;
+    if (!surface || !props.open || !inspector()) return;
+    let disposed = false;
+    setLookupState('loading');
+    void graph.lookupWord({ surface }).then((result) => {
+      if (disposed) return;
+      if (!result) {
+        setLookup(null);
+        setNeighborhood(null);
+        setLookupState('missing');
+        return;
+      }
+      setLookup(result);
+      return graph.getNeighborhood({ entityId: result.surfaceId, depth: 1 }).then((next) => {
+        if (disposed) return;
+        setNeighborhood(next);
+        setLookupState('ready');
+      });
+    }).catch(() => {
+      if (disposed) return;
+      setLookup(null);
+      setNeighborhood(null);
+      setLookupState('missing');
+    });
+    onCleanup(() => { disposed = true; });
+  });
+
+  /**
+   * Relations display under their real ontology category. The graph never
+   * encodes sibling-form kinship (殖える/増える share one dictionary entry) as
+   * identity: the builder emits explicit `semantically-related` support edges
+   * between entry siblings, and learner state never flows across them —
+   * support is prediction-only context, never inherited knowledge.
+   */
+  const grouped = createMemo(() => {
+    const groups: Record<RelationCategory, GraphRelatedNode[]> = { identity: [], property: [], support: [] };
+    for (const relation of neighborhood()?.relations ?? []) groups[RELATION_CATEGORY[relation.relationType]].push(relation);
+    return groups;
+  });
+
+  const labelFor = (entityId: string): string | undefined => {
+    const nb = neighborhood();
+    if (!nb) return undefined;
+    if (nb.center.id === entityId) return nb.center.label;
+    return nb.relations.find((relation) => relation.id === entityId)?.label;
+  };
+
+  const canonicalForm = createMemo(() => lookup()?.lexemes[0]?.label ?? lookup()?.entries[0]?.label);
+  const reading = createMemo(() => lookup()?.pronunciations[0]?.label);
+  const senseCount = () => lookup()?.senses.length ?? 0;
+
+  const canInstall = () => {
+    const status = graph.meta().status;
+    return status === 'not-installed' || status === 'unavailable';
+  };
+
+  /** Journal rows for the timeline: retractions and retracted events applied away. */
+  const journalEvents = createMemo<HistoryEvent[]>(() => (
+    props.events ? readActiveEvidence(props.events).filter(
+      (event): event is HistoryEvent => event.kind !== 'retraction',
+    ) : []
+  ));
+
+  const timeline = createMemo<TimelineRow[]>(() => {
+    if (props.events && props.events.length > 0) {
+      return props.events.map((event) => ({
+        t: event.t,
+        kind: event.kind,
+        source: event.source,
+        claimStatus: event.kind === 'claim' ? event.toStatus : undefined,
+        detail: event.kind === 'claim' ? undefined : event.quality ?? event.rating,
+      })).sort((a, b) => b.t - a.t);
+    }
+    return states().flatMap(({ state }) => state.evidence.map((evidence) => ({
+      t: evidence.timestamp,
+      kind: 'evidence' as const,
+      source: evidence.source,
+      detail: evidence.quality,
+    }))).sort((a, b) => b.t - a.t);
+  });
+
+  const provenanceCounts = createMemo(() => {
+    const counts = new Map<string, number>();
+    for (const { state } of states()) {
+      for (const [source, count] of Object.entries(state.evidenceSourceCounts)) {
+        counts.set(source, (counts.get(source) ?? 0) + count);
+      }
+    }
+    return [...counts.entries()];
+  });
+
+  const retentionRows = createMemo(() => states().filter(({ state }) => state.retention));
+  const predictedRows = createMemo(() => states().filter(({ state }) => state.prediction));
 
   return <Show when={props.open}>
     <aside class="knowledge-drawer" aria-label={t('mlearn.Knowledge.Projection.Details')}>
@@ -53,25 +251,160 @@ export const KnowledgeProjectionDrawer: Component<ProjectionProps & { open: bool
         <strong>{t('mlearn.Knowledge.Projection.Details')}</strong>
         <button type="button" class="knowledge-drawer__close" onClick={props.onClose} aria-label={t('mlearn.Global.Close')}>×</button>
       </header>
-      <Show when={states().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Unavailable')}</p>}>
+      <Show when={inspector()} fallback={
+        <Show when={states().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Unavailable')}</p>}>
+          <div class="knowledge-drawer__tabs" role="tablist">
+            <For each={states()}>{({ state }, index) => <button type="button" role="tab" aria-selected={selected() === index()} class={selected() === index() ? 'is-active' : ''} onClick={() => setSelected(index())}>
+              {t(`mlearn.Knowledge.Capability.${state.capability}`)}
+            </button>}</For>
+          </div>
+          <Show when={active()}>{(item) => <section class={`knowledge-drawer__state knowledge-state--${knowledgeTone(item().state)}`}>
+            <p class="knowledge-drawer__label">{t(knowledgeStateLabelKey(item().state))}</p>
+            <Show when={item().state.strength}>{(strength) => <p>{t('mlearn.Knowledge.Projection.Strength', { ease: strength().ease.toFixed(2), seen: String(strength().timesSeen), hovered: String(strength().timesHovered) })}</p>}</Show>
+            <Show when={item().state.retention}>{(retention) => <p>{t('mlearn.Knowledge.Projection.Retention', { pressure: retention().pressure.toFixed(2), due: new Date(retention().dueAt).toLocaleString() })}</p>}</Show>
+            <Show when={(item().state.prediction?.reasons.length ?? 0) > 0}><div><strong>{t('mlearn.Knowledge.Projection.Because')}</strong><ul><For each={item().state.prediction?.reasons ?? []}>{(reason) => <li>{reason}</li>}</For></ul></div></Show>
+            <h3>{t('mlearn.Knowledge.Projection.Evidence.Title')}</h3>
+            <Show when={item().state.evidence.length > 0} fallback={<p>{t('mlearn.Knowledge.Projection.Evidence.None')}</p>}>
+              <ul class="knowledge-drawer__evidence"><For each={item().state.evidence}>{(evidence) => <li>{new Date(evidence.timestamp).toLocaleString()} · {evidence.source}<Show when={evidence.quality}> · {evidence.quality}</Show>{evidence.latencyMs !== undefined && ` · ${evidence.latencyMs}ms`}</li>}</For></ul>
+              <p class="knowledge-drawer__provenance">{Object.entries(item().state.evidenceSourceCounts).map(([source, count]) => `${source} ${count}`).join(' · ')}</p>
+            </Show>
+            <Show when={props.onGraph}><button type="button" class="knowledge-drawer__graph" onClick={() => props.onGraph?.(item().entityId)}>{t('mlearn.Knowledge.Projection.Graph')}</button></Show>
+          </section>}</Show>
+        </Show>
+      }>
         <div class="knowledge-drawer__tabs" role="tablist">
-          <For each={states()}>{({ state }, index) => <button type="button" role="tab" aria-selected={selected() === index()} class={selected() === index() ? 'is-active' : ''} onClick={() => setSelected(index())}>
-            {t(`mlearn.Knowledge.Capability.${state.capability}`)}
+          <For each={INSPECTOR_TABS}>{(item) => <button type="button" role="tab" aria-selected={tab() === item.key} class={tab() === item.key ? 'is-active' : ''} onClick={() => setTab(item.key)}>
+            {t(item.label)}
           </button>}</For>
         </div>
-        <Show when={active()}>{(item) => <section class={`knowledge-drawer__state knowledge-state--${knowledgeTone(item().state)}`}>
-          <p class="knowledge-drawer__label">{t(knowledgeStateLabelKey(item().state))}</p>
-          <Show when={item().state.strength}>{(strength) => <p>{t('mlearn.Knowledge.Projection.Strength', { ease: strength().ease.toFixed(2), seen: String(strength().timesSeen), hovered: String(strength().timesHovered) })}</p>}</Show>
-          <Show when={item().state.retention}>{(retention) => <p>{t('mlearn.Knowledge.Projection.Retention', { pressure: retention().pressure.toFixed(2), due: new Date(retention().dueAt).toLocaleString() })}</p>}</Show>
-          <Show when={(item().state.prediction?.reasons.length ?? 0) > 0}><div><strong>{t('mlearn.Knowledge.Projection.Because')}</strong><ul><For each={item().state.prediction?.reasons ?? []}>{(reason) => <li>{reason}</li>}</For></ul></div></Show>
-          <h3>{t('mlearn.Knowledge.Projection.Evidence.Title')}</h3>
-          <Show when={item().state.evidence.length > 0} fallback={<p>{t('mlearn.Knowledge.Projection.Evidence.None')}</p>}>
-            <ul class="knowledge-drawer__evidence"><For each={item().state.evidence}>{(evidence) => <li>{new Date(evidence.timestamp).toLocaleString()} · {evidence.source}<Show when={evidence.quality}> · {evidence.quality}</Show>{evidence.latencyMs !== undefined && ` · ${evidence.latencyMs}ms`}</li>}</For></ul>
-            <p class="knowledge-drawer__provenance">{Object.entries(item().state.evidenceSourceCounts).map(([source, count]) => `${source} ${count}`).join(' · ')}</p>
+
+        <Show when={tab() === 'identity'}>
+          <Show when={graph.meta().ready} fallback={
+            <div class="knowledge-drawer__degraded">
+              <p>{t('mlearn.Knowledge.Projection.Identity.NotInstalled')}</p>
+              <Show when={canInstall()}><button type="button" class="knowledge-drawer__install" onClick={() => installLanguageData(settings.language)}>{t('mlearn.Knowledge.Projection.Identity.Install')}</button></Show>
+            </div>
+          }>
+            <Show when={lookupState() !== 'loading' && lookup() === null} fallback={
+              <Show when={lookupState() !== 'loading' && lookup() !== null}>
+                <dl class="knowledge-drawer__identity">
+                  <div><dt>{t('mlearn.Knowledge.Projection.Identity.Surface')}</dt><dd>{props.surface}</dd></div>
+                  <Show when={canonicalForm()}><div><dt>{t('mlearn.Knowledge.Projection.Identity.Canonical')}</dt><dd>{canonicalForm()}</dd></div></Show>
+                  <Show when={reading()}><div><dt>{t('mlearn.Knowledge.Projection.Identity.Reading')}</dt><dd>{reading()}</dd></div></Show>
+                  <Show when={senseCount() > 0}><div><dt>{t('mlearn.Knowledge.Projection.Identity.Senses')}</dt><dd>{String(senseCount())}</dd></div></Show>
+                </dl>
+                <For each={CATEGORIES}>{(category) => <section class={`knowledge-drawer__section knowledge-drawer__section--${category}`}>
+                  <h3>{t(`mlearn.GraphInspector.${category}`)}</h3>
+                  <Show when={category === 'support'}><p class="knowledge-drawer__caption">{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
+                  <Show when={grouped()[category].length > 0} fallback={<p class="knowledge-drawer__none">{t('mlearn.Knowledge.Projection.Identity.None')}</p>}>
+                    <ul class="knowledge-drawer__relations">
+                      <For each={grouped()[category]}>{(relation) => <li>
+                        <span class="knowledge-drawer__rel-type">{relation.relationType}</span>
+                        <strong>{relation.label ?? relation.id}</strong>
+                        <Show when={relationMetadata(relation)}>{(metaText) => <small>{metaText()}</small>}</Show>
+                      </li>}</For>
+                    </ul>
+                  </Show>
+                </section>}</For>
+                <Show when={props.onGraph && neighborhood()}><button type="button" class="knowledge-drawer__graph" onClick={() => props.onGraph?.(neighborhood()!.center.id)}>{t('mlearn.Knowledge.Projection.FullGraph')}</button></Show>
+              </Show>
+            }>
+              <p class="knowledge-drawer__degraded">{t('mlearn.Knowledge.Projection.Identity.NoGraph')}</p>
+            </Show>
           </Show>
-          <Show when={props.onGraph}><button type="button" class="knowledge-drawer__graph" onClick={() => props.onGraph?.(item().entityId)}>{t('mlearn.Knowledge.Projection.Graph')}</button></Show>
-        </section>}</Show>
+        </Show>
+
+        <Show when={tab() === 'targets'}>
+          <Show when={props.onWordClaim}>
+            <section class="knowledge-drawer__section knowledge-drawer__section--claims">
+              <h3>{t('mlearn.Knowledge.Popup.Overall')}</h3>
+              <KnowledgeClaimControls claim={props.wordClaim} onClaim={props.onWordClaim!} />
+            </section>
+          </Show>
+          <Show when={props.onAspectClaim && (props.aspectStates?.length ?? 0) > 0}>
+            <section class="knowledge-drawer__section knowledge-drawer__section--claims">
+              <h3>{t('mlearn.Knowledge.Projection.AspectClaims')}</h3>
+              <For each={props.aspectStates}>{(item) => (
+                <div class="knowledge-drawer__claim-row">
+                  <span class="knowledge-drawer__claim-aspect">{t(ASPECT_LABEL_KEYS[item.aspect])}</span>
+                  <KnowledgeClaimControls claim={item.claim} onClaim={(claim) => props.onAspectClaim?.(item.aspect, claim)} />
+                </div>
+              )}</For>
+            </section>
+          </Show>
+          <Show when={states().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Unavailable')}</p>}>
+            <For each={props.projection?.targets}>{(target) => <section class="knowledge-drawer__target">
+              <h3>{labelFor(target.targetRef.id) ?? target.targetRef.id}</h3>
+              <For each={target.states}>{(state) => <div class={`knowledge-drawer__state knowledge-state--${knowledgeTone(state)}`}>
+                <span class="knowledge-drawer__cap">{t(`mlearn.Knowledge.Capability.${state.capability}`)}</span>
+                <strong>{t(knowledgeStateLabelKey(state))}</strong>
+                <Show when={state.basis !== 'claim'}><span class="knowledge-drawer__basis">{t(basisLabelKey(state))}</span></Show>
+                <Show when={state.basis === 'claim' && state.evidence.length > 0}><small class="knowledge-drawer__override">{t('mlearn.Knowledge.Projection.ClaimOverride')}</small></Show>
+                <Show when={state.strength}>{(strength) => <small class="knowledge-drawer__strength">{t('mlearn.Knowledge.Projection.Strength', { ease: strength().ease.toFixed(2), seen: String(strength().timesSeen), hovered: String(strength().timesHovered) })}</small>}</Show>
+              </div>}</For>
+            </section>}</For>
+          </Show>
+        </Show>
+
+        <Show when={tab() === 'evidence'}>
+          <section class="knowledge-drawer__section">
+            <h3>{t('mlearn.Knowledge.Projection.Evidence.Title')}</h3>
+            <Show when={journalEvents().length > 0} fallback={
+              <Show when={timeline().length > 0} fallback={<p>{t('mlearn.Knowledge.Projection.Evidence.None')}</p>}>
+                <ul class="knowledge-drawer__evidence">
+                  <For each={timeline()}>{(row) => <li class={`knowledge-drawer__event${row.kind === 'claim' ? ' knowledge-drawer__event--claim' : ''}`}>
+                    <span class="knowledge-drawer__event-time">{new Date(row.t).toLocaleString()}</span>
+                    <Show when={row.kind === 'claim'} fallback={<span>{row.source}<Show when={row.detail}> · {row.detail}</Show></span>}>
+                      <span>{row.claimStatus ? t('mlearn.Knowledge.Projection.Evidence.Claim', { status: t(`mlearn.WordHover.Status.${row.claimStatus[0].toUpperCase()}${row.claimStatus.slice(1)}`) }) : t('mlearn.Knowledge.Projection.Evidence.ClaimCleared')}</span>
+                    </Show>
+                  </li>}</For>
+                </ul>
+              </Show>
+            }>
+              <KnowledgeHistoryTimeline events={journalEvents()} />
+            </Show>
+          </section>
+          <section class="knowledge-drawer__section">
+            <h3>{t('mlearn.Knowledge.Projection.Provenance')}</h3>
+            <Show when={provenanceCounts().length > 0} fallback={<p>{t('mlearn.Knowledge.Projection.Evidence.None')}</p>}>
+              <p class="knowledge-drawer__provenance">{provenanceCounts().map(([source, count]) => `${source} ${count}`).join(' · ')}</p>
+            </Show>
+          </section>
+          <section class="knowledge-drawer__section">
+            <h3>{t('mlearn.Knowledge.Projection.Retention')}</h3>
+            <Show when={retentionRows().length > 0} fallback={<p>{t('mlearn.Knowledge.Projection.Evidence.None')}</p>}>
+              <ul class="knowledge-drawer__retention"><For each={retentionRows()}>{({ state }) => <li>
+                <span class="knowledge-drawer__cap">{t(`mlearn.Knowledge.Capability.${state.capability}`)}</span>
+                {t('mlearn.Knowledge.Projection.Retention', { pressure: state.retention!.pressure.toFixed(2), due: new Date(state.retention!.dueAt).toLocaleString() })}
+              </li>}</For></ul>
+            </Show>
+          </section>
+        </Show>
+
+        <Show when={tab() === 'prediction'}>
+          <Show when={predictedRows().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Prediction.None')}</p>}>
+            <For each={predictedRows()}>{({ state, entityId }) => <section class="knowledge-drawer__prediction knowledge-state--predicted">
+              <h3>{t(`mlearn.Knowledge.Capability.${state.capability}`)} · {labelFor(entityId) ?? entityId}</h3>
+              <p class="knowledge-drawer__label">{t('mlearn.Knowledge.Projection.Predicted')} · {Math.round(state.prediction!.value * 100)}%</p>
+              <ul><For each={state.prediction!.reasons}>{(reason) => <li>{reason}</li>}</For></ul>
+            </section>}</For>
+          </Show>
+        </Show>
       </Show>
     </aside>
   </Show>;
 };
+
+function relationMetadata(relation: GraphRelatedNode): string | undefined {
+  return [relation.domain, relation.confidence, relation.provenance].filter((value) => value !== undefined).join(' · ');
+}
+
+function basisLabelKey(state: KnowledgeProjectionState): string {
+  switch (state.basis) {
+    case 'claim': return 'mlearn.Knowledge.Basis.Claim';
+    case 'evidence': return 'mlearn.Knowledge.Basis.Evidence';
+    case 'prediction': return 'mlearn.Knowledge.Basis.Predicted';
+    case 'excluded': return 'mlearn.Knowledge.Basis.Excluded';
+    default: return 'mlearn.Knowledge.Basis.Unmeasured';
+  }
+}

@@ -33,6 +33,11 @@ vi.mock('../../hooks/useVirtualizer', () => ({
     measure: vi.fn(),
   }),
 }));
+vi.mock('../../services/dictionaryUniverse', () => ({
+  loadDictionaryUniverse: vi.fn(async () => []),
+  clearDictionaryUniverseCache: vi.fn(),
+}));
+
 
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,

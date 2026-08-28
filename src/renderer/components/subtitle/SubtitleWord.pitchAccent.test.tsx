@@ -29,6 +29,8 @@ const mockSettings: Record<string, unknown> = {
 const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
   (): ComprehensiveWordStatusResult => ({
     status: 'unknown',
+    basis: 'unmeasured',
+    evidenceStatus: 'unknown',
     source: 'None',
     timesSeen: 0,
   }),
@@ -425,6 +427,8 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     mockSettings.colorKnownWords = false;
     mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
       status: 'known' as const,
+      basis: 'evidence' as const,
+      evidenceStatus: 'known' as const,
       source: 'Srs',
       timesSeen: 3,
     });
@@ -447,6 +451,8 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     mockSettings.hideProsodyForKnownWords = true;
     mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
       status: 'known' as const,
+      basis: 'evidence' as const,
+      evidenceStatus: 'known' as const,
       source: 'Srs',
       timesSeen: 3,
     });
@@ -490,6 +496,8 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     });
     mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
       status: 'known' as const,
+      basis: 'evidence' as const,
+      evidenceStatus: 'known' as const,
       source: 'Srs',
       timesSeen: 3,
     });

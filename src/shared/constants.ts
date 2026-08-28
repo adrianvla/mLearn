@@ -535,10 +535,6 @@ export const KNOWLEDGE_SOURCE_DISPLAY_NAMES = {
 export type KnowledgeSourceDisplayName = typeof KNOWLEDGE_SOURCE_DISPLAY_NAMES[KnowledgeSource];
 export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None';
 
-// Knowledge resolution modes
-export const KNOWLEDGE_RESOLUTION_MODES = ['order', 'highest', 'lowest'] as const;
-export type KnowledgeResolutionMode = typeof KNOWLEDGE_RESOLUTION_MODES[number];
-
 // Word hover trigger modes for Reader
 export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as const;
 export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];

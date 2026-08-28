@@ -43,6 +43,9 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Rating.Matrix.Struggled': return 'Struggled';
     case 'mlearn.Rating.Matrix.Fluent': return 'Fluent';
     case 'mlearn.Rating.Matrix.AllFluent': return 'All tested fluent';
+    case 'mlearn.Rating.Compact.AllFluent': return 'All fluent';
+    case 'mlearn.Rating.Compact.AllEasy': return 'All easy';
+    case 'mlearn.Rating.Compact.Adjust': return 'Adjust';
     case 'mlearn.Knowledge.Aspect.Prosody': return 'Prosody';
     case 'mlearn.Flashcards.Review.Again': return 'Again';
     case 'mlearn.Flashcards.Review.Hard': return 'Hard';
@@ -570,6 +573,30 @@ describe('FlashcardReview failure attribution', () => {
     const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
     expect(attemptIds.size).toBe(1);
     expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), { attemptId: [...attemptIds][0] });
+    dispose();
+  });
+
+  it('Adjust starts fluent, submits only the reading exception, and shares one attempt ID', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+
+    clickShowAnswer(container);
+    const adjust = container.querySelector<HTMLButtonElement>('.rating-matrix__compact-adjust');
+    if (!adjust) throw new Error('Adjust button missing');
+    adjust.click();
+    expect(adjust.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelectorAll('.rating-matrix__cell--selected').length).toBe(3);
+
+    const readingMissed = matrixCell(container, 'Reading', 0);
+    if (!readingMissed) throw new Error('Reading missed cell missing');
+    readingMissed.click();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+
+    const calls = mockRecordAttempt.mock.calls;
+    expect(calls).toHaveLength(3);
+    expect(calls.find((call) => call[1] === 'reading')?.[2]).toBe('missed');
+    expect(calls.filter((call) => call[1] !== 'reading').every((call) => call[2] === 'fluent')).toBe(true);
+    expect(new Set(calls.map((call) => (call[3] as { attemptId?: string }).attemptId)).size).toBe(1);
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.anything());
     dispose();
   });
 

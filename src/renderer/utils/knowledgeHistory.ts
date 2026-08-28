@@ -22,6 +22,17 @@ export interface ReplayedHistory {
   bands: SourceReignBand[];
 }
 
+/**
+ * A strength curve only communicates something once it has enough temporal
+ * data: at least three plotted points spread across at least two distinct
+ * calendar days. Anything less renders as the event timeline, never a chart.
+ */
+export function isChartableHistory(points: readonly HistoryCurvePoint[]): boolean {
+  if (points.length < 3) return false;
+  const days = new Set(points.map((point) => new Date(point.t).toDateString()));
+  return days.size >= 2;
+}
+
 export interface ReplayOptions {
   now: number;
   learningThreshold?: number;
